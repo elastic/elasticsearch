@@ -516,13 +516,19 @@ wait_for_elasticsearch_status() {
 # $1 - expected version
 check_elasticsearch_version() {
     local version=$1
-    local versionToCheck=$(echo $version | sed -e 's/-SNAPSHOT//')
+    local versionToCheck
+    local major=$(echo ${version} | cut -d. -f1 )
+    if [ $major -ge 7 ] ; then
+        versionToCheck=$version
+    else
+        versionToCheck=$(echo ${version} | sed -e 's/-SNAPSHOT//')
+    fi
 
     run curl -s localhost:9200
     [ "$status" -eq 0 ]
 
     echo $output | grep \"number\"\ :\ \"$versionToCheck\" || {
-        echo "Installed an unexpected version:"
+        echo "Expected $versionToCheck but installed an unexpected version:"
         curl -s localhost:9200
         false
     }
@@ -556,7 +562,7 @@ run_elasticsearch_tests() {
 move_config() {
     local oldConfig="$ESCONFIG"
     # The custom config directory is not under /tmp or /var/tmp because
-    # systemd's private temp directory functionaly means different
+    # systemd's private temp directory functionally means different
     # processes can have different views of what's in these directories
     export ESCONFIG="${1:-$(mktemp -p /etc -d -t 'config.XXXX')}"
     echo "Moving configuration directory from $oldConfig to $ESCONFIG"

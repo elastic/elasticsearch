@@ -74,6 +74,10 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
@@ -171,6 +175,14 @@ public class SecurityClient {
 
     public void hasPrivileges(HasPrivilegesRequest request, ActionListener<HasPrivilegesResponse> listener) {
         client.execute(HasPrivilegesAction.INSTANCE, request, listener);
+    }
+
+    public GetUserPrivilegesRequestBuilder prepareGetUserPrivileges(String username) {
+        return new GetUserPrivilegesRequestBuilder(client).username(username);
+    }
+
+    public void listUserPrivileges(GetUserPrivilegesRequest request, ActionListener<GetUserPrivilegesResponse> listener) {
+        client.execute(GetUserPrivilegesAction.INSTANCE, request, listener);
     }
 
     /**
@@ -312,6 +324,10 @@ public class SecurityClient {
 
     public InvalidateTokenRequestBuilder prepareInvalidateToken(String token) {
         return new InvalidateTokenRequestBuilder(client).setTokenString(token);
+    }
+
+    public InvalidateTokenRequestBuilder prepareInvalidateToken() {
+        return new InvalidateTokenRequestBuilder(client);
     }
 
     public void invalidateToken(InvalidateTokenRequest request, ActionListener<InvalidateTokenResponse> listener) {

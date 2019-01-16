@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.netty4;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.common.logging.Loggers;
@@ -37,14 +38,14 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
     public void setUp() throws Exception {
         super.setUp();
         appender = new MockLogAppender();
-        Loggers.addAppender(Loggers.getLogger(ESLoggingHandler.class), appender);
-        Loggers.addAppender(Loggers.getLogger(TransportLogger.class), appender);
+        Loggers.addAppender(LogManager.getLogger(ESLoggingHandler.class), appender);
+        Loggers.addAppender(LogManager.getLogger(TransportLogger.class), appender);
         appender.start();
     }
 
     public void tearDown() throws Exception {
-        Loggers.removeAppender(Loggers.getLogger(ESLoggingHandler.class), appender);
-        Loggers.removeAppender(Loggers.getLogger(TransportLogger.class), appender);
+        Loggers.removeAppender(LogManager.getLogger(ESLoggingHandler.class), appender);
+        Loggers.removeAppender(LogManager.getLogger(TransportLogger.class), appender);
         appender.stop();
         super.tearDown();
     }

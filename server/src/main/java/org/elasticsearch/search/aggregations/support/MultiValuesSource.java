@@ -35,7 +35,7 @@ public abstract class MultiValuesSource <VS extends ValuesSource> {
 
     public static class NumericMultiValuesSource extends MultiValuesSource<ValuesSource.Numeric> {
         public NumericMultiValuesSource(Map<String, ValuesSourceConfig<ValuesSource.Numeric>> valuesSourceConfigs,
-                                        QueryShardContext context) throws IOException {
+                                        QueryShardContext context) {
             values = new HashMap<>(valuesSourceConfigs.size());
             for (Map.Entry<String, ValuesSourceConfig<ValuesSource.Numeric>> entry : valuesSourceConfigs.entrySet()) {
                 values.put(entry.getKey(), entry.getValue().toValuesSource(context));
@@ -51,40 +51,8 @@ public abstract class MultiValuesSource <VS extends ValuesSource> {
         }
     }
 
-    public static class BytesMultiValuesSource extends MultiValuesSource<ValuesSource.Bytes> {
-        public BytesMultiValuesSource(Map<String, ValuesSourceConfig<ValuesSource.Bytes>> valuesSourceConfigs,
-                                      QueryShardContext context) throws IOException {
-            values = new HashMap<>(valuesSourceConfigs.size());
-            for (Map.Entry<String, ValuesSourceConfig<ValuesSource.Bytes>> entry : valuesSourceConfigs.entrySet()) {
-                values.put(entry.getKey(), entry.getValue().toValuesSource(context));
-            }
-        }
-
-        public Object getField(String fieldName, LeafReaderContext ctx) throws IOException {
-            ValuesSource.Bytes value = values.get(fieldName);
-            if (value == null) {
-                throw new IllegalArgumentException("Could not find field name [" + fieldName + "] in multiValuesSource");
-            }
-            return value.bytesValues(ctx);
-        }
-    }
-
-    public static class GeoPointValuesSource extends MultiValuesSource<ValuesSource.GeoPoint> {
-        public GeoPointValuesSource(Map<String, ValuesSourceConfig<ValuesSource.GeoPoint>> valuesSourceConfigs,
-                                    QueryShardContext context) throws IOException {
-            values = new HashMap<>(valuesSourceConfigs.size());
-            for (Map.Entry<String, ValuesSourceConfig<ValuesSource.GeoPoint>> entry : valuesSourceConfigs.entrySet()) {
-                values.put(entry.getKey(), entry.getValue().toValuesSource(context));
-            }
-        }
-    }
-
     public boolean needsScores() {
         return values.values().stream().anyMatch(ValuesSource::needsScores);
-    }
-
-    public String[] fieldNames() {
-        return values.keySet().toArray(new String[0]);
     }
 
     public boolean areValuesSourcesEmpty() {

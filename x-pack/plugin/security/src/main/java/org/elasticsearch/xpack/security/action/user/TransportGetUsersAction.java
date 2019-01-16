@@ -32,13 +32,15 @@ import java.util.stream.Collectors;
 
 public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequest, GetUsersResponse> {
 
+    private final Settings settings;
     private final NativeUsersStore usersStore;
     private final ReservedRealm reservedRealm;
 
     @Inject
     public TransportGetUsersAction(Settings settings, ActionFilters actionFilters,
                                    NativeUsersStore usersStore, TransportService transportService, ReservedRealm reservedRealm) {
-        super(settings, GetUsersAction.NAME, transportService, actionFilters, GetUsersRequest::new);
+        super(GetUsersAction.NAME, transportService, actionFilters, GetUsersRequest::new);
+        this.settings = settings;
         this.usersStore = usersStore;
         this.reservedRealm = reservedRealm;
     }

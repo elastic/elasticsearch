@@ -165,7 +165,7 @@ public class TransportRolloverActionTests extends ESTestCase {
                 assertEquals(sourceAlias, ((AliasAction.Remove) action).getAlias());
                 foundRemove = true;
             } else {
-                throw new AssertionError("Unknow index [" + action.getIndex() + "]");
+                throw new AssertionError("Unknown index [" + action.getIndex() + "]");
             }
         }
         assertTrue(foundAdd);
@@ -195,7 +195,7 @@ public class TransportRolloverActionTests extends ESTestCase {
                 assertFalse(addAction.writeIndex());
                 foundRemoveWrite = true;
             } else {
-                throw new AssertionError("Unknow index [" + action.getIndex() + "]");
+                throw new AssertionError("Unknown index [" + action.getIndex() + "]");
             }
         }
         assertTrue(foundAddWrite);
@@ -245,7 +245,7 @@ public class TransportRolloverActionTests extends ESTestCase {
 
     public void testGenerateRolloverIndexName() {
         String invalidIndexName = randomAlphaOfLength(10) + "A";
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
         expectThrows(IllegalArgumentException.class, () ->
             TransportRolloverAction.generateRolloverIndexName(invalidIndexName, indexNameExpressionResolver));
         int num = randomIntBetween(0, 100);

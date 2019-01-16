@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class ClusterSearchShardsAction extends Action<ClusterSearchShardsResponse> {
 
@@ -32,6 +33,11 @@ public class ClusterSearchShardsAction extends Action<ClusterSearchShardsRespons
 
     @Override
     public ClusterSearchShardsResponse newResponse() {
-        return new ClusterSearchShardsResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<ClusterSearchShardsResponse> getResponseReader() {
+        return ClusterSearchShardsResponse::new;
     }
 }

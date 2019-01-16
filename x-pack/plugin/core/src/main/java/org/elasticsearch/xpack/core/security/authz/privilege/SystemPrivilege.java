@@ -19,11 +19,13 @@ public final class SystemPrivilege extends Privilege {
             "internal:*",
             "indices:monitor/*", // added for monitoring
             "cluster:monitor/*",  // added for monitoring
+            "cluster:admin/bootstrap/*", // for the bootstrap service
             "cluster:admin/reroute", // added for DiskThresholdDecider.DiskListener
             "indices:admin/mapping/put", // needed for recovery and shrink api
             "indices:admin/template/put", // needed for the TemplateUpgradeService
             "indices:admin/template/delete", // needed for the TemplateUpgradeService
-            "indices:admin/seq_no/global_checkpoint_sync*" // needed for global checkpoint syncs
+            "indices:admin/seq_no/global_checkpoint_sync*", // needed for global checkpoint syncs
+            "indices:admin/settings/update" // needed for DiskThresholdMonitor.markIndicesReadOnly
     ), Automatons.patterns("internal:transport/proxy/*"))); // no proxy actions for system user!
 
     private SystemPrivilege() {

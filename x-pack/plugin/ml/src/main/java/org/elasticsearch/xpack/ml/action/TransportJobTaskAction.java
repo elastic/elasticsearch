@@ -11,21 +11,17 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.JobTaskRequest;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
  * Base class that redirects a request to a node where the job task is running.
@@ -38,12 +34,12 @@ public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Requ
 
     protected final AutodetectProcessManager processManager;
 
-    TransportJobTaskAction(Settings settings, String actionName, ClusterService clusterService,
+    TransportJobTaskAction(String actionName, ClusterService clusterService,
                            TransportService transportService, ActionFilters actionFilters,
-                           Supplier<Request> requestSupplier,
-                           Supplier<Response> responseSupplier, String nodeExecutor, AutodetectProcessManager processManager) {
-        super(settings, actionName, clusterService, transportService, actionFilters,
-            requestSupplier, responseSupplier, nodeExecutor);
+                           Writeable.Reader<Request> requestReader, Writeable.Reader<Response> responseReader,
+                           String nodeExecutor, AutodetectProcessManager processManager) {
+        super(actionName, clusterService, transportService, actionFilters,
+            requestReader, responseReader, responseReader, nodeExecutor);
         this.processManager = processManager;
     }
 
@@ -52,8 +48,6 @@ public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Requ
         String jobId = request.getJobId();
         // We need to check whether there is at least an assigned task here, otherwise we cannot redirect to the
         // node running the job task.
-        ClusterState state = clusterService.state();
-        JobManager.getJobOrThrowIfUnknown(jobId, state);
         PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
         if (jobTask == null || jobTask.isAssigned() == false) {

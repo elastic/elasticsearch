@@ -21,6 +21,7 @@ package org.elasticsearch.upgrades;
 import org.apache.http.util.EntityUtils;
 import org.junit.Before;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 
 import java.io.IOException;
 
@@ -59,9 +60,10 @@ public class XPackIT extends AbstractRollingTestCase {
             + "{\"index\":{}}\n"
             + "{\"f\": \"2\"}\n");
         bulk.addParameter("refresh", "true");
+        bulk.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         client().performRequest(bulk);
 
-        Request sql = new Request("POST", "/_xpack/sql");
+        Request sql = new Request("POST", "/_sql");
         sql.setJsonEntity("{\"query\": \"SELECT * FROM sql_test WHERE f > 1 ORDER BY f ASC\"}");
         String response = EntityUtils.toString(client().performRequest(sql).getEntity());
         assertEquals("{\"columns\":[{\"name\":\"f\",\"type\":\"text\"}],\"rows\":[[\"2\"]]}", response);
@@ -78,15 +80,15 @@ public class XPackIT extends AbstractRollingTestCase {
      * trial license a little bit to make sure that it works.
      */
     public void testTrialLicense() throws IOException {
-        Request startTrial = new Request("POST", "/_xpack/license/start_trial");
+        Request startTrial = new Request("POST", "/_license/start_trial");
         startTrial.addParameter("acknowledge", "true");
         client().performRequest(startTrial);
 
         String noJobs = EntityUtils.toString(
-            client().performRequest(new Request("GET", "/_xpack/ml/anomaly_detectors")).getEntity());
+            client().performRequest(new Request("GET", "/_ml/anomaly_detectors")).getEntity());
         assertEquals("{\"count\":0,\"jobs\":[]}", noJobs);
 
-        Request createJob = new Request("PUT", "/_xpack/ml/anomaly_detectors/test_job");
+        Request createJob = new Request("PUT", "/_ml/anomaly_detectors/test_job");
         createJob.setJsonEntity(
                   "{\n"
                 + "  \"analysis_config\" : {\n"

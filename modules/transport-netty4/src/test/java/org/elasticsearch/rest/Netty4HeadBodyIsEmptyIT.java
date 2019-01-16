@@ -34,11 +34,9 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
-
     public void testHeadRoot() throws IOException {
         headTestCase("/", emptyMap(), greaterThan(0));
         headTestCase("/", singletonMap("pretty", ""), greaterThan(0));
@@ -46,17 +44,17 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
     }
 
     private void createTestDoc() throws IOException {
-        createTestDoc("test", "test");
+        createTestDoc("test");
     }
 
-    private void createTestDoc(final String indexName, final String typeName) throws IOException {
+    private void createTestDoc(final String indexName) throws IOException {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {
                 builder.field("test", "test");
             }
             builder.endObject();
-            Request request = new Request("PUT", "/" + indexName + "/" + typeName + "/" + "1");
+            Request request = new Request("PUT", "/" + indexName + "/_doc/" + "1");
             request.setJsonEntity(Strings.toString(builder));
             client().performRequest(request);
         }
@@ -64,9 +62,9 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
 
     public void testDocumentExists() throws IOException {
         createTestDoc();
-        headTestCase("/test/test/1", emptyMap(), greaterThan(0));
-        headTestCase("/test/test/1", singletonMap("pretty", "true"), greaterThan(0));
-        headTestCase("/test/test/2", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
+        headTestCase("/test/_doc/1", emptyMap(), greaterThan(0));
+        headTestCase("/test/_doc/1", singletonMap("pretty", "true"), greaterThan(0));
+        headTestCase("/test/_doc/2", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
     }
 
     public void testIndexExists() throws IOException {
@@ -75,16 +73,22 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
         headTestCase("/test", singletonMap("pretty", "true"), greaterThan(0));
     }
 
+    @Override
+    protected boolean getStrictDeprecationMode() {
+        // Remove this override when we remove the reference to types below
+        return false;
+    }
+
     public void testTypeExists() throws IOException {
         createTestDoc();
-        headTestCase("/test/_mapping/test", emptyMap(), greaterThan(0));
-        headTestCase("/test/_mapping/test", singletonMap("pretty", "true"), greaterThan(0));
+        headTestCase("/test/_mapping/_doc", emptyMap(), greaterThan(0));
+        headTestCase("/test/_mapping/_doc", singletonMap("pretty", "true"), greaterThan(0));
     }
 
     public void testTypeDoesNotExist() throws IOException {
         createTestDoc();
         headTestCase("/test/_mapping/does-not-exist", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
-        headTestCase("/text/_mapping/test,does-not-exist", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
+        headTestCase("/text/_mapping/_doc,does-not-exist", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
     }
 
     public void testAliasExists() throws IOException {
@@ -145,21 +149,17 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
 
     public void testGetSourceAction() throws IOException {
         createTestDoc();
-        headTestCase("/test/test/1/_source", emptyMap(), greaterThan(0));
-        headTestCase("/test/test/2/_source", emptyMap(), NOT_FOUND.getStatus(), equalTo(0));
+        headTestCase("/test/_source/1", emptyMap(), greaterThan(0));
+        headTestCase("/test/_source/2", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
 
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {
                 builder.startObject("mappings");
                 {
-                    builder.startObject("test-no-source");
+                    builder.startObject("_source");
                     {
-                        builder.startObject("_source");
-                        {
-                            builder.field("enabled", false);
-                        }
-                        builder.endObject();
+                        builder.field("enabled", false);
                     }
                     builder.endObject();
                 }
@@ -170,8 +170,8 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
             Request request = new Request("PUT", "/test-no-source");
             request.setJsonEntity(Strings.toString(builder));
             client().performRequest(request);
-            createTestDoc("test-no-source", "test-no-source");
-            headTestCase("/test-no-source/test-no-source/1/_source", emptyMap(), NOT_FOUND.getStatus(), equalTo(0));
+            createTestDoc("test-no-source");
+            headTestCase("/test-no-source/_source/1", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
         }
     }
 

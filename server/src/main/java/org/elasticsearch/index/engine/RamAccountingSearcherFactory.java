@@ -48,6 +48,11 @@ final class RamAccountingSearcherFactory extends SearcherFactory {
 
     @Override
     public IndexSearcher newSearcher(IndexReader reader, IndexReader previousReader) throws IOException {
+        processReaders(reader, previousReader);
+        return super.newSearcher(reader, previousReader);
+    }
+
+    public void processReaders(IndexReader reader, IndexReader previousReader) {
         final CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
 
         // Construct a list of the previous segment readers, we only want to track memory used
@@ -79,6 +84,5 @@ final class RamAccountingSearcherFactory extends SearcherFactory {
                 segmentReader.getCoreCacheHelper().addClosedListener(k -> breaker.addWithoutBreaking(-ramBytesUsed));
             }
         }
-        return super.newSearcher(reader, previousReader);
     }
 }

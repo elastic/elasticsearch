@@ -1,15 +1,18 @@
 [role="xpack"]
 [[watcher-api-activate-watch]]
-=== Activate Watch API
+=== Activate watch API
+++++
+<titleabbrev>Activate watch</titleabbrev>
+++++
 
 A watch can be either
-{xpack-ref}/how-watcher-works.html#watch-active-state[active or inactive]. This
+{stack-ov}/how-watcher-works.html#watch-active-state[active or inactive]. This
 API enables you to activate a currently inactive watch.
 
 [float]
 ==== Request
 
-`PUT _xpack/watcher/watch/<watch_id>/_activate`
+`PUT _watcher/watch/<watch_id>/_activate`
 
 [float]
 ==== Path Parameters
@@ -31,7 +34,7 @@ call the <<watcher-api-get-watch, Get Watch API>>:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/watcher/watch/my_watch
+GET _watcher/watch/my_watch
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:my_inactive_watch]
@@ -62,7 +65,7 @@ You can activate the watch by executing the following API call:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/my_watch/_activate
+PUT _watcher/watch/my_watch/_activate
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:my_inactive_watch]

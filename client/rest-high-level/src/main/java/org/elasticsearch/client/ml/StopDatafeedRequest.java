@@ -114,7 +114,7 @@ public class StopDatafeedRequest extends ActionRequest implements ToXContentObje
         this.timeout = timeout;
     }
 
-    public Boolean isForce() {
+    public Boolean getForce() {
         return force;
     }
 
@@ -129,7 +129,7 @@ public class StopDatafeedRequest extends ActionRequest implements ToXContentObje
         this.force = force;
     }
 
-    public Boolean isAllowNoDatafeeds() {
+    public Boolean getAllowNoDatafeeds() {
         return this.allowNoDatafeeds;
     }
 

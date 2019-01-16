@@ -13,8 +13,10 @@ import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
@@ -24,7 +26,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
+import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.joda.time.format.DateTimeFormatter;
 
@@ -69,7 +71,7 @@ import java.util.stream.Collectors;
  */
 public class HttpExporter extends Exporter {
 
-    private static final Logger logger = Loggers.getLogger(HttpExporter.class);
+    private static final Logger logger = LogManager.getLogger(HttpExporter.class);
 
     public static final String TYPE = "http";
 
@@ -164,7 +166,7 @@ public class HttpExporter extends Exporter {
     /**
      * Minimum supported version of the remote monitoring cluster (same major).
      */
-    public static final Version MIN_SUPPORTED_CLUSTER_VERSION = Version.V_7_0_0_alpha1;
+    public static final Version MIN_SUPPORTED_CLUSTER_VERSION = Version.V_7_0_0;
 
     /**
      * The {@link RestClient} automatically pools connections and keeps them alive as necessary.
@@ -661,12 +663,8 @@ public class HttpExporter extends Exporter {
         }
     }
 
-    /**
-     * Determine if this {@link HttpExporter} is ready to use.
-     *
-     * @return {@code true} if it is ready. {@code false} if not.
-     */
-    boolean isExporterReady() {
+    @Override
+    public void openBulk(final ActionListener<ExportBulk> listener) {
         final boolean canUseClusterAlerts = config.licenseState().isMonitoringClusterAlertsAllowed();
 
         // if this changes between updates, then we need to add OR remove the watches
@@ -674,19 +672,16 @@ public class HttpExporter extends Exporter {
             resource.markDirty();
         }
 
-        // block until all resources are verified to exist
-        return resource.checkAndPublishIfDirty(client);
-    }
+        resource.checkAndPublishIfDirty(client, ActionListener.wrap((success) -> {
+            if (success) {
+                final String name = "xpack.monitoring.exporters." + config.name();
 
-    @Override
-    public HttpExportBulk openBulk() {
-        // block until all resources are verified to exist
-        if (isExporterReady()) {
-            String name = "xpack.monitoring.exporters." + config.name();
-            return new HttpExportBulk(name, client, defaultParams, dateTimeFormatter, threadContext);
-        }
-
-        return null;
+                listener.onResponse(new HttpExportBulk(name, client, defaultParams, dateTimeFormatter, threadContext));
+            } else {
+                // we're not ready yet, so keep waiting
+                listener.onResponse(null);
+            }
+        }, listener::onFailure));
     }
 
     @Override

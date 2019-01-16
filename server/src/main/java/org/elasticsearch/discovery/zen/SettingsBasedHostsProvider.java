@@ -19,7 +19,8 @@
 
 package org.elasticsearch.discovery.zen;
 
-import org.elasticsearch.common.component.AbstractComponent;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -38,7 +39,9 @@ import static java.util.Collections.emptyList;
  * An example unicast hosts setting might look as follows:
  * [67.81.244.10, 67.81.244.11:9305, 67.81.244.15:9400]
  */
-public class SettingsBasedHostsProvider extends AbstractComponent implements UnicastHostsProvider {
+public class SettingsBasedHostsProvider implements UnicastHostsProvider {
+
+    private static final Logger logger = LogManager.getLogger(SettingsBasedHostsProvider.class);
 
     public static final Setting<List<String>> DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING =
         Setting.listSetting("discovery.zen.ping.unicast.hosts", emptyList(), Function.identity(), Setting.Property.NodeScope);
@@ -52,8 +55,6 @@ public class SettingsBasedHostsProvider extends AbstractComponent implements Uni
     private final int limitPortCounts;
 
     public SettingsBasedHostsProvider(Settings settings, TransportService transportService) {
-        super(settings);
-
         if (DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.exists(settings)) {
             configuredHosts = DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.get(settings);
             // we only limit to 1 address, makes no sense to ping 100 ports

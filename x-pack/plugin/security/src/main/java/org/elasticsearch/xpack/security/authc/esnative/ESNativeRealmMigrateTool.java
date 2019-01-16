@@ -9,8 +9,8 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.LoggerContext;
@@ -26,7 +26,6 @@ import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -68,7 +67,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 /**
  * This is the command-line tool used for migrating users and roles from the file-based realm into the new native realm using the API for
@@ -105,10 +103,10 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
             super("Migrates users or roles from file to native realm");
             this.username = parser.acceptsAll(Arrays.asList("u", "username"),
                     "User used to authenticate with Elasticsearch")
-                    .withRequiredArg();
+                    .withRequiredArg().required();
             this.password = parser.acceptsAll(Arrays.asList("p", "password"),
                     "Password used to authenticate with Elasticsearch")
-                    .withRequiredArg();
+                    .withRequiredArg().required();
             this.url = parser.acceptsAll(Arrays.asList("U", "url"),
                     "URL of Elasticsearch host")
                     .withRequiredArg();
@@ -150,7 +148,7 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
             // If using SSL, need a custom service because it's likely a self-signed certificate
             if ("https".equalsIgnoreCase(uri.getScheme())) {
                 final SSLService sslService = new SSLService(settings, env);
-                final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(setting("http.ssl"));
+                final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.http.ssl");
                 final HttpsURLConnection httpsConn = (HttpsURLConnection) url.openConnection();
                 AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                     // Requires permission java.lang.RuntimePermission "setFactory";
@@ -205,7 +203,7 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
 
         Set<String> getUsersThatExist(Terminal terminal, Settings settings, Environment env, OptionSet options) throws Exception {
             Set<String> existingUsers = new HashSet<>();
-            String allUsersJson = postURL(settings, env, "GET", this.url.value(options) + "/_xpack/security/user/", options, null);
+            String allUsersJson = postURL(settings, env, "GET", this.url.value(options) + "/_security/user/", options, null);
             // EMPTY is safe here because we never use namedObject
             try (XContentParser parser = JsonXContent.jsonXContent
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, allUsersJson)) {
@@ -278,7 +276,7 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
                 try {
                     reqBody = createUserJson(userToRoles.get(user), userToHashedPW.get(user));
                     String resp = postURL(env.settings(), env, "POST",
-                            this.url.value(options) + "/_xpack/security/user/" + user, options, reqBody);
+                        this.url.value(options) + "/_security/user/" + user, options, reqBody);
                     terminal.println(resp);
                 } catch (Exception e) {
                     throw new ElasticsearchException("failed to migrate user [" + user + "] with body: " + reqBody, e);
@@ -288,7 +286,7 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
 
         Set<String> getRolesThatExist(Terminal terminal, Settings settings, Environment env, OptionSet options) throws Exception {
             Set<String> existingRoles = new HashSet<>();
-            String allRolesJson = postURL(settings, env, "GET", this.url.value(options) + "/_xpack/security/role/", options, null);
+            String allRolesJson = postURL(settings, env, "GET", this.url.value(options) + "/_security/role/", options, null);
             // EMPTY is safe here because we never use namedObject
             try (XContentParser parser = JsonXContent.jsonXContent
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, allRolesJson)) {
@@ -347,7 +345,7 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
                 try {
                     reqBody = createRoleJson(roles.get(roleName));
                     String resp = postURL(env.settings(), env, "POST",
-                            this.url.value(options) + "/_xpack/security/role/" + roleName, options, reqBody);
+                        this.url.value(options) + "/_security/role/" + roleName, options, reqBody);
                     terminal.println(resp);
                 } catch (Exception e) {
                     throw new ElasticsearchException("failed to migrate role [" + roleName + "] with body: " + reqBody, e);
@@ -360,7 +358,7 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
      * Creates a new Logger that is detached from the ROOT logger and only has an appender that will output log messages to the terminal
      */
     static Logger getTerminalLogger(final Terminal terminal) {
-        final Logger logger = ESLoggerFactory.getLogger(ESNativeRealmMigrateTool.class);
+        final Logger logger = LogManager.getLogger(ESNativeRealmMigrateTool.class);
         Loggers.setLevel(logger, Level.ALL);
 
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);

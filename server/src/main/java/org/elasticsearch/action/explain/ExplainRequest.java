@@ -28,11 +28,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Explain request encapsulating the explain query and document identifier to get an explanation for.
@@ -41,7 +44,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
 
-    private String type = "_all";
+    private String type = MapperService.SINGLE_MAPPING_NAME;
     private String id;
     private String routing;
     private String preference;
@@ -56,16 +59,33 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     public ExplainRequest() {
     }
 
+    /**
+     * @deprecated Types are in the process of being removed. Use {@link ExplainRequest(String, String) instead.}
+     */
+    @Deprecated
     public ExplainRequest(String index, String type, String id) {
         this.index = index;
         this.type = type;
         this.id = id;
     }
 
+    public ExplainRequest(String index, String id) {
+        this.index = index;
+        this.id = id;
+    }
+
+    /**
+     * @deprecated Types are in the process of being removed.
+     */
+    @Deprecated
     public String type() {
         return type;
     }
 
+    /**
+     * @deprecated Types are in the process of being removed.
+     */
+    @Deprecated
     public ExplainRequest type(String type) {
         this.type = type;
         return this;
@@ -152,11 +172,11 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validateNonNullIndex();
-        if (type == null) {
-            validationException = ValidateActions.addValidationError("type is missing", validationException);
+        if (Strings.isEmpty(type)) {
+            validationException = addValidationError("type is missing", validationException);
         }
-        if (id == null) {
-            validationException = ValidateActions.addValidationError("id is missing", validationException);
+        if (Strings.isEmpty(id)) {
+            validationException = addValidationError("id is missing", validationException);
         }
         if (query == null) {
             validationException = ValidateActions.addValidationError("query is missing", validationException);

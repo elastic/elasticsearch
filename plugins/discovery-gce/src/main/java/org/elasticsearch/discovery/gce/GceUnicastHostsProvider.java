@@ -19,21 +19,16 @@
 
 package org.elasticsearch.discovery.gce;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.function.Function;
-
 import com.google.api.services.compute.model.AccessConfig;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.NetworkInterface;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
@@ -44,9 +39,18 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.function.Function;
+
 import static java.util.Collections.emptyList;
 
-public class GceUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
+public class GceUnicastHostsProvider implements UnicastHostsProvider {
+    
+    private static final Logger logger = LogManager.getLogger(GceUnicastHostsProvider.class);
 
     /**
      * discovery.gce.tags: The gce discovery can filter machines to include in the cluster based on tags.
@@ -58,6 +62,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         private static final String TERMINATED = "TERMINATED";
     }
 
+    private final Settings settings;
     private final GceInstancesService gceInstancesService;
     private TransportService transportService;
     private NetworkService networkService;
@@ -73,14 +78,14 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
     public GceUnicastHostsProvider(Settings settings, GceInstancesService gceInstancesService,
             TransportService transportService,
             NetworkService networkService) {
-        super(settings);
+        this.settings = settings;
         this.gceInstancesService = gceInstancesService;
         this.transportService = transportService;
         this.networkService = networkService;
 
         this.refreshInterval = GceInstancesService.REFRESH_SETTING.get(settings);
-        this.project = GceInstancesService.PROJECT_SETTING.get(settings);
-        this.zones = GceInstancesService.ZONE_SETTING.get(settings);
+        this.project = gceInstancesService.projectId();
+        this.zones = gceInstancesService.zones();
 
         this.tags = TAGS_SETTING.get(settings);
         if (logger.isDebugEnabled()) {
@@ -115,7 +120,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         String ipAddress = null;
         try {
             InetAddress inetAddress = networkService.resolvePublishHostAddresses(
-                NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY));
+                NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY));
             if (inetAddress != null) {
                 ipAddress = NetworkAddress.format(inetAddress);
             }

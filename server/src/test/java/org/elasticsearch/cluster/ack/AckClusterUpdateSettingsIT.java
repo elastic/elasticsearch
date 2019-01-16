@@ -111,7 +111,8 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
         ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().put("cluster.routing.allocation.exclude._id", excludedNodeId)).get();
         assertAcked(clusterUpdateSettingsResponse);
-        assertThat(clusterUpdateSettingsResponse.getTransientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
+        assertThat(clusterUpdateSettingsResponse.getTransientSettings().get("cluster.routing.allocation.exclude._id"),
+            equalTo(excludedNodeId));
 
         for (Client client : clients()) {
             ClusterState clusterState = getLocalClusterState(client);
@@ -120,9 +121,11 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
                 for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                     for (ShardRouting shardRouting : indexShardRoutingTable) {
                         assert clusterState.nodes() != null;
-                        if (shardRouting.unassigned() == false && clusterState.nodes().get(shardRouting.currentNodeId()).getId().equals(excludedNodeId)) {
-                            //if the shard is still there it must be relocating and all nodes need to know, since the request was acknowledged
-                            //reroute happens as part of the update settings and we made sure no throttling comes into the picture via settings
+                        if (shardRouting.unassigned() == false && clusterState.nodes()
+                            .get(shardRouting.currentNodeId()).getId().equals(excludedNodeId)) {
+                            // if the shard is still there it must be relocating and all nodes need to know,
+                            // since the request was acknowledged reroute happens as part of the update settings
+                            // and we made sure no throttling comes into the picture via settings
                             assertThat(shardRouting.relocating(), equalTo(true));
                         }
                     }
@@ -154,7 +157,8 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
         ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin().cluster().prepareUpdateSettings().setTimeout("0s")
                 .setTransientSettings(Settings.builder().put("cluster.routing.allocation.exclude._id", excludedNodeId)).get();
         assertThat(clusterUpdateSettingsResponse.isAcknowledged(), equalTo(false));
-        assertThat(clusterUpdateSettingsResponse.getTransientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
+        assertThat(clusterUpdateSettingsResponse.getTransientSettings().get("cluster.routing.allocation.exclude._id"),
+            equalTo(excludedNodeId));
     }
 
     private static ClusterState getLocalClusterState(Client client) {

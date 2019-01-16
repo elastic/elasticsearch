@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-results-resource]]
-=== Results Resources
+=== Results resources
 
 Several different result types are created for each job. You can query anomaly
 results for _buckets_, _influencers_, and _records_ by using the results API.
@@ -269,7 +269,7 @@ probability of this occurrence.
 
 There can be many anomaly records depending on the characteristics and size of
 the input data. In practice, there are often too many to be able to manually
-process them. The {xpackml} features therefore perform a sophisticated
+process them. The {ml-features} therefore perform a sophisticated
 aggregation of the anomaly records into buckets.
 
 The number of record results depends on the number of anomalies found in each
@@ -363,6 +363,11 @@ A record object has the following properties:
   human-readable and friendly interpretation of this.
 //In scientific notation, a value of 3.24E-300 is highly unlikely and therefore
 //highly anomalous.
+
+`multi_bucket_impact`::
+  (number) an indication of how strongly an anomaly is multi bucket or single bucket.
+  The value is on a scale of -5 to +5 where -5 means the anomaly is purely single 
+  bucket and +5 means the anomaly is purely multi bucket.
 
 `record_score`::
   (number) A normalized score between 0-100, which is based on the probability

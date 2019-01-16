@@ -89,6 +89,7 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
         mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
 
         SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
+        fieldStats.put("message", FileStructureUtils.calculateFieldStats(sampleMessages, timeoutChecker));
 
         GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings, fieldStats, timeoutChecker);
         // We can't parse directly into @timestamp using Grok, so parse to some other time field, which the date filter will then remove
@@ -113,12 +114,16 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
             }
         }
 
+        boolean needClientTimeZone = bestTimestamp.v1().hasTimezoneDependentParsing();
+
         FileStructure structure = structureBuilder
             .setTimestampField(interimTimestampField)
             .setJodaTimestampFormats(bestTimestamp.v1().jodaTimestampFormats)
             .setJavaTimestampFormats(bestTimestamp.v1().javaTimestampFormats)
-            .setNeedClientTimezone(bestTimestamp.v1().hasTimezoneDependentParsing())
+            .setNeedClientTimezone(needClientTimeZone)
             .setGrokPattern(grokPattern)
+            .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(grokPattern, interimTimestampField,
+                bestTimestamp.v1().jodaTimestampFormats, needClientTimeZone))
             .setMappings(mappings)
             .setFieldStats(fieldStats)
             .setExplanation(explanation)
@@ -150,7 +155,7 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
         int remainingLines = sampleLines.length;
         double differenceBetweenTwoHighestWeights = 0.0;
         for (String sampleLine : sampleLines) {
-            TimestampMatch match = TimestampFormatFinder.findFirstMatch(sampleLine, overrides.getTimestampFormat());
+            TimestampMatch match = TimestampFormatFinder.findFirstMatch(sampleLine, overrides.getTimestampFormat(), timeoutChecker);
             if (match != null) {
                 TimestampMatch pureMatch = new TimestampMatch(match.candidateIndex, "", match.jodaTimestampFormats,
                     match.javaTimestampFormats, match.simplePattern, match.grokPatternName, "");

@@ -1,6 +1,9 @@
 # Integration tests for Discovery GCE components
 #
 "Discovery GCE loaded":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
     - do:
         cluster.state: {}
 

@@ -30,7 +30,7 @@ import org.elasticsearch.search.SearchHit;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.OptionalInt;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -90,8 +90,8 @@ public class MeanReciprocalRank implements EvaluationMetric {
     }
 
     @Override
-    public Optional<Integer> forcedSearchSize() {
-        return Optional.of(k);
+    public OptionalInt forcedSearchSize() {
+        return OptionalInt.of(k);
     }
 
     @Override
@@ -115,9 +115,9 @@ public class MeanReciprocalRank implements EvaluationMetric {
         int firstRelevant = -1;
         int rank = 1;
         for (RatedSearchHit hit : ratedHits) {
-            Optional<Integer> rating = hit.getRating();
+            OptionalInt rating = hit.getRating();
             if (rating.isPresent()) {
-                if (rating.get() >= this.relevantRatingThreshhold) {
+                if (rating.getAsInt() >= this.relevantRatingThreshhold) {
                     firstRelevant = rank;
                     break;
                 }

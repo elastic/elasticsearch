@@ -14,6 +14,7 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
+import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -176,6 +177,30 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         assertEquals("Datafeed frequency [1.5m] must be a multiple of the aggregation interval [60000ms]", e.getMessage());
     }
 
+    public void testVerify_BucketIntervalAndDataCheckWindowAreValid() {
+        Job.Builder builder = buildJobBuilder("foo");
+        AnalysisConfig.Builder ac = createAnalysisConfig();
+        ac.setSummaryCountFieldName("some_count");
+        ac.setBucketSpan(TimeValue.timeValueSeconds(2));
+        builder.setAnalysisConfig(ac);
+        Job job = builder.build(new Date());
+        DatafeedConfig.Builder datafeedBuilder = createValidDatafeedConfig();
+        datafeedBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueMinutes(10)));
+
+        DatafeedJobValidator.validate(datafeedBuilder.build(), job);
+
+        datafeedBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueSeconds(1)));
+        ElasticsearchStatusException e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
+            () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job));
+        assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL, "1s", "2s"), e.getMessage());
+
+        datafeedBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(24)));
+        e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
+            () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job));
+        assertEquals(Messages.getMessage(
+            Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS, "1d", "2s"), e.getMessage());
+    }
+
     private static Job.Builder buildJobBuilder(String id) {
         Job.Builder builder = new Job.Builder(id);
         AnalysisConfig.Builder ac = createAnalysisConfig();
@@ -197,14 +222,13 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         HistogramAggregationBuilder histogram =
                 AggregationBuilders.histogram("time").interval(interval).field("time").subAggregation(maxTime);
         DatafeedConfig.Builder datafeedConfig = createValidDatafeedConfig();
-        datafeedConfig.setAggregations(new AggregatorFactories.Builder().addAggregator(histogram));
+        datafeedConfig.setParsedAggregations(new AggregatorFactories.Builder().addAggregator(histogram));
         return datafeedConfig;
     }
 
     private static DatafeedConfig.Builder createValidDatafeedConfig() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("my-datafeed", "my-job");
         builder.setIndices(Collections.singletonList("myIndex"));
-        builder.setTypes(Collections.singletonList("myType"));
         return builder;
     }
 }

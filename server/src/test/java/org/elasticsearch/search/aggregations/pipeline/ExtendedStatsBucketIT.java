@@ -31,7 +31,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats.Bounds;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucket;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
@@ -41,7 +40,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.extendedStatsBucket;
+import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.extendedStatsBucket;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -109,7 +108,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
         double sigma = randomDoubleBetween(1.0, 6.0, true);
         SearchResponse response = client().prepareSearch("idx_gappy")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1L))
-                .addAggregation(extendedStatsBucket("extended_stats_bucket", "histo>_count").sigma(sigma)).execute().actionGet();
+                .addAggregation(extendedStatsBucket("extended_stats_bucket", "histo>_count").sigma(sigma)).get();
         assertSearchResponse(response);
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -157,7 +156,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                         .extendedBounds(minRandomValue, maxRandomValue))
-                .addAggregation(extendedStatsBucket("extended_stats_bucket", "histo>_count")).execute().actionGet();
+                .addAggregation(extendedStatsBucket("extended_stats_bucket", "histo>_count")).get();
 
         assertSearchResponse(response);
 
@@ -204,7 +203,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue))
-                                .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>_count"))).execute().actionGet();
+                                .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>_count"))).get();
 
         assertSearchResponse(response);
 
@@ -255,7 +254,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(extendedStatsBucket("extended_stats_bucket", "terms>sum")).execute().actionGet();
+                .addAggregation(extendedStatsBucket("extended_stats_bucket", "terms>sum")).get();
 
         assertSearchResponse(response);
 
@@ -305,7 +304,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>sum"))).execute().actionGet();
+                                .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>sum"))).get();
 
         assertSearchResponse(response);
 
@@ -367,8 +366,9 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>sum").gapPolicy(GapPolicy.INSERT_ZEROS)))
-                .execute().actionGet();
+                                .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>sum")
+                                    .gapPolicy(GapPolicy.INSERT_ZEROS)))
+                .get();
 
         assertSearchResponse(response);
 
@@ -422,7 +422,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms").field("tag").includeExclude(new IncludeExclude(null, "tag.*"))
                         .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(extendedStatsBucket("extended_stats_bucket", "terms>sum")).execute().actionGet();
+                .addAggregation(extendedStatsBucket("extended_stats_bucket", "terms>sum")).get();
 
         assertSearchResponse(response);
 
@@ -450,7 +450,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
                                                     .extendedBounds(minRandomValue, maxRandomValue)
                                                     .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                                     .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>sum")
-                                            .sigma(-1.0))).execute().actionGet());
+                                            .sigma(-1.0))).get());
         Throwable cause = ExceptionsHelper.unwrapCause(ex);
         if (cause == null) {
             throw ex;
@@ -476,7 +476,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue))
                                 .subAggregation(extendedStatsBucket("avg_histo_bucket", "histo>_count")))
-                .addAggregation(extendedStatsBucket("avg_terms_bucket", "terms>avg_histo_bucket.avg")).execute().actionGet();
+                .addAggregation(extendedStatsBucket("avg_terms_bucket", "terms>avg_histo_bucket.avg")).get();
 
         assertSearchResponse(response);
 

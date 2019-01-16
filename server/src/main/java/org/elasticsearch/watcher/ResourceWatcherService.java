@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.watcher;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
@@ -41,6 +43,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
  * defaults to {@code 60s}. The service can be disabled by setting {@code resource.reload.enabled} setting to {@code false}.
  */
 public class ResourceWatcherService extends AbstractLifecycleComponent {
+    private static final Logger logger = LogManager.getLogger(ResourceWatcherService.class);
 
     public enum Frequency {
 
@@ -97,12 +100,6 @@ public class ResourceWatcherService extends AbstractLifecycleComponent {
         mediumMonitor = new ResourceMonitor(interval, Frequency.MEDIUM);
         interval = RELOAD_INTERVAL_HIGH.get(settings);
         highMonitor = new ResourceMonitor(interval, Frequency.HIGH);
-
-        logRemovedSetting("watcher.enabled", "resource.reload.enabled");
-        logRemovedSetting("watcher.interval", "resource.reload.interval");
-        logRemovedSetting("watcher.interval.low", "resource.reload.interval.low");
-        logRemovedSetting("watcher.interval.medium", "resource.reload.interval.medium");
-        logRemovedSetting("watcher.interval.high", "resource.reload.interval.high");
     }
 
     @Override

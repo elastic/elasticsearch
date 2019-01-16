@@ -109,7 +109,8 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
             BulkItemResponse response = responses[i];
             if (response.isFailed()) {
                 sb.append("\n[").append(i)
-                        .append("]: index [").append(response.getIndex()).append("], type [").append(response.getType()).append("], id [").append(response.getId())
+                        .append("]: index [").append(response.getIndex()).append("], type [")
+                        .append(response.getType()).append("], id [").append(response.getId())
                         .append("], message [").append(response.getFailureMessage()).append("]");
             }
         }

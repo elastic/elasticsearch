@@ -79,7 +79,8 @@ public class ConstructionContext<T> {
 
         // ES: Replace, since we don't use bytecode gen, just get the type class loader, or system if its null
         //ClassLoader classLoader = BytecodeGen.getClassLoader(expectedType);
-        ClassLoader classLoader = expectedType.getClassLoader() == null ? ClassLoader.getSystemClassLoader() : expectedType.getClassLoader();
+        ClassLoader classLoader = expectedType.getClassLoader() == null ?
+            ClassLoader.getSystemClassLoader() : expectedType.getClassLoader();
         return expectedType.cast(Proxy.newProxyInstance(classLoader,
                 new Class[]{expectedType}, invocationHandler));
     }

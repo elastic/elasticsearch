@@ -6,11 +6,13 @@
 package org.elasticsearch.xpack.security.authc.support;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -28,23 +30,25 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm implements CachingRealm {
 
-    private final Cache<String, ListenableFuture<UserWithHash>> cache;
+    private final Cache<String, ListenableFuture<CachedResult>> cache;
     private final ThreadPool threadPool;
+    private final boolean authenticationEnabled;
     final Hasher cacheHasher;
 
-    protected CachingUsernamePasswordRealm(String type, RealmConfig config, ThreadPool threadPool) {
-        super(type, config);
-        cacheHasher = Hasher.resolve(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING.get(config.settings()));
+    protected CachingUsernamePasswordRealm(RealmConfig config, ThreadPool threadPool) {
+        super(config);
+        cacheHasher = Hasher.resolve(this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING));
         this.threadPool = threadPool;
-        final TimeValue ttl = CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING.get(config.settings());
+        final TimeValue ttl = this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING);
         if (ttl.getNanos() > 0) {
-            cache = CacheBuilder.<String, ListenableFuture<UserWithHash>>builder()
-                .setExpireAfterWrite(ttl)
-                .setMaximumWeight(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING.get(config.settings()))
-                .build();
+            cache = CacheBuilder.<String, ListenableFuture<CachedResult>>builder()
+                    .setExpireAfterWrite(ttl)
+                    .setMaximumWeight(this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING))
+                    .build();
         } else {
             cache = null;
         }
+        this.authenticationEnabled = config.getSetting(CachingUsernamePasswordRealmSettings.AUTHC_ENABLED_SETTING);
     }
 
     @Override
@@ -63,15 +67,34 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         }
     }
 
+    @Override
+    public UsernamePasswordToken token(ThreadContext threadContext) {
+        if (authenticationEnabled == false) {
+            return null;
+        }
+        return super.token(threadContext);
+    }
+
+    @Override
+    public boolean supports(AuthenticationToken token) {
+        return authenticationEnabled && super.supports(token);
+    }
+
     /**
      * If the user exists in the cache (keyed by the principle name), then the password is validated
      * against a hash also stored in the cache.  Otherwise the subclass authenticates the user via
-     * doAuthenticate
+     * doAuthenticate.
+     * This method will respond with {@link AuthenticationResult#notHandled()} if
+     * {@link CachingUsernamePasswordRealmSettings#AUTHC_ENABLED_SETTING authentication is not enabled}.
      * @param authToken The authentication token
-     * @param listener to be called at completion
+     * @param listener  to be called at completion
      */
     @Override
     public final void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult> listener) {
+        if (authenticationEnabled == false) {
+            listener.onResponse(AuthenticationResult.notHandled());
+            return;
+        }
         final UsernamePasswordToken token = (UsernamePasswordToken) authToken;
         try {
             if (cache == null) {
@@ -97,60 +120,64 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
      * @param listener to be called at completion
      */
     private void authenticateWithCache(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
+        assert cache != null;
         try {
             final AtomicBoolean authenticationInCache = new AtomicBoolean(true);
-            final ListenableFuture<UserWithHash> listenableCacheEntry = cache.computeIfAbsent(token.principal(), k -> {
+            final ListenableFuture<CachedResult> listenableCacheEntry = cache.computeIfAbsent(token.principal(), k -> {
                 authenticationInCache.set(false);
                 return new ListenableFuture<>();
             });
             if (authenticationInCache.get()) {
                 // there is a cached or an inflight authenticate request
-                listenableCacheEntry.addListener(ActionListener.wrap(authenticatedUserWithHash -> {
-                    if (authenticatedUserWithHash != null && authenticatedUserWithHash.verify(token.credentials())) {
-                        // cached credential hash matches the credential hash for this forestalled request
-                        handleCachedAuthentication(authenticatedUserWithHash.user, ActionListener.wrap(cacheResult -> {
-                            if (cacheResult.isAuthenticated()) {
-                                logger.debug("realm [{}] authenticated user [{}], with roles [{}]",
-                                    name(), token.principal(), cacheResult.getUser().roles());
-                            } else {
-                                logger.debug("realm [{}] authenticated user [{}] from cache, but then failed [{}]",
-                                    name(), token.principal(), cacheResult.getMessage());
-                            }
-                            listener.onResponse(cacheResult);
-                        }, listener::onFailure));
+                listenableCacheEntry.addListener(ActionListener.wrap(cachedResult -> {
+                    final boolean credsMatch = cachedResult.verify(token.credentials());
+                    if (cachedResult.authenticationResult.isAuthenticated()) {
+                        if (credsMatch) {
+                            // cached credential hash matches the credential hash for this forestalled request
+                            handleCachedAuthentication(cachedResult.user, ActionListener.wrap(cacheResult -> {
+                                if (cacheResult.isAuthenticated()) {
+                                    logger.debug("realm [{}] authenticated user [{}], with roles [{}]",
+                                        name(), token.principal(), cacheResult.getUser().roles());
+                                } else {
+                                    logger.debug("realm [{}] authenticated user [{}] from cache, but then failed [{}]",
+                                        name(), token.principal(), cacheResult.getMessage());
+                                }
+                                listener.onResponse(cacheResult);
+                            }, listener::onFailure));
+                        } else {
+                            // its credential hash does not match the
+                            // hash of the credential for this forestalled request.
+                            // clear cache and try to reach the authentication source again because password
+                            // might have changed there and the local cached hash got stale
+                            cache.invalidate(token.principal(), listenableCacheEntry);
+                            authenticateWithCache(token, listener);
+                        }
+                    } else if (credsMatch) {
+                        // not authenticated but instead of hammering reuse the result. a new
+                        // request will trigger a retried auth
+                        listener.onResponse(cachedResult.authenticationResult);
                     } else {
-                        // The inflight request has failed or its credential hash does not match the
-                        // hash of the credential for this forestalled request.
-                        // clear cache and try to reach the authentication source again because password
-                        // might have changed there and the local cached hash got stale
                         cache.invalidate(token.principal(), listenableCacheEntry);
                         authenticateWithCache(token, listener);
                     }
-                }, e -> {
-                    // the inflight request failed, so try again, but first (always) make sure cache
-                    // is cleared of the failed authentication
-                    cache.invalidate(token.principal(), listenableCacheEntry);
-                    authenticateWithCache(token, listener);
-                }), threadPool.executor(ThreadPool.Names.GENERIC));
+                }, listener::onFailure), threadPool.executor(ThreadPool.Names.GENERIC), threadPool.getThreadContext());
             } else {
                 // attempt authentication against the authentication source
                 doAuthenticate(token, ActionListener.wrap(authResult -> {
-                    if (authResult.isAuthenticated() && authResult.getUser().enabled()) {
-                        // compute the credential hash of this successful authentication request
-                        final UserWithHash userWithHash = new UserWithHash(authResult.getUser(), token.credentials(), cacheHasher);
-                        // notify any forestalled request listeners; they will not reach to the
-                        // authentication request and instead will use this hash for comparison
-                        listenableCacheEntry.onResponse(userWithHash);
-                    } else {
-                        // notify any forestalled request listeners; they will retry the request
-                        listenableCacheEntry.onResponse(null);
+                    if (authResult.isAuthenticated() == false || authResult.getUser().enabled() == false) {
+                        // a new request should trigger a new authentication
+                        cache.invalidate(token.principal(), listenableCacheEntry);
                     }
-                    // notify the listener of the inflight authentication request; this request is not retried
+                    // notify any forestalled request listeners; they will not reach to the
+                    // authentication request and instead will use this result if they contain
+                    // the same credentials
+                    listenableCacheEntry.onResponse(new CachedResult(authResult, cacheHasher, authResult.getUser(), token.credentials()));
                     listener.onResponse(authResult);
                 }, e -> {
-                    // notify any staved off listeners; they will retry the request
+                    cache.invalidate(token.principal(), listenableCacheEntry);
+                    // notify any staved off listeners; they will propagate this error
                     listenableCacheEntry.onFailure(e);
-                    // notify the listener of the inflight authentication request; this request is not retried
+                    // notify the listener of the inflight authentication request
                     listener.onFailure(e);
                 }));
             }
@@ -178,7 +205,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     }
 
     protected int getCacheSize() {
-        return cache.count();
+        return cache == null ? -1 : cache.count();
     }
 
     protected abstract void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener);
@@ -199,27 +226,24 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     }
 
     private void lookupWithCache(String username, ActionListener<User> listener) {
+        assert cache != null;
         try {
             final AtomicBoolean lookupInCache = new AtomicBoolean(true);
-            final ListenableFuture<UserWithHash> listenableCacheEntry = cache.computeIfAbsent(username, key -> {
+            final ListenableFuture<CachedResult> listenableCacheEntry = cache.computeIfAbsent(username, key -> {
                 lookupInCache.set(false);
                 return new ListenableFuture<>();
             });
             if (false == lookupInCache.get()) {
                 // attempt lookup against the user directory
                 doLookupUser(username, ActionListener.wrap(user -> {
-                    if (user != null) {
-                        // user found
-                        final UserWithHash userWithHash = new UserWithHash(user, null, null);
-                        // notify forestalled request listeners
-                        listenableCacheEntry.onResponse(userWithHash);
-                    } else {
+                    final CachedResult result = new CachedResult(AuthenticationResult.notHandled(), cacheHasher, user, null);
+                    if (user == null) {
                         // user not found, invalidate cache so that subsequent requests are forwarded to
                         // the user directory
                         cache.invalidate(username, listenableCacheEntry);
-                        // notify forestalled request listeners
-                        listenableCacheEntry.onResponse(null);
                     }
+                    // notify forestalled request listeners
+                    listenableCacheEntry.onResponse(result);
                 }, e -> {
                     // the next request should be forwarded, not halted by a failed lookup attempt
                     cache.invalidate(username, listenableCacheEntry);
@@ -227,13 +251,13 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                     listenableCacheEntry.onFailure(e);
                 }));
             }
-            listenableCacheEntry.addListener(ActionListener.wrap(userWithHash -> {
-                if (userWithHash != null) {
-                    listener.onResponse(userWithHash.user);
+            listenableCacheEntry.addListener(ActionListener.wrap(cachedResult -> {
+                if (cachedResult.user != null) {
+                    listener.onResponse(cachedResult.user);
                 } else {
                     listener.onResponse(null);
                 }
-            }, listener::onFailure), threadPool.executor(ThreadPool.Names.GENERIC));
+            }, listener::onFailure), threadPool.executor(ThreadPool.Names.GENERIC), threadPool.getThreadContext());
         } catch (final ExecutionException e) {
             listener.onFailure(e);
         }
@@ -241,16 +265,21 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
     protected abstract void doLookupUser(String username, ActionListener<User> listener);
 
-    private static class UserWithHash {
-        final User user;
-        final char[] hash;
+    private static class CachedResult {
+        private final AuthenticationResult authenticationResult;
+        private final User user;
+        private final char[] hash;
 
-        UserWithHash(User user, SecureString password, Hasher hasher) {
-            this.user = Objects.requireNonNull(user);
+        private CachedResult(AuthenticationResult result, Hasher hasher, @Nullable User user, @Nullable SecureString password) {
+            this.authenticationResult = Objects.requireNonNull(result);
+            if (authenticationResult.isAuthenticated() && user == null) {
+                throw new IllegalArgumentException("authentication cannot be successful with a null user");
+            }
+            this.user = user;
             this.hash = password == null ? null : hasher.hash(password);
         }
 
-        boolean verify(SecureString password) {
+        private boolean verify(SecureString password) {
             return hash != null && Hasher.verifyHash(password, hash);
         }
     }

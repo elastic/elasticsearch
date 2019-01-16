@@ -38,6 +38,9 @@ public class AnomalyRecordTests extends AbstractXContentTestCase<AnomalyRecord> 
         anomalyRecord.setActual(Collections.singletonList(randomDouble()));
         anomalyRecord.setTypical(Collections.singletonList(randomDouble()));
         anomalyRecord.setProbability(randomDouble());
+        if (randomBoolean()) {
+            anomalyRecord.setMultiBucketImpact(randomDouble());
+        }
         anomalyRecord.setRecordScore(randomDouble());
         anomalyRecord.setInitialRecordScore(randomDouble());
         anomalyRecord.setInterim(randomBoolean());

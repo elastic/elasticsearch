@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -46,13 +45,13 @@ import static org.elasticsearch.action.admin.cluster.allocation.TransportCluster
  */
 public class ClusterAllocationExplainActionTests extends ESTestCase {
 
-    private static final AllocationDeciders NOOP_DECIDERS = new AllocationDeciders(Settings.EMPTY, Collections.emptyList());
+    private static final AllocationDeciders NOOP_DECIDERS = new AllocationDeciders(Collections.emptyList());
 
     public void testInitializingOrRelocatingShardExplanation() throws Exception {
         ShardRoutingState shardRoutingState = randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.RELOCATING);
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), shardRoutingState);
         ShardRouting shard = clusterState.getRoutingTable().index("idx").shard(0).primaryShard();
-        RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Settings.EMPTY, Collections.emptyList()),
+        RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Collections.emptyList()),
             clusterState.getRoutingNodes(), clusterState, null, System.nanoTime());
         ClusterAllocationExplanation cae = TransportClusterAllocationExplainAction.explainShard(shard, allocation, null, randomBoolean(),
             new TestGatewayAllocator(), new ShardsAllocator() {

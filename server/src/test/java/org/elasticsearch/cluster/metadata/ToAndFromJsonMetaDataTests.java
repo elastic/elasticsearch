@@ -302,7 +302,8 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
         assertThat(parsedMetaData.templates().get("foo").aliases().size(), equalTo(3));
         assertThat(parsedMetaData.templates().get("foo").aliases().get("alias-bar1").alias(), equalTo("alias-bar1"));
         assertThat(parsedMetaData.templates().get("foo").aliases().get("alias-bar2").alias(), equalTo("alias-bar2"));
-        assertThat(parsedMetaData.templates().get("foo").aliases().get("alias-bar2").filter().string(), equalTo("{\"term\":{\"user\":\"kimchy\"}}"));
+        assertThat(parsedMetaData.templates().get("foo").aliases().get("alias-bar2").filter().string(),
+            equalTo("{\"term\":{\"user\":\"kimchy\"}}"));
         assertThat(parsedMetaData.templates().get("foo").aliases().get("alias-bar3").alias(), equalTo("alias-bar3"));
         assertThat(parsedMetaData.templates().get("foo").aliases().get("alias-bar3").indexRouting(), equalTo("routing-bar"));
         assertThat(parsedMetaData.templates().get("foo").aliases().get("alias-bar3").searchRouting(), equalTo("routing-bar"));

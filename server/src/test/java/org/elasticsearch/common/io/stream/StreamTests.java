@@ -30,12 +30,14 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -213,7 +215,6 @@ public class StreamTests extends ESTestCase {
     }
 
     public void testWritableArrays() throws IOException {
-
         final String[] strings = generateRandomStringArray(10, 10, false, true);
         WriteableString[] sourceArray = Arrays.stream(strings).<WriteableString>map(WriteableString::new).toArray(WriteableString[]::new);
         WriteableString[] targetArray;
@@ -231,6 +232,78 @@ public class StreamTests extends ESTestCase {
         }
 
         assertThat(targetArray, equalTo(sourceArray));
+    }
+
+    public void testArrays() throws IOException {
+        final String[] strings;
+        final String[] deserialized;
+        Writeable.Writer<String> writer = StreamOutput::writeString;
+        Writeable.Reader<String> reader = StreamInput::readString;
+        BytesStreamOutput out = new BytesStreamOutput();
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                strings = null;
+            } else {
+                strings = generateRandomStringArray(10, 10, false, true);
+            }
+            out.writeOptionalArray(writer, strings);
+            deserialized = out.bytes().streamInput().readOptionalArray(reader, String[]::new);
+        } else {
+            strings = generateRandomStringArray(10, 10, false, true);
+            out.writeArray(writer, strings);
+            deserialized = out.bytes().streamInput().readArray(reader, String[]::new);
+        }
+        assertThat(deserialized, equalTo(strings));
+    }
+
+    public void testCollection() throws IOException {
+        class FooBar implements Writeable {
+
+            private final int foo;
+            private final int bar;
+
+            private FooBar(final int foo, final int bar) {
+                this.foo = foo;
+                this.bar = bar;
+            }
+
+            private FooBar(final StreamInput in) throws IOException {
+                this.foo = in.readInt();
+                this.bar = in.readInt();
+            }
+
+            @Override
+            public void writeTo(final StreamOutput out) throws IOException {
+                out.writeInt(foo);
+                out.writeInt(bar);
+            }
+
+            @Override
+            public boolean equals(final Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                final FooBar that = (FooBar) o;
+                return foo == that.foo && bar == that.bar;
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(foo, bar);
+            }
+
+        }
+
+        final int length = randomIntBetween(0, 16);
+        final Collection<FooBar> fooBars = new ArrayList<>(length);
+        for (int i = 0; i < length; i++) {
+            fooBars.add(new FooBar(randomInt(), randomInt()));
+        }
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeCollection(fooBars);
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(fooBars, equalTo(in.readList(FooBar::new)));
+            }
+        }
     }
 
     public void testSetOfLongs() throws IOException {

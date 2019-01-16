@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.process.NativeController;
-import org.elasticsearch.xpack.ml.job.process.ProcessPipes;
+import org.elasticsearch.xpack.ml.process.NativeController;
+import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.junit.Before;
 
 import java.nio.file.Path;
@@ -54,8 +54,8 @@ public class AutodetectBuilderTests extends ESTestCase {
         acBuilder.setBucketSpan(TimeValue.timeValueSeconds(120));
         acBuilder.setLatency(TimeValue.timeValueSeconds(360));
         acBuilder.setSummaryCountFieldName("summaryField");
-        acBuilder.setOverlappingBuckets(true);
         acBuilder.setMultivariateByFields(true);
+
         job.setAnalysisConfig(acBuilder);
 
         DataDescription.Builder dd = new DataDescription.Builder();
@@ -65,12 +65,11 @@ public class AutodetectBuilderTests extends ESTestCase {
         job.setDataDescription(dd);
 
         List<String> command = autodetectBuilder(job.build()).buildAutodetectCommand();
-        assertEquals(12, command.size());
+        assertEquals(11, command.size());
         assertTrue(command.contains(AutodetectBuilder.AUTODETECT_PATH));
         assertTrue(command.contains(AutodetectBuilder.BUCKET_SPAN_ARG + "120"));
         assertTrue(command.contains(AutodetectBuilder.LATENCY_ARG + "360"));
         assertTrue(command.contains(AutodetectBuilder.SUMMARY_COUNT_FIELD_ARG + "summaryField"));
-        assertTrue(command.contains(AutodetectBuilder.RESULT_FINALIZATION_WINDOW_ARG + "2"));
         assertTrue(command.contains(AutodetectBuilder.MULTIVARIATE_BY_FIELDS_ARG));
 
         assertTrue(command.contains(AutodetectBuilder.LENGTH_ENCODED_INPUT_ARG));

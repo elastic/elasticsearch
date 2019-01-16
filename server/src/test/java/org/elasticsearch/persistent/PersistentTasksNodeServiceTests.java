@@ -22,6 +22,7 @@ package org.elasticsearch.persistent;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -106,10 +107,10 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             when(action.createTask(anyLong(), anyString(), anyString(), eq(parentId), any(), any())).thenReturn(
                     new TestPersistentTasksPlugin.TestTask(i, "persistent", "test", "", parentId, Collections.emptyMap()));
         }
-        PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(Settings.EMPTY, Collections.singletonList(action));
+        PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(Collections.singletonList(action));
 
         MockExecutor executor = new MockExecutor();
-        PersistentTasksNodeService coordinator = new PersistentTasksNodeService(Settings.EMPTY, persistentTasksService,
+        PersistentTasksNodeService coordinator = new PersistentTasksNodeService(persistentTasksService,
                 registry, new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()), executor);
 
         ClusterState state = createInitialClusterState(nonLocalNodesCount, Settings.EMPTY);
@@ -202,10 +203,10 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         AllocatedPersistentTask nodeTask =
                 new TestPersistentTasksPlugin.TestTask(0, "persistent", "test", "", parentId, Collections.emptyMap());
         when(action.createTask(anyLong(), anyString(), anyString(), eq(parentId), any(), any())).thenReturn(nodeTask);
-        PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(Settings.EMPTY, Collections.singletonList(action));
+        PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(Collections.singletonList(action));
 
         MockExecutor executor = new MockExecutor();
-        PersistentTasksNodeService coordinator = new PersistentTasksNodeService(Settings.EMPTY, persistentTasksService,
+        PersistentTasksNodeService coordinator = new PersistentTasksNodeService(persistentTasksService,
                 registry, new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()), executor);
 
         ClusterState state = createInitialClusterState(1, Settings.EMPTY);
@@ -231,7 +232,9 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
     public void testTaskCancellation() {
         AtomicLong capturedTaskId = new AtomicLong();
         AtomicReference<ActionListener<CancelTasksResponse>> capturedListener = new AtomicReference<>();
-        PersistentTasksService persistentTasksService = new PersistentTasksService(Settings.EMPTY, null, null, null) {
+        Client client = mock(Client.class);
+        when(client.settings()).thenReturn(Settings.EMPTY);
+        PersistentTasksService persistentTasksService = new PersistentTasksService(null, null, client) {
             @Override
             void sendCancelRequest(final long taskId, final String reason, final ActionListener<CancelTasksResponse> listener) {
                 capturedTaskId.set(taskId);
@@ -250,12 +253,12 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         when(action.createTask(anyLong(), anyString(), anyString(), any(), any(), any()))
                 .thenReturn(new TestPersistentTasksPlugin.TestTask(1, "persistent", "test", "", new TaskId("cluster", 1),
                         Collections.emptyMap()));
-        PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(Settings.EMPTY, Collections.singletonList(action));
+        PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(Collections.singletonList(action));
 
         int nonLocalNodesCount = randomInt(10);
         MockExecutor executor = new MockExecutor();
         TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
-        PersistentTasksNodeService coordinator = new PersistentTasksNodeService(Settings.EMPTY, persistentTasksService,
+        PersistentTasksNodeService coordinator = new PersistentTasksNodeService(persistentTasksService,
                 registry, taskManager, executor);
 
         ClusterState state = createInitialClusterState(nonLocalNodesCount, Settings.EMPTY);
@@ -292,7 +295,8 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         // That should trigger cancellation request
         assertThat(capturedTaskId.get(), equalTo(localId));
         // Notify successful cancellation
-        capturedListener.get().onResponse(new CancelTasksResponse());
+        capturedListener.get().onResponse(
+            new CancelTasksResponse(Collections.emptyList(), Collections.emptyList(), Collections.emptyList()));
 
         // finish or fail task
         if (randomBoolean()) {

@@ -12,7 +12,17 @@ import java.util.Map;
 
 public class JobDeletionTask extends Task {
 
+    private volatile boolean started;
+
     public JobDeletionTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
         super(id, type, action, description, parentTask, headers);
+    }
+
+    public void start() {
+        started = true;
+    }
+
+    public boolean isStarted() {
+        return started;
     }
 }

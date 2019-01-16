@@ -17,7 +17,6 @@
  * under the License.
  */
 
-import java.util.Locale
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.test.RestIntegTestTask
@@ -53,11 +52,11 @@ for (Version version : bwcVersions.indexCompatible) {
     bwcTest.dependsOn(versionBwcTest)
 }
 
-test.enabled = false
+unitTest.enabled = false
 
 task integTest {
   if (project.bwc_tests_enabled) {
-    final def version = bwcVersions.snapshotsIndexCompatible.first()
+    final def version = bwcVersions.unreleasedIndexCompatible.first()
     dependsOn "v${version}#bwcTest"
   }
 }

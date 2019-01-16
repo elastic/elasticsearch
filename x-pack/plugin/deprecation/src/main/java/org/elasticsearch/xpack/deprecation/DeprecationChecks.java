@@ -28,9 +28,7 @@ public class DeprecationChecks {
     }
 
     static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS =
-        Collections.unmodifiableList(Arrays.asList(
-            // STUB
-        ));
+        Collections.emptyList();
 
     static List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> NODE_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
@@ -40,7 +38,6 @@ public class DeprecationChecks {
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
             IndexDeprecationChecks::baseSimilarityDefinedCheck,
-            IndexDeprecationChecks::coercionCheck,
             IndexDeprecationChecks::dynamicTemplateWithMatchMappingTypeCheck,
             IndexDeprecationChecks::indexSharedFileSystemCheck,
             IndexDeprecationChecks::indexStoreTypeCheck,

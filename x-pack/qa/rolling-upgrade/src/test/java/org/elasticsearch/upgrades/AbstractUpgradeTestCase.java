@@ -38,6 +38,16 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         return true;
     }
 
+    @Override
+    protected boolean preserveRollupJobsUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveILMPoliciesUponCompletion() {
+        return true;
+    }
+
     enum ClusterType {
         OLD,
         MIXED,

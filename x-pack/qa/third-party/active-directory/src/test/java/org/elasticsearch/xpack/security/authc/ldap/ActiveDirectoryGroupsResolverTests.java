@@ -9,6 +9,7 @@ import com.unboundid.ldap.sdk.Filter;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.junit.Before;
@@ -26,19 +27,22 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
     private static final String BRUCE_BANNER_DN =
             "cn=Bruce Banner,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
 
+    private static final RealmConfig.RealmIdentifier REALM_ID = new RealmConfig.RealmIdentifier("active_directory", "ad");
+
     @Before
     public void setReferralFollowing() {
         ldapConnection.getConnectionOptions().setFollowReferrals(AbstractActiveDirectoryTestCase.FOLLOW_REFERRALS);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35738")
     @SuppressWarnings("unchecked")
     public void testResolveSubTree() throws Exception {
         Settings settings = Settings.builder()
-                .put("group_search.scope", LdapSearchScope.SUB_TREE)
-                .put("group_search.base_dn", "DC=ad,DC=test,DC=elasticsearch,DC=com")
-                .put("domain_name", "ad.test.elasticsearch.com")
+                .put("xpack.security.authc.realms.active_directory.ad.group_search.scope", LdapSearchScope.SUB_TREE)
+                .put("xpack.security.authc.realms.active_directory.ad.group_search.base_dn", "DC=ad,DC=test,DC=elasticsearch,DC=com")
+                .put("xpack.security.authc.realms.active_directory.ad.domain_name", "ad.test.elasticsearch.com")
                 .build();
-        ActiveDirectoryGroupsResolver resolver = new ActiveDirectoryGroupsResolver(settings);
+        ActiveDirectoryGroupsResolver resolver = new ActiveDirectoryGroupsResolver(config(REALM_ID, settings));
         List<String> groups = resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN,
                 TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE, null);
         assertThat(groups, containsInAnyOrder(
@@ -53,11 +57,12 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
 
     public void testResolveOneLevel() throws Exception {
         Settings settings = Settings.builder()
-                .put("scope", LdapSearchScope.ONE_LEVEL)
-                .put("group_search.base_dn", "CN=Builtin, DC=ad, DC=test, DC=elasticsearch,DC=com")
-                .put("domain_name", "ad.test.elasticsearch.com")
+                .put("xpack.security.authc.realms.active_directory.ad.scope", LdapSearchScope.ONE_LEVEL)
+                .put("xpack.security.authc.realms.active_directory.ad.group_search.base_dn",
+                        "CN=Builtin, DC=ad, DC=test, DC=elasticsearch,DC=com")
+                .put("xpack.security.authc.realms.active_directory.ad.domain_name", "ad.test.elasticsearch.com")
                 .build();
-        ActiveDirectoryGroupsResolver resolver = new ActiveDirectoryGroupsResolver(settings);
+        ActiveDirectoryGroupsResolver resolver = new ActiveDirectoryGroupsResolver(config(REALM_ID, settings));
         List<String> groups = resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN,
                 TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE, null);
         assertThat(groups, hasItem(containsString("Users")));
@@ -65,11 +70,12 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
 
     public void testResolveBaseLevel() throws Exception {
         Settings settings = Settings.builder()
-                .put("group_search.scope", LdapSearchScope.BASE)
-                .put("group_search.base_dn", "CN=Users, CN=Builtin, DC=ad, DC=test, DC=elasticsearch, DC=com")
-                .put("domain_name", "ad.test.elasticsearch.com")
+                .put("xpack.security.authc.realms.active_directory.ad.group_search.scope", LdapSearchScope.BASE)
+                .put("xpack.security.authc.realms.active_directory.ad.group_search.base_dn",
+                        "CN=Users, CN=Builtin, DC=ad, DC=test, DC=elasticsearch, DC=com")
+                .put("xpack.security.authc.realms.active_directory.ad.domain_name", "ad.test.elasticsearch.com")
                 .build();
-        ActiveDirectoryGroupsResolver resolver = new ActiveDirectoryGroupsResolver(settings);
+        ActiveDirectoryGroupsResolver resolver = new ActiveDirectoryGroupsResolver(config(REALM_ID, settings));
         List<String> groups = resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN,
                 TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE, null);
         assertThat(groups, hasItem(containsString("CN=Users,CN=Builtin")));
@@ -108,7 +114,7 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
         Pattern sidQueryPattern = Pattern.compile("\\(\\|(\\(objectSid=S(-\\d+)+\\))+\\)");
         assertThat("[" + queryString + "] didn't match the search filter pattern",
                 sidQueryPattern.matcher(queryString).matches(), is(true));
-        for (String sid: expectedSids) {
+        for (String sid : expectedSids) {
             assertThat(queryString, containsString(sid));
         }
     }

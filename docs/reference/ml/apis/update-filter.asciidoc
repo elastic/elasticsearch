@@ -1,16 +1,16 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-update-filter]]
-=== Update Filter API
+=== Update filter API
 ++++
-<titleabbrev>Update Filter</titleabbrev>
+<titleabbrev>Update filter</titleabbrev>
 ++++
 
 Updates the description of a filter, adds items, or removes items. 
 
 ==== Request
 
-`POST _xpack/ml/filters/<filter_id>/_update`
+`POST _ml/filters/<filter_id>/_update`
 
 //==== Description
 
@@ -45,7 +45,7 @@ You can change the description, add and remove items to the `safe_domains` filte
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/filters/safe_domains/_update
+POST _ml/filters/safe_domains/_update
 {
   "description": "Updated list of domains",
   "add_items": ["*.myorg.com"],

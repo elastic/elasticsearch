@@ -5,18 +5,36 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 
-public class PutFollowActionRequestTests extends AbstractStreamableTestCase<PutFollowAction.Request> {
+import java.io.IOException;
+
+public class PutFollowActionRequestTests extends AbstractSerializingTestCase<PutFollowAction.Request> {
 
     @Override
-    protected PutFollowAction.Request createBlankInstance() {
-        return new PutFollowAction.Request();
+    protected Writeable.Reader<PutFollowAction.Request> instanceReader() {
+        return PutFollowAction.Request::new;
     }
 
     @Override
     protected PutFollowAction.Request createTestInstance() {
-        return new PutFollowAction.Request(FollowIndexRequestTests.createTestRequest());
+        PutFollowAction.Request request = new PutFollowAction.Request();
+        request.setRemoteCluster(randomAlphaOfLength(4));
+        request.setLeaderIndex(randomAlphaOfLength(4));
+        request.setFollowRequest(ResumeFollowActionRequestTests.createTestRequest());
+        return request;
+    }
+
+    @Override
+    protected PutFollowAction.Request doParseInstance(XContentParser parser) throws IOException {
+        return PutFollowAction.Request.fromXContent(parser, null);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 }

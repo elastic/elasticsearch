@@ -3,11 +3,9 @@
 
   - skip:
       version: " - 6.99.99"
-      reason:  include_type_name was introduced in 7.0.0
-
+      reason: types are required in requests before 7.0.0
   - do:
       bulk:
-        include_type_name: false
         refresh: true
         body: |
           {"index": {"_index": "test_index", "_id": "test_id"}}

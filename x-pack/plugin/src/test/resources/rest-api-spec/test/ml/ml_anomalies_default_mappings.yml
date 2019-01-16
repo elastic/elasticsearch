@@ -1,8 +1,11 @@
+setup:
+  - skip:
+      features: headers
 ---
 "Test new fields are mapped as keyword":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: ml-anomalies-default-mappings-job
         body:  >
           {
@@ -39,16 +42,16 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.get_field_mapping:
+        include_type_name: false
         index: .ml-anomalies-shared
-        type: doc
         fields: new_field
-  - match: {\.ml-anomalies-shared.mappings.doc.new_field.mapping.new_field.type: keyword}
+  - match: {\.ml-anomalies-shared.mappings.new_field.mapping.new_field.type: keyword}
 
 ---
 "Test _meta exists when two jobs share an index":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: ml-anomalies-shared-mappings-job1
         body:  >
           {
@@ -72,11 +75,12 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.get_mapping:
+        include_type_name: false
         index: .ml-anomalies-shared
-  - is_true: \.ml-anomalies-shared.mappings.doc._meta.version
+  - is_true: \.ml-anomalies-shared.mappings._meta.version
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: ml-anomalies-shared-mappings-job2
         body:  >
           {
@@ -100,5 +104,6 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.get_mapping:
+        include_type_name: false
         index: .ml-anomalies-shared
-  - is_true: \.ml-anomalies-shared.mappings.doc._meta.version
+  - is_true: \.ml-anomalies-shared.mappings._meta.version

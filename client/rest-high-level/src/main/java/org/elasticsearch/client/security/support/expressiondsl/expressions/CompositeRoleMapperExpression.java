@@ -57,7 +57,7 @@ public abstract class CompositeRoleMapperExpression implements RoleMapperExpress
     }
 
     public String getName() {
-        return this.getName();
+        return this.name;
     }
 
     public List<RoleMapperExpression> getElements() {

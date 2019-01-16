@@ -19,66 +19,15 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.TimeValue;
-
-import java.io.IOException;
 
 /**
  * A pluggable module allowing to implement discovery of other nodes, publishing of the cluster
  * state to all nodes, electing a master of the cluster that raises cluster state change
  * events.
  */
-public interface Discovery extends LifecycleComponent {
-
-    /**
-     * Publish all the changes to the cluster from the master (can be called just by the master). The publish
-     * process should apply this state to the master as well!
-     *
-     * The {@link AckListener} allows to keep track of the ack received from nodes, and verify whether
-     * they updated their own cluster state or not.
-     *
-     * The method is guaranteed to throw a {@link FailedToCommitClusterStateException} if the change is not committed and should be rejected.
-     * Any other exception signals the something wrong happened but the change is committed.
-     */
-    void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener);
-
-    interface AckListener {
-        /**
-         * Should be called when the discovery layer has committed the clusters state (i.e. even if this publication fails,
-         * it is guaranteed to appear in future publications).
-         * @param commitTime the time it took to commit the cluster state
-         */
-        void onCommit(TimeValue commitTime);
-
-        /**
-         * Should be called whenever the discovery layer receives confirmation from a node that it has successfully applied
-         * the cluster state. In case of failures, an exception should be provided as parameter.
-         * @param node the node
-         * @param e the optional exception
-         */
-        void onNodeAck(DiscoveryNode node, @Nullable Exception e);
-    }
-
-    class FailedToCommitClusterStateException extends ElasticsearchException {
-
-        public FailedToCommitClusterStateException(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        public FailedToCommitClusterStateException(String msg, Object... args) {
-            super(msg, args);
-        }
-
-        public FailedToCommitClusterStateException(String msg, Throwable cause, Object... args) {
-            super(msg, cause, args);
-        }
-    }
+public interface Discovery extends LifecycleComponent, ClusterStatePublisher {
 
     /**
      * @return stats about the discovery

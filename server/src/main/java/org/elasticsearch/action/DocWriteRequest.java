@@ -36,10 +36,23 @@ import java.util.Locale;
 public interface DocWriteRequest<T> extends IndicesRequest {
 
     /**
+     * Set the index for this request
+     * @return the Request
+     */
+    T index(String index);
+
+    /**
      * Get the index that this request operates on
      * @return the index
      */
     String index();
+
+
+    /**
+     * Set the type for this request
+     * @return the Request
+     */
+    T type(String type);
 
     /**
      * Get the type that this request operates on
@@ -47,6 +60,15 @@ public interface DocWriteRequest<T> extends IndicesRequest {
      */
     String type();
 
+    /**
+     * Set the default type supplied to a bulk
+     * request if this individual request's type is null
+     * or empty
+     * @return the Request
+     */
+    T defaultTypeIfNull(String defaultType);
+    
+    
     /**
      * Get the id of the document for this request
      * @return the id

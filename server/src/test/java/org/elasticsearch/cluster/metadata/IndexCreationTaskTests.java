@@ -51,6 +51,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.mockito.ArgumentCaptor;
@@ -82,7 +83,7 @@ import static org.mockito.Mockito.when;
 public class IndexCreationTaskTests extends ESTestCase {
 
     private final IndicesService indicesService = mock(IndicesService.class);
-    private final AliasValidator aliasValidator = mock(AliasValidator.class);
+    private final AliasValidator aliasValidator = new AliasValidator();
     private final NamedXContentRegistry xContentRegistry = mock(NamedXContentRegistry.class);
     private final CreateIndexClusterStateUpdateRequest request = mock(CreateIndexClusterStateUpdateRequest.class);
     private final Logger logger = mock(Logger.class);
@@ -147,6 +148,12 @@ public class IndexCreationTaskTests extends ESTestCase {
         assertThat(result.metaData().index("test").getAliases(), hasKey("alias1"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("value1"));
         assertThat(getMappingsFromResponse(), Matchers.hasKey("mapping1"));
+    }
+
+    public void testInvalidAliasName() throws Exception {
+        final String[] invalidAliasNames = new String[] { "-alias1", "+alias2", "_alias3", "a#lias", "al:ias", ".", ".." };
+        setupRequestAlias(new Alias(randomFrom(invalidAliasNames)));
+        expectThrows(InvalidAliasNameException.class, this::executeTask);
     }
 
     public void testRequestDataHavePriorityOverTemplateData() throws Exception {

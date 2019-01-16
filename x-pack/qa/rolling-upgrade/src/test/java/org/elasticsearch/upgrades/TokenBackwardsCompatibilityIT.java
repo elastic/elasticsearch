@@ -13,6 +13,9 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
@@ -20,11 +23,34 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.equalTo;
+
 public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testGeneratingTokenInOldCluster() throws Exception {
         assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
-        Request createTokenRequest = new Request("POST", "_xpack/security/oauth2/token");
+        {
+            Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
+            assertThat("this branch is not needed if we aren't compatible with 6.0",
+                    minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
+            if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0)) {
+                XContentBuilder template = jsonBuilder();
+                template.startObject();
+                {
+                    template.field("index_patterns", "*");
+                    template.startObject("settings");
+                    template.field("number_of_shards", 5);
+                    template.endObject();
+                }
+                template.endObject();
+                Request createTemplate = new Request("PUT", "/_template/template");
+                createTemplate.setJsonEntity(Strings.toString(template));
+                client().performRequest(createTemplate);
+            }
+        }
+
+        Request createTokenRequest = new Request("POST", "/_security/oauth2/token");
         createTokenRequest.setJsonEntity(
                 "{\n" +
                 "    \"username\": \"test_user\",\n" +
@@ -45,7 +71,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 "}");
         client().performRequest(indexRequest1);
 
-        Request createSecondTokenRequest = new Request("POST", "_xpack/security/oauth2/token");
+        Request createSecondTokenRequest = new Request("POST", "/_security/oauth2/token");
         createSecondTokenRequest.setEntity(createTokenRequest.getEntity());
         response = client().performRequest(createSecondTokenRequest);
         responseMap = entityAsMap(response);
@@ -63,7 +89,9 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testTokenWorksInMixedOrUpgradedCluster() throws Exception {
         assumeTrue("this test should only run against the mixed or upgraded cluster",
                 CLUSTER_TYPE == ClusterType.MIXED || CLUSTER_TYPE == ClusterType.UPGRADED);
-        Response getResponse = client().performRequest(new Request("GET", "token_backwards_compatibility_it/doc/old_cluster_token1"));
+        Request getRequest = new Request("GET", "token_backwards_compatibility_it/doc/old_cluster_token1");
+        getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+        Response getResponse = client().performRequest(getRequest);
         assertOK(getResponse);
         Map<String, Object> source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
         assertTokenWorks((String) source.get("token"));
@@ -72,19 +100,22 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testMixedCluster() throws Exception {
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
         assumeTrue("the master must be on the latest version before we can write", isMasterOnLatestVersion());
-        Response getResponse = client().performRequest(new Request("GET", "token_backwards_compatibility_it/doc/old_cluster_token2"));
+        Request getRequest = new Request("GET", "token_backwards_compatibility_it/doc/old_cluster_token2");
+        getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+
+        Response getResponse = client().performRequest(getRequest);
         Map<String, Object> source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
         final String token = (String) source.get("token");
         assertTokenWorks(token);
 
-        Request invalidateRequest = new Request("DELETE", "_xpack/security/oauth2/token");
+        Request invalidateRequest = new Request("DELETE", "/_security/oauth2/token");
         invalidateRequest.setJsonEntity("{\"token\": \"" + token + "\"}");
         invalidateRequest.addParameter("error_trace", "true");
         client().performRequest(invalidateRequest);
         assertTokenDoesNotWork(token);
 
         // create token and refresh on version that supports it
-        Request createTokenRequest = new Request("POST", "_xpack/security/oauth2/token");
+        Request createTokenRequest = new Request("POST", "/_security/oauth2/token");
         createTokenRequest.setJsonEntity(
                 "{\n" +
                 "    \"username\": \"test_user\",\n" +
@@ -100,7 +131,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             assertNotNull(refreshToken);
             assertTokenWorks(accessToken);
 
-            Request tokenRefreshRequest = new Request("POST", "_xpack/security/oauth2/token");
+            Request tokenRefreshRequest = new Request("POST", "/_security/oauth2/token");
             tokenRefreshRequest.setJsonEntity(
                     "{\n" +
                     "    \"refresh_token\": \"" + refreshToken + "\",\n" +
@@ -121,25 +152,31 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testUpgradedCluster() throws Exception {
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
-        Response getResponse = client().performRequest(new Request("GET", "token_backwards_compatibility_it/doc/old_cluster_token2"));
+        Request getRequest = new Request("GET", "token_backwards_compatibility_it/doc/old_cluster_token2");
+        getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+
+        Response getResponse = client().performRequest(getRequest);
         assertOK(getResponse);
         Map<String, Object> source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
         final String token = (String) source.get("token");
 
         // invalidate again since this may not have been invalidated in the mixed cluster
-        Request invalidateRequest = new Request("DELETE", "_xpack/security/oauth2/token");
+        Request invalidateRequest = new Request("DELETE", "/_security/oauth2/token");
         invalidateRequest.setJsonEntity("{\"token\": \"" + token + "\"}");
         invalidateRequest.addParameter("error_trace", "true");
         Response invalidationResponse = client().performRequest(invalidateRequest);
         assertOK(invalidationResponse);
         assertTokenDoesNotWork(token);
 
-        getResponse = client().performRequest(new Request("GET", "token_backwards_compatibility_it/doc/old_cluster_token1"));
+        getRequest = new Request("GET", "token_backwards_compatibility_it/doc/old_cluster_token1");
+        getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+
+        getResponse = client().performRequest(getRequest);
         source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
         final String workingToken = (String) source.get("token");
         assertTokenWorks(workingToken);
 
-        Request getTokenRequest = new Request("POST", "_xpack/security/oauth2/token");
+        Request getTokenRequest = new Request("POST", "/_security/oauth2/token");
         getTokenRequest.setJsonEntity(
                 "{\n" +
                 "    \"username\": \"test_user\",\n" +
@@ -154,7 +191,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertNotNull(refreshToken);
         assertTokenWorks(accessToken);
 
-        Request refreshTokenRequest = new Request("POST", "_xpack/security/oauth2/token");
+        Request refreshTokenRequest = new Request("POST", "/_security/oauth2/token");
         refreshTokenRequest.setJsonEntity(
                 "{\n" +
                 "    \"refresh_token\": \"" + refreshToken + "\",\n" +
@@ -173,7 +210,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     private void assertTokenWorks(String token) throws IOException {
-        Request request = new Request("GET", "_xpack/security/_authenticate");
+        Request request = new Request("GET", "/_security/_authenticate");
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token);
         request.setOptions(options);
@@ -183,7 +220,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     private void assertTokenDoesNotWork(String token) {
-        Request request = new Request("GET", "_xpack/security/_authenticate");
+        Request request = new Request("GET", "/_security/_authenticate");
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token);
         request.setOptions(options);

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.action.shard;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
@@ -32,6 +33,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingService;
@@ -42,14 +44,11 @@ import org.elasticsearch.cluster.routing.allocation.StaleShard;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -75,7 +74,11 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Predicate;
 
-public class ShardStateAction extends AbstractComponent {
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+
+public class ShardStateAction {
+
+    private static final Logger logger = LogManager.getLogger(ShardStateAction.class);
 
     public static final String SHARD_STARTED_ACTION_NAME = "internal:cluster/shard/started";
     public static final String SHARD_FAILED_ACTION_NAME = "internal:cluster/shard/failure";
@@ -89,19 +92,23 @@ public class ShardStateAction extends AbstractComponent {
     private final ConcurrentMap<FailedShardEntry, CompositeListener> remoteFailedShardsCache = ConcurrentCollections.newConcurrentMap();
 
     @Inject
-    public ShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService,
+    public ShardStateAction(ClusterService clusterService, TransportService transportService,
                             AllocationService allocationService, RoutingService routingService, ThreadPool threadPool) {
-        super(settings);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
 
-        transportService.registerRequestHandler(SHARD_STARTED_ACTION_NAME, ThreadPool.Names.SAME, StartedShardEntry::new, new ShardStartedTransportHandler(clusterService, new ShardStartedClusterStateTaskExecutor(allocationService, logger), logger));
-        transportService.registerRequestHandler(SHARD_FAILED_ACTION_NAME, ThreadPool.Names.SAME, FailedShardEntry::new, new ShardFailedTransportHandler(clusterService, new ShardFailedClusterStateTaskExecutor(allocationService, routingService, logger), logger));
+        transportService.registerRequestHandler(SHARD_STARTED_ACTION_NAME, ThreadPool.Names.SAME, StartedShardEntry::new,
+            new ShardStartedTransportHandler(clusterService, new ShardStartedClusterStateTaskExecutor(allocationService, logger), logger));
+        transportService.registerRequestHandler(SHARD_FAILED_ACTION_NAME, ThreadPool.Names.SAME, FailedShardEntry::new,
+            new ShardFailedTransportHandler(clusterService,
+                new ShardFailedClusterStateTaskExecutor(allocationService, routingService, logger), logger));
     }
 
-    private void sendShardAction(final String actionName, final ClusterState currentState, final TransportRequest request, final Listener listener) {
-        ClusterStateObserver observer = new ClusterStateObserver(currentState, clusterService, null, logger, threadPool.getThreadContext());
+    private void sendShardAction(final String actionName, final ClusterState currentState,
+                                 final TransportRequest request, final Listener listener) {
+        ClusterStateObserver observer =
+            new ClusterStateObserver(currentState, clusterService, null, logger, threadPool.getThreadContext());
         DiscoveryNode masterNode = currentState.nodes().getMasterNode();
         Predicate<ClusterState> changePredicate = MasterNodeChangePredicate.build(currentState);
         if (masterNode == null) {
@@ -121,8 +128,11 @@ public class ShardStateAction extends AbstractComponent {
                         if (isMasterChannelException(exp)) {
                             waitForNewMasterAndRetry(actionName, observer, request, listener, changePredicate);
                         } else {
-                            logger.warn(new ParameterizedMessage("unexpected failure while sending request [{}] to [{}] for shard entry [{}]", actionName, masterNode, request), exp);
-                            listener.onFailure(exp instanceof RemoteTransportException ? (Exception) (exp.getCause() instanceof Exception ? exp.getCause() : new ElasticsearchException(exp.getCause())) : exp);
+                            logger.warn(new ParameterizedMessage("unexpected failure while sending request [{}]" +
+                                " to [{}] for shard entry [{}]", actionName, masterNode, request), exp);
+                            listener.onFailure(exp instanceof RemoteTransportException ?
+                                (Exception) (exp.getCause() instanceof Exception ? exp.getCause() :
+                                    new ElasticsearchException(exp.getCause())) : exp);
                         }
                     }
                 });
@@ -132,7 +142,7 @@ public class ShardStateAction extends AbstractComponent {
     private static Class[] MASTER_CHANNEL_EXCEPTIONS = new Class[]{
         NotMasterException.class,
         ConnectTransportException.class,
-        Discovery.FailedToCommitClusterStateException.class
+        FailedToCommitClusterStateException.class
     };
 
     private static boolean isMasterChannelException(TransportException exp) {
@@ -152,7 +162,8 @@ public class ShardStateAction extends AbstractComponent {
      * @param failure            the underlying cause of the failure
      * @param listener           callback upon completion of the request
      */
-    public void remoteShardFailed(final ShardId shardId, String allocationId, long primaryTerm, boolean markAsStale, final String message, @Nullable final Exception failure, Listener listener) {
+    public void remoteShardFailed(final ShardId shardId, String allocationId, long primaryTerm, boolean markAsStale, final String message,
+                                  @Nullable final Exception failure, Listener listener) {
         assert primaryTerm > 0L : "primary term should be strictly positive";
         final FailedShardEntry shardEntry = new FailedShardEntry(shardId, allocationId, primaryTerm, message, failure, markAsStale);
         final CompositeListener compositeListener = new CompositeListener(listener);
@@ -188,21 +199,24 @@ public class ShardStateAction extends AbstractComponent {
     /**
      * Send a shard failed request to the master node to update the cluster state when a shard on the local node failed.
      */
-    public void localShardFailed(final ShardRouting shardRouting, final String message, @Nullable final Exception failure, Listener listener) {
+    public void localShardFailed(final ShardRouting shardRouting, final String message,
+                                 @Nullable final Exception failure, Listener listener) {
         localShardFailed(shardRouting, message, failure, listener, clusterService.state());
     }
 
     /**
      * Send a shard failed request to the master node to update the cluster state when a shard on the local node failed.
      */
-    public void localShardFailed(final ShardRouting shardRouting, final String message, @Nullable final Exception failure, Listener listener,
-                                 final ClusterState currentState) {
-        FailedShardEntry shardEntry = new FailedShardEntry(shardRouting.shardId(), shardRouting.allocationId().getId(), 0L, message, failure, true);
+    public void localShardFailed(final ShardRouting shardRouting, final String message, @Nullable final Exception failure,
+                                 Listener listener, final ClusterState currentState) {
+        FailedShardEntry shardEntry = new FailedShardEntry(shardRouting.shardId(), shardRouting.allocationId().getId(),
+            0L, message, failure, true);
         sendShardAction(SHARD_FAILED_ACTION_NAME, currentState, shardEntry, listener);
     }
 
     // visible for testing
-    protected void waitForNewMasterAndRetry(String actionName, ClusterStateObserver observer, TransportRequest request, Listener listener, Predicate<ClusterState> changePredicate) {
+    protected void waitForNewMasterAndRetry(String actionName, ClusterStateObserver observer,
+                                            TransportRequest request, Listener listener, Predicate<ClusterState> changePredicate) {
         observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
@@ -231,7 +245,8 @@ public class ShardStateAction extends AbstractComponent {
         private final ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
         private final Logger logger;
 
-        ShardFailedTransportHandler(ClusterService clusterService, ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor, Logger logger) {
+        ShardFailedTransportHandler(ClusterService clusterService,
+                                    ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor, Logger logger) {
             this.clusterService = clusterService;
             this.shardFailedClusterStateTaskExecutor = shardFailedClusterStateTaskExecutor;
             this.logger = logger;
@@ -239,7 +254,8 @@ public class ShardStateAction extends AbstractComponent {
 
         @Override
         public void messageReceived(FailedShardEntry request, TransportChannel channel, Task task) throws Exception {
-            logger.debug(() -> new ParameterizedMessage("{} received shard failed for {}", request.shardId, request), request.failure);
+            logger.debug(() -> new ParameterizedMessage("{} received shard failed for {}",
+                request.shardId, request), request.failure);
             clusterService.submitStateUpdateTask(
                 "shard-failed",
                 request,
@@ -248,12 +264,15 @@ public class ShardStateAction extends AbstractComponent {
                 new ClusterStateTaskListener() {
                     @Override
                     public void onFailure(String source, Exception e) {
-                        logger.error(() -> new ParameterizedMessage("{} unexpected failure while failing shard [{}]", request.shardId, request), e);
+                        logger.error(() -> new ParameterizedMessage("{} unexpected failure while failing shard [{}]",
+                            request.shardId, request), e);
                         try {
                             channel.sendResponse(e);
                         } catch (Exception channelException) {
                             channelException.addSuppressed(e);
-                            logger.warn(() -> new ParameterizedMessage("{} failed to send failure [{}] while failing shard [{}]", request.shardId, e, request), channelException);
+                            logger.warn(() ->
+                                new ParameterizedMessage("{} failed to send failure [{}] while failing shard [{}]",
+                                    request.shardId, e, request), channelException);
                         }
                     }
 
@@ -263,7 +282,9 @@ public class ShardStateAction extends AbstractComponent {
                         try {
                             channel.sendResponse(new NotMasterException(source));
                         } catch (Exception channelException) {
-                            logger.warn(() -> new ParameterizedMessage("{} failed to send no longer master while failing shard [{}]", request.shardId, request), channelException);
+                            logger.warn(() ->
+                                new ParameterizedMessage("{} failed to send no longer master while failing shard [{}]",
+                                    request.shardId, request), channelException);
                         }
                     }
 
@@ -272,7 +293,9 @@ public class ShardStateAction extends AbstractComponent {
                         try {
                             channel.sendResponse(TransportResponse.Empty.INSTANCE);
                         } catch (Exception channelException) {
-                            logger.warn(() -> new ParameterizedMessage("{} failed to send response while failing shard [{}]", request.shardId, request), channelException);
+                            logger.warn(() ->
+                                new ParameterizedMessage("{} failed to send response while failing shard [{}]",
+                                    request.shardId, request), channelException);
                         }
                     }
                 }
@@ -302,7 +325,8 @@ public class ShardStateAction extends AbstractComponent {
                 IndexMetaData indexMetaData = currentState.metaData().index(task.shardId.getIndex());
                 if (indexMetaData == null) {
                     // tasks that correspond to non-existent indices are marked as successful
-                    logger.debug("{} ignoring shard failed task [{}] (unknown index {})", task.shardId, task, task.shardId.getIndex());
+                    logger.debug("{} ignoring shard failed task [{}] (unknown index {})",
+                        task.shardId, task, task.shardId.getIndex());
                     batchResultBuilder.success(task);
                 } else {
                     // The primary term is 0 if the shard failed itself. It is > 0 if a write was done on a primary but was failed to be
@@ -334,7 +358,8 @@ public class ShardStateAction extends AbstractComponent {
                         // they were failed is because a write made it into the primary but not to this copy (which corresponds to
                         // the check "primaryTerm > 0").
                         if (task.primaryTerm > 0 && inSyncAllocationIds.contains(task.allocationId)) {
-                            logger.debug("{} marking shard {} as stale (shard failed task: [{}])", task.shardId, task.allocationId, task);
+                            logger.debug("{} marking shard {} as stale (shard failed task: [{}])",
+                                task.shardId, task.allocationId, task);
                             tasksToBeApplied.add(task);
                             staleShardsToBeApplied.add(new StaleShard(task.shardId, task.allocationId));
                         } else {
@@ -406,7 +431,8 @@ public class ShardStateAction extends AbstractComponent {
             }
         }
 
-        public FailedShardEntry(ShardId shardId, String allocationId, long primaryTerm, String message, Exception failure, boolean markAsStale) {
+        public FailedShardEntry(ShardId shardId, String allocationId, long primaryTerm,
+                                String message, Exception failure, boolean markAsStale) {
             this.shardId = shardId;
             this.allocationId = allocationId;
             this.primaryTerm = primaryTerm;
@@ -481,7 +507,8 @@ public class ShardStateAction extends AbstractComponent {
         private final ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
         private final Logger logger;
 
-        ShardStartedTransportHandler(ClusterService clusterService, ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor, Logger logger) {
+        ShardStartedTransportHandler(ClusterService clusterService,
+                                     ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor, Logger logger) {
             this.clusterService = clusterService;
             this.shardStartedClusterStateTaskExecutor = shardStartedClusterStateTaskExecutor;
             this.logger = logger;
@@ -500,7 +527,8 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    public static class ShardStartedClusterStateTaskExecutor implements ClusterStateTaskExecutor<StartedShardEntry>, ClusterStateTaskListener {
+    public static class ShardStartedClusterStateTaskExecutor
+            implements ClusterStateTaskExecutor<StartedShardEntry>, ClusterStateTaskListener {
         private final AllocationService allocationService;
         private final Logger logger;
 
@@ -528,13 +556,14 @@ public class ShardStateAction extends AbstractComponent {
                     if (matched.initializing() == false) {
                         assert matched.active() : "expected active shard routing for task " + task + " but found " + matched;
                         // same as above, this might have been a stale in-flight request, so we just ignore.
-                        logger.debug("{} ignoring shard started task [{}] (shard exists but is not initializing: {})", task.shardId, task,
-                            matched);
+                        logger.debug("{} ignoring shard started task [{}] (shard exists but is not initializing: {})",
+                            task.shardId, task, matched);
                         builder.success(task);
                     } else {
                         // remove duplicate actions as allocation service expects a clean list without duplicates
                         if (seenShardRoutings.contains(matched)) {
-                            logger.trace("{} ignoring shard started task [{}] (already scheduled to start {})", task.shardId, task, matched);
+                            logger.trace("{} ignoring shard started task [{}] (already scheduled to start {})",
+                                task.shardId, task, matched);
                             tasksToBeApplied.add(task);
                         } else {
                             logger.debug("{} starting shard {} (shard started task: [{}])", task.shardId, matched, task);
@@ -576,7 +605,7 @@ public class ShardStateAction extends AbstractComponent {
             allocationId = in.readString();
             if (in.getVersion().before(Version.V_6_3_0)) {
                 final long primaryTerm = in.readVLong();
-                assert primaryTerm == 0L : "shard is only started by itself: primary term [" + primaryTerm + "]";
+                assert primaryTerm == UNASSIGNED_PRIMARY_TERM : "shard is only started by itself: primary term [" + primaryTerm + "]";
             }
             this.message = in.readString();
             if (in.getVersion().before(Version.V_6_3_0)) {
@@ -625,7 +654,7 @@ public class ShardStateAction extends AbstractComponent {
          * are:
          *  - {@link NotMasterException}
          *  - {@link NodeDisconnectedException}
-         *  - {@link Discovery.FailedToCommitClusterStateException}
+         *  - {@link FailedToCommitClusterStateException}
          *
          * Any other exception is communicated to the requester via
          * this notification.

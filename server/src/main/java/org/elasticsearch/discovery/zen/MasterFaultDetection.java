@@ -19,6 +19,8 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterName;
@@ -54,6 +56,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * A fault detection that pings the master periodically to see if its alive.
  */
 public class MasterFaultDetection extends FaultDetection {
+
+    private static final Logger logger = LogManager.getLogger(MasterFaultDetection.class);
 
     public static final String MASTER_PING_ACTION_NAME = "internal:discovery/zen/fd/master_ping";
 
@@ -225,8 +229,8 @@ public class MasterFaultDetection extends FaultDetection {
             transportService.sendRequest(masterToPing, MASTER_PING_ACTION_NAME, request, options,
                 new TransportResponseHandler<MasterPingResponseResponse>() {
                         @Override
-                        public MasterPingResponseResponse newInstance() {
-                            return new MasterPingResponseResponse();
+                        public MasterPingResponseResponse read(StreamInput in) throws IOException {
+                            return new MasterPingResponseResponse(in);
                         }
 
                         @Override
@@ -297,13 +301,13 @@ public class MasterFaultDetection extends FaultDetection {
     }
 
     /** Thrown when a ping reaches the wrong node */
-    static class ThisIsNotTheMasterYouAreLookingForException extends IllegalStateException {
+    public static class ThisIsNotTheMasterYouAreLookingForException extends IllegalStateException {
 
-        ThisIsNotTheMasterYouAreLookingForException(String msg) {
+        public ThisIsNotTheMasterYouAreLookingForException(String msg) {
             super(msg);
         }
 
-        ThisIsNotTheMasterYouAreLookingForException() {
+        public ThisIsNotTheMasterYouAreLookingForException() {
         }
 
         @Override
@@ -397,7 +401,7 @@ public class MasterFaultDetection extends FaultDetection {
 
     public static class MasterPingRequest extends TransportRequest {
 
-        private DiscoveryNode sourceNode;
+        public DiscoveryNode sourceNode;
 
         private DiscoveryNode masterNode;
         private ClusterName clusterName;
@@ -405,7 +409,7 @@ public class MasterFaultDetection extends FaultDetection {
         public MasterPingRequest() {
         }
 
-        private MasterPingRequest(DiscoveryNode sourceNode, DiscoveryNode masterNode, ClusterName clusterName) {
+        public MasterPingRequest(DiscoveryNode sourceNode, DiscoveryNode masterNode, ClusterName clusterName) {
             this.sourceNode = sourceNode;
             this.masterNode = masterNode;
             this.clusterName = clusterName;
@@ -428,19 +432,13 @@ public class MasterFaultDetection extends FaultDetection {
         }
     }
 
-    private static class MasterPingResponseResponse extends TransportResponse {
+    public static class MasterPingResponseResponse extends TransportResponse {
 
-        private MasterPingResponseResponse() {
+        public MasterPingResponseResponse() {
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+        public MasterPingResponseResponse(StreamInput in) throws IOException {
+            super(in);
         }
     }
 }

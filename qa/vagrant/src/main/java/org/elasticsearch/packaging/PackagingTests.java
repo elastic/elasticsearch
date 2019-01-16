@@ -19,20 +19,20 @@
 
 package org.elasticsearch.packaging;
 
-import org.elasticsearch.packaging.test.DefaultDebPreservationTests;
 import org.elasticsearch.packaging.test.DefaultDebBasicTests;
-import org.elasticsearch.packaging.test.DefaultRpmPreservationTests;
+import org.elasticsearch.packaging.test.DefaultDebPreservationTests;
 import org.elasticsearch.packaging.test.DefaultRpmBasicTests;
-import org.elasticsearch.packaging.test.OssDebPreservationTests;
-import org.elasticsearch.packaging.test.OssDebBasicTests;
-import org.elasticsearch.packaging.test.OssRpmPreservationTests;
-import org.elasticsearch.packaging.test.OssRpmBasicTests;
-import org.elasticsearch.packaging.test.OssTarTests;
-import org.elasticsearch.packaging.test.OssZipTests;
+import org.elasticsearch.packaging.test.DefaultRpmPreservationTests;
 import org.elasticsearch.packaging.test.DefaultTarTests;
+import org.elasticsearch.packaging.test.DefaultWindowsServiceTests;
 import org.elasticsearch.packaging.test.DefaultZipTests;
-import org.elasticsearch.packaging.test.PackageDependenciesTests;
-
+import org.elasticsearch.packaging.test.OssDebBasicTests;
+import org.elasticsearch.packaging.test.OssDebPreservationTests;
+import org.elasticsearch.packaging.test.OssRpmBasicTests;
+import org.elasticsearch.packaging.test.OssRpmPreservationTests;
+import org.elasticsearch.packaging.test.OssTarTests;
+import org.elasticsearch.packaging.test.OssWindowsServiceTests;
+import org.elasticsearch.packaging.test.OssZipTests;
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
 import org.junit.runners.Suite.SuiteClasses;
@@ -43,7 +43,6 @@ import org.junit.runners.Suite.SuiteClasses;
     OssTarTests.class,
     DefaultZipTests.class,
     OssZipTests.class,
-    PackageDependenciesTests.class,
     DefaultRpmBasicTests.class,
     OssRpmBasicTests.class,
     DefaultDebBasicTests.class,
@@ -51,6 +50,8 @@ import org.junit.runners.Suite.SuiteClasses;
     DefaultDebPreservationTests.class,
     OssDebPreservationTests.class,
     DefaultRpmPreservationTests.class,
-    OssRpmPreservationTests.class
+    OssRpmPreservationTests.class,
+    DefaultWindowsServiceTests.class,
+    OssWindowsServiceTests.class
 })
 public class PackagingTests {}

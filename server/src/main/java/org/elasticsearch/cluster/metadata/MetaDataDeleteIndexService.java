@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -31,7 +33,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -47,15 +48,18 @@ import static java.util.stream.Collectors.toSet;
 /**
  * Deletes indices.
  */
-public class MetaDataDeleteIndexService extends AbstractComponent {
+public class MetaDataDeleteIndexService {
 
+    private static final Logger logger = LogManager.getLogger(MetaDataDeleteIndexService.class);
+
+    private final Settings settings;
     private final ClusterService clusterService;
 
     private final AllocationService allocationService;
 
     @Inject
     public MetaDataDeleteIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
-        super(settings);
+        this.settings = settings;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
     }

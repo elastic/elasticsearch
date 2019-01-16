@@ -20,8 +20,8 @@
 package org.elasticsearch.painless;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
@@ -55,7 +55,7 @@ import static java.util.Comparator.comparing;
 public class PainlessDocGenerator {
 
     private static final PainlessLookup PAINLESS_LOOKUP = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
-    private static final Logger logger = ESLoggerFactory.getLogger(PainlessDocGenerator.class);
+    private static final Logger logger = LogManager.getLogger(PainlessDocGenerator.class);
     private static final Comparator<PainlessField> FIELD_NAME = comparing(f -> f.javaField.getName());
     private static final Comparator<PainlessMethod> METHOD_NAME = comparing(m -> m.javaMethod.getName());
     private static final Comparator<PainlessMethod> METHOD_NUMBER_OF_PARAMS = comparing(m -> m.typeParameters.size());
@@ -434,7 +434,7 @@ public class PainlessDocGenerator {
         if (classPackage.startsWith("org.apache.lucene")) {
             return "lucene-core";
         }
-        throw new IllegalArgumentException("Unrecognized packge: " + classPackage);
+        throw new IllegalArgumentException("Unrecognized package: " + classPackage);
     }
 
     private static void emitGeneratedWarning(PrintStream stream) {

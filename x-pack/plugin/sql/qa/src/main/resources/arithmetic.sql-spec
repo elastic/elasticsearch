@@ -1,0 +1,87 @@
+//
+// Arithmetic tests
+//
+
+unaryMinus
+// tag::unaryMinus
+SELECT - 1 AS x;
+// end::unaryMinus
+plus
+// tag::plus
+SELECT 1 + 1 AS x;
+// end::plus
+minus
+// tag::minus
+SELECT 1 - 1 AS x;
+// end::minus
+divide
+// tag::divide
+SELECT 6 / 3 AS x;
+// end::divide
+multiply
+// tag::multiply
+SELECT 2 * 3 AS x;
+// end::multiply
+mod
+// tag::mod
+SELECT 5 % 2 AS x;
+// end::mod
+operatorsPriority
+SELECT 1 + 3 * 4 / 2 - 2 AS x;
+operatorsPriorityWithParanthesis
+SELECT ((1 + 3) * 2 / (3 - 1)) * 2 AS x;
+literalAliasing
+SELECT 2 + 3 AS x, 'foo' y;
+
+// variable scalar arithmetic
+scalarVariablePlus
+SELECT emp_no + 10000 AS x FROM test_emp;
+scalarVariableMinus
+SELECT emp_no - 10000 AS x FROM test_emp;
+scalarVariableMul
+SELECT emp_no * 10000 AS x FROM test_emp;
+scalarVariableDiv
+SELECT emp_no / 10000 AS x FROM test_emp;
+scalarVariableMod
+SELECT emp_no % 10000 AS x FROM test_emp;
+scalarVariableMultipleInputs
+SELECT (emp_no % 10000) + YEAR(hire_date) AS x FROM test_emp;
+scalarVariableTwoInputs
+SELECT (emp_no % 10000) + YEAR(hire_date) AS x FROM test_emp;
+scalarVariableThreeInputs
+SELECT ((emp_no % 10000) + YEAR(hire_date)) / MONTH(birth_date) AS x FROM test_emp;
+scalarVariableArithmeticAndEntry
+SELECT emp_no, emp_no % 10000 AS x FROM test_emp;
+scalarVariableTwoInputsAndEntry
+SELECT emp_no, (emp_no % 10000) + YEAR(hire_date) AS x FROM test_emp;
+scalarVariableThreeInputsAndEntry
+SELECT emp_no, ((emp_no % 10000) + YEAR(hire_date)) / MONTH(birth_date) AS x FROM test_emp;
+
+
+// variable scalar agg
+aggVariablePlus
+SELECT COUNT(*) + 10000 AS x FROM test_emp GROUP BY gender ORDER BY gender;
+aggVariableMinus
+SELECT COUNT(*) - 10000 AS x FROM test_emp GROUP BY gender ORDER BY gender;
+aggVariableMul
+SELECT COUNT(*) * 2 AS x FROM test_emp GROUP BY gender ORDER BY gender;
+aggVariableDiv
+SELECT COUNT(*) / 5000 AS x FROM test_emp GROUP BY gender ORDER BY gender;
+aggVariableMod
+SELECT COUNT(*) % 10000 AS x FROM test_emp GROUP BY gender ORDER BY gender;
+aggVariableTwoInputs
+SELECT MAX(emp_no) - MIN(emp_no) AS x FROM test_emp GROUP BY gender ORDER BY gender;
+aggVariableThreeInputs
+SELECT CAST((MAX(emp_no) - MIN(emp_no)) + FLOOR(AVG(emp_no)) AS INT) AS x FROM test_emp GROUP BY gender ORDER BY gender;
+
+// ordering
+orderByPlus
+SELECT emp_no FROM test_emp ORDER BY emp_no + 2 LIMIT 10;
+orderByNegative
+SELECT emp_no FROM test_emp ORDER BY -emp_no LIMIT 10;
+orderByMinusDesc
+SELECT emp_no FROM test_emp ORDER BY -emp_no DESC LIMIT 10;
+orderByModulo
+SELECT emp_no FROM test_emp ORDER BY emp_no % 10000 LIMIT 10;
+orderByMul
+SELECT emp_no FROM test_emp ORDER BY emp_no * 2 LIMIT 10;

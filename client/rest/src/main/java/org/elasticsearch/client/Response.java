@@ -124,9 +124,9 @@ public class Response {
             final Matcher matcher = WARNING_HEADER_PATTERN.matcher(warning);
             if (matcher.matches()) {
                 warnings.add(matcher.group(1));
-                continue;
+            } else {
+                warnings.add(warning);
             }
-            warnings.add(warning);
         }
         return warnings;
     }

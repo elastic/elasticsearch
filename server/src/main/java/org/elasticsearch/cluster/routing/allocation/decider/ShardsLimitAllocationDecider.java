@@ -73,8 +73,10 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         Setting.intSetting("cluster.routing.allocation.total_shards_per_node", -1,  -1,
             Property.Dynamic, Property.NodeScope);
 
+    private final Settings settings;
+
     public ShardsLimitAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
+        this.settings = settings;
         this.clusterShardLimit = CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING, this::setClusterShardLimit);
     }

@@ -3,6 +3,8 @@
 [[sql-security]]
 == Security
 
+beta[]
+
 {es-sql} integrates with security, if this is enabled on your cluster. 
 In such a scenario, {es-sql} supports both security at the transport layer (by encrypting the communication between the consumer and the server) and authentication (for the access layer).
 
@@ -34,6 +36,6 @@ indices:
 
 ["source","yaml",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-tests}/security/roles.yml[cli_jdbc]
+include-tagged::{sql-tests}/security/roles.yml[cli_drivers]
 --------------------------------------------------
 

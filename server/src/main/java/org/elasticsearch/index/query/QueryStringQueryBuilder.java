@@ -251,22 +251,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * This setting is deprecated, set {@link #defaultField(String)} to "*" instead.
-     */
-    @Deprecated
-    public QueryStringQueryBuilder useAllFields(Boolean useAllFields) {
-        if (useAllFields != null && useAllFields) {
-            this.defaultField = "*";
-        }
-        return this;
-    }
-
-    @Deprecated
-    public Boolean useAllFields() {
-        return defaultField == null ? null : Regex.isMatchAllPattern(defaultField);
-    }
-
-    /**
      * Adds a field to run the query string against. The field will be associated with the
      * default boost of {@link AbstractQueryBuilder#DEFAULT_BOOST}.
      * Use {@link #field(String, float)} to set a specific boost for the field.
@@ -303,22 +287,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     public QueryStringQueryBuilder type(MultiMatchQueryBuilder.Type type) {
         this.type = type;
         return this;
-    }
-
-    /**
-     * Use {@link QueryStringQueryBuilder#tieBreaker} instead.
-     */
-    @Deprecated
-    public QueryStringQueryBuilder useDisMax(boolean useDisMax) {
-        return this;
-    }
-
-    /**
-     * Use {@link QueryStringQueryBuilder#tieBreaker} instead.
-     */
-    @Deprecated
-    public boolean useDisMax() {
-        return true;
     }
 
     /**
@@ -385,22 +353,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     public QueryStringQueryBuilder quoteAnalyzer(String quoteAnalyzer) {
         this.quoteAnalyzer = quoteAnalyzer;
         return this;
-    }
-
-    /**
-     * This setting is ignored
-     */
-    @Deprecated
-    public QueryStringQueryBuilder autoGeneratePhraseQueries(boolean autoGeneratePhraseQueries) {
-        return this;
-    }
-
-    /**
-     * This setting is ignored
-     */
-    @Deprecated
-    public boolean autoGeneratePhraseQueries() {
-        return false;
     }
 
     /**
@@ -584,22 +536,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     public boolean escape() {
         return this.escape;
-    }
-
-    /**
-     * This setting is ignored, this query parser splits on operator only.
-     */
-    @Deprecated
-    public QueryStringQueryBuilder splitOnWhitespace(boolean value) {
-        return this;
-    }
-
-    /**
-     * This setting is ignored, this query parser splits on operator only.
-     */
-    @Deprecated
-    public boolean splitOnWhitespace() {
-        return false;
     }
 
     public QueryStringQueryBuilder autoGenerateSynonymsPhraseQuery(boolean value) {

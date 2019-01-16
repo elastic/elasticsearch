@@ -5,27 +5,34 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
-import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class StatsResponsesTests extends AbstractStreamableTestCase<CcrStatsAction.StatsResponses> {
+public class StatsResponsesTests extends AbstractWireSerializingTestCase<FollowStatsAction.StatsResponses> {
 
     @Override
-    protected CcrStatsAction.StatsResponses createBlankInstance() {
-        return new CcrStatsAction.StatsResponses();
+    protected Writeable.Reader<FollowStatsAction.StatsResponses> instanceReader() {
+        return FollowStatsAction.StatsResponses::new;
     }
 
     @Override
-    protected CcrStatsAction.StatsResponses createTestInstance() {
+    protected FollowStatsAction.StatsResponses createTestInstance() {
+        return createStatsResponse();
+    }
+
+    static FollowStatsAction.StatsResponses createStatsResponse() {
         int numResponses = randomIntBetween(0, 8);
-        List<CcrStatsAction.StatsResponse> responses = new ArrayList<>(numResponses);
+        List<FollowStatsAction.StatsResponse> responses = new ArrayList<>(numResponses);
         for (int i = 0; i < numResponses; i++) {
             ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
+                randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
                 randomInt(),
@@ -47,10 +54,14 @@ public class StatsResponsesTests extends AbstractStreamableTestCase<CcrStatsActi
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
                 Collections.emptyNavigableMap(),
-                randomLong());
-            responses.add(new CcrStatsAction.StatsResponse(status));
+                randomLong(),
+                randomBoolean() ? new ElasticsearchException("fatal error") : null);
+            responses.add(new FollowStatsAction.StatsResponse(status));
         }
-        return new CcrStatsAction.StatsResponses(Collections.emptyList(), Collections.emptyList(), responses);
+        return new FollowStatsAction.StatsResponses(Collections.emptyList(), Collections.emptyList(), responses);
     }
 }

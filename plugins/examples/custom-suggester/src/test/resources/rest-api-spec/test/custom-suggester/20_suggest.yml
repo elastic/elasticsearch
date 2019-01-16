@@ -1,7 +1,7 @@
 # tests that the custom suggester works
 
 # the issue that prompted serializing Suggestion as a registered named writeable was not revealed until
-# a user found that it would fail when reducing suggestions in a multi node envrionment
+# a user found that it would fail when reducing suggestions in a multi node environment
 # https://github.com/elastic/elasticsearch/issues/26585
 "test custom suggester":
   - do:
@@ -38,6 +38,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         size: 0
         index: test
         body:

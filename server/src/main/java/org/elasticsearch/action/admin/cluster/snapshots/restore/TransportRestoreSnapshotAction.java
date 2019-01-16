@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
@@ -50,10 +49,11 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
     private final RestoreService restoreService;
 
     @Inject
-    public TransportRestoreSnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportRestoreSnapshotAction(TransportService transportService, ClusterService clusterService,
                                           ThreadPool threadPool, RestoreService restoreService, ActionFilters actionFilters,
                                           IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, RestoreSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters, RestoreSnapshotRequest::new,indexNameExpressionResolver);
+        super(RestoreSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
+              RestoreSnapshotRequest::new,indexNameExpressionResolver);
         this.restoreService = restoreService;
     }
 
@@ -80,7 +80,8 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
     }
 
     @Override
-    protected void masterOperation(final RestoreSnapshotRequest request, final ClusterState state, final ActionListener<RestoreSnapshotResponse> listener) {
+    protected void masterOperation(final RestoreSnapshotRequest request, final ClusterState state,
+                                   final ActionListener<RestoreSnapshotResponse> listener) {
         RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(request.repository(), request.snapshot(),
                 request.indices(), request.indicesOptions(), request.renamePattern(), request.renameReplacement(),
                 request.settings(), request.masterNodeTimeout(), request.includeGlobalState(), request.partial(), request.includeAliases(),
@@ -91,12 +92,13 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
             public void onResponse(RestoreCompletionResponse restoreCompletionResponse) {
                 if (restoreCompletionResponse.getRestoreInfo() == null && request.waitForCompletion()) {
                     final Snapshot snapshot = restoreCompletionResponse.getSnapshot();
+                    String uuid = restoreCompletionResponse.getUuid();
 
                     ClusterStateListener clusterStateListener = new ClusterStateListener() {
                         @Override
                         public void clusterChanged(ClusterChangedEvent changedEvent) {
-                            final RestoreInProgress.Entry prevEntry = restoreInProgress(changedEvent.previousState(), snapshot);
-                            final RestoreInProgress.Entry newEntry = restoreInProgress(changedEvent.state(), snapshot);
+                            final RestoreInProgress.Entry prevEntry = restoreInProgress(changedEvent.previousState(), uuid);
+                            final RestoreInProgress.Entry newEntry = restoreInProgress(changedEvent.state(), uuid);
                             if (prevEntry == null) {
                                 // When there is a master failure after a restore has been started, this listener might not be registered
                                 // on the current master and as such it might miss some intermediary cluster states due to batching.

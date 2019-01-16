@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
+import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.joda.time.format.DateTimeFormat;
@@ -56,6 +57,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.LAST_UPDATED_VERSION;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.indexName;
@@ -66,7 +68,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -116,7 +117,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                        .build();
     }
 
-    protected Settings.Builder baseSettings() {
+    private Settings.Builder baseSettings() {
         return Settings.builder()
                        .put("xpack.monitoring.exporters._http.type", "http")
                        .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer))
@@ -273,17 +274,18 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
             assertMonitorVersion(secondWebServer);
 
+            String resourcePrefix = "/_template/";
             for (Tuple<String, String> template : monitoringTemplates(includeOldTemplates)) {
                 MockRequest recordedRequest = secondWebServer.takeRequest();
                 assertThat(recordedRequest.getMethod(), equalTo("GET"));
-                assertThat(recordedRequest.getUri().getPath(), equalTo("/_template/" + template.v1()));
-                assertThat(recordedRequest.getUri().getQuery(), equalTo(resourceVersionQueryString()));
+                assertThat(recordedRequest.getUri().getPath(), equalTo(resourcePrefix + template.v1()));
+                assertMonitorVersionQueryString(resourcePrefix, recordedRequest.getUri().getQuery());
 
                 if (missingTemplate.equals(template.v1())) {
                     recordedRequest = secondWebServer.takeRequest();
                     assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-                    assertThat(recordedRequest.getUri().getPath(), equalTo("/_template/" + template.v1()));
-                    assertThat(recordedRequest.getUri().getQuery(), equalTo(resourceVersionQueryString()));
+                    assertThat(recordedRequest.getUri().getPath(), equalTo(resourcePrefix + template.v1()));
+                    assertMonitorVersionQueryString(resourcePrefix, recordedRequest.getUri().getQuery());
                     assertThat(recordedRequest.getBody(), equalTo(template.v2()));
                 }
             }
@@ -295,7 +297,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     }
 
     public void testUnsupportedClusterVersion() throws Exception {
-        Settings settings = Settings.builder()
+        final Settings settings = Settings.builder()
                 .put("xpack.monitoring.exporters._http.type", "http")
                 .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer))
                 .build();
@@ -311,7 +313,21 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
         // ensure that the exporter is not able to be used
         try (HttpExporter exporter = createHttpExporter(settings)) {
-            assertThat(exporter.isExporterReady(), is(false));
+            final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
+
+            final ActionListener<ExportBulk> listener = ActionListener.wrap(
+                bulk -> {
+                    assertNull(bulk);
+
+                    awaitResponseAndClose.countDown();
+                },
+                e -> fail(e.getMessage())
+            );
+
+            exporter.openBulk(listener);
+
+            // wait for it to actually respond
+            assertTrue(awaitResponseAndClose.await(15, TimeUnit.SECONDS));
         }
 
         assertThat(webServer.requests(), hasSize(1));
@@ -443,7 +459,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
             assertThat(getRequest.getMethod(), equalTo("GET"));
             assertThat(getRequest.getUri().getPath(), equalTo(pathPrefix + resourcePrefix + resource.v1()));
-            assertThat(getRequest.getUri().getQuery(), equalTo(resourceVersionQueryString()));
+            assertMonitorVersionQueryString(resourcePrefix, getRequest.getUri().getQuery());
             assertHeaders(getRequest, customHeaders);
 
             if (alreadyExists == false) {
@@ -451,10 +467,18 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
                 assertThat(putRequest.getMethod(), equalTo("PUT"));
                 assertThat(putRequest.getUri().getPath(), equalTo(pathPrefix + resourcePrefix + resource.v1()));
-                assertThat(putRequest.getUri().getQuery(), equalTo(resourceVersionQueryString()));
+                assertMonitorVersionQueryString(resourcePrefix, getRequest.getUri().getQuery());
                 assertThat(putRequest.getBody(), equalTo(resource.v2()));
                 assertHeaders(putRequest, customHeaders);
             }
+        }
+    }
+
+    private void assertMonitorVersionQueryString(String resourcePrefix, String query) {
+        if (resourcePrefix.startsWith("/_template")) {
+            assertThat(query, equalTo(INCLUDE_TYPE_NAME_PARAMETER + "=true&" + resourceVersionQueryString()));
+        } else {
+            assertThat(query, equalTo(resourceVersionQueryString()));
         }
     }
 
@@ -483,7 +507,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 // GET / PUT if we are allowed to use it
                 if (currentLicenseAllowsWatcher && clusterAlertBlacklist.contains(watch.v1()) == false) {
                     assertThat(request.getMethod(), equalTo("GET"));
-                    assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_xpack/watcher/watch/" + uniqueWatchId));
+                    assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_watcher/watch/" + uniqueWatchId));
                     assertThat(request.getUri().getQuery(), equalTo(resourceClusterAlertQueryString()));
                     assertHeaders(request, customHeaders);
 
@@ -491,7 +515,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                         request = webServer.takeRequest();
 
                         assertThat(request.getMethod(), equalTo("PUT"));
-                        assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_xpack/watcher/watch/" + uniqueWatchId));
+                        assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_watcher/watch/" + uniqueWatchId));
                         assertThat(request.getUri().getQuery(), equalTo(resourceClusterAlertQueryString()));
                         assertThat(request.getBody(), equalTo(watch.v2()));
                         assertHeaders(request, customHeaders);
@@ -499,7 +523,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 // DELETE if we're not allowed to use it
                 } else {
                     assertThat(request.getMethod(), equalTo("DELETE"));
-                    assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_xpack/watcher/watch/" + uniqueWatchId));
+                    assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_watcher/watch/" + uniqueWatchId));
                     assertThat(request.getUri().getQuery(), equalTo(resourceClusterAlertQueryString()));
                     assertHeaders(request, customHeaders);
                 }
@@ -549,7 +573,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         }
     }
 
-    private HttpExporter createHttpExporter(final Settings settings) throws Exception {
+    private HttpExporter createHttpExporter(final Settings settings) {
         final Exporter.Config config =
                 new Exporter.Config("_http", "http", settings, clusterService(), new XPackLicenseState(Settings.EMPTY));
 
@@ -561,34 +585,25 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         assertBusy(() -> assertThat(clusterService().state().version(), not(ClusterState.UNKNOWN_VERSION)));
 
         try (HttpExporter exporter = createHttpExporter(settings)) {
-            // the readiness check happens synchronously, so we don't need to busy-wait for it
-            assertThat("Exporter is not ready", exporter.isExporterReady(), is(true));
-
-            final HttpExportBulk bulk = exporter.openBulk();
-
-            assertThat("Bulk should never be null after the exporter is ready", bulk, notNullValue());
-
             final CountDownLatch awaitResponseAndClose = new CountDownLatch(2);
-            final ActionListener<Void> listener = new ActionListener<Void>() {
-                @Override
-                public void onResponse(Void response) {
-                    awaitResponseAndClose.countDown();
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    fail(e.getMessage());
+            exporter.openBulk(ActionListener.wrap(exportBulk -> {
+                final HttpExportBulk bulk = (HttpExportBulk)exportBulk;
 
-                    awaitResponseAndClose.countDown();
-                }
-            };
+                assertThat("Bulk should never be null after the exporter is ready", bulk, notNullValue());
 
-            bulk.doAdd(docs);
-            bulk.doFlush(listener);
-            bulk.doClose(listener);
+                final ActionListener<Void> listener = ActionListener.wrap(
+                    ignored -> awaitResponseAndClose.countDown(),
+                    e -> fail(e.getMessage())
+                );
+
+                bulk.doAdd(docs);
+                bulk.doFlush(listener);
+                bulk.doClose(listener); // reusing the same listener, which is why we expect countDown x2
+            }, e -> fail("Failed to create HttpExportBulk")));
 
             // block until the bulk responds
-            awaitResponseAndClose.await(15, TimeUnit.SECONDS);
+            assertTrue(awaitResponseAndClose.await(15, TimeUnit.SECONDS));
         }
     }
 

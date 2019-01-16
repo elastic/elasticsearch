@@ -150,7 +150,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             e = addValidationError("stored_fields is not supported in this context", e);
         }
         if (maxRetries < 0) {
-            e = addValidationError("retries cannnot be negative", e);
+            e = addValidationError("retries cannot be negative", e);
         }
         if (false == (size == -1 || size > 0)) {
             e = addValidationError(

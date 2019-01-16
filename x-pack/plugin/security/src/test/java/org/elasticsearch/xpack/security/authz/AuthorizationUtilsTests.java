@@ -23,6 +23,7 @@ import org.junit.Before;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -90,60 +91,45 @@ public class AuthorizationUtilsTests extends ESTestCase {
     }
 
     public void testSwitchAndExecuteXpackSecurityUser() throws Exception {
-        SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        final String headerName = randomAlphaOfLengthBetween(4, 16);
-        final String headerValue = randomAlphaOfLengthBetween(4, 16);
-        final CountDownLatch latch = new CountDownLatch(2);
-
-        final ActionListener<Void> listener = ActionListener.wrap(v -> {
-            assertNull(threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
-            assertNull(threadContext.getHeader(headerName));
-            assertEquals(XPackSecurityUser.INSTANCE, securityContext.getAuthentication().getUser());
-            latch.countDown();
-        }, e -> fail(e.getMessage()));
-
-        final Consumer<ThreadContext.StoredContext> consumer = original -> {
-            assertNull(threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
-            assertNull(threadContext.getHeader(headerName));
-            assertEquals(XPackSecurityUser.INSTANCE, securityContext.getAuthentication().getUser());
-            latch.countDown();
-            listener.onResponse(null);
-        };
-        threadContext.putHeader(headerName, headerValue);
-        threadContext.putTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME, ClientHelper.SECURITY_ORIGIN);
-
-        AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadContext, securityContext, consumer);
-
-        latch.await();
+        assertSwitchBasedOnOriginAndExecute(ClientHelper.SECURITY_ORIGIN, XPackSecurityUser.INSTANCE);
     }
 
     public void testSwitchAndExecuteXpackUser() throws Exception {
+        String origin = randomFrom(ClientHelper.ML_ORIGIN, ClientHelper.WATCHER_ORIGIN, ClientHelper.DEPRECATION_ORIGIN,
+                ClientHelper.MONITORING_ORIGIN, ClientHelper.PERSISTENT_TASK_ORIGIN, ClientHelper.INDEX_LIFECYCLE_ORIGIN);
+        assertSwitchBasedOnOriginAndExecute(origin, XPackUser.INSTANCE);
+    }
+
+    public void testSwitchWithTaskOrigin() throws Exception {
+        assertSwitchBasedOnOriginAndExecute(TASKS_ORIGIN, XPackUser.INSTANCE);
+    }
+
+    private void assertSwitchBasedOnOriginAndExecute(String origin, User user) throws Exception {
         SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         final String headerName = randomAlphaOfLengthBetween(4, 16);
         final String headerValue = randomAlphaOfLengthBetween(4, 16);
         final CountDownLatch latch = new CountDownLatch(2);
 
         final ActionListener<Void> listener = ActionListener.wrap(v -> {
-            assertNull(threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
+            assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
             assertNull(threadContext.getHeader(headerName));
-            assertEquals(XPackUser.INSTANCE, securityContext.getAuthentication().getUser());
+            assertEquals(user, securityContext.getAuthentication().getUser());
             latch.countDown();
         }, e -> fail(e.getMessage()));
 
         final Consumer<ThreadContext.StoredContext> consumer = original -> {
-            assertNull(threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
+            assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
             assertNull(threadContext.getHeader(headerName));
-            assertEquals(XPackUser.INSTANCE, securityContext.getAuthentication().getUser());
+            assertEquals(user, securityContext.getAuthentication().getUser());
             latch.countDown();
             listener.onResponse(null);
         };
         threadContext.putHeader(headerName, headerValue);
-        threadContext.putTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME,
-                randomFrom(ClientHelper.ML_ORIGIN, ClientHelper.WATCHER_ORIGIN, ClientHelper.DEPRECATION_ORIGIN,
-                        ClientHelper.MONITORING_ORIGIN, ClientHelper.PERSISTENT_TASK_ORIGIN));
+        try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(origin)) {
+            AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadContext, securityContext, consumer);
 
-        AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadContext, securityContext, consumer);
-
-        latch.await();
+            latch.await();
+        }
     }
+
 }

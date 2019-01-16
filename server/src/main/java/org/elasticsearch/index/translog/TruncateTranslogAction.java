@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.translog;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -28,7 +29,6 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -55,7 +55,7 @@ import java.util.TreeSet;
 
 public class TruncateTranslogAction {
 
-    protected static final Logger logger = Loggers.getLogger(TruncateTranslogAction.class);
+    protected static final Logger logger = LogManager.getLogger(TruncateTranslogAction.class);
     private final NamedXContentRegistry namedXContentRegistry;
 
     public TruncateTranslogAction(NamedXContentRegistry namedXContentRegistry) {
@@ -207,7 +207,7 @@ public class TruncateTranslogAction {
      */
     private static int writeEmptyTranslog(Path filename, String translogUUID) throws IOException {
         try (FileChannel fc = FileChannel.open(filename, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW)) {
-            TranslogHeader header = new TranslogHeader(translogUUID, TranslogHeader.UNKNOWN_PRIMARY_TERM);
+            TranslogHeader header = new TranslogHeader(translogUUID, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
             header.write(fc);
             return header.sizeInBytes();
         }

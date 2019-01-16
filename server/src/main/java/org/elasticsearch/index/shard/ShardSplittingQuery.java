@@ -114,7 +114,7 @@ final class ShardSplittingQuery extends Query {
                         TwoPhaseIterator twoPhaseIterator =
                             parentBitSet == null ? new RoutingPartitionedDocIdSetIterator(visitor) :
                                 new NestedRoutingPartitionedDocIdSetIterator(visitor, parentBitSet);
-                        return new ConstantScoreScorer(this, score(), twoPhaseIterator);
+                        return new ConstantScoreScorer(this, score(), scoreMode, twoPhaseIterator);
                     } else {
                         // here we potentially guard the docID consumers with our parent bitset if we have one.
                         // this ensures that we are only marking root documents in the nested case and if necessary
@@ -155,7 +155,7 @@ final class ShardSplittingQuery extends Query {
                     }
                 }
 
-                return new ConstantScoreScorer(this, score(), new BitSetIterator(bitSet, bitSet.length()));
+                return new ConstantScoreScorer(this, score(), scoreMode, new BitSetIterator(bitSet, bitSet.length()));
             }
 
             @Override

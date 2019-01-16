@@ -116,7 +116,7 @@ final class DefaultSearchContext extends SearchContext {
     private SortAndFormats sort;
     private Float minimumScore;
     private boolean trackScores = false; // when sorting, track scores as well...
-    private boolean trackTotalHits = true;
+    private int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
     private FieldDoc searchAfter;
     private CollapseContext collapse;
     private boolean lowLevelCancellation;
@@ -154,12 +154,12 @@ final class DefaultSearchContext extends SearchContext {
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
     private final QueryShardContext queryShardContext;
-    private FetchPhase fetchPhase;
+    private final FetchPhase fetchPhase;
 
     DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, ClusterService clusterService, IndexService indexService,
                          IndexShard indexShard, BigArrays bigArrays, Counter timeEstimateCounter, TimeValue timeout,
-                         FetchPhase fetchPhase, String clusterAlias, Version minNodeVersion) {
+                         FetchPhase fetchPhase, Version minNodeVersion) {
         this.id = id;
         this.request = request;
         this.fetchPhase = fetchPhase;
@@ -179,14 +179,14 @@ final class DefaultSearchContext extends SearchContext {
         this.timeout = timeout;
         this.minNodeVersion = minNodeVersion;
         queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher.getIndexReader(), request::nowInMillis,
-            clusterAlias);
+            shardTarget.getClusterAlias());
         queryShardContext.setTypes(request.types());
         queryBoost = request.indexBoost();
     }
 
     @Override
     public void doClose() {
-        // clear and scope phase we  have
+        // clear and scope phase we have
         Releasables.close(searcher, engineSearcher);
     }
 
@@ -244,7 +244,7 @@ final class DefaultSearchContext extends SearchContext {
         // initialize the filtering alias based on the provided filters
         try {
             final QueryBuilder queryBuilder = request.getAliasFilter().getQueryBuilder();
-            aliasFilter = queryBuilder == null ? null : queryBuilder.toFilter(queryShardContext);
+            aliasFilter = queryBuilder == null ? null : queryBuilder.toQuery(queryShardContext);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -558,14 +558,14 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext trackTotalHits(boolean trackTotalHits) {
-        this.trackTotalHits = trackTotalHits;
+    public SearchContext trackTotalHitsUpTo(int trackTotalHitsUpTo) {
+        this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         return this;
     }
 
     @Override
-    public boolean trackTotalHits() {
-        return trackTotalHits;
+    public int trackTotalHitsUpTo() {
+        return trackTotalHitsUpTo;
     }
 
     @Override

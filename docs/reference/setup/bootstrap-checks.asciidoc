@@ -21,6 +21,7 @@ Elasticsearch from running with incompatible settings. These checks are
 documented individually.
 
 [float]
+[[dev-vs-prod-mode]]
 === Development vs. production mode
 
 By default, Elasticsearch binds to loopback addresses for <<modules-http,HTTP>>
@@ -156,9 +157,9 @@ and is enforced on Linux only. To pass the maximum map count check, you
 must configure `vm.max_map_count` via `sysctl` to be at least `262144`.
 
 Alternatively, the maximum map count check is only needed if you are using
-`mmapfs` as the <<index-modules-store,store type>> for your indices. If you
-<<allow-mmapfs,do not allow>> the use of `mmapfs` then this bootstrap check will
-not be enforced.
+`mmapfs` or `hybridfs` as the <<index-modules-store,store type>> for your
+indices. If you <<allow-mmap,do not allow>> the use of `mmap` then this
+bootstrap check will not be enforced.
 
 === Client JVM check
 
@@ -193,7 +194,7 @@ Elasticsearch installs system call filters of various flavors depending
 on the operating system (e.g., seccomp on Linux). These system call
 filters are installed to prevent the ability to execute system calls
 related to forking as a defense mechanism against arbitrary code
-execution attacks on Elasticsearch The system call filter check ensures
+execution attacks on Elasticsearch. The system call filter check ensures
 that if system call filters are enabled, then they were successfully
 installed. To pass the system call filter check you must either fix any
 configuration errors on your system that prevented system call filters
@@ -236,3 +237,21 @@ versions of the HotSpot JVM.
 The all permission check ensures that the security policy used during bootstrap
 does not grant the `java.security.AllPermission` to Elasticsearch. Running with
 the all permission granted is equivalent to disabling the security manager.
+
+=== Discovery configuration check
+
+By default, when Elasticsearch first starts up it will try and discover other
+nodes running on the same host. If no elected master can be discovered within a
+few seconds then Elasticsearch will form a cluster that includes any other
+nodes that were discovered. It is useful to be able to form this cluster
+without any extra configuration in development mode, but this is unsuitable for
+production because it's possible to form multiple clusters and lose data as a
+result.
+
+This bootstrap check ensures that discovery is not running with the default
+configuration. It can be satisfied by setting at least one of the following
+properties:
+
+- `discovery.zen.ping.unicast.hosts`
+- `discovery.zen.hosts_provider`
+- `cluster.initial_master_nodes`

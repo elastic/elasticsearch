@@ -13,6 +13,17 @@ Upgrading from earlier 5.x versions requires a <<restart-upgrade,
 full cluster restart>>. You must <<reindex-upgrade,reindex to upgrade>> from
 versions prior to 5.x.
 
+WARNING: If the {es} {security-features} are enabled on your 5.x cluster, before
+you can do a rolling upgrade you must encrypt the internode-communication with
+SSL/TLS, which requires a full cluster restart. For more information about this
+requirement and the associated bootstrap check, see <<bootstrap-checks-tls>>.
+
+WARNING: The format used for the internal indices used by Kibana and {xpack}
+has changed in 6.x. When upgrading from 5.6 to 6.x, these internal indices have
+to be {stack-ref}/upgrading-elastic-stack.html#upgrade-internal-indices[upgraded]
+before the rolling upgrade procedure can start. Otherwise the upgraded node will
+refuse to join the cluster.
+
 To perform a rolling upgrade:
 
 . *Disable shard allocation*.
@@ -44,6 +55,10 @@ include::shut-down-node.asciidoc[]
 . *Upgrade the node you shut down.*
 +
 --
+include::remove-xpack.asciidoc[]
+--
++
+--
 include::upgrade-node.asciidoc[]
 include::set-paths-tip.asciidoc[]
 --
@@ -53,8 +68,6 @@ include::set-paths-tip.asciidoc[]
 Use the `elasticsearch-plugin` script to install the upgraded version of each
 installed Elasticsearch plugin. All plugins must be upgraded when you upgrade
 a node.
-+
-include::remove-xpack.asciidoc[]
 
 . *Start the upgraded node.*
 +

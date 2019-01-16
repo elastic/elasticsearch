@@ -5,7 +5,7 @@
 The geographic functions detect anomalies in the geographic location of the
 input data.
 
-The {xpackml} features include the following geographic function: `lat_long`.
+The {ml-features} include the following geographic function: `lat_long`.
 
 NOTE: You cannot create forecasts for jobs that contain geographic functions. 
 You also cannot add rules with conditions to detectors that use geographic 
@@ -31,7 +31,7 @@ see {ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects]
 .Example 1: Analyzing transactions with the lat_long function
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/anomaly_detectors/example1
+PUT _ml/anomaly_detectors/example1
 {
   "analysis_config": {
     "detectors": [{
@@ -72,14 +72,14 @@ For example, JSON data might contain the following transaction coordinates:
 
 In {es}, location data is likely to be stored in `geo_point` fields. For more
 information, see {ref}/geo-point.html[Geo-point datatype]. This data type is not
-supported natively in {xpackml} features. You can, however, use Painless scripts
+supported natively in {ml-features}. You can, however, use Painless scripts
 in `script_fields` in your {dfeed} to transform the data into an appropriate
 format. For example, the following Painless script transforms
 `"coords": {"lat" : 41.44, "lon":90.5}` into `"lat-lon": "41.44,90.5"`:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/datafeeds/datafeed-test2
+PUT _ml/datafeeds/datafeed-test2
 {
   "job_id": "farequote",
   "indices": ["farequote"],

@@ -136,6 +136,7 @@ public class BasicAPITests extends ScriptTestCase {
     }
 
     public void testStatic() {
+        assertEquals(10, exec("staticAddIntsTest(7, 3)"));
         assertEquals(15.5f, exec("staticAddFloatsTest(6.5f, 9.0f)"));
     }
 }

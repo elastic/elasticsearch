@@ -38,12 +38,12 @@
       catch: bad_request
       put_script:
         id: "1"
-        context: "search"
+        context: "score"
         body: { "script": {"lang": "painless", "source": "_score * foo bar + doc['myParent.weight'].value"} }
 
   - do:
       catch: /compile error/
       put_script:
         id: "1"
-        context: "search"
+        context: "score"
         body: { "script": {"lang": "painless", "source": "_score * foo bar + doc['myParent.weight'].value"} }

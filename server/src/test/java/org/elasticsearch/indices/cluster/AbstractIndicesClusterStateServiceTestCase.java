@@ -226,12 +226,14 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public MockIndexShard createShard(ShardRouting shardRouting, RecoveryState recoveryState,
-                                          PeerRecoveryTargetService recoveryTargetService,
-                                          PeerRecoveryTargetService.RecoveryListener recoveryListener,
-                                          RepositoriesService repositoriesService,
-                                          Consumer<IndexShard.ShardFailure> onShardFailure,
-                                          Consumer<ShardId> globalCheckpointSyncer) throws IOException {
+        public MockIndexShard createShard(
+                final ShardRouting shardRouting,
+                final RecoveryState recoveryState,
+                final PeerRecoveryTargetService recoveryTargetService,
+                final PeerRecoveryTargetService.RecoveryListener recoveryListener,
+                final RepositoriesService repositoriesService,
+                final Consumer<IndexShard.ShardFailure> onShardFailure,
+                final Consumer<ShardId> globalCheckpointSyncer) throws IOException {
             failRandomly();
             MockIndexService indexService = indexService(recoveryState.getShardId().getIndex());
             MockIndexShard indexShard = indexService.createShard(shardRouting);
@@ -279,10 +281,10 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public void updateMetaData(IndexMetaData indexMetaData) {
-            indexSettings.updateIndexMetaData(indexMetaData);
+        public void updateMetaData(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) {
+            indexSettings.updateIndexMetaData(newIndexMetaData);
             for (MockIndexShard shard: shards.values()) {
-                shard.updateTerm(indexMetaData.primaryTerm(shard.shardId().id()));
+                shard.updateTerm(newIndexMetaData.primaryTerm(shard.shardId().id()));
             }
         }
 

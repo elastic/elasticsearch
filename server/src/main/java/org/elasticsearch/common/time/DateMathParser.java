@@ -51,7 +51,7 @@ public interface DateMathParser {
      *
      * Examples are
      *
-     * <code>2014-11-18||-2y</code> substracts two years from the input date
+     * <code>2014-11-18||-2y</code> subtracts two years from the input date
      * <code>now/m</code>           rounds the current time to minute granularity
      *
      * Supported rounding units are

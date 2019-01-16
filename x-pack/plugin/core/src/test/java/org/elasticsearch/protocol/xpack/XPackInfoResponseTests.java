@@ -7,12 +7,12 @@ package org.elasticsearch.protocol.xpack;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.AbstractHlrcStreamableXContentTestCase;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.BuildInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -21,16 +21,46 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.io.IOException;
+import java.util.stream.Collectors;
 
-public class XPackInfoResponseTests extends AbstractStreamableXContentTestCase<XPackInfoResponse> {
-    @Override
-    protected XPackInfoResponse doParseInstance(XContentParser parser) throws IOException {
-        return XPackInfoResponse.fromXContent(parser);
-    }
+public class XPackInfoResponseTests extends
+        AbstractHlrcStreamableXContentTestCase<XPackInfoResponse, org.elasticsearch.client.xpack.XPackInfoResponse> {
 
     @Override
     protected XPackInfoResponse createBlankInstance() {
         return new XPackInfoResponse();
+    }
+
+    @Override
+    public org.elasticsearch.client.xpack.XPackInfoResponse doHlrcParseInstance(XContentParser parser) throws IOException {
+        return org.elasticsearch.client.xpack.XPackInfoResponse.fromXContent(parser);
+    }
+
+    @Override
+    public XPackInfoResponse convertHlrcToInternal(org.elasticsearch.client.xpack.XPackInfoResponse instance) {
+        return new XPackInfoResponse(convertHlrcToInternal(instance.getBuildInfo()),
+            convertHlrcToInternal(instance.getLicenseInfo()), convertHlrcToInternal(instance.getFeatureSetsInfo()));
+    }
+
+    private BuildInfo convertHlrcToInternal(org.elasticsearch.client.xpack.XPackInfoResponse.BuildInfo buildInfo) {
+        return buildInfo != null ? new BuildInfo(buildInfo.getHash(), buildInfo.getTimestamp()) : null;
+    }
+
+    private LicenseInfo convertHlrcToInternal(org.elasticsearch.client.xpack.XPackInfoResponse.LicenseInfo licenseInfo) {
+        return licenseInfo != null
+            ? new LicenseInfo(licenseInfo.getUid(), licenseInfo.getType(), licenseInfo.getMode(),
+                licenseInfo.getStatus() != null ? LicenseStatus.valueOf(licenseInfo.getStatus().name()) : null,
+                licenseInfo.getExpiryDate())
+            : null;
+    }
+
+    private FeatureSetsInfo convertHlrcToInternal(org.elasticsearch.client.xpack.XPackInfoResponse.FeatureSetsInfo featureSetsInfo) {
+        return featureSetsInfo != null
+            ? new FeatureSetsInfo(featureSetsInfo.getFeatureSets().values().stream()
+            .map(fs -> new FeatureSet(fs.name(), fs.description(), fs.available(), fs.enabled(),
+                fs.nativeCodeInfo()))
+            .collect(Collectors.toSet()))
+            : null;
     }
 
     @Override

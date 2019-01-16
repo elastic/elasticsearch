@@ -97,7 +97,7 @@ public class GetJobRequest extends ActionRequest implements ToXContentObject {
         this.allowNoJobs = allowNoJobs;
     }
 
-    public Boolean isAllowNoJobs() {
+    public Boolean getAllowNoJobs() {
         return allowNoJobs;
     }
 

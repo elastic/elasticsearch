@@ -30,12 +30,14 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class TransportPutUserAction extends HandledTransportAction<PutUserRequest, PutUserResponse> {
 
+    private final Settings settings;
     private final NativeUsersStore usersStore;
 
     @Inject
     public TransportPutUserAction(Settings settings, ActionFilters actionFilters,
                                   NativeUsersStore usersStore, TransportService transportService) {
-        super(settings, PutUserAction.NAME, transportService, actionFilters, PutUserRequest::new);
+        super(PutUserAction.NAME, transportService, actionFilters, PutUserRequest::new);
+        this.settings = settings;
         this.usersStore = usersStore;
     }
 

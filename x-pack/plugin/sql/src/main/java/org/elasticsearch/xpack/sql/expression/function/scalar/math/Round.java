@@ -8,15 +8,9 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
-
-import java.util.Locale;
-
-import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
  * Function that takes two parameters: one is the field/value itself, the other is a non-floating point numeric
@@ -26,8 +20,8 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
  */
 public class Round extends BinaryNumericFunction {
     
-    public Round(Location location, Expression left, Expression right) {
-        super(location, left, right == null ? Literal.of(left.location(), 0) : right, BinaryMathOperation.ROUND);
+    public Round(Source source, Expression left, Expression right) {
+        super(source, left, right == null ? Literal.of(left.source(), 0) : right, BinaryMathOperation.ROUND);
     }
 
     @Override
@@ -37,18 +31,7 @@ public class Round extends BinaryNumericFunction {
 
     @Override
     protected Round replaceChildren(Expression newLeft, Expression newRight) {
-        return new Round(location(), newLeft, newRight);
-    }
-
-    @Override
-    protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s)"),
-                mathFunction(),
-                leftScript.template(),
-                rightScript.template()),
-                paramsBuilder()
-                    .script(leftScript.params()).script(rightScript.params())
-                    .build(), dataType());
+        return new Round(source(), newLeft, newRight);
     }
     
     @Override

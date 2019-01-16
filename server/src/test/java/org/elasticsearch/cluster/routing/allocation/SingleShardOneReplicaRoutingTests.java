@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,7 +29,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -39,10 +39,11 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SingleShardOneReplicaRoutingTests extends ESAllocationTestCase {
-    private final Logger logger = Loggers.getLogger(SingleShardOneReplicaRoutingTests.class);
+    private final Logger logger = LogManager.getLogger(SingleShardOneReplicaRoutingTests.class);
 
     public void testSingleIndexFirstStartPrimaryThenBackups() {
-        AllocationService strategy = createAllocationService(Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
+        AllocationService strategy = createAllocationService(Settings.builder()
+            .put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
 
         logger.info("Building initial routing table");
 
@@ -54,7 +55,8 @@ public class SingleShardOneReplicaRoutingTests extends ESAllocationTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
+            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
 
         assertThat(clusterState.routingTable().index("test").shards().size(), equalTo(1));
         assertThat(clusterState.routingTable().index("test").shard(0).size(), equalTo(2));
@@ -81,7 +83,8 @@ public class SingleShardOneReplicaRoutingTests extends ESAllocationTestCase {
         assertThat(clusterState.routingTable().index("test").shard(0).replicaShards().get(0).currentNodeId(), nullValue());
 
         logger.info("Add another node and perform rerouting, nothing will happen since primary shards not started");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
         newState = strategy.reroute(clusterState, "reroute");
         assertThat(newState, equalTo(clusterState));
 
@@ -97,9 +100,11 @@ public class SingleShardOneReplicaRoutingTests extends ESAllocationTestCase {
         assertThat(clusterState.routingTable().index("test").shard(0).primaryShard().state(), equalTo(STARTED));
         assertThat(clusterState.routingTable().index("test").shard(0).primaryShard().currentNodeId(), equalTo("node1"));
         assertThat(clusterState.routingTable().index("test").shard(0).replicaShards().size(), equalTo(1));
-        // backup shards are initializing as well, we make sure that they recover from primary *started* shards in the IndicesClusterStateService
+        // backup shards are initializing as well, we make sure that they recover
+        // from primary *started* shards in the IndicesClusterStateService
         assertThat(clusterState.routingTable().index("test").shard(0).replicaShards().get(0).state(), equalTo(INITIALIZING));
-        assertThat(clusterState.routingTable().index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo("node2"));
+        assertThat(clusterState.routingTable().index("test").shard(0).replicaShards().get(0).currentNodeId(),
+            equalTo("node2"));
 
 
         logger.info("Reroute, nothing should change");
@@ -119,7 +124,8 @@ public class SingleShardOneReplicaRoutingTests extends ESAllocationTestCase {
         assertThat(clusterState.routingTable().index("test").shard(0).primaryShard().currentNodeId(), equalTo("node1"));
         assertThat(clusterState.routingTable().index("test").shard(0).replicaShards().size(), equalTo(1));
         assertThat(clusterState.routingTable().index("test").shard(0).replicaShards().get(0).state(), equalTo(STARTED));
-        assertThat(clusterState.routingTable().index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo("node2"));
+        assertThat(clusterState.routingTable().index("test").shard(0).replicaShards().get(0).currentNodeId(),
+            equalTo("node2"));
 
         logger.info("Kill node1, backup shard should become primary");
 
@@ -134,13 +140,15 @@ public class SingleShardOneReplicaRoutingTests extends ESAllocationTestCase {
         assertThat(clusterState.routingTable().index("test").shard(0).primaryShard().state(), equalTo(STARTED));
         assertThat(clusterState.routingTable().index("test").shard(0).primaryShard().currentNodeId(), equalTo("node2"));
         assertThat(clusterState.routingTable().index("test").shard(0).replicaShards().size(), equalTo(1));
-        // backup shards are initializing as well, we make sure that they recover from primary *started* shards in the IndicesClusterStateService
+        // backup shards are initializing as well, we make sure that they
+        // recover from primary *started* shards in the IndicesClusterStateService
         assertThat(clusterState.routingTable().index("test").shard(0).replicaShards().get(0).state(), equalTo(UNASSIGNED));
         assertThat(clusterState.routingTable().index("test").shard(0).replicaShards().get(0).currentNodeId(), nullValue());
 
         logger.info("Start another node, backup shard should start initializing");
 
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
         newState = strategy.reroute(clusterState, "reroute");
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
@@ -151,8 +159,10 @@ public class SingleShardOneReplicaRoutingTests extends ESAllocationTestCase {
         assertThat(clusterState.routingTable().index("test").shard(0).primaryShard().state(), equalTo(STARTED));
         assertThat(clusterState.routingTable().index("test").shard(0).primaryShard().currentNodeId(), equalTo("node2"));
         assertThat(clusterState.routingTable().index("test").shard(0).replicaShards().size(), equalTo(1));
-        // backup shards are initializing as well, we make sure that they recover from primary *started* shards in the IndicesClusterStateService
+        // backup shards are initializing as well, we make sure that they
+        // recover from primary *started* shards in the IndicesClusterStateService
         assertThat(clusterState.routingTable().index("test").shard(0).replicaShards().get(0).state(), equalTo(INITIALIZING));
-        assertThat(clusterState.routingTable().index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo("node3"));
+        assertThat(clusterState.routingTable().index("test").shard(0).replicaShards().get(0).currentNodeId(),
+            equalTo("node3"));
     }
 }

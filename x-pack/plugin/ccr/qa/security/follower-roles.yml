@@ -1,0 +1,10 @@
+ccruser:
+  cluster:
+    - manage_ccr
+  indices:
+    - names: [ 'allowed-index', 'logs-eu-*' ]
+      privileges:
+        - monitor
+        - read
+        - write
+        - manage_follow_index

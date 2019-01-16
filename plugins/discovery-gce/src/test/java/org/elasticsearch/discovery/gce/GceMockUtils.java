@@ -26,20 +26,20 @@ import com.google.api.client.json.Json;
 import com.google.api.client.testing.http.MockHttpTransport;
 import com.google.api.client.testing.http.MockLowLevelHttpRequest;
 import com.google.api.client.testing.http.MockLowLevelHttpResponse;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 
 public class GceMockUtils {
-    protected static final Logger logger = Loggers.getLogger(GceMockUtils.class);
+    protected static final Logger logger = LogManager.getLogger(GceMockUtils.class);
 
-    public static final String GCE_METADATA_URL = "http://metadata.google.internal/computeMetadata/v1/instance";
+    public static final String GCE_METADATA_URL = "http://metadata.google.internal/computeMetadata/v1/";
 
     protected static HttpTransport configureMock() {
         return new MockHttpTransport() {
@@ -54,6 +54,7 @@ public class GceMockUtils {
                         if (url.startsWith(GCE_METADATA_URL)) {
                             logger.info("--> Simulate GCE Auth/Metadata response for [{}]", url);
                             response.setContent(readGoogleInternalJsonResponse(url));
+                            response.addHeader("Metadata-Flavor", "Google");
                         } else {
                             logger.info("--> Simulate GCE API response for [{}]", url);
                             response.setContent(readGoogleApiJsonResponse(url));

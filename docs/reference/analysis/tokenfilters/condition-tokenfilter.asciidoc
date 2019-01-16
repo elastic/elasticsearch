@@ -20,7 +20,7 @@ You can set it up like:
 
 [source,js]
 --------------------------------------------------
-PUT /condition_example
+PUT /condition_example?include_type_name=true
 {
     "settings" : {
         "analysis" : {

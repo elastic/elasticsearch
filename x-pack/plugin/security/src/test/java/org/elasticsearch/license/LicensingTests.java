@@ -41,7 +41,8 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.TestXPackTransportClient;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
+import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
@@ -198,7 +199,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         // the default of the licensing tests is basic
         assertThat(unauthorizedRootResponse.getStatusLine().getStatusCode(), is(200));
         ResponseException e = expectThrows(ResponseException.class,
-                () -> getRestClient().performRequest(new Request("GET", "/_xpack/security/_authenticate")));
+            () -> getRestClient().performRequest(new Request("GET", "/_security/_authenticate")));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
 
         // generate a new license with a mode that enables auth
@@ -208,7 +209,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(new Request("GET", "/")));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
         e = expectThrows(ResponseException.class,
-            () -> getRestClient().performRequest(new Request("GET", "/_xpack/security/_authenticate")));
+            () -> getRestClient().performRequest(new Request("GET", "/_security/_authenticate")));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
 
         RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
@@ -220,7 +221,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         rootRequest.setOptions(options);
         Response authorizedRootResponse = getRestClient().performRequest(rootRequest);
         assertThat(authorizedRootResponse.getStatusLine().getStatusCode(), is(200));
-        Request authenticateRequest = new Request("GET", "/_xpack/security/_authenticate");
+        Request authenticateRequest = new Request("GET", "/_security/_authenticate");
         authenticateRequest.setOptions(options);
         Response authorizedAuthenticateResponse = getRestClient().performRequest(authenticateRequest);
         assertThat(authorizedAuthenticateResponse.getStatusLine().getStatusCode(), is(200));
@@ -231,7 +232,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         Settings settings = internalCluster().transportClient().settings();
         try (TransportClient client = new TestXPackTransportClient(settings, LocalStateSecurity.class)) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
-            new SecurityClient(client).prepareGetUsers().get();
+            new SecurityClient(client).preparePutUser("john", "password".toCharArray(), Hasher.BCRYPT).get();
             fail("security actions should not be enabled!");
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.status(), is(RestStatus.FORBIDDEN));
@@ -245,7 +246,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         // security actions should work!
         try (TransportClient client = new TestXPackTransportClient(settings, LocalStateSecurity.class)) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
-            GetUsersResponse response = new SecurityClient(client).prepareGetUsers().get();
+            PutUserResponse response = new SecurityClient(client).preparePutUser("john", "password".toCharArray(), Hasher.BCRYPT).get();
             assertNotNull(response);
         }
     }
@@ -299,6 +300,7 @@ public class LicensingTests extends SecurityIntegTestCase {
             .put("path.home", home)
             .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "test-zen")
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
             .putList(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey())
             .putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), unicastHostsList)
             .build();

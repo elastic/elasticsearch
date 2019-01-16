@@ -4,6 +4,8 @@ setup:
         index: test
         body:
           settings:
+            index:
+              number_of_shards: 1     # keep scoring stable
             analysis:
               filter:
                 syns:
@@ -79,6 +81,7 @@ setup:
 "simple multiterm phrase":
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match_phrase:
@@ -90,6 +93,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match_phrase:
@@ -103,6 +107,7 @@ setup:
 "simple multiterm and":
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -115,6 +120,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -129,6 +135,7 @@ setup:
 "minimum should match":
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -141,6 +148,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -158,6 +166,7 @@ setup:
 "multiterm synonyms phrase":
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -191,6 +200,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match_phrase_prefix:

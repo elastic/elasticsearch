@@ -24,9 +24,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -39,8 +38,11 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 import org.joda.time.Instant;
+import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -86,9 +88,9 @@ public class ExtendedBoundsTests extends ESTestCase {
      */
     public static ExtendedBounds unparsed(ExtendedBounds template) {
         // It'd probably be better to randomize the formatter
-        FormatDateTimeFormatter formatter = Joda.forPattern("dateOptionalTime");
-        String minAsStr = template.getMin() == null ? null : formatter.printer().print(new Instant(template.getMin()));
-        String maxAsStr = template.getMax() == null ? null : formatter.printer().print(new Instant(template.getMax()));
+        DateTimeFormatter formatter = ISODateTimeFormat.dateTime().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC);
+        String minAsStr = template.getMin() == null ? null : formatter.print(new Instant(template.getMin()));
+        String maxAsStr = template.getMax() == null ? null : formatter.print(new Instant(template.getMax()));
         return new ExtendedBounds(minAsStr, maxAsStr);
     }
 
@@ -101,7 +103,7 @@ public class ExtendedBoundsTests extends ESTestCase {
                 new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings), null, null, null, null,
                 null, xContentRegistry(), writableRegistry(), null, null, () -> now, null);
         when(context.getQueryShardContext()).thenReturn(qsc);
-        FormatDateTimeFormatter formatter = Joda.forPattern("dateOptionalTime");
+        DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime");
         DocValueFormat format = new DocValueFormat.DateTime(formatter, DateTimeZone.UTC);
 
         ExtendedBounds expected = randomParsedExtendedBounds();

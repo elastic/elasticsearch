@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NByteArrayEntity;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -18,7 +19,6 @@ import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,7 +39,7 @@ import java.util.Map;
  */
 class HttpExportBulk extends ExportBulk {
 
-    private static final Logger logger = Loggers.getLogger(HttpExportBulk.class);
+    private static final Logger logger = LogManager.getLogger(HttpExportBulk.class);
 
     /**
      * The {@link RestClient} managed by the {@link HttpExporter}.

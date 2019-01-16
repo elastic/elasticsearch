@@ -3,11 +3,9 @@
 
   - skip:
       version: " - 6.99.99"
-      reason:  include_type_name was introduced in 7.0.0
-
+      reason: types are required in requests before 7.0.0
   - do:
       index:
-        include_type_name: false
         refresh: true
         index: test_index
         id: test_id_1
@@ -15,7 +13,6 @@
 
   - do:
       index:
-        include_type_name: false
         refresh: true
         index: test_index
         id: test_id_2
@@ -23,7 +20,6 @@
 
   - do:
       index:
-        include_type_name: false
         refresh: true
         index: test_index
         id: test_id_3
@@ -32,7 +28,6 @@
 
   - do:
       bulk:
-        include_type_name: false
         refresh: true
         body: |
           { "update": { "_index": "test_index", "_id": "test_id_1", "_source": true } }
@@ -45,7 +40,6 @@
 
   - do:
       bulk:
-        include_type_name: false
         index: test_index
         _source: true
         body: |
@@ -56,7 +50,6 @@
 
   - do:
       bulk:
-        include_type_name: false
         refresh: true
         body: |
           { "update": { "_index": "test_index", "_id": "test_id_1", "_source": {"includes": "bar"} } }
@@ -71,9 +64,8 @@
 
   - do:
       bulk:
-        include_type_name: false
         index: test_index
-        _source_include: foo
+        _source_includes: foo
         body: |
           { "update": { "_id": "test_id_3" } }
           { "doc": { "foo": "garply" } }

@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -55,7 +55,8 @@ import java.util.stream.Collectors;
  */
 public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(DocValueFieldsFetchSubPhase.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+            LogManager.getLogger(DocValueFieldsFetchSubPhase.class));
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
@@ -81,7 +82,7 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
         List<String> noFormatFields = context.docValueFieldsContext().fields().stream().filter(f -> f.format == null).map(f -> f.field)
                 .collect(Collectors.toList());
         if (noFormatFields.isEmpty() == false) {
-            DEPRECATION_LOGGER.deprecated("There are doc-value fields which are not using a format. The output will "
+            deprecationLogger.deprecated("There are doc-value fields which are not using a format. The output will "
                     + "change in 7.0 when doc value fields get formatted based on mappings by default. It is recommended to pass "
                     + "[format={}] with a doc value field in order to opt in for the future behaviour and ease the migration to "
                     + "7.0: {}", DocValueFieldsContext.USE_DEFAULT_FORMAT, noFormatFields);

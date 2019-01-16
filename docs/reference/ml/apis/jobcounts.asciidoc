@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-jobstats]]
-=== Job Statistics
+=== Job statistics
 
 The get job statistics API provides information about the operational
 progress of a job.
@@ -207,7 +207,7 @@ The `forecasts_stats` object shows statistics about forecasts. It has the follow
   (object) Counts per forecast status, for example: {"finished" : 2}. 
 
 NOTE: `memory_bytes`, `records`, `processing_time_ms` and `status` require at least 1 forecast, otherwise
-these fields are ommitted.
+these fields are omitted.
 
 [float]
 [[ml-stats-node]]

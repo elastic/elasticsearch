@@ -19,11 +19,11 @@
 
 package org.elasticsearch.monitor.os;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.monitor.Probes;
 
 import java.io.IOException;
@@ -33,9 +33,14 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class OsProbe {
 
@@ -517,11 +522,78 @@ public class OsProbe {
 
     }
 
-    private final Logger logger = ESLoggerFactory.getLogger(getClass());
+    private final Logger logger = LogManager.getLogger(getClass());
 
-    public OsInfo osInfo(long refreshInterval, int allocatedProcessors) {
-        return new OsInfo(refreshInterval, Runtime.getRuntime().availableProcessors(),
-                allocatedProcessors, Constants.OS_NAME, Constants.OS_ARCH, Constants.OS_VERSION);
+    OsInfo osInfo(long refreshInterval, int allocatedProcessors) throws IOException {
+        return new OsInfo(
+                refreshInterval,
+                Runtime.getRuntime().availableProcessors(),
+                allocatedProcessors,
+                Constants.OS_NAME,
+                getPrettyName(),
+                Constants.OS_ARCH,
+                Constants.OS_VERSION);
+    }
+
+    private String getPrettyName() throws IOException {
+        // TODO: return a prettier name on non-Linux OS
+        if (Constants.LINUX) {
+            /*
+             * We read the lines from /etc/os-release (or /usr/lib/os-release) to extract the PRETTY_NAME. The format of this file is
+             * newline-separated key-value pairs. The key and value are separated by an equals symbol (=). The value can unquoted, or
+             * wrapped in single- or double-quotes.
+             */
+            final List<String> etcOsReleaseLines = readOsRelease();
+            final List<String> prettyNameLines =
+                    etcOsReleaseLines.stream().filter(line -> line.startsWith("PRETTY_NAME")).collect(Collectors.toList());
+            assert prettyNameLines.size() <= 1 : prettyNameLines;
+            final Optional<String> maybePrettyNameLine =
+                    prettyNameLines.size() == 1 ? Optional.of(prettyNameLines.get(0)) : Optional.empty();
+            if (maybePrettyNameLine.isPresent()) {
+                // we trim since some OS contain trailing space, for example, Oracle Linux Server 6.9 has a trailing space after the quote
+                final String trimmedPrettyNameLine = maybePrettyNameLine.get().trim();
+                final Matcher matcher = Pattern.compile("PRETTY_NAME=(\"?|'?)?([^\"']+)\\1").matcher(trimmedPrettyNameLine);
+                final boolean matches = matcher.matches();
+                assert matches : trimmedPrettyNameLine;
+                assert matcher.groupCount() == 2 : trimmedPrettyNameLine;
+                return matcher.group(2);
+            } else {
+                return Constants.OS_NAME;
+            }
+
+        } else {
+            return Constants.OS_NAME;
+        }
+    }
+
+    /**
+     * The lines from {@code /etc/os-release} or {@code /usr/lib/os-release} as a fallback, with an additional fallback to
+     * {@code /etc/system-release}. These files represent identification of the underlying operating system. The structure of the file is
+     * newlines of key-value pairs of shell-compatible variable assignments.
+     *
+     * @return the lines from {@code /etc/os-release} or {@code /usr/lib/os-release} or {@code /etc/system-release}
+     * @throws IOException if an I/O exception occurs reading {@code /etc/os-release} or {@code /usr/lib/os-release} or
+     *                     {@code /etc/system-release}
+     */
+    @SuppressForbidden(reason = "access /etc/os-release or /usr/lib/os-release or /etc/system-release")
+    List<String> readOsRelease() throws IOException {
+        final List<String> lines;
+        if (Files.exists(PathUtils.get("/etc/os-release"))) {
+            lines = Files.readAllLines(PathUtils.get("/etc/os-release"));
+            assert lines != null && lines.isEmpty() == false;
+            return lines;
+        } else if (Files.exists(PathUtils.get("/usr/lib/os-release"))) {
+            lines = Files.readAllLines(PathUtils.get("/usr/lib/os-release"));
+            assert lines != null && lines.isEmpty() == false;
+            return lines;
+        } else if (Files.exists(PathUtils.get("/etc/system-release"))) {
+            // fallback for older Red Hat-like OS
+            lines = Files.readAllLines(PathUtils.get("/etc/system-release"));
+            assert lines != null && lines.size() == 1;
+            return Collections.singletonList("PRETTY_NAME=\"" + lines.get(0) + "\"");
+        } else {
+            return Collections.emptyList();
+        }
     }
 
     public OsStats osStats() {

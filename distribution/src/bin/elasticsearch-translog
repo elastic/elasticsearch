@@ -1,5 +1,0 @@
-#!/bin/bash
-
-ES_MAIN_CLASS=org.elasticsearch.index.translog.TranslogToolCli \
-  "`dirname "$0"`"/elasticsearch-cli \
-  "$@"

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.routing;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
@@ -58,6 +59,8 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
     }
 
     public void testShrinking() throws Exception {
+        assumeFalse("http://github.com/elastic/elasticsearch/issues/33857", Constants.WINDOWS);
+
         // creates random routing groups and repeatedly halves the index until it is down to 1 shard
         // verifying that the count is correct for each shrunken index
         final int partitionSize = 3;
@@ -130,11 +133,11 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 .execute().actionGet();
 
             logger.info("--> routed search on index [" + index + "] visited [" + response.getTotalShards()
-                + "] shards for routing [" + routing + "] and got hits [" + response.getHits().getTotalHits() + "]");
+                + "] shards for routing [" + routing + "] and got hits [" + response.getHits().getTotalHits().value + "]");
 
             assertTrue(response.getTotalShards() + " was not in " + expectedShards + " for " + index,
                     expectedShards.contains(response.getTotalShards()));
-            assertEquals(expectedDocuments, response.getHits().getTotalHits());
+            assertEquals(expectedDocuments, response.getHits().getTotalHits().value);
 
             Set<String> found = new HashSet<>();
             response.getHits().forEach(h -> found.add(h.getId()));
@@ -155,7 +158,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 .execute().actionGet();
 
             assertEquals(expectedShards, response.getTotalShards());
-            assertEquals(expectedDocuments, response.getHits().getTotalHits());
+            assertEquals(expectedDocuments, response.getHits().getTotalHits().value);
 
             Set<String> found = new HashSet<>();
             response.getHits().forEach(h -> found.add(h.getId()));

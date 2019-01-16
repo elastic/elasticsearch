@@ -15,8 +15,8 @@ POST ledger/_search?size=0
     "aggs": {
         "profit": {
             "scripted_metric": {
-                "init_script" : "state.transactions = []",
-                "map_script" : "state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)", <1>
+                "init_script" : "state.transactions = []", <1>
+                "map_script" : "state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)",
                 "combine_script" : "double profit = 0; for (t in state.transactions) { profit += t } return profit",
                 "reduce_script" : "double profit = 0; for (a in states) { profit += a } return profit"
             }
@@ -27,7 +27,7 @@ POST ledger/_search?size=0
 // CONSOLE
 // TEST[setup:ledger]
 
-<1> `map_script` is the only required  parameter
+<1> `init_script` is an optional parameter, all other scripts are required.
 
 The above aggregation demonstrates how one would use the script aggregation compute the total profit from sale and cost transactions.
 
@@ -121,22 +121,22 @@ init_script::       Executed prior to any collection of documents. Allows the ag
 +
 In the above example, the `init_script` creates an array `transactions` in the `state` object.
 
-map_script::        Executed once per document collected. This is the only required script. If no combine_script is specified, the resulting state
+map_script::        Executed once per document collected. This is a required script. If no combine_script is specified, the resulting state
                     needs to be stored in the `state` object.
 +
 In the above example, the `map_script` checks the value of the type field. If the value is 'sale' the value of the amount field
 is added to the transactions array. If the value of the type field is not 'sale' the negated value of the amount field is added
 to transactions.
 
-combine_script::    Executed once on each shard after document collection is complete. Allows the aggregation to consolidate the state returned from
-                    each shard. If a combine_script is not provided the combine phase will return the aggregation variable.
+combine_script::    Executed once on each shard after document collection is complete. This is a required script. Allows the aggregation to
+                    consolidate the state returned from each shard.
 +
 In the above example, the `combine_script` iterates through all the stored transactions, summing the values in the `profit` variable
 and finally returns `profit`.
 
-reduce_script::     Executed once on the coordinating node after all shards have returned their results. The script is provided with access to a
-                    variable `states` which is an array of the result of the combine_script on each shard. If a reduce_script is not provided
-                    the reduce phase will return the `states` variable.
+reduce_script::     Executed once on the coordinating node after all shards have returned their results. This is a required script. The
+                    script is provided with access to a variable `states` which is an array of the result of the combine_script on each
+                    shard.
 +
 In the above example, the `reduce_script` iterates through the `profit` returned by each shard summing the values before returning the
 final combined profit which will be returned in the response of the aggregation.

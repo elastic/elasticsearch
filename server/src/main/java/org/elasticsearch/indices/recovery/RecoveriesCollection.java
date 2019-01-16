@@ -258,7 +258,7 @@ public class RecoveriesCollection {
         private final long recoveryId;
         private final TimeValue checkInterval;
 
-        private long lastSeenAccessTime;
+        private volatile long lastSeenAccessTime;
 
         private RecoveryMonitor(long recoveryId, long lastSeenAccessTime, TimeValue checkInterval) {
             this.recoveryId = recoveryId;

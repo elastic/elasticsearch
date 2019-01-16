@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.parser;
 import org.antlr.v4.runtime.Token;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
+import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DebugContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ExplainContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowColumnsContext;
@@ -34,7 +35,7 @@ import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTableTypes;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTables;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTypes;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
@@ -51,12 +52,12 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
 
     @Override
     public Command visitDebug(DebugContext ctx) {
-        Location loc = source(ctx);
+        Source source = source(ctx);
         if (ctx.FORMAT().size() > 1) {
-            throw new ParsingException(loc, "Debug FORMAT should be specified at most once");
+            throw new ParsingException(source, "Debug FORMAT should be specified at most once");
         }
         if (ctx.PLAN().size() > 1) {
-            throw new ParsingException(loc, "Debug PLAN should be specified at most once");
+            throw new ParsingException(source, "Debug PLAN should be specified at most once");
         }
 
         Debug.Type type = null;
@@ -72,21 +73,21 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         boolean graphViz = ctx.format != null && ctx.format.getType() == SqlBaseLexer.GRAPHVIZ;
         Debug.Format format = graphViz ? Debug.Format.GRAPHVIZ : Debug.Format.TEXT;
 
-        return new Debug(loc, plan(ctx.statement()), type, format);
+        return new Debug(source, plan(ctx.statement()), type, format);
     }
 
 
     @Override
     public Command visitExplain(ExplainContext ctx) {
-        Location loc = source(ctx);
+        Source source = source(ctx);
         if (ctx.PLAN().size() > 1) {
-            throw new ParsingException(loc, "Explain TYPE should be specified at most once");
+            throw new ParsingException(source, "Explain TYPE should be specified at most once");
         }
         if (ctx.FORMAT().size() > 1) {
-            throw new ParsingException(loc, "Explain FORMAT should be specified at most once");
+            throw new ParsingException(source, "Explain FORMAT should be specified at most once");
         }
         if (ctx.VERIFY().size() > 1) {
-            throw new ParsingException(loc, "Explain VERIFY should be specified at most once");
+            throw new ParsingException(source, "Explain VERIFY should be specified at most once");
         }
 
         Explain.Type type = null;
@@ -116,7 +117,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         Explain.Format format = graphViz ? Explain.Format.GRAPHVIZ : Explain.Format.TEXT;
         boolean verify = (ctx.verify != null ? Booleans.parseBoolean(ctx.verify.getText().toLowerCase(Locale.ROOT), true) : true);
 
-        return new Explain(loc, plan(ctx.statement()), type, format, verify);
+        return new Explain(source, plan(ctx.statement()), type, format, verify);
     }
 
     @Override
@@ -190,7 +191,13 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
 
     @Override
     public SysTypes visitSysTypes(SysTypesContext ctx) {
-        return new SysTypes(source(ctx));
+        int type = 0;
+        if (ctx.type != null) {
+            Literal value = (Literal) visit(ctx.type);
+            type = ((Number) value.fold()).intValue();
+        }
+
+        return new SysTypes(source(ctx), Integer.valueOf(type));
     }
 
     @Override

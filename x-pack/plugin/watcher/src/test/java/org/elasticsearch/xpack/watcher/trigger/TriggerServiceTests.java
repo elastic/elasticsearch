@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.trigger;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.core.watcher.actions.ExecutableAction;
@@ -39,7 +38,7 @@ public class TriggerServiceTests extends ESTestCase {
     public void setupTriggerService() {
         TriggerEngine triggerEngine = mock(TriggerEngine.class);
         when(triggerEngine.type()).thenReturn(ENGINE_TYPE);
-        service = new TriggerService(Settings.EMPTY, Collections.singleton(triggerEngine));
+        service = new TriggerService(Collections.singleton(triggerEngine));
 
         // simple watch, input and simple action
         watch1 = createWatch("1");
@@ -144,7 +143,7 @@ public class TriggerServiceTests extends ESTestCase {
     }
 
     private void setInput(Watch watch) {
-        ExecutableNoneInput noneInput = new ExecutableNoneInput(logger);
+        ExecutableNoneInput noneInput = new ExecutableNoneInput();
         when(watch.input()).thenReturn(noneInput);
     }
 

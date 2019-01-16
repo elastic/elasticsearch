@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
@@ -25,7 +23,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
 import static org.joda.time.DateTimeZone.UTC;
 
-public abstract class ScheduleTriggerEngine extends AbstractComponent implements TriggerEngine<ScheduleTrigger, ScheduleTriggerEvent> {
+public abstract class ScheduleTriggerEngine implements TriggerEngine<ScheduleTrigger, ScheduleTriggerEvent> {
 
     public static final String TYPE = ScheduleTrigger.TYPE;
 
@@ -33,8 +31,7 @@ public abstract class ScheduleTriggerEngine extends AbstractComponent implements
     protected final ScheduleRegistry scheduleRegistry;
     protected final Clock clock;
 
-    public ScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
-        super(settings);
+    public ScheduleTriggerEngine(ScheduleRegistry scheduleRegistry, Clock clock) {
         this.scheduleRegistry = scheduleRegistry;
         this.clock = clock;
     }

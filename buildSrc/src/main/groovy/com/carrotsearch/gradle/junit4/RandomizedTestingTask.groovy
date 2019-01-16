@@ -264,7 +264,11 @@ class RandomizedTestingTask extends DefaultTask {
                         throw new InvalidUserDataException('Seed should be ' +
                             'set on the project instead of a system property')
                     }
-                    sysproperty key: prop.getKey(), value: prop.getValue().toString()
+                    if (prop.getValue() instanceof Closure) {
+                        sysproperty key: prop.getKey(), value: (prop.getValue() as Closure).call().toString()
+                    } else {
+                        sysproperty key: prop.getKey(), value: prop.getValue().toString()
+                    }
                 }
                 systemProperty 'tests.seed', project.testSeed
                 for (Map.Entry<String, Object> envvar : environmentVariables) {

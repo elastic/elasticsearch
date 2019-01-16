@@ -106,20 +106,18 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         Request createAirlineDataRequest = new Request("PUT", "/airline-data");
         createAirlineDataRequest.setJsonEntity("{"
                 + "  \"mappings\": {"
-                + "    \"response\": {"
-                + "      \"properties\": {"
-                + "        \"time\": { \"type\":\"date\"},"
-                + "        \"airline\": { \"type\":\"keyword\"},"
-                + "        \"responsetime\": { \"type\":\"float\"}"
-                + "      }"
+                + "    \"properties\": {"
+                + "      \"time\": { \"type\":\"date\"},"
+                + "      \"airline\": { \"type\":\"keyword\"},"
+                + "      \"responsetime\": { \"type\":\"float\"}"
                 + "    }"
                 + "  }"
                 + "}");
         client().performRequest(createAirlineDataRequest);
-        Request airlineData1 = new Request("PUT", "/airline-data/response/1");
+        Request airlineData1 = new Request("PUT", "/airline-data/_doc/1");
         airlineData1.setJsonEntity("{\"time\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":135.22}");
         client().performRequest(airlineData1);
-        Request airlineData2 = new Request("PUT", "/airline-data/response/2");
+        Request airlineData2 = new Request("PUT", "/airline-data/_doc/2");
         airlineData2.setJsonEntity("{\"time\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}");
         client().performRequest(airlineData2);
 
@@ -265,8 +263,6 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         xContentBuilder.startObject();
         xContentBuilder.field("job_id", jobId);
         xContentBuilder.array("indexes", "airline-data");
-        xContentBuilder.array("types", "response");
-        xContentBuilder.field("_source", true);
         xContentBuilder.endObject();
         Request request = new Request("PUT", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId);
         request.setJsonEntity(Strings.toString(xContentBuilder));

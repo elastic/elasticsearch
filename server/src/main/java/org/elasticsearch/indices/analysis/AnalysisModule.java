@@ -71,7 +71,7 @@ public final class AnalysisModule {
 
     private static final IndexSettings NA_INDEX_SETTINGS;
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(AnalysisModule.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(AnalysisModule.class));
 
     private final HunspellService hunspellService;
     private final AnalysisRegistry analysisRegistry;
@@ -124,8 +124,8 @@ public final class AnalysisModule {
         tokenFilters.register("standard", new AnalysisProvider<TokenFilterFactory>() {
             @Override
             public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-                if (indexSettings.getIndexVersionCreated().before(Version.V_7_0_0_alpha1)) {
-                    DEPRECATION_LOGGER.deprecatedAndMaybeLog("standard_deprecation",
+                if (indexSettings.getIndexVersionCreated().before(Version.V_7_0_0)) {
+                    deprecationLogger.deprecatedAndMaybeLog("standard_deprecation",
                         "The [standard] token filter name is deprecated and will be removed in a future version.");
                 } else {
                     throw new IllegalArgumentException("The [standard] token filter has been removed.");
@@ -182,8 +182,8 @@ public final class AnalysisModule {
         // Add "standard" for old indices (bwc)
         preConfiguredTokenFilters.register( "standard",
             PreConfiguredTokenFilter.singletonWithVersion("standard", true, (reader, version) -> {
-                if (version.before(Version.V_7_0_0_alpha1)) {
-                    DEPRECATION_LOGGER.deprecatedAndMaybeLog("standard_deprecation",
+                if (version.before(Version.V_7_0_0)) {
+                    deprecationLogger.deprecatedAndMaybeLog("standard_deprecation",
                         "The [standard] token filter is deprecated and will be removed in a future version.");
                 } else {
                     throw new IllegalArgumentException("The [standard] token filter has been removed.");
@@ -212,8 +212,7 @@ public final class AnalysisModule {
             PreConfiguredTokenizer preConfigured;
             switch (tokenizer.getCachingStrategy()) {
             case ONE:
-                preConfigured = PreConfiguredTokenizer.singleton(name,
-                        () -> tokenizer.create(Version.CURRENT), null);
+                preConfigured = PreConfiguredTokenizer.singleton(name, () -> tokenizer.create(Version.CURRENT));
                 break;
             default:
                 throw new UnsupportedOperationException(

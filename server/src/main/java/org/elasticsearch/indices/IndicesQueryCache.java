@@ -19,6 +19,8 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BulkScorer;
@@ -30,7 +32,6 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lucene.ShardCoreKeyMap;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -48,7 +49,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
-public class IndicesQueryCache extends AbstractComponent implements QueryCache, Closeable {
+public class IndicesQueryCache implements QueryCache, Closeable {
+
+    private static final Logger logger = LogManager.getLogger(IndicesQueryCache.class);
 
     public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE_SETTING = 
             Setting.memorySizeSetting("indices.queries.cache.size", "10%", Property.NodeScope);
@@ -71,7 +74,6 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
     private final Map<Object, StatsAndCount> stats2 = new IdentityHashMap<>();
 
     public IndicesQueryCache(Settings settings) {
-        super(settings);
         final ByteSizeValue size = INDICES_CACHE_QUERY_SIZE_SETTING.get(settings);
         final int count = INDICES_CACHE_QUERY_COUNT_SETTING.get(settings);
         logger.debug("using [node] query cache with size [{}] max filter count [{}]",

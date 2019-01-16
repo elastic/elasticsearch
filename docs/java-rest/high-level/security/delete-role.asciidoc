@@ -1,0 +1,33 @@
+--
+:api: delete-role
+:request: DeleteRoleRequest
+:response: DeleteRoleResponse
+--
+
+[id="{upid}-{api}"]
+=== Delete Role API
+
+[id="{upid}-{api}-request"]
+==== Delete Role Request
+
+A +{request}+ has a single argument
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> role to delete
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Delete Response
+
+The returned +{response}+ allows to retrieve information about the executed
+ operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> whether the given role was found

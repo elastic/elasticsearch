@@ -3,8 +3,8 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-get.html",
     "methods": ["HEAD"],
     "url": {
-      "path": "/{index}/{type}/{id}",
-      "paths": ["/{index}/{type}/{id}"],
+      "path": "/{index}/_doc/{id}",
+      "paths": ["/{index}/_doc/{id}", "/{index}/{type}/{id}"],
       "parts": {
         "id": {
           "type" : "string",
@@ -18,7 +18,6 @@
         },
         "type": {
           "type" : "string",
-          "required" : true,
           "description" : "The type of the document (use `_all` to fetch the first document matching the ID across all types)"
         }
       },
@@ -51,11 +50,11 @@
           "type" : "list",
           "description" : "True or false to return the _source field or not, or a list of fields to return"
         },
-        "_source_exclude": {
+        "_source_excludes": {
           "type" : "list",
           "description" : "A list of fields to exclude from the returned _source field"
         },
-        "_source_include": {
+        "_source_includes": {
           "type" : "list",
           "description" : "A list of fields to extract and return from the _source field"
         },

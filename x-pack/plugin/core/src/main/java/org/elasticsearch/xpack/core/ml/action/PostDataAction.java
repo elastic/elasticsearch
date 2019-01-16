@@ -35,7 +35,12 @@ public class PostDataAction extends Action<PostDataAction.Response> {
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
@@ -47,15 +52,11 @@ public class PostDataAction extends Action<PostDataAction.Response> {
 
     public static class Response extends BaseTasksResponse implements StatusToXContentObject, Writeable {
 
-        private DataCounts dataCounts;
+        private final DataCounts dataCounts;
 
         public Response(String jobId) {
             super(null, null);
             dataCounts = new DataCounts(jobId);
-        }
-
-        public Response() {
-            super(null, null);
         }
 
         public Response(DataCounts counts) {
@@ -63,13 +64,8 @@ public class PostDataAction extends Action<PostDataAction.Response> {
             this.dataCounts = counts;
         }
 
-        public DataCounts getDataCounts() {
-            return dataCounts;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             dataCounts = new DataCounts(in);
         }
 
@@ -77,6 +73,10 @@ public class PostDataAction extends Action<PostDataAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             dataCounts.writeTo(out);
+        }
+
+        public DataCounts getDataCounts() {
+            return dataCounts;
         }
 
         @Override
@@ -126,6 +126,31 @@ public class PostDataAction extends Action<PostDataAction.Response> {
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            resetStart = in.readOptionalString();
+            resetEnd = in.readOptionalString();
+            dataDescription = in.readOptionalWriteable(DataDescription::new);
+            content = in.readBytesReference();
+            if (in.readBoolean()) {
+                xContentType = in.readEnum(XContentType.class);
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeOptionalString(resetStart);
+            out.writeOptionalString(resetEnd);
+            out.writeOptionalWriteable(dataDescription);
+            out.writeBytesReference(content);
+            boolean hasXContentType = xContentType != null;
+            out.writeBoolean(hasXContentType);
+            if (hasXContentType) {
+                out.writeEnum(xContentType);
+            }
+        }
+
         public Request(String jobId) {
             super(jobId);
         }
@@ -163,32 +188,6 @@ public class PostDataAction extends Action<PostDataAction.Response> {
         public void setContent(BytesReference content, XContentType xContentType) {
             this.content = content;
             this.xContentType = xContentType;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            resetStart = in.readOptionalString();
-            resetEnd = in.readOptionalString();
-            dataDescription = in.readOptionalWriteable(DataDescription::new);
-            content = in.readBytesReference();
-            if (in.readBoolean()) {
-                xContentType = in.readEnum(XContentType.class);
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalString(resetStart);
-            out.writeOptionalString(resetEnd);
-            out.writeOptionalWriteable(dataDescription);
-            out.writeBytesReference(content);
-            boolean hasXContentType = xContentType != null;
-            out.writeBoolean(hasXContentType);
-            if (hasXContentType) {
-                out.writeEnum(xContentType);
-            }
         }
 
         @Override

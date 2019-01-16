@@ -38,9 +38,10 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
+import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -71,6 +72,11 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         List<Whitelist> movFn = new ArrayList<>(Whitelist.BASE_WHITELISTS);
         movFn.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.aggs.movfn.txt"));
         map.put(MovingFunctionScript.CONTEXT, movFn);
+
+        // Functions used for scoring docs
+        List<Whitelist> scoreFn = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        scoreFn.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.score.txt"));
+        map.put(ScoreScript.CONTEXT, scoreFn);
 
         whitelists = map;
     }

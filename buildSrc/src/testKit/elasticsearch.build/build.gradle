@@ -13,7 +13,7 @@ dependencies {
 }
 
 repositories {
-    mavenCentral()
+    jcenter()
     repositories {
         maven {
             url System.getProperty("local.repo.path")
@@ -27,7 +27,7 @@ forbiddenApisTest.enabled = false
 // requires dependency on testing fw
 jarHell.enabled = false
 // we don't have tests for now
-test.enabled = false
+unitTest.enabled = false
 
 task hello {
     doFirst {

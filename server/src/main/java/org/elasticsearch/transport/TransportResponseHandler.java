@@ -23,33 +23,38 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 public interface TransportResponseHandler<T extends TransportResponse> extends Writeable.Reader<T> {
-
-    /**
-     * @deprecated Implement {@link #read(StreamInput)} instead.
-     */
-    @Deprecated
-    default T newInstance() {
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * deserializes a new instance of the return type from the stream.
-     * called by the infra when de-serializing the response.
-     *
-     * @return the deserialized response.
-     */
-    @Override
-    default T read(StreamInput in) throws IOException {
-        T instance = newInstance();
-        instance.readFrom(in);
-        return instance;
-    }
 
     void handleResponse(T response);
 
     void handleException(TransportException exp);
 
     String executor();
+
+    default <Q extends TransportResponse> TransportResponseHandler<Q> wrap(Function<Q, T> converter, Writeable.Reader<Q> reader) {
+        final TransportResponseHandler<T> self = this;
+        return new TransportResponseHandler<Q>() {
+            @Override
+            public void handleResponse(Q response) {
+                self.handleResponse(converter.apply(response));
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                self.handleException(exp);
+            }
+
+            @Override
+            public String executor() {
+                return self.executor();
+            }
+
+            @Override
+            public Q read(StreamInput in) throws IOException {
+                return reader.read(in);
+            }
+        };
+    }
 }

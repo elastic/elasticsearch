@@ -61,7 +61,7 @@ public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, Mul
     }
 
     @Override
-    public XShapeCollection<Point> build() {
+    public XShapeCollection<Point> buildS4J() {
         //Could wrap JtsGeometry but probably slower due to conversions to/from JTS in relate()
         //MultiPoint geometry = FACTORY.createMultiPoint(points.toArray(new Coordinate[points.size()]));
         List<Point> shapes = new ArrayList<>(coordinates.size());
@@ -71,6 +71,17 @@ public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, Mul
         XShapeCollection<Point> multiPoints = new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
         multiPoints.setPointsOnly(true);
         return multiPoints;
+    }
+
+    @Override
+    public double[][] buildLucene() {
+        double[][] points = new double[coordinates.size()][];
+        Coordinate coord;
+        for (int i = 0; i < coordinates.size(); ++i) {
+            coord = coordinates.get(i);
+            points[i] = new double[] {coord.x, coord.y};
+        }
+        return points;
     }
 
     @Override

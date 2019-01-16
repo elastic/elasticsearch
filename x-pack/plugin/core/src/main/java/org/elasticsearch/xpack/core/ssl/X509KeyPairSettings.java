@@ -11,13 +11,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import javax.net.ssl.KeyManagerFactory;
-
 import java.security.KeyStore;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * An encapsulation of the configuration options for X.509 Key Pair support in X-Pack security.
@@ -61,8 +61,6 @@ public class X509KeyPairSettings {
                     "key_passphrase")));
 
 
-    private final String prefix;
-
     // Specify private cert/key pair via keystore
     final Setting<Optional<String>> keystorePath;
     final Setting<SecureString> keystorePassword;
@@ -83,21 +81,24 @@ public class X509KeyPairSettings {
 
     private final List<Setting<?>> allSettings;
 
-    public X509KeyPairSettings(String prefix, boolean acceptNonSecurePasswords) {
-        keystorePath = KEYSTORE_PATH_TEMPLATE.apply(prefix + "keystore.path");
-        keystorePassword = KEYSTORE_PASSWORD_TEMPLATE.apply(prefix + "keystore.secure_password");
-        keystoreAlgorithm = KEY_STORE_ALGORITHM_TEMPLATE.apply(prefix + "keystore.algorithm");
-        keystoreType = KEY_STORE_TYPE_TEMPLATE.apply(prefix + "keystore.type");
-        keystoreKeyPassword = KEYSTORE_KEY_PASSWORD_TEMPLATE.apply(prefix + "keystore.secure_key_password");
+    private interface SettingFactory {
+        <T> Setting<T> apply(String keyPart, Function<String, Setting<T>> template);
+    }
 
-        keyPath = KEY_PATH_TEMPLATE.apply(prefix + "key");
-        keyPassword = KEY_PASSWORD_TEMPLATE.apply(prefix + "secure_key_passphrase");
-        certificatePath = CERT_TEMPLATE.apply(prefix + "certificate");
+    private X509KeyPairSettings(boolean acceptNonSecurePasswords, SettingFactory factory) {
+        keystorePath = factory.apply("keystore.path", KEYSTORE_PATH_TEMPLATE);
+        keystorePassword = factory.apply("keystore.secure_password", KEYSTORE_PASSWORD_TEMPLATE);
+        keystoreAlgorithm = factory.apply("keystore.algorithm", KEY_STORE_ALGORITHM_TEMPLATE);
+        keystoreType = factory.apply("keystore.type", KEY_STORE_TYPE_TEMPLATE);
+        keystoreKeyPassword = factory.apply("keystore.secure_key_password", KEYSTORE_KEY_PASSWORD_TEMPLATE);
 
-        legacyKeystorePassword = LEGACY_KEYSTORE_PASSWORD_TEMPLATE.apply(prefix + "keystore.password");
-        legacyKeystoreKeyPassword = LEGACY_KEYSTORE_KEY_PASSWORD_TEMPLATE.apply(prefix + "keystore.key_password");
-        legacyKeyPassword = LEGACY_KEY_PASSWORD_TEMPLATE.apply(prefix + "key_passphrase");
-        this.prefix = prefix;
+        keyPath = factory.apply("key", KEY_PATH_TEMPLATE);
+        keyPassword = factory.apply("secure_key_passphrase", KEY_PASSWORD_TEMPLATE);
+        certificatePath = factory.apply("certificate", CERT_TEMPLATE);
+
+        legacyKeystorePassword = factory.apply("keystore.password", LEGACY_KEYSTORE_PASSWORD_TEMPLATE);
+        legacyKeystoreKeyPassword = factory.apply("keystore.key_password", LEGACY_KEYSTORE_KEY_PASSWORD_TEMPLATE);
+        legacyKeyPassword = factory.apply("key_passphrase", LEGACY_KEY_PASSWORD_TEMPLATE);
 
         final List<Setting<?>> settings = CollectionUtils.arrayAsArrayList(
                 keystorePath, keystorePassword, keystoreAlgorithm, keystoreType, keystoreKeyPassword,
@@ -110,12 +111,26 @@ public class X509KeyPairSettings {
         allSettings = Collections.unmodifiableList(settings);
     }
 
-
-    public Collection<? extends Setting<?>> getAllSettings() {
-        return allSettings;
+    public static X509KeyPairSettings withPrefix(String prefix, boolean acceptNonSecurePasswords) {
+        return new X509KeyPairSettings(acceptNonSecurePasswords, new SettingFactory() {
+            @Override
+            public <T> Setting<T> apply(String key, Function<String, Setting<T>> template) {
+                return template.apply(prefix + key);
+            }
+        });
     }
 
-    public String getPrefix() {
-        return prefix;
+    public static Collection<Setting.AffixSetting<?>> affix(String prefix, String suffixPart, boolean acceptNonSecurePasswords) {
+        final X509KeyPairSettings settings = new X509KeyPairSettings(acceptNonSecurePasswords, new SettingFactory() {
+            @Override
+            public <T> Setting<T> apply(String keyPart, Function<String, Setting<T>> template) {
+                return Setting.affixKeySetting(prefix, suffixPart + keyPart, template);
+            }
+        });
+        return settings.getAllSettings().stream().map(s -> (Setting.AffixSetting<?>) s).collect(Collectors.toList());
+    }
+
+    public Collection<Setting<?>> getAllSettings() {
+        return allSettings;
     }
 }

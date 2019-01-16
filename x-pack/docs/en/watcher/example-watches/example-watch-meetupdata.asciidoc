@@ -158,7 +158,7 @@ To set up the watch:
 --
 [source,js]
 --------------------------------------------------
-"compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
+"compare" : { "ctx.payload.hits.total.value" : { "gt" : 0 }}
 --------------------------------------------------
 // NOTCONSOLE
 --
@@ -194,7 +194,7 @@ NOTE: To enable Watcher to send emails, you must configure an email account in `
 The complete watch looks like this:
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/meetup
+PUT _watcher/watch/meetup
 {
   "trigger": {
     "schedule": {
@@ -268,7 +268,7 @@ PUT _xpack/watcher/watch/meetup
   },
   "condition": {
     "compare": {
-      "ctx.payload.hits.total": {
+      "ctx.payload.hits.total.value": {
         "gt": 0
       }
     }
@@ -277,8 +277,8 @@ PUT _xpack/watcher/watch/meetup
     "email_me": {
       "throttle_period": "10m",
       "email": {
-        "from": "<username>@<domainname>",  <2>
-        "to": "<username@<domainname>",     <3>
+        "from": "username@example.org",  <2>
+        "to": "recipient@example.org",   <3>
         "subject": "Open Source events",
         "body": {
           "html": "Found events matching Open Source: <ul>{{#ctx.payload.aggregations.group_by_city.buckets}}<li>{{key}} ({{doc_count}})<ul>{{#group_by_event.buckets}}<li><a href=\"{{key}}\">{{get_latest.buckets.0.group_by_event_name.buckets.0.key}}</a> ({{doc_count}})</li>{{/group_by_event.buckets}}</ul></li>{{/ctx.payload.aggregations.group_by_city.buckets}}</ul>"
@@ -300,7 +300,7 @@ Now that you've created your watch, you can use the
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/watch/meetup/_execute
+POST _watcher/watch/meetup/_execute
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

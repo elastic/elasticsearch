@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -53,17 +52,17 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
         TransportClusterStatsAction.ClusterStatsNodeRequest, ClusterStatsNodeResponse> {
 
     private static final CommonStatsFlags SHARD_STATS_FLAGS = new CommonStatsFlags(CommonStatsFlags.Flag.Docs, CommonStatsFlags.Flag.Store,
-            CommonStatsFlags.Flag.FieldData, CommonStatsFlags.Flag.QueryCache, CommonStatsFlags.Flag.Completion, CommonStatsFlags.Flag.Segments);
+        CommonStatsFlags.Flag.FieldData, CommonStatsFlags.Flag.QueryCache,
+        CommonStatsFlags.Flag.Completion, CommonStatsFlags.Flag.Segments);
 
     private final NodeService nodeService;
     private final IndicesService indicesService;
 
 
     @Inject
-    public TransportClusterStatsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                       TransportService transportService, NodeService nodeService, IndicesService indicesService,
-                                       ActionFilters actionFilters) {
-        super(settings, ClusterStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+    public TransportClusterStatsAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+                                       NodeService nodeService, IndicesService indicesService, ActionFilters actionFilters) {
+        super(ClusterStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
             ClusterStatsRequest::new, ClusterStatsNodeRequest::new, ThreadPool.Names.MANAGEMENT, ClusterStatsNodeResponse.class);
         this.nodeService = nodeService;
         this.indicesService = indicesService;
@@ -126,7 +125,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
             clusterStatus = new ClusterStateHealth(clusterService.state()).getStatus();
         }
 
-        return new ClusterStatsNodeResponse(nodeInfo.getNode(), clusterStatus, nodeInfo, nodeStats, shardsStats.toArray(new ShardStats[shardsStats.size()]));
+        return new ClusterStatsNodeResponse(nodeInfo.getNode(), clusterStatus, nodeInfo, nodeStats,
+            shardsStats.toArray(new ShardStats[shardsStats.size()]));
 
     }
 

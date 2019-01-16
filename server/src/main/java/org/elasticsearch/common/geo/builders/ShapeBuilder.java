@@ -211,7 +211,14 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
      * the builder looses its validity. So this method should only be called once on a builder
      * @return new {@link Shape} defined by the builder
      */
-    public abstract T build();
+    public abstract T buildS4J();
+
+    /**
+     * build lucene geometry.
+     *
+     * @return GeoPoint, double[][], Line, Line[], Polygon, Polygon[], Rectangle, Object[]
+     */
+    public abstract Object buildLucene();
 
     protected static Coordinate shift(Coordinate coordinate, double dateline) {
         if (dateline == 0) {

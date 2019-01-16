@@ -13,15 +13,15 @@ setup:
                 text:
                   type: text
                   index_prefixes:
-                    min_chars: 1
-                    max_chars: 10
+                    min_chars: 2
+                    max_chars: 5
 
   - do:
       index:
           index:  test
           type:   test
           id:     1
-          body:   { text: some short words and a stupendously long one }
+          body:   { text: some short words with a stupendously long one }
 
   - do:
       indices.refresh:
@@ -34,6 +34,7 @@ setup:
       reason: index_prefixes is only available as of 6.3.0
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         q: shor*
         df: text
@@ -44,6 +45,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           query:
@@ -58,6 +60,23 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          explain: true
+          query:
+            query_string:
+              default_field: text
+              query: a*
+              boost: 2
+
+  - match: {hits.total: 1}
+  - match: {hits.max_score: 2}
+  - match: {hits.hits.0._score: 2}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
         index: test
         q: stupendousl*
         df: text
@@ -74,6 +93,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           query:

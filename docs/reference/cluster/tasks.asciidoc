@@ -16,6 +16,7 @@ GET _tasks?nodes=nodeId1,nodeId2 <2>
 GET _tasks?nodes=nodeId1,nodeId2&actions=cluster:* <3>
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:No tasks to retrieve]
 
 <1> Retrieves all tasks currently running on all nodes in the cluster.
 <2> Retrieves all tasks running on nodes `nodeId1` and `nodeId2`.  See <<cluster-nodes>> for more info about how to select individual nodes.
@@ -57,31 +58,29 @@ The result will look similar to the following:
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
-// We can't test tasks output
+// TESTRESPONSE
 
-It is also possible to retrieve information for a particular task:
+It is also possible to retrieve information for a particular task. The following 
+example retrieves information about task `oTUltX4IQMOUUVeiohTt8A:124`:
 
 [source,js]
 --------------------------------------------------
-GET _tasks/task_id <1>
+GET _tasks/oTUltX4IQMOUUVeiohTt8A:124
 --------------------------------------------------
 // CONSOLE
-// TEST[s/task_id/node_id:1/]
 // TEST[catch:missing]
 
-<1> This will return a 404 if the task isn't found.
+If the task isn't found, the API returns a 404.
 
-Or to retrieve all children of a particular task:
+To retrieve all children of a particular task:
 
 [source,js]
 --------------------------------------------------
-GET _tasks?parent_task_id=parent_task_id <1>
+GET _tasks?parent_task_id=oTUltX4IQMOUUVeiohTt8A:123
 --------------------------------------------------
 // CONSOLE
-// TEST[s/=parent_task_id/=node_id:1/]
 
-<1> This won't return a 404 if the parent isn't found.
+If the parent isn't found, the API does not return a 404.
 
 You can also use the `detailed` request parameter to get more information about
 the running tasks. This is useful for telling one task from another but is more
@@ -93,8 +92,9 @@ request parameter:
 GET _tasks?actions=*search&detailed
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:No tasks to retrieve]
 
-might look like:
+The results might look like:
 
 [source,js]
 --------------------------------------------------
@@ -121,8 +121,7 @@ might look like:
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
-// We can't test tasks output
+// TESTRESPONSE
 
 The new `description` field contains human readable text that identifies the
 particular request that the task is performing such as identifying the search
@@ -132,6 +131,19 @@ has the search and the destination, or <<docs-bulk,`_bulk`>> which just has the
 number of requests and the destination indices. Many requests will only have an
 empty description because more detailed information about the request is not
 easily available or particularly helpful in identifying the request.
+
+[IMPORTANT]
+==============================
+
+`_tasks` requests with `detailed` may also return a `status`. This is a report
+of the internal status of the task. As such its format varies from task to task.
+While we try to keep the `status` for a particular task consistent from version
+to version this isn't always possible because we sometimes change the
+implementation. In that case we might remove fields from the `status` for a
+particular request so any parsing you do of the status might break in minor
+releases.
+
+==============================
 
 The task API can also be used to wait for completion of a particular task. The
 following call will block for 10 seconds or until the task with id
@@ -167,14 +179,14 @@ GET _cat/tasks?detailed
 [[task-cancellation]]
 === Task Cancellation
 
-If a long-running task supports cancellation, it can be cancelled by the following command:
+If a long-running task supports cancellation, it can be cancelled with the cancel 
+tasks API. The following example cancels task `oTUltX4IQMOUUVeiohTt8A:12345`:
 
 [source,js]
 --------------------------------------------------
-POST _tasks/node_id:task_id/_cancel
+POST _tasks/oTUltX4IQMOUUVeiohTt8A:12345/_cancel
 --------------------------------------------------
 // CONSOLE
-// TEST[s/task_id/1/]
 
 The task cancellation command supports the same task selection parameters as the list tasks command, so multiple tasks
 can be cancelled at the same time. For example, the following command will cancel all reindex tasks running on the
@@ -217,7 +229,7 @@ a the client that started them:
 --------------------------------------------------
 curl -i -H "X-Opaque-Id: 123456" "http://localhost:9200/_tasks?group_by=parents"
 --------------------------------------------------
-// NOTCONSOLE
+//NOTCONSOLE
 
 The result will look similar to the following:
 
@@ -260,8 +272,7 @@ content-length: 831
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
-
+//NOTCONSOLE
 <1> id as a part of the response header
 <2> id for the tasks that was initiated by the REST request
 <3> the child task of the task initiated by the REST request

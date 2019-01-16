@@ -254,18 +254,6 @@ public class WatcherXContentParser implements XContentParser {
     }
 
     @Override
-    @SuppressWarnings("deprecated")
-    public boolean isBooleanValueLenient() throws IOException {
-        return parser.isBooleanValueLenient();
-    }
-
-    @Override
-    @SuppressWarnings("deprecated")
-    public boolean booleanValueLenient() throws IOException {
-        return parser.booleanValueLenient();
-    }
-
-    @Override
     public byte[] binaryValue() throws IOException {
         return parser.binaryValue();
     }

@@ -37,9 +37,6 @@ public class JobBuilderTests extends AbstractSerializingTestCase<Job.Builder> {
             builder.setFinishedTime(new Date(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
-            builder.setLastDataTime(new Date(randomNonNegativeLong()));
-        }
-        if (randomBoolean()) {
             builder.setAnalysisConfig(AnalysisConfigTests.createRandomized());
         }
         if (randomBoolean()) {

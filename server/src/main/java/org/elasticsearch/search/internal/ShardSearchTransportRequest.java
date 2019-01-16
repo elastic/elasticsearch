@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,7 +43,8 @@ import java.util.Map;
 /**
  * Shard level search request that represents an actual search sent from the coordinating node to the nodes holding
  * the shards where the query needs to be executed. Holds the same info as {@link org.elasticsearch.search.internal.ShardSearchLocalRequest}
- * but gets sent over the transport and holds also the indices coming from the original request that generated it, plus its headers and context.
+ * but gets sent over the transport and holds also the indices coming from the original request that generated it, plus its headers and
+ * context.
  */
 public class ShardSearchTransportRequest extends TransportRequest implements ShardSearchRequest, IndicesRequest {
 
@@ -50,12 +52,9 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
 
     private ShardSearchLocalRequest shardSearchLocalRequest;
 
-    public ShardSearchTransportRequest(){
-    }
-
     public ShardSearchTransportRequest(OriginalIndices originalIndices, SearchRequest searchRequest, ShardId shardId, int numberOfShards,
                                        AliasFilter aliasFilter, float indexBoost, long nowInMillis,
-                                       String clusterAlias, String[] indexRoutings) {
+                                       @Nullable String clusterAlias, String[] indexRoutings) {
         this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardId, numberOfShards, aliasFilter, indexBoost,
             nowInMillis, clusterAlias, indexRoutings);
         this.originalIndices = originalIndices;

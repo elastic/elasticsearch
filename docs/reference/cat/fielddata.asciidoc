@@ -9,10 +9,10 @@ on every data node in the cluster.
 Hidden setup snippet to build an index with fielddata so our results are real:
 [source,js]
 --------------------------------------------------
-PUT test
+PUT test?include_type_name=true
 {
   "mappings": {
-    "test": {
+    "_doc": {
       "properties": {
         "body": {
           "type": "text",
@@ -26,7 +26,7 @@ PUT test
     }
   }
 }
-POST test/test?refresh
+POST test/_doc?refresh
 {
   "body": "some words so there is a little field data",
   "soul": "some more words"

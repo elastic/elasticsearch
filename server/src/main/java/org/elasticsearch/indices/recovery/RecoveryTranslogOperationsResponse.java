@@ -23,34 +23,19 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.transport.FutureTransportResponseHandler;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseHandler;
 
 import java.io.IOException;
 
-public class RecoveryTranslogOperationsResponse extends TransportResponse {
-
-    long localCheckpoint;
-
-    RecoveryTranslogOperationsResponse() {
-
-    }
+final class RecoveryTranslogOperationsResponse extends TransportResponse {
+    final long localCheckpoint;
 
     RecoveryTranslogOperationsResponse(final long localCheckpoint) {
         this.localCheckpoint = localCheckpoint;
     }
 
-    @Override
-    public void writeTo(final StreamOutput out) throws IOException {
-        // before 6.0.0 we responded with an empty response so we have to maintain that
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            out.writeZLong(localCheckpoint);
-        }
-    }
-
-    @Override
-    public void readFrom(final StreamInput in) throws IOException {
+    RecoveryTranslogOperationsResponse(final StreamInput in) throws IOException {
+        super(in);
         // before 6.0.0 we received an empty response so we have to maintain that
         if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             localCheckpoint = in.readZLong();
@@ -60,12 +45,12 @@ public class RecoveryTranslogOperationsResponse extends TransportResponse {
         }
     }
 
-    static TransportResponseHandler<RecoveryTranslogOperationsResponse> HANDLER =
-            new FutureTransportResponseHandler<RecoveryTranslogOperationsResponse>() {
-                @Override
-                public RecoveryTranslogOperationsResponse newInstance() {
-                    return new RecoveryTranslogOperationsResponse();
-                }
-            };
-
+    @Override
+    public void writeTo(final StreamOutput out) throws IOException {
+        super.writeTo(out);
+        // before 6.0.0 we responded with an empty response so we have to maintain that
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+            out.writeZLong(localCheckpoint);
+        }
+    }
 }

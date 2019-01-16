@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -41,10 +40,11 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
     private final SnapshotsService snapshotsService;
 
     @Inject
-    public TransportDeleteSnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportDeleteSnapshotAction(TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, DeleteSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters, DeleteSnapshotRequest::new,indexNameExpressionResolver);
+        super(DeleteSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
+              DeleteSnapshotRequest::new,indexNameExpressionResolver);
         this.snapshotsService = snapshotsService;
     }
 
@@ -65,7 +65,8 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
     }
 
     @Override
-    protected void masterOperation(final DeleteSnapshotRequest request, ClusterState state, final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(final DeleteSnapshotRequest request, ClusterState state,
+                                   final ActionListener<AcknowledgedResponse> listener) {
         snapshotsService.deleteSnapshot(request.repository(), request.snapshot(), new SnapshotsService.DeleteSnapshotListener() {
             @Override
             public void onResponse() {

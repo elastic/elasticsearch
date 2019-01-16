@@ -2,13 +2,14 @@
 [[separating-node-client-traffic]]
 === Separating node-to-node and client traffic
 
-Elasticsearch has the feature of so called {ref}/modules-transport.html#_tcp_transport_profiles[TCP transport profiles]
-that allows it to bind to several ports and addresses. {security} extends on this
-functionality to enhance the security of the cluster by enabling the separation
-of node-to-node transport traffic from client transport traffic. This is important
-if the client transport traffic is not trusted and could potentially be malicious.
-To separate the node-to-node traffic from the client traffic, add the following
-to `elasticsearch.yml`:
+Elasticsearch has the feature of so called 
+{ref}/modules-transport.html[TCP transport profiles]
+that allows it to bind to several ports and addresses. The {es}
+{security-features} extend on this functionality to enhance the security of the
+cluster by enabling the separation of node-to-node transport traffic from client
+transport traffic. This is important if the client transport traffic is not
+trusted and could potentially be malicious. To separate the node-to-node traffic
+from the client traffic, add the following to `elasticsearch.yml`:
 
 [source, yaml]
 --------------------------------------------------

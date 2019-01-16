@@ -1,4 +1,6 @@
 setup:
+  - skip:
+      features: headers
   - do:
       indices.create:
         index: foo
@@ -69,6 +71,12 @@ setup:
             documents_processed: 0
             rollups_indexed: 0
             trigger_count: 0
+            search_failures: 0
+            index_failures: 0
+            index_time_in_ms: 0
+            index_total: 0
+            search_time_in_ms: 0
+            search_total: 0
           status:
             job_state: "stopped"
             upgraded_doc_id: true
@@ -206,6 +214,12 @@ setup:
             documents_processed: 0
             rollups_indexed: 0
             trigger_count: 0
+            search_failures: 0
+            index_failures: 0
+            index_time_in_ms: 0
+            index_total: 0
+            search_time_in_ms: 0
+            search_total: 0
           status:
             job_state: "stopped"
             upgraded_doc_id: true

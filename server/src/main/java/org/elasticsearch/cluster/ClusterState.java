@@ -22,9 +22,13 @@ package org.elasticsearch.cluster;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -64,6 +68,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+
+import static org.elasticsearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
 
 /**
  * Represents the current state of the cluster.
@@ -176,12 +182,13 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     private volatile RoutingNodes routingNodes;
 
     public ClusterState(long version, String stateUUID, ClusterState state) {
-        this(state.clusterName, version, stateUUID, state.metaData(), state.routingTable(), state.nodes(), state.blocks(), state.customs(),
-            false);
+        this(state.clusterName, version, stateUUID, state.metaData(), state.routingTable(), state.nodes(), state.blocks(),
+                state.customs(), false);
     }
 
     public ClusterState(ClusterName clusterName, long version, String stateUUID, MetaData metaData, RoutingTable routingTable,
-                        DiscoveryNodes nodes, ClusterBlocks blocks, ImmutableOpenMap<String, Custom> customs, boolean wasReadFromDiff) {
+                        DiscoveryNodes nodes, ClusterBlocks blocks, ImmutableOpenMap<String, Custom> customs,
+                        boolean wasReadFromDiff) {
         this.version = version;
         this.stateUUID = stateUUID;
         this.clusterName = clusterName;
@@ -193,12 +200,22 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         this.wasReadFromDiff = wasReadFromDiff;
     }
 
+    public long term() {
+        return coordinationMetaData().term();
+    }
+
     public long version() {
         return this.version;
     }
 
     public long getVersion() {
         return version();
+    }
+
+    public long getVersionOrMetaDataVersion() {
+        // When following a Zen1 master, the cluster state version is not guaranteed to increase, so instead it is preferable to use the
+        // metadata version to determine the freshest node. However when following a Zen2 master the cluster state version should be used.
+        return term() == ZEN1_BWC_TERM ? metaData().version() : version();
     }
 
     /**
@@ -223,6 +240,10 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     public MetaData getMetaData() {
         return metaData();
+    }
+
+    public CoordinationMetaData coordinationMetaData() {
+        return metaData.coordinationMetaData();
     }
 
     public RoutingTable routingTable() {
@@ -257,6 +278,18 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return this.clusterName;
     }
 
+    public VotingConfiguration getLastAcceptedConfiguration() {
+        return coordinationMetaData().getLastAcceptedConfiguration();
+    }
+
+    public VotingConfiguration getLastCommittedConfiguration() {
+        return coordinationMetaData().getLastCommittedConfiguration();
+    }
+
+    public Set<VotingConfigExclusion> getVotingConfigExclusions() {
+        return coordinationMetaData().getVotingConfigExclusions();
+    }
+
     // Used for testing and logging to determine how this cluster state was send over the wire
     public boolean wasReadFromDiff() {
         return wasReadFromDiff;
@@ -276,15 +309,26 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
+        final String TAB = "   ";
         sb.append("cluster uuid: ").append(metaData.clusterUUID()).append("\n");
         sb.append("version: ").append(version).append("\n");
         sb.append("state uuid: ").append(stateUUID).append("\n");
         sb.append("from_diff: ").append(wasReadFromDiff).append("\n");
         sb.append("meta data version: ").append(metaData.version()).append("\n");
-        final String TAB = "   ";
+        sb.append(TAB).append("coordination_metadata:\n");
+        sb.append(TAB).append(TAB).append("term: ").append(coordinationMetaData().term()).append("\n");
+        sb.append(TAB).append(TAB)
+                .append("last_committed_config: ").append(coordinationMetaData().getLastCommittedConfiguration()).append("\n");
+        sb.append(TAB).append(TAB)
+                .append("last_accepted_config: ").append(coordinationMetaData().getLastAcceptedConfiguration()).append("\n");
+        sb.append(TAB).append(TAB)
+                .append("voting tombstones: ").append(coordinationMetaData().getVotingConfigExclusions()).append("\n");
         for (IndexMetaData indexMetaData : metaData) {
             sb.append(TAB).append(indexMetaData.getIndex());
-            sb.append(": v[").append(indexMetaData.getVersion()).append("], mv[").append(indexMetaData.getMappingVersion()).append("]\n");
+            sb.append(": v[").append(indexMetaData.getVersion())
+                    .append("], mv[").append(indexMetaData.getMappingVersion())
+                    .append("], sv[").append(indexMetaData.getSettingsVersion())
+                    .append("]\n");
             for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
                 sb.append(TAB).append(TAB).append(shard).append(": ");
                 sb.append("p_term [").append(indexMetaData.primaryTerm(shard)).append("], ");
@@ -433,6 +477,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         if (metrics.contains(Metric.METADATA)) {
             builder.startObject("metadata");
             builder.field("cluster_uuid", metaData().clusterUUID());
+
+            builder.startObject("cluster_coordination");
+            coordinationMetaData().toXContent(builder, params);
+            builder.endObject();
+
             builder.startObject("templates");
             for (ObjectCursor<IndexTemplateMetaData> cursor : metaData().templates().values()) {
                 IndexTemplateMetaData templateMetaData = cursor.value;
@@ -839,5 +888,4 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
 
     }
-
 }

@@ -7,65 +7,78 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.tasks.TransportTasksAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
+import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-import java.util.function.Consumer;
 
-public class TransportCcrStatsAction extends TransportTasksAction<
-        ShardFollowNodeTask,
-        CcrStatsAction.StatsRequest,
-        CcrStatsAction.StatsResponses, CcrStatsAction.StatsResponse> {
+public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsAction.Request, CcrStatsAction.Response> {
 
-    private final IndexNameExpressionResolver resolver;
+    private final Client client;
     private final CcrLicenseChecker ccrLicenseChecker;
+    private final AutoFollowCoordinator autoFollowCoordinator;
 
     @Inject
     public TransportCcrStatsAction(
-            final Settings settings,
-            final ClusterService clusterService,
-            final TransportService transportService,
-            final ActionFilters actionFilters,
-            final IndexNameExpressionResolver resolver,
-            final CcrLicenseChecker ccrLicenseChecker) {
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            AutoFollowCoordinator autoFollowCoordinator,
+            CcrLicenseChecker ccrLicenseChecker,
+            Client client
+    ) {
         super(
-                settings,
-                CcrStatsAction.NAME,
-                clusterService,
-                transportService,
-                actionFilters,
-                CcrStatsAction.StatsRequest::new,
-                CcrStatsAction.StatsResponses::new,
-                Ccr.CCR_THREAD_POOL_NAME);
-        this.resolver = Objects.requireNonNull(resolver);
+            CcrStatsAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            CcrStatsAction.Request::new,
+            indexNameExpressionResolver
+        );
+        this.client = client;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
+        this.autoFollowCoordinator = Objects.requireNonNull(autoFollowCoordinator);
     }
 
     @Override
-    protected void doExecute(
-            final Task task,
-            final CcrStatsAction.StatsRequest request,
-            final ActionListener<CcrStatsAction.StatsResponses> listener) {
+    protected String executor() {
+        return Ccr.CCR_THREAD_POOL_NAME;
+    }
+
+    @Override
+    protected CcrStatsAction.Response newResponse() {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected CcrStatsAction.Response read(StreamInput in) throws IOException {
+        return new CcrStatsAction.Response(in);
+    }
+
+    @Override
+    protected void doExecute(Task task, CcrStatsAction.Request request, ActionListener<CcrStatsAction.Response> listener) {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
@@ -74,39 +87,21 @@ public class TransportCcrStatsAction extends TransportTasksAction<
     }
 
     @Override
-    protected CcrStatsAction.StatsResponses newResponse(
-            final CcrStatsAction.StatsRequest request,
-            final List<CcrStatsAction.StatsResponse> statsRespons,
-            final List<TaskOperationFailure> taskOperationFailures,
-            final List<FailedNodeException> failedNodeExceptions) {
-        return new CcrStatsAction.StatsResponses(taskOperationFailures, failedNodeExceptions, statsRespons);
+    protected void masterOperation(
+            CcrStatsAction.Request request,
+            ClusterState state,
+            ActionListener<CcrStatsAction.Response> listener
+    ) throws Exception {
+        CheckedConsumer<FollowStatsAction.StatsResponses, Exception> handler = statsResponse -> {
+            AutoFollowStats stats = autoFollowCoordinator.getStats();
+            listener.onResponse(new CcrStatsAction.Response(stats, statsResponse));
+        };
+        FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
+        client.execute(FollowStatsAction.INSTANCE, statsRequest, ActionListener.wrap(handler, listener::onFailure));
     }
 
     @Override
-    protected CcrStatsAction.StatsResponse readTaskResponse(final StreamInput in) throws IOException {
-        return new CcrStatsAction.StatsResponse(in);
+    protected ClusterBlockException checkBlock(CcrStatsAction.Request request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
-
-    @Override
-    protected void processTasks(final CcrStatsAction.StatsRequest request, final Consumer<ShardFollowNodeTask> operation) {
-        final ClusterState state = clusterService.state();
-        final Set<String> concreteIndices = new HashSet<>(Arrays.asList(resolver.concreteIndexNames(state, request)));
-        for (final Task task : taskManager.getTasks().values()) {
-            if (task instanceof ShardFollowNodeTask) {
-                final ShardFollowNodeTask shardFollowNodeTask = (ShardFollowNodeTask) task;
-                if (concreteIndices.contains(shardFollowNodeTask.getFollowShardId().getIndexName())) {
-                    operation.accept(shardFollowNodeTask);
-                }
-            }
-        }
-    }
-
-    @Override
-    protected void taskOperation(
-            final CcrStatsAction.StatsRequest request,
-            final ShardFollowNodeTask task,
-            final ActionListener<CcrStatsAction.StatsResponse> listener) {
-        listener.onResponse(new CcrStatsAction.StatsResponse(task.getStatus()));
-    }
-
 }

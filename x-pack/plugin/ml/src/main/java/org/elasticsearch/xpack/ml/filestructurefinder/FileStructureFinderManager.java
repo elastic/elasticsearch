@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
  * Runs the high-level steps needed to create ingest configs for the specified file.  In order:
  * 1. Determine the most likely character set (UTF-8, UTF-16LE, ISO-8859-2, etc.)
  * 2. Load a sample of the file, consisting of the first 1000 lines of the file
- * 3. Determine the most likely file structure - one of ND-JSON, XML, delimited or semi-structured text
+ * 3. Determine the most likely file structure - one of NDJSON, XML, delimited or semi-structured text
  * 4. Create an appropriate structure object and delegate writing configs to it
  */
 public final class FileStructureFinderManager {
@@ -73,9 +73,9 @@ public final class FileStructureFinderManager {
      * These need to be ordered so that the more generic formats come after the more specific ones
      */
     private static final List<FileStructureFinderFactory> ORDERED_STRUCTURE_FACTORIES = Collections.unmodifiableList(Arrays.asList(
-        new JsonFileStructureFinderFactory(),
+        new NdJsonFileStructureFinderFactory(),
         new XmlFileStructureFinderFactory(),
-        // ND-JSON will often also be valid (although utterly weird) CSV, so JSON must come before CSV
+        // NDJSON will often also be valid (although utterly weird) CSV, so NDJSON must come before CSV
         new DelimitedFileStructureFinderFactory(',', '"', 2, false),
         new DelimitedFileStructureFinderFactory('\t', '"', 2, false),
         new DelimitedFileStructureFinderFactory(';', '"', 4, false),

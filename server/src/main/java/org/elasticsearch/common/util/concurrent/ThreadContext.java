@@ -18,12 +18,15 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -55,14 +58,15 @@ import java.nio.charset.StandardCharsets;
 /**
  * A ThreadContext is a map of string headers and a transient map of keyed objects that are associated with
  * a thread. It allows to store and retrieve header information across method calls, network calls as well as threads spawned from a
- * thread that has a {@link ThreadContext} associated with. Threads spawned from a {@link org.elasticsearch.threadpool.ThreadPool} have out of the box
- * support for {@link ThreadContext} and all threads spawned will inherit the {@link ThreadContext} from the thread that it is forking from.".
- * Network calls will also preserve the senders headers automatically.
+ * thread that has a {@link ThreadContext} associated with. Threads spawned from a {@link org.elasticsearch.threadpool.ThreadPool}
+ * have out of the box support for {@link ThreadContext} and all threads spawned will inherit the {@link ThreadContext} from the thread
+ * that it is forking from.". Network calls will also preserve the senders headers automatically.
  * <p>
- * Consumers of ThreadContext usually don't need to interact with adding or stashing contexts. Every elasticsearch thread is managed by a thread pool or executor
- * being responsible for stashing and restoring the threads context. For instance if a network request is received, all headers are deserialized from the network
- * and directly added as the headers of the threads {@link ThreadContext} (see {@link #readHeaders(StreamInput)}. In order to not modify the context that is currently
- * active on this thread the network code uses a try/with pattern to stash it's current context, read headers into a fresh one and once the request is handled or a handler thread
+ * Consumers of ThreadContext usually don't need to interact with adding or stashing contexts. Every elasticsearch thread is managed by
+ * a thread pool or executor being responsible for stashing and restoring the threads context. For instance if a network request is
+ * received, all headers are deserialized from the network and directly added as the headers of the threads {@link ThreadContext}
+ * (see {@link #readHeaders(StreamInput)}. In order to not modify the context that is currently active on this thread the network code
+ * uses a try/with pattern to stash it's current context, read headers into a fresh one and once the request is handled or a handler thread
  * is forked (which in turn inherits the context) it restores the previous context. For instance:
  * </p>
  * <pre>
@@ -83,6 +87,13 @@ public final class ThreadContext implements Closeable, Writeable {
 
     public static final String PREFIX = "request.headers";
     public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", Property.NodeScope);
+
+    /**
+     * Name for the {@link #stashWithOrigin origin} attribute.
+     */
+    public static final String ACTION_ORIGIN_TRANSIENT_NAME = "action.origin";
+
+    private static final Logger logger = LogManager.getLogger(ThreadContext.class);
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
     private final Map<String, String> defaultHeader;
     private final ContextThreadLocal threadLocal;
@@ -116,7 +127,7 @@ public final class ThreadContext implements Closeable, Writeable {
 
     /**
      * Removes the current context and resets a default context. The removed context can be
-     * restored when closing the returned {@link StoredContext}
+     * restored by closing the returned {@link StoredContext}.
      */
     public StoredContext stashContext() {
         final ThreadContextStruct context = threadLocal.get();
@@ -125,8 +136,34 @@ public final class ThreadContext implements Closeable, Writeable {
     }
 
     /**
-     * Removes the current context and resets a new context that contains a merge of the current headers and the given headers. The removed context can be
-     * restored when closing the returned {@link StoredContext}. The merge strategy is that headers that are already existing are preserved unless they are defaults.
+     * Removes the current context and resets a default context marked with as
+     * originating from the supplied string. The removed context can be
+     * restored by closing the returned {@link StoredContext}. Callers should
+     * be careful to save the current context before calling this method and
+     * restore it any listeners, likely with
+     * {@link ContextPreservingActionListener}. Use {@link OriginSettingClient}
+     * which can be used to do this automatically.
+     * <p>
+     * Without security the origin is ignored, but security uses it to authorize
+     * actions that are made up of many sub-actions. These actions call
+     * {@link #stashWithOrigin} before performing on behalf of a user that
+     * should be allowed even if the user doesn't have permission to perform
+     * those actions on their own.
+     * <p>
+     * For example, a user might not have permission to GET from the tasks index
+     * but the tasks API will perform a get on their behalf using this method
+     * if it can't find the task in memory.
+     */
+    public StoredContext stashWithOrigin(String origin) {
+        final ThreadContext.StoredContext storedContext = stashContext();
+        putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);
+        return storedContext;
+    }
+
+    /**
+     * Removes the current context and resets a new context that contains a merge of the current headers and the given headers.
+     * The removed context can be restored when closing the returned {@link StoredContext}. The merge strategy is that headers
+     * that are already existing are preserved unless they are defaults.
      */
     public StoredContext stashAndMergeHeaders(Map<String, String> headers) {
         final ThreadContextStruct context = threadLocal.get();
@@ -469,19 +506,18 @@ public final class ThreadContext implements Closeable, Writeable {
             //check if we can add another warning header - if max size within limits
             if (key.equals("Warning") && (maxWarningHeaderSize != -1)) { //if size is NOT unbounded, check its limits
                 if (warningHeadersSize > maxWarningHeaderSize) { // if max size has already been reached before
-                    final String message = "Dropping a warning header, as their total size reached the maximum allowed of [" +
-                        maxWarningHeaderSize + "] bytes set in [" +
-                        HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey() + "]!";
-                    ESLoggerFactory.getLogger(ThreadContext.class).warn(message);
+                    logger.warn("Dropping a warning header, as their total size reached the maximum allowed of ["
+                            + maxWarningHeaderSize + "] bytes set in ["
+                            + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey() + "]!");
                     return this;
                 }
                 newWarningHeaderSize += "Warning".getBytes(StandardCharsets.UTF_8).length + value.getBytes(StandardCharsets.UTF_8).length;
                 if (newWarningHeaderSize > maxWarningHeaderSize) {
-                    final String message = "Dropping a warning header, as their total size reached the maximum allowed of [" +
-                        maxWarningHeaderSize + "] bytes set in [" +
-                        HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey() + "]!";
-                    ESLoggerFactory.getLogger(ThreadContext.class).warn(message);
-                    return new ThreadContextStruct(requestHeaders, responseHeaders, transientHeaders, isSystemContext, newWarningHeaderSize);
+                    logger.warn("Dropping a warning header, as their total size reached the maximum allowed of ["
+                            + maxWarningHeaderSize + "] bytes set in ["
+                            + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey() + "]!");
+                    return new ThreadContextStruct(requestHeaders, responseHeaders,
+                        transientHeaders, isSystemContext, newWarningHeaderSize);
                 }
             }
 
@@ -505,9 +541,9 @@ public final class ThreadContext implements Closeable, Writeable {
             if ((key.equals("Warning")) && (maxWarningHeaderCount != -1)) { //if count is NOT unbounded, check its limits
                 final int warningHeaderCount = newResponseHeaders.containsKey("Warning") ? newResponseHeaders.get("Warning").size() : 0;
                 if (warningHeaderCount > maxWarningHeaderCount) {
-                    final String message = "Dropping a warning header, as their total count reached the maximum allowed of [" +
-                        maxWarningHeaderCount + "] set in [" + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT.getKey() + "]!";
-                    ESLoggerFactory.getLogger(ThreadContext.class).warn(message);
+                    logger.warn("Dropping a warning header, as their total count reached the maximum allowed of ["
+                            + maxWarningHeaderCount + "] set in ["
+                            + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT.getKey() + "]!");
                     return this;
                 }
             }
@@ -641,7 +677,7 @@ public final class ThreadContext implements Closeable, Writeable {
                         assert e instanceof CancellationException
                                 || e instanceof InterruptedException
                                 || e instanceof ExecutionException : e;
-                        final Optional<Error> maybeError = ExceptionsHelper.maybeError(e, ESLoggerFactory.getLogger(ThreadContext.class));
+                        final Optional<Error> maybeError = ExceptionsHelper.maybeError(e, logger);
                         if (maybeError.isPresent()) {
                             // throw this error where it will propagate to the uncaught exception handler
                             throw maybeError.get();

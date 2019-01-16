@@ -3,6 +3,8 @@
 [[sql-overview]]
 == Overview
 
+beta[]
+
 {es-sql} aims to provide a powerful yet lightweight SQL interface to {es}.
 
 [[sql-introduction]]
@@ -28,7 +30,7 @@ No need for additional hardware, processes, runtimes or libraries to query {es};
 
 Lightweight and efficient::
 
-{es-sql} does not abstract {es} and its search capabilities - on the contrary, it embraces and exposes SQL to allow proper full-text search, in real-time, in the same declarative, succint fashion.
+{es-sql} does not abstract {es} and its search capabilities - on the contrary, it embraces and exposes SQL to allow proper full-text search, in real-time, in the same declarative, succinct fashion.
 
 
 

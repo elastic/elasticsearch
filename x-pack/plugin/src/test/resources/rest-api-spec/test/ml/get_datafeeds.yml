@@ -1,8 +1,10 @@
 setup:
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: get-datafeed-1
         body:  >
           {
@@ -21,7 +23,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: get-datafeed-2
         body:  >
           {
@@ -38,25 +40,23 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: datafeed-1
         body: >
           {
             "job_id":"get-datafeed-1",
-            "indexes":["index-1"],
-            "types":["type-1"]
+            "indexes":["index-1"]
           }
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: datafeed-2
         body: >
           {
             "job_id":"get-datafeed-2",
-            "indexes":["index-2"],
-            "types":["type-2"]
+            "indexes":["index-2"]
           }
 
 ---
@@ -64,20 +64,20 @@ setup:
 
   - do:
       catch: missing
-      xpack.ml.get_datafeeds:
+      ml.get_datafeeds:
         datafeed_id: missing-datafeed
 
 ---
 "Test get single datafeed":
 
   - do:
-      xpack.ml.get_datafeeds:
+      ml.get_datafeeds:
         datafeed_id: datafeed-1
   - match: { datafeeds.0.datafeed_id: "datafeed-1"}
   - match: { datafeeds.0.job_id: "get-datafeed-1"}
 
   - do:
-      xpack.ml.get_datafeeds:
+      ml.get_datafeeds:
         datafeed_id: datafeed-2
   - match: { datafeeds.0.datafeed_id: "datafeed-2"}
   - match: { datafeeds.0.job_id: "get-datafeed-2"}
@@ -86,7 +86,7 @@ setup:
 "Test explicit get all datafeeds":
 
   - do:
-      xpack.ml.get_datafeeds:
+      ml.get_datafeeds:
         datafeed_id: _all
   - match: { count: 2 }
   - match: { datafeeds.0.datafeed_id: "datafeed-1"}
@@ -98,7 +98,7 @@ setup:
 "Test implicit get all datafeeds":
 
   - do:
-      xpack.ml.get_datafeeds: {}
+      ml.get_datafeeds: {}
   - match: { count: 2 }
   - match: { datafeeds.0.datafeed_id: "datafeed-1"}
   - match: { datafeeds.0.job_id: "get-datafeed-1"}

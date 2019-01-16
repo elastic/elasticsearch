@@ -1,4 +1,4 @@
-:version:               7.0.0-alpha1
+:version:               7.0.0-alpha2
 :major-version:         7.x
 :lucene_version:        8.0.0
 :lucene_version_path:   8_0_0
@@ -11,11 +11,12 @@
 release-state can be: released | prerelease | unreleased
 //////////
 
-:release-state:   unreleased
+:release-state:   prerelease
 
 :issue:           https://github.com/elastic/elasticsearch/issues/
+:ml-issue:        https://github.com/elastic/ml-cpp/issues/
 :pull:            https://github.com/elastic/elasticsearch/pull/
-
+:ml-pull:         https://github.com/elastic/ml-cpp/pull/
 :docker-repo:     docker.elastic.co/elasticsearch/elasticsearch
 :docker-image:    {docker-repo}:{version}
 :plugin_url:      https://artifacts.elastic.co/downloads/elasticsearch-plugins
@@ -53,6 +54,11 @@ ifeval::["{release-state}"!="unreleased"]
 :matrixstats-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/aggs-matrix-stats-client/{version}
 :rank-eval-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/rank-eval-client/{version}
 endif::[]
+
+:javadoc-client: {rest-high-level-client-javadoc}/org/elasticsearch/client
+:javadoc-xpack: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack
+:javadoc-license: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack/license
+:javadoc-watcher: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack/watcher
 
 ///////
 Shared attribute values are pulled from elastic/docs

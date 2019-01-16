@@ -40,8 +40,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -266,8 +266,8 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
         assertTrue(reschedulingRunnable.isCancelled());
     }
 
-    public void testRunnableRunsAtMostOnceAfterCancellation() throws Exception {
-        final int iterations = scaledRandomIntBetween(1, 12);
+    public void testRunnableDoesNotRunAfterCancellation() throws Exception {
+        final int iterations = scaledRandomIntBetween(2, 12);
         final AtomicInteger counter = new AtomicInteger();
         final CountDownLatch doneLatch = new CountDownLatch(iterations);
         final Runnable countingRunnable = () -> {
@@ -275,17 +275,19 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
             doneLatch.countDown();
         };
 
-        final Cancellable cancellable = threadPool.scheduleWithFixedDelay(countingRunnable, TimeValue.timeValueMillis(10L), Names.GENERIC);
+        final TimeValue interval = TimeValue.timeValueMillis(50L);
+        final Cancellable cancellable = threadPool.scheduleWithFixedDelay(countingRunnable, interval, Names.GENERIC);
         doneLatch.await();
         cancellable.cancel();
+
         final int counterValue = counter.get();
-        assertThat(counterValue, isOneOf(iterations, iterations + 1));
+        assertThat(counterValue, equalTo(iterations));
 
         if (rarely()) {
             awaitBusy(() -> {
                 final int value = counter.get();
-                return value == iterations || value == iterations + 1;
-            }, 50L, TimeUnit.MILLISECONDS);
+                return value == iterations;
+            }, 5 * interval.millis(), TimeUnit.MILLISECONDS);
         }
     }
 

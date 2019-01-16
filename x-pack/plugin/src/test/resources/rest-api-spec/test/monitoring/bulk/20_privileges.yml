@@ -9,7 +9,7 @@ setup:
   # Creates a role and a user "Logstash Agent" who can use
   # the Monitoring Bulk API and read the monitoring indices.
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "logstash_agent_role"
         body:  >
             {
@@ -22,7 +22,7 @@ setup:
               ]
             }
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "logstash_agent"
         body:  >
           {
@@ -33,8 +33,8 @@ setup:
   # Creates a role and a user "Unknown Agent" who can only
   # read the monitoring indices.
   - do:
-      xpack.security.put_role:
-        name: "unkown_agent_role"
+      security.put_role:
+        name: "unknown_agent_role"
         body:  >
             {
               "cluster": ["monitor"],
@@ -46,31 +46,31 @@ setup:
               ]
             }
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "unknown_agent"
         body:  >
           {
             "password": "s3krit",
-            "roles" : [ "unkown_agent_role" ]
+            "roles" : [ "unknown_agent_role" ]
           }
 
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "logstash_agent"
         ignore: 404
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "logstash_agent_role"
         ignore: 404
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "unknown_agent"
         ignore: 404
   - do:
-      xpack.security.delete_role:
-        name: "unkown_agent_role"
+      security.delete_role:
+        name: "unknown_agent_role"
         ignore: 404
 
 ---
@@ -82,7 +82,7 @@ teardown:
       headers:
         # Authorization: logstash_agent
         Authorization: "Basic bG9nc3Rhc2hfYWdlbnQ6czNrcml0"
-      xpack.monitoring.bulk:
+      monitoring.bulk:
         system_id:          "logstash"
         system_api_version: "6"
         interval:           "10s"
@@ -103,6 +103,7 @@ teardown:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .monitoring-logstash-*
         body: { "query": { "term" : { "type": "logstash_metric" } } }
   - match: { hits.total: 1 }
@@ -110,6 +111,7 @@ teardown:
   # We actively ignore indexing requests made to .monitoring-data-N starting with 5.5
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .monitoring-data-*
   - match: { hits.total: 0 }
 
@@ -118,7 +120,7 @@ teardown:
       headers:
         # Authorization: unknown_agent
         Authorization: "Basic dW5rbm93bl9hZ2VudDpzM2tyaXQ="
-      xpack.monitoring.bulk:
+      monitoring.bulk:
         system_id:          "logstash"
         system_api_version: "6"
         interval:           "10s"
@@ -135,6 +137,7 @@ teardown:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .monitoring-logstash-*
         body: { "query": { "term" : { "type": "logstash_metric" } } }
   - match: { hits.total: 1 }

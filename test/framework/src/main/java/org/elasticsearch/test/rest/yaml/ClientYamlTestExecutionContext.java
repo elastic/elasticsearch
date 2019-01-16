@@ -19,15 +19,16 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -39,6 +40,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
+
 /**
  * Execution context passed across the REST tests.
  * Holds the REST client used to communicate with elasticsearch.
@@ -47,7 +50,7 @@ import java.util.Map;
  */
 public class ClientYamlTestExecutionContext {
 
-    private static final Logger logger = Loggers.getLogger(ClientYamlTestExecutionContext.class);
+    private static final Logger logger = LogManager.getLogger(ClientYamlTestExecutionContext.class);
 
     private static final XContentType[] STREAMING_CONTENT_TYPES = new XContentType[]{XContentType.JSON, XContentType.SMILE};
 
@@ -93,6 +96,14 @@ public class ClientYamlTestExecutionContext {
             if (stash.containsStashedValue(entry.getValue())) {
                 entry.setValue(stash.getValue(entry.getValue()).toString());
             }
+        }
+
+        // Although include_type_name defaults to false, there is a large number of typed index creations
+        // in REST tests that need to be manually converted to typeless calls. As a temporary measure, we
+        // specify include_type_name=true in indices.create calls, unless the parameter has been set otherwise.
+        // This workaround will be removed once we convert all index creations to be typeless.
+        if (apiName.equals("indices.create") && requestParams.containsKey(INCLUDE_TYPE_NAME_PARAMETER) == false) {
+            requestParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
         }
 
         HttpEntity entity = createEntity(bodies, requestHeaders);

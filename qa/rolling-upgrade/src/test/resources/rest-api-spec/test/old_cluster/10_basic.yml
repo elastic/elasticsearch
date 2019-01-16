@@ -1,8 +1,9 @@
 ---
-"Create things in the cluster state that we'll validate are there after the ugprade":
+"Create things in the cluster state that we'll validate are there after the upgrade":
   - do:
       snapshot.create_repository:
         repository: my_repo
+        verify: false
         body:
           type: url
           settings:
@@ -49,6 +50,7 @@
 
   - do:
       search_template:
+        rest_total_hits_as_int: true
         index: test_search_template
         body:
           id: test_search_template
@@ -119,6 +121,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: queries
         body:
           query:
@@ -131,6 +134,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: queries
         body:
           sort: _id
@@ -146,6 +150,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: queries
         body:
           sort: _id

@@ -16,7 +16,7 @@ There are several different ways of generating a JSON document:
 equivalent
 
 * Using a third party library to serialize your beans such as
-http://wiki.fasterxml.com/JacksonHome[Jackson]
+https://github.com/FasterXML/jackson[Jackson]
 
 * Using built-in helpers XContentFactory.jsonBuilder()
 
@@ -60,7 +60,7 @@ json.put("message","trying out Elasticsearch");
 [[java-docs-index-generate-beans]]
 ===== Serialize your beans
 
-You can use http://wiki.fasterxml.com/JacksonHome[Jackson] to serialize
+You can use https://github.com/FasterXML/jackson[Jackson] to serialize
 your beans to JSON. Please add http://search.maven.org/#search%7Cga%7C1%7Cjackson-databind[Jackson Databind]
  to your project. Then you can use `ObjectMapper` to serialize your beans:
 
@@ -113,13 +113,13 @@ String json = Strings.toString(builder);
 ==== Index document
 
 The following example indexes a JSON document into an index called
-twitter, under a type called tweet, with id valued 1:
+twitter, under a type called `_doc``, with id valued 1:
 
 [source,java]
 --------------------------------------------------
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 
-IndexResponse response = client.prepareIndex("twitter", "tweet", "1")
+IndexResponse response = client.prepareIndex("twitter", "_doc", "1")
         .setSource(jsonBuilder()
                     .startObject()
                         .field("user", "kimchy")
@@ -141,7 +141,7 @@ String json = "{" +
         "\"message\":\"trying out Elasticsearch\"" +
     "}";
 
-IndexResponse response = client.prepareIndex("twitter", "tweet")
+IndexResponse response = client.prepareIndex("twitter", "_doc")
         .setSource(json, XContentType.JSON)
         .get();
 --------------------------------------------------

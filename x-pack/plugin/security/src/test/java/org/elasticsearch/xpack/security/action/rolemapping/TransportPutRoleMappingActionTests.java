@@ -43,7 +43,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
         store = mock(NativeRoleMappingStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        action = new TransportPutRoleMappingAction(Settings.EMPTY, mock(ActionFilters.class), transportService, store);
+        action = new TransportPutRoleMappingAction(mock(ActionFilters.class), transportService, store);
 
         requestRef = new AtomicReference<>(null);
 

@@ -2,10 +2,11 @@
 [[run-as-privilege]]
 === Submitting requests on behalf of other users
 
-{security} supports a permission that enables an authenticated user to submit
+The {es} {security-features} support a permission that enables an authenticated
+user to submit
 requests on behalf of other users. If your application already authenticates
 users, you can use the _run as_ mechanism to restrict data access according to
-{security} permissions without having to re-authenticate each user through.
+{es} permissions without having to re-authenticate each user through.
 
 To "run as" (impersonate) another user, you must be able to retrieve the user from
 the realm you use to authenticate. Both the internal `native` and `file` realms

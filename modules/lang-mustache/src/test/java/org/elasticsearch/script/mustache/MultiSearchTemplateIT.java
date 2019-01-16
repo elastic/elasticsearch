@@ -169,7 +169,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         MultiSearchTemplateResponse.Item response4 = response.getResponses()[3];
         assertThat(response4.isFailure(), is(true));
         assertThat(response4.getFailure(), instanceOf(IndexNotFoundException.class));
-        assertThat(response4.getFailure().getMessage(), equalTo("no such index"));
+        assertThat(response4.getFailure().getMessage(), equalTo("no such index [unknown]"));
 
         MultiSearchTemplateResponse.Item response5 = response.getResponses()[4];
         assertThat(response5.isFailure(), is(false));

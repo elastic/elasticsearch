@@ -8,7 +8,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
-PUT /museums?include_type_name=true
+PUT /museums
 {
     "mappings": {
         "_doc": {

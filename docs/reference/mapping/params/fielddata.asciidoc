@@ -55,7 +55,7 @@ enabled for aggregations, as follows:
 
 [source,js]
 ---------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
     "_doc": {
@@ -118,7 +118,7 @@ number of docs that the segment should contain with `min_segment_size`:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
     "_doc": {

@@ -107,7 +107,7 @@ To begin, we will want to bootstrap our first index to write to.
 
 [source,js]
 -----------------------
-PUT datastream-000001?include_type_name=true
+PUT datastream-000001
 {
   "aliases": {
     "datastream": {

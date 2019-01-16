@@ -16,7 +16,7 @@ Below is an example of configuring a mapping with various range fields followed 
 
 [source,js]
 --------------------------------------------------
-PUT range_index?include_type_name=true
+PUT range_index
 {
   "settings": {
     "number_of_shards": 2

@@ -73,7 +73,7 @@ initial index which will be managed by our policy:
 
 [source,js]
 -----------------------
-PUT test-000001?include_type_name=true
+PUT test-000001
 {
   "aliases": {
     "test-alias":{
@@ -96,7 +96,7 @@ request so {ilm} immediately starts managing the index:
 
 [source,js]
 -----------------------
-PUT test-index?include_type_name=true
+PUT test-index
 {
   "settings": {
     "number_of_shards": 1,

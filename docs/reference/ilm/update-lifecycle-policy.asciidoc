@@ -168,7 +168,7 @@ PUT _ilm/policy/my_executing_policy
 ////
 [source,js]
 ------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "settings": {
     "index.lifecycle.name": "my_executing_policy"
@@ -486,7 +486,7 @@ PUT _ilm/policy/my_other_policy
   }
 }
 
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "settings": {
     "index.lifecycle.name": "my_policy"

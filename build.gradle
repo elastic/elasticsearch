@@ -212,6 +212,7 @@ allprojects {
     "org.elasticsearch:elasticsearch-core:${version}": ':libs:core',
     "org.elasticsearch:elasticsearch-nio:${version}": ':libs:nio',
     "org.elasticsearch:elasticsearch-x-content:${version}": ':libs:x-content',
+    "org.elasticsearch:elasticsearch-geo:${version}": ':libs:geo',
     "org.elasticsearch:elasticsearch-secure-sm:${version}": ':libs:secure-sm',
     "org.elasticsearch.client:elasticsearch-rest-client:${version}": ':client:rest',
     "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}": ':client:sniffer',

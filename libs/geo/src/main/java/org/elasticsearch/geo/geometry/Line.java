@@ -67,6 +67,14 @@ public class Line implements Geometry {
         return lons[i];
     }
 
+    public double[] getLats() {
+        return lats;
+    }
+
+    public double[] getLons() {
+        return lons;
+    }
+
     @Override
     public ShapeType type() {
         return ShapeType.LINESTRING;

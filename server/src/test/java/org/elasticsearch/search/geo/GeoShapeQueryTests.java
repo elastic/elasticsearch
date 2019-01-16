@@ -444,7 +444,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         SearchResponse result = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
         assertSearchResponse(result);
-        assertTrue(result.getHits().getTotalHits().value > 0);
+        assertTrue(geoShapeQueryBuilder.toString(), result.getHits().getTotalHits().value > 0);
     }
 
     /** tests querying a random geometry collection with a point */

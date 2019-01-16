@@ -151,5 +151,4 @@ if (extraProjects.exists()) {
 }
 
 project(":libs:cli").name = 'elasticsearch-cli'
-project(":libs:geo").name = 'elasticsearch-geo'
 project(":libs:ssl-config").name = 'elasticsearch-ssl-config'

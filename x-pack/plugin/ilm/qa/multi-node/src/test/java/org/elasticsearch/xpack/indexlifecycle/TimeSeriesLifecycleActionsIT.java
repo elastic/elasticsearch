@@ -19,6 +19,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.FrozenEngine;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -58,6 +59,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     private String index;
@@ -357,6 +359,46 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         indexDocument();
     }
 
+    public void testDeleteDuringSnapshot() throws Exception {
+        // Create the repository before taking the snapshot.
+        Request request = new Request("PUT", "/_snapshot/repo");
+        request.setJsonEntity(Strings
+            .toString(JsonXContent.contentBuilder()
+                .startObject()
+                .field("type", "fs")
+                .startObject("settings")
+                .field("compress", randomBoolean())
+                .field("location", System.getProperty("tests.path.repo"))
+                .field("max_snapshot_bytes_per_sec", "256b")
+                .endObject()
+                .endObject()));
+        assertOK(client().performRequest(request));
+        // create delete policy
+        createNewSingletonPolicy("delete", new DeleteAction(), TimeValue.timeValueMillis(0));
+        // create index without policy
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        // index document so snapshot actually does something
+        indexDocument();
+        // start snapshot
+        request = new Request("PUT", "/_snapshot/repo/snapshot");
+        request.addParameter("wait_for_completion", "false");
+        request.setJsonEntity("{\"indices\": \"" + index + "\"}");
+        assertOK(client().performRequest(request));
+        // add policy and expect it to trigger delete immediately (while snapshot in progress)
+        updatePolicy(index, policy);
+        // assert that exception was thrown
+        assertBusy(() -> {
+            assertThat(getStepKeyForIndex(index).getName(), equalTo("ERROR"));
+            assertThat(getReasonForIndex(index), startsWith("Cannot delete indices that are being snapshotted"));
+        });
+        assertThat(getSnapshotState("snapshot"), equalTo("IN_PROGRESS"));
+        assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
+        ResponseException e = expectThrows(ResponseException.class,
+            () -> client().performRequest(new Request("GET", "/_snapshot/repo/snapshot")));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+    }
+
     public void testReadOnly() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
@@ -426,6 +468,46 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         expectThrows(ResponseException.class, this::indexDocument);
     }
 
+    public void testShrinkDuringSnapshot() throws Exception {
+        // Create the repository before taking the snapshot.
+        Request request = new Request("PUT", "/_snapshot/repo");
+        request.setJsonEntity(Strings
+            .toString(JsonXContent.contentBuilder()
+                .startObject()
+                .field("type", "fs")
+                .startObject("settings")
+                .field("compress", randomBoolean())
+                .field("location", System.getProperty("tests.path.repo"))
+                .field("max_snapshot_bytes_per_sec", "256b")
+                .endObject()
+                .endObject()));
+        assertOK(client().performRequest(request));
+        // create delete policy
+        createNewSingletonPolicy("warm", new ShrinkAction(1), TimeValue.timeValueMillis(0));
+        // create index without policy
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        // index document so snapshot actually does something
+        indexDocument();
+        // start snapshot
+        request = new Request("PUT", "/_snapshot/repo/snapshot");
+        request.addParameter("wait_for_completion", "false");
+        request.setJsonEntity("{\"indices\": \"" + index + "\"}");
+        assertOK(client().performRequest(request));
+        // add policy and expect it to trigger delete immediately (while snapshot in progress)
+        updatePolicy(index, policy);
+        // assert that exception was thrown
+        assertBusy(() -> {
+            assertThat(getStepKeyForIndex(index).getName(), equalTo("ERROR"));
+            assertThat(getReasonForIndex(index), startsWith("Cannot delete indices that are being snapshotted"));
+        });
+        assertThat(getSnapshotState("snapshot"), equalTo("IN_PROGRESS"));
+        assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
+        ResponseException e = expectThrows(ResponseException.class,
+            () -> client().performRequest(new Request("GET", "/_snapshot/repo/snapshot")));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+    }
+
     public void testFreezeAction() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
@@ -438,6 +520,46 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(settings.get(IndexSettings.INDEX_SEARCH_THROTTLED.getKey()), equalTo("true"));
             assertThat(settings.get(FrozenEngine.INDEX_FROZEN.getKey()), equalTo("true"));
         });
+    }
+
+    public void testFreezeDuringSnapshot() throws Exception {
+        // Create the repository before taking the snapshot.
+        Request request = new Request("PUT", "/_snapshot/repo");
+        request.setJsonEntity(Strings
+            .toString(JsonXContent.contentBuilder()
+                .startObject()
+                .field("type", "fs")
+                .startObject("settings")
+                .field("compress", randomBoolean())
+                .field("location", System.getProperty("tests.path.repo"))
+                .field("max_snapshot_bytes_per_sec", "256b")
+                .endObject()
+                .endObject()));
+        assertOK(client().performRequest(request));
+        // create delete policy
+        createNewSingletonPolicy("cold", new FreezeAction(), TimeValue.timeValueMillis(0));
+        // create index without policy
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        // index document so snapshot actually does something
+        indexDocument();
+        // start snapshot
+        request = new Request("PUT", "/_snapshot/repo/snapshot");
+        request.addParameter("wait_for_completion", "false");
+        request.setJsonEntity("{\"indices\": \"" + index + "\"}");
+        assertOK(client().performRequest(request));
+        // add policy and expect it to trigger delete immediately (while snapshot in progress)
+        updatePolicy(index, policy);
+        // assert that exception was thrown
+        assertBusy(() -> {
+            assertThat(getStepKeyForIndex(index).getName(), equalTo("ERROR"));
+            assertThat(getReasonForIndex(index), startsWith("Cannot close indices that are being snapshotted"));
+        });
+        assertThat(getSnapshotState("snapshot"), equalTo("IN_PROGRESS"));
+        assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
+        ResponseException e = expectThrows(ResponseException.class,
+            () -> client().performRequest(new Request("GET", "/_snapshot/repo/snapshot")));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
     @SuppressWarnings("unchecked")
@@ -731,5 +853,16 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         indexRequest.setEntity(new StringEntity("{\"a\": \"test\"}", ContentType.APPLICATION_JSON));
         Response response = client().performRequest(indexRequest);
         logger.info(response.getStatusLine());
+    }
+
+    private String getSnapshotState(String snapshot) throws IOException {
+        Response response = client().performRequest(new Request("GET", "/_snapshot/repo/snapshot"));
+        Map<String, Object> responseMap;
+        try (InputStream is = response.getEntity().getContent()) {
+            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+        Map<String, Object> snapResponse = ((List<Map<String, Object>>) responseMap.get("snapshots")).get(0);
+        assertThat(snapResponse.get("snapshot"), equalTo("snapshot"));
+        return (String) snapResponse.get("state");
     }
 }

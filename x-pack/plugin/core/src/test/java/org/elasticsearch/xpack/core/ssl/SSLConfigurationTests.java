@@ -21,7 +21,6 @@ import javax.net.ssl.TrustManager;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;

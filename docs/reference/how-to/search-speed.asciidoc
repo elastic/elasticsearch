@@ -50,7 +50,7 @@ field.
 
 [source,js]
 --------------------------------------------------
-PUT movies
+PUT movies?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -123,7 +123,7 @@ should be mapped as a <<keyword,`keyword`>>:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -322,7 +322,7 @@ eagerly at refresh-time by configuring mappings as described below:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
     "_doc": {

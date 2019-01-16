@@ -63,6 +63,7 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
      * Note: Support for this parameter will be removed after the transition period to typeless APIs.
      */
     public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
+    public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
 
     protected BaseRestHandler(Settings settings) {
         // TODO drop settings from ctor

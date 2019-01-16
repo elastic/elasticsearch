@@ -32,7 +32,6 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
-import org.elasticsearch.transport.TransportFuture;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -113,17 +112,13 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
-                                        long maxSeenAutoIdTimestampOnPrimary, long maxSeqNoOfDeletesOrUpdatesOnPrimary) {
-        final RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(
+    public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long maxSeenAutoIdTimestampOnPrimary,
+                                        long maxSeqNoOfDeletesOrUpdatesOnPrimary, ActionListener<Long> listener) {
+        final RecoveryTranslogOperationsRequest request = new RecoveryTranslogOperationsRequest(
             recoveryId, shardId, operations, totalTranslogOps, maxSeenAutoIdTimestampOnPrimary, maxSeqNoOfDeletesOrUpdatesOnPrimary);
-        final TransportFuture<RecoveryTranslogOperationsResponse> future = transportService.submitRequest(
-                targetNode,
-                PeerRecoveryTargetService.Actions.TRANSLOG_OPS,
-                translogOperationsRequest,
-                translogOpsRequestOptions,
-                RecoveryTranslogOperationsResponse.HANDLER);
-        return future.txGet().localCheckpoint;
+        transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.TRANSLOG_OPS, request, translogOpsRequestOptions,
+            new ActionListenerResponseHandler<>(ActionListener.wrap(r -> listener.onResponse(r.localCheckpoint), listener::onFailure),
+                RecoveryTranslogOperationsResponse::new, ThreadPool.Names.GENERIC));
     }
 
     @Override

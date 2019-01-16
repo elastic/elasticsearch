@@ -39,6 +39,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Objects;
 
 public class MultiPhrasePrefixQuery extends Query {
 
@@ -50,7 +51,7 @@ public class MultiPhrasePrefixQuery extends Query {
     private int slop = 0;
 
     public MultiPhrasePrefixQuery(String field) {
-        this.field = field;
+        this.field = Objects.requireNonNull(field);
     }
 
     /**

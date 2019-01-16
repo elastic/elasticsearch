@@ -415,6 +415,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         request.setRemoteCluster("leader_cluster");
         request.setLeaderIndex(leaderIndex);
         request.setFollowRequest(resumeFollow(followerIndex));
+        request.setWaitForCompletion(true);
         return request;
     }
 

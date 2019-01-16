@@ -44,11 +44,11 @@ public class RestoreClusterStateListener implements ClusterStateListener {
     private final ActionListener<RestoreSnapshotResponse> listener;
 
 
-    public RestoreClusterStateListener(ClusterService clusterService, String uuid, Snapshot snapshot,
-                                       ActionListener<RestoreSnapshotResponse> listener) {
+    private RestoreClusterStateListener(ClusterService clusterService, RestoreService.RestoreCompletionResponse response,
+                                        ActionListener<RestoreSnapshotResponse> listener) {
         this.clusterService = clusterService;
-        this.uuid = uuid;
-        this.snapshot = snapshot;
+        this.uuid = response.getUuid();
+        this.snapshot = response.getSnapshot();
         this.listener = listener;
     }
 
@@ -77,5 +77,14 @@ public class RestoreClusterStateListener implements ClusterStateListener {
         } else {
             // restore not completed yet, wait for next cluster state update
         }
+    }
+
+    /**
+     * Creates a cluster state listener and registers it with the cluster service. The listener passed as a
+     * parameter will be called with the restore is complete.
+     */
+    public static void createAndRegisterListener(ClusterService clusterService, RestoreService.RestoreCompletionResponse response,
+                                                 ActionListener<RestoreSnapshotResponse> listener) {
+        clusterService.addListener(new RestoreClusterStateListener(clusterService, response, listener));
     }
 }

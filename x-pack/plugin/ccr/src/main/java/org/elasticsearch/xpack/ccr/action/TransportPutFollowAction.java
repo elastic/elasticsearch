@@ -30,7 +30,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -93,7 +92,7 @@ public final class TransportPutFollowAction
     protected void masterOperation(
         final PutFollowAction.Request request,
         final ClusterState state,
-        final ActionListener<PutFollowAction.Response> listener) throws Exception {
+        final ActionListener<PutFollowAction.Response> listener) {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
@@ -129,8 +128,11 @@ public final class TransportPutFollowAction
         }
 
         String remoteCluster = request.getRemoteCluster();
+        boolean waitForRestore = request.getWaitForCompletion();
 
         Client client = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
+
+        ActionListener<PutFollowAction.Response> followingListener = waitForRestore ? listener : ActionListener.wrap(() -> {});
 
         ActionListener<RestoreSnapshotResponse> restoreCompleteHandler = new ActionListener<RestoreSnapshotResponse>() {
             @Override
@@ -140,15 +142,16 @@ public final class TransportPutFollowAction
                     // If restoreInfo is null then it is possible there was a master failure during the
                     // restore. It is possible the index was restored. initiateFollowing will timeout waiting
                     // for the shards to be active if the index was not successfully restored.
-                    initiateFollowing(client, request, listener);
+                    initiateFollowing(client, request, followingListener);
                 } else {
-                    listener.onFailure(new ElasticsearchException("failed to restore [" + restoreInfo.failedShards() + "] shards"));
+                    int failedShards = restoreInfo.failedShards();
+                    followingListener.onFailure(new ElasticsearchException("failed to restore [" + failedShards + "] shards"));
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(e);
+                followingListener.onFailure(e);
             }
         };
 
@@ -162,6 +165,9 @@ public final class TransportPutFollowAction
             false, false, settingsBuilder.build(), new String[0],
             "restore_snapshot[" + leaderClusterRepoName + ":" + request.getLeaderIndex() + "]");
         initiateRestore(restoreRequest, restoreCompleteHandler);
+        if (waitForRestore == false) {
+            listener.onResponse(new PutFollowAction.Response(false, false, false));
+        }
     }
 
     private void initiateRestore(RestoreService.RestoreRequest restoreRequest, ActionListener<RestoreSnapshotResponse> listener) {
@@ -172,13 +178,11 @@ public final class TransportPutFollowAction
             }
 
             @Override
-            protected void doRun() throws Exception {
+            protected void doRun() {
                 restoreService.restoreSnapshot(restoreRequest, new ActionListener<RestoreService.RestoreCompletionResponse>() {
                     @Override
                     public void onResponse(RestoreService.RestoreCompletionResponse restoreCompletionResponse) {
-                        final Snapshot snapshot = restoreCompletionResponse.getSnapshot();
-                        final String uuid = restoreCompletionResponse.getUuid();
-                        clusterService.addListener(new RestoreClusterStateListener(clusterService, uuid, snapshot, listener));
+                        RestoreClusterStateListener.createAndRegisterListener(clusterService, restoreCompletionResponse, listener);
                     }
 
                     @Override

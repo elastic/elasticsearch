@@ -8,6 +8,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.SnapshotInProgressException;
 
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -54,8 +55,7 @@ public abstract class RetryDuringSnapshotStep extends AsyncActionStep {
 
         @Override
         public void onFailure(Exception e) {
-//            if (e instanceof SnapshotInProgressException) {
-            if (e instanceof IllegalArgumentException) {
+            if (e instanceof SnapshotInProgressException) {
                 observer.waitForNextChange(
                     new NoSnapshotRunningListener(state -> {
                         IndexMetaData idxMeta = state.metaData().index(index);

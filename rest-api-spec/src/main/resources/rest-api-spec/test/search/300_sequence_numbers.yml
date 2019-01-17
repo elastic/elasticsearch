@@ -8,7 +8,8 @@ setup:
           index:  test_1
           type:   test
           id:     1
-           body:   { foo: foo }
+          body:   { foo: foo }
+
 ## we index again in order to make the seq# 1 (so we can check for the field existence with is_false)
   - do:
       index:

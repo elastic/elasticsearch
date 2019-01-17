@@ -85,13 +85,16 @@ executing.
 The below list shows the actions which are available in each phase.
 
 * Hot
+  - <<ilm-set-priority-action,Set Priority>>
   - <<ilm-rollover-action,Rollover>>
 * Warm
+  - <<ilm-set-priority-action,Set Priority>>
   - <<ilm-allocate-action,Allocate>>
   - <<ilm-readonly-action,Read-Only>>
   - <<ilm-forcemerge-action,Force Merge>>
   - <<ilm-shrink-action,Shrink>>
 * Cold
+  - <<ilm-set-priority-action,Set Priority>>
   - <<ilm-allocate-action,Allocate>>
   - <<ilm-freeze-action,Freeze>>
 * Delete
@@ -524,6 +527,48 @@ PUT /_ilm/policy/rollover_policy
 The above example illustrates a policy which attempts to delete an
 index one day after the index has been rolled over. It does not
 delete the index one day after it has been created.
+
+[[ilm-set-priority-action]]
+==== Set Priority
+
+Phases allowed: hot, warm, cold.
+
+This action sets the <<recovery-prioritization, index priority>> on the index as
+soon as the policy enters the hot, warm, or cold phase. Indices with a higher
+priority will be recovered before indices with lower priorities following a node
+restart. Generally, indexes in the hot phase should have the highest value and
+indexes in the cold phase should have the lowest values. For example:
+100 for the hot phase, 50 for the warm phase, and 0 for the cold phase.
+Indicies that don't set this value have an implicit default priority of 1.
+
+[[ilm-set-priority-options]]
+.Set Priority Options
+[options="header"]
+|======
+| Name         | Required  | Default     | Description
+| `priority`   | yes       | -           | The priority for the index. Must be 0 or greater.
+                                           The value may also be set to null to remove the priority.
+
+|======
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "actions": {
+          "set_priority" : {
+            "priority": 50
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
 
 [[ilm-shrink-action]]
 ==== Shrink

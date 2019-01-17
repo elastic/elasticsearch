@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
+import org.elasticsearch.xpack.core.indexlifecycle.SetPriorityAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
@@ -440,6 +441,31 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
     }
 
+    public void testSetPriority() throws Exception {
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.INDEX_PRIORITY_SETTING.getKey(), 100));
+        int priority = randomIntBetween(0, 99);
+        createNewSingletonPolicy("warm", new SetPriorityAction(priority));
+        updatePolicy(index, policy);
+        assertBusy(() -> {
+            Map<String, Object> settings = getOnlyIndexSettings(index);
+            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            assertThat(settings.get(IndexMetaData.INDEX_PRIORITY_SETTING.getKey()), equalTo(String.valueOf(priority)));
+        });
+    }
+
+    public void testSetNullPriority() throws Exception {
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.INDEX_PRIORITY_SETTING.getKey(), 100));
+        createNewSingletonPolicy("warm", new SetPriorityAction((Integer) null));
+        updatePolicy(index, policy);
+        assertBusy(() -> {
+            Map<String, Object> settings = getOnlyIndexSettings(index);
+            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            assertNull(settings.get(IndexMetaData.INDEX_PRIORITY_SETTING.getKey()));
+        });
+    }
+
     @SuppressWarnings("unchecked")
     public void testNonexistentPolicy() throws Exception {
         String indexPrefix = randomAlphaOfLengthBetween(5,15).toLowerCase(Locale.ROOT);
@@ -601,16 +627,21 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     private void createFullPolicy(TimeValue hotTime) throws IOException {
+        Map<String, LifecycleAction> hotActions = new HashMap<>();
+        hotActions.put(SetPriorityAction.NAME, new SetPriorityAction(100));
+        hotActions.put(RolloverAction.NAME,  new RolloverAction(null, null, 1L));
         Map<String, LifecycleAction> warmActions = new HashMap<>();
+        warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1));
         warmActions.put(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "node-1,node-2"), null, null));
         warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
+        Map<String, LifecycleAction> coldActions = new HashMap<>();
+        coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
+        coldActions.put(AllocateAction.NAME, new AllocateAction(0, singletonMap("_name", "node-3"), null, null));
         Map<String, Phase> phases = new HashMap<>();
-        phases.put("hot", new Phase("hot", hotTime, singletonMap(RolloverAction.NAME,
-            new RolloverAction(null, null, 1L))));
+        phases.put("hot", new Phase("hot", hotTime, hotActions));
         phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
-        phases.put("cold", new Phase("cold", TimeValue.ZERO, singletonMap(AllocateAction.NAME,
-            new AllocateAction(0, singletonMap("_name", "node-3"), null, null))));
+        phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
         phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction())));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         // PUT policy

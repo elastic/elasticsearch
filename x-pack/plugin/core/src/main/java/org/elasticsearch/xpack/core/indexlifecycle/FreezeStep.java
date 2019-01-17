@@ -8,14 +8,13 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.xpack.core.action.TransportFreezeIndexAction;
 
 /**
  * Freezes an index.
  */
-public class FreezeStep extends AsyncActionStep {
+public class FreezeStep extends RetryDuringSnapshotStep {
     public static final String NAME = "freeze";
 
     public FreezeStep(StepKey key, StepKey nextStepKey, Client client) {
@@ -23,7 +22,7 @@ public class FreezeStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
+    public void performDuringNoSnapshot(IndexMetaData indexMetaData, ClusterState currentState, Listener listener) {
         getClient().admin().indices().execute(TransportFreezeIndexAction.FreezeIndexAction.INSTANCE,
             new TransportFreezeIndexAction.FreezeRequest(indexMetaData.getIndex().getName()),
             ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));

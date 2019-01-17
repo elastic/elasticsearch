@@ -35,10 +35,6 @@ public class SnapshotInProgressException extends ElasticsearchException {
         super(msg);
     }
 
-    public SnapshotInProgressException(String msg, Throwable cause) {
-        super(msg, cause);
-    }
-
     public SnapshotInProgressException(StreamInput in) throws IOException {
         super(in);
     }

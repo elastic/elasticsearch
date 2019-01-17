@@ -1237,7 +1237,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         if (seqNoAndPrimaryTerm != null) {
-            builder.field(SEQ_NO_PRIMARY_TERM_FIELD.getPreferredName(), version);
+            builder.field(SEQ_NO_PRIMARY_TERM_FIELD.getPreferredName(), seqNoAndPrimaryTerm);
         }
 
         if (explain != null) {

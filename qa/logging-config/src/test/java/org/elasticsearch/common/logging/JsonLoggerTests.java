@@ -41,6 +41,10 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * This test confirms JSON log structure is properly formatted and can be parsed.
+ * It has to be in a <code>org.elasticsearch.common.logging</code> package to use <code>PrefixLogger</code>
+ */
 public class JsonLoggerTests extends ESTestCase {
 
     @BeforeClass

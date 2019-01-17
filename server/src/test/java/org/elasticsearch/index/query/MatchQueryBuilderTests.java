@@ -28,7 +28,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -386,13 +385,10 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             context.indexVersionCreated().onOrAfter(Version.V_5_0_0_alpha1));
 
         {
-            // field boost is applied on a single term query
+            // field boost is ignored on a single term query
             MatchPhrasePrefixQueryBuilder builder = new MatchPhrasePrefixQueryBuilder("string_boost", "foo");
             Query query = builder.toQuery(context);
-            assertThat(query, instanceOf(BoostQuery.class));
-            assertThat(((BoostQuery) query).getBoost(), equalTo(4f));
-            Query innerQuery = ((BoostQuery) query).getQuery();
-            assertThat(innerQuery, instanceOf(MultiPhrasePrefixQuery.class));
+            assertThat(query, instanceOf(MultiPhrasePrefixQuery.class));
         }
 
         {

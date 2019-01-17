@@ -34,6 +34,8 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
@@ -399,12 +401,24 @@ public abstract class MappedFieldType extends FieldType {
 
     public abstract Query existsQuery(QueryShardContext context);
 
-    public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-        throw new IllegalArgumentException("Attempted to build a phrase query with multiple terms against non-text field [" + name + "]");
+    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
     }
 
-    public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-        throw new IllegalArgumentException("Attempted to build a phrase query with multiple terms against non-text field [" + name + "]");
+    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
+    }
+
+    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
+        throw new IllegalArgumentException("Can only use phrase prefix queries on text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
+    }
+
+    public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
+        throw new IllegalArgumentException("Can only use span prefix queries on text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
     }
 
     /**

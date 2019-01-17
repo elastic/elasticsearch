@@ -58,7 +58,7 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "Test fails due to mismatched variance after reduction, unclear why.")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37587")
     public void testTwoFields() throws Exception {
         String fieldA = "a";
         MappedFieldType ftA = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);

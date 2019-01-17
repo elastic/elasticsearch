@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
@@ -17,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -748,7 +751,8 @@ public class AutodetectProcessManager extends AbstractComponent {
     }
 
     ExecutorService createAutodetectExecutorService(ExecutorService executorService) {
-        AutodetectWorkerExecutorService autoDetectWorkerExecutor = new AutodetectWorkerExecutorService(threadPool.getThreadContext());
+        AutodetectWorkerExecutorService autoDetectWorkerExecutor = new AutodetectWorkerExecutorService(logger,
+            threadPool.getThreadContext());
         executorService.submit(autoDetectWorkerExecutor::start);
         return autoDetectWorkerExecutor;
     }
@@ -758,15 +762,18 @@ public class AutodetectProcessManager extends AbstractComponent {
      * operations are initially added to a queue and a worker thread from ml autodetect threadpool will process each
      * operation at a time.
      */
-    class AutodetectWorkerExecutorService extends AbstractExecutorService {
+    static class AutodetectWorkerExecutorService extends AbstractExecutorService {
 
+        private final Logger logger;
         private final ThreadContext contextHolder;
         private final CountDownLatch awaitTermination = new CountDownLatch(1);
         private final BlockingQueue<Runnable> queue = new LinkedBlockingQueue<>(100);
 
         private volatile boolean running = true;
 
-        AutodetectWorkerExecutorService(ThreadContext contextHolder) {
+        @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+        AutodetectWorkerExecutorService(Logger logger, ThreadContext contextHolder) {
+            this.logger = logger;
             this.contextHolder = contextHolder;
         }
 
@@ -813,6 +820,7 @@ public class AutodetectProcessManager extends AbstractComponent {
                         } catch (Exception e) {
                             logger.error("error handling job operation", e);
                         }
+                        EsExecutors.rethrowErrors(contextHolder.unwrap(runnable));
                     }
                 }
             } catch (InterruptedException e) {

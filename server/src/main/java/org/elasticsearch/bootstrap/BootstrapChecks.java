@@ -258,7 +258,7 @@ final class BootstrapChecks {
         private final int limit;
 
         FileDescriptorCheck() {
-            this(1 << 16);
+            this(65535);
         }
 
         protected FileDescriptorCheck(final int limit) {

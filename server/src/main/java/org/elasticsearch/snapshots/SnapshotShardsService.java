@@ -119,7 +119,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     public SnapshotShardsService(Settings settings, ClusterService clusterService, SnapshotsService snapshotsService,
                                  ThreadPool threadPool, TransportService transportService, IndicesService indicesService,
                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings);
         this.indicesService = indicesService;
         this.snapshotsService = snapshotsService;
         this.transportService = transportService;

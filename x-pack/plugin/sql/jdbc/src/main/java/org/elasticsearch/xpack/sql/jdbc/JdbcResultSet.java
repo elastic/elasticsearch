@@ -245,7 +245,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             // TODO: the B6 appendix of the jdbc spec does mention CHAR, VARCHAR, LONGVARCHAR, DATE, TIMESTAMP as supported
             // jdbc types that should be handled by getDate and getTime methods. From all of those we support VARCHAR and
             // TIMESTAMP. Should we consider the VARCHAR conversion as a later enhancement?
-            if (EsType.DATE == type) {
+            if (EsType.DATETIME == type) {
                 // the cursor can return an Integer if the date-since-epoch is small enough, XContentParser (Jackson) will
                 // return the "smallest" data type for numbers when parsing
                 // TODO: this should probably be handled server side

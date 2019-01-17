@@ -54,7 +54,7 @@ d:i                  | l:s
 ;
 
 //
-// Date
+// DateTime
 //
 dateTimeIsoDayOfWeek
 SELECT ISO_DAY_OF_WEEK(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY ISO_DAY_OF_WEEK(birth_date);

@@ -57,7 +57,6 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         column.put("name", name);
         column.put("type", type);
         if ("jdbc".equals(mode)) {
-            column.put("jdbc_type", jdbcType.getVendorTypeNumber());
             column.put("display_size", size);
         }
         return unmodifiableMap(column);

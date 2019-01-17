@@ -1,0 +1,52 @@
+////
+// To add a release, copy and paste the following text,  uncomment the relevant
+// sections, and add a link to the new section in the list of releases in
+// ../release-notes.asciidoc. Note that release subheads must be floated and
+// sections cannot be empty.
+// TEMPLATE
+
+// [[release-notes-n.n.n]]
+// == {es} version n.n.n
+
+// coming[n.n.n]
+
+// Also see <<breaking-changes-n.n>>.
+
+// [float]
+// [[breaking-n.n.n]]
+// === Breaking Changes
+
+// [float]
+// [[breaking-java-n.n.n]]
+// === Breaking Java Changes
+
+// [float]
+// [[deprecation-n.n.n]]
+// === Deprecations
+
+// [float]
+// [[feature-n.n.n]]
+// === New Features
+
+// [float]
+// [[enhancement-n.n.n]]
+// === Enhancements
+
+// [float]
+// [[bug-n.n.n]]
+// === Bug Fixes
+
+// [float]
+// [[regression-n.n.n]]
+// === Regressions
+
+// [float]
+// === Known Issues
+////
+
+[[release-notes-6.6.0]]
+== {es} version 6.6.0
+
+Also see <<breaking-changes-6.6,Breaking changes in 6.6>>.
+
+coming[6.6.0]

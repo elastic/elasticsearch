@@ -19,6 +19,7 @@
 
 package org.elasticsearch.threadpool;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -26,8 +27,10 @@ import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 
+import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -37,7 +40,7 @@ import java.util.function.Consumer;
 public interface Scheduler {
 
     static ScheduledThreadPoolExecutor initScheduler(Settings settings) {
-        ScheduledThreadPoolExecutor scheduler = new ScheduledThreadPoolExecutor(1,
+        final ScheduledThreadPoolExecutor scheduler = new SafeScheduledThreadPoolExecutor(1,
                 EsExecutors.daemonThreadFactory(settings, "scheduler"), new EsAbortPolicy());
         scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
@@ -204,6 +207,32 @@ public interface Scheduler {
                     onRejection(e);
                 }
             }
+        }
+    }
+
+    /**
+     * This subclass ensures to properly bubble up Throwable instances of type Error.
+     */
+    class SafeScheduledThreadPoolExecutor extends ScheduledThreadPoolExecutor {
+
+        @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+        public SafeScheduledThreadPoolExecutor(int corePoolSize, ThreadFactory threadFactory, RejectedExecutionHandler handler) {
+            super(corePoolSize, threadFactory, handler);
+        }
+
+        @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+        public SafeScheduledThreadPoolExecutor(int corePoolSize, ThreadFactory threadFactory) {
+            super(corePoolSize, threadFactory);
+        }
+
+        @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+        public SafeScheduledThreadPoolExecutor(int corePoolSize) {
+            super(corePoolSize);
+        }
+
+        @Override
+        protected void afterExecute(Runnable r, Throwable t) {
+            EsExecutors.rethrowErrors(r);
         }
     }
 }

@@ -220,7 +220,6 @@ public class IndicesService extends AbstractLifecycleComponent
                           ScriptService scriptService, Client client, MetaStateService metaStateService,
                           Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
                           Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories) {
-        super(settings);
         this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;

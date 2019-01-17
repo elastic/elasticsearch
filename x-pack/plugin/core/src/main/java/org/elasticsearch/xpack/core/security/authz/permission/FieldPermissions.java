@@ -154,6 +154,29 @@ public final class FieldPermissions implements Accountable {
     }
 
     /**
+     * Returns scoped field permissions based on the given permissions.<br>
+     * If both have field level security then it takes an intersection of permitted fields.<br>
+     * If none of the permissions have field level security enabled, then returns all fields are accepted.
+     *
+     * @param permissions {@link FieldPermissions}
+     * @param scopedByPermissions {@link FieldPermissions} used to scope the permissions for returned field permissions
+     * @return {@link FieldPermissions}
+     **/
+    public static FieldPermissions scopedFieldPermissions(FieldPermissions permissions, FieldPermissions scopedByPermissions) {
+        if (permissions != null && permissions.hasFieldLevelSecurity()
+                && scopedByPermissions != null && scopedByPermissions.hasFieldLevelSecurity()) {
+            Automaton permittedFieldsAutomaton = Automatons.intersectAndMinimize(
+                    permissions.getIncludeAutomaton(), scopedByPermissions.getIncludeAutomaton());
+            return new FieldPermissions(null, permittedFieldsAutomaton);
+        } else if (permissions.hasFieldLevelSecurity()) {
+            return permissions;
+        } else if (scopedByPermissions.hasFieldLevelSecurity()) {
+            return scopedByPermissions;
+        }
+        return new FieldPermissions();
+    }
+
+    /**
      * Returns true if this field permission policy allows access to the field and false if not.
      * fieldName can be a wildcard.
      */
@@ -178,8 +201,7 @@ public final class FieldPermissions implements Accountable {
         return FieldSubsetReader.wrap(reader, permittedFieldsAutomaton);
     }
 
-    /** @return permitted fields automaton */
-    public Automaton getIncludeAutomaton() {
+    Automaton getIncludeAutomaton() {
         return originalAutomaton;
     }
 

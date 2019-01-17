@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.permission.ScopedRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -52,7 +53,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -270,13 +270,14 @@ public class ApiKeyServiceTests extends ESTestCase {
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         service.getRoleForApiKey(authentication, rolesStore, roleFuture);
         Role role = roleFuture.get();
+        assertThat(role, instanceOf(ScopedRole.class));
         if (emptyApiKeyRoleDescriptor) {
             assertThat(role.names(), arrayContaining("scoped role"));
-            assertThat(role.scopedRole(), is(nullValue()));
         } else {
-            assertThat(role.names(), arrayContaining("a role"));
-            assertThat(role.scopedRole(), is(notNullValue()));
-            assertThat(role.scopedRole().names(), arrayContaining("scoped role"));
+            ScopedRole scopedRole = (ScopedRole) role;
+            assertThat(scopedRole.names(), arrayContaining("a role"));
+            assertThat(scopedRole.scopedBy(), is(notNullValue()));
+            assertThat(scopedRole.scopedBy().names(), arrayContaining("scoped role"));
         }
     }
 }

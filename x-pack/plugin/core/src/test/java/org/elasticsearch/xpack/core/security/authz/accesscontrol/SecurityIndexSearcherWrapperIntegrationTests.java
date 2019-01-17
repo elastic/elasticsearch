@@ -41,7 +41,11 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -69,9 +73,12 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final Authentication authentication = mock(Authentication.class);
+        when(authentication.getUser()).thenReturn(mock(User.class));
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, new
                 FieldPermissions(),
-                singleton(new BytesArray("{\"match_all\" : {}}")));
+                DocumentPermissions.filteredBy(singleton(new BytesArray("{\"match_all\" : {}}"))));
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
@@ -174,6 +181,9 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final Authentication authentication = mock(Authentication.class);
+        when(authentication.getUser()).thenReturn(mock(User.class));
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
         final boolean noScopedIndexPermissions = randomBoolean();
         boolean restrictiveScopedIndexPermissions = false;
         if (noScopedIndexPermissions == false) {
@@ -181,14 +191,14 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
         }
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, new
                 FieldPermissions(),
-                singleton(new BytesArray("{\"terms\" : { \"f2\" : [\"fv22\", \"fv32\"] } }")));
+                DocumentPermissions.filteredBy(singleton(new BytesArray("{\"terms\" : { \"f2\" : [\"fv22\", \"fv32\"] } }"))));
         Set<BytesReference> queries = singleton(new BytesArray("{\"terms\" : { \"f1\" : [\"fv11\", \"fv21\", \"fv31\"] } }"));
         if (restrictiveScopedIndexPermissions) {
             queries = singleton(new BytesArray("{\"terms\" : { \"f1\" : [\"fv11\", \"fv31\"] } }"));
         }
         IndicesAccessControl.IndexAccessControl scopedIndexAccessControl = new IndicesAccessControl.IndexAccessControl(true, new
                 FieldPermissions(),
-                queries);
+                DocumentPermissions.filteredBy(queries));
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
@@ -215,11 +225,13 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
 
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
+                IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
                 if (noScopedIndexPermissions) {
-                    return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
+                    return indicesAccessControl;
                 }
-                return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl),
+                IndicesAccessControl scoped = new IndicesAccessControl(true,
                         singletonMap("_index", scopedIndexAccessControl));
+                return IndicesAccessControl.scopedIndicesAccessControl(indicesAccessControl, scoped);
             }
         };
 

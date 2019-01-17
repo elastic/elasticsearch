@@ -365,11 +365,7 @@ public class AuthorizationService {
         for (String index : SecurityIndexManager.indexNames()) {
             final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
             if (indexPermissions != null && indexPermissions.isGranted()) {
-                final IndicesAccessControl.IndexAccessControl scopedIndexPermissions = indicesAccessControl
-                        .getScopedIndexPermissions(index);
-                if (scopedIndexPermissions == null || scopedIndexPermissions != null && scopedIndexPermissions.isGranted()) {
-                    return true;
-                }
+                return true;
             }
         }
         return false;

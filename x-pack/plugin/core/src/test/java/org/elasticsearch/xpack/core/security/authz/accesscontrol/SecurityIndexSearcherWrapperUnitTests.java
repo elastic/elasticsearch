@@ -28,20 +28,15 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -50,61 +45,34 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.BoostingQueryBuilder;
-import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
-import org.elasticsearch.index.query.GeoShapeQueryBuilder;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.TermsLookup;
-import org.elasticsearch.join.query.HasChildQueryBuilder;
-import org.elasticsearch.join.query.HasParentQueryBuilder;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
-import org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReader.FieldSubsetDirectoryReader;
-import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.IndexAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
-import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSearcherWrapper.intersectScorerAndRoleBits;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
@@ -138,7 +106,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(shardId);
 
-        Directory directory = new RAMDirectory();
+        Directory directory = new MMapDirectory(createTempDir());
         IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig());
         writer.close();
 
@@ -425,66 +393,6 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         doTestIndexSearcherWrapper(false, true);
     }
 
-    public void testTemplating() throws Exception {
-        User user = new User("_username", new String[]{"role1", "role2"}, "_full_name", "_email",
-                Collections.singletonMap("key", "value"), true);
-        securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService) {
-
-                    @Override
-                    protected User getUser() {
-                        return user;
-                    }
-                };
-
-        TemplateScript.Factory compiledTemplate = templateParams ->
-                new TemplateScript(templateParams) {
-                    @Override
-                    public String execute() {
-                        return "rendered_text";
-                    }
-                };
-
-        when(scriptService.compile(any(Script.class), eq(TemplateScript.CONTEXT))).thenReturn(compiledTemplate);
-
-        XContentBuilder builder = jsonBuilder();
-        String query = Strings.toString(new TermQueryBuilder("field", "{{_user.username}}").toXContent(builder, ToXContent.EMPTY_PARAMS));
-        Script script = new Script(ScriptType.INLINE, "mustache", query, Collections.singletonMap("custom", "value"));
-        builder = jsonBuilder().startObject().field("template");
-        script.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        String querySource = Strings.toString(builder.endObject());
-
-        securityIndexSearcherWrapper.evaluateTemplate(querySource);
-        ArgumentCaptor<Script> argument = ArgumentCaptor.forClass(Script.class);
-        verify(scriptService).compile(argument.capture(), eq(TemplateScript.CONTEXT));
-        Script usedScript = argument.getValue();
-        assertThat(usedScript.getIdOrCode(), equalTo(script.getIdOrCode()));
-        assertThat(usedScript.getType(), equalTo(script.getType()));
-        assertThat(usedScript.getLang(), equalTo("mustache"));
-        assertThat(usedScript.getOptions(), equalTo(script.getOptions()));
-        assertThat(usedScript.getParams().size(), equalTo(2));
-        assertThat(usedScript.getParams().get("custom"), equalTo("value"));
-
-        Map<String, Object> userModel = new HashMap<>();
-        userModel.put("username", user.principal());
-        userModel.put("full_name", user.fullName());
-        userModel.put("email", user.email());
-        userModel.put("roles", Arrays.asList(user.roles()));
-        userModel.put("metadata", user.metadata());
-        assertThat(usedScript.getParams().get("_user"), equalTo(userModel));
-
-    }
-
-    public void testSkipTemplating() throws Exception {
-        securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService);
-        XContentBuilder builder = jsonBuilder();
-        String querySource =  Strings.toString(new TermQueryBuilder("field", "value").toXContent(builder, ToXContent.EMPTY_PARAMS));
-        String result = securityIndexSearcherWrapper.evaluateTemplate(querySource);
-        assertThat(result, sameInstance(querySource));
-        verifyZeroInteractions(scriptService);
-    }
-
     static class CreateScorerOnceWeight extends Weight {
 
         private final Weight weight;
@@ -624,116 +532,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         IOUtils.close(reader, w, dir);
     }
 
-    public void testVerifyRoleQuery() throws Exception {
-        QueryBuilder queryBuilder1 = new TermsQueryBuilder("field", "val1", "val2");
-        SecurityIndexSearcherWrapper.verifyRoleQuery(queryBuilder1);
-
-        QueryBuilder queryBuilder2 = new TermsQueryBuilder("field", new TermsLookup("_index", "_type", "_id", "_path"));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> SecurityIndexSearcherWrapper.verifyRoleQuery(queryBuilder2));
-        assertThat(e.getMessage(), equalTo("terms query with terms lookup isn't supported as part of a role query"));
-
-        QueryBuilder queryBuilder3 = new GeoShapeQueryBuilder("field", "_id", "_type");
-        e = expectThrows(IllegalArgumentException.class, () -> SecurityIndexSearcherWrapper.verifyRoleQuery(queryBuilder3));
-        assertThat(e.getMessage(), equalTo("geoshape query referring to indexed shapes isn't support as part of a role query"));
-
-        QueryBuilder queryBuilder4 = new HasChildQueryBuilder("_type", new MatchAllQueryBuilder(), ScoreMode.None);
-        e = expectThrows(IllegalArgumentException.class, () -> SecurityIndexSearcherWrapper.verifyRoleQuery(queryBuilder4));
-        assertThat(e.getMessage(), equalTo("has_child query isn't support as part of a role query"));
-
-        QueryBuilder queryBuilder5 = new HasParentQueryBuilder("_type", new MatchAllQueryBuilder(), false);
-        e = expectThrows(IllegalArgumentException.class, () -> SecurityIndexSearcherWrapper.verifyRoleQuery(queryBuilder5));
-        assertThat(e.getMessage(), equalTo("has_parent query isn't support as part of a role query"));
-
-        QueryBuilder queryBuilder6 = new BoolQueryBuilder().must(new GeoShapeQueryBuilder("field", "_id", "_type"));
-        e = expectThrows(IllegalArgumentException.class, () -> SecurityIndexSearcherWrapper.verifyRoleQuery(queryBuilder6));
-        assertThat(e.getMessage(), equalTo("geoshape query referring to indexed shapes isn't support as part of a role query"));
-
-        QueryBuilder queryBuilder7 = new ConstantScoreQueryBuilder(new GeoShapeQueryBuilder("field", "_id", "_type"));
-        e = expectThrows(IllegalArgumentException.class, () -> SecurityIndexSearcherWrapper.verifyRoleQuery(queryBuilder7));
-        assertThat(e.getMessage(), equalTo("geoshape query referring to indexed shapes isn't support as part of a role query"));
-
-        QueryBuilder queryBuilder8 = new FunctionScoreQueryBuilder(new GeoShapeQueryBuilder("field", "_id", "_type"));
-        e = expectThrows(IllegalArgumentException.class, () -> SecurityIndexSearcherWrapper.verifyRoleQuery(queryBuilder8));
-        assertThat(e.getMessage(), equalTo("geoshape query referring to indexed shapes isn't support as part of a role query"));
-
-        QueryBuilder queryBuilder9 = new BoostingQueryBuilder(new GeoShapeQueryBuilder("field", "_id", "_type"),
-                new MatchAllQueryBuilder());
-        e = expectThrows(IllegalArgumentException.class, () -> SecurityIndexSearcherWrapper.verifyRoleQuery(queryBuilder9));
-        assertThat(e.getMessage(), equalTo("geoshape query referring to indexed shapes isn't support as part of a role query"));
-    }
-
-    public void testFailIfQueryUsesClient() throws Exception {
-        Client client = mock(Client.class);
-        when(client.settings()).thenReturn(Settings.EMPTY);
-        final long nowInMillis = randomNonNegativeLong();
-        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), client,
-                () -> nowInMillis);
-        QueryBuilder queryBuilder1 = new TermsQueryBuilder("field", "val1", "val2");
-        SecurityIndexSearcherWrapper.failIfQueryUsesClient(queryBuilder1, context);
-
-        QueryBuilder queryBuilder2 = new TermsQueryBuilder("field", new TermsLookup("_index", "_type", "_id", "_path"));
-        Exception e = expectThrows(IllegalStateException.class,
-                () -> SecurityIndexSearcherWrapper.failIfQueryUsesClient(queryBuilder2, context));
-        assertThat(e.getMessage(), equalTo("role queries are not allowed to execute additional requests"));
-    }
-
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {
         return new FieldPermissionsDefinition(granted, denied);
-    }
-
-    public void testFieldPermissionsIntersection() throws IOException {
-        securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService);
-
-        FieldPermissions fieldPermissions1 = new FieldPermissions(
-                fieldPermissionDef(new String[] { "f1", "f2", "f3*" }, new String[] { "f3" }));
-        FieldPermissions fieldPermissions2 = new FieldPermissions(
-                fieldPermissionDef(new String[] { "f1", "f3*", "f4" }, new String[] { "f3"}));
-
-        IndexAccessControl permissions = new IndexAccessControl(true, fieldPermissions1, Collections.emptySet());
-        IndexAccessControl filteredPermissions = null;
-
-        DirectoryReader wrappedReader = securityIndexSearcherWrapper.wrappedReaderForAllowedFields(permissions, filteredPermissions, esIn);
-        assertThat(wrappedReader, instanceOf(FieldSubsetDirectoryReader.class));
-        FieldSubsetDirectoryReader reader = (FieldSubsetDirectoryReader) wrappedReader;
-        assertThat(reader.getFilter().run("f1"), is(true));
-        assertThat(reader.getFilter().run("f2"), is(true));
-        assertThat(reader.getFilter().run("f3"), is(false));
-        assertThat(reader.getFilter().run("f31"), is(true));
-        assertThat(reader.getFilter().run("f4"), is(false));
-
-        permissions = new IndexAccessControl(true, fieldPermissions1, Collections.emptySet());
-        filteredPermissions = new IndexAccessControl(true, fieldPermissions2, Collections.emptySet());
-        DirectoryReader wrappedReader1 = securityIndexSearcherWrapper.wrappedReaderForAllowedFields(permissions, filteredPermissions, esIn);
-        assertThat(wrappedReader1, instanceOf(FieldSubsetDirectoryReader.class));
-        FieldSubsetDirectoryReader reader1 = (FieldSubsetDirectoryReader) wrappedReader1;
-        assertThat(reader1.getFilter().run("f1"), is(true));
-        assertThat(reader1.getFilter().run("f2"), is(false));
-        assertThat(reader1.getFilter().run("f3"), is(false));
-        assertThat(reader1.getFilter().run("f31"), is(true));
-        assertThat(reader1.getFilter().run("f4"), is(false));
-
-        permissions = new IndexAccessControl(true, fieldPermissions1, Collections.emptySet());
-        filteredPermissions = null;
-        DirectoryReader wrappedReader2 = securityIndexSearcherWrapper.wrappedReaderForAllowedFields(permissions, filteredPermissions, esIn);
-        assertThat(wrappedReader2, instanceOf(FieldSubsetDirectoryReader.class));
-        FieldSubsetDirectoryReader reader2 = (FieldSubsetDirectoryReader) wrappedReader2;
-        assertThat(reader2.getFilter().run("f1"), is(true));
-        assertThat(reader2.getFilter().run("f2"), is(true));
-        assertThat(reader2.getFilter().run("f3"), is(false));
-        assertThat(reader2.getFilter().run("f31"), is(true));
-        assertThat(reader2.getFilter().run("f4"), is(false));
-
-        permissions = null;
-        filteredPermissions = new IndexAccessControl(true, fieldPermissions2, Collections.emptySet());
-        DirectoryReader wrappedReader3 = securityIndexSearcherWrapper.wrappedReaderForAllowedFields(permissions, filteredPermissions, esIn);
-        assertThat(wrappedReader3, instanceOf(FieldSubsetDirectoryReader.class));
-        FieldSubsetDirectoryReader reader3 = (FieldSubsetDirectoryReader) wrappedReader3;
-        assertThat(reader3.getFilter().run("f1"), is(true));
-        assertThat(reader3.getFilter().run("f2"), is(false));
-        assertThat(reader3.getFilter().run("f3"), is(false));
-        assertThat(reader3.getFilter().run("f31"), is(true));
-        assertThat(reader3.getFilter().run("f4"), is(true));
-        assertThat(reader3.getFilter().run("f5"), is(false));
     }
 }

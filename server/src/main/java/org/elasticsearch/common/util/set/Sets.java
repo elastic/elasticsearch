@@ -19,6 +19,9 @@
 
 package org.elasticsearch.common.util.set;
 
+import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.common.util.CollectionUtils;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -32,6 +35,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -143,5 +147,20 @@ public final class Sets {
         Set<T> union = new HashSet<>(left);
         union.addAll(right);
         return union;
+    }
+
+    public static <T> Set<T> intersection(Set<T> set1, Set<T> set2) {
+        Objects.requireNonNull(set1);
+        Objects.requireNonNull(set2);
+        final Set<T> left;
+        final Set<T> right;
+        if ((set1.size() < set2.size())) {
+            left = set1;
+            right = set2;
+        } else {
+            left = set2;
+            right = set1;
+        }
+        return left.stream().filter(o -> right.contains(o)).collect(Collectors.toSet());
     }
 }

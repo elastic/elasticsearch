@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.permission.ScopedRole;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -264,8 +265,8 @@ public class ApiKeyService {
             final List<RoleDescriptor> roleDescriptorList = parseRoleDescriptors(apiKeyId, roleDescriptors);
             final List<RoleDescriptor> authnRoleDescriptorsList = parseRoleDescriptors(apiKeyId, authnRoleDescriptors);
             rolesStore.buildAndCacheRoleFromDescriptors(roleDescriptorList, apiKeyId, ActionListener.wrap(role -> {
-                rolesStore.buildAndCacheRoleFromDescriptors(authnRoleDescriptorsList, apiKeyId, ActionListener.wrap(scopedRole -> {
-                    Role finalRole = Role.createScopedRole(role, scopedRole);
+                rolesStore.buildAndCacheRoleFromDescriptors(authnRoleDescriptorsList, apiKeyId, ActionListener.wrap(scopedByRole -> {
+                    Role finalRole = ScopedRole.createScopedRole(role, scopedByRole);
                     listener.onResponse(finalRole);
                 }, e -> listener.onFailure(e)));
             }, e -> listener.onFailure(e)));

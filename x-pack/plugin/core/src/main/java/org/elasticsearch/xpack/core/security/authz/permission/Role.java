@@ -27,7 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public final class Role {
+public class Role {
 
     public static final Role EMPTY = Role.builder("__empty").build();
 
@@ -36,31 +36,15 @@ public final class Role {
     private final IndicesPermission indices;
     private final ApplicationPermission application;
     private final RunAsPermission runAs;
-    private final Role scopedRole;
 
     Role(String[] names, ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application, RunAsPermission runAs) {
-        this(names, cluster, indices, application, runAs, null);
-    }
-
-    Role(String[] names, ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application, RunAsPermission runAs,
-            Role scopedRole) {
         this.names = names;
         this.cluster = Objects.requireNonNull(cluster);
         this.indices = Objects.requireNonNull(indices);
         this.application = Objects.requireNonNull(application);
         this.runAs = Objects.requireNonNull(runAs);
-        this.scopedRole = scopedRole;
     }
 
-    /**
-     * Create a new role defined by given role and the scoped role.
-     * @param fromRole existing role {@link Role}
-     * @param scopedRole restrict the newly formed role to the permissions defined by this scoped {@link Role}
-     * @return {@link Role}
-     */
-    public static Role createScopedRole(Role fromRole, Role scopedRole) {
-        return new Role(fromRole.names, fromRole.cluster, fromRole.indices, fromRole.application, fromRole.runAs, scopedRole);
-    }
 
     public String[] names() {
         return names;
@@ -82,10 +66,6 @@ public final class Role {
         return runAs;
     }
 
-    public Role scopedRole() {
-        return scopedRole;
-    }
-
     public static Builder builder(String... names) {
         return new Builder(names);
     }
@@ -101,11 +81,7 @@ public final class Role {
      * @return {@code true} if action is allowed else returns {@code false}
      */
     public boolean checkIndicesAction(String action) {
-        boolean allowed = indices().check(action);
-        if (allowed && scopedRole != null) {
-            allowed = scopedRole.checkIndicesAction(action);
-        }
-        return allowed;
+        return indices().check(action);
     }
 
     /**
@@ -116,11 +92,7 @@ public final class Role {
      * @return {@code true} if action is allowed else returns {@code false}
      */
     public boolean checkClusterAction(String action, TransportRequest request) {
-        boolean allowed = cluster().check(action, request);
-        if (allowed && scopedRole != null) {
-            allowed = scopedRole.checkClusterAction(action, request);
-        }
-        return allowed;
+        return cluster().check(action, request);
     }
 
     /**
@@ -133,10 +105,6 @@ public final class Role {
         Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = indices.authorize(
             action, requestedIndicesOrAliases, metaData, fieldPermissionsCache
         );
-        Map<String, IndicesAccessControl.IndexAccessControl> scopedIndexPermissions = null;
-        if (scopedRole != null) {
-            scopedIndexPermissions = scopedRole.indices().authorize(action, requestedIndicesOrAliases, metaData, fieldPermissionsCache);
-        }
 
         // At least one role / indices permission set need to match with all the requested indices/aliases:
         boolean granted = true;
@@ -146,16 +114,7 @@ public final class Role {
                 break;
             }
         }
-        if (granted && scopedIndexPermissions != null) {
-            // If permission granted check if the scoped permissions grants access to the index
-            for (Map.Entry<String, IndicesAccessControl.IndexAccessControl> entry : scopedIndexPermissions.entrySet()) {
-                if (!entry.getValue().isGranted()) {
-                    granted = false;
-                    break;
-                }
-            }
-        }
-        return new IndicesAccessControl(granted, indexPermissions, scopedIndexPermissions);
+        return new IndicesAccessControl(granted, indexPermissions);
     }
 
     public static class Builder {
@@ -165,7 +124,6 @@ public final class Role {
         private RunAsPermission runAs = RunAsPermission.NONE;
         private List<IndicesPermission.Group> groups = new ArrayList<>();
         private List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
-        private Role scopedRole;
 
         private Builder(String[] names) {
             this.names = names;
@@ -234,17 +192,12 @@ public final class Role {
             return this;
         }
 
-        public Builder setScopedRole(Role role) {
-            scopedRole = role;
-            return this;
-        }
-
         public Role build() {
             IndicesPermission indices = groups.isEmpty() ? IndicesPermission.NONE :
                 new IndicesPermission(groups.toArray(new IndicesPermission.Group[groups.size()]));
             final ApplicationPermission applicationPermission
                 = applicationPrivs.isEmpty() ? ApplicationPermission.NONE : new ApplicationPermission(applicationPrivs);
-            return new Role(names, cluster, indices, applicationPermission, runAs, scopedRole);
+            return new Role(names, cluster, indices, applicationPermission, runAs);
         }
 
         static List<IndicesPermission.Group> convertFromIndicesPrivileges(RoleDescriptor.IndicesPrivileges[] indicesPrivileges,

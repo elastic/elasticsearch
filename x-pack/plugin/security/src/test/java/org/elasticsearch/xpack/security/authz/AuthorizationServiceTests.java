@@ -117,6 +117,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivile
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.permission.ScopedRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
@@ -522,7 +523,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             final IndicesAccessControl.IndexAccessControl indexAccessControl =
                 indicesAccessControl.getIndexPermissions(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER);
             assertFalse(indexAccessControl.getFieldPermissions().hasFieldLevelSecurity());
-            assertNull(indexAccessControl.getQueries());
+            assertFalse(indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions());
         }
     }
 
@@ -1492,9 +1493,9 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testApiKeyAuthUsesApiKeyServiceWithScopedRole() throws IOException {
         final Role fromRole = Role.builder("a-role").cluster(Collections.singleton(ClusterPrivilegeName.ALL), Collections.emptyList())
                 .build();
-        final Role scopedRole = Role.builder("scoped-role")
+        final Role scopedByRole = Role.builder("scoped-role")
                 .cluster(Collections.singleton(ClusterPrivilegeName.MANAGE_SECURITY), Collections.emptyList()).build();
-        final Role role = Role.createScopedRole(fromRole, scopedRole);
+        final Role role = ScopedRole.createScopedRole(fromRole, scopedByRole);
 
         AuditUtil.getOrGenerateRequestId(threadContext);
         final Authentication authentication = createAuthentication(new User("test api key user", "api_key"), AuthenticationType.API_KEY);

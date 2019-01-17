@@ -6,11 +6,14 @@
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
+import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -26,17 +29,10 @@ public class IndicesAccessControl {
 
     private final boolean granted;
     private final Map<String, IndexAccessControl> indexPermissions;
-    private final Map<String, IndexAccessControl> scopedIndexPermissions;
 
     public IndicesAccessControl(boolean granted, Map<String, IndexAccessControl> indexPermissions) {
-        this(granted, indexPermissions, null);
-    }
-
-    public IndicesAccessControl(boolean granted, Map<String, IndexAccessControl> indexPermissions,
-            Map<String, IndexAccessControl> scopedIndexPermissions) {
         this.granted = granted;
         this.indexPermissions = indexPermissions;
-        this.scopedIndexPermissions = scopedIndexPermissions;
     }
 
     /**
@@ -46,15 +42,6 @@ public class IndicesAccessControl {
     @Nullable
     public IndexAccessControl getIndexPermissions(String index) {
         return indexPermissions.get(index);
-    }
-
-    /**
-     * @return The document and field permissions for an index if exist in scoped index permissions, otherwise {@code null} is returned. If
-     * {@code null} is being returned this means that there are no field or document level restrictions in the scoped index permissions.
-     */
-    @Nullable
-    public IndexAccessControl getScopedIndexPermissions(String index) {
-        return (scopedIndexPermissions == null) ? null : scopedIndexPermissions.get(index);
     }
 
     /**
@@ -71,12 +58,12 @@ public class IndicesAccessControl {
 
         private final boolean granted;
         private final FieldPermissions fieldPermissions;
-        private final Set<BytesReference> queries;
+        private final DocumentPermissions documentPermissions;
 
-        public IndexAccessControl(boolean granted, FieldPermissions fieldPermissions, Set<BytesReference> queries) {
+        public IndexAccessControl(boolean granted, FieldPermissions fieldPermissions, DocumentPermissions documentPermissions) {
             this.granted = granted;
             this.fieldPermissions = fieldPermissions;
-            this.queries = queries;
+            this.documentPermissions = documentPermissions;
         }
 
         /**
@@ -98,8 +85,23 @@ public class IndicesAccessControl {
          *         then this means that there are no document level restrictions
          */
         @Nullable
-        public Set<BytesReference> getQueries() {
-            return queries;
+        public DocumentPermissions getDocumentPermissions() {
+            return documentPermissions;
+        }
+
+        public static IndexAccessControl scopedIndexAccessControl(IndexAccessControl indexAccessControl,
+                IndexAccessControl scopedByIndexAccessControl) {
+            final boolean granted;
+            if (indexAccessControl.granted == indexAccessControl.granted) {
+                granted = indexAccessControl.granted;
+            } else {
+                granted = false;
+            }
+            FieldPermissions fieldPermissions = FieldPermissions.scopedFieldPermissions(indexAccessControl.fieldPermissions,
+                    scopedByIndexAccessControl.fieldPermissions);
+            DocumentPermissions documentPermissions = DocumentPermissions.scopedDocumentPermissions(
+                    indexAccessControl.getDocumentPermissions(), scopedByIndexAccessControl.getDocumentPermissions());
+            return new IndexAccessControl(granted, fieldPermissions, documentPermissions);
         }
 
         @Override
@@ -107,9 +109,30 @@ public class IndicesAccessControl {
             return "IndexAccessControl{" +
                     "granted=" + granted +
                     ", fieldPermissions=" + fieldPermissions +
-                    ", queries=" + queries +
+                    ", documentPermissions=" + documentPermissions +
                     '}';
         }
+    }
+
+    public static IndicesAccessControl scopedIndicesAccessControl(IndicesAccessControl indicesAccessControl,
+            IndicesAccessControl scopedByIndicesAccessControl) {
+        final boolean granted;
+        if (indicesAccessControl.granted == scopedByIndicesAccessControl.granted) {
+            granted = indicesAccessControl.granted;
+        } else {
+            granted = false;
+        }
+        Set<String> indexes = new HashSet<>(indicesAccessControl.indexPermissions.keySet());
+        Set<String> otherIndexes = new HashSet<>(scopedByIndicesAccessControl.indexPermissions.keySet());
+        Set<String> commonIndexes = Sets.intersection(indexes, otherIndexes);
+
+        Map<String, IndexAccessControl> indexPermissions = new HashMap<>();
+        for (String index : commonIndexes) {
+            IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
+            IndexAccessControl otherIndexAccessControl = scopedByIndicesAccessControl.getIndexPermissions(index);
+            indexPermissions.put(index, IndexAccessControl.scopedIndexAccessControl(indexAccessControl, otherIndexAccessControl));
+        }
+        return new IndicesAccessControl(granted, indexPermissions);
     }
 
     @Override
@@ -117,7 +140,6 @@ public class IndicesAccessControl {
         return "IndicesAccessControl{" +
                 "granted=" + granted +
                 ", indexPermissions=" + indexPermissions +
-                ((scopedIndexPermissions != null) ? ", scopedIndexPermissions=" + scopedIndexPermissions : "") +
                 '}';
     }
 }

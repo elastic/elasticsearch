@@ -222,7 +222,8 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
             } else {
                 fieldPermissions = FieldPermissions.DEFAULT;
             }
-            indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(entry.getValue(), fieldPermissions, roleQueries));
+            indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(entry.getValue(), fieldPermissions,
+                    (roleQueries != null) ? DocumentPermissions.filteredBy(roleQueries) : DocumentPermissions.allowAll()));
         }
         return unmodifiableMap(indexPermissions);
     }

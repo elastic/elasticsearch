@@ -95,7 +95,7 @@ public class ConditionalProcessor extends AbstractProcessor {
         IngestConditionalScript script =
             scriptService.compile(condition, IngestConditionalScript.CONTEXT).newInstance(condition.getParams());
         return script.execute(new UnmodifiableIngestData(
-                new DeprecationMap(ingestDocument.getSourceAndMetadata(), DEPRECATIONS, "conditional_processor")));
+                new DeprecationMap(ingestDocument.getSourceAndMetadata(), DEPRECATIONS, "conditional-processor")));
     }
 
     Processor getProcessor() {

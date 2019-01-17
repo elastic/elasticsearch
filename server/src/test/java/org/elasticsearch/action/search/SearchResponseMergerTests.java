@@ -1,0 +1,406 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.action.search;
+
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileShardResultsTests;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterAware;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.PriorityQueue;
+import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+
+public class SearchResponseMergerTests extends ESTestCase {
+
+    public void testMergeTookInMillis() {
+        long currentRelativeTime = randomLong();
+        SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
+        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
+        SearchResponseMerger merger = new SearchResponseMerger(randomIntBetween(0, 1000), randomIntBetween(0, 10000),
+            timeProvider, clusters, flag -> null);
+        int numResponses = randomIntBetween(2, 10);
+        for (int i = 0; i < numResponses; i++) {
+            SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null, 1, 1, 0, randomLong(),
+                ShardSearchFailure.EMPTY_ARRAY, SearchResponseTests.randomClusters());
+            merger.add(searchResponse);
+        }
+        SearchResponse searchResponse = merger.getMergedResponse();
+        assertEquals(TimeUnit.NANOSECONDS.toMillis(currentRelativeTime), searchResponse.getTook().millis());
+    }
+
+    public void testMergeShardFailures() {
+        SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
+        SearchResponseMerger merger = new SearchResponseMerger(0, 0, searchTimeProvider, SearchResponse.Clusters.EMPTY, flag -> null);
+        PriorityQueue<Tuple<ShardId, ShardSearchFailure>> priorityQueue = new PriorityQueue<>(Comparator.comparing(Tuple::v1));
+        int numResponses = randomIntBetween(2, 10);
+        int numIndices = numResponses * randomIntBetween(1, 3);
+        Iterator<Map.Entry<String, Index[]>> indicesPerCluster = randomRealisticIndices(numIndices, numResponses).entrySet().iterator();
+        for (int i = 0; i < numResponses; i++) {
+            Map.Entry<String, Index[]> entry = indicesPerCluster.next();
+            String clusterAlias = entry.getKey();
+            Index[] indices = entry.getValue();
+            int numFailures = randomIntBetween(1, 10);
+            ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[numFailures];
+            for (int j = 0; j < numFailures; j++) {
+                ShardId shardId = new ShardId(randomFrom(indices), j);
+                ShardSearchFailure failure;
+                if (randomBoolean()) {
+                    SearchShardTarget searchShardTarget = new SearchShardTarget(randomAlphaOfLength(6), shardId, clusterAlias, null);
+                    failure = new ShardSearchFailure(new IllegalArgumentException("broke"), searchShardTarget);
+                } else {
+                    ElasticsearchException elasticsearchException = new ElasticsearchException(new IllegalArgumentException("broke"));
+                    elasticsearchException.setShard(shardId);
+                    failure = new ShardSearchFailure(elasticsearchException);
+                }
+                shardSearchFailures[j] = failure;
+                priorityQueue.add(Tuple.tuple(shardId, failure));
+            }
+            SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null,
+                1, 0, 0, 100L, shardSearchFailures, SearchResponse.Clusters.EMPTY);
+            merger.add(searchResponse);
+        }
+
+        ShardSearchFailure[] shardFailures = merger.getMergedResponse().getShardFailures();
+        assertEquals(priorityQueue.size(), shardFailures.length);
+        for (ShardSearchFailure shardFailure : shardFailures) {
+            ShardSearchFailure expected = priorityQueue.poll().v2();
+            assertSame(expected, shardFailure);
+        }
+    }
+
+    public void testMergeShardFailuresNullShardId() {
+        SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
+        SearchResponseMerger merger = new SearchResponseMerger(0, 0, searchTimeProvider, SearchResponse.Clusters.EMPTY, flag -> null);
+        List<ShardSearchFailure> expectedFailures = new ArrayList<>();
+        int numResponses = randomIntBetween(2, 10);
+        for (int i = 0; i < numResponses; i++) {
+            int numFailures = randomIntBetween(1, 50);
+            ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[numFailures];
+            for (int j = 0; j < numFailures; j++) {
+                ShardSearchFailure shardSearchFailure = new ShardSearchFailure(new ElasticsearchException(new IllegalArgumentException()));
+                shardSearchFailures[j] = shardSearchFailure;
+                expectedFailures.add(shardSearchFailure);
+            }
+            SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null,
+                1, 0, 0, 100L, shardSearchFailures, SearchResponse.Clusters.EMPTY);
+            merger.add(searchResponse);
+        }
+        ShardSearchFailure[] shardFailures = merger.getMergedResponse().getShardFailures();
+        assertThat(Arrays.asList(shardFailures), containsInAnyOrder(expectedFailures.toArray(ShardSearchFailure.EMPTY_ARRAY)));
+    }
+
+    public void testMergeProfileResults() {
+        SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
+        SearchResponseMerger merger = new SearchResponseMerger(0, 0, searchTimeProvider, SearchResponse.Clusters.EMPTY, flag -> null);
+        Map<String, ProfileShardResult> expectedProfile = new HashMap<>();
+        int numResponses = randomIntBetween(2, 10);
+        for (int i = 0; i < numResponses; i++) {
+            SearchProfileShardResults profile = SearchProfileShardResultsTests.createTestItem();
+            expectedProfile.putAll(profile.getShardResults());
+            SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
+            InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, null, null, profile, false, null, 1);
+            SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, 1, 1, 0, 100L,
+                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+            merger.add(searchResponse);
+        }
+        SearchResponse searchResponse = merger.getMergedResponse();
+        assertEquals(expectedProfile, searchResponse.getProfileResults());
+    }
+
+    //TODO add tests for suggestions and aggs reduction?
+
+    public void testMergeSearchHits() {
+        final long currentRelativeTime = randomLong();
+        final SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
+        final SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
+        final int size = randomIntBetween(0, 100);
+        final int from = size > 0 ? randomIntBetween(0, 100) : 0;
+        final int requestedSize = from + size;
+        final int numResponses = randomIntBetween(2, 10);
+        final SortField[] sortFields;
+        final String collapseField;
+        boolean scoreSort = false;
+        if (randomBoolean()) {
+            int numFields = randomIntBetween(1, 3);
+            sortFields = new SortField[numFields];
+            for (int i = 0; i < numFields; i++) {
+                final SortField sortField;
+                if (randomBoolean()) {
+                    sortField = new SortField("field-" + i, SortField.Type.INT, randomBoolean());
+                } else {
+                    scoreSort = true;
+                    sortField = SortField.FIELD_SCORE;
+                }
+                sortFields[i] = sortField;
+            }
+            collapseField = randomBoolean() ? "collapse" : null;
+        } else {
+            collapseField = null;
+            sortFields = null;
+            scoreSort = true;
+        }
+        TotalHits.Relation totalHitsRelation = frequently() ? randomFrom(TotalHits.Relation.values()) : null;
+
+        PriorityQueue<SearchHit> priorityQueue = new PriorityQueue<>(new SearchHitComparator(sortFields));
+        SearchResponseMerger merger = new SearchResponseMerger(from, size, timeProvider, clusters, flag -> null);
+        TotalHits expectedTotalHits = null;
+        int expectedTotal = 0;
+        int expectedSuccessful = 0;
+        int expectedSkipped = 0;
+        int expectedReducePhases = 1;
+        boolean expectedTimedOut = false;
+        Boolean expectedTerminatedEarly = null;
+        float expectedMaxScore = Float.NEGATIVE_INFINITY;
+        int numIndices = requestedSize == 0 ? 0 : randomIntBetween(1, requestedSize);
+        Iterator<Map.Entry<String, Index[]>> indicesIterator = randomRealisticIndices(numIndices, numResponses).entrySet().iterator();
+        for (int i = 0; i < numResponses; i++) {
+            Map.Entry<String, Index[]> entry = indicesIterator.next();
+            String clusterAlias = entry.getKey().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? null : entry.getKey();
+            Index[] indices = entry.getValue();
+            int total = randomIntBetween(1, 1000);
+            expectedTotal += total;
+            int successful = randomIntBetween(1, total);
+            expectedSuccessful += successful;
+            int skipped = randomIntBetween(1, total);
+            expectedSkipped += skipped;
+
+            TotalHits totalHits = null;
+            if (totalHitsRelation != null) {
+                //TODO totalHits may overflow if each cluster reports a very high number?
+                totalHits = new TotalHits(randomLongBetween(0, 1000), totalHitsRelation);
+                long previousValue = expectedTotalHits == null ? 0 : expectedTotalHits.value;
+                expectedTotalHits = new TotalHits(previousValue + totalHits.value, totalHitsRelation);
+            }
+
+            final int numDocs = totalHits == null || totalHits.value >= requestedSize ? requestedSize : (int) totalHits.value;
+            int scoreFactor = randomIntBetween(1, numResponses);
+            float maxScore = scoreSort ? numDocs * scoreFactor : Float.NaN;
+            SearchHit[] hits = randomSearchHitArray(numDocs, numResponses, clusterAlias, indices, maxScore, scoreFactor,
+                sortFields, priorityQueue);
+            expectedMaxScore = Math.max(expectedMaxScore, maxScore);
+
+            Object[] collapseValues = null;
+            if (collapseField != null) {
+                collapseValues = new Object[numDocs];
+                for (int j = 0; j < numDocs; j++) {
+                    //TODO test is green but randomizing this does not seem like a great idea?
+                    collapseValues[j] = randomInt();
+                }
+            }
+
+            SearchHits searchHits = new SearchHits(hits, totalHits, maxScore == Float.NEGATIVE_INFINITY ? Float.NaN : maxScore,
+                sortFields, collapseField, collapseValues);
+
+            int numReducePhases = randomIntBetween(1, 5);
+            expectedReducePhases += numReducePhases;
+            boolean timedOut = rarely();
+            expectedTimedOut = expectedTimedOut || timedOut;
+            Boolean terminatedEarly = frequently() ? null : true;
+            expectedTerminatedEarly = expectedTerminatedEarly == null ? terminatedEarly : expectedTerminatedEarly;
+
+            InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
+                searchHits, null, null, null, timedOut, terminatedEarly, numReducePhases);
+
+            SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, total, successful, skipped,
+                randomLong(), ShardSearchFailure.EMPTY_ARRAY, SearchResponseTests.randomClusters());
+            merger.add(searchResponse);
+        }
+
+        SearchResponse searchResponse = merger.getMergedResponse();
+
+        assertEquals(TimeUnit.NANOSECONDS.toMillis(currentRelativeTime), searchResponse.getTook().millis());
+        assertEquals(expectedTotal, searchResponse.getTotalShards());
+        assertEquals(expectedSuccessful, searchResponse.getSuccessfulShards());
+        assertEquals(expectedSkipped, searchResponse.getSkippedShards());
+        assertEquals(expectedReducePhases, searchResponse.getNumReducePhases());
+        assertEquals(expectedTimedOut, searchResponse.isTimedOut());
+        assertEquals(expectedTerminatedEarly, searchResponse.isTerminatedEarly());
+
+        assertSame(clusters, searchResponse.getClusters());
+        assertNull(searchResponse.getScrollId());
+
+        SearchHits searchHits = searchResponse.getHits();
+        assertArrayEquals(sortFields, searchHits.getSortFields());
+        assertEquals(collapseField, searchHits.getCollapseField());
+        if (expectedTotalHits == null) {
+            assertNull(searchHits.getTotalHits());
+        } else {
+            assertEquals(expectedTotalHits.value, searchHits.getTotalHits().value);
+            assertSame(expectedTotalHits.relation, searchHits.getTotalHits().relation);
+        }
+        if (expectedMaxScore == Float.NEGATIVE_INFINITY) {
+            assertTrue(Float.isNaN(searchHits.getMaxScore()));
+        } else {
+            assertEquals(expectedMaxScore, searchHits.getMaxScore(), 0f);
+        }
+
+        for (int i = 0; i < from; i++) {
+            priorityQueue.poll();
+        }
+        SearchHit[] hits = searchHits.getHits();
+        if (collapseField != null) {
+            assertEquals(hits.length, searchHits.getCollapseValues().length);
+        } else {
+            assertNull(searchHits.getCollapseValues());
+        }
+        assertThat(hits.length, lessThanOrEqualTo(size));
+        for (SearchHit hit : hits) {
+            SearchHit expected = priorityQueue.poll();
+            assertSame(expected, hit);
+        }
+    }
+
+    private static SearchHit[] randomSearchHitArray(int numDocs, int numResponses, String clusterAlias, Index[] indices, float maxScore,
+                                                    int scoreFactor, SortField[] sortFields, PriorityQueue<SearchHit> priorityQueue) {
+        SearchHit[] hits = new SearchHit[numDocs];
+
+        int[] sortFieldFactors = new int[sortFields == null ? 0 : sortFields.length];
+        for (int j = 0; j < sortFieldFactors.length; j++) {
+            sortFieldFactors[j] = randomIntBetween(1, numResponses);
+        }
+
+        for (int j = 0; j < numDocs; j++) {
+            ShardId shardId = new ShardId(randomFrom(indices), randomIntBetween(0, 10));
+            SearchShardTarget shardTarget = new SearchShardTarget(randomAlphaOfLengthBetween(3, 8), shardId,
+                clusterAlias, OriginalIndices.NONE);
+            SearchHit hit = new SearchHit(randomIntBetween(0, Integer.MAX_VALUE));
+
+            float score = Float.NaN;
+            if (Float.isNaN(maxScore) == false) {
+                score = (maxScore - j) * scoreFactor;
+                hit.score(score);
+            }
+
+            hit.shard(shardTarget);
+            if (sortFields != null) {
+                Object[] rawSortValues = new Object[sortFields.length];
+                DocValueFormat[] docValueFormats = new DocValueFormat[sortFields.length];
+                for (int k = 0; k < sortFields.length; k++) {
+                    SortField sortField = sortFields[k];
+                    if (sortField == SortField.FIELD_SCORE) {
+                        hit.score(score);
+                        rawSortValues[k] = score;
+                    } else {
+                        rawSortValues[k] = sortField.getReverse() ? numDocs * sortFieldFactors[k] - j : j;
+                    }
+                    docValueFormats[k] = DocValueFormat.RAW;
+                }
+                hit.sortValues(rawSortValues, docValueFormats);
+            }
+            hits[j] = hit;
+            priorityQueue.add(hit);
+        }
+        return hits;
+    }
+
+    private static Map<String, Index[]> randomRealisticIndices(int numIndices, int numClusters) {
+        String[] indicesNames = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indicesNames[i] = randomAlphaOfLengthBetween(5, 10);
+        }
+        Map<String, Index[]> indicesPerCluster = new TreeMap<>();
+        for (int i = 0; i < numClusters; i++) {
+            Index[] indices = new Index[indicesNames.length];
+            for (int j = 0; j < indices.length; j++) {
+                //Realistically clusters have the same indices with same names, but different uuid
+                indices[j] = new Index(indicesNames[j], randomAlphaOfLength(10));
+            }
+            String clusterAlias;
+            if (frequently() || indicesPerCluster.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                clusterAlias = randomAlphaOfLengthBetween(5, 10);
+            } else {
+                clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+            }
+            indicesPerCluster.put(clusterAlias, indices);
+        }
+        return indicesPerCluster;
+    }
+
+    private static final class SearchHitComparator implements Comparator<SearchHit> {
+
+        private final SortField[] sortFields;
+
+        SearchHitComparator(SortField[] sortFields) {
+            this.sortFields = sortFields;
+        }
+
+        @Override
+        public int compare(SearchHit a, SearchHit b) {
+            if (sortFields == null) {
+                int scoreCompare = Float.compare(b.getScore(), a.getScore());
+                if (scoreCompare != 0) {
+                    return scoreCompare;
+                }
+            } else {
+                for (int i = 0; i < sortFields.length; i++) {
+                    SortField sortField = sortFields[i];
+                    if (sortField == SortField.FIELD_SCORE) {
+                        int scoreCompare = Float.compare(b.getScore(), a.getScore());
+                        if (scoreCompare != 0) {
+                            return scoreCompare;
+                        }
+                    } else {
+                        Integer aSortValue = (Integer)a.getRawSortValues()[i];
+                        Integer bSortValue = (Integer)b.getRawSortValues()[i];
+                        final int compare;
+                        if (sortField.getReverse()) {
+                            compare = Integer.compare(bSortValue, aSortValue);
+                        } else {
+                            compare = Integer.compare(aSortValue, bSortValue);
+                        }
+                        if (compare != 0) {
+                            return compare;
+                        }
+                    }
+                }
+            }
+            int shardIdCompareTo = a.getShard().getShardId().compareTo(b.getShard().getShardId());
+            if (shardIdCompareTo != 0) {
+                return shardIdCompareTo;
+            }
+            return Integer.compare(a.docId(), b.docId());
+        }
+    }
+}

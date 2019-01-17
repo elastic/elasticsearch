@@ -76,6 +76,10 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -114,6 +118,18 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build());
     private final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
     private final ClusterSettings service = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+    private ThreadPool threadPool;
+
+    @Before
+    public void setUpThreadPool() {
+        threadPool = new TestThreadPool(getTestName());
+    }
+
+    @After
+    public void tearDownThreadPool() throws Exception {
+        terminate(threadPool);
+    }
 
     public void testSendFiles() throws Throwable {
         Settings settings = Settings.builder().put("indices.recovery.concurrent_streams", 1).
@@ -198,18 +214,17 @@ public class RecoverySourceHandlerTests extends ESTestCase {
     }
 
     public void testSendSnapshotSendsOps() throws IOException {
-        final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
-        final int fileChunkSizeInBytes = recoverySettings.getChunkSize().bytesAsInt();
+        final int fileChunkSizeInBytes = between(1, 4096);
         final StartRecoveryRequest request = getStartRecoveryRequest();
         final IndexShard shard = mock(IndexShard.class);
         when(shard.state()).thenReturn(IndexShardState.STARTED);
         final List<Translog.Operation> operations = new ArrayList<>();
-        final int initialNumberOfDocs = randomIntBetween(16, 64);
+        final int initialNumberOfDocs = randomIntBetween(10, 1000);
         for (int i = 0; i < initialNumberOfDocs; i++) {
             final Engine.Index index = getIndex(Integer.toString(i));
             operations.add(new Translog.Index(index, new Engine.IndexResult(1, 1, SequenceNumbers.UNASSIGNED_SEQ_NO, true)));
         }
-        final int numberOfDocsWithValidSequenceNumbers = randomIntBetween(16, 64);
+        final int numberOfDocsWithValidSequenceNumbers = randomIntBetween(10, 1000);
         for (int i = initialNumberOfDocs; i < initialNumberOfDocs + numberOfDocsWithValidSequenceNumbers; i++) {
             final Engine.Index index = getIndex(Integer.toString(i));
             operations.add(new Translog.Index(index, new Engine.IndexResult(1, 1, i - initialNumberOfDocs, true)));
@@ -219,12 +234,14 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final long endingSeqNo = randomIntBetween((int) requiredStartingSeqNo - 1, numberOfDocsWithValidSequenceNumbers - 1);
 
         final List<Translog.Operation> shippedOps = new ArrayList<>();
+        final AtomicLong checkpointOnTarget = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         RecoveryTargetHandler recoveryTarget = new TestRecoveryTargetHandler() {
             @Override
             public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long timestamp, long msu,
                                                 ActionListener<Long> listener) {
                 shippedOps.addAll(operations);
-                listener.onResponse(SequenceNumbers.NO_OPS_PERFORMED);
+                checkpointOnTarget.set(randomLongBetween(checkpointOnTarget.get(), Long.MAX_VALUE));
+                maybeExecuteAsync(() -> listener.onResponse(checkpointOnTarget.get()));
             }
         };
         RecoverySourceHandler handler = new RecoverySourceHandler(shard, recoveryTarget, request, fileChunkSizeInBytes, between(1, 10));
@@ -239,6 +256,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         for (int i = 0; i < shippedOps.size(); i++) {
             assertThat(shippedOps.get(i), equalTo(operations.get(i + (int) startingSeqNo + initialNumberOfDocs)));
         }
+        assertThat(result.targetLocalCheckpoint, equalTo(checkpointOnTarget.get()));
         if (endingSeqNo >= requiredStartingSeqNo + 1) {
             // check that missing ops blows up
             List<Translog.Operation> requiredOps = operations.subList(0, operations.size() - 1).stream() // remove last null marker
@@ -250,6 +268,40 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                     randomNonNegativeLong(), randomNonNegativeLong(), failedFuture);
                 failedFuture.actionGet();
             });
+        }
+    }
+
+    public void testSendSnapshotStopOnError() throws Exception {
+        final int fileChunkSizeInBytes = between(1, 10 * 1024);
+        final StartRecoveryRequest request = getStartRecoveryRequest();
+        final IndexShard shard = mock(IndexShard.class);
+        when(shard.state()).thenReturn(IndexShardState.STARTED);
+        final List<Translog.Operation> ops = new ArrayList<>();
+        for (int numOps = between(1, 256), i = 0; i < numOps; i++) {
+            final Engine.Index index = getIndex(Integer.toString(i));
+            ops.add(new Translog.Index(index, new Engine.IndexResult(1, 1, i, true)));
+        }
+        final AtomicBoolean wasFailed = new AtomicBoolean();
+        RecoveryTargetHandler recoveryTarget = new TestRecoveryTargetHandler() {
+            @Override
+            public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long timestamp,
+                                                long msu, ActionListener<Long> listener) {
+                if (randomBoolean()) {
+                    maybeExecuteAsync(() -> listener.onResponse(SequenceNumbers.NO_OPS_PERFORMED));
+                } else {
+                    maybeExecuteAsync(() -> listener.onFailure(new RuntimeException("test - failed to index")));
+                    wasFailed.set(true);
+                }
+            }
+        };
+        RecoverySourceHandler handler = new RecoverySourceHandler(shard, recoveryTarget, request, fileChunkSizeInBytes, between(1, 10));
+        PlainActionFuture<RecoverySourceHandler.SendSnapshotResult> future = new PlainActionFuture<>();
+        final long startingSeqNo = randomLongBetween(0, ops.size() - 1L);
+        final long endingSeqNo = randomLongBetween(startingSeqNo, ops.size() - 1L);
+        handler.phase2(startingSeqNo, startingSeqNo, endingSeqNo, newTranslogSnapshot(ops, Collections.emptyList()),
+            randomNonNegativeLong(), randomNonNegativeLong(), future);
+        if (wasFailed.get()) {
+            assertThat(expectThrows(RuntimeException.class, () -> future.actionGet()).getMessage(), equalTo("test - failed to index"));
         }
     }
 
@@ -716,5 +768,13 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
             }
         };
+    }
+
+    private void maybeExecuteAsync(Runnable runnable) {
+        if (randomBoolean()) {
+            threadPool.generic().execute(runnable);
+        } else {
+            runnable.run();
+        }
     }
 }

@@ -29,9 +29,9 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -51,15 +51,11 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
     private final Map<IndexShard, HashSet<String>> sessionsForShard = new HashMap<>();
     private final CopyOnWriteArrayList<Consumer<String>> closeSessionListeners = new CopyOnWriteArrayList<>();
     private final ThreadPool threadPool;
-    private final TimeValue sessionIdleTimeout;
+    private final CcrSettings ccrSettings;
 
-    public CcrRestoreSourceService(Settings settings, ThreadPool threadPool) {
-        this(threadPool, RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.get(settings));
-    }
-
-    CcrRestoreSourceService(ThreadPool threadPool, TimeValue sessionIdleTimeout) {
+    public CcrRestoreSourceService(ThreadPool threadPool, CcrSettings ccrSettings) {
         this.threadPool = threadPool;
-        this.sessionIdleTimeout = sessionIdleTimeout;
+        this.ccrSettings = ccrSettings;
     }
 
     @Override
@@ -171,7 +167,8 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
     }
 
     private Scheduler.Cancellable scheduleTimeout(String sessionUUID) {
-        return threadPool.scheduleWithFixedDelay(() -> maybeTimeout(sessionUUID), sessionIdleTimeout, ThreadPool.Names.GENERIC);
+        TimeValue idleTimeout = ccrSettings.getRecoveryActivityTimeout();
+        return threadPool.scheduleWithFixedDelay(() -> maybeTimeout(sessionUUID), idleTimeout, ThreadPool.Names.GENERIC);
     }
 
     private void maybeTimeout(String sessionUUID) {

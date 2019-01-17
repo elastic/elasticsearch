@@ -11,16 +11,22 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 
@@ -34,7 +40,10 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         super.setUp();
         Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
         taskQueue = new DeterministicTaskQueue(settings, random());
-        restoreSourceService = new CcrRestoreSourceService(settings, taskQueue.getThreadPool());
+        Set<Setting<?>> registeredSettings = new HashSet<>(Arrays.asList(CcrSettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
+            CcrSettings.RECOVERY_MAX_BYTES_PER_SECOND));
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, registeredSettings);
+        restoreSourceService = new CcrRestoreSourceService(taskQueue.getThreadPool(), new CcrSettings(Settings.EMPTY, clusterSettings));
     }
 
     public void testOpenSession() throws IOException {

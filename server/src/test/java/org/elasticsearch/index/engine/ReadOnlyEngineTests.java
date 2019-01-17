@@ -159,7 +159,12 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 engine.flushAndClose();
 
                 IllegalStateException exception = expectThrows(IllegalStateException.class,
-                    () -> new ReadOnlyEngine(engine.engineConfig, null, null, true, Function.identity()));
+                    () -> new ReadOnlyEngine(engine.engineConfig, null, null, true, Function.identity()) {
+                        @Override
+                        protected void assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
+                            // we don't want the assertion to trip in this test
+                        }
+                    });
                 assertThat(exception.getMessage(), equalTo("Maximum sequence number [" + maxSeqNo
                     + "] from last commit does not match global checkpoint [" + globalCheckpoint.get() + "]"));
             } finally {

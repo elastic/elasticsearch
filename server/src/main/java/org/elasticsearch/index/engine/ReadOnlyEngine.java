@@ -30,6 +30,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -111,7 +112,7 @@ public class ReadOnlyEngine extends Engine {
                     if (globalCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO
                         && engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_7_0)) {
                         if (seqNoStats.getMaxSeqNo() != globalCheckpoint) {
-                            assert false : "max seq. no. [" + seqNoStats.getMaxSeqNo() + "] does not match [" + globalCheckpoint + "]";
+                            assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), globalCheckpoint);
                             throw new IllegalStateException("Maximum sequence number [" + seqNoStats.getMaxSeqNo()
                                 + "] from last commit does not match global checkpoint [" + globalCheckpoint + "]");
                         }
@@ -132,6 +133,12 @@ public class ReadOnlyEngine extends Engine {
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e); // this is stupid
+        }
+    }
+
+    protected void assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
+        if (Assertions.ENABLED) {
+            assert false : "max seq. no. [" + maxSeqNo + "] does not match [" + globalCheckpoint + "]";
         }
     }
 

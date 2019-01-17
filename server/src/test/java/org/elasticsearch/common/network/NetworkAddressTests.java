@@ -53,11 +53,11 @@ public class NetworkAddressTests extends ESTestCase {
     }
 
     public void testNoScopeID() throws Exception {
-        assertEquals("::1", NetworkAddress.format(forgeScoped(null, "::1", 5)));
-        assertEquals("::1", NetworkAddress.format(forgeScoped("localhost", "::1", 5)));
+        assertEquals("::1%5", NetworkAddress.format(forgeScoped(null, "::1", 5)));
+        assertEquals("::1%5", NetworkAddress.format(forgeScoped("localhost", "::1", 5)));
 
-        assertEquals("[::1]:1234", NetworkAddress.format(new InetSocketAddress(forgeScoped(null, "::1", 5), 1234)));
-        assertEquals("[::1]:1234", NetworkAddress.format(new InetSocketAddress(forgeScoped("localhost", "::1", 5), 1234)));
+        assertEquals("[::1%5]:1234", NetworkAddress.format(new InetSocketAddress(forgeScoped(null, "::1", 5), 1234)));
+        assertEquals("[::1%5]:1234", NetworkAddress.format(new InetSocketAddress(forgeScoped("localhost", "::1", 5), 1234)));
     }
 
     /** Test that ipv4 address formatting round trips */

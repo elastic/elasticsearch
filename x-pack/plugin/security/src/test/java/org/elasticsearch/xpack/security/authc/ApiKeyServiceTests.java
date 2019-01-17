@@ -119,6 +119,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         creatorMap.put("principal", "test_user");
         creatorMap.put("metadata", Collections.emptyMap());
         sourceMap.put("creator", creatorMap);
+        sourceMap.put("api_key_invalidated", false);
 
         ApiKeyService.ApiKeyCredentials creds =
             new ApiKeyService.ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
@@ -155,6 +156,14 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertFalse(result.isAuthenticated());
 
         sourceMap.remove("expiration_time");
+        creds = new ApiKeyService.ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(randomAlphaOfLength(15).toCharArray()));
+        future = new PlainActionFuture<>();
+        ApiKeyService.validateApiKeyCredentials(sourceMap, creds, Clock.systemUTC(), future);
+        result = future.get();
+        assertNotNull(result);
+        assertFalse(result.isAuthenticated());
+        
+        sourceMap.put("api_key_invalidated", true);
         creds = new ApiKeyService.ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(randomAlphaOfLength(15).toCharArray()));
         future = new PlainActionFuture<>();
         ApiKeyService.validateApiKeyCredentials(sourceMap, creds, Clock.systemUTC(), future);

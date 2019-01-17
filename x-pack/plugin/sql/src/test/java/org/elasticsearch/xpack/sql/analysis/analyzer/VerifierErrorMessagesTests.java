@@ -373,7 +373,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testNotSupportedAggregateOnDate() {
-        assertEquals("1:8: [AVG(date)] argument must be [numeric], found value [date] type [date]",
+        assertEquals("1:8: [AVG(date)] argument must be [numeric], found value [date] type [datetime]",
             error("SELECT AVG(date) FROM test"));
     }
 
@@ -510,14 +510,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testHistogramInFilter() {
         assertEquals("1:63: Cannot filter on grouping function [HISTOGRAM(date, INTERVAL 1 MONTH)], use its argument instead",
                 error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test WHERE "
-                        + "HISTOGRAM(date, INTERVAL 1 MONTH) > CAST('2000-01-01' AS DATE) GROUP BY h"));
+                        + "HISTOGRAM(date, INTERVAL 1 MONTH) > CAST('2000-01-01' AS DATETIME) GROUP BY h"));
     }
 
     // related https://github.com/elastic/elasticsearch/issues/36853
     public void testHistogramInHaving() {
         assertEquals("1:75: Cannot filter on grouping function [h], use its argument instead",
                 error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test GROUP BY h HAVING "
-                        + "h > CAST('2000-01-01' AS DATE)"));
+                        + "h > CAST('2000-01-01' AS DATETIME)"));
     }
 
     public void testGroupByScalarOnTopOfGrouping() {
@@ -548,3 +548,4 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             e.getMessage());
     }
 }
+

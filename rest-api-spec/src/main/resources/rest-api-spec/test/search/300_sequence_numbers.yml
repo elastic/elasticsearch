@@ -38,7 +38,7 @@ setup:
           seq_no_primary_term: true
 
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0._seq_no: 0}
+  - match: {hits.hits.0._seq_no: 1}
   - gte: {hits.hits.0._primary_term: 1}
 
 ---

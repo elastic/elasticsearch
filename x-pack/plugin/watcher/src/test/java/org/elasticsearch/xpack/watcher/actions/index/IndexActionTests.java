@@ -101,6 +101,7 @@ public class IndexActionTests extends ESTestCase {
             assertThat(executable.action().executionTimeField, equalTo(timestampField));
         }
         assertThat(executable.action().timeout, equalTo(writeTimeout));
+        assertWarnings(IndexAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testParserFailure() throws Exception {

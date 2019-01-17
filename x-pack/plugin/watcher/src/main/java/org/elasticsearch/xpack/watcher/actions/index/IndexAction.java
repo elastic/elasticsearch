@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher.actions.index;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -33,6 +35,9 @@ public class IndexAction implements Action {
     @Nullable final TimeValue timeout;
     @Nullable final DateTimeZone dynamicNameTimeZone;
     @Nullable final RefreshPolicy refreshPolicy;
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(IndexAction.class));
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in a watcher index action is deprecated.";
 
     public IndexAction(@Nullable String index, @Nullable String docType, @Nullable String docId,
                        @Nullable String executionTimeField,
@@ -151,6 +156,7 @@ public class IndexAction implements Action {
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (Field.DOC_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                    deprecationLogger.deprecatedAndMaybeLog("watcher_index_action", TYPES_DEPRECATION_MESSAGE);
                     docType = parser.text();
                 } else if (Field.DOC_ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     docId = parser.text();

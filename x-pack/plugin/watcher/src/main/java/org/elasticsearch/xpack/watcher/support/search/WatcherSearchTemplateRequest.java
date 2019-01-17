@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.support.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -13,6 +14,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -42,6 +44,10 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
     private final Script template;
     private final BytesReference searchSource;
     private boolean restTotalHitsAsInt = true;
+
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(WatcherSearchTemplateRequest.class));
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in a watcher search request is deprecated.";
 
     public WatcherSearchTemplateRequest(String[] indices, String[] types, SearchType searchType, IndicesOptions indicesOptions,
                                         BytesReference searchSource) {
@@ -203,6 +209,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                         }
                     }
                 } else if (TYPES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    deprecationLogger.deprecatedAndMaybeLog("watcher_search_input", TYPES_DEPRECATION_MESSAGE);
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             types.add(parser.textOrNull());
@@ -278,6 +285,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                     String indicesStr = parser.text();
                     indices.addAll(Arrays.asList(Strings.delimitedListToStringArray(indicesStr, ",", " \t")));
                 } else if (TYPES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    deprecationLogger.deprecatedAndMaybeLog("watcher_search_input", TYPES_DEPRECATION_MESSAGE);
                     String typesStr = parser.text();
                     types.addAll(Arrays.asList(Strings.delimitedListToStringArray(typesStr, ",", " \t")));
                 } else if (SEARCH_TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

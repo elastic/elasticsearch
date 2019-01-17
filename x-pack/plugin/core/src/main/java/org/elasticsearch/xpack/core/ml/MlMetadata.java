@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
@@ -22,19 +21,12 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.groups.GroupOrJobLookup;
-import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NameResolver;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -49,7 +41,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
@@ -82,17 +73,8 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         return jobs;
     }
 
-    public boolean isGroupOrJob(String id) {
-        return groupOrJobLookup.isGroupOrJob(id);
-    }
-
     public Set<String> expandJobIds(String expression, boolean allowNoJobs) {
         return groupOrJobLookup.expandJobIds(expression, allowNoJobs);
-    }
-
-    public boolean isJobDeleting(String jobId) {
-        Job job = jobs.get(jobId);
-        return job == null || job.isDeleting();
     }
 
     public SortedMap<String, DatafeedConfig> getDatafeeds() {
@@ -173,6 +155,10 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
     private static <T extends ToXContent> void mapValuesToXContent(ParseField field, Map<String, T> map, XContentBuilder builder,
                                                                    Params params) throws IOException {
+        if (map.isEmpty()) {
+            return;
+        }
+
         builder.startArray(field.getPreferredName());
         for (Map.Entry<String, T> entry : map.entrySet()) {
             entry.getValue().toXContent(builder, params);
@@ -278,20 +264,9 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             return this;
         }
 
-        public Builder deleteJob(String jobId, PersistentTasksCustomMetaData tasks) {
-            checkJobHasNoDatafeed(jobId);
-
-            JobState jobState = MlTasks.getJobState(jobId, tasks);
-            if (jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
-                throw ExceptionsHelper.conflictStatusException("Unexpected job state [" + jobState + "], expected [" +
-                        JobState.CLOSED + " or " + JobState.FAILED + "]");
-            }
-            Job job = jobs.remove(jobId);
-            if (job == null) {
-                throw new ResourceNotFoundException("job [" + jobId + "] does not exist");
-            }
-            if (job.isDeleting() == false) {
-                throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because it hasn't marked as deleted");
+        public Builder putJobs(Collection<Job> jobs) {
+            for (Job job : jobs) {
+                putJob(job, true);
             }
             return this;
         }
@@ -300,6 +275,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             if (datafeeds.containsKey(datafeedConfig.getId())) {
                 throw ExceptionsHelper.datafeedAlreadyExists(datafeedConfig.getId());
             }
+
             String jobId = datafeedConfig.getJobId();
             checkJobIsAvailableForDatafeed(jobId);
             Job job = jobs.get(jobId);
@@ -331,52 +307,8 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             }
         }
 
-        public Builder updateDatafeed(DatafeedUpdate update, PersistentTasksCustomMetaData persistentTasks, Map<String, String> headers) {
-            String datafeedId = update.getId();
-            DatafeedConfig oldDatafeedConfig = datafeeds.get(datafeedId);
-            if (oldDatafeedConfig == null) {
-                throw ExceptionsHelper.missingDatafeedException(datafeedId);
-            }
-            checkDatafeedIsStopped(() -> Messages.getMessage(Messages.DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE, datafeedId,
-                    DatafeedState.STARTED), datafeedId, persistentTasks);
-            DatafeedConfig newDatafeedConfig = update.apply(oldDatafeedConfig, headers);
-            if (newDatafeedConfig.getJobId().equals(oldDatafeedConfig.getJobId()) == false) {
-                checkJobIsAvailableForDatafeed(newDatafeedConfig.getJobId());
-            }
-            Job job = jobs.get(newDatafeedConfig.getJobId());
-            DatafeedJobValidator.validate(newDatafeedConfig, job);
-            datafeeds.put(datafeedId, newDatafeedConfig);
-            return this;
-        }
-
-        public Builder removeDatafeed(String datafeedId, PersistentTasksCustomMetaData persistentTasks) {
-            DatafeedConfig datafeed = datafeeds.get(datafeedId);
-            if (datafeed == null) {
-                throw ExceptionsHelper.missingDatafeedException(datafeedId);
-            }
-            checkDatafeedIsStopped(() -> Messages.getMessage(Messages.DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE, datafeedId,
-                    DatafeedState.STARTED), datafeedId, persistentTasks);
-            datafeeds.remove(datafeedId);
-            return this;
-        }
-
         private Optional<DatafeedConfig> getDatafeedByJobId(String jobId) {
             return datafeeds.values().stream().filter(s -> s.getJobId().equals(jobId)).findFirst();
-        }
-
-        private void checkDatafeedIsStopped(Supplier<String> msg, String datafeedId, PersistentTasksCustomMetaData persistentTasks) {
-            if (persistentTasks != null) {
-                if (persistentTasks.getTask(MlTasks.datafeedTaskId(datafeedId)) != null) {
-                    throw ExceptionsHelper.conflictStatusException(msg.get());
-                }
-            }
-        }
-
-        public Builder putJobs(Collection<Job> jobs) {
-            for (Job job : jobs) {
-                putJob(job, true);
-            }
-            return this;
         }
 
         public Builder putDatafeeds(Collection<DatafeedConfig> datafeeds) {
@@ -388,39 +320,6 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
         public MlMetadata build() {
             return new MlMetadata(jobs, datafeeds);
-        }
-
-        public void markJobAsDeleting(String jobId, PersistentTasksCustomMetaData tasks, boolean allowDeleteOpenJob) {
-            Job job = jobs.get(jobId);
-            if (job == null) {
-                throw ExceptionsHelper.missingJobException(jobId);
-            }
-            if (job.isDeleting()) {
-                // Job still exists but is already being deleted
-                return;
-            }
-
-            checkJobHasNoDatafeed(jobId);
-
-            if (allowDeleteOpenJob == false) {
-                PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
-                if (jobTask != null) {
-                    JobTaskState jobTaskState = (JobTaskState) jobTask.getState();
-                    throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because the job is "
-                            + ((jobTaskState == null) ? JobState.OPENING : jobTaskState.getState()));
-                }
-            }
-            Job.Builder jobBuilder = new Job.Builder(job);
-            jobBuilder.setDeleting(true);
-            putJob(jobBuilder.build(), true);
-        }
-
-        void checkJobHasNoDatafeed(String jobId) {
-            Optional<DatafeedConfig> datafeed = getDatafeedByJobId(jobId);
-            if (datafeed.isPresent()) {
-                throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because datafeed ["
-                        + datafeed.get().getId() + "] refers to it");
-            }
         }
     }
 

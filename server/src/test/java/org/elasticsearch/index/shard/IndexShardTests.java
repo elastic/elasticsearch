@@ -3111,7 +3111,6 @@ public class IndexShardTests extends IndexShardTestCase {
         private final String indexName;
 
         RestoreOnlyRepository(String indexName) {
-            super(Settings.EMPTY);
             this.indexName = indexName;
         }
 

@@ -270,9 +270,10 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                     return update(currentState, tasksInProgress.reassignTask(taskId, new Assignment(null, reason)));
                 } else {
                     if (tasksInProgress.hasTask(taskId)) {
-                        logger.warn("trying to unassign task {} with unexpected allocation id {}",
-                            taskId,
-                            taskAllocationId);
+                        throw new ResourceNotFoundException("trying to unassign task {} with unexpected allocation id {}", taskId, taskAllocationId);
+                        //logger.warn("trying to unassign task {} with unexpected allocation id {}",
+                            //taskId,
+                            //taskAllocationId);
                     } else {
                         logger.warn("trying to unassign non-existing task {}", taskId);
                     }

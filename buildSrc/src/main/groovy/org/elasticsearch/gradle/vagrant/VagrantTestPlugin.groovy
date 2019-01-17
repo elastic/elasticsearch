@@ -193,10 +193,10 @@ class VagrantTestPlugin implements Plugin<Project> {
         UPGRADE_FROM_ARCHIVES.each {
             // The version of elasticsearch that we upgrade *from*
             project.dependencies.add(PACKAGING_CONFIGURATION,
-                    "org.elasticsearch.distribution.${it}:elasticsearch:${upgradeFromVersion}@${it}")
+                    "downloads.${it}:elasticsearch:${upgradeFromVersion}@${it}")
             if (upgradeFromVersion.onOrAfter('6.3.0')) {
                 project.dependencies.add(PACKAGING_CONFIGURATION,
-                        "org.elasticsearch.distribution.${it}:elasticsearch-oss:${upgradeFromVersion}@${it}")
+                        "downloads.${it}:elasticsearch-oss:${upgradeFromVersion}@${it}")
             }
         }
 

@@ -26,7 +26,8 @@ public abstract class RetryDuringSnapshotStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState, ClusterStateObserver observer, Listener listener) {
+    public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState,
+                              ClusterStateObserver observer, Listener listener) {
         SnapshotExceptionListener snapshotExceptionListener = new SnapshotExceptionListener(indexMetaData.getIndex(), listener, observer);
         performDuringNoSnapshot(indexMetaData, currentClusterState, snapshotExceptionListener);
     }

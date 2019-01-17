@@ -8,11 +8,15 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -23,6 +27,7 @@ import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.After;
 import org.junit.Before;
@@ -36,6 +41,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
@@ -50,6 +57,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
+            .put(ApiKeyService.DELETE_INTERVAL.getKey(), TimeValue.timeValueMillis(200L))
+            .put(ApiKeyService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5L))
             .build();
     }
 
@@ -59,7 +68,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     @After
-    public void wipeSecurityIndex() {
+    public void wipeSecurityIndex() throws InterruptedException {
+        // get the api key service and wait until api key expiration is not in progress!
+        for (ApiKeyService apiKeyService : internalCluster().getInstances(ApiKeyService.class)) {
+            final boolean done = awaitBusy(() -> apiKeyService.isExpirationInProgress() == false);
+            assertTrue(done);
+        }
         deleteSecurityIndex();
     }
 
@@ -215,6 +229,77 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 equalTo(responses.stream().map(r -> r.getId()).collect(Collectors.toList())));
         assertThat(invalidateResponse.getPreviouslyInvalidatedApiKeys().size(), equalTo(0));
         assertThat(invalidateResponse.getErrors().size(), equalTo(0));
+    }
+
+    public void testInvalidatedApiKeysDeletedByRemover() throws Exception {
+        List<CreateApiKeyResponse> responses = createApiKeys(1, null);
+
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
+                .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
+        securityClient.invalidateApiKey(InvalidateApiKeyRequest.usingApiKeyId(responses.get(0).getId()), listener);
+        InvalidateApiKeyResponse invalidateResponse = listener.get();
+        assertThat(invalidateResponse.getInvalidatedApiKeys().size(), equalTo(1));
+        assertThat(invalidateResponse.getPreviouslyInvalidatedApiKeys().size(), equalTo(0));
+        assertThat(invalidateResponse.getErrors().size(), equalTo(0));
+        AtomicReference<String> docId = new AtomicReference<>();
+        assertBusy(() -> {
+            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                    .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", "api_key")))
+                    .setSize(1).setTerminateAfter(1).get();
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+            docId.set(searchResponse.getHits().getAt(0).getId());
+        });
+
+        AtomicBoolean deleteTriggered = new AtomicBoolean(false);
+        assertBusy(() -> {
+            if (deleteTriggered.compareAndSet(false, true)) {
+                securityClient.invalidateApiKey(InvalidateApiKeyRequest.usingApiKeyId(responses.get(0).getId()), listener);
+            }
+            client.admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_INDEX_NAME).get();
+            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                    .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", "api_key")))
+                    .setTerminateAfter(1).get();
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testExpiredApiKeysDeletedAfter24Hours() throws Exception {
+        createApiKeys(1, null);
+        Instant created = Instant.now();
+
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
+                .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+
+        AtomicReference<String> docId = new AtomicReference<>();
+        assertBusy(() -> {
+            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                    .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", "api_key"))).setSize(1)
+                    .setTerminateAfter(1).get();
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+            docId.set(searchResponse.getHits().getAt(0).getId());
+        });
+
+        // hack doc to modify the expiration time to the day before
+        Instant yesterday = created.minus(36L, ChronoUnit.HOURS);
+        assertTrue(Instant.now().isAfter(yesterday));
+        client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "doc", docId.get())
+                .setDoc("expiration_time", yesterday.toEpochMilli()).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        AtomicBoolean deleteTriggered = new AtomicBoolean(false);
+        assertBusy(() -> {
+            if (deleteTriggered.compareAndSet(false, true)) {
+                // just random api key invalidation so that it triggers expired keys remover
+                securityClient.invalidateApiKey(InvalidateApiKeyRequest.usingApiKeyId(randomAlphaOfLength(6)), new PlainActionFuture<>());
+            }
+            client.admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_INDEX_NAME).get();
+            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                    .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", "api_key")))
+                    .setTerminateAfter(1).get();
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+        }, 30, TimeUnit.SECONDS);
     }
 
     private List<CreateApiKeyResponse> createApiKeys(int noOfApiKeys, TimeValue expiration) {

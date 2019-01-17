@@ -8,15 +8,13 @@
 
 beta[]
 
-Get follower info.
+Retrieves information about all follower indices.
 
 ==== Description
 
-This API returns information about all follower indices.
-
-For each follower index that gets returned, the configured parameters
-(e.g. follower index name, leader index name, replication options) and
-the status (whether follower index is active or paused) is included.
+This API lists the configured parameters and the status for each follower index.
+For example, the results include follower index names, leader index names,
+replication options and whether the follower indices are active or paused.
 
 ==== Request
 
@@ -52,84 +50,84 @@ GET /<index>/_ccr/info
 
 ==== Path Parameters
 `index` ::
-  (string) a comma-delimited list of follower index patterns
+  (string) A comma-delimited list of follower index patterns
 
 ==== Results
 
 This API returns the following information:
 
 `follower_indices`::
-  (array) an array of follower index statistics
+  (array) An array of follower index statistics
 
 The `indices` array consists of objects containing several fields:
 
 `indices[].follower_index`::
-  (string) the name of the follower index
+  (string) The name of the follower index
 
 `indices[].remote_cluster`::
-  (string) the <modules-remote-clusters,remote cluster>> containing the leader
-  index
+  (string) The <modules-remote-clusters,remote cluster>> that contains the
+  leader index
 
 `indices[].leader_index`::
-  (string) the name of the index in the leader cluster being followed
+  (string) The name of the index in the leader cluster that is followed
 
 `indices[].status`::
-  (string) whether index following is `active` or `paused`
+  (string) Whether index following is `active` or `paused`
 
 `indices[].parameters`::
-  (object) an object encapsulating ccr replication related parameters
+  (object) An object that encapsulates {ccr} parameters
 
 The `parameters` contains the following fields:
 
 `indices[].parameters.max_read_request_operation_count`::
-  (integer) the configured maximum number of operations to pull per read from the remote
-  cluster
+  (integer) The configured maximum number of operations to pull per read from
+  the remote cluster
 
 `indices[].parameters.max_outstanding_read_requests`::
-  (long) the configured maximum number of outstanding read requests from the remote
-  cluster
+  (long) The configured maximum number of outstanding read requests from the
+  remote cluster
 
 `indices[].parameters.max_read_request_size`::
-  (<<byte-units,byte value>>) the configured maximum size in bytes of per read of a batch
-  of operations pulled from the remote cluster
+  (<<byte-units,byte value>>) The configured maximum size in bytes of per read
+  of a batch of operations pulled from the remote cluster
 
 `indices[].parameters.max_write_request_operation_count`::
-  (integer) the configured maximum number of operations per bulk write request executed on
-  the follower
+  (integer) The configured maximum number of operations per bulk write request executed on the follower
 
 `indices[].parameters.max_write_request_size`::
-  (<<byte-units,byte value>>) the configured maximum total bytes of operations per bulk write request
-  executed on the follower
+  (<<byte-units,byte value>>) The configured maximum total bytes of operations
+  per bulk write request executed on the follower
 
 `indices[].parameters.max_outstanding_write_requests`::
-  (integer) the configured maximum number of outstanding write requests on the follower
+  (integer) The configured maximum number of outstanding write requests on the follower
 
 `indices[].parameters.max_write_buffer_count`::
-  (integer) the configured maximum number of operations that can be queued for writing;
-  when this limit is reached, reads from the remote cluster will be deferred
-  until the number of queued operations goes below the limit
+  (integer) The configured maximum number of operations that can be queued for writing. When this limit is reached, reads from the remote cluster are
+  deferred until the number of queued operations goes below the limit
 
 `indices[].parameters.max_write_buffer_size`::
-  (<<byte-units,byte value>>) the configured maximum total bytes of operations that can be queued for
-  writing; when this limit is reached, reads from the remote cluster will be
-  deferred until the total bytes of queued operations goes below the limit
+  (<<byte-units,byte value>>) The configured maximum total bytes of operations
+  that can be queued for writing. When this limit is reached, reads from the
+  remote cluster are deferred until the total bytes of queued operations goes
+  below the limit
 
 `indices[].parameters.max_retry_delay`::
-  (<<time-units,time value>>) the configured maximum time to wait before retrying an
-  operation that failed exceptionally; an exponential backoff strategy is
-  employed when retrying
+  (<<time-units,time value>>) The configured maximum time to wait before
+  retrying an operation that failed exceptionally. An exponential backoff
+  strategy is employed when retrying
 
 `indices[].parameters.read_poll_timeout`::
-  (<<time-units,time value>>) the configured maximum time to wait for new operations on the
-  remote cluster when the follower index is synchronized with the leader index;
-  when the timeout has elapsed, the poll for operations will return to the
-  follower so that it can update some statistics, and then the follower will
-  immediately attempt to read from the leader again
+  (<<time-units,time value>>) The configured maximum time to wait for new
+  operations on the remote cluster when the follower index is synchronized with
+  the leader index. When the timeout has elapsed, the poll for operations
+  returns to the follower so that it can update some statistics, then the
+  follower immediately attempts to read from the leader again
 
 ==== Authorization
 
 If the {es} {security-features} are enabled, you must have `monitor` cluster
-privileges. For more information, see {stack-ov}/security-privileges.html[Security privileges].
+privileges. For more information, see
+{stack-ov}/security-privileges.html[Security privileges].
 
 ==== Example
 

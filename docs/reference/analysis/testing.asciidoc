@@ -41,7 +41,7 @@ referred to when running the `analyze` API on a specific index:
 
 [source,js]
 -------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "analysis": {

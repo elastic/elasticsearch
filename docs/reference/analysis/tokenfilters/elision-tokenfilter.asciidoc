@@ -9,7 +9,7 @@ example:
 
 [source,js]
 --------------------------------------------------
-PUT /elision_example
+PUT /elision_example?include_type_name=true
 {
     "settings" : {
         "analysis" : {

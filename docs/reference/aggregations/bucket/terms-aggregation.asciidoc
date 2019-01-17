@@ -7,7 +7,7 @@ A multi-bucket value source based aggregation where buckets are dynamically buil
 
 [source,js]
 --------------------------------------------------
-PUT /products
+PUT /products?include_type_name=true
 {
     "mappings": {
         "product": {

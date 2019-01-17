@@ -16,7 +16,7 @@ a composite bucket.
 
 [source,js]
 --------------------------------------------------
-PUT /sales
+PUT /sales?include_type_name=true
 {
     "mappings": {
         "_doc": {

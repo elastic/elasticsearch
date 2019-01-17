@@ -71,7 +71,7 @@ index:: The name of an index containing a mapping that is compatible with the do
 
 [source,js]
 ----------------------------------------------------------------
-PUT /my-index
+PUT /my-index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -129,7 +129,7 @@ query:: If `_score` is used in the script then a query can specified that will b
 
 [source,js]
 ----------------------------------------------------------------
-PUT /my-index
+PUT /my-index?include_type_name=true
 {
   "mappings": {
     "_doc": {

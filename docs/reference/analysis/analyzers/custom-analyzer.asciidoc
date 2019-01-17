@@ -53,7 +53,7 @@ Token Filters::
 
 [source,js]
 --------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "analysis": {
@@ -157,7 +157,7 @@ Here is an example:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "analysis": {

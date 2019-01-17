@@ -90,7 +90,7 @@ Then create an analyzer as follows:
 
 [source,js]
 --------------------------------------------------
-PUT nori_sample
+PUT nori_sample?include_type_name=true
 {
   "settings": {
     "index": {
@@ -164,7 +164,7 @@ the `user_dictionary_rules` option:
 
 [source,js]
 --------------------------------------------------
-PUT nori_sample
+PUT nori_sample?include_type_name=true
 {
   "settings": {
     "index": {
@@ -332,7 +332,7 @@ For example:
 
 [source,js]
 --------------------------------------------------
-PUT nori_sample
+PUT nori_sample?include_type_name=true
 {
   "settings": {
     "index": {
@@ -398,7 +398,7 @@ The `nori_readingform` token filter rewrites tokens written in Hanja to their Ha
 
 [source,js]
 --------------------------------------------------
-PUT nori_sample
+PUT nori_sample?include_type_name=true
 {
     "settings": {
         "index":{

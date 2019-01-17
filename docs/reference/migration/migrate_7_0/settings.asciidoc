@@ -121,3 +121,13 @@ xpack.security.authc.realms:
 Any realm specific secure settings that have been stored in the elasticsearch
 keystore (such as ldap bind passwords, or passwords for ssl keys) must be updated
 in a similar way.
+
+[float]
+[[tls-setting-fallback]]
+==== TLS/SSL settings
+
+The default TLS/SSL settings, which were prefixed by `xpack.ssl`, have been removed.
+The removal of these default settings also removes the ability for a component to
+fallback to a default configuration when using TLS. Each component (realm, transport, http,
+http client, etc) must now be configured with their own settings for TLS if it is being
+used.

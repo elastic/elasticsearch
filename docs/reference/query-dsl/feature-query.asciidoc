@@ -27,7 +27,7 @@ based or `pagerank`, `url_length` and the `sports` topic.
 
 [source,js]
 --------------------------------------------------
-PUT test
+PUT test?include_type_name=true
 {
   "mappings": {
     "_doc": {

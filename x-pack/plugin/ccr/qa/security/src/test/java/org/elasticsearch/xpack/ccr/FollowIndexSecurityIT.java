@@ -148,7 +148,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                     .put("index.soft_deletes.enabled", true)
                     .build();
                 String requestBody = "{\"settings\": " + Strings.toString(settings) +
-                    ", \"mappings\": {\"_doc\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}} }";
+                    ", \"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}";
                 request = new Request("PUT", "/" + index);
                 request.setJsonEntity(requestBody);
                 assertOK(leaderClient.performRequest(request));

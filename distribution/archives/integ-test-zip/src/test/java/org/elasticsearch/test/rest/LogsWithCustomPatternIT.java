@@ -19,9 +19,6 @@
 
 package org.elasticsearch.test.rest;
 
-import org.elasticsearch.common.logging.JsonLogsIntegTestCase;
-import org.hamcrest.Matcher;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -29,8 +26,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-
-import static org.hamcrest.Matchers.is;
 
 public class LogsWithCustomPatternIT extends ESRestTestCase {
 

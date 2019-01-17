@@ -90,13 +90,15 @@ public final class FieldPermissions implements Accountable {
 
         long ramBytesUsed = BASE_FIELD_PERM_DEF_BYTES;
 
-        for (FieldGrantExcludeGroup group : fieldPermissionsDefinition.getFieldGrantExcludeGroups()) {
-            ramBytesUsed += BASE_FIELD_GROUP_BYTES + BASE_HASHSET_ENTRY_SIZE;
-            if (group.getGrantedFields() != null) {
-                ramBytesUsed += RamUsageEstimator.shallowSizeOf(group.getGrantedFields());
-            }
-            if (group.getExcludedFields() != null) {
-                ramBytesUsed += RamUsageEstimator.shallowSizeOf(group.getExcludedFields());
+        if (fieldPermissionsDefinition != null) {
+            for (FieldGrantExcludeGroup group : fieldPermissionsDefinition.getFieldGrantExcludeGroups()) {
+                ramBytesUsed += BASE_FIELD_GROUP_BYTES + BASE_HASHSET_ENTRY_SIZE;
+                if (group.getGrantedFields() != null) {
+                    ramBytesUsed += RamUsageEstimator.shallowSizeOf(group.getGrantedFields());
+                }
+                if (group.getExcludedFields() != null) {
+                    ramBytesUsed += RamUsageEstimator.shallowSizeOf(group.getExcludedFields());
+                }
             }
         }
         ramBytesUsed += permittedFieldsAutomaton.ramBytesUsed();

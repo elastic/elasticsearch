@@ -29,8 +29,8 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.notNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -38,18 +38,18 @@ public class DocumentPermissionsTests extends ESTestCase {
 
     public void testHasDocumentPermissions() throws IOException {
         final DocumentPermissions documentPermissions1 = DocumentPermissions.allowAll();
-        assertThat(documentPermissions1, is(notNull()));
+        assertThat(documentPermissions1, is(notNullValue()));
         assertThat(documentPermissions1.hasDocumentLevelPermissions(), is(false));
         assertThat(DocumentPermissions.filter(null, null, null, null, documentPermissions1), is(nullValue()));
 
         final DocumentPermissions documentPermissions2 = DocumentPermissions
                 .filteredBy(Collections.singleton(new BytesArray("{\"match_all\" : {}}")));
-        assertThat(documentPermissions2, is(notNull()));
+        assertThat(documentPermissions2, is(notNullValue()));
         assertThat(documentPermissions2.hasDocumentLevelPermissions(), is(true));
 
         final DocumentPermissions documentPermissions3 = DocumentPermissions
                 .scopedDocumentPermissions(documentPermissions1, documentPermissions2);
-        assertThat(documentPermissions3, is(notNull()));
+        assertThat(documentPermissions3, is(notNullValue()));
         assertThat(documentPermissions3.hasDocumentLevelPermissions(), is(true));
     }
 

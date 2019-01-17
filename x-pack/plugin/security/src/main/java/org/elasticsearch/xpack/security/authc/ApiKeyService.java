@@ -190,8 +190,6 @@ public class ApiKeyService {
                                 builder.field(descriptor.getName(),
                                         (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
                             }
-                        } else {
-                            builder.nullValue();
                         }
                         builder.endObject();
 

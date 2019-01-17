@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.notNull;
 import static org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.IndexAccessControl;
 
 /**
@@ -32,21 +32,21 @@ public class IndicesAccessControlTests extends ESTestCase {
         IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, Collections.emptyMap());
         IndicesAccessControl scopedByIndicesAccessControl = new IndicesAccessControl(true, Collections.emptyMap());
         IndicesAccessControl result = IndicesAccessControl.scopedIndicesAccessControl(indicesAccessControl, scopedByIndicesAccessControl);
-        assertThat(result, is(notNull()));
+        assertThat(result, is(notNullValue()));
         assertThat(result.isGranted(), is(true));
         assertThat(result.getIndexPermissions("_index"), is(nullValue()));
 
         indicesAccessControl = new IndicesAccessControl(true, Collections.emptyMap());
         scopedByIndicesAccessControl = new IndicesAccessControl(false, Collections.emptyMap());
         result = IndicesAccessControl.scopedIndicesAccessControl(indicesAccessControl, scopedByIndicesAccessControl);
-        assertThat(result, is(notNull()));
+        assertThat(result, is(notNullValue()));
         assertThat(result.isGranted(), is(false));
         assertThat(result.getIndexPermissions("_index"), is(nullValue()));
 
         indicesAccessControl = new IndicesAccessControl(false, Collections.emptyMap());
         scopedByIndicesAccessControl = new IndicesAccessControl(false, Collections.emptyMap());
         result = IndicesAccessControl.scopedIndicesAccessControl(indicesAccessControl, scopedByIndicesAccessControl);
-        assertThat(result, is(notNull()));
+        assertThat(result, is(notNullValue()));
         assertThat(result.isGranted(), is(false));
         assertThat(result.getIndexPermissions("_index"), is(nullValue()));
 
@@ -54,7 +54,7 @@ public class IndicesAccessControlTests extends ESTestCase {
                 Collections.singletonMap("_index", new IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())));
         scopedByIndicesAccessControl = new IndicesAccessControl(true, Collections.emptyMap());
         result = IndicesAccessControl.scopedIndicesAccessControl(indicesAccessControl, scopedByIndicesAccessControl);
-        assertThat(result, is(notNull()));
+        assertThat(result, is(notNullValue()));
         assertThat(result.getIndexPermissions("_index"), is(nullValue()));
 
         indicesAccessControl = new IndicesAccessControl(true,
@@ -62,8 +62,8 @@ public class IndicesAccessControlTests extends ESTestCase {
         scopedByIndicesAccessControl = new IndicesAccessControl(true,
                 Collections.singletonMap("_index", new IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())));
         result = IndicesAccessControl.scopedIndicesAccessControl(indicesAccessControl, scopedByIndicesAccessControl);
-        assertThat(result, is(notNull()));
-        assertThat(result.getIndexPermissions("_index"), is(notNull()));
+        assertThat(result, is(notNullValue()));
+        assertThat(result.getIndexPermissions("_index"), is(notNullValue()));
         assertThat(result.getIndexPermissions("_index").isGranted(), is(true));
         assertThat(result.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity(), is(false));
         assertThat(result.getIndexPermissions("_index").getDocumentPermissions().hasDocumentLevelPermissions(), is(false));

@@ -53,6 +53,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
+import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.junit.After;
@@ -126,7 +127,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true,
-                        new FieldPermissions(fieldPermissionDef(new String[]{}, null)), null);
+                        new FieldPermissions(fieldPermissionDef(new String[]{}, null)), DocumentPermissions.allowAll());
                 return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
             }
         };

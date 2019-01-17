@@ -25,7 +25,7 @@ public class IndicesAccessControl {
     public static final IndicesAccessControl ALLOW_ALL = new IndicesAccessControl(true, Collections.emptyMap());
     public static final IndicesAccessControl ALLOW_NO_INDICES = new IndicesAccessControl(true,
             Collections.singletonMap(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER,
-                    new IndicesAccessControl.IndexAccessControl(true, new FieldPermissions(), null)));
+                    new IndicesAccessControl.IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())));
 
     private final boolean granted;
     private final Map<String, IndexAccessControl> indexPermissions;

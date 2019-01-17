@@ -194,13 +194,16 @@ public class DocumentPermissions {
     }
 
     public static DocumentPermissions allowAll() {
-        return new DocumentPermissions(Collections.emptySet());
+        return new DocumentPermissions();
     }
 
     public static DocumentPermissions scopedDocumentPermissions(DocumentPermissions documentPermissions,
             DocumentPermissions scopedByDocumentPermissions) {
         assert documentPermissions.scopedByQueries == null
                 && scopedByDocumentPermissions.scopedByQueries == null : "nested scoping for document permissions is not permitted";
+        if (documentPermissions.queries == null && scopedByDocumentPermissions.queries == null) {
+            return DocumentPermissions.allowAll();
+        }
         return new DocumentPermissions(documentPermissions.queries, scopedByDocumentPermissions.queries);
     }
 

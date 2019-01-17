@@ -17,7 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
-import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.ArrayList;
@@ -266,7 +266,10 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
         private boolean check(String action, String index) {
             assert index != null;
             return check(action) && (indexNameMatcher.test(index)
-                    && ((false == SystemIndicesNames.NAMES_SET.contains(index)) || allowRestrictedIndices));
+                    && ((false == RestrictedIndicesNames.NAMES_SET.contains(index)) // if it is not restricted no further checks are required
+                            || IndexPrivilege.MONITOR.predicate().test(action) // allow monitor as a special case, even for restricted
+                            || allowRestrictedIndices)
+                    );
         }
 
         boolean hasQuery() {
@@ -282,7 +285,7 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
             if (allowRestrictedIndices) {
                 return indicesAutomaton;
             } else {
-                return Automatons.minusAndMinimize(indicesAutomaton, SystemIndicesNames.NAMES_AUTOMATON);
+                return Automatons.minusAndMinimize(indicesAutomaton, RestrictedIndicesNames.NAMES_AUTOMATON);
             }
         }
 
@@ -300,7 +303,7 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
             }
             return indexMatcher(restrictedIndices)
                     .or(indexMatcher(ordinaryIndices)
-                            .and(index -> false == SystemIndicesNames.NAMES_SET.contains(index)));
+                            .and(index -> false == RestrictedIndicesNames.NAMES_SET.contains(index)));
         }
     }
 

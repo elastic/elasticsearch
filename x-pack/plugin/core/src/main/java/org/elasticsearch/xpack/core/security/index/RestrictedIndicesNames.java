@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.upgrade.IndexUpgradeCheckVersion;
 import java.util.Collections;
 import java.util.Set;
 
-public class SystemIndicesNames {
+public class RestrictedIndicesNames {
     public static final String AUDIT_INDEX_NAME_PREFIX = ".security_audit_log";
     public static final String INTERNAL_SECURITY_INDEX = ".security-" + IndexUpgradeCheckVersion.UPRADE_VERSION;
     public static final String SECURITY_INDEX_NAME = ".security";

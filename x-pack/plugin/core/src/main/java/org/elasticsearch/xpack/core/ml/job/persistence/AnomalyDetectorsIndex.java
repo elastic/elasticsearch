@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 
 import java.util.Arrays;
-import java.util.List;
+import java.util.Collections;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -112,13 +112,12 @@ public final class AnomalyDetectorsIndex {
         );
 
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
-        String[] state_indices = indexNameExpressionResolver.concreteIndexNames(state,
+        String[] stateIndices = indexNameExpressionResolver.concreteIndexNames(state,
             IndicesOptions.lenientExpandOpen(),
             jobStateIndexPattern());
-        if (state_indices.length > 0) {
-            List<String> indices = Arrays.asList(state_indices);
-            indices.sort(String::compareTo);
-            createAliasListener.onResponse(indices.get(indices.size() - 1));
+        if (stateIndices.length > 0) {
+            Arrays.sort(stateIndices, Collections.reverseOrder());
+            createAliasListener.onResponse(stateIndices[0]);
         } else {
             CreateIndexRequest createIndexRequest = client.admin()
                 .indices()

@@ -674,6 +674,8 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                     factory.size(parser.intValue());
                 } else if (SearchSourceBuilder.VERSION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     factory.version(parser.booleanValue());
+                } else if (SearchSourceBuilder.SEQ_NO_PRIMARY_TERM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    factory.seqNoAndPrimaryTerm(parser.booleanValue());
                 } else if (SearchSourceBuilder.EXPLAIN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     factory.explain(parser.booleanValue());
                 } else if (SearchSourceBuilder.TRACK_SCORES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

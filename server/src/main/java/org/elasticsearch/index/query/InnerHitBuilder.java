@@ -513,6 +513,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
                 Objects.equals(size, that.size) &&
                 Objects.equals(explain, that.explain) &&
                 Objects.equals(version, that.version) &&
+                Objects.equals(seqNoAndPrimaryTerm, that.seqNoAndPrimaryTerm) &&
                 Objects.equals(trackScores, that.trackScores) &&
                 Objects.equals(storedFieldsContext, that.storedFieldsContext) &&
                 Objects.equals(docValueFields, that.docValueFields) &&

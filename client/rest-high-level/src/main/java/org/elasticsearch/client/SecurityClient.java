@@ -252,7 +252,7 @@ public final class SecurityClient {
      *
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param request the request with the user to enable
-     * @return the response from the enable user call
+     * @return {@code true} if the request succeeded (the user is enabled)
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public boolean enableUser(RequestOptions options, EnableUserRequest request) throws IOException {
@@ -316,7 +316,7 @@ public final class SecurityClient {
      *
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param request the request with the user to disable
-     * @return the response from the enable user call
+     * @return {@code true} if the request succeeded (the user is disabled)
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public boolean disableUser(RequestOptions options, DisableUserRequest request) throws IOException {
@@ -540,7 +540,7 @@ public final class SecurityClient {
      *
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param request the request with the user's new password
-     * @return the response from the change user password call
+     * @return {@code true} if the request succeeded (the new password was set)
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public boolean changePassword(RequestOptions options, ChangePasswordRequest request) throws IOException {

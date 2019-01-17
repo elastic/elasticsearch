@@ -26,7 +26,7 @@ import java.io.IOException;
 
 /**
  * Response for a request which simply returns an empty object.
-   @deprecated Use a boolean to instead of this class
+   @deprecated Use a boolean instead of this class
  */
 @Deprecated
 public final class EmptyResponse {

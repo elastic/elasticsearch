@@ -89,12 +89,15 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
 
     public static class TransportAction extends TransportSingleShardAction<PainlessContextAction.Request, PainlessContextAction.Response> {
 
+        PainlessScriptEngine painlessScriptEngine;
+
         @Inject
         public TransportAction(ThreadPool threadPool, TransportService transportService,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                ClusterService clusterService, PainlessScriptEngine painlessScriptEngine) {
             super(NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                     PainlessContextAction.Request::new, ThreadPool.Names.MANAGEMENT);
+            this.painlessScriptEngine = painlessScriptEngine;
         }
 
         @Override

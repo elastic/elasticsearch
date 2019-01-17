@@ -100,8 +100,8 @@ JDK 11 and testing on a JDK 8 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 8 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 8.
 
-> Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, and
-`JAVA10_HOME` are available so that the tests can pass.
+> Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
+and `JAVA11_HOME` are available so that the tests can pass.
 
 > Warning: do not use `sdkman` for Java installations which do not have proper
 `jrunscript` for jdk distributions.

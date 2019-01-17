@@ -168,7 +168,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         masterService.setClusterStateSupplier(this::getStateForMasterService);
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
         this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService, this::getFoundPeers,
-            this::setInitialConfiguration);
+            this::isInitialConfigurationSet, this::setInitialConfiguration);
         this.discoveryUpgradeService = new DiscoveryUpgradeService(settings, clusterSettings, transportService,
             this::isInitialConfigurationSet, joinHelper, peerFinder::getFoundPeers, this::setInitialConfiguration);
         this.lagDetector = new LagDetector(settings, transportService.getThreadPool(), n -> removeNode(n, "lagging"),
@@ -993,9 +993,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         @Override
         protected void onFoundPeersUpdated() {
-            final Iterable<DiscoveryNode> foundPeers;
             synchronized (mutex) {
-                foundPeers = getFoundPeers();
+                final Iterable<DiscoveryNode> foundPeers = getFoundPeers();
                 if (mode == Mode.CANDIDATE) {
                     final CoordinationState.VoteCollection expectedVotes = new CoordinationState.VoteCollection();
                     foundPeers.forEach(expectedVotes::addVote);

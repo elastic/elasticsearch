@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -62,16 +63,18 @@ public class ClusterBootstrapService {
     private final TimeValue unconfiguredBootstrapTimeout;
     private final TransportService transportService;
     private final Supplier<Iterable<DiscoveryNode>> discoveredNodesSupplier;
+    private final BooleanSupplier isBootstrappedSupplier;
     private final Consumer<VotingConfiguration> votingConfigurationConsumer;
     private final AtomicBoolean bootstrappingPermitted = new AtomicBoolean(true);
 
     public ClusterBootstrapService(Settings settings, TransportService transportService,
-                                   Supplier<Iterable<DiscoveryNode>> discoveredNodesSupplier,
+                                   Supplier<Iterable<DiscoveryNode>> discoveredNodesSupplier, BooleanSupplier isBootstrappedSupplier,
                                    Consumer<VotingConfiguration> votingConfigurationConsumer) {
         initialMasterNodes = INITIAL_MASTER_NODES_SETTING.get(settings);
         unconfiguredBootstrapTimeout = discoveryIsConfigured(settings) ? null : UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
         this.discoveredNodesSupplier = discoveredNodesSupplier;
+        this.isBootstrappedSupplier = isBootstrappedSupplier;
         this.votingConfigurationConsumer = votingConfigurationConsumer;
     }
 
@@ -83,7 +86,7 @@ public class ClusterBootstrapService {
     void onFoundPeersUpdated() {
         final Set<DiscoveryNode> nodes = getDiscoveredNodes();
         if (transportService.getLocalNode().isMasterNode() && initialMasterNodes.isEmpty() == false
-            && nodes.stream().noneMatch(Coordinator::isZen1Node)) {
+            && isBootstrappedSupplier.getAsBoolean() == false && nodes.stream().noneMatch(Coordinator::isZen1Node)) {
 
             final Optional<Set<DiscoveryNode>> nodesMatchingRequirements;
             try {

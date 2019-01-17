@@ -100,7 +100,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
         final AtomicBoolean bootstrapped = new AtomicBoolean();
         ClusterBootstrapService clusterBootstrapService
-            = new ClusterBootstrapService(settings.build(), transportService, () -> discoveredNodesSupplier.get().get(), vc -> {
+            = new ClusterBootstrapService(settings.build(), transportService, () -> discoveredNodesSupplier.get().get(), () -> false, vc -> {
             assertTrue(bootstrapped.compareAndSet(false, true));
             assertThat(vc.getNodeIds(),
                 equalTo(Stream.of(localNode, otherNode1, otherNode2).map(DiscoveryNode::getId).collect(Collectors.toSet())));
@@ -137,7 +137,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     private void testDoesNothingWithSettings(Settings.Builder builder) {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(builder.build(), transportService, () -> {
             throw new AssertionError("should not be called");
-        }, vc -> {
+        }, () -> false, vc -> {
             throw new AssertionError("should not be called");
         });
         transportService.start();
@@ -149,7 +149,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         final DiscoveryNode zen1Node = new DiscoveryNode("zen1", buildNewFakeTransportAddress(), singletonMap("zen1", "true"),
             singleton(Role.MASTER), Version.CURRENT);
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(Settings.EMPTY, transportService, () ->
-            Stream.of(localNode, zen1Node).collect(Collectors.toSet()), vc -> {
+            Stream.of(localNode, zen1Node).collect(Collectors.toSet()), () -> false, vc -> {
             throw new AssertionError("should not be called");
         });
         transportService.start();
@@ -162,7 +162,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(Settings.builder().putList(
             INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName()).build(),
-            transportService, () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()), vc -> {
+            transportService, () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()), () -> false, vc -> {
             assertTrue(bootstrapped.compareAndSet(false, true));
             assertThat(vc.getNodeIds(), hasSize(3));
         });
@@ -178,13 +178,25 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         assertFalse(bootstrapped.get()); // should only bootstrap once
     }
 
+    public void testDoesNotBootstrapIfAlreadyBootstrapped() {
+        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(Settings.builder().putList(
+            INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName()).build(),
+            transportService, () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()), () -> true, vc -> {
+            throw new AssertionError("should not be called");
+        });
+
+        transportService.start();
+        clusterBootstrapService.onFoundPeersUpdated();
+        deterministicTaskQueue.runAllTasks();
+    }
+
     public void testDoesNotBootstrapsOnNonMasterNode() {
         localNode = new DiscoveryNode("local", randomAlphaOfLength(10), buildNewFakeTransportAddress(), emptyMap(), emptySet(),
             Version.CURRENT);
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(Settings.builder().putList(
             INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName()).build(),
             transportService, () ->
-            Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()), vc -> {
+            Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()), () -> false, vc -> {
             throw new AssertionError("should not be called");
         });
         transportService.start();
@@ -195,7 +207,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     public void testDoesNotBootstrapsIfNotConfigured() {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey()).build(), transportService,
-            () -> Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()), vc -> {
+            () -> Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()), () -> false, vc -> {
             throw new AssertionError("should not be called");
         });
         transportService.start();
@@ -210,7 +222,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(Settings.builder().putList(
             INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName()).build(),
-            transportService, () -> Stream.of(otherNode1, otherNode2, zen1Node).collect(Collectors.toList()), vc -> {
+            transportService, () -> Stream.of(otherNode1, otherNode2, zen1Node).collect(Collectors.toList()), () -> false, vc -> {
             throw new AssertionError("should not be called");
         });
 
@@ -224,7 +236,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         final AtomicLong bootstrappingAttempts = new AtomicLong();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(Settings.builder().putList(
             INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName()).build(),
-            transportService, () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()), vc -> {
+            transportService, () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()), () -> false, vc -> {
             bootstrappingAttempts.incrementAndGet();
             if (bootstrappingAttempts.get() < 5L) {
                 throw new ElasticsearchException("test");
@@ -241,7 +253,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     public void testDoesNotBootstrapIfRequirementNotMet() {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(Settings.builder().putList(
             INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName(), "not-a-node").build(),
-            transportService, () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()), vc -> {
+            transportService, () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()), () -> false, vc -> {
             throw new AssertionError("should not be called");
         });
 
@@ -255,7 +267,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             = new AtomicReference<>(Stream.of(otherNode1, otherNode2).collect(Collectors.toList()));
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getAddress().getAddress()).build(),
-            transportService, discoveredNodes::get, vc -> {
+            transportService, discoveredNodes::get, () -> false, vc -> {
             throw new AssertionError("should not be called");
         });
 
@@ -274,7 +286,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), otherNode1.getAddress().toString(), otherNode1.getName())
                 .build(),
-            transportService, discoveredNodes::get, vc -> {
+            transportService, discoveredNodes::get, () -> false, vc -> {
             throw new AssertionError("should not be called");
         });
 
@@ -295,7 +307,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         final AtomicBoolean bootstrapped = new AtomicBoolean();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName()).build(), transportService,
-            Collections::emptyList, vc -> assertTrue(bootstrapped.compareAndSet(false, true)));
+            Collections::emptyList, () -> false, vc -> assertTrue(bootstrapped.compareAndSet(false, true)));
 
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -307,7 +319,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         final AtomicBoolean bootstrapped = new AtomicBoolean();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getAddress().toString()).build(), transportService,
-            Collections::emptyList, vc -> assertTrue(bootstrapped.compareAndSet(false, true)));
+            Collections::emptyList, () -> false, vc -> assertTrue(bootstrapped.compareAndSet(false, true)));
 
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -319,7 +331,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         final AtomicBoolean bootstrapped = new AtomicBoolean();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getAddress().getAddress()).build(),
-            transportService, Collections::emptyList, vc -> assertTrue(bootstrapped.compareAndSet(false, true)));
+            transportService, Collections::emptyList, () -> false, vc -> assertTrue(bootstrapped.compareAndSet(false, true)));
 
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -330,7 +342,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     public void testDoesNotJustMatchEverything() {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), randomAlphaOfLength(10)).build(), transportService,
-            Collections::emptyList, vc -> {
+            Collections::emptyList, () -> false, vc -> {
             throw new AssertionError("should not be called");
         });
 
@@ -344,7 +356,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         final AtomicBoolean bootstrapped = new AtomicBoolean();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(Settings.builder().putList(
             INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName()).build(),
-            transportService, () -> Stream.of(otherNode1, otherNode2, extraNode).collect(Collectors.toList()), vc -> {
+            transportService, () -> Stream.of(otherNode1, otherNode2, extraNode).collect(Collectors.toList()), () -> false, vc -> {
             assertTrue(bootstrapped.compareAndSet(false, true));
             assertThat(vc.getNodeIds(), not(hasItem(extraNode.getId())));
         });
@@ -353,4 +365,5 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         clusterBootstrapService.onFoundPeersUpdated();
         deterministicTaskQueue.runAllTasks();
         assertTrue(bootstrapped.get());
-    }}
+    }
+}

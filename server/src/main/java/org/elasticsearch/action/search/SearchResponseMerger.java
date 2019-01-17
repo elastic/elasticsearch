@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.search.SearchResponse.Clusters;
@@ -60,13 +61,15 @@ import static org.elasticsearch.action.search.SearchResponse.Clusters;
  * Preconditions are that only non final reduction has been performed on each cluster, meaning that buckets have not been pruned locally
  * and pipeline aggregations have not yet been executed. Also, from+size search hits need to be requested to each cluster.
  */
+//TODO it may make sense to investigate reusing existing merge code in SearchPhaseController#reducedQueryPhase, the logic is similar
+//yet there are substantial differences in terms of the objects exchanged and logic in the sortDocs method.
 final class SearchResponseMerger {
     private final int from;
     private final int size;
     private final SearchTimeProvider searchTimeProvider;
     private final Clusters clusters;
     private final Function<Boolean, ReduceContext> reduceContextFunction;
-    private final List<SearchResponse> searchResponses = new ArrayList<>();
+    private final List<SearchResponse> searchResponses = new CopyOnWriteArrayList<>();
 
     SearchResponseMerger(int from, int size, SearchTimeProvider searchTimeProvider, Clusters clusters,
                          Function<Boolean, ReduceContext> reduceContextFunction) {
@@ -77,17 +80,20 @@ final class SearchResponseMerger {
         this.reduceContextFunction = Objects.requireNonNull(reduceContextFunction);
     }
 
-    //TODO we could merge incrementally, tookInMillis computation would need to be done in the final merge.
-    //Incremental merges would then perform non final reduction and keep around from+size hits.
+    /**
+     * Add a search response to the list of responses to be merged together into one.
+     * Merges currently happen at once when all responses are available and {@link #getMergedResponse()} is called. That may change
+     * in the future as it's possible to introduce incremental merges as responses come in if necessary.
+     */
     void add(SearchResponse searchResponse) {
         searchResponses.add(searchResponse);
     }
 
+    /**
+     * Returns the merged response. To be called once all responses have been added through {@link #add(SearchResponse)}
+     * so that all responses are merged into a single one.
+     */
     SearchResponse getMergedResponse() {
-        return merge();
-    }
-
-    private SearchResponse merge() {
         assert searchResponses.size() > 1;
         int totalShards = 0;
         int skippedShards = 0;

@@ -37,6 +37,7 @@ import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.profile.SearchProfileShardResultsTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -47,6 +48,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -54,27 +57,48 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SearchResponseMergerTests extends ESTestCase {
 
-    public void testMergeTookInMillis() {
+    private int numResponses;
+    private ExecutorService executorService;
+
+    @Before
+    public void init() {
+        numResponses = randomIntBetween(2, 10);
+        executorService = Executors.newFixedThreadPool(numResponses);
+    }
+
+    private void addResponse(SearchResponseMerger searchResponseMerger, SearchResponse searchResponse) {
+        if (randomBoolean()) {
+            executorService.submit(() -> searchResponseMerger.add(searchResponse));
+        } else {
+            searchResponseMerger.add(searchResponse);
+        }
+    }
+
+    private void awaitResponsesAdded() throws InterruptedException {
+        executorService.shutdown();
+        executorService.awaitTermination(5, TimeUnit.SECONDS);
+    }
+
+    public void testMergeTookInMillis() throws InterruptedException {
         long currentRelativeTime = randomLong();
         SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
         SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponseMerger merger = new SearchResponseMerger(randomIntBetween(0, 1000), randomIntBetween(0, 10000),
             timeProvider, clusters, flag -> null);
-        int numResponses = randomIntBetween(2, 10);
         for (int i = 0; i < numResponses; i++) {
             SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null, 1, 1, 0, randomLong(),
                 ShardSearchFailure.EMPTY_ARRAY, SearchResponseTests.randomClusters());
-            merger.add(searchResponse);
+            addResponse(merger, searchResponse);
         }
+        awaitResponsesAdded();
         SearchResponse searchResponse = merger.getMergedResponse();
         assertEquals(TimeUnit.NANOSECONDS.toMillis(currentRelativeTime), searchResponse.getTook().millis());
     }
 
-    public void testMergeShardFailures() {
+    public void testMergeShardFailures() throws InterruptedException {
         SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
         SearchResponseMerger merger = new SearchResponseMerger(0, 0, searchTimeProvider, SearchResponse.Clusters.EMPTY, flag -> null);
         PriorityQueue<Tuple<ShardId, ShardSearchFailure>> priorityQueue = new PriorityQueue<>(Comparator.comparing(Tuple::v1));
-        int numResponses = randomIntBetween(2, 10);
         int numIndices = numResponses * randomIntBetween(1, 3);
         Iterator<Map.Entry<String, Index[]>> indicesPerCluster = randomRealisticIndices(numIndices, numResponses).entrySet().iterator();
         for (int i = 0; i < numResponses; i++) {
@@ -88,9 +112,9 @@ public class SearchResponseMergerTests extends ESTestCase {
                 ShardSearchFailure failure;
                 if (randomBoolean()) {
                     SearchShardTarget searchShardTarget = new SearchShardTarget(randomAlphaOfLength(6), shardId, clusterAlias, null);
-                    failure = new ShardSearchFailure(new IllegalArgumentException("broke"), searchShardTarget);
+                    failure = new ShardSearchFailure(new IllegalArgumentException(), searchShardTarget);
                 } else {
-                    ElasticsearchException elasticsearchException = new ElasticsearchException(new IllegalArgumentException("broke"));
+                    ElasticsearchException elasticsearchException = new ElasticsearchException(new IllegalArgumentException());
                     elasticsearchException.setShard(shardId);
                     failure = new ShardSearchFailure(elasticsearchException);
                 }
@@ -99,9 +123,9 @@ public class SearchResponseMergerTests extends ESTestCase {
             }
             SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null,
                 1, 0, 0, 100L, shardSearchFailures, SearchResponse.Clusters.EMPTY);
-            merger.add(searchResponse);
+            addResponse(merger, searchResponse);
         }
-
+        awaitResponsesAdded();
         ShardSearchFailure[] shardFailures = merger.getMergedResponse().getShardFailures();
         assertEquals(priorityQueue.size(), shardFailures.length);
         for (ShardSearchFailure shardFailure : shardFailures) {
@@ -110,11 +134,10 @@ public class SearchResponseMergerTests extends ESTestCase {
         }
     }
 
-    public void testMergeShardFailuresNullShardId() {
+    public void testMergeShardFailuresNullShardId() throws InterruptedException {
         SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
         SearchResponseMerger merger = new SearchResponseMerger(0, 0, searchTimeProvider, SearchResponse.Clusters.EMPTY, flag -> null);
         List<ShardSearchFailure> expectedFailures = new ArrayList<>();
-        int numResponses = randomIntBetween(2, 10);
         for (int i = 0; i < numResponses; i++) {
             int numFailures = randomIntBetween(1, 50);
             ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[numFailures];
@@ -125,17 +148,17 @@ public class SearchResponseMergerTests extends ESTestCase {
             }
             SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null,
                 1, 0, 0, 100L, shardSearchFailures, SearchResponse.Clusters.EMPTY);
-            merger.add(searchResponse);
+            addResponse(merger, searchResponse);
         }
+        awaitResponsesAdded();
         ShardSearchFailure[] shardFailures = merger.getMergedResponse().getShardFailures();
         assertThat(Arrays.asList(shardFailures), containsInAnyOrder(expectedFailures.toArray(ShardSearchFailure.EMPTY_ARRAY)));
     }
 
-    public void testMergeProfileResults() {
+    public void testMergeProfileResults() throws InterruptedException {
         SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
         SearchResponseMerger merger = new SearchResponseMerger(0, 0, searchTimeProvider, SearchResponse.Clusters.EMPTY, flag -> null);
         Map<String, ProfileShardResult> expectedProfile = new HashMap<>();
-        int numResponses = randomIntBetween(2, 10);
         for (int i = 0; i < numResponses; i++) {
             SearchProfileShardResults profile = SearchProfileShardResultsTests.createTestItem();
             expectedProfile.putAll(profile.getShardResults());
@@ -143,22 +166,24 @@ public class SearchResponseMergerTests extends ESTestCase {
             InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, null, null, profile, false, null, 1);
             SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, 1, 1, 0, 100L,
                 ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
-            merger.add(searchResponse);
+            addResponse(merger, searchResponse);
         }
+        awaitResponsesAdded();
         SearchResponse searchResponse = merger.getMergedResponse();
         assertEquals(expectedProfile, searchResponse.getProfileResults());
     }
 
     //TODO add tests for suggestions and aggs reduction?
 
-    public void testMergeSearchHits() {
+    //TODO do we want to have a specific test for field collapsing to check that the grouping actually works?
+
+    public void testMergeSearchHits() throws InterruptedException {
         final long currentRelativeTime = randomLong();
         final SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
         final SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         final int size = randomIntBetween(0, 100);
         final int from = size > 0 ? randomIntBetween(0, 100) : 0;
         final int requestedSize = from + size;
-        final int numResponses = randomIntBetween(2, 10);
         final SortField[] sortFields;
         final String collapseField;
         boolean scoreSort = false;
@@ -184,7 +209,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         TotalHits.Relation totalHitsRelation = frequently() ? randomFrom(TotalHits.Relation.values()) : null;
 
         PriorityQueue<SearchHit> priorityQueue = new PriorityQueue<>(new SearchHitComparator(sortFields));
-        SearchResponseMerger merger = new SearchResponseMerger(from, size, timeProvider, clusters, flag -> null);
+        SearchResponseMerger searchResponseMerger = new SearchResponseMerger(from, size, timeProvider, clusters, flag -> null);
         TotalHits expectedTotalHits = null;
         int expectedTotal = 0;
         int expectedSuccessful = 0;
@@ -225,8 +250,8 @@ public class SearchResponseMergerTests extends ESTestCase {
             if (collapseField != null) {
                 collapseValues = new Object[numDocs];
                 for (int j = 0; j < numDocs; j++) {
-                    //TODO test is green but randomizing this does not seem like a great idea?
-                    collapseValues[j] = randomInt();
+                    //set different collapse values for each cluster for simplicity
+                    collapseValues[j] = j + 1000 * i;
                 }
             }
 
@@ -245,10 +270,13 @@ public class SearchResponseMergerTests extends ESTestCase {
 
             SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, total, successful, skipped,
                 randomLong(), ShardSearchFailure.EMPTY_ARRAY, SearchResponseTests.randomClusters());
-            merger.add(searchResponse);
+
+            addResponse(searchResponseMerger, searchResponse);
         }
 
-        SearchResponse searchResponse = merger.getMergedResponse();
+        awaitResponsesAdded();
+
+        SearchResponse searchResponse = searchResponseMerger.getMergedResponse();
 
         assertEquals(TimeUnit.NANOSECONDS.toMillis(currentRelativeTime), searchResponse.getTook().millis());
         assertEquals(expectedTotal, searchResponse.getTotalShards());
@@ -267,6 +295,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         if (expectedTotalHits == null) {
             assertNull(searchHits.getTotalHits());
         } else {
+            assertNotNull(searchHits.getTotalHits());
             assertEquals(expectedTotalHits.value, searchHits.getTotalHits().value);
             assertSame(expectedTotalHits.relation, searchHits.getTotalHits().relation);
         }

@@ -165,7 +165,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
         List<LifecycleAction> orderedActions = TimeseriesLifecycleType.INSTANCE.getOrderedActions(hotPhase);
         assertTrue(isSorted(orderedActions, LifecycleAction::getWriteableName, ORDERED_VALID_HOT_ACTIONS));
-        assertThat(orderedActions.indexOf(TEST_PRIORITY_ACTION), equalTo(0));
+        assertThat(orderedActions.indexOf(TEST_UNFOLLOW_ACTION), equalTo(0));
     }
 
     public void testGetOrderedActionsWarm() {
@@ -174,7 +174,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, actions);
         List<LifecycleAction> orderedActions = TimeseriesLifecycleType.INSTANCE.getOrderedActions(warmPhase);
         assertTrue(isSorted(orderedActions, LifecycleAction::getWriteableName, ORDERED_VALID_WARM_ACTIONS));
-        assertThat(orderedActions.indexOf(TEST_PRIORITY_ACTION), equalTo(0));
+        assertThat(orderedActions.indexOf(TEST_UNFOLLOW_ACTION), equalTo(0));
     }
 
     public void testGetOrderedActionsCold() {
@@ -183,7 +183,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         Phase coldPhase = new Phase("cold", TimeValue.ZERO, actions);
         List<LifecycleAction> orderedActions = TimeseriesLifecycleType.INSTANCE.getOrderedActions(coldPhase);
         assertTrue(isSorted(orderedActions, LifecycleAction::getWriteableName, ORDERED_VALID_COLD_ACTIONS));
-        assertThat(orderedActions.indexOf(TEST_PRIORITY_ACTION), equalTo(0));
+        assertThat(orderedActions.indexOf(TEST_UNFOLLOW_ACTION), equalTo(0));
     }
 
     public void testGetOrderedActionsDelete() {

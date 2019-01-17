@@ -14,7 +14,7 @@ import java.time.ZoneId;
 import java.util.Objects;
 
 /**
- * GROUP BY key based on histograms on date fields.
+ * GROUP BY key based on histograms on date/datetime fields.
  */
 public class GroupByDateHistogram extends GroupByKey {
 

@@ -12,8 +12,13 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 
 import java.util.Set;
 
+/**
+ * A {@link Role} scoped by another role.<br>
+ * The effective permissions returned on {@link #authorize(String, Set, MetaData, FieldPermissionsCache)} call would be scoped by the
+ * provided role.
+ */
 public class ScopedRole extends Role {
-    private Role scopedBy;
+    private final Role scopedBy;
 
     ScopedRole(String[] names, ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application,
             RunAsPermission runAs, Role scopedBy) {
@@ -29,10 +34,10 @@ public class ScopedRole extends Role {
     public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases, MetaData metaData,
             FieldPermissionsCache fieldPermissionsCache) {
         IndicesAccessControl indicesAccessControl = super.authorize(action, requestedIndicesOrAliases, metaData, fieldPermissionsCache);
-        IndicesAccessControl indicesAccessControlScopedBy = scopedBy.authorize(action, requestedIndicesOrAliases, metaData,
+        IndicesAccessControl scopedByIndicesAccessControl = scopedBy.authorize(action, requestedIndicesOrAliases, metaData,
                 fieldPermissionsCache);
 
-        return IndicesAccessControl.scopedIndicesAccessControl(indicesAccessControl, indicesAccessControlScopedBy);
+        return IndicesAccessControl.scopedIndicesAccessControl(indicesAccessControl, scopedByIndicesAccessControl);
     }
 
     /**
@@ -67,7 +72,7 @@ public class ScopedRole extends Role {
 
     /**
      * Create a new role defined by given role and the scoped role.
-     * 
+     *
      * @param fromRole existing role {@link Role}
      * @param scopedByRole restrict the newly formed role to the permissions defined by this scoped {@link Role}
      * @return {@link ScopedRole}

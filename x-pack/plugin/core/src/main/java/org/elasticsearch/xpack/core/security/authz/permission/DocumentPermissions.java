@@ -42,9 +42,16 @@ import java.util.function.Function;
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
 
+/**
+ * Stores document level permissions in the form queries that match all the accessible documents.<br>
+ * The document level permissions may be scoped by another set of queries in that case the scoped
+ * queries are used as an additional filter.
+ */
 public class DocumentPermissions {
     private final Set<BytesReference> queries;
     private final Set<BytesReference> scopedByQueries;
+
+    private static DocumentPermissions DEFAULT = new DocumentPermissions();
 
     DocumentPermissions() {
         this.queries = null;
@@ -71,10 +78,27 @@ public class DocumentPermissions {
         return scopedByQueries;
     }
 
+    /**
+     * @return {@code true} if either queries or scoped queries are present for document level security else returns {@code false}
+     */
     public boolean hasDocumentLevelPermissions() {
         return queries != null || scopedByQueries != null;
     }
 
+    /**
+     * Creates a {@link BooleanQuery} to be used as filter to restrict access to documents.<br>
+     * Document permission queries are used to create an boolean query.<br>
+     * If the document permissions are scoped, then there is an additional filter added restricting access to documents only allowed by the
+     * scoped queries.
+     *
+     * @param user authenticated {@link User}
+     * @param scriptService {@link ScriptService} for evaluating query templates
+     * @param shardId {@link ShardId}
+     * @param queryShardContextProvider {@link QueryShardContext}
+     * @param documentPermissions {@link DocumentPermissions} for which the filter would be generated
+     * @return {@link BooleanQuery} for the filter
+     * @throws IOException thrown if there is an exception during parsing
+     */
     public static BooleanQuery filter(User user, ScriptService scriptService, ShardId shardId,
             Function<ShardId, QueryShardContext> queryShardContextProvider, DocumentPermissions documentPermissions) throws IOException {
         if (documentPermissions.hasDocumentLevelPermissions()) {
@@ -186,6 +210,11 @@ public class DocumentPermissions {
         }
     }
 
+    /**
+     * Create {@link DocumentPermissions} for given set of queries
+     * @param queries set of queries
+     * @return {@link DocumentPermissions}
+     */
     public static DocumentPermissions filteredBy(Set<BytesReference> queries) {
         if (queries == null || queries.isEmpty()) {
             throw new IllegalArgumentException("null or empty queries not permitted");
@@ -193,10 +222,23 @@ public class DocumentPermissions {
         return new DocumentPermissions(queries);
     }
 
+    /**
+     * Create {@link DocumentPermissions} with no restriction. The {@link #getQueries()}
+     * will return {@code null} in this case and {@link #hasDocumentLevelPermissions()}
+     * will be {@code false}
+     * @return {@link DocumentPermissions}
+     */
     public static DocumentPermissions allowAll() {
-        return new DocumentPermissions();
+        return DEFAULT;
     }
 
+    /**
+     * Create a scoped document permissions scoped by the queries
+     *
+     * @param documentPermissions {@link DocumentPermissions} to be scoped
+     * @param scopedByDocumentPermissions {@link DocumentPermissions} used to scope the document level access
+     * @return scoped {@link DocumentPermissions}
+     */
     public static DocumentPermissions scopedDocumentPermissions(DocumentPermissions documentPermissions,
             DocumentPermissions scopedByDocumentPermissions) {
         assert documentPermissions.scopedByQueries == null

@@ -103,12 +103,11 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                 BooleanQuery filterQuery = DocumentPermissions.filter(getUser(), scriptService, shardId, queryShardContextProvider,
                         documentPermissions);
                 if (filterQuery != null) {
-                    wrappedReader = DocumentSubsetReader.wrap(reader, bitsetFilterCache, new ConstantScoreQuery(filterQuery));
+                    wrappedReader = DocumentSubsetReader.wrap(wrappedReader, bitsetFilterCache, new ConstantScoreQuery(filterQuery));
                 }
             }
 
-            wrappedReader = permissions.getFieldPermissions().filter(wrappedReader);
-            return wrappedReader;
+            return permissions.getFieldPermissions().filter(wrappedReader);
         } catch (IOException e) {
             logger.error("Unable to apply field level security");
             throw ExceptionsHelper.convertToElastic(e);

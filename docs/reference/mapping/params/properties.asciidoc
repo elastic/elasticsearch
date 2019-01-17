@@ -15,23 +15,21 @@ field, and a `nested` field:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": { <1>
-      "properties": {
-        "manager": { <2>
-          "properties": {
-            "age":  { "type": "integer" },
-            "name": { "type": "text"  }
-          }
-        },
-        "employees": { <3>
-          "type": "nested",
-          "properties": {
-            "age":  { "type": "integer" },
-            "name": { "type": "text"  }
-          }
+    "properties": {
+      "manager": { <2>
+        "properties": {
+          "age":  { "type": "integer" },
+          "name": { "type": "text"  }
+        }
+      },
+      "employees": { <3>
+        "type": "nested",
+        "properties": {
+          "age":  { "type": "integer" },
+          "name": { "type": "text"  }
         }
       }
     }

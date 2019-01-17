@@ -41,22 +41,20 @@ An explicit mapping for the above document could look like this:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": { <1>
-      "properties": {
-        "region": {
-          "type": "keyword"
-        },
-        "manager": { <2>
-          "properties": {
-            "age":  { "type": "integer" },
-            "name": { <3>
-              "properties": {
-                "first": { "type": "text" },
-                "last":  { "type": "text" }
-              }
+    "properties": {
+      "region": {
+        "type": "keyword"
+      },
+      "manager": { <1>
+        "properties": {
+          "age":  { "type": "integer" },
+          "name": { <2>
+            "properties": {
+              "first": { "type": "text" },
+              "last":  { "type": "text" }
             }
           }
         }
@@ -66,9 +64,8 @@ PUT my_index?include_type_name=true
 }
 --------------------------------------------------
 // CONSOLE
-<1> The mapping type is a type of object, and has a `properties` field.
-<2> The `manager` field is an inner `object` field.
-<3> The `manager.name` field is an inner `object` field within the `manager` field.
+<1> The `manager` field is an inner `object` field.
+<2> The `manager.name` field is an inner `object` field within the `manager` field.
 
 You are not required to set the field `type` to `object` explicitly, as this is the default value.
 

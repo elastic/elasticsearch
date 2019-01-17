@@ -12,15 +12,13 @@ filter on, you can safely disable indexing on this field in your
 
 [source,js]
 --------------------------------------------------
-PUT index?include_type_name=true
+PUT index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "foo": {
-          "type": "integer",
-          "index": false
-        }
+    "properties": {
+      "foo": {
+        "type": "integer",
+        "index": false
       }
     }
   }
@@ -35,15 +33,13 @@ to not write norms to the index:
 
 [source,js]
 --------------------------------------------------
-PUT index?include_type_name=true
+PUT index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "foo": {
-          "type": "text",
-          "norms": false
-        }
+    "properties": {
+      "foo": {
+        "type": "text",
+        "norms": false
       }
     }
   }
@@ -58,15 +54,13 @@ Elasticsearch to not index positions:
 
 [source,js]
 --------------------------------------------------
-PUT index?include_type_name=true
+PUT index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "foo": {
-          "type": "text",
-          "index_options": "freqs"
-        }
+    "properties": {
+      "foo": {
+        "type": "text",
+        "index_options": "freqs"
       }
     }
   }
@@ -81,16 +75,14 @@ and scoring will assume that terms appear only once in every document.
 
 [source,js]
 --------------------------------------------------
-PUT index?include_type_name=true
+PUT index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "foo": {
-          "type": "text",
-          "norms": false,
-          "index_options": "freqs"
-        }
+    "properties": {
+      "foo": {
+        "type": "text",
+        "norms": false,
+        "index_options": "freqs"
       }
     }
   }
@@ -115,21 +107,19 @@ fields as `keyword`:
 
 [source,js]
 --------------------------------------------------
-PUT index?include_type_name=true
+PUT index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_templates": [
-        {
-          "strings": {
-            "match_mapping_type": "string",
-            "mapping": {
-              "type": "keyword"
-            }
+    "dynamic_templates": [
+      {
+        "strings": {
+          "match_mapping_type": "string",
+          "mapping": {
+            "type": "keyword"
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 --------------------------------------------------

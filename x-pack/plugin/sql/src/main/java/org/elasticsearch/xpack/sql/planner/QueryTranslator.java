@@ -275,7 +275,7 @@ final class QueryTranslator {
                             Expression field = h.field();
 
                             // date histogram
-                            if (h.dataType() == DataType.DATE) {
+                            if (h.dataType() == DataType.DATETIME) {
                                 long intervalAsMillis = Intervals.inMillis(h.interval());
                                 // TODO: set timezone
                                 if (field instanceof FieldAttribute) {

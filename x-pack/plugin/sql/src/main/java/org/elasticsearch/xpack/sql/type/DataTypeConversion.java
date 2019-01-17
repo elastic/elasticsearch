@@ -17,7 +17,7 @@ import java.util.function.Function;
 import java.util.function.LongFunction;
 
 import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.sql.type.DataType.DATE;
+import static org.elasticsearch.xpack.sql.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.sql.type.DataType.LONG;
 import static org.elasticsearch.xpack.sql.type.DataType.NULL;
 
@@ -83,7 +83,7 @@ public abstract class DataTypeConversion {
         }
 
         if (DataTypes.isInterval(right)) {
-            if (left == DATE) {
+            if (left == DATETIME) {
                 return left;
             }
         }
@@ -145,8 +145,8 @@ public abstract class DataTypeConversion {
                 return conversionToFloat(from);
             case DOUBLE:
                 return conversionToDouble(from);
-            case DATE:
-                return conversionToDate(from);
+            case DATETIME:
+                return conversionToDateTime(from);
             case BOOLEAN:
                 return conversionToBoolean(from);
             default:
@@ -156,7 +156,7 @@ public abstract class DataTypeConversion {
     }
 
     private static Conversion conversionToString(DataType from) {
-        if (from == DATE) {
+        if (from == DATETIME) {
             return Conversion.DATE_TO_STRING;
         }
         return Conversion.OTHER_TO_STRING;
@@ -182,7 +182,7 @@ public abstract class DataTypeConversion {
         if (from.isString()) {
             return Conversion.STRING_TO_LONG;
         }
-        if (from == DATE) {
+        if (from == DATETIME) {
             return Conversion.DATE_TO_LONG;
         }
         return null;
@@ -201,7 +201,7 @@ public abstract class DataTypeConversion {
         if (from.isString()) {
             return Conversion.STRING_TO_INT;
         }
-        if (from == DATE) {
+        if (from == DATETIME) {
             return Conversion.DATE_TO_INT;
         }
         return null;
@@ -220,7 +220,7 @@ public abstract class DataTypeConversion {
         if (from.isString()) {
             return Conversion.STRING_TO_SHORT;
         }
-        if (from == DATE) {
+        if (from == DATETIME) {
             return Conversion.DATE_TO_SHORT;
         }
         return null;
@@ -239,7 +239,7 @@ public abstract class DataTypeConversion {
         if (from.isString()) {
             return Conversion.STRING_TO_BYTE;
         }
-        if (from == DATE) {
+        if (from == DATETIME) {
             return Conversion.DATE_TO_BYTE;
         }
         return null;
@@ -258,7 +258,7 @@ public abstract class DataTypeConversion {
         if (from.isString()) {
             return Conversion.STRING_TO_FLOAT;
         }
-        if (from == DATE) {
+        if (from == DATETIME) {
             return Conversion.DATE_TO_FLOAT;
         }
         return null;
@@ -277,13 +277,13 @@ public abstract class DataTypeConversion {
         if (from.isString()) {
             return Conversion.STRING_TO_DOUBLE;
         }
-        if (from == DATE) {
+        if (from == DATETIME) {
             return Conversion.DATE_TO_DOUBLE;
         }
         return null;
     }
 
-    private static Conversion conversionToDate(DataType from) {
+    private static Conversion conversionToDateTime(DataType from) {
         if (from.isRational()) {
             return Conversion.RATIONAL_TO_DATE;
         }
@@ -306,7 +306,7 @@ public abstract class DataTypeConversion {
         if (from.isString()) {
             return Conversion.STRING_TO_BOOLEAN;
         }
-        if (from == DATE) {
+        if (from == DATETIME) {
             return Conversion.DATE_TO_BOOLEAN;
         }
         return null;

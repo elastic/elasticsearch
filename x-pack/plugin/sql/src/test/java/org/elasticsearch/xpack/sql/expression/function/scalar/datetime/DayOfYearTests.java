@@ -28,6 +28,6 @@ public class DayOfYearTests extends ESTestCase {
     }
 
     private DayOfYear build(Object value, ZoneId zoneId) {
-        return new DayOfYear(Source.EMPTY, new Literal(Source.EMPTY, value, DataType.DATE), zoneId);
+        return new DayOfYear(Source.EMPTY, new Literal(Source.EMPTY, value, DataType.DATETIME), zoneId);
     }
 }

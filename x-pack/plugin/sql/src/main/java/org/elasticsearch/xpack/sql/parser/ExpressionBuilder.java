@@ -411,9 +411,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case "float":
             case "double":
                 return DataType.DOUBLE;
-            case "date":
+            case "datetime":
             case "timestamp":
-                return DataType.DATE;
+                return DataType.DATETIME;
             case "char":
             case "varchar":
             case "string":
@@ -793,7 +793,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         } catch(IllegalArgumentException ex) {
             throw new ParsingException(source, "Invalid date received; {}", ex.getMessage());
         }
-        return new Literal(source, DateUtils.of(dt), DataType.DATE);
+        return new Literal(source, DateUtils.of(dt), DataType.DATETIME);
     }
 
     @Override
@@ -829,7 +829,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         } catch (IllegalArgumentException ex) {
             throw new ParsingException(source, "Invalid timestamp received; {}", ex.getMessage());
         }
-        return new Literal(source, DateUtils.of(dt), DataType.DATE);
+        return new Literal(source, DateUtils.of(dt), DataType.DATETIME);
     }
 
     @Override

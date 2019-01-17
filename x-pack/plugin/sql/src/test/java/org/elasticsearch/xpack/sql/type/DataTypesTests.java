@@ -9,7 +9,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.EnumSet;
 
-import static org.elasticsearch.xpack.sql.type.DataType.DATE;
+import static org.elasticsearch.xpack.sql.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.sql.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY_TO_HOUR;
@@ -37,32 +37,32 @@ import static org.elasticsearch.xpack.sql.type.DataTypes.metaSqlRadix;
 public class DataTypesTests extends ESTestCase {
 
     public void testMetaDataType() {
-        assertEquals(Integer.valueOf(9), metaSqlDataType(DATE));
-        DataType t = randomDataTypeNoDate();
+        assertEquals(Integer.valueOf(9), metaSqlDataType(DATETIME));
+        DataType t = randomDataTypeNoDateTime();
         assertEquals(t.sqlType.getVendorTypeNumber(), metaSqlDataType(t));
     }
 
     public void testMetaDateTypeSub() {
-        assertEquals(Integer.valueOf(3), metaSqlDateTimeSub(DATE));
-        assertEquals(Integer.valueOf(0), metaSqlDateTimeSub(randomDataTypeNoDate()));
+        assertEquals(Integer.valueOf(3), metaSqlDateTimeSub(DATETIME));
+        assertEquals(Integer.valueOf(0), metaSqlDateTimeSub(randomDataTypeNoDateTime()));
     }
 
     public void testMetaMinimumScale() {
-        assertEquals(Short.valueOf((short) 3), metaSqlMinimumScale(DATE));
+        assertEquals(Short.valueOf((short) 3), metaSqlMinimumScale(DATETIME));
         assertEquals(Short.valueOf((short) 0), metaSqlMinimumScale(LONG));
         assertEquals(Short.valueOf((short) 0), metaSqlMinimumScale(FLOAT));
         assertNull(metaSqlMinimumScale(KEYWORD));
     }
 
     public void testMetaMaximumScale() {
-        assertEquals(Short.valueOf((short) 3), metaSqlMaximumScale(DATE));
+        assertEquals(Short.valueOf((short) 3), metaSqlMaximumScale(DATETIME));
         assertEquals(Short.valueOf((short) 0), metaSqlMaximumScale(LONG));
         assertEquals(Short.valueOf((short) FLOAT.defaultPrecision), metaSqlMaximumScale(FLOAT));
         assertNull(metaSqlMaximumScale(KEYWORD));
     }
 
     public void testMetaRadix() {
-        assertNull(metaSqlRadix(DATE));
+        assertNull(metaSqlRadix(DATETIME));
         assertNull(metaSqlRadix(KEYWORD));
         assertEquals(Integer.valueOf(10), metaSqlRadix(LONG));
         assertEquals(Integer.valueOf(2), metaSqlRadix(FLOAT));
@@ -108,7 +108,7 @@ public class DataTypesTests extends ESTestCase {
         assertNull(compatibleInterval(INTERVAL_MINUTE_TO_SECOND, INTERVAL_MONTH));
     }
 
-    private DataType randomDataTypeNoDate() {
-        return randomValueOtherThan(DataType.DATE, () -> randomFrom(DataType.values()));
+    private DataType randomDataTypeNoDateTime() {
+        return randomValueOtherThan(DataType.DATETIME, () -> randomFrom(DataType.values()));
     }
 }

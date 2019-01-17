@@ -106,7 +106,7 @@ final class SearchResponseMerger {
         List<ShardSearchFailure> failures = new ArrayList<>();
         Map<String, ProfileShardResult> profileResults = new HashMap<>();
         List<InternalAggregations> aggs = new ArrayList<>();
-        Map<ShardId, List<FieldDoc>> shardResults = new TreeMap<>();
+        Map<ShardId, Integer> shards = new TreeMap<>();
         List<TopDocs> topDocsList = new ArrayList<>(searchResponses.size());
         Map<String, List<Suggest.Suggestion>> groupedSuggestions = new HashMap<>();
         Boolean trackTotalHits = null;
@@ -153,11 +153,23 @@ final class SearchResponseMerger {
                 assert trackTotalHits == null || trackTotalHits;
                 trackTotalHits = true;
             }
-            topDocsList.add(searchHitsToTopDocs(searchHits, totalHits, shardResults));
+            topDocsList.add(searchHitsToTopDocs(searchHits, totalHits, shards));
         }
 
         //now that we've gone through all the hits and we collected all the shards they come from, we can assign shardIndex to each shard
-        setShardIndex(shardResults.values());
+        int shardIndex = 0;
+        for (Map.Entry<ShardId, Integer> shard : shards.entrySet()) {
+            shard.setValue(shardIndex++);
+        }
+        //and go through all the scoreDocs from each cluster and set their corresponding shardIndex
+        for (TopDocs topDocs : topDocsList) {
+            for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+                FieldDocAndSearchHit fieldDocAndSearchHit = (FieldDocAndSearchHit) scoreDoc;
+                ShardId shardId = fieldDocAndSearchHit.searchHit.getShard().getShardId();
+                fieldDocAndSearchHit.shardIndex = shards.get(shardId);
+            }
+        }
+
         TopDocs topDocs = SearchPhaseController.mergeTopDocs(topDocsList, size, from);
         SearchHits mergedSearchHits = topDocsToSearchHits(topDocs, Float.isInfinite(maxScore) ? Float.NaN : maxScore, trackTotalHits);
         Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
@@ -202,7 +214,7 @@ final class SearchResponseMerger {
         }
     };
 
-    private static TopDocs searchHitsToTopDocs(SearchHits searchHits, TotalHits totalHits, Map<ShardId, List<FieldDoc>> shardResults) {
+    private static TopDocs searchHitsToTopDocs(SearchHits searchHits, TotalHits totalHits, Map<ShardId, Integer> shards) {
         SearchHit[] hits = searchHits.getHits();
         ScoreDoc[] scoreDocs = new ScoreDoc[hits.length];
         final TopDocs topDocs;
@@ -220,7 +232,8 @@ final class SearchResponseMerger {
 
         for (int i = 0; i < hits.length; i++) {
             SearchHit hit = hits[i];
-            List<FieldDoc> shardHits = shardResults.computeIfAbsent(hit.getShard().getShardId(), shardId -> new ArrayList<>());
+            ShardId shardId = hit.getShard().getShardId();
+            shards.putIfAbsent(shardId, null);
             final SortField[] sortFields = searchHits.getSortFields();
             final Object[] sortValues;
             if (sortFields == null) {
@@ -232,9 +245,7 @@ final class SearchResponseMerger {
                     sortValues = hit.getRawSortValues();
                 }
             }
-            FieldDocAndSearchHit scoreDoc = new FieldDocAndSearchHit(hit.docId(), hit.getScore(), sortValues, hit);
-            scoreDocs[i] = scoreDoc;
-            shardHits.add(scoreDoc);
+            scoreDocs[i] = new FieldDocAndSearchHit(hit.docId(), hit.getScore(), sortValues, hit);
         }
         return topDocs;
     }

@@ -118,10 +118,15 @@ class ClusterConfiguration {
         if (seedNode == node) {
             return null
         }
-        ant.waitfor(maxwait: '40', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond') {
+        ant.waitfor(maxwait: '40', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond',
+                timeoutproperty: "failed.${seedNode.transportPortsFile.path}") {
             resourceexists {
                 file(file: seedNode.transportPortsFile.toString())
             }
+        }
+        if (ant.properties.containsKey("failed.${seedNode.transportPortsFile.path}".toString())) {
+            throw new GradleException("Failed to locate seed node transport file [${seedNode.transportPortsFile}]: " +
+                    "timed out waiting for it to be created after ${waitSeconds} seconds")
         }
         return seedNode.transportUri()
     }

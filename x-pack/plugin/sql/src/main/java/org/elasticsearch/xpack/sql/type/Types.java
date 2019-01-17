@@ -86,7 +86,7 @@ public abstract class Types {
                     boolean normalized = Strings.hasText(textSetting(content.get("normalizer"), null));
                     field = new KeywordEsField(name, properties, docValues, length, normalized);
                     break;
-                case DATE:
+                case DATETIME:
                     Object fmt = content.get("format");
                     if (fmt != null) {
                         field = new DateEsField(name, properties, docValues, Strings.delimitedListToStringArray(fmt.toString(), "||"));

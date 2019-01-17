@@ -388,25 +388,33 @@ class BuildPlugin implements Plugin<Project> {
         return 'JAVA' + version + '_HOME'
     }
 
+    static void checkRequiredJavaVersions(Project project, TaskExecutionGraph taskGraph=null) {
+        Project rootProject = project.rootProject
+        if (taskGraph == null) {
+            taskGraph = rootProject.gradle.taskGraph
+        }
+        List<String> messages = []
+        for (entry in rootProject.requiredJavaVersions) {
+            if (rootProject.javaVersions.get(entry.key) != null) {
+                continue
+            }
+            List<String> tasks = entry.value.findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}" }
+            if (tasks.isEmpty() == false) {
+                messages.add("JAVA${entry.key}_HOME required to run tasks:\n${tasks.join('\n')}")
+            }
+        }
+        if (messages.isEmpty() == false) {
+            throw new GradleException(messages.join('\n'))
+        }
+    }
+
     /** Add a check before gradle execution phase which ensures java home for the given java version is set. */
     static void requireJavaHome(Task task, int version) {
         Project rootProject = task.project.rootProject // use root project for global accounting
         if (rootProject.hasProperty('requiredJavaVersions') == false) {
             rootProject.rootProject.ext.requiredJavaVersions = [:].withDefault{key -> return []}
             rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
-                List<String> messages = []
-                for (entry in rootProject.requiredJavaVersions) {
-                    if (rootProject.javaVersions.get(entry.key) != null) {
-                        continue
-                    }
-                    List<String> tasks = entry.value.findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}" }
-                    if (tasks.isEmpty() == false) {
-                        messages.add("JAVA${entry.key}_HOME required to run tasks:\n${tasks.join('\n')}")
-                    }
-                }
-                if (messages.isEmpty() == false) {
-                    throw new GradleException(messages.join('\n'))
-                }
+                checkRequiredJavaVersions(rootProject, taskGraph)
             }
         }
         rootProject.requiredJavaVersions.get(version).add(task)

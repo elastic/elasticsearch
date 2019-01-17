@@ -24,6 +24,7 @@ import org.elasticsearch.gradle.VersionCollection
 
 import java.nio.charset.StandardCharsets
 
+import static org.elasticsearch.gradle.BuildPlugin.checkRequiredJavaVersions
 import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
 
 /**
@@ -140,24 +141,25 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
         doFirst {
             // Execution time so that the checkouts are available
             List<String> lines = file("${checkoutDir}/.ci/java-versions.properties").readLines()
-            environment(
-                    'JAVA_HOME',
-                    getJavaHome(it, Integer.parseInt(
-                            lines
-                                    .findAll({ it.startsWith("ES_BUILD_JAVA=java") })
-                                    .collect({ it.replace("ES_BUILD_JAVA=java", "").trim() })
-                                    .join("!!")
-                    ))
-            )
-            environment(
-                    'RUNTIME_JAVA_HOME',
-                    getJavaHome(it, Integer.parseInt(
-                            lines
-                                    .findAll({ it.startsWith("ES_RUNTIME_JAVA=java") })
-                                    .collect({ it.replace("ES_RUNTIME_JAVA=java", "").trim() })
-                                    .join("!!")
-                    ))
-            )
+            String javaHome = getJavaHome(it, Integer.parseInt(
+                    lines
+                            .findAll({ it.startsWith("ES_BUILD_JAVA=java") })
+                            .collect({ it.replace("ES_BUILD_JAVA=java", "").trim() })
+                            .join("!!")
+            ))
+            String runtimeJavaHome = getJavaHome(it, Integer.parseInt(
+                    lines
+                            .findAll({ it.startsWith("ES_RUNTIME_JAVA=java") })
+                            .collect({ it.replace("ES_RUNTIME_JAVA=java", "").trim() })
+                            .join("!!")
+            ))
+
+            // But execution time is *after* the TaskExecutionGraph.whenReady
+            // callback in BuildPlugin.requireJavaHome, so check manually here
+            checkRequiredJavaVersions(project)
+
+            environment('JAVA_HOME', javaHome)
+            environment('RUNTIME_JAVA_HOME', runtimeJavaHome)
         }
 
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {

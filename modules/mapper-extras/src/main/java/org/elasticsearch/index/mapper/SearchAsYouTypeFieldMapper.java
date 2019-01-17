@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
 import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
@@ -156,7 +157,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 shingleFieldType.setShingleSize(shingleSize);
                 // we wrap the search and index analyzer with a shingle filter
                 indexWrapper = SearchAsYouTypeAnalyzer.withShingle(analyzer.analyzer(), shingleSize);
-                searchWrapper = SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), maxShingleSize);
+                searchWrapper = SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), shingleSize);
                 shingleFieldType.setIndexAnalyzer(new NamedAnalyzer(analyzer.name(), AnalyzerScope.INDEX, indexWrapper));
                 shingleFieldType.setSearchAnalyzer(new NamedAnalyzer(searchAnalyzer.name(), AnalyzerScope.INDEX, searchWrapper));
                 shingleFieldType.setPrefixFieldType(prefixFieldType);
@@ -258,6 +259,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public PrefixFieldType fieldType() {
+            return (PrefixFieldType) super.fieldType();
+        }
+
+        @Override
         protected void parseCreateField(ParseContext context, List<IndexableField> fields) {
             throw new UnsupportedOperationException();
         }
@@ -274,6 +280,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     static final class ShingleFieldMapper extends FieldMapper {
+
         ShingleFieldMapper(ShingleFieldType fieldType, Settings indexSettings) {
             super(fieldType.name(), fieldType, fieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
         }
@@ -371,7 +378,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                                       List<ShingleFieldMapper> shingleFields) {
         super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), copyTo);
         this.prefixField = prefixField;
-        this.shingleFields = shingleFields;
+        this.shingleFields = unmodifiableList(shingleFields);
         this.maxShingleSize = maxShingleSize;
     }
 
@@ -416,6 +423,18 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     @Override
     public ShingleFieldType fieldType() {
         return (ShingleFieldType) super.fieldType();
+    }
+
+    public int maxShingleSize() {
+        return maxShingleSize;
+    }
+
+    public PrefixFieldMapper prefixField() {
+        return prefixField;
+    }
+
+    public List<ShingleFieldMapper> shingleFields() {
+        return shingleFields;
     }
 
     @Override
@@ -480,7 +499,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             return shingleSize;
         }
 
-        public boolean isIndexPrefixes() {
+        public boolean indexPrefixes() {
             return indexPrefixes;
         }
 
@@ -501,7 +520,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void end() {
+            public void end() throws IOException {
+                super.end();
                 positionIncrementAttribute.setPositionIncrement(numberOfExtraTrailingPositions);
             }
         }

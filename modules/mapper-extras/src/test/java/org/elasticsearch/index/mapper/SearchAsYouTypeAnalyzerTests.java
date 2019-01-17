@@ -57,7 +57,7 @@ public class SearchAsYouTypeAnalyzerTests extends ESTestCase {
                 expectedTokens.add("quick" + spaces(i));
             }
             assertThat("analyzed correctly with [" + shingleSize + "] shingles and ngrams", tokens, equalTo(expectedTokens));
-            logger.error("TOKENS " + tokens);
+            logger.error("TOKENS " + tokens); // todo remove
         }
     }
 

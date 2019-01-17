@@ -177,7 +177,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
     }
 
     public void setPrimaryTerm(long primaryTerm) {
-        this.seqNo = seqNo;
+        this.primaryTerm = primaryTerm;
     }
 
     /** returns the sequence number of the last modification to the document */

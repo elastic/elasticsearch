@@ -53,7 +53,7 @@ public class WatcherIndexTemplateRegistry implements ClusterStateListener {
             TEMPLATE_CONFIG_TRIGGERED_WATCHES, TEMPLATE_CONFIG_WATCH_HISTORY, TEMPLATE_CONFIG_WATCHES
     };
 
-    public static final PolicyConfig POLICY_WATCH_HISTORY = new PolicyConfig("watch-history-policy", "/watch-history-policy.json");
+    public static final PolicyConfig POLICY_WATCH_HISTORY = new PolicyConfig("watch-history-ilm-policy", "/watch-history-ilm-policy.json");
 
     private static final Logger logger = LogManager.getLogger(WatcherIndexTemplateRegistry.class);
 

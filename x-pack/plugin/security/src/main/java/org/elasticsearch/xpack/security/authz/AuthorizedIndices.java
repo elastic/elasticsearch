@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -26,7 +25,7 @@ class AuthorizedIndices {
     private final Role userRoles;
     private List<String> authorizedIndices;
 
-    AuthorizedIndices(User user, Role userRoles, String action, MetaData metaData) {
+    AuthorizedIndices(Role userRoles, String action, MetaData metaData) {
         this.userRoles = userRoles;
         this.action = action;
         this.metaData = metaData;

@@ -289,7 +289,7 @@ public class AuthorizationService {
         }
 
         final MetaData metaData = clusterService.state().metaData();
-        final AuthorizedIndices authorizedIndices = new AuthorizedIndices(authentication.getUser(), permission, action, metaData);
+        final AuthorizedIndices authorizedIndices = new AuthorizedIndices(permission, action, metaData);
         final ResolvedIndices resolvedIndices = resolveIndexNames(auditId, authentication, action, request, metaData,
             authorizedIndices, permission);
         assert !resolvedIndices.isEmpty()

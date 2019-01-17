@@ -23,6 +23,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager.AutodetectWorkerExecutorService;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
@@ -84,6 +86,7 @@ import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
 import static org.elasticsearch.mock.orig.Mockito.when;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -661,6 +664,26 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         verify(auditor).warning("foo", "No model snapshot could be found for a job with processed records");
         verify(auditor).warning("foo", "No quantiles could be found for a job with processed records");
         verifyNoMoreInteractions(auditor);
+    }
+
+    public void testAutodetectWorkerExecutorServiceDoesNotSwallowErrors() {
+        final ThreadPool threadPool = new TestThreadPool("testAutodetectWorkerExecutorServiceDoesNotSwallowErrors");
+        try {
+            final AutodetectWorkerExecutorService executor = new AutodetectWorkerExecutorService(threadPool.getThreadContext());
+            if (randomBoolean()) {
+                executor.submit(() -> {
+                    throw new Error("future error");
+                });
+            } else {
+                executor.execute(() -> {
+                    throw new Error("future error");
+                });
+            }
+            final Error e = expectThrows(Error.class, () -> executor.start());
+            assertThat(e.getMessage(), containsString("future error"));
+        } finally {
+            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
     }
 
     private AutodetectProcessManager createNonSpyManager(String jobId) {

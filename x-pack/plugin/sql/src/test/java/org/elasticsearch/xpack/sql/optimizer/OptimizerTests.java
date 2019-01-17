@@ -330,7 +330,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testConstantFoldingDatetime() {
-        Expression cast = new Cast(EMPTY, Literal.of(EMPTY, "2018-01-19T10:23:27Z"), DataType.DATE);
+        Expression cast = new Cast(EMPTY, Literal.of(EMPTY, "2018-01-19T10:23:27Z"), DataType.DATETIME);
         assertEquals(2018, foldFunction(new Year(EMPTY, cast, UTC)));
         assertEquals(1, foldFunction(new MonthOfYear(EMPTY, cast, UTC)));
         assertEquals(19, foldFunction(new DayOfMonth(EMPTY, cast, UTC)));

@@ -17,6 +17,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -30,18 +31,21 @@ import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
+import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import javax.net.ssl.SNIHostName;
 import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSession;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
@@ -55,6 +59,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
     private final SSLConfiguration sslConfiguration;
     private final Map<String, SSLConfiguration> profileConfiguration;
     private final boolean sslEnabled;
+    private final Map<String, Boolean> warnOnTLSv1;
 
     public SecurityNetty4Transport(
             final Settings settings,
@@ -72,10 +77,24 @@ public class SecurityNetty4Transport extends Netty4Transport {
             this.sslConfiguration = sslService.getSSLConfiguration(setting("transport.ssl."));
             Map<String, SSLConfiguration> profileConfiguration = getTransportProfileConfigurations(settings, sslService, sslConfiguration);
             this.profileConfiguration = Collections.unmodifiableMap(profileConfiguration);
+
+            boolean defaultConfigWarnOnTLSv1 = isUsingDefaultSslProtocols(settings, setting("transport.ssl."));
+            this.warnOnTLSv1 = new HashMap<>();
+            profileConfiguration.keySet().forEach(name -> warnOnTLSv1.put(name,
+                defaultConfigWarnOnTLSv1 && isUsingDefaultSslProtocols(settings, getTransportProfileSslPrefix(name) + ".")));
         } else {
             this.profileConfiguration = Collections.emptyMap();
+            this.warnOnTLSv1 = Collections.emptyMap();
             this.sslConfiguration = null;
         }
+    }
+
+    private String getTransportProfileSslPrefix(String name) {
+        return "transport.profiles." + name + "." + setting("ssl");
+    }
+
+    private boolean isUsingDefaultSslProtocols(Settings settings, String settingPrefix) {
+        return SSLConfigurationSettings.withPrefix(settingPrefix).supportedProtocols.exists(settings) == false;
     }
 
     public static Map<String, SSLConfiguration> getTransportProfileConfigurations(Settings settings, SSLService sslService,
@@ -154,10 +173,12 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
     public class SslChannelInitializer extends ServerChannelInitializer {
         private final SSLConfiguration configuration;
+        private final Consumer<SSLSession> handshakeListener;
 
-        public SslChannelInitializer(String name, SSLConfiguration configuration) {
+        public SslChannelInitializer(String name, SSLConfiguration configuration, Consumer<SSLSession> handshakeListener) {
             super(name);
             this.configuration = configuration;
+            this.handshakeListener = handshakeListener;
         }
 
         @Override
@@ -167,11 +188,33 @@ public class SecurityNetty4Transport extends Netty4Transport {
             serverEngine.setUseClientMode(false);
             final SslHandler sslHandler = new SslHandler(serverEngine);
             ch.pipeline().addFirst("sslhandler", sslHandler);
+            sslHandler.handshakeFuture().addListener(fut -> {
+                SSLSession session = serverEngine.getSession();
+                handshakeListener.accept(session);
+            });
         }
     }
 
     protected ServerChannelInitializer getSslChannelInitializer(final String name, final SSLConfiguration configuration) {
-        return new SslChannelInitializer(name, sslConfiguration);
+        return new SslChannelInitializer(name, sslConfiguration, getSslHandshakeListenerForProfile(name));
+    }
+
+    protected Consumer<SSLSession> getSslHandshakeListenerForProfile(String name) {
+        final Consumer<SSLSession> handshakeListener;
+        if (Boolean.TRUE.equals(warnOnTLSv1.get(name))) {
+            DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+            final String setting = (name.equals(TransportSettings.DEFAULT_PROFILE) ? setting("transport.ssl") :
+                getTransportProfileSslPrefix(name)) + ".supported_protocols";
+            handshakeListener = session -> {
+                if (session.getProtocol().equals("TLSv1")) {
+                    deprecationLogger.deprecated("Detected TLS v1.0 connection on profile [{}]. The TLSv1 protocol will be disabled " +
+                        "by default in a future version. The [{}] setting can be used to control this.", name, setting);
+                }
+            };
+        } else {
+            handshakeListener = session -> { };
+        }
+        return handshakeListener;
     }
 
     private class SecurityClientChannelInitializer extends ClientChannelInitializer {

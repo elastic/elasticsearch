@@ -143,6 +143,7 @@ The following type parameters are deprecated for the `geo_shape` field type: `tr
 `precision`, `tree_levels`, `distance_error_pct`, `points_only`, and `strategy`. They
 will be removed in a future version.
 
+[float]
 [[breaking_66_ml_changes]]
 === Machine learning changes
 

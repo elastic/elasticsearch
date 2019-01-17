@@ -402,18 +402,16 @@ public abstract class MappedFieldType extends FieldType {
     public abstract Query existsQuery(QueryShardContext context);
 
     public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-        throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name
-            + "] which is of type [" + typeName() + "]");
+        throw new IllegalArgumentException("Attempted to build a phrase query with multiple terms against non-text field [" + name + "]");
     }
 
     public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-        throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name
-            + "] which is of type [" + typeName() + "]");
+        throw new IllegalArgumentException("Attempted to build a phrase query with multiple terms against non-text field [" + name + "]");
     }
 
     public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
-        throw new IllegalArgumentException("Can only use phrase prefix queries on text fields - not on [" + name
-            + "] which is of type [" + typeName() + "]");
+        throw new IllegalArgumentException("Attempted to build a phrase prefix query with multiple terms against non-text field [" + name +
+            "]");
     }
 
     public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {

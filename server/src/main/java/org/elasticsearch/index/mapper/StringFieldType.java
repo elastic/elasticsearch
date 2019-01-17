@@ -19,11 +19,16 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
@@ -32,10 +37,13 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /** Base class for {@link MappedFieldType} implementations that use the same
@@ -110,4 +118,100 @@ public abstract class StringFieldType extends TermBasedFieldType {
             upperTerm == null ? null : indexedValueForSearch(upperTerm),
             includeLower, includeUpper);
     }
+
+    @Override
+    public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements) throws IOException {
+
+        PhraseQuery.Builder builder = new PhraseQuery.Builder();
+        builder.setSlop(slop);
+
+        TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
+        PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
+        int position = -1;
+
+        stream.reset();
+        while (stream.incrementToken()) {
+            if (enablePosIncrements) {
+                position += posIncrAtt.getPositionIncrement();
+            }
+            else {
+                position += 1;
+            }
+            builder.add(new Term(name(), termAtt.getBytesRef()), position);
+        }
+
+        return builder.build();
+    }
+
+    @Override
+    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        return createPhraseQuery(stream, name(), slop, enablePositionIncrements);
+    }
+
+    @Override
+    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
+        return createPhrasePrefixQuery(stream, name(), slop, maxExpansions);
+    }
+
+    static Query createPhraseQuery(TokenStream stream, String field, int slop, boolean enablePositionIncrements) throws IOException {
+        MultiPhraseQuery.Builder mpqb = new MultiPhraseQuery.Builder();
+        mpqb.setSlop(slop);
+
+        TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
+
+        PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
+        int position = -1;
+
+        List<Term> multiTerms = new ArrayList<>();
+        stream.reset();
+        while (stream.incrementToken()) {
+            int positionIncrement = posIncrAtt.getPositionIncrement();
+
+            if (positionIncrement > 0 && multiTerms.size() > 0) {
+                if (enablePositionIncrements) {
+                    mpqb.add(multiTerms.toArray(new Term[0]), position);
+                } else {
+                    mpqb.add(multiTerms.toArray(new Term[0]));
+                }
+                multiTerms.clear();
+            }
+            position += positionIncrement;
+            multiTerms.add(new Term(field, termAtt.getBytesRef()));
+        }
+
+        if (enablePositionIncrements) {
+            mpqb.add(multiTerms.toArray(new Term[0]), position);
+        } else {
+            mpqb.add(multiTerms.toArray(new Term[0]));
+        }
+        return mpqb.build();
+    }
+
+    static MultiPhrasePrefixQuery createPhrasePrefixQuery(TokenStream stream, String field,
+                                                          int slop, int maxExpansions) throws IOException {
+        MultiPhrasePrefixQuery builder = new MultiPhrasePrefixQuery(field);
+        builder.setSlop(slop);
+        builder.setMaxExpansions(maxExpansions);
+
+        List<Term> currentTerms = new ArrayList<>();
+
+        TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
+        PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
+
+        stream.reset();
+        int position = -1;
+        while (stream.incrementToken()) {
+            if (posIncrAtt.getPositionIncrement() != 0) {
+                if (currentTerms.isEmpty() == false) {
+                    builder.add(currentTerms.toArray(new Term[0]), position);
+                }
+                position += posIncrAtt.getPositionIncrement();
+                currentTerms.clear();
+            }
+            currentTerms.add(new Term(field, termAtt.getBytesRef()));
+        }
+        builder.add(currentTerms.toArray(new Term[0]), position);
+        return builder;
+    }
+
 }

@@ -663,21 +663,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             spanMulti.setRewriteMethod(method);
             return spanMulti;
         }
-        
-        @Override
-        public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-            return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
-        }
-
-        @Override
-        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-            return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
-        }
-
-        @Override
-        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
-            return TextFieldMapper.createPhrasePrefixQuery(stream, name(), slop, maxExpansions);
-        }
     }
     
     private int positionIncrementGap;

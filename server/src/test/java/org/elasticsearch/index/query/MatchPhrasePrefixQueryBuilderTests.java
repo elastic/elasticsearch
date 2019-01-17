@@ -107,7 +107,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(DATE_FIELD_NAME, "three term phrase");
         matchQuery.analyzer("whitespace");
         matchQuery.doToQuery(createShardContext());
-        assertWarnings("Attempted to build a phrase query with multiple terms against non-text field [" + DATE_FIELD_NAME + "]");
+        assertWarnings("Attempted to build a phrase prefix query with multiple terms against non-text field [" + DATE_FIELD_NAME + "]");
     }
 
     public void testBadAnalyzer() throws IOException {

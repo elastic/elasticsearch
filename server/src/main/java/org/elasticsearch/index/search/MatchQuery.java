@@ -583,12 +583,17 @@ public class MatchQuery {
                     checkForPositions(field);
                 }
                 return fieldType.phrasePrefixQuery(stream, slop, maxExpansions);
-            } catch (IllegalArgumentException | IllegalStateException e) {
+            } catch (IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
                 }
                 throw e;
-            }
+            } catch (IllegalArgumentException e) {
+                if (lenient == false) {
+                    DEPRECATION_LOGGER.deprecated(e.getMessage());
+                }
+            return newLenientFieldQuery(field, e);
+        }
         }
 
         private Query analyzeGraphPhrase(TokenStream source, String field, Type type, int slop) throws IOException {

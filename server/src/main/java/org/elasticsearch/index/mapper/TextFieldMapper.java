@@ -35,7 +35,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -937,66 +936,5 @@ public class TextFieldMapper extends FieldMapper {
         if (fieldType().indexPhrases) {
             builder.field("index_phrases", fieldType().indexPhrases);
         }
-    }
-
-    public static Query createPhraseQuery(TokenStream stream, String field, int slop, boolean enablePositionIncrements) throws IOException {
-        MultiPhraseQuery.Builder mpqb = new MultiPhraseQuery.Builder();
-        mpqb.setSlop(slop);
-
-        TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
-
-        PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
-        int position = -1;
-
-        List<Term> multiTerms = new ArrayList<>();
-        stream.reset();
-        while (stream.incrementToken()) {
-            int positionIncrement = posIncrAtt.getPositionIncrement();
-
-            if (positionIncrement > 0 && multiTerms.size() > 0) {
-                if (enablePositionIncrements) {
-                    mpqb.add(multiTerms.toArray(new Term[0]), position);
-                } else {
-                    mpqb.add(multiTerms.toArray(new Term[0]));
-                }
-                multiTerms.clear();
-            }
-            position += positionIncrement;
-            multiTerms.add(new Term(field, termAtt.getBytesRef()));
-        }
-
-        if (enablePositionIncrements) {
-            mpqb.add(multiTerms.toArray(new Term[0]), position);
-        } else {
-            mpqb.add(multiTerms.toArray(new Term[0]));
-        }
-        return mpqb.build();
-    }
-
-    public static MultiPhrasePrefixQuery createPhrasePrefixQuery(TokenStream stream, String field,
-                                                                 int slop, int maxExpansions) throws IOException {
-        MultiPhrasePrefixQuery builder = new MultiPhrasePrefixQuery(field);
-        builder.setSlop(slop);
-        builder.setMaxExpansions(maxExpansions);
-
-        List<Term> currentTerms = new ArrayList<>();
-
-        TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
-        PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
-
-        stream.reset();
-        int position = -1;
-        while (stream.incrementToken()) {
-            if (posIncrAtt.getPositionIncrement() != 0) {
-                if (currentTerms.isEmpty() == false) {
-                    builder.add(currentTerms.toArray(new Term[0]), position);
-                }
-                position += posIncrAtt.getPositionIncrement();
-                currentTerms.clear();
-            }
-            currentTerms.add(new Term(field, termAtt.getBytesRef()));
-        }
-        builder.add(currentTerms.toArray(new Term[0]), position);
-        return builder;
     }
 }

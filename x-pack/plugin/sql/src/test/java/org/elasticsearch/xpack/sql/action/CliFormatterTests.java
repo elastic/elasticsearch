@@ -14,7 +14,7 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.arrayWithSize;
 
 public class CliFormatterTests extends ESTestCase {
-    private final SqlQueryResponse firstResponse = new SqlQueryResponse("", Mode.PLAIN,
+    private final SqlQueryResponse firstResponse = new SqlQueryResponse("", Mode.CLI,
             Arrays.asList(
                     new ColumnInfo("", "foo", "string", 0),
                     new ColumnInfo("", "bar", "long", 15),

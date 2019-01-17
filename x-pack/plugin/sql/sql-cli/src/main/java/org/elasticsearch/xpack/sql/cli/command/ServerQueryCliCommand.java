@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.sql.action.CliFormatter;
 import org.elasticsearch.xpack.sql.cli.CliTerminal;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.client.JreHttpUrlConnection;
+import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
 
 import java.sql.SQLException;
@@ -46,7 +47,7 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
             }
             if (response != null) {
                 try {
-                    cliClient.queryClose(response.cursor());
+                    cliClient.queryClose(response.cursor(), Mode.CLI);
                 } catch (SQLException ex) {
                     terminal.error("Could not close cursor", ex.getMessage());
                 }

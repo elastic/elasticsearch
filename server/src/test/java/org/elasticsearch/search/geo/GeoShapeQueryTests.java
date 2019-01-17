@@ -395,6 +395,9 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         SearchResponse result = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
         assertSearchResponse(result);
+        assumeTrue("Skipping the check for the polygon with a degenerated dimension until "
+                +" https://issues.apache.org/jira/browse/LUCENE-8634 is fixed",
+            randomPoly.maxLat - randomPoly.minLat > 8.4e-8 &&  randomPoly.maxLon - randomPoly.minLon > 8.4e-8);
         assertHitCount(result, 1);
     }
 

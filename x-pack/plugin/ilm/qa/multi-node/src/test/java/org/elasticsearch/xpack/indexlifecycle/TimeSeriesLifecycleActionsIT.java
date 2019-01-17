@@ -359,6 +359,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         indexDocument();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37541")
     public void testDeleteDuringSnapshot() throws Exception {
         // Create the repository before taking the snapshot.
         Request request = new Request("PUT", "/_snapshot/repo");
@@ -387,11 +388,9 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
         // add policy and expect it to trigger delete immediately (while snapshot in progress)
         updatePolicy(index, policy);
-        // assert that exception was thrown
-        assertBusy(() -> {
-            assertThat(getStepKeyForIndex(index).getName(), equalTo("ERROR"));
-            assertThat(getReasonForIndex(index), startsWith("Cannot delete indices that are being snapshotted"));
-        });
+        // assert that index was deleted
+        assertBusy(() -> assertFalse(indexExists(index)));
+        // assert that snapshot is still in progress and clean up
         assertThat(getSnapshotState("snapshot"), equalTo("IN_PROGRESS"));
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
         ResponseException e = expectThrows(ResponseException.class,
@@ -468,7 +467,9 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         expectThrows(ResponseException.class, this::indexDocument);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37541")
     public void testShrinkDuringSnapshot() throws Exception {
+        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
         // Create the repository before taking the snapshot.
         Request request = new Request("PUT", "/_snapshot/repo");
         request.setJsonEntity(Strings
@@ -496,11 +497,17 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
         // add policy and expect it to trigger delete immediately (while snapshot in progress)
         updatePolicy(index, policy);
-        // assert that exception was thrown
+        // assert that index was shrunk and original index was deleted
         assertBusy(() -> {
-            assertThat(getStepKeyForIndex(index).getName(), equalTo("ERROR"));
-            assertThat(getReasonForIndex(index), startsWith("Cannot delete indices that are being snapshotted"));
+            assertTrue(indexExists(shrunkenIndex));
+            assertTrue(aliasExists(shrunkenIndex, index));
+            Map<String, Object> settings = getOnlyIndexSettings(shrunkenIndex);
+            assertThat(getStepKeyForIndex(shrunkenIndex), equalTo(TerminalPolicyStep.KEY));
+            assertThat(settings.get(IndexMetaData.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(1)));
+            assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
         });
+        expectThrows(ResponseException.class, this::indexDocument);
+        // assert that snapshot is still in progress and clean up
         assertThat(getSnapshotState("snapshot"), equalTo("IN_PROGRESS"));
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
         ResponseException e = expectThrows(ResponseException.class,
@@ -522,6 +529,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37541")
     public void testFreezeDuringSnapshot() throws Exception {
         // Create the repository before taking the snapshot.
         Request request = new Request("PUT", "/_snapshot/repo");
@@ -550,11 +558,15 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
         // add policy and expect it to trigger delete immediately (while snapshot in progress)
         updatePolicy(index, policy);
-        // assert that exception was thrown
+        // assert that the index froze
         assertBusy(() -> {
-            assertThat(getStepKeyForIndex(index).getName(), equalTo("ERROR"));
-            assertThat(getReasonForIndex(index), startsWith("Cannot close indices that are being snapshotted"));
+            Map<String, Object> settings = getOnlyIndexSettings(index);
+            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
+            assertThat(settings.get(IndexSettings.INDEX_SEARCH_THROTTLED.getKey()), equalTo("true"));
+            assertThat(settings.get(FrozenEngine.INDEX_FROZEN.getKey()), equalTo("true"));
         });
+        // assert that snapshot is still in progress and clean up
         assertThat(getSnapshotState("snapshot"), equalTo("IN_PROGRESS"));
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
         ResponseException e = expectThrows(ResponseException.class,

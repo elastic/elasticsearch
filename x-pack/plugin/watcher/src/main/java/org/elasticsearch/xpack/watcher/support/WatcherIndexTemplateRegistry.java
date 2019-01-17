@@ -157,6 +157,8 @@ public class WatcherIndexTemplateRegistry implements ClusterStateListener {
 
             if (needsUpdating) {
                 putPolicy(policyOnDisk, historyPolicyCreationInProgress);
+            } else {
+                historyPolicyCreationInProgress.set(false);
             }
         }
     }

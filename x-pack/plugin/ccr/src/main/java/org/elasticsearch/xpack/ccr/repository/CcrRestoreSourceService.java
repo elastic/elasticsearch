@@ -54,11 +54,10 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
     private final TimeValue sessionIdleTimeout;
 
     public CcrRestoreSourceService(Settings settings, ThreadPool threadPool) {
-        this(settings, threadPool, RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.get(settings));
+        this(threadPool, RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.get(settings));
     }
 
-    CcrRestoreSourceService(Settings settings, ThreadPool threadPool, TimeValue sessionIdleTimeout) {
-        super(settings);
+    CcrRestoreSourceService(ThreadPool threadPool, TimeValue sessionIdleTimeout) {
         this.threadPool = threadPool;
         this.sessionIdleTimeout = sessionIdleTimeout;
     }

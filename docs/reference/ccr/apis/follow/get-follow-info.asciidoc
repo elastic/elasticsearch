@@ -65,7 +65,7 @@ The `indices` array consists of objects containing several fields:
   (string) The name of the follower index
 
 `indices[].remote_cluster`::
-  (string) The <modules-remote-clusters,remote cluster>> that contains the
+  (string) The <<modules-remote-clusters,remote cluster>> that contains the
   leader index
 
 `indices[].leader_index`::

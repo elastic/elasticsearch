@@ -52,7 +52,7 @@ public abstract class UpdateScript {
 
     public UpdateScript(Map<String, Object> params, Map<String, Object> ctx) {
         this.params = params;
-        this.ctx = new DeprecationMap(ctx, DEPRECATIONS);
+        this.ctx = new DeprecationMap(ctx, DEPRECATIONS, "update_script");
     }
 
     /** Return the parameters for this script. */

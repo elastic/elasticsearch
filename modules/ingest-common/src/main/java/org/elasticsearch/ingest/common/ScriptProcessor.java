@@ -85,7 +85,8 @@ public final class ScriptProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument document) {
         IngestScript.Factory factory = scriptService.compile(script, IngestScript.CONTEXT);
-        factory.newInstance(script.getParams()).execute(new DeprecationMap(document.getSourceAndMetadata(), DEPRECATIONS));
+        factory.newInstance(script.getParams()).execute(
+                new DeprecationMap(document.getSourceAndMetadata(), DEPRECATIONS, "script_processor"));
         CollectionUtils.ensureNoSelfReferences(document.getSourceAndMetadata(), "ingest script");
         return document;
     }

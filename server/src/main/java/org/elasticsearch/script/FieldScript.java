@@ -63,7 +63,7 @@ public abstract class FieldScript {
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
         params = new HashMap<>(params);
         params.putAll(leafLookup.asMap());
-        this.params = new DeprecationMap(params, DEPRECATIONS);
+        this.params = new DeprecationMap(params, DEPRECATIONS, "field_script");
     }
 
     // for expression engine

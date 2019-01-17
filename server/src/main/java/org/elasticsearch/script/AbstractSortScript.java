@@ -66,7 +66,7 @@ abstract class AbstractSortScript implements ScorerAware {
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
         Map<String, Object> parameters = new HashMap<>(params);
         parameters.putAll(leafLookup.asMap());
-        this.params = new DeprecationMap(parameters, DEPRECATIONS);
+        this.params = new DeprecationMap(parameters, DEPRECATIONS, "sort_script");
     }
 
     protected AbstractSortScript() {

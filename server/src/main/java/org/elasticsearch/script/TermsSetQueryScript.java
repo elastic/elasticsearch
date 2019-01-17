@@ -64,7 +64,7 @@ public abstract class TermsSetQueryScript {
         Map<String, Object> parameters = new HashMap<>(params);
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
         parameters.putAll(leafLookup.asMap());
-        this.params = new DeprecationMap(parameters, DEPRECATIONS);
+        this.params = new DeprecationMap(parameters, DEPRECATIONS, "term_set_query_script");
     }
 
     protected TermsSetQueryScript() {

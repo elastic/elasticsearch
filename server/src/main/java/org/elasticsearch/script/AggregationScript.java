@@ -71,7 +71,7 @@ public abstract class AggregationScript implements ScorerAware {
     private Object value;
 
     public AggregationScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
-        this.params = new DeprecationMap(new HashMap<>(params), DEPRECATIONS);
+        this.params = new DeprecationMap(new HashMap<>(params), DEPRECATIONS, "aggregation_script");
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
         this.params.putAll(leafLookup.asMap());
     }

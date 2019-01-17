@@ -61,7 +61,7 @@ This API returns the following information:
 `follower_indices`::
   (array) an array of follower index statistics
 
-The `indices` array consists of objects containing two fields:
+The `indices` array consists of objects containing several fields:
 
 `indices[].follower_index`::
   (string) the name of the follower index
@@ -70,7 +70,7 @@ The `indices` array consists of objects containing two fields:
   (string) the <modules-remote-clusters,remote cluster>> containing the leader
   index
 
-`indices[].leader_cluster`::
+`indices[].leader_index`::
   (string) the name of the index in the leader cluster being followed
 
 `indices[].status`::
@@ -86,7 +86,7 @@ The `parameters` contains the following fields:
   cluster
 
 `indices[].parameters.max_outstanding_read_requests`::
-  (long) the configured maximum number of outstanding reads requests from the remote
+  (long) the configured maximum number of outstanding read requests from the remote
   cluster
 
 `indices[].parameters.max_read_request_size`::
@@ -105,7 +105,7 @@ The `parameters` contains the following fields:
   (integer) the configured maximum number of outstanding write requests on the follower
 
 `indices[].parameters.max_write_buffer_count`::
-  (integer) th configurede maximum number of operations that can be queued for writing;
+  (integer) the configured maximum number of operations that can be queued for writing;
   when this limit is reached, reads from the remote cluster will be deferred
   until the number of queued operations goes below the limit
 

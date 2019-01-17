@@ -37,6 +37,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ccr.Ccr;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -397,7 +398,11 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                 if (cause instanceof IllegalStateException && cause.getMessage().contains("Not all operations between from_seqno [")) {
                     String message = "Operations are no longer available for replicating. Maybe increase the retention setting [" +
                         IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey() + "]?";
-                    listener.onFailure(new ElasticsearchException(message, e));
+                    // Make it easy to detect this error in ShardFollowNodeTask:
+                    // (adding a metadata header instead of introducing a new exception that extends ElasticsearchException)
+                    ElasticsearchException wrapper = new ElasticsearchException(message, e);
+                    wrapper.addMetadata(Ccr.FALLEN_BEHIND_LEADER_SHARD_METADATA_KEY);
+                    listener.onFailure(wrapper);
                 } else {
                     listener.onFailure(e);
                 }

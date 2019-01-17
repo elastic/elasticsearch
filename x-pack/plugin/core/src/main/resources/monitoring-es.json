@@ -1028,6 +1028,9 @@
             },
             "time_since_last_read_millis": {
               "type": "long"
+            },
+            "fallen_behind_leader_shard": {
+              "type": "boolean"
             }
           }
         },

@@ -16,12 +16,14 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
 
 import java.util.Collection;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class ShardChangesTests extends ESSingleNodeTestCase {
 
@@ -113,9 +115,12 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         request.setFromSeqNo(0L);
         request.setMaxOperationCount(1);
 
-        Exception e = expectThrows(ElasticsearchException.class, () -> client().execute(ShardChangesAction.INSTANCE, request).actionGet());
+        ElasticsearchException e =
+            expectThrows(ElasticsearchException.class, () -> client().execute(ShardChangesAction.INSTANCE, request).actionGet());
         assertThat(e.getMessage(), equalTo("Operations are no longer available for replicating. Maybe increase the retention setting " +
             "[index.soft_deletes.retention.operations]?"));
+        assertThat(e.getMetadataKeys().size(), equalTo(1));
+        assertThat(e.getMetadata(Ccr.FALLEN_BEHIND_LEADER_SHARD_METADATA_KEY), notNullValue());
     }
 
 }

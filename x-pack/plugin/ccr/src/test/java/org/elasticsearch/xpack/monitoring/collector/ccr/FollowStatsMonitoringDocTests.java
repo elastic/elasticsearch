@@ -110,6 +110,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                         randomNonNegativeLong(),
                         Tuple.tuple(randomIntBetween(0, Integer.MAX_VALUE), new ElasticsearchException("shard is sad"))));
         final long timeSinceLastReadMillis = randomNonNegativeLong();
+        final boolean fallenBehindLeaderShard = randomBoolean();
         final ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
                 "leader_cluster",
                 "leader_index",
@@ -138,7 +139,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                 operationWritten,
                 fetchExceptions,
                 timeSinceLastReadMillis,
-                new ElasticsearchException("fatal error"));
+                new ElasticsearchException("fatal error"),
+                fallenBehindLeaderShard);
         final FollowStatsMonitoringDoc document = new FollowStatsMonitoringDoc("_cluster", timestamp, intervalMillis, node, status);
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         assertThat(
@@ -194,7 +196,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                                                 + "}"
                                         + "],"
                                         + "\"time_since_last_read_millis\":" + timeSinceLastReadMillis + ","
-                                        + "\"fatal_exception\":{\"type\":\"exception\",\"reason\":\"fatal error\"}"
+                                        + "\"fatal_exception\":{\"type\":\"exception\",\"reason\":\"fatal error\"},"
+                                        + "\"fallen_behind_leader_shard\":" + fallenBehindLeaderShard
                                 + "}"
                         + "}"));
     }
@@ -230,7 +233,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             10,
             fetchExceptions,
             2,
-            null);
+            null,
+            false);
         XContentBuilder builder = jsonBuilder();
         builder.value(status);
         Map<String, Object> serializedStatus = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false);
@@ -252,6 +256,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             } else if (fieldValue instanceof String) {
                 assertThat("expected keyword field type for field [" + fieldName + "]", fieldType,
                     anyOf(equalTo("keyword"), equalTo("text")));
+            } else if (fieldValue instanceof Boolean) {
+                assertThat("expected keyword field type for field [" + fieldName + "]", fieldType, equalTo("boolean"));
             } else {
                 // Manual test specific object fields and if not just fail:
                 if (fieldName.equals("read_exceptions")) {

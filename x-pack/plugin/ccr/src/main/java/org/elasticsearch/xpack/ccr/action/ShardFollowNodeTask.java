@@ -30,6 +30,7 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -43,6 +44,7 @@ import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -90,6 +92,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private final LinkedHashMap<Long, Tuple<AtomicInteger, ElasticsearchException>> fetchExceptions;
 
     private volatile ElasticsearchException fatalException;
+    private final AtomicBoolean fallenBehindLeaderShard = new AtomicBoolean(false);
 
     ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
                         ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler, final LongSupplier relativeTimeProvider) {
@@ -274,6 +277,13 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                         failedReadRequests++;
                         fetchExceptions.put(from, Tuple.tuple(retryCounter, ExceptionsHelper.convertToElastic(e)));
                     }
+                    if (e instanceof ElasticsearchException) {
+                        ElasticsearchException elasticsearchException = (ElasticsearchException) e;
+                        if (elasticsearchException.getMetadataKeys().contains(Ccr.FALLEN_BEHIND_LEADER_SHARD_METADATA_KEY)) {
+                            handleFallenBehindLeaderShard(e);
+                            return;
+                        }
+                    }
                     handleFailure(e, retryCounter, () -> sendShardChangesRequest(from, maxOperationCount, maxRequiredSeqNo, retryCounter));
                 });
     }
@@ -288,6 +298,17 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         Runnable updateMappingsTask = () -> maybeUpdateMapping(response.getMappingVersion(), handleResponseTask);
         // 1) update follow index settings:
         maybeUpdateSettings(response.getSettingsVersion(), updateMappingsTask);
+    }
+
+    void handleFallenBehindLeaderShard(Exception e) {
+        if (fallenBehindLeaderShard.compareAndSet(false, true)) {
+            LOGGER.warn(new ParameterizedMessage("{} shard follow task has fallen behind the leader shard {} that it is following",
+                params.getFollowShardId(), params.getLeaderShardId()), e);
+
+            // Do restore from repository here and
+            // after start() should be invoked and
+            // stats should be reset including fallenBehindLeaderShard
+        }
     }
 
     /** Called when some operations are fetched from the leading */
@@ -487,7 +508,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     protected boolean isStopped() {
-        return fatalException != null || isCancelled() || isCompleted();
+        return fallenBehindLeaderShard.get() || fatalException != null || isCancelled() || isCompleted();
     }
 
     public ShardId getFollowShardId() {
@@ -536,7 +557,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                                 .collect(
                                         Collectors.toMap(Map.Entry::getKey, e -> Tuple.tuple(e.getValue().v1().get(), e.getValue().v2())))),
                 timeSinceLastFetchMillis,
-                fatalException);
+                fatalException,
+                fallenBehindLeaderShard.get());
     }
 
 }

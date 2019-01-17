@@ -15,6 +15,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -42,6 +43,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.core.Is.is;
 
 public class ShardFollowNodeTaskTests extends ESTestCase {
 
@@ -283,6 +285,37 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(status.successfulReadRequests(), equalTo(1L));
         // the fetch failure has cleared
         assertThat(status.readExceptions().entrySet(), hasSize(0));
+        assertThat(status.lastRequestedSeqNo(), equalTo(63L));
+        assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));
+    }
+
+    public void testFallenBehindLeaderShard() {
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
+        startTask(task, 63, -1);
+
+        ElasticsearchException exception = new ElasticsearchException("no ops for you");
+        exception.addMetadata(Ccr.FALLEN_BEHIND_LEADER_SHARD_METADATA_KEY);
+        readFailures.add(exception);
+        mappingVersions.add(1L);
+        leaderGlobalCheckpoints.add(63L);
+        maxSeqNos.add(63L);
+        responseSizes.add(64);
+        simulateResponse.set(true);
+        task.coordinateReads();
+
+        assertThat(task.isStopped(), is(true));
+        ShardFollowNodeTaskStatus status = task.getStatus();
+        assertThat(status.fallenBehindLeaderShard(), is(true));
+        assertThat(status.outstandingReadRequests(), equalTo(1));
+        assertThat(status.outstandingWriteRequests(), equalTo(0));
+        assertThat(status.failedReadRequests(), equalTo(1L));
+        assertThat(status.successfulReadRequests(), equalTo(0L));
+        assertThat(status.readExceptions().size(), equalTo(1));
+        assertThat(status.readExceptions().values().iterator().next().v2(), sameInstance(exception));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
         assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));
     }

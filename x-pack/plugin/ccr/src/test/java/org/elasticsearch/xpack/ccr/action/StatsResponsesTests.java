@@ -59,7 +59,8 @@ public class StatsResponsesTests extends AbstractWireSerializingTestCase<FollowS
                 randomNonNegativeLong(),
                 Collections.emptyNavigableMap(),
                 randomLong(),
-                randomBoolean() ? new ElasticsearchException("fatal error") : null);
+                randomBoolean() ? new ElasticsearchException("fatal error") : null,
+                randomBoolean());
             responses.add(new FollowStatsAction.StatsResponse(status));
         }
         return new FollowStatsAction.StatsResponses(Collections.emptyList(), Collections.emptyList(), responses);

@@ -39,10 +39,11 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePolicy> {
-    private static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(UnfollowAction.NAME, RolloverAction.NAME);
-    private static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(UnfollowAction.NAME, AllocateAction.NAME, ForceMergeAction.NAME,
-        ReadOnlyAction.NAME, ShrinkAction.NAME);
-    private static final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(UnfollowAction.NAME, AllocateAction.NAME, FreezeAction.NAME);
+    private static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, RolloverAction.NAME);
+    private static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, AllocateAction.NAME,
+        ForceMergeAction.NAME, ReadOnlyAction.NAME, ShrinkAction.NAME);
+    private static final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, AllocateAction.NAME,
+        FreezeAction.NAME);
     private static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(DeleteAction.NAME);
 
     private String lifecycleName;
@@ -68,6 +69,7 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse)
         ));
         return new NamedXContentRegistry(entries);
@@ -211,6 +213,8 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
                     return ShrinkActionTests.randomInstance();
                 case FreezeAction.NAME:
                     return new FreezeAction();
+                case SetPriorityAction.NAME:
+                    return SetPriorityActionTests.randomInstance();
                 case UnfollowAction.NAME:
                     return new UnfollowAction();
                 default:
@@ -244,6 +248,8 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
                 return ShrinkActionTests.randomInstance();
             case FreezeAction.NAME:
                 return new FreezeAction();
+            case SetPriorityAction.NAME:
+                return SetPriorityActionTests.randomInstance();
             case UnfollowAction.NAME:
                 return new UnfollowAction();
             default:

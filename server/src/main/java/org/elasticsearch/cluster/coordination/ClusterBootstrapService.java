@@ -34,6 +34,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -84,18 +85,16 @@ public class ClusterBootstrapService {
         if (transportService.getLocalNode().isMasterNode() && initialMasterNodes.isEmpty() == false
             && nodes.stream().noneMatch(Coordinator::isZen1Node)) {
 
-            final boolean waitRequirementsPassed;
+            final Optional<Set<DiscoveryNode>> nodesMatchingRequirements;
             try {
-                waitRequirementsPassed = checkWaitRequirements(nodes);
+                nodesMatchingRequirements = getNodesMatchingRequirements(nodes);
             } catch (IllegalStateException e) {
                 logger.warn("bootstrapping cancelled", e);
                 bootstrappingPermitted.set(false);
                 return;
             }
 
-            if (waitRequirementsPassed) {
-                startBootstrap(nodes);
-            }
+            nodesMatchingRequirements.ifPresent(this::startBootstrap);
         }
     }
 
@@ -160,14 +159,14 @@ public class ClusterBootstrapService {
             || discoveryNode.getAddress().getAddress().equals(requirement);
     }
 
-    private boolean checkWaitRequirements(Set<DiscoveryNode> nodes) {
+    private Optional<Set<DiscoveryNode>> getNodesMatchingRequirements(Set<DiscoveryNode> nodes) {
         final Set<DiscoveryNode> selectedNodes = new HashSet<>();
         for (final String requirement : initialMasterNodes) {
             final Set<DiscoveryNode> matchingNodes
                 = nodes.stream().filter(n -> matchesRequirement(n, requirement)).collect(Collectors.toSet());
 
             if (matchingNodes.isEmpty()) {
-                return false;
+                return Optional.empty();
             }
             if (matchingNodes.size() > 1) {
                 throw new IllegalStateException("requirement [" + requirement + "] matches multiple nodes: " + matchingNodes);
@@ -181,6 +180,6 @@ public class ClusterBootstrapService {
             }
         }
 
-        return true;
+        return Optional.of(Collections.unmodifiableSet(selectedNodes));
     }
 }

@@ -48,7 +48,9 @@ import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVE
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class ClusterBootstrapServiceTests extends ESTestCase {
 
@@ -329,4 +331,19 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         clusterBootstrapService.onFoundPeersUpdated();
         deterministicTaskQueue.runAllTasks();
     }
-}
+
+    public void testDoesNotIncludeExtraNodes() {
+        final DiscoveryNode extraNode = newDiscoveryNode("extra-node");
+        final AtomicBoolean bootstrapped = new AtomicBoolean();
+        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(Settings.builder().putList(
+            INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName()).build(),
+            transportService, () -> Stream.of(otherNode1, otherNode2, extraNode).collect(Collectors.toList()), vc -> {
+            assertTrue(bootstrapped.compareAndSet(false, true));
+            assertThat(vc.getNodeIds(), not(hasItem(extraNode.getId())));
+        });
+
+        transportService.start();
+        clusterBootstrapService.onFoundPeersUpdated();
+        deterministicTaskQueue.runAllTasks();
+        assertTrue(bootstrapped.get());
+    }}

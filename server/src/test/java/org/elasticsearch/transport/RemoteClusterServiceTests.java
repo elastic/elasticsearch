@@ -60,6 +60,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -742,7 +743,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         AtomicReference<Exception> failure = new AtomicReference<>();
                         remoteClusterService.collectSearchShards(IndicesOptions.lenientExpandOpen(), null, null, remoteIndicesByCluster,
                                 new LatchedActionListener<>(ActionListener.wrap(response::set, failure::set), latch));
-                        assertTrue(latch.await(1, TimeUnit.SECONDS));
+                        awaitLatch(latch, 5, TimeUnit.SECONDS);
                         assertNull(failure.get());
                         assertNotNull(response.get());
                         Map<String, ClusterSearchShardsResponse> map = response.get();
@@ -761,7 +762,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         remoteClusterService.collectSearchShards(IndicesOptions.lenientExpandOpen(), "index_not_found",
                                 null, remoteIndicesByCluster,
                                 new LatchedActionListener<>(ActionListener.wrap(response::set, failure::set), latch));
-                        assertTrue(latch.await(2, TimeUnit.SECONDS));
+                        awaitLatch(latch, 5, TimeUnit.SECONDS);
                         assertNull(response.get());
                         assertNotNull(failure.get());
                         assertThat(failure.get(), instanceOf(RemoteTransportException.class));
@@ -800,7 +801,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         AtomicReference<Exception> failure = new AtomicReference<>();
                         remoteClusterService.collectSearchShards(IndicesOptions.lenientExpandOpen(), null, null, remoteIndicesByCluster,
                                 new LatchedActionListener<>(ActionListener.wrap(response::set, failure::set), latch));
-                        assertTrue(latch.await(1, TimeUnit.SECONDS));
+                        awaitLatch(latch, 5, TimeUnit.SECONDS);
                         assertNull(response.get());
                         assertNotNull(failure.get());
                         assertThat(failure.get(), instanceOf(RemoteTransportException.class));
@@ -818,7 +819,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         AtomicReference<Exception> failure = new AtomicReference<>();
                         remoteClusterService.collectSearchShards(IndicesOptions.lenientExpandOpen(), null, null, remoteIndicesByCluster,
                                 new LatchedActionListener<>(ActionListener.wrap(response::set, failure::set), latch));
-                        assertTrue(latch.await(1, TimeUnit.SECONDS));
+                        awaitLatch(latch, 5, TimeUnit.SECONDS);
                         assertNull(failure.get());
                         assertNotNull(response.get());
                         Map<String, ClusterSearchShardsResponse> map = response.get();
@@ -837,7 +838,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
                     //give transport service enough time to realize that the node is down, and to notify the connection listeners
                     //so that RemoteClusterConnection is left with no connected nodes, hence it will retry connecting next
-                    assertTrue(disconnectedLatch.await(1, TimeUnit.SECONDS));
+                    assertTrue(disconnectedLatch.await(5, TimeUnit.SECONDS));
 
                     service.clearAllRules();
                     if (randomBoolean()) {
@@ -854,7 +855,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         AtomicReference<Exception> failure = new AtomicReference<>();
                         remoteClusterService.collectSearchShards(IndicesOptions.lenientExpandOpen(), null, null, remoteIndicesByCluster,
                                 new LatchedActionListener<>(ActionListener.wrap(response::set, failure::set), latch));
-                        assertTrue(latch.await(1, TimeUnit.SECONDS));
+                        awaitLatch(latch, 5, TimeUnit.SECONDS);
                         assertNull(failure.get());
                         assertNotNull(response.get());
                         Map<String, ClusterSearchShardsResponse> map = response.get();
@@ -863,7 +864,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                             String clusterAlias = "remote" + i;
                             assertTrue(map.containsKey(clusterAlias));
                             ClusterSearchShardsResponse shardsResponse = map.get(clusterAlias);
-                            assertTrue(shardsResponse != ClusterSearchShardsResponse.EMPTY);
+                            assertNotSame(ClusterSearchShardsResponse.EMPTY, shardsResponse);
                         }
                     }
                     assertEquals(0, service.getConnectionManager().size());

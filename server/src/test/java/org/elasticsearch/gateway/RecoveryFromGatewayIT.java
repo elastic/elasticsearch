@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -374,7 +375,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         logger.info("--> add some metadata and additional template");
         client().admin().indices().preparePutTemplate("template_1")
-            .setTemplate("te*")
+            .setPatterns(Collections.singletonList("te*"))
             .setOrder(0)
             .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("field1").field("type", "text").field("store", true).endObject()

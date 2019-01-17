@@ -6,8 +6,6 @@
 <titleabbrev>Move to step</titleabbrev>
 ++++
 
-beta[]
-
 Triggers execution of a specific step in the lifecycle policy.
 
 ==== Request
@@ -74,7 +72,7 @@ PUT _ilm/policy/my_policy
   }
 }
 
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "index.lifecycle.name": "my_policy"

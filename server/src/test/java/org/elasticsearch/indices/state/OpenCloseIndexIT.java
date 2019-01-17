@@ -21,7 +21,6 @@ package org.elasticsearch.indices.state;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -46,6 +45,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_RE
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE;
+import static org.elasticsearch.indices.state.CloseIndexIT.assertIndexIsClosed;
+import static org.elasticsearch.indices.state.CloseIndexIT.assertIndexIsOpened;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -53,7 +54,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class OpenCloseIndexIT extends ESIntegTestCase {
     public void testSimpleCloseOpen() {
@@ -72,39 +72,11 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertIndexIsOpened("test1");
     }
 
-    public void testSimpleCloseMissingIndex() {
-        Client client = client();
-        Exception e = expectThrows(IndexNotFoundException.class, () ->
-            client.admin().indices().prepareClose("test1").execute().actionGet());
-        assertThat(e.getMessage(), is("no such index [test1]"));
-    }
-
     public void testSimpleOpenMissingIndex() {
         Client client = client();
         Exception e = expectThrows(IndexNotFoundException.class, () ->
             client.admin().indices().prepareOpen("test1").execute().actionGet());
         assertThat(e.getMessage(), is("no such index [test1]"));
-    }
-
-    public void testCloseOneMissingIndex() {
-        Client client = client();
-        createIndex("test1");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
-        Exception e = expectThrows(IndexNotFoundException.class, () ->
-            client.admin().indices().prepareClose("test1", "test2").execute().actionGet());
-        assertThat(e.getMessage(), is("no such index [test2]"));
-    }
-
-    public void testCloseOneMissingIndexIgnoreMissing() {
-        Client client = client();
-        createIndex("test1");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
-        AcknowledgedResponse closeIndexResponse = client.admin().indices().prepareClose("test1", "test2")
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().actionGet();
-        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
-        assertIndexIsClosed("test1");
     }
 
     public void testOpenOneMissingIndex() {
@@ -200,20 +172,6 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertIndexIsOpened("test1", "test2", "test3");
     }
 
-    public void testCloseNoIndex() {
-        Client client = client();
-        Exception e = expectThrows(ActionRequestValidationException.class, () ->
-            client.admin().indices().prepareClose().execute().actionGet());
-        assertThat(e.getMessage(), containsString("index is missing"));
-    }
-
-    public void testCloseNullIndex() {
-        Client client = client();
-        Exception e = expectThrows(ActionRequestValidationException.class, () ->
-            client.admin().indices().prepareClose((String[])null).execute().actionGet());
-        assertThat(e.getMessage(), containsString("index is missing"));
-    }
-
     public void testOpenNoIndex() {
         Client client = client();
         Exception e = expectThrows(ActionRequestValidationException.class, () ->
@@ -239,23 +197,6 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertThat(openIndexResponse1.isAcknowledged(), equalTo(true));
         assertThat(openIndexResponse1.isShardsAcknowledged(), equalTo(true));
         assertIndexIsOpened("test1");
-    }
-
-    public void testCloseAlreadyClosedIndex() {
-        Client client = client();
-        createIndex("test1");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
-
-        //closing the index
-        AcknowledgedResponse closeIndexResponse = client.admin().indices().prepareClose("test1").execute().actionGet();
-        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
-        assertIndexIsClosed("test1");
-
-        //no problem if we try to close an index that's already in close state
-        closeIndexResponse = client.admin().indices().prepareClose("test1").execute().actionGet();
-        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
-        assertIndexIsClosed("test1");
     }
 
     public void testSimpleCloseOpenAlias() {
@@ -315,23 +256,6 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertBusy(() -> assertThat(client.admin().cluster().prepareState().get().getState().metaData().index("test").getState(),
             equalTo(IndexMetaData.State.OPEN)));
         ensureGreen("test");
-    }
-
-    private void assertIndexIsOpened(String... indices) {
-        checkIndexState(IndexMetaData.State.OPEN, indices);
-    }
-
-    private void assertIndexIsClosed(String... indices) {
-        checkIndexState(IndexMetaData.State.CLOSE, indices);
-    }
-
-    private void checkIndexState(IndexMetaData.State expectedState, String... indices) {
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
-        for (String index : indices) {
-            IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().indices().get(index);
-            assertThat(indexMetaData, notNullValue());
-            assertThat(indexMetaData.getState(), equalTo(expectedState));
-        }
     }
 
     public void testOpenCloseWithDocs() throws IOException, ExecutionException, InterruptedException {

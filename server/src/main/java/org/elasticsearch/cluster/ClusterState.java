@@ -69,6 +69,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
+
 /**
  * Represents the current state of the cluster.
  * <p>
@@ -208,6 +210,12 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     public long getVersion() {
         return version();
+    }
+
+    public long getVersionOrMetaDataVersion() {
+        // When following a Zen1 master, the cluster state version is not guaranteed to increase, so instead it is preferable to use the
+        // metadata version to determine the freshest node. However when following a Zen2 master the cluster state version should be used.
+        return term() == ZEN1_BWC_TERM ? metaData().version() : version();
     }
 
     /**

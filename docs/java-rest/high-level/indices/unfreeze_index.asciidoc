@@ -15,7 +15,7 @@ An +{request}+ requires an `index` argument:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> The index to unreeze
+<1> The index to unfreeze
 
 ==== Optional arguments
 The following arguments can optionally be provided:

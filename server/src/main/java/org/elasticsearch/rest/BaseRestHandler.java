@@ -58,6 +58,13 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
 
     private final LongAdder usageCount = new LongAdder();
 
+    /**
+     * Parameter that controls whether certain REST apis should include type names in their requests or responses.
+     * Note: Support for this parameter will be removed after the transition period to typeless APIs.
+     */
+    public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
+    public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
+
     protected BaseRestHandler(Settings settings) {
         // TODO drop settings from ctor
     }
@@ -90,6 +97,10 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
             candidateParams.addAll(request.consumedParams());
             candidateParams.addAll(responseParams());
             throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
+        }
+
+        if (request.hasContent() && request.isContentConsumed() == false) {
+            throw new IllegalArgumentException("request [" + request.method() + " " + request.path() + "] does not support having a body");
         }
 
         usageCount.increment();

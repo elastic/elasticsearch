@@ -42,7 +42,6 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
-import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING;
 
 public class ClusterFormationFailureHelper {
     private static final Logger logger = LogManager.getLogger(ClusterFormationFailureHelper.class);
@@ -118,13 +117,15 @@ public class ClusterFormationFailureHelper {
         private final ClusterState clusterState;
         private final List<TransportAddress> resolvedAddresses;
         private final List<DiscoveryNode> foundPeers;
+        private final long currentTerm;
 
         ClusterFormationState(Settings settings, ClusterState clusterState, List<TransportAddress> resolvedAddresses,
-                              List<DiscoveryNode> foundPeers) {
+                              List<DiscoveryNode> foundPeers, long currentTerm) {
             this.settings = settings;
             this.clusterState = clusterState;
             this.resolvedAddresses = resolvedAddresses;
             this.foundPeers = foundPeers;
+            this.currentTerm = currentTerm;
         }
 
         String getDescription() {
@@ -132,8 +133,9 @@ public class ClusterFormationFailureHelper {
                 = StreamSupport.stream(clusterState.nodes().spliterator(), false).map(DiscoveryNode::toString).collect(Collectors.toList());
 
             final String discoveryWillContinueDescription = String.format(Locale.ROOT,
-                "discovery will continue using %s from hosts providers and %s from last-known cluster state",
-                resolvedAddresses, clusterStateNodes);
+                "discovery will continue using %s from hosts providers and %s from last-known cluster state; " +
+                    "node term %d, last-accepted version %d in term %d",
+                resolvedAddresses, clusterStateNodes, currentTerm, clusterState.version(), clusterState.term());
 
             final String discoveryStateIgnoringQuorum = String.format(Locale.ROOT, "have discovered %s; %s",
                 foundPeers, discoveryWillContinueDescription);
@@ -148,23 +150,13 @@ public class ClusterFormationFailureHelper {
 
                 final String bootstrappingDescription;
 
-                if (INITIAL_MASTER_NODE_COUNT_SETTING.get(Settings.EMPTY).equals(INITIAL_MASTER_NODE_COUNT_SETTING.get(settings))
-                    && INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY).equals(INITIAL_MASTER_NODES_SETTING.get(settings))) {
+                if (INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY).equals(INITIAL_MASTER_NODES_SETTING.get(settings))) {
                     bootstrappingDescription = "[" + INITIAL_MASTER_NODES_SETTING.getKey() + "] is empty on this node";
-                } else if (INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY).equals(INITIAL_MASTER_NODES_SETTING.get(settings))) {
-                    bootstrappingDescription = String.format(Locale.ROOT,
-                        "this node must discover at least [%d] master-eligible nodes to bootstrap a cluster",
-                        INITIAL_MASTER_NODE_COUNT_SETTING.get(settings));
-                } else if (INITIAL_MASTER_NODE_COUNT_SETTING.get(settings) <= INITIAL_MASTER_NODES_SETTING.get(settings).size()) {
+                } else {
                     // TODO update this when we can bootstrap on only a quorum of the initial nodes
                     bootstrappingDescription = String.format(Locale.ROOT,
                         "this node must discover master-eligible nodes %s to bootstrap a cluster",
                         INITIAL_MASTER_NODES_SETTING.get(settings));
-                } else {
-                    // TODO update this when we can bootstrap on only a quorum of the initial nodes
-                    bootstrappingDescription = String.format(Locale.ROOT,
-                        "this node must discover at least [%d] master-eligible nodes, including %s, to bootstrap a cluster",
-                        INITIAL_MASTER_NODE_COUNT_SETTING.get(settings), INITIAL_MASTER_NODES_SETTING.get(settings));
                 }
 
                 return String.format(Locale.ROOT,

@@ -55,7 +55,7 @@ index as follows:
 
 [source,js]
 -----------------------------
-PUT /my_index
+PUT /my_index?include_type_name=true
 {
   "settings": {
     "index.requests.cache.enable": false

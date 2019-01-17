@@ -3,8 +3,6 @@
 [[set-up-lifecycle-policy]]
 == Set up {ilm} policy
 
-beta[]
-
 In order for an index to use an {ilm} policy to manage its lifecycle we must
 first define a lifecycle policy for it to use. The following request creates a
 policy called `my_policy` in Elasticsearch which we can later use to manage our
@@ -49,8 +47,6 @@ To set the policy for an index there are two options:
 [[applying-policy-to-template]]
 === Applying a policy to an index template
 
-beta[]
-
 The `index.lifecycle.name` setting can be set in an index template so that it
 is automatically applied to indexes matching the templates index pattern:
 
@@ -77,7 +73,7 @@ initial index which will be managed by our policy:
 
 [source,js]
 -----------------------
-PUT test-000001
+PUT test-000001?include_type_name=true
 {
   "aliases": {
     "test-alias":{
@@ -95,14 +91,12 @@ create a new index and roll the alias over to use the new index automatically.
 
 === Apply a policy to a create index request
 
-beta[]
-
 The `index.lifecycle.name` setting can be set on an individual create index
 request so {ilm} immediately starts managing the index:
 
 [source,js]
 -----------------------
-PUT test-index
+PUT test-index?include_type_name=true
 {
   "settings": {
     "number_of_shards": 1,

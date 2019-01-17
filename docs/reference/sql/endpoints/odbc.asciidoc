@@ -20,10 +20,8 @@ It is a core level driver, exposing all of the functionality accessible through 
 
 * <<sql-odbc-installation, Driver installation>>
 * <<sql-odbc-setup, Configuration>>
-* <<sql-odbc-applications, ODBC client applications>>
 
 include::odbc/installation.asciidoc[]
 include::odbc/configuration.asciidoc[]
-include::odbc/applications.asciidoc[]
 
 // vim: set noet fenc=utf-8 ff=dos sts=0 sw=4 ts=4 tw=138

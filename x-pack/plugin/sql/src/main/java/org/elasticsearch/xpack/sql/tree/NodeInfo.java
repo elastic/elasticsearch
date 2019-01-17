@@ -77,7 +77,7 @@ public abstract class NodeInfo<T extends Node<?>> {
     }
 
     public static <T extends Node<?>, P1> NodeInfo<T> create(
-            T n, BiFunction<Location, P1, T> ctor,
+            T n, BiFunction<Source, P1, T> ctor,
             P1 p1) {
         return new NodeInfo<T>(n) {
             @Override
@@ -92,7 +92,7 @@ public abstract class NodeInfo<T extends Node<?>> {
                 P1 newP1 = (P1) rule.apply(p1);
                 same &= Objects.equals(p1, newP1);
 
-                return same ? node : ctor.apply(node.location(), newP1);
+                return same ? node : ctor.apply(node.source(), newP1);
             }
         };
     }
@@ -116,12 +116,12 @@ public abstract class NodeInfo<T extends Node<?>> {
                 P2 newP2 = (P2) rule.apply(p2);
                 same &= Objects.equals(p2, newP2);
 
-                return same ? node : ctor.apply(node.location(), newP1, newP2);
+                return same ? node : ctor.apply(node.source(), newP1, newP2);
             }
         };
     }
     public interface NodeCtor2<P1, P2, T> {
-        T apply(Location l, P1 p1, P2 p2);
+        T apply(Source l, P1 p1, P2 p2);
     }
 
     public static <T extends Node<?>, P1, P2, P3> NodeInfo<T> create(
@@ -146,12 +146,12 @@ public abstract class NodeInfo<T extends Node<?>> {
                 P3 newP3 = (P3) rule.apply(p3);
                 same &= Objects.equals(p3, newP3);
 
-                return same ? node : ctor.apply(node.location(), newP1, newP2, newP3);
+                return same ? node : ctor.apply(node.source(), newP1, newP2, newP3);
             }
         };
     }
     public interface NodeCtor3<P1, P2, P3, T> {
-        T apply(Location l, P1 p1, P2 p2, P3 p3);
+        T apply(Source l, P1 p1, P2 p2, P3 p3);
     }
 
     public static <T extends Node<?>, P1, P2, P3, P4> NodeInfo<T> create(
@@ -179,12 +179,12 @@ public abstract class NodeInfo<T extends Node<?>> {
                 P4 newP4 = (P4) rule.apply(p4);
                 same &= Objects.equals(p4, newP4);
 
-                return same ? node : ctor.apply(node.location(), newP1, newP2, newP3, newP4);
+                return same ? node : ctor.apply(node.source(), newP1, newP2, newP3, newP4);
             }
         };
     }
     public interface NodeCtor4<P1, P2, P3, P4, T> {
-        T apply(Location l, P1 p1, P2 p2, P3 p3, P4 p4);
+        T apply(Source l, P1 p1, P2 p2, P3 p3, P4 p4);
     }
 
     public static <T extends Node<?>, P1, P2, P3, P4, P5> NodeInfo<T> create(
@@ -215,12 +215,12 @@ public abstract class NodeInfo<T extends Node<?>> {
                 P5 newP5 = (P5) rule.apply(p5);
                 same &= Objects.equals(p5, newP5);
 
-                return same ? node : ctor.apply(node.location(), newP1, newP2, newP3, newP4, newP5);
+                return same ? node : ctor.apply(node.source(), newP1, newP2, newP3, newP4, newP5);
             }
         };
     }
     public interface NodeCtor5<P1, P2, P3, P4, P5, T> {
-        T apply(Location l, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5);
+        T apply(Source l, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5);
     }
 
     public static <T extends Node<?>, P1, P2, P3, P4, P5, P6> NodeInfo<T> create(
@@ -254,12 +254,12 @@ public abstract class NodeInfo<T extends Node<?>> {
                 P6 newP6 = (P6) rule.apply(p6);
                 same &= Objects.equals(p6, newP6);
 
-                return same ? node : ctor.apply(node.location(), newP1, newP2, newP3, newP4, newP5, newP6);
+                return same ? node : ctor.apply(node.source(), newP1, newP2, newP3, newP4, newP5, newP6);
             }
         };
     }
     public interface NodeCtor6<P1, P2, P3, P4, P5, P6, T> {
-        T apply(Location l, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6);
+        T apply(Source l, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6);
     }
 
     public static <T extends Node<?>, P1, P2, P3, P4, P5, P6, P7> NodeInfo<T> create(
@@ -296,12 +296,12 @@ public abstract class NodeInfo<T extends Node<?>> {
                 P7 newP7 = (P7) rule.apply(p7);
                 same &= Objects.equals(p7, newP7);
 
-                return same ? node : ctor.apply(node.location(), newP1, newP2, newP3, newP4, newP5, newP6, newP7);
+                return same ? node : ctor.apply(node.source(), newP1, newP2, newP3, newP4, newP5, newP6, newP7);
             }
         };
     }
     public interface NodeCtor7<P1, P2, P3, P4, P5, P6, P7, T> {
-        T apply(Location l, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7);
+        T apply(Source l, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7);
     }
 
     public static <T extends Node<?>, P1, P2, P3, P4, P5, P6, P7, P8> NodeInfo<T> create(
@@ -341,12 +341,12 @@ public abstract class NodeInfo<T extends Node<?>> {
                 P8 newP8 = (P8) rule.apply(p8);
                 same &= Objects.equals(p8, newP8);
 
-                return same ? node : ctor.apply(node.location(), newP1, newP2, newP3, newP4, newP5, newP6, newP7, newP8);
+                return same ? node : ctor.apply(node.source(), newP1, newP2, newP3, newP4, newP5, newP6, newP7, newP8);
             }
         };
     }
     public interface NodeCtor8<P1, P2, P3, P4, P5, P6, P7, P8, T> {
-        T apply(Location l, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8);
+        T apply(Source l, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8);
     }
 
     public static <T extends Node<?>, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10> NodeInfo<T> create(
@@ -392,12 +392,12 @@ public abstract class NodeInfo<T extends Node<?>> {
                 P10 newP10 = (P10) rule.apply(p10);
                 same &= Objects.equals(p10, newP10);
 
-                return same ? node : ctor.apply(node.location(), newP1, newP2, newP3, newP4, newP5, newP6, newP7, newP8,
+                return same ? node : ctor.apply(node.source(), newP1, newP2, newP3, newP4, newP5, newP6, newP7, newP8,
                         newP9, newP10);
             }
         };
     }
     public interface NodeCtor10<P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, T> {
-        T apply(Location l, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8, P9 p9, P10 p10);
+        T apply(Source l, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8, P9 p9, P10 p10);
     }
 }

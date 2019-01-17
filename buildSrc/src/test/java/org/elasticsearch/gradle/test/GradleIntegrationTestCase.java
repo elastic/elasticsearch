@@ -43,7 +43,7 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         if (index.equals(index.stream().sorted().collect(Collectors.toList())) == false) {
             fail("Expected the following lines to appear in this order:\n" +
                 Stream.of(lines).map(line -> "   - `" + line + "`").collect(Collectors.joining("\n")) +
-                "\nBut they did not. Output is:\n\n```" + output + "\n```\n"
+                "\nTBut the order was different. Output is:\n\n```" + output + "\n```\n"
             );
         }
     }

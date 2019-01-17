@@ -48,6 +48,7 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -407,8 +408,8 @@ public final class SearchPhaseController {
      * Reduces the given query results and consumes all aggregations and profile results.
      * @param queryResults a list of non-null query shard results
      */
-    public ReducedQueryPhase reducedScrollQueryPhase(Collection<? extends SearchPhaseResult> queryResults) {
-        return reducedQueryPhase(queryResults, true, true);
+    ReducedQueryPhase reducedScrollQueryPhase(Collection<? extends SearchPhaseResult> queryResults) {
+        return reducedQueryPhase(queryResults, true, SearchContext.TRACK_TOTAL_HITS_ACCURATE, true);
     }
 
     /**
@@ -416,8 +417,9 @@ public final class SearchPhaseController {
      * @param queryResults a list of non-null query shard results
      */
     public ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults,
-                                               boolean isScrollRequest, boolean trackTotalHits) {
-        return reducedQueryPhase(queryResults, null, new ArrayList<>(), new TopDocsStats(trackTotalHits), 0, isScrollRequest);
+                                               boolean isScrollRequest, int trackTotalHitsUpTo, boolean performFinalReduce) {
+        return reducedQueryPhase(queryResults, null, new ArrayList<>(), new TopDocsStats(trackTotalHitsUpTo),
+            0, isScrollRequest, performFinalReduce);
     }
 
     /**
@@ -433,7 +435,8 @@ public final class SearchPhaseController {
      */
     private ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults,
                                                 List<InternalAggregations> bufferedAggs, List<TopDocs> bufferedTopDocs,
-                                                TopDocsStats topDocsStats, int numReducePhases, boolean isScrollRequest) {
+                                                TopDocsStats topDocsStats, int numReducePhases, boolean isScrollRequest,
+                                                boolean performFinalReduce) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
         boolean timedOut = false;
@@ -499,7 +502,7 @@ public final class SearchPhaseController {
             }
         }
         final Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
-        ReduceContext reduceContext = reduceContextFunction.apply(true);
+        ReduceContext reduceContext = reduceContextFunction.apply(performFinalReduce);
         final InternalAggregations aggregations = aggregationsList.isEmpty() ? null : reduceAggs(aggregationsList,
             firstResult.pipelineAggregators(), reduceContext);
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
@@ -507,7 +510,7 @@ public final class SearchPhaseController {
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.maxScore,
             timedOut, terminatedEarly, suggest, aggregations, shardResults, sortedTopDocs,
-            firstResult.sortValueFormats(), numReducePhases, size, from, firstResult == null);
+            firstResult.sortValueFormats(), numReducePhases, size, from, false);
     }
 
     /**
@@ -616,7 +619,8 @@ public final class SearchPhaseController {
         private int index;
         private final SearchPhaseController controller;
         private int numReducePhases = 0;
-        private final TopDocsStats topDocsStats = new TopDocsStats();
+        private final TopDocsStats topDocsStats;
+        private final boolean performFinalReduce;
 
         /**
          * Creates a new {@link QueryPhaseResultConsumer}
@@ -626,7 +630,7 @@ public final class SearchPhaseController {
          *                   the buffer is used to incrementally reduce aggregation results before all shards responded.
          */
         private QueryPhaseResultConsumer(SearchPhaseController controller, int expectedResultSize, int bufferSize,
-                                         boolean hasTopDocs, boolean hasAggs) {
+                                         boolean hasTopDocs, boolean hasAggs, int trackTotalHitsUpTo, boolean performFinalReduce) {
             super(expectedResultSize);
             if (expectedResultSize != 1 && bufferSize < 2) {
                 throw new IllegalArgumentException("buffer size must be >= 2 if there is more than one expected result");
@@ -644,6 +648,8 @@ public final class SearchPhaseController {
             this.hasTopDocs = hasTopDocs;
             this.hasAggs = hasAggs;
             this.bufferSize = bufferSize;
+            this.topDocsStats = new TopDocsStats(trackTotalHitsUpTo);
+            this.performFinalReduce = performFinalReduce;
         }
 
         @Override
@@ -693,7 +699,7 @@ public final class SearchPhaseController {
         @Override
         public ReducedQueryPhase reduce() {
             return controller.reducedQueryPhase(results.asList(), getRemainingAggs(), getRemainingTopDocs(), topDocsStats,
-                numReducePhases, false);
+                numReducePhases, false, performFinalReduce);
         }
 
         /**
@@ -714,46 +720,65 @@ public final class SearchPhaseController {
         boolean isScrollRequest = request.scroll() != null;
         final boolean hasAggs = source != null && source.aggregations() != null;
         final boolean hasTopDocs = source == null || source.size() != 0;
-        final boolean trackTotalHits = source == null || source.trackTotalHits();
+        final int trackTotalHitsUpTo = source == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : source.trackTotalHitsUpTo();
+        final boolean finalReduce = request.getLocalClusterAlias() == null;
 
         if (isScrollRequest == false && (hasAggs || hasTopDocs)) {
             // no incremental reduce if scroll is used - we only hit a single shard or sometimes more...
             if (request.getBatchedReduceSize() < numShards) {
                 // only use this if there are aggs and if there are more shards than we should reduce at once
-                return new QueryPhaseResultConsumer(this, numShards, request.getBatchedReduceSize(), hasTopDocs, hasAggs);
+                return new QueryPhaseResultConsumer(this, numShards, request.getBatchedReduceSize(), hasTopDocs, hasAggs,
+                    trackTotalHitsUpTo, finalReduce);
             }
         }
         return new InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult>(numShards) {
             @Override
             ReducedQueryPhase reduce() {
-                return reducedQueryPhase(results.asList(), isScrollRequest, trackTotalHits);
+                return reducedQueryPhase(results.asList(), isScrollRequest, trackTotalHitsUpTo, finalReduce);
             }
         };
     }
 
     static final class TopDocsStats {
-        final boolean trackTotalHits;
+        final int trackTotalHitsUpTo;
         private long totalHits;
         private TotalHits.Relation totalHitsRelation;
         long fetchHits;
         float maxScore = Float.NEGATIVE_INFINITY;
 
         TopDocsStats() {
-            this(true);
+            this(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
         }
 
-        TopDocsStats(boolean trackTotalHits) {
-            this.trackTotalHits = trackTotalHits;
+        TopDocsStats(int trackTotalHitsUpTo) {
+            this.trackTotalHitsUpTo = trackTotalHitsUpTo;
             this.totalHits = 0;
-            this.totalHitsRelation = trackTotalHits ? Relation.EQUAL_TO : Relation.GREATER_THAN_OR_EQUAL_TO;
+            this.totalHitsRelation = Relation.EQUAL_TO;
         }
 
         TotalHits getTotalHits() {
-            return trackTotalHits ? new TotalHits(totalHits, totalHitsRelation) : null;
+            if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+                return null;
+            } else if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
+                assert totalHitsRelation == Relation.EQUAL_TO;
+                return new TotalHits(totalHits, totalHitsRelation);
+            } else {
+                if (totalHits < trackTotalHitsUpTo) {
+                    return new TotalHits(totalHits, totalHitsRelation);
+                } else {
+                    /**
+                     * The user requested to count the total hits up to <code>trackTotalHitsUpTo</code>
+                     * so we return this lower bound when the total hits is greater than this value.
+                     * This can happen when multiple shards are merged since the limit to track total hits
+                     * is applied per shard.
+                     */
+                    return new TotalHits(trackTotalHitsUpTo, Relation.GREATER_THAN_OR_EQUAL_TO);
+                }
+            }
         }
 
         void add(TopDocsAndMaxScore topDocs) {
-            if (trackTotalHits) {
+            if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 totalHits += topDocs.topDocs.totalHits.value;
                 if (topDocs.topDocs.totalHits.relation == Relation.GREATER_THAN_OR_EQUAL_TO) {
                     totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;

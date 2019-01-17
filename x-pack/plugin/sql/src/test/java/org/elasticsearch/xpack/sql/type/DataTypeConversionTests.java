@@ -9,15 +9,16 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion.Conversion;
 
 import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
-import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
 import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.sql.type.DataType.BYTE;
-import static org.elasticsearch.xpack.sql.type.DataType.DATE;
+import static org.elasticsearch.xpack.sql.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.sql.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.sql.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.sql.type.DataType.INTEGER;
@@ -40,7 +41,7 @@ public class DataTypeConversionTests extends ESTestCase {
         assertNull(conversion.convert(null));
         assertEquals("10.0", conversion.convert(10.0));
 
-        conversion = conversionFor(DATE, KEYWORD);
+        conversion = conversionFor(DATETIME, KEYWORD);
         assertNull(conversion.convert(null));
         assertEquals("1970-01-01T00:00:00.000Z", conversion.convert(dateTime(0)));
     }
@@ -79,8 +80,8 @@ public class DataTypeConversionTests extends ESTestCase {
         assertEquals("cannot cast [0xff] to [Long]", e.getMessage());
     }
 
-    public void testConversionToDate() {
-        DataType to = DATE;
+    public void testConversionToDateTime() {
+        DataType to = DATETIME;
         {
             Conversion conversion = conversionFor(DOUBLE, to);
             assertNull(conversion.convert(null));
@@ -111,8 +112,8 @@ public class DataTypeConversionTests extends ESTestCase {
         
         // double check back and forth conversion
         ZonedDateTime dt = TestUtils.now();
-        Conversion forward = conversionFor(DATE, KEYWORD);
-        Conversion back = conversionFor(KEYWORD, DATE);
+        Conversion forward = conversionFor(DATETIME, KEYWORD);
+        Conversion back = conversionFor(KEYWORD, DATETIME);
         assertEquals(dt, back.convert(forward.convert(dt)));
         Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("0xff"));
         assertEquals("cannot cast [0xff] to [Date]:Invalid format: \"0xff\" is malformed at \"xff\"", e.getMessage());
@@ -291,9 +292,10 @@ public class DataTypeConversionTests extends ESTestCase {
     }
 
     public void testIpToString() {
+        Source s = new Source(Location.EMPTY, "10.0.0.1");
         Conversion ipToString = conversionFor(IP, KEYWORD);
-        assertEquals("10.0.0.1", ipToString.convert(new Literal(EMPTY, "10.0.0.1", IP)));
+        assertEquals("10.0.0.1", ipToString.convert(new Literal(s, "10.0.0.1", IP)));
         Conversion stringToIp = conversionFor(KEYWORD, IP);
-        assertEquals("10.0.0.1", ipToString.convert(stringToIp.convert(Literal.of(EMPTY, "10.0.0.1"))));
+        assertEquals("10.0.0.1", ipToString.convert(stringToIp.convert(Literal.of(s, "10.0.0.1"))));
     }
 }

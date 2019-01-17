@@ -124,7 +124,7 @@ Then create an analyzer as follows:
 
 [source,js]
 --------------------------------------------------
-PUT kuromoji_sample
+PUT kuromoji_sample?include_type_name=true
 {
   "settings": {
     "index": {
@@ -186,7 +186,7 @@ BaseFormAttribute. This acts as a lemmatizer for verbs and adjectives. Example:
 
 [source,js]
 --------------------------------------------------
-PUT kuromoji_sample
+PUT kuromoji_sample?include_type_name=true
 {
   "settings": {
     "index": {
@@ -243,7 +243,7 @@ For example:
 
 [source,js]
 --------------------------------------------------
-PUT kuromoji_sample
+PUT kuromoji_sample?include_type_name=true
 {
   "settings": {
     "index": {
@@ -317,7 +317,7 @@ katakana reading form:
 
 [source,js]
 --------------------------------------------------
-PUT kuromoji_sample
+PUT kuromoji_sample?include_type_name=true
 {
     "settings": {
         "index":{
@@ -381,7 +381,7 @@ This token filter accepts the following setting:
 
 [source,js]
 --------------------------------------------------
-PUT kuromoji_sample
+PUT kuromoji_sample?include_type_name=true
 {
   "settings": {
     "index": {
@@ -434,7 +434,7 @@ predefined list, then use the
 
 [source,js]
 --------------------------------------------------
-PUT kuromoji_sample
+PUT kuromoji_sample?include_type_name=true
 {
   "settings": {
     "index": {
@@ -493,7 +493,7 @@ to regular Arabic decimal numbers in half-width characters. For example:
 
 [source,js]
 --------------------------------------------------
-PUT kuromoji_sample
+PUT kuromoji_sample?include_type_name=true
 {
   "settings": {
     "index": {

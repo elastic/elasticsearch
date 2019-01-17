@@ -73,11 +73,6 @@ You must create a job before you create a {dfeed}.  You can associate only one
   (unsigned integer) The `size` parameter that is used in {es} searches.
   The default value is `1000`.
 
-`types`::
-  (array) A list of types to search for within the specified indices.
-  For example: `[]`. This property is provided for backwards compatibility with
-  releases earlier than 6.0.0. For more information, see <<removal-of-types>>.
-
 `delayed_data_check_config`::
   (object) Specifies if and with how large a window should the data feed check
   for missing data. See <<ml-datafeed-delayed-data-check-config>>.
@@ -125,7 +120,6 @@ When the {dfeed} is created, you receive the following results:
   "indices": [
     "server-metrics"
   ],
-  "types": [],
   "query": {
     "match_all": {
       "boost": 1.0

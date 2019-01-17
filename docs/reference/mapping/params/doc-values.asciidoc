@@ -23,7 +23,7 @@ value from a script, you can disable doc values in order to save disk space:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {

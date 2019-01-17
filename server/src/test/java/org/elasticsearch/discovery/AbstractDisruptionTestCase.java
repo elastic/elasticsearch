@@ -172,8 +172,8 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
             assertNull("node [" + node + "] still has [" + nodes.getMasterNode() + "] as master", nodes.getMasterNode());
             if (expectedBlocks != null) {
                 for (ClusterBlockLevel level : expectedBlocks.levels()) {
-                    assertTrue("node [" + node + "] does have level [" + level + "] in it's blocks", state.getBlocks().hasGlobalBlock
-                            (level));
+                    assertTrue("node [" + node + "] does have level [" + level + "] in it's blocks",
+                        state.getBlocks().hasGlobalBlockWithLevel(level));
                 }
             }
         }, maxWaitTime.getMillis(), TimeUnit.MILLISECONDS);

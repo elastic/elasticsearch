@@ -26,7 +26,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -35,6 +34,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -61,8 +61,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
 
         logger.info("--> closing test index...");
-        AcknowledgedResponse closeIndexResponse = client().admin().indices().prepareClose("test").get();
-        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
+        assertAcked(client().admin().indices().prepareClose("test"));
 
         stateResponse = client().admin().cluster().prepareState().get();
         assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.CLOSE));
@@ -103,7 +102,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         assertThat(health.isTimedOut(), equalTo(false));
         assertThat(health.getStatus(), equalTo(ClusterHealthStatus.RED));
 
-        client().admin().indices().prepareClose("test").get();
+        assertAcked(client().admin().indices().prepareClose("test"));
 
         logger.info("--> updating test index settings to allow allocation");
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()

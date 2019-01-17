@@ -139,7 +139,13 @@ public class AutoFollowIT extends CcrIntegTestCase {
             assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo((long) expectedVal1));
         });
 
+        // Delete auto follow pattern and make sure that in the background the auto follower has stopped
+        // then the leader index created after that should never be auto followed:
         deleteAutoFollowPatternSetting();
+        assertBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getAutoFollowedClusters().size(), equalTo(0));
+        });
         createLeaderIndex("logs-does-not-count", leaderIndexSettings);
 
         putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
@@ -151,15 +157,20 @@ public class AutoFollowIT extends CcrIntegTestCase {
         int expectedVal2 = numIndices;
 
         MetaData[] metaData = new MetaData[1];
+        AutoFollowStats[] autoFollowStats = new AutoFollowStats[1];
         try {
             assertBusy(() -> {
                 metaData[0] = followerClient().admin().cluster().prepareState().get().getState().metaData();
+                autoFollowStats[0] = getAutoFollowStats();
                 int count = (int) Arrays.stream(metaData[0].getConcreteAllIndices()).filter(s -> s.startsWith("copy-")).count();
                 assertThat(count, equalTo(expectedVal2));
+                // Ensure that there are no auto follow errors:
+                // (added specifically to see that there are no leader indices auto followed multiple times)
+                assertThat(autoFollowStats[0].getRecentAutoFollowErrors().size(), equalTo(0));
             });
         } catch (AssertionError ae) {
             logger.warn("metadata={}", Strings.toString(metaData[0]));
-            logger.warn("auto follow stats={}", Strings.toString(getAutoFollowStats()));
+            logger.warn("auto follow stats={}", Strings.toString(autoFollowStats[0]));
             throw ae;
         }
     }

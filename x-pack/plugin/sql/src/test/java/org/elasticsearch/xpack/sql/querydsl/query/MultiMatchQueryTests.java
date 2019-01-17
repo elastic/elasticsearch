@@ -9,7 +9,8 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,23 +35,23 @@ public class MultiMatchQueryTests extends ESTestCase {
     }
 
     private static MultiMatchQueryBuilder getBuilder(String options) {
-        final Location location = new Location(1, 1);
-        final MultiMatchQueryPredicate mmqp = new MultiMatchQueryPredicate(location, "foo,bar", "eggplant", options);
+        final Source source = new Source(1, 1, StringUtils.EMPTY);
+        final MultiMatchQueryPredicate mmqp = new MultiMatchQueryPredicate(source, "foo,bar", "eggplant", options);
         final Map<String, Float> fields = new HashMap<>();
         fields.put("foo", 1.0f);
         fields.put("bar", 1.0f);
-        final MultiMatchQuery mmq = new MultiMatchQuery(location, "eggplant", fields, mmqp);
+        final MultiMatchQuery mmq = new MultiMatchQuery(source, "eggplant", fields, mmqp);
         return (MultiMatchQueryBuilder) mmq.asBuilder();
     }
 
     public void testToString() {
-        final Location location = new Location(1, 1);
-        final MultiMatchQueryPredicate mmqp = new MultiMatchQueryPredicate(location, "foo,bar", "eggplant", "");
+        final Source source = new Source(1, 1, StringUtils.EMPTY);
+        final MultiMatchQueryPredicate mmqp = new MultiMatchQueryPredicate(source, "foo,bar", "eggplant", "");
         // Use a TreeMap so we get the fields in a predictable order.
         final Map<String, Float> fields = new TreeMap<>();
         fields.put("foo", 1.0f);
         fields.put("bar", 1.0f);
-        final MultiMatchQuery mmq = new MultiMatchQuery(location, "eggplant", fields, mmqp);
+        final MultiMatchQuery mmq = new MultiMatchQuery(source, "eggplant", fields, mmqp);
         assertEquals("MultiMatchQuery@1:2[{bar=1.0, foo=1.0}:eggplant]", mmq.toString());
     }
 }

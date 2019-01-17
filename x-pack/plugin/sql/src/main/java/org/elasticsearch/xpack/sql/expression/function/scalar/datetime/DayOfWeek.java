@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
 import java.time.ZoneId;
@@ -17,8 +17,8 @@ import java.time.ZoneId;
  */
 public class DayOfWeek extends NonIsoDateTimeFunction {
     
-    public DayOfWeek(Location location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, NonIsoDateTimeExtractor.DAY_OF_WEEK);
+    public DayOfWeek(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, NonIsoDateTimeExtractor.DAY_OF_WEEK);
     }
 
     @Override
@@ -28,6 +28,6 @@ public class DayOfWeek extends NonIsoDateTimeFunction {
 
     @Override
     protected DayOfWeek replaceChild(Expression newChild) {
-        return new DayOfWeek(location(), newChild, zoneId());
+        return new DayOfWeek(source(), newChild, zoneId());
     }
 }

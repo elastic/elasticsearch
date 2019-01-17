@@ -160,7 +160,7 @@ security option and is the recommended setting for production deployments.
 +
 * Certificate File
 +
-In case the server uses a certificate that is not part of the PKI, for example usaing a self-signed certificate, you can configure the path to a X.509 certificate file that will be used by the driver to validate server's offered certificate.
+In case the server uses a certificate that is not part of the PKI, for example using a self-signed certificate, you can configure the path to a X.509 certificate file that will be used by the driver to validate server's offered certificate.
 +
 The driver will only read the contents of the file just before a connection is attempted. See <<connection_testing>> section further on how to check the validity of the provided parameters.
 +

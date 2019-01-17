@@ -346,6 +346,10 @@ public final class InternalSqlScriptUtils {
     }
 
     public static ZonedDateTime asDateTime(Object dateTime) {
+        return (ZonedDateTime) asDateTime(dateTime, false);
+    }
+    
+    private static Object asDateTime(Object dateTime, boolean lenient) {
         if (dateTime == null) {
             return null;
         }
@@ -355,11 +359,14 @@ public final class InternalSqlScriptUtils {
         if (dateTime instanceof ZonedDateTime) {
             return (ZonedDateTime) dateTime;
         }
-        if (dateTime instanceof Number) {
-            return DateUtils.of(((Number) dateTime).longValue());
+        if (false == lenient) {
+            if (dateTime instanceof Number) {
+                return DateUtils.of(((Number) dateTime).longValue());
+            }
+    
+            throw new SqlIllegalArgumentException("Invalid date encountered [{}]", dateTime);
         }
-
-        throw new SqlIllegalArgumentException("Invalid date encountered [{}]", dateTime);
+        return dateTime;
     }
     
     public static IntervalDayTime intervalDayTime(String text, String typeName) {
@@ -468,6 +475,8 @@ public final class InternalSqlScriptUtils {
     // Casting
     //
     public static Object cast(Object value, String typeName) {
-        return DataTypeConversion.convert(value, DataType.fromTypeName(typeName));
+        // we call asDateTime here to make sure we handle JodaCompatibleZonedDateTime properly,
+        // since casting works for ZonedDateTime objects only
+        return DataTypeConversion.convert(asDateTime(value, true), DataType.fromTypeName(typeName));
     }
 }

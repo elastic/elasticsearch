@@ -35,7 +35,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -457,12 +456,8 @@ public class NodeEnvironmentTests extends ESTestCase {
             }
         }
         NodeEnvironment env = newNodeEnvironment(paths, Settings.EMPTY);
-        try {
-            env.ensureAtomicMoveSupported();
-        } catch (AtomicMoveNotSupportedException e) {
-            // that's OK :)
-        }
         env.close();
+
         // check we clean up
         for (String path: paths) {
             final Path nodePath = NodeEnvironment.resolveNodePath(PathUtils.get(path), 0);

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Foldables;
+import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.function.Function;
@@ -146,7 +147,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                 QueryContainer clone = new QueryContainer(queryC.query(), queryC.aggs(), queryC.columns(), aliases,
                         queryC.pseudoFunctions(), processors, queryC.sort(), queryC.limit());
-                return new EsQueryExec(exec.location(), exec.index(), project.output(), clone);
+                return new EsQueryExec(exec.source(), exec.index(), project.output(), clone);
             }
             return project;
         }
@@ -164,7 +165,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                 Query query = null;
                 if (qContainer.query() != null || qt.query != null) {
-                    query = and(plan.location(), qContainer.query(), qt.query);
+                    query = and(plan.source(), qContainer.query(), qt.query);
                 }
                 Aggs aggs = addPipelineAggs(qContainer, qt, plan);
 
@@ -283,7 +284,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 if (matchingGroup != null) {
                                     if (exp instanceof Attribute || exp instanceof ScalarFunction || exp instanceof GroupingFunction) {
                                         Processor action = null;
-                                        ZoneId zi = DataType.DATE == exp.dataType() ? DateUtils.UTC : null;
+                                        ZoneId zi = DataType.DATETIME == exp.dataType() ? DateUtils.UTC : null;
                                         /*
                                          * special handling of dates since aggs return the typed Date object which needs
                                          * extraction instead of handling this in the scroller, the folder handles this
@@ -293,7 +294,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                             action = ((UnaryPipe) p).action();
                                             zi = ((DateTimeFunction) exp).zoneId();
                                         }
-                                        return new AggPathInput(exp.location(), exp, new GroupByRef(matchingGroup.id(), null, zi), action);
+                                        return new AggPathInput(exp.source(), exp, new GroupByRef(matchingGroup.id(), null, zi), action);
                                     }
                                 }
                                 // or found an aggregate expression (which has to work on an attribute used for grouping)
@@ -334,7 +335,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 // check if the field is a date - if so mark it as such to interpret the long as a date
                                 // UTC is used since that's what the server uses and there's no conversion applied
                                 // (like for date histograms)
-                                ZoneId zi = DataType.DATE == child.dataType() ? DateUtils.UTC : null;
+                                ZoneId zi = DataType.DATETIME == child.dataType() ? DateUtils.UTC : null;
                                 queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, zi));
                             }
                             // handle histogram
@@ -358,7 +359,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             matchingGroup = groupingContext.groupFor(ne);
                             Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(ne));
 
-                            ZoneId zi = DataType.DATE == ne.dataType() ? DateUtils.UTC : null;
+                            ZoneId zi = DataType.DATETIME == ne.dataType() ? DateUtils.UTC : null;
                             queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, zi));
                         }
                     }
@@ -369,7 +370,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     newAliases.putAll(aliases);
                     queryC = queryC.withAliases(newAliases);
                 }
-                return new EsQueryExec(exec.location(), exec.index(), a.output(), queryC);
+                return new EsQueryExec(exec.source(), exec.index(), a.output(), queryC);
             }
             return a;
         }
@@ -380,7 +381,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             // handle count as a special case agg
             if (f instanceof Count) {
                 Count c = (Count) f;
-                if (!c.distinct()) {
+                // COUNT(*) or COUNT(<literal>)
+                if (c.field() instanceof Literal) {
                     AggRef ref = groupingAgg == null ?
                             GlobalCountRef.INSTANCE :
                             new GroupByRef(groupingAgg.id(), Property.COUNT, null);
@@ -388,7 +390,14 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     Map<String, GroupByKey> pseudoFunctions = new LinkedHashMap<>(queryC.pseudoFunctions());
                     pseudoFunctions.put(functionId, groupingAgg);
                     return new Tuple<>(queryC.withPseudoFunctions(pseudoFunctions), new AggPathInput(f, ref));
+                // COUNT(<field_name>)
+                } else if (!c.distinct()) {
+                    LeafAgg leafAgg = toAgg(functionId, f);
+                    AggPathInput a = new AggPathInput(f, new MetricAggRef(leafAgg.id(), "doc_count", "_count"));
+                    queryC = queryC.with(queryC.aggs().addAgg(leafAgg));
+                    return new Tuple<>(queryC, a);
                 }
+                // the only variant left - COUNT(DISTINCT) - will be covered by the else branch below
             }
 
             AggPathInput aggInput = null;
@@ -530,7 +539,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 PhysicalPlan p = plan.children().get(0);
                 if (p instanceof LocalExec) {
                     if (((LocalExec) p).isEmpty()) {
-                        return new LocalExec(plan.location(), new EmptyExecutable(plan.output()));
+                        return new LocalExec(plan.source(), new EmptyExecutable(plan.output()));
                     } else {
                         throw new SqlIllegalArgumentException("Encountered a bug; {} is a LocalExec but is not empty", p);
                     }

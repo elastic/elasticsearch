@@ -31,20 +31,6 @@ import static org.hamcrest.core.Is.is;
 
 public class GetDiscoveredNodesRequestTests extends ESTestCase {
 
-    public void testWaitForNodesValidation() {
-        final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-        assertThat("default value is 1", getDiscoveredNodesRequest.getWaitForNodes(), is(1));
-
-        final int newWaitForNodes = randomIntBetween(1, 10);
-        getDiscoveredNodesRequest.setWaitForNodes(newWaitForNodes);
-        assertThat("value updated", getDiscoveredNodesRequest.getWaitForNodes(), is(newWaitForNodes));
-
-        final IllegalArgumentException exception
-            = expectThrows(IllegalArgumentException.class, () -> getDiscoveredNodesRequest.setWaitForNodes(randomIntBetween(-10, 0)));
-        assertThat(exception.getMessage(), startsWith("always finds at least one node, waiting for "));
-        assertThat(exception.getMessage(), endsWith(" is not allowed"));
-    }
-
     public void testTimeoutValidation() {
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
         assertThat("default value is 30s", getDiscoveredNodesRequest.getTimeout(), is(TimeValue.timeValueSeconds(30)));
@@ -66,10 +52,6 @@ public class GetDiscoveredNodesRequestTests extends ESTestCase {
         final GetDiscoveredNodesRequest originalRequest = new GetDiscoveredNodesRequest();
 
         if (randomBoolean()) {
-            originalRequest.setWaitForNodes(randomIntBetween(1, 10));
-        }
-
-        if (randomBoolean()) {
             originalRequest.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
         } else if (randomBoolean()) {
             originalRequest.setTimeout(null);
@@ -77,7 +59,6 @@ public class GetDiscoveredNodesRequestTests extends ESTestCase {
 
         final GetDiscoveredNodesRequest deserialized = copyWriteable(originalRequest, writableRegistry(), GetDiscoveredNodesRequest::new);
 
-        assertThat(deserialized.getWaitForNodes(), equalTo(originalRequest.getWaitForNodes()));
         assertThat(deserialized.getTimeout(), equalTo(originalRequest.getTimeout()));
     }
 }

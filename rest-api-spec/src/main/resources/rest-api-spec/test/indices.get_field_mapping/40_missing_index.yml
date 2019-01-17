@@ -4,8 +4,8 @@
   - do:
       catch: missing
       indices.get_field_mapping:
+        include_type_name: false
         index: test_index
-        type: type
         fields: field
 
 

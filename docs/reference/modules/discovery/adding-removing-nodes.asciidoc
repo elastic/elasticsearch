@@ -12,6 +12,7 @@ cluster, and to scale the cluster up and down by adding and removing
 master-ineligible nodes only. However there are situations in which it may be
 desirable to add or remove some master-eligible nodes to or from a cluster.
 
+[[modules-discovery-adding-nodes]]
 ==== Adding master-eligible nodes
 
 If you wish to add some nodes to your cluster, simply configure the new nodes
@@ -24,6 +25,7 @@ cluster. You can use the `cluster.join.timeout` setting to configure how long a
 node waits after sending a request to join a cluster. Its default value is `30s`.
 See <<modules-discovery-settings>>.
 
+[[modules-discovery-removing-nodes]]
 ==== Removing master-eligible nodes
 
 When removing master-eligible nodes, it is important not to remove too many all
@@ -50,7 +52,7 @@ will never automatically move a node on the voting exclusions list back into the
 voting configuration. Once an excluded node has been successfully
 auto-reconfigured out of the voting configuration, it is safe to shut it down
 without affecting the cluster's master-level availability. A node can be added
-to the voting configuration exclusion list using the following API:
+to the voting configuration exclusion list using the <<voting-config-exclusions>> API. For example:
 
 [source,js]
 --------------------------------------------------

@@ -100,6 +100,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         request.setFollowIndexNamePattern("copy-{{leader_index}}");
         request.setReadPollTimeout(TimeValue.timeValueMillis(10));
         assertTrue(client().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
+        long previousNumberOfSuccessfulFollowedIndices = getAutoFollowStats().getNumberOfSuccessfulFollowIndices();
 
         Settings leaderIndexSettings = Settings.builder()
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
@@ -110,7 +111,8 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         client().prepareIndex("logs-20200101", "doc").setSource("{}", XContentType.JSON).get();
         assertBusy(() -> {
             CcrStatsAction.Response response = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet();
-            assertThat(response.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+            assertThat(response.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(),
+                equalTo(previousNumberOfSuccessfulFollowedIndices + 1));
             assertThat(response.getFollowStats().getStatsResponses().size(), equalTo(1));
             assertThat(response.getFollowStats().getStatsResponses().get(0).status().followerGlobalCheckpoint(), equalTo(0L));
         });
@@ -126,7 +128,8 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         client().prepareIndex("logs-20200101", "doc").setSource("{}", XContentType.JSON).get();
         assertBusy(() -> {
             CcrStatsAction.Response response = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet();
-            assertThat(response.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(), equalTo(2L));
+            assertThat(response.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(),
+                equalTo(previousNumberOfSuccessfulFollowedIndices + 2));
 
             FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
             statsRequest.setIndices(new String[]{"copy-logs-20200101"});

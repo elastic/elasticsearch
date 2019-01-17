@@ -87,7 +87,7 @@ To demonstrate, try out the example below.  First, create an index, specifying t
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {

@@ -149,6 +149,12 @@ public class HttpRequestTests extends ESTestCase {
         }
     }
 
+    public void testToStringDoesNotContainAuthorizationheader() {
+        HttpRequest request = HttpRequest.builder("localhost", 443).setHeader("Authorization", "Bearer Foo").build();
+        assertThat(request.toString(), not(containsString("Bearer Foo")));
+        assertThat(request.toString(), containsString("Authorization: " + WatcherXContentParser.REDACTED_PASSWORD));
+    }
+
     private void assertThatManualBuilderEqualsParsingFromUrl(String url, HttpRequest.Builder builder) throws Exception {
         XContentBuilder urlContentBuilder = jsonBuilder().startObject().field("url", url).endObject();
         XContentParser urlContentParser = createParser(urlContentBuilder);

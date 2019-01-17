@@ -328,7 +328,17 @@ public final class ThreadContext implements Closeable, Writeable {
      * @param uniqueValue the function that produces de-duplication values
      */
     public void addResponseHeader(final String key, final String value, final Function<String, String> uniqueValue) {
-        threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize));
+        /*
+         * Updating the thread local is expensive due to a shared reference that we synchronize on, so we should only do it if the thread
+         * context struct changed. It will not change if we de-duplicate this value to an existing one, or if we don't add a new one because
+         * we have reached capacity.
+         */
+        final ThreadContextStruct current = threadLocal.get();
+        final ThreadContextStruct maybeNext =
+                current.putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize);
+        if (current != maybeNext) {
+            threadLocal.set(maybeNext);
+        }
     }
 
     /**

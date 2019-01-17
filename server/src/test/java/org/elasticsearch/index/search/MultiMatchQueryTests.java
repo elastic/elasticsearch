@@ -173,19 +173,6 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         assertEquals(expected, actual);
     }
 
-    public void testBlendTermsUnsupportedValueWithoutLenient() {
-        FakeFieldType ft = new FakeFieldType() {
-            @Override
-            public Query termQuery(Object value, QueryShardContext context) {
-                throw new IllegalArgumentException();
-            }
-        };
-        ft.setName("bar");
-        expectThrows(IllegalArgumentException.class, () -> MultiMatchQuery.blendTerm(
-            indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null),
-            new BytesRef("baz"), null, 1f, false, Arrays.asList(new FieldAndBoost(ft, 1))));
-    }
-
     public void testBlendNoTermQuery() {
         FakeFieldType ft1 = new FakeFieldType();
         ft1.setName("foo");

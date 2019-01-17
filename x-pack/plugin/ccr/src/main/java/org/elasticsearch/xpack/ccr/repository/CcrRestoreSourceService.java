@@ -156,7 +156,6 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                     return;
                 }
             }
-            closeSessionListeners.forEach(c -> c.accept(sessionUUID));
             HashSet<String> sessions = sessionsForShard.get(restore.indexShard);
             assert sessions != null : "No session UUIDs for shard even though one [" + sessionUUID + "] is active in ongoing restores";
             if (sessions != null) {
@@ -167,6 +166,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 }
             }
         }
+        closeSessionListeners.forEach(c -> c.accept(sessionUUID));
         restore.decRef();
 
     }

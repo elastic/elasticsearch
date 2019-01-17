@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -21,17 +21,20 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.LockSupport;
+
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 
 public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
     private CcrRestoreSourceService restoreSourceService;
+    private DeterministicTaskQueue taskQueue;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        restoreSourceService = new CcrRestoreSourceService(Settings.EMPTY, threadPool);
+        Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
+        taskQueue = new DeterministicTaskQueue(settings, random());
+        restoreSourceService = new CcrRestoreSourceService(settings, taskQueue.getThreadPool());
     }
 
     public void testOpenSession() throws IOException {
@@ -88,6 +91,8 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
             // Would throw exception if missing
         }
 
+        assertTrue(taskQueue.hasDeferredTasks());
+
         restoreSourceService.closeSession(sessionUUID1);
         expectThrows(IllegalArgumentException.class, () -> restoreSourceService.getSessionReader(sessionUUID1));
 
@@ -96,6 +101,10 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
         restoreSourceService.closeSession(sessionUUID3);
         expectThrows(IllegalArgumentException.class, () -> restoreSourceService.getSessionReader(sessionUUID3));
+
+        taskQueue.runAllTasks();
+        // The tasks will not be rescheduled as the sessions are closed.
+        assertFalse(taskQueue.hasDeferredTasks());
 
         closeShards(indexShard1, indexShard2);
     }
@@ -190,20 +199,40 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
     }
 
     public void testSessionCanTimeout() throws Exception {
-        restoreSourceService = new CcrRestoreSourceService(Settings.EMPTY, threadPool, new TimeValue(10, TimeUnit.MILLISECONDS));
         IndexShard indexShard = newStartedShard(true);
 
         final String sessionUUID = UUIDs.randomBase64UUID();
 
-        assertBusy(() -> {
-            restoreSourceService.openSession(sessionUUID, indexShard);
-            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
-            try (CcrRestoreSourceService.SessionReader reader = restoreSourceService.getSessionReader(sessionUUID)) {
-                fail("Should have timed out.");
-            } catch (IllegalArgumentException e) {
-                // This is fine we want the session to be missing
-            }
-        });
+        restoreSourceService.openSession(sessionUUID, indexShard);
+
+        // Session starts as not idle. First task will mark it as idle
+        assertTrue(taskQueue.hasDeferredTasks());
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+        // Task is still scheduled
+        assertTrue(taskQueue.hasDeferredTasks());
+
+        // Accessing session marks it as not-idle
+        try (CcrRestoreSourceService.SessionReader reader = restoreSourceService.getSessionReader(sessionUUID)) {
+            // Check session exists
+        }
+
+        assertTrue(taskQueue.hasDeferredTasks());
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+        // Task is still scheduled
+        assertTrue(taskQueue.hasDeferredTasks());
+
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+        // Task is cancelled when the session times out
+        assertFalse(taskQueue.hasDeferredTasks());
+
+        try (CcrRestoreSourceService.SessionReader reader = restoreSourceService.getSessionReader(sessionUUID)) {
+            fail("Should have timed out.");
+        } catch (IllegalArgumentException e) {
+            // This is fine we want the session to be missing
+        }
 
         closeShards(indexShard);
     }

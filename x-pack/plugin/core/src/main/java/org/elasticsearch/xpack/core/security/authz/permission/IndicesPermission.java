@@ -42,7 +42,7 @@ import static java.util.Collections.unmodifiableSet;
  * A permission that is based on privileges for index related actions executed
  * on specific indices
  */
-public final class IndicesPermission implements Iterable<IndicesPermission.Group> {
+public final class IndicesPermission {
 
     public static final IndicesPermission NONE = new IndicesPermission();
 
@@ -95,11 +95,6 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
             }
             throw new ElasticsearchSecurityException("The set of permitted index patterns [{}] is too complex to evaluate", e, description);
         }
-    }
-
-    @Override
-    public Iterator<Group> iterator() {
-        return Arrays.asList(groups).iterator();
     }
 
     public Group[] groups() {
@@ -226,8 +221,8 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
         private final FieldPermissions fieldPermissions;
         private final Set<BytesReference> query;
         // by default certain restricted indices are exempted when granting privileges, as they should generally be hidden for ordinary
-        // users. Setting this flag eliminates this special status, and any index name pattern in the permission will cover restricted
-        // indices as well.
+        // users. Setting this flag true eliminates the special status for the purpose of this permission - restricted indices still have
+        // to be covered by the the "indices"
         private final boolean allowRestrictedIndices;
 
         public Group(IndexPrivilege privilege, FieldPermissions fieldPermissions, @Nullable Set<BytesReference> query,

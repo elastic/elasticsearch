@@ -29,7 +29,7 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        restoreSourceService = new CcrRestoreSourceService(Settings.EMPTY);
+        restoreSourceService = new CcrRestoreSourceService();
     }
 
     public void testOpenSession() throws IOException {

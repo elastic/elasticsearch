@@ -44,11 +44,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.is;
 
 public class ApiKeyServiceTests extends ESTestCase {
 
@@ -111,6 +111,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         creatorMap.put("principal", "test_user");
         creatorMap.put("metadata", Collections.emptyMap());
         sourceMap.put("creator", creatorMap);
+        sourceMap.put("api_key_invalidated", false);
 
         ApiKeyService.ApiKeyCredentials creds =
             new ApiKeyService.ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
@@ -147,6 +148,14 @@ public class ApiKeyServiceTests extends ESTestCase {
         result = future.get();
         assertNotNull(result);
         assertFalse(result.isAuthenticated());
+        
+        sourceMap.put("api_key_invalidated", true);
+        creds = new ApiKeyService.ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(randomAlphaOfLength(15).toCharArray()));
+        future = new PlainActionFuture<>();
+        ApiKeyService.validateApiKeyCredentials(sourceMap, creds, Clock.systemUTC(), future);
+        result = future.get();
+        assertNotNull(result);
+        assertFalse(result.isAuthenticated());
     }
 
     public void testGetRolesForApiKeyNotInContext() throws Exception {
@@ -165,7 +174,6 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final Authentication authentication = new Authentication(new User("joe"), new RealmRef("apikey", "apikey", "node"), null,
             Version.CURRENT, AuthenticationType.API_KEY, authMetadata);
-        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         ApiKeyService service = new ApiKeyService(Settings.EMPTY, Clock.systemUTC(), null, null,
             ClusterServiceUtils.createClusterService(threadPool));
         CompositeRolesStore rolesStore = mock(CompositeRolesStore.class);
@@ -187,4 +195,5 @@ public class ApiKeyServiceTests extends ESTestCase {
         Role role = roleFuture.get();
         assertThat(role.names(), arrayContaining("superuser"));
     }
+
 }

@@ -51,6 +51,7 @@ public class DiscoverySettings {
     /**
      * sets the timeout for receiving enough acks for a specific cluster state and committing it. failing
      * to receive responses within this window will cause the cluster state change to be rejected.
+     * negative values are treated like 0.
      */
     public static final Setting<TimeValue> COMMIT_TIMEOUT_SETTING =
         new Setting<>("discovery.zen.commit_timeout", (s) -> PUBLISH_TIMEOUT_SETTING.getRaw(s),

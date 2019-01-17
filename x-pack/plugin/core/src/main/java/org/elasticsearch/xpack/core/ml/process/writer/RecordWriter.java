@@ -10,7 +10,7 @@ import java.util.List;
 
 /**
  * Interface for classes that write arrays of strings to the
- * Ml analytics processes.
+ * Ml dataframe processes.
  */
 public interface RecordWriter {
     /**

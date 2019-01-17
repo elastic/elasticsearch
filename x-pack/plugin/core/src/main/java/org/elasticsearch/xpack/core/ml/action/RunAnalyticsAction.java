@@ -23,7 +23,7 @@ import java.util.Objects;
 public class RunAnalyticsAction extends Action<AcknowledgedResponse> {
 
     public static final RunAnalyticsAction INSTANCE = new RunAnalyticsAction();
-    public static final String NAME = "cluster:admin/xpack/ml/analytics/run";
+    public static final String NAME = "cluster:admin/xpack/ml/dataframe/run";
 
     private RunAnalyticsAction() {
         super(NAME);

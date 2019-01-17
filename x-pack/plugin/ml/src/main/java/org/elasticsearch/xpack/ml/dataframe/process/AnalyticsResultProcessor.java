@@ -14,7 +14,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameDataExtractor;
+import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -76,12 +76,12 @@ public class AnalyticsResultProcessor {
                         currentDataFrameRows = null;
                     }
                 } catch (Exception e) {
-                    LOGGER.warn("Error processing analytics result", e);
+                    LOGGER.warn("Error processing dataframe result", e);
                 }
 
             }
         } catch (Exception e) {
-            LOGGER.error("Error parsing analytics output", e);
+            LOGGER.error("Error parsing dataframe output", e);
         } finally {
             completionLatch.countDown();
             process.consumeAndCloseOutputStream();

@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -85,5 +86,9 @@ public class ExceptionsHelper {
             throw new IllegalArgumentException("[" + paramName + "] must not be null.");
         }
         return obj;
+    }
+
+    public static <T> T requireNonNull(T obj, ParseField paramName) {
+        return requireNonNull(obj, paramName.getPreferredName());
     }
 }

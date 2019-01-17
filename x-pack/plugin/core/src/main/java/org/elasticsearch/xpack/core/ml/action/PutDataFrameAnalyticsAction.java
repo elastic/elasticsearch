@@ -1,0 +1,107 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.xpack.core.ml.action;
+
+import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+
+import java.io.IOException;
+import java.util.Objects;
+
+public class PutDataFrameAnalyticsAction extends Action<PutDataFrameAnalyticsAction.Response> {
+
+    public static final PutDataFrameAnalyticsAction INSTANCE = new PutDataFrameAnalyticsAction();
+    public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/put";
+
+    private PutDataFrameAnalyticsAction() {
+        super(NAME);
+    }
+
+    @Override
+    public Response newResponse() {
+        return new Response();
+    }
+
+    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
+
+        public static Request parseRequest(String id, XContentParser parser) {
+            DataFrameAnalyticsConfig.Builder config = DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null);
+            if (config.getId() == null) {
+                config.setId(id);
+            } else if (!Strings.isNullOrEmpty(id) && !id.equals(config.getId())) {
+                // If we have both URI and body ID, they must be identical
+                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, DataFrameAnalyticsConfig.ID,
+                    config.getId(), id));
+            }
+
+            return new PutDataFrameAnalyticsAction.Request(config.build());
+        }
+
+        private DataFrameAnalyticsConfig config;
+
+        public Request() {}
+
+        public Request(DataFrameAnalyticsConfig config) {
+            this.config = config;
+        }
+
+        public DataFrameAnalyticsConfig getConfig() {
+            return config;
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            config.toXContent(builder, params);
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            PutDataFrameAnalyticsAction.Request request = (PutDataFrameAnalyticsAction.Request) o;
+            return Objects.equals(config, request.config);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(config);
+        }
+    }
+
+    public static class Response extends AcknowledgedResponse {
+        public Response() {
+            super();
+        }
+
+        public Response(boolean acknowledged) {
+            super(acknowledged);
+        }
+    }
+
+    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
+
+        protected RequestBuilder(ElasticsearchClient client, PutDataFrameAnalyticsAction action) {
+            super(client, action, new Request());
+        }
+    }
+
+}

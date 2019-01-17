@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.dataframe;
+package org.elasticsearch.xpack.ml.dataframe.extractor;
 
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;

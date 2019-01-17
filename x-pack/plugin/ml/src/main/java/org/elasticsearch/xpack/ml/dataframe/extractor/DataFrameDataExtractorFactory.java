@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.dataframe;
+package org.elasticsearch.xpack.ml.dataframe.extractor;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -65,7 +65,7 @@ public class DataFrameDataExtractorFactory {
 
     public DataFrameDataExtractor newExtractor(boolean includeSource) {
         DataFrameDataExtractorContext context = new DataFrameDataExtractorContext(
-                "ml-analytics-" + index,
+                "ml-dataframe-" + index,
                 extractedFields,
                 Arrays.asList(index),
                 QueryBuilders.matchAllQuery(),

@@ -935,7 +935,8 @@ public final class InternalTestCluster extends TestCluster {
             }
             if (minMasterNodes >= 0) {
                 assert DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(newSettings.build()) == false : "min master nodes is auto managed";
-                newSettings.put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes).build();
+                newSettings.put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes);
+                newSettings.putList(INITIAL_MASTER_NODES_SETTING.getKey());
             }
             // delete data folders now, before we start other nodes that may claim it
             clearDataIfNeeded(callback);

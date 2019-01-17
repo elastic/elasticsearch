@@ -12,7 +12,7 @@ import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.sql.type.DataType.BYTE;
-import static org.elasticsearch.xpack.sql.type.DataType.DATE;
+import static org.elasticsearch.xpack.sql.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.sql.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.sql.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.sql.type.DataType.INTEGER;
@@ -68,7 +68,7 @@ public final class DataTypes {
             return SHORT;
         }
         if (value instanceof ZonedDateTime) {
-            return DATE;
+            return DATETIME;
         }
         if (value instanceof String || value instanceof Character) {
             return KEYWORD;
@@ -166,7 +166,7 @@ public final class DataTypes {
     // https://docs.microsoft.com/en-us/sql/relational-databases/native-client-odbc-date-time/metadata-catalog
     // https://github.com/elastic/elasticsearch/issues/30386
     public static Integer metaSqlDataType(DataType t) {
-        if (t == DATE) {
+        if (t == DATETIME) {
             // ODBC SQL_DATETME
             return Integer.valueOf(9);
         }
@@ -177,7 +177,7 @@ public final class DataTypes {
     // https://github.com/elastic/elasticsearch/issues/30386
     // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function?view=sql-server-2017
     public static Integer metaSqlDateTimeSub(DataType t) {
-        if (t == DATE) {
+        if (t == DATETIME) {
             // ODBC SQL_CODE_TIMESTAMP
             return Integer.valueOf(3);
         }
@@ -188,7 +188,7 @@ public final class DataTypes {
     // https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/decimal-digits?view=sql-server-2017
     public static Short metaSqlMinimumScale(DataType t) {
         // TODO: return info for HALF/SCALED_FLOATS (should be based on field not type)
-        if (t == DATE) {
+        if (t == DATETIME) {
             return Short.valueOf((short) 3);
         }
         if (t.isInteger()) {
@@ -203,7 +203,7 @@ public final class DataTypes {
 
     public static Short metaSqlMaximumScale(DataType t) {
         // TODO: return info for HALF/SCALED_FLOATS (should be based on field not type)
-        if (t == DATE) {
+        if (t == DATETIME) {
             return Short.valueOf((short) 3);
         }
         if (t.isInteger()) {

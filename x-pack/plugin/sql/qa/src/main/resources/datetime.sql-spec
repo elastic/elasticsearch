@@ -10,7 +10,7 @@
 // This has implications on the results, which could change given specific locales where the rules for determining the start of a year are different.
 
 //
-// Date
+// DateTime
 //
 
 dateTimeDay
@@ -25,10 +25,10 @@ SELECT MONTH(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORD
 dateTimeYear
 SELECT YEAR(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 
-monthNameFromStringDate
+monthNameFromStringDateTime
 SELECT MONTHNAME(CAST('2018-09-03' AS TIMESTAMP)) month FROM "test_emp" limit 1;
 
-dayNameFromStringDate
+dayNameFromStringDateTime
 SELECT DAYNAME(CAST('2018-09-03' AS TIMESTAMP)) day FROM "test_emp" limit 1;
 
 quarterSelect

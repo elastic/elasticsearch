@@ -384,7 +384,7 @@ public class IndexResolver {
                 // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
                 boolean normalized = false;
                 return new KeywordEsField(fieldName, props, isAggregateable, length, normalized);
-            case DATE:
+            case DATETIME:
                 return new DateEsField(fieldName, props, isAggregateable);
             case UNSUPPORTED:
                 return new UnsupportedEsField(fieldName, typeName);

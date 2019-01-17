@@ -64,6 +64,14 @@ request is aborted.
 Specifies the maximum size an HTTP response is allowed to have, defaults to
 `10mb`, the maximum configurable value is `50mb`.
 
+`xpack.http.whitelist`::
+A list of URLs, that the internal HTTP client is allowed to connect to. This
+client is used in the HTTP input, the webhook, the slack, pagerduty, hipchat
+and jira actions. This setting can be updated dynamically.  It defaults to `*`
+allowing everything. Note: If you configure this setting and you are using one
+of the slack/pagerduty/hipchat actions, you have to ensure that the
+corresponding endpoints are whitelisted as well.
+
 [[ssl-notification-settings]]
 :ssl-prefix:             xpack.http
 :component:              {watcher}

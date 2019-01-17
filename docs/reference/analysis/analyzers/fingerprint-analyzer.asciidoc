@@ -86,7 +86,7 @@ pre-defined list of English stop words:
 
 [source,js]
 ----------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "analysis": {
@@ -158,7 +158,7 @@ customization:
 
 [source,js]
 ----------------------------------------------------
-PUT /fingerprint_example
+PUT /fingerprint_example?include_type_name=true
 {
   "settings": {
     "analysis": {

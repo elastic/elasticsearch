@@ -787,7 +787,7 @@ allow for highlighting using the postings:
 
 [source,js]
 --------------------------------------------------
-PUT /example
+PUT /example?include_type_name=true
 {
   "mappings": {
     "doc" : {
@@ -808,7 +808,7 @@ highlighting using the `term_vectors` (this will cause the index to be bigger):
 
 [source,js]
 --------------------------------------------------
-PUT /example
+PUT /example?include_type_name=true
 {
   "mappings": {
     "doc" : {

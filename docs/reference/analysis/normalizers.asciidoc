@@ -23,7 +23,7 @@ to get one is by building a custom one. Custom normalizers take a list of char
 
 [source,js]
 --------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "settings": {
     "analysis": {

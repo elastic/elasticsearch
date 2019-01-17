@@ -701,7 +701,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(new IndexRequest("posts").id("4")  // <3>
                     .source(XContentType.JSON,"field", "baz"));
             // end::bulk-request-with-mixed-operations
-            BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
+            BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT); 
             assertSame(RestStatus.OK, bulkResponse.status());
             assertFalse(bulkResponse.hasFailures());
 
@@ -758,7 +758,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::bulk-request-routing
 
             // tag::bulk-request-index-type
-            BulkRequest defaulted = new BulkRequest("posts","_doc"); // <1>
+            BulkRequest defaulted = new BulkRequest("posts"); // <1>
             // end::bulk-request-index-type
 
             // tag::bulk-execute-listener
@@ -792,17 +792,15 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             String mapping =
-                "\"_doc\": {\n" +
-                    "    \"properties\": {\n" +
-                    "      \"user\": {\n" +
-                    "        \"type\": \"text\"\n" +
-                    "      },\n" +
-                    "      \"field1\": {\n" +
-                    "        \"type\": \"integer\"\n" +
-                    "      },\n" +
-                    "      \"field2\": {\n" +
-                    "        \"type\": \"integer\"\n" +
-                    "      }\n" +
+                    "  \"properties\": {\n" +
+                    "    \"user\": {\n" +
+                    "      \"type\": \"text\"\n" +
+                    "    },\n" +
+                    "    \"field1\": {\n" +
+                    "      \"type\": \"integer\"\n" +
+                    "    },\n" +
+                    "    \"field2\": {\n" +
+                    "      \"type\": \"integer\"\n" +
                     "    }\n" +
                     "  }";
             createIndex("source1", Settings.EMPTY, mapping);
@@ -1000,19 +998,17 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             String mapping =
-                "\"_doc\": {\n" +
-                    "    \"properties\": {\n" +
-                    "      \"user\": {\n" +
-                    "        \"type\": \"text\"\n" +
-                    "      },\n" +
-                    "      \"field1\": {\n" +
-                    "        \"type\": \"integer\"\n" +
-                    "      },\n" +
-                    "      \"field2\": {\n" +
-                    "        \"type\": \"integer\"\n" +
-                    "      }\n" +
-                    "    }\n" +
-                    "  }";
+                "  \"properties\": {\n" +
+                "    \"user\": {\n" +
+                "      \"type\": \"text\"\n" +
+                "    },\n" +
+                "    \"field1\": {\n" +
+                "      \"type\": \"integer\"\n" +
+                "    },\n" +
+                "    \"field2\": {\n" +
+                "      \"type\": \"integer\"\n" +
+                "    }\n" +
+                "  }";
             createIndex("source1", Settings.EMPTY, mapping);
             createIndex("source2", Settings.EMPTY, mapping);
             createPipeline("my_pipeline");
@@ -1125,19 +1121,17 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             String mapping =
-                "\"_doc\": {\n" +
-                    "    \"properties\": {\n" +
-                    "      \"user\": {\n" +
-                    "        \"type\": \"text\"\n" +
-                    "      },\n" +
-                    "      \"field1\": {\n" +
-                    "        \"type\": \"integer\"\n" +
-                    "      },\n" +
-                    "      \"field2\": {\n" +
-                    "        \"type\": \"integer\"\n" +
-                    "      }\n" +
-                    "    }\n" +
-                    "  }";
+                "  \"properties\": {\n" +
+                "    \"user\": {\n" +
+                "      \"type\": \"text\"\n" +
+                "    },\n" +
+                "    \"field1\": {\n" +
+                "      \"type\": \"integer\"\n" +
+                "    },\n" +
+                "    \"field2\": {\n" +
+                "      \"type\": \"integer\"\n" +
+                "    }\n" +
+                "  }";
             createIndex("source1", Settings.EMPTY, mapping);
             createIndex("source2", Settings.EMPTY, mapping);
         }

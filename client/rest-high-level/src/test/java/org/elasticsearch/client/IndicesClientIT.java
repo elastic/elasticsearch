@@ -341,7 +341,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .put(SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
-        String mappings = "\"_doc\":{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}";
+        String mappings = "\"properties\":{\"field-1\":{\"type\":\"integer\"}}";
         createIndex(indexName, basicSettings, mappings);
 
         GetIndexRequest getIndexRequest = new GetIndexRequest()
@@ -371,7 +371,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .put(SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
-        String mappings = "\"_doc\":{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}";
+        String mappings = "\"properties\":{\"field-1\":{\"type\":\"integer\"}}";
         createIndex(indexName, basicSettings, mappings);
 
         GetIndexRequest getIndexRequest = new GetIndexRequest()
@@ -1251,8 +1251,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(extractRawValues("my-template.index_patterns", templates), contains("pattern-1", "name-*"));
         assertThat(extractValue("my-template.settings.index.number_of_shards", templates), equalTo("3"));
         assertThat(extractValue("my-template.settings.index.number_of_replicas", templates), equalTo("0"));
-        assertThat(extractValue("my-template.mappings.doc.properties.host_name.type", templates), equalTo("keyword"));
-        assertThat(extractValue("my-template.mappings.doc.properties.description.type", templates), equalTo("text"));
+        assertThat(extractValue("my-template.mappings.properties.host_name.type", templates), equalTo("keyword"));
+        assertThat(extractValue("my-template.mappings.properties.description.type", templates), equalTo("text"));
         assertThat((Map<String, String>) extractValue("my-template.aliases.alias-1", templates), hasEntry("index_routing", "abc"));
         assertThat((Map<String, String>) extractValue("my-template.aliases.{index}-write", templates), hasEntry("search_routing", "xyz"));
     }

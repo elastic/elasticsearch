@@ -46,8 +46,8 @@ to the `elasticsearch.yml` file:
 [source,yaml]
 -----------------------------------------------------------
 xpack.security.audit.index.client.xpack.security.transport.ssl.enabled: true
-xpack.security.audit.index.client.xpack.ssl.keystore.path: certs/remote-elastic-certificates.p12 
-xpack.security.audit.index.client.xpack.ssl.truststore.path: certs/remote-elastic-certificates.p12
+xpack.security.audit.index.client.xpack.security.transport.ssl.keystore.path: certs/remote-elastic-certificates.p12
+xpack.security.audit.index.client.xpack.security.transport.ssl.truststore.path: certs/remote-elastic-certificates.p12
 -----------------------------------------------------------
 
 For more information about these settings, see 
@@ -61,9 +61,9 @@ For more information about these settings, see
 [source, yaml]
 --------------------------------------------------
 xpack.security.audit.index.client.xpack.security.transport.ssl.enabled: true
-xpack.security.audit.index.client.xpack.ssl.key: /home/es/config/audit-client.key 
-xpack.security.audit.index.client.xpack.ssl.certificate: /home/es/config/audit-client.crt 
-xpack.security.audit.index.client.xpack.ssl.certificate_authorities: [ "/home/es/config/remote-ca.crt" ] 
+xpack.security.audit.index.client.xpack.security.transport.ssl.key: /home/es/config/audit-client.key
+xpack.security.audit.index.client.xpack.security.transport.ssl.certificate: /home/es/config/audit-client.crt
+xpack.security.audit.index.client.xpack.security.transport.ssl.certificate_authorities: [ "/home/es/config/remote-ca.crt" ]
 --------------------------------------------------
     
 For more information about these settings, see 
@@ -78,9 +78,9 @@ your {es} keystore:
 --
 [source,shell]
 -----------------------------------------------------------
-bin/elasticsearch-keystore add xpack.security.audit.index.client.xpack.ssl.keystore.secure_password
+bin/elasticsearch-keystore add xpack.security.audit.index.client.xpack.security.transport.ssl.keystore.secure_password
 
-bin/elasticsearch-keystore add xpack.security.audit.index.client.xpack.ssl.truststore.secure_password
+bin/elasticsearch-keystore add xpack.security.audit.index.client.xpack.security.transport.ssl.truststore.secure_password
 -----------------------------------------------------------
 --
 
@@ -89,7 +89,7 @@ bin/elasticsearch-keystore add xpack.security.audit.index.client.xpack.ssl.trust
 --
 [source,shell]
 -----------------------------------------------------------
-bin/elasticsearch-keystore add xpack.security.audit.index.client.xpack.ssl.secure_key_passphrase
+bin/elasticsearch-keystore add xpack.security.audit.index.client.xpack.security.transport.ssl.secure_key_passphrase
 -----------------------------------------------------------
 --
 

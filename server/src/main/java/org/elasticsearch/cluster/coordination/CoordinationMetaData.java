@@ -117,7 +117,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         out.writeLong(term);
         lastCommittedConfiguration.writeTo(out);
         lastAcceptedConfiguration.writeTo(out);
-        out.writeCollection(votingConfigExclusions, (o, v) -> v.writeTo(o));
+        out.writeCollection(votingConfigExclusions);
     }
 
     @Override

@@ -86,7 +86,6 @@ public class SecurityNioTransport extends NioTransport {
             Map<String, SSLConfiguration> profileConfiguration = SecurityNetty4Transport.getTransportProfileConfigurations(settings,
                 sslService, transportConfiguration);
             this.profileConfiguration = Collections.unmodifiableMap(profileConfiguration);
-
         } else {
             profileConfiguration = Collections.emptyMap();
         }

@@ -17,7 +17,7 @@ the issue documents as nested documents. The mapping could look like:
 
 [source,js]
 --------------------------------------------------
-PUT /issues
+PUT /issues?include_type_name=true
 {
     "mappings": {
         "issue" : {

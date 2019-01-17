@@ -20,7 +20,7 @@ keep_words_case:: a boolean indicating whether to lower case the words (defaults
 
 [source,js]
 --------------------------------------------------
-PUT /keep_words_example
+PUT /keep_words_example?include_type_name=true
 {
     "settings" : {
         "analysis" : {

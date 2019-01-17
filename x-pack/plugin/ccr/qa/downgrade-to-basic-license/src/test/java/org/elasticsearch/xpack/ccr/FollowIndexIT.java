@@ -114,7 +114,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             .build();
         Request request = new Request("PUT", "/" + index);
         request.setJsonEntity("{\"settings\": " + Strings.toString(settings) +
-            ", \"mappings\": {\"_doc\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}} }");
+            ", \"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}");
         assertOK(client.performRequest(request));
 
         for (int i = 0; i < 5; i++) {

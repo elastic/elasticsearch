@@ -8,7 +8,7 @@ equivalents, if one exists.  Example:
 
 [source,js]
 --------------------------------------------------
-PUT /asciifold_example
+PUT /asciifold_example?include_type_name=true
 {
     "settings" : {
         "analysis" : {
@@ -30,7 +30,7 @@ example:
 
 [source,js]
 --------------------------------------------------
-PUT /asciifold_example
+PUT /asciifold_example?include_type_name=true
 {
     "settings" : {
         "analysis" : {

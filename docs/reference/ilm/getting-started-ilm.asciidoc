@@ -3,8 +3,6 @@
 [[getting-started-index-lifecycle-management]]
 == Getting started with {ilm}
 
-beta[]
-
 Let's jump into {ilm} ({ilm-init}) by working through a hands-on scenario.
 This section will leverage many new concepts unique to {ilm-init} that
 you may not be familiar with. The following sections will explore
@@ -18,8 +16,6 @@ of 50 gigabytes, or has been created 30 days ago, and then delete the index
 after 90 days.
 
 === Setting up a new policy
-
-beta[]
 
 There are many new features introduced by {ilm-init}, but we will only focus on
 a few that are needed for our example. For starters, we will use the
@@ -70,8 +66,6 @@ The index will be deleted 90 days after it is rolled over.
 
 === Applying a policy to our index
 
-beta[]
-
 There are <<set-up-lifecycle-policy,a few ways>> to associate a
 policy to an index. Since we wish specific settings to be applied to
 the new index created from Rollover, we will set the policy via
@@ -113,7 +107,7 @@ To begin, we will want to bootstrap our first index to write to.
 
 [source,js]
 -----------------------
-PUT datastream-000001
+PUT datastream-000001?include_type_name=true
 {
   "aliases": {
     "datastream": {
@@ -142,8 +136,6 @@ the write index to be the new index created from rollover, and sets the
 alias to be read-only for the source index.
 
 === Checking progress
-
-beta[]
 
 Now that we have an index managed by our policy, how do we tell what is going
 on? Which phase are we in? Is something broken? This section will go over a

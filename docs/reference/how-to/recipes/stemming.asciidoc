@@ -9,7 +9,7 @@ content indexed in two different ways:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "settings": {
     "analysis": {

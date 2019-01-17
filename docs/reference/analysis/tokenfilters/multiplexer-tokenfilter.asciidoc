@@ -31,7 +31,7 @@ You can set it up like:
 
 [source,js]
 --------------------------------------------------
-PUT /multiplexer_example
+PUT /multiplexer_example?include_type_name=true
 {
     "settings" : {
         "analysis" : {

@@ -64,7 +64,7 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(readLine(), startsWith("----------"));
         assertThat(readLine(), startsWith("With[{}]"));
         assertThat(readLine(), startsWith("\\_Project[[?*]]"));
-        assertThat(readLine(), startsWith("  \\_Filter[?i == 2]"));
+        assertThat(readLine(), startsWith("  \\_Filter[i = 2#"));
         assertThat(readLine(), startsWith("    \\_UnresolvedRelation[[][index=test],null,Unknown index [test]]"));
         assertEquals("", readLine());
 
@@ -72,14 +72,14 @@ public class CliExplainIT extends CliIntegrationTestCase {
                 containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
         assertThat(readLine(), startsWith("Project[[i{f}#"));
-        assertThat(readLine(), startsWith("\\_Filter[i{f}#"));
+        assertThat(readLine(), startsWith("\\_Filter[i = 2#"));
         assertThat(readLine(), startsWith("  \\_EsRelation[test][i{f}#"));
         assertEquals("", readLine());
 
         assertThat(command("EXPLAIN (PLAN OPTIMIZED) SELECT * FROM test WHERE i = 2"), containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
         assertThat(readLine(), startsWith("Project[[i{f}#"));
-        assertThat(readLine(), startsWith("\\_Filter[i{f}#"));
+        assertThat(readLine(), startsWith("\\_Filter[i = 2#"));
         assertThat(readLine(), startsWith("  \\_EsRelation[test][i{f}#"));
         assertEquals("", readLine());
 
@@ -124,20 +124,20 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(command("EXPLAIN (PLAN PARSED) SELECT COUNT(*) FROM test"), containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
         assertThat(readLine(), startsWith("With[{}]"));
-        assertThat(readLine(), startsWith("\\_Project[[?COUNT(?*)]]"));
+        assertThat(readLine(), startsWith("\\_Project[[?COUNT(*)]]"));
         assertThat(readLine(), startsWith("  \\_UnresolvedRelation[[][index=test],null,Unknown index [test]]"));
         assertEquals("", readLine());
 
         assertThat(command("EXPLAIN " + (randomBoolean() ? "" : "(PLAN ANALYZED) ") + "SELECT COUNT(*) FROM test"),
                 containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
-        assertThat(readLine(), startsWith("Aggregate[[],[COUNT(1)#"));
+        assertThat(readLine(), startsWith("Aggregate[[],[COUNT(*)#"));
         assertThat(readLine(), startsWith("\\_EsRelation[test][i{f}#"));
         assertEquals("", readLine());
 
         assertThat(command("EXPLAIN (PLAN OPTIMIZED) SELECT COUNT(*) FROM test"), containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
-        assertThat(readLine(), startsWith("Aggregate[[],[COUNT(1)#"));
+        assertThat(readLine(), startsWith("Aggregate[[],[COUNT(*)#"));
         assertThat(readLine(), startsWith("\\_EsRelation[test][i{f}#"));
         assertEquals("", readLine());
 

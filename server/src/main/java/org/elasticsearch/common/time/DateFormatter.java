@@ -145,7 +145,7 @@ public interface DateFormatter {
         if (formatters.size() == 1) {
             return formatters.get(0);
         }
-        return new DateFormatters.MergedDateFormatter(input, formatters);
 
+        return DateFormatters.merge(input, formatters);
     }
 }

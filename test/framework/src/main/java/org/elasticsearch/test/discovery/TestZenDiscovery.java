@@ -81,7 +81,7 @@ public class TestZenDiscovery extends ZenDiscovery {
                     return new Coordinator("test_node", fixedSettings, clusterSettings, transportService, namedWriteableRegistry,
                         allocationService, masterService,
                         () -> gatewayMetaState.getPersistedState(settings, (ClusterApplierService) clusterApplier), hostsProvider,
-                        clusterApplier, new Random(Randomness.get().nextLong()));
+                        clusterApplier, Collections.emptyList(), new Random(Randomness.get().nextLong()));
                 } else {
                     return new TestZenDiscovery(fixedSettings, threadPool, transportService, namedWriteableRegistry, masterService,
                         clusterApplier, clusterSettings, hostsProvider, allocationService, gatewayMetaState);

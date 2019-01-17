@@ -29,7 +29,7 @@ The `phonetic` token filter takes the following settings:
 
 [source,js]
 --------------------------------------------------
-PUT phonetic_sample
+PUT phonetic_sample?include_type_name=true
 {
   "settings": {
     "index": {

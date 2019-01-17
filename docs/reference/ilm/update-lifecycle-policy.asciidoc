@@ -6,8 +6,6 @@
 <titleabbrev>Update policy</titleabbrev>
 ++++
 
-beta[]
-
 You can update an existing lifecycle policy to fix mistakes or change
 strategies for newly created indices. It is possible to update policy definitions
 and an index's `index.lifecycle.name` settings independently. To prevent the situation
@@ -21,8 +19,6 @@ There are three scenarios for examining the behavior updating policies and
 their effects on policy execution on indices.
 
 === Updates to policies not managing indices
-
-beta[]
 
 Indices not referencing an existing policy that is updated will not be affected.
 If an index is assigned to the policy, it will be assigned the latest version of that policy
@@ -137,8 +133,6 @@ the policy.
 
 === Updates to executing policies
 
-beta[]
-
 Indices preserve the phase definition from the latest policy version that existed
 at the time that it entered that phase. Changes to the currently-executing phase within policy updates will
 not be reflected during execution. This means that updates to the `hot` phase, for example, will not affect
@@ -174,7 +168,7 @@ PUT _ilm/policy/my_executing_policy
 ////
 [source,js]
 ------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "index.lifecycle.name": "my_executing_policy"
@@ -445,8 +439,6 @@ GET my_index/_ilm/explain
 
 === Switching policies for an index
 
-beta[]
-
 Setting `index.lifecycle.name` to a different policy behaves much like a policy update, but instead of just
 switching to a different version, it switches to a different policy.
 
@@ -494,7 +486,7 @@ PUT _ilm/policy/my_other_policy
   }
 }
 
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "index.lifecycle.name": "my_policy"

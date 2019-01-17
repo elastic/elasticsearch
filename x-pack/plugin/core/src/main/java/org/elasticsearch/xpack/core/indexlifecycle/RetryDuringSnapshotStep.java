@@ -73,6 +73,8 @@ public abstract class RetryDuringSnapshotStep extends AsyncActionStep {
                         performAction(idxMeta, state, observer, originalListener);
                     }, originalListener::onFailure),
                     new WaitForNoSnapshotPredicate(index.getName()));
+            } else {
+                originalListener.onFailure(e);
             }
         }
     }

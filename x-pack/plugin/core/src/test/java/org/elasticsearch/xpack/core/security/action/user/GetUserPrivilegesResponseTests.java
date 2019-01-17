@@ -77,8 +77,9 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
                     final Set<String> cluster = maybeMutate(random, 0, original.getClusterPrivileges(), () -> randomAlphaOfLength(5));
                     final Set<ConditionalClusterPrivilege> conditionalCluster = maybeMutate(random, 1,
                         original.getConditionalClusterPrivileges(), () -> new ManageApplicationPrivileges(randomStringSet(3)));
-                    final Set<GetUserPrivilegesResponse.Indices> index = maybeMutate(random, 2, original.getIndexPrivileges(),
-                        () -> new GetUserPrivilegesResponse.Indices(randomStringSet(1), randomStringSet(1), emptySet(), emptySet(), randomBoolean()));
+                        final Set<GetUserPrivilegesResponse.Indices> index = maybeMutate(random, 2, original.getIndexPrivileges(),
+                                () -> new GetUserPrivilegesResponse.Indices(randomStringSet(1), randomStringSet(1), emptySet(), emptySet(),
+                                        randomBoolean()));
                     final Set<ApplicationResourcePrivileges> application = maybeMutate(random, 3, original.getApplicationPrivileges(),
                         () -> ApplicationResourcePrivileges.builder().resources(generateRandomStringArray(3, 3, false, false))
                             .application(randomAlphaOfLength(5)).privileges(generateRandomStringArray(3, 5, false, false)).build());

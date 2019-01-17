@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.analytics;
+package org.elasticsearch.xpack.ml.dataframe;
 
 public final class DataFrameFields {
 

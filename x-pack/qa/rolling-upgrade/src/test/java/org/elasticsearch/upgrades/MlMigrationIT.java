@@ -542,12 +542,12 @@ public class MlMigrationIT extends AbstractUpgradeTestCase {
     private void assertDatafeedMigrated(String datafeedId, List<Map<String, Object>> datafeeds) {
         Optional<Object> config = datafeeds.stream().map(map -> map.get("datafeed_id"))
                 .filter(id -> id.equals(datafeedId)).findFirst();
-        assertFalse(config.isPresent());
+        assertFalse("datafeed [" + datafeedId + "] has not been migrated", config.isPresent());
     }
 
     private void assertJobMigrated(String jobId, List<Map<String, Object>> jobs) {
         Optional<Object> config = jobs.stream().map(map -> map.get("job_id"))
                 .filter(id -> id.equals(jobId)).findFirst();
-        assertFalse(config.isPresent());
+        assertFalse("job [" + jobId + "] has not been migrated", config.isPresent());
     }
 }

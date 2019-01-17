@@ -90,7 +90,6 @@ public class ResourceWatcherService extends AbstractLifecycleComponent {
 
     @Inject
     public ResourceWatcherService(Settings settings, ThreadPool threadPool) {
-        super(settings);
         this.enabled = ENABLED.get(settings);
         this.threadPool = threadPool;
 

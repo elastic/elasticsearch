@@ -128,11 +128,16 @@ public final class TransportPutFollowAction
         }
 
         String remoteCluster = request.getRemoteCluster();
-        boolean waitForRestore = request.getWaitForCompletion();
 
         Client client = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
 
-        ActionListener<PutFollowAction.Response> followingListener = waitForRestore ? listener : ActionListener.wrap(() -> {});
+        final ActionListener<PutFollowAction.Response> followingListener;
+        if (request.getWaitForCompletion()) {
+            followingListener = listener;
+        } else {
+            followingListener = ActionListener.wrap(() -> {});
+            listener.onResponse(new PutFollowAction.Response(false, false, false));
+        }
 
         ActionListener<RestoreSnapshotResponse> restoreCompleteHandler = new ActionListener<RestoreSnapshotResponse>() {
             @Override
@@ -165,9 +170,6 @@ public final class TransportPutFollowAction
             false, false, settingsBuilder.build(), new String[0],
             "restore_snapshot[" + leaderClusterRepoName + ":" + request.getLeaderIndex() + "]");
         initiateRestore(restoreRequest, restoreCompleteHandler);
-        if (waitForRestore == false) {
-            listener.onResponse(new PutFollowAction.Response(false, false, false));
-        }
     }
 
     private void initiateRestore(RestoreService.RestoreRequest restoreRequest, ActionListener<RestoreSnapshotResponse> listener) {

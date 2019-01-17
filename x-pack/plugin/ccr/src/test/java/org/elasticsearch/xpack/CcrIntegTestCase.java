@@ -411,11 +411,15 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     public static PutFollowAction.Request putFollow(String leaderIndex, String followerIndex) {
+        return putFollow(leaderIndex, followerIndex, true);
+    }
+
+    public static PutFollowAction.Request putFollow(String leaderIndex, String followerIndex, boolean waitForComplete) {
         PutFollowAction.Request request = new PutFollowAction.Request();
         request.setRemoteCluster("leader_cluster");
         request.setLeaderIndex(leaderIndex);
         request.setFollowRequest(resumeFollow(followerIndex));
-        request.setWaitForCompletion(true);
+        request.setWaitForCompletion(waitForComplete);
         return request;
     }
 

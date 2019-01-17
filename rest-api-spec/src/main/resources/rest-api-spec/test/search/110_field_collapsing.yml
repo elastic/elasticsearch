@@ -419,7 +419,7 @@ setup:
         index: test
         body:
           collapse: { field: numeric_group, inner_hits: {
-            name: sub_hits, version: true, seq_no_primary_term: true, size: 2, sort: [{ sort: asc }]
+            name: sub_hits, seq_no_primary_term: true, size: 2, sort: [{ sort: asc }]
           } }
           sort: [{ sort: desc }]
 
@@ -429,8 +429,6 @@ setup:
   - match: { hits.hits.0.fields.numeric_group: [3] }
   - match: { hits.hits.0.sort: [36] }
   - match: { hits.hits.0._id: "6" }
-  - gte: { hits.hits.0._seq_no: 0 }
-  - gte: { hits.hits.0._primary_term: 1 }
   - match: { hits.hits.0.inner_hits.sub_hits.hits.total: 1 }
   - length: { hits.hits.0.inner_hits.sub_hits.hits.hits: 1 }
   - match: { hits.hits.0.inner_hits.sub_hits.hits.hits.0._id: "6" }
@@ -440,9 +438,6 @@ setup:
   - match: { hits.hits.1.fields.numeric_group: [1] }
   - match: { hits.hits.1.sort: [24] }
   - match: { hits.hits.1._id: "3" }
-  - match: { hits.hits.1._version: 33 }
-  - gte: { hits.hits.1._seq_no: 0 }
-  - gte: { hits.hits.1._primary_term: 1 }
   - match: { hits.hits.1.inner_hits.sub_hits.hits.total: 3 }
   - length: { hits.hits.1.inner_hits.sub_hits.hits.hits: 2 }
   - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.0._id: "2" }
@@ -456,8 +451,6 @@ setup:
   - match: { hits.hits.2.fields.numeric_group: [25] }
   - match: { hits.hits.2.sort: [10] }
   - match: { hits.hits.2._id: "4" }
-  - gte: { hits.hits.2._seq_no: 0 }
-  - gte: { hits.hits.2._primary_term: 1 }
   - match: { hits.hits.2.inner_hits.sub_hits.hits.total: 2 }
   - length: { hits.hits.2.inner_hits.sub_hits.hits.hits: 2 }
   - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.0._id: "5" }

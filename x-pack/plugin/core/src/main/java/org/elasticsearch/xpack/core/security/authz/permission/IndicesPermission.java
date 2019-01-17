@@ -25,7 +25,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -261,7 +260,7 @@ public final class IndicesPermission {
         private boolean check(String action, String index) {
             assert index != null;
             return check(action) && (indexNameMatcher.test(index)
-                    && ((false == RestrictedIndicesNames.NAMES_SET.contains(index)) // if it is not restricted no further checks are required
+                    && ((false == RestrictedIndicesNames.NAMES_SET.contains(index)) // if it is not restricted no more checks are required
                             || IndexPrivilege.MONITOR.predicate().test(action) // allow monitor as a special case, even for restricted
                             || allowRestrictedIndices)
                     );

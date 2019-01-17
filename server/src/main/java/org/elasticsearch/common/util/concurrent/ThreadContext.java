@@ -18,10 +18,9 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CloseableThreadLocal;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,27 +31,23 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpTransportSettings;
 
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE;
-
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.nio.charset.StandardCharsets;
+
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE;
 
 
 /**
@@ -362,11 +357,8 @@ public final class ThreadContext implements Closeable, Writeable {
      * Unwraps a command that was previously wrapped by {@link #preserveContext(Runnable)}.
      */
     public Runnable unwrap(Runnable command) {
-        if (command instanceof ContextPreservingAbstractRunnable) {
-            return ((ContextPreservingAbstractRunnable) command).unwrap();
-        }
-        if (command instanceof ContextPreservingRunnable) {
-            return ((ContextPreservingRunnable) command).unwrap();
+        if (command instanceof WrappedRunnable) {
+            return ((WrappedRunnable) command).unwrap();
         }
         return command;
     }
@@ -652,7 +644,7 @@ public final class ThreadContext implements Closeable, Writeable {
     /**
      * Wraps a Runnable to preserve the thread context.
      */
-    private class ContextPreservingRunnable implements Runnable {
+    private class ContextPreservingRunnable implements WrappedRunnable {
         private final Runnable in;
         private final ThreadContext.StoredContext ctx;
 
@@ -668,36 +660,6 @@ public final class ThreadContext implements Closeable, Writeable {
                 ctx.restore();
                 whileRunning = true;
                 in.run();
-                if (in instanceof RunnableFuture) {
-                    /*
-                     * The wrapped runnable arose from asynchronous submission of a task to an executor. If an uncaught exception was thrown
-                     * during the execution of this task, we need to inspect this runnable and see if it is an error that should be
-                     * propagated to the uncaught exception handler.
-                     */
-                    try {
-                        ((RunnableFuture) in).get();
-                    } catch (final Exception e) {
-                        /*
-                         * In theory, Future#get can only throw a cancellation exception, an interrupted exception, or an execution
-                         * exception. We want to ignore cancellation exceptions, restore the interrupt status on interrupted exceptions, and
-                         * inspect the cause of an execution. We are going to be extra paranoid here though and completely unwrap the
-                         * exception to ensure that there is not a buried error anywhere. We assume that a general exception has been
-                         * handled by the executed task or the task submitter.
-                         */
-                        assert e instanceof CancellationException
-                                || e instanceof InterruptedException
-                                || e instanceof ExecutionException : e;
-                        final Optional<Error> maybeError = ExceptionsHelper.maybeError(e, logger);
-                        if (maybeError.isPresent()) {
-                            // throw this error where it will propagate to the uncaught exception handler
-                            throw maybeError.get();
-                        }
-                        if (e instanceof InterruptedException) {
-                            // restore the interrupt status
-                            Thread.currentThread().interrupt();
-                        }
-                    }
-                }
                 whileRunning = false;
             } catch (IllegalStateException ex) {
                 if (whileRunning || threadLocal.closed.get() == false) {
@@ -714,6 +676,7 @@ public final class ThreadContext implements Closeable, Writeable {
             return in.toString();
         }
 
+        @Override
         public Runnable unwrap() {
             return in;
         }
@@ -722,7 +685,7 @@ public final class ThreadContext implements Closeable, Writeable {
     /**
      * Wraps an AbstractRunnable to preserve the thread context.
      */
-    private class ContextPreservingAbstractRunnable extends AbstractRunnable {
+    private class ContextPreservingAbstractRunnable extends AbstractRunnable implements WrappedRunnable {
         private final AbstractRunnable in;
         private final ThreadContext.StoredContext creatorsContext;
 
@@ -783,6 +746,7 @@ public final class ThreadContext implements Closeable, Writeable {
             return in.toString();
         }
 
+        @Override
         public AbstractRunnable unwrap() {
             return in;
         }

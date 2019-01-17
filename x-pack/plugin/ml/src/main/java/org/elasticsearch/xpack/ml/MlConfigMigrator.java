@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -460,7 +461,14 @@ public class MlConfigMigrator {
                         indexResponse -> {
                             listener.onResponse(indexResponse.getResult() == DocWriteResponse.Result.CREATED);
                         },
-                        listener::onFailure),
+                        e -> {
+                            if (e instanceof VersionConflictEngineException) {
+                                // the snapshot already exists
+                                listener.onResponse(Boolean.TRUE);
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        }),
                 client::index
         );
     }

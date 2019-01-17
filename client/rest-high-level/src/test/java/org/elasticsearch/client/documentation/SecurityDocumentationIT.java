@@ -1757,12 +1757,12 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testCreateApiKey() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
-        final String name = randomAlphaOfLength(5);
         List<Role> roles = Collections.singletonList(Role.builder().name("r1").clusterPrivileges(ClusterPrivilegeName.ALL)
                 .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
         final TimeValue expiration = TimeValue.timeValueHours(24);
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
         {
+            final String name = randomAlphaOfLength(5);
             // tag::create-api-key-request
             CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy);
             // end::create-api-key-request
@@ -1781,6 +1781,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
+            final String name = randomAlphaOfLength(5);
             CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy);
 
             ActionListener<CreateApiKeyResponse> listener;

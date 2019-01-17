@@ -524,17 +524,15 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     @Override
     protected int doHashCode() {
-        String timeZoneId = timeZone == null ? null : timeZone.getId();
-        return Objects.hash(fieldName, from, to, timeZoneId, includeLower, includeUpper, format);
+        return Objects.hash(fieldName, from, to, timeZone, includeLower, includeUpper, format);
     }
 
     @Override
     protected boolean doEquals(RangeQueryBuilder other) {
-        String timeZoneId = timeZone == null ? null : timeZone.getId();
         return Objects.equals(fieldName, other.fieldName) &&
                Objects.equals(from, other.from) &&
                Objects.equals(to, other.to) &&
-               Objects.equals(timeZoneId, other.timeZone()) &&
+               Objects.equals(timeZone, other.timeZone) &&
                Objects.equals(includeLower, other.includeLower) &&
                Objects.equals(includeUpper, other.includeUpper) &&
                Objects.equals(format, other.format);

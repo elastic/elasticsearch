@@ -38,7 +38,6 @@ import org.elasticsearch.client.security.DeleteRoleResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
-import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetPrivilegesResponse;
@@ -235,14 +234,12 @@ public final class SecurityClient {
      *
      * @param request the request with the user to enable
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the enable user call
+     * @return {@code true} if the request succeeded (the user is enabled)
      * @throws IOException in case there is a problem sending the request or parsing back the response
-     * @deprecated use {@link #enableUser(RequestOptions, EnableUserRequest)} instead
      */
-    @Deprecated
-    public EmptyResponse enableUser(EnableUserRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::enableUser, options,
-            EmptyResponse::fromXContent, emptySet());
+    public boolean enableUser(EnableUserRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequest(request, SecurityRequestConverters::enableUser, options,
+            RestHighLevelClient::convertExistsResponse, emptySet());
     }
 
     /**
@@ -254,7 +251,9 @@ public final class SecurityClient {
      * @param request the request with the user to enable
      * @return {@code true} if the request succeeded (the user is enabled)
      * @throws IOException in case there is a problem sending the request or parsing back the response
+     * @deprecated use {@link #enableUser(EnableUserRequest, RequestOptions)} instead
      */
+    @Deprecated
     public boolean enableUser(RequestOptions options, EnableUserRequest request) throws IOException {
         return restHighLevelClient.performRequest(request, SecurityRequestConverters::enableUser, options,
             RestHighLevelClient::convertExistsResponse, emptySet());
@@ -268,13 +267,11 @@ public final class SecurityClient {
      * @param request  the request with the user to enable
      * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
-     * @deprecated use {@link #enableUserAsync(RequestOptions, EnableUserRequest, ActionListener)} instead
      */
-    @Deprecated
     public void enableUserAsync(EnableUserRequest request, RequestOptions options,
-                                ActionListener<EmptyResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::enableUser, options,
-            EmptyResponse::fromXContent, listener, emptySet());
+                                ActionListener<Boolean> listener) {
+        restHighLevelClient.performRequestAsync(request, SecurityRequestConverters::enableUser, options,
+            RestHighLevelClient::convertExistsResponse, listener, emptySet());
     }
 
     /**
@@ -285,7 +282,9 @@ public final class SecurityClient {
      * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param request  the request with the user to enable
      * @param listener the listener to be notified upon request completion
+     * @deprecated use {@link #enableUserAsync(EnableUserRequest, RequestOptions, ActionListener)} instead
      */
+    @Deprecated
     public void enableUserAsync(RequestOptions options, EnableUserRequest request,
                                 ActionListener<Boolean> listener) {
         restHighLevelClient.performRequestAsync(request, SecurityRequestConverters::enableUser, options,
@@ -299,14 +298,12 @@ public final class SecurityClient {
      *
      * @param request the request with the user to disable
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the enable user call
+     * @return {@code true} if the request succeeded (the user is disabled)
      * @throws IOException in case there is a problem sending the request or parsing back the response
-     * @deprecated use {@link #disableUser(RequestOptions, DisableUserRequest)} instead
      */
-    @Deprecated
-    public EmptyResponse disableUser(DisableUserRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::disableUser, options,
-            EmptyResponse::fromXContent, emptySet());
+    public boolean disableUser(DisableUserRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequest(request, SecurityRequestConverters::disableUser, options,
+            RestHighLevelClient::convertExistsResponse, emptySet());
     }
 
     /**
@@ -318,7 +315,9 @@ public final class SecurityClient {
      * @param request the request with the user to disable
      * @return {@code true} if the request succeeded (the user is disabled)
      * @throws IOException in case there is a problem sending the request or parsing back the response
+     * @deprecated use {@link #disableUser(DisableUserRequest, RequestOptions)} instead
      */
+    @Deprecated
     public boolean disableUser(RequestOptions options, DisableUserRequest request) throws IOException {
         return restHighLevelClient.performRequest(request, SecurityRequestConverters::disableUser, options,
             RestHighLevelClient::convertExistsResponse, emptySet());
@@ -332,13 +331,11 @@ public final class SecurityClient {
      * @param request  the request with the user to disable
      * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
-     * @deprecated use {@link #disableUserAsync(RequestOptions, DisableUserRequest, ActionListener)} instead
      */
-    @Deprecated
     public void disableUserAsync(DisableUserRequest request, RequestOptions options,
-                                 ActionListener<EmptyResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::disableUser, options,
-            EmptyResponse::fromXContent, listener, emptySet());
+                                 ActionListener<Boolean> listener) {
+        restHighLevelClient.performRequestAsync(request, SecurityRequestConverters::disableUser, options,
+            RestHighLevelClient::convertExistsResponse, listener, emptySet());
     }
 
     /**
@@ -349,7 +346,9 @@ public final class SecurityClient {
      * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param request  the request with the user to disable
      * @param listener the listener to be notified upon request completion
+     * @deprecated use {@link #disableUserAsync(DisableUserRequest, RequestOptions, ActionListener)} instead
      */
+    @Deprecated
     public void disableUserAsync(RequestOptions options, DisableUserRequest request,
                                  ActionListener<Boolean> listener) {
         restHighLevelClient.performRequestAsync(request, SecurityRequestConverters::disableUser, options,
@@ -523,14 +522,12 @@ public final class SecurityClient {
      *
      * @param request the request with the user's new password
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the change user password call
+     * @return {@code true} if the request succeeded (the new password was set)
      * @throws IOException in case there is a problem sending the request or parsing back the response
-     * @deprecated use {@link #changePassword(RequestOptions, ChangePasswordRequest)} instead
      */
-    @Deprecated
-    public EmptyResponse changePassword(ChangePasswordRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::changePassword, options,
-            EmptyResponse::fromXContent, emptySet());
+    public boolean changePassword(ChangePasswordRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequest(request, SecurityRequestConverters::changePassword, options,
+            RestHighLevelClient::convertExistsResponse, emptySet());
     }
 
     /**
@@ -542,7 +539,9 @@ public final class SecurityClient {
      * @param request the request with the user's new password
      * @return {@code true} if the request succeeded (the new password was set)
      * @throws IOException in case there is a problem sending the request or parsing back the response
+     * @deprecated use {@link #changePassword(ChangePasswordRequest, RequestOptions)} instead
      */
+    @Deprecated
     public boolean changePassword(RequestOptions options, ChangePasswordRequest request) throws IOException {
         return restHighLevelClient.performRequest(request, SecurityRequestConverters::changePassword, options,
             RestHighLevelClient::convertExistsResponse, emptySet());
@@ -556,13 +555,11 @@ public final class SecurityClient {
      * @param request  the request with the user's new password
      * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
-     * @deprecated use {@link #changePasswordAsync(RequestOptions, ChangePasswordRequest, ActionListener)} instead
      */
-    @Deprecated
     public void changePasswordAsync(ChangePasswordRequest request, RequestOptions options,
-                                    ActionListener<EmptyResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::changePassword, options,
-            EmptyResponse::fromXContent, listener, emptySet());
+                                    ActionListener<Boolean> listener) {
+        restHighLevelClient.performRequestAsync(request, SecurityRequestConverters::changePassword, options,
+            RestHighLevelClient::convertExistsResponse, listener, emptySet());
     }
 
     /**
@@ -573,13 +570,14 @@ public final class SecurityClient {
      * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param request  the request with the user's new password
      * @param listener the listener to be notified upon request completion
+     * @deprecated use {@link #changePasswordAsync(ChangePasswordRequest, RequestOptions, ActionListener)} instead
      */
+    @Deprecated
     public void changePasswordAsync(RequestOptions options, ChangePasswordRequest request,
                                     ActionListener<Boolean> listener) {
         restHighLevelClient.performRequestAsync(request, SecurityRequestConverters::changePassword, options,
             RestHighLevelClient::convertExistsResponse, listener, emptySet());
     }
-
 
     /**
      * Delete a role mapping.

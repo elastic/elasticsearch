@@ -602,9 +602,10 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("--> verifying count");
         assertBusy(() -> {
             client().admin().indices().prepareRefresh().execute().actionGet();
-            assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(120L));
             assertTrue(pendingIndexResponses.stream().allMatch(ActionFuture::isDone));
         }, 1, TimeUnit.MINUTES);
+
+        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(120L));
     }
 
     class RecoveryCorruption implements StubbableTransport.SendRequestBehavior {

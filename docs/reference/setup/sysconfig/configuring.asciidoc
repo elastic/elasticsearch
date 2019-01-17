@@ -25,7 +25,7 @@ open file handles (`ulimit -n`) to 65,536, you can do the following:
 [source,sh]
 --------------------------------
 sudo su  <1>
-ulimit -n 65536 <2>
+ulimit -n 65535 <2>
 su elasticsearch <3>
 --------------------------------
 <1> Become `root`.
@@ -46,7 +46,7 @@ the `limits.conf` file:
 
 [source,sh]
 --------------------------------
-elasticsearch  -  nofile  65536
+elasticsearch  -  nofile  65535
 --------------------------------
 
 This change will only take effect the next time the `elasticsearch` user opens

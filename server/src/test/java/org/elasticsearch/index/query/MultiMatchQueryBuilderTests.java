@@ -91,7 +91,12 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
 
         // sets other parameters of the multi match query
         if (randomBoolean()) {
-            query.type(randomFrom(MultiMatchQueryBuilder.Type.values()));
+            if (fieldName.equals(STRING_FIELD_NAME)) {
+                query.type(randomFrom(MultiMatchQueryBuilder.Type.values()));
+            } else {
+                query.type(randomValueOtherThan(MultiMatchQueryBuilder.Type.PHRASE_PREFIX,
+                    () -> randomFrom(MultiMatchQueryBuilder.Type.values())));
+            }
         }
         if (randomBoolean()) {
             query.operator(randomFrom(Operator.values()));
@@ -384,6 +389,11 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             ), 0.0f
         );
         assertEquals(expected, query);
+
+        context.getIndexSettings().updateIndexMetaData(
+            newIndexMeta("index", context.getIndexSettings().getSettings(),
+                Settings.builder().putNull("index.query.default_field").build())
+        );
     }
 
     public void testWithStopWords() throws Exception {

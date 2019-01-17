@@ -8,7 +8,7 @@ price for the product. The mapping could look like:
 
 [source,js]
 --------------------------------------------------
-PUT /index
+PUT /index?include_type_name=true
 {
   "mappings": {
     "product" : {

@@ -19,7 +19,7 @@ You can set it up like:
 
 [source,js]
 --------------------------------------------------
-PUT /keep_types_example
+PUT /keep_types_example?include_type_name=true
 {
     "settings" : {
         "analysis" : {
@@ -80,7 +80,7 @@ If the `mode` parameter is set to `exclude` like in the following example:
 
 [source,js]
 --------------------------------------------------
-PUT /keep_types_exclude_example
+PUT /keep_types_exclude_example?include_type_name=true
 {
     "settings" : {
         "analysis" : {

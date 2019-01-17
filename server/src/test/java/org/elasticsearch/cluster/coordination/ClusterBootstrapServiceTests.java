@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
@@ -30,6 +31,7 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -217,18 +219,23 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         deterministicTaskQueue.runAllTasks();
     }
 
-    public void testDoesNotRetryBootstrappingOnException() {
-        final AtomicBoolean bootstrappingAttempted = new AtomicBoolean();
+    public void testRetriesBootstrappingOnException() {
+
+        final AtomicLong bootstrappingAttempts = new AtomicLong();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(Settings.builder().putList(
             INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName()).build(),
             transportService, () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()), vc -> {
-            assertTrue(bootstrappingAttempted.compareAndSet(false, true));
+            bootstrappingAttempts.incrementAndGet();
+            if (bootstrappingAttempts.get() < 5L) {
+                throw new ElasticsearchException("test");
+            }
         });
 
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
         deterministicTaskQueue.runAllTasks();
-        assertTrue(bootstrappingAttempted.get());
+        assertThat(bootstrappingAttempts.get(), greaterThanOrEqualTo(5L));
+        assertThat(deterministicTaskQueue.getCurrentTimeMillis(), greaterThanOrEqualTo(40000L));
     }
 
     public void testDoesNotBootstrapIfRequirementNotMet() {

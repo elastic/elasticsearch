@@ -149,7 +149,20 @@ public class ClusterBootstrapService {
         try {
             votingConfigurationConsumer.accept(votingConfiguration);
         } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("failed to bootstrap with {}", votingConfiguration), e);
+            logger.warn(new ParameterizedMessage("exception when bootstrapping with {}, rescheduling", votingConfiguration), e);
+            transportService.getThreadPool().scheduleUnlessShuttingDown(TimeValue.timeValueSeconds(10), Names.GENERIC,
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        doBootstrap(votingConfiguration);
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "retry of failed bootstrapping with " + votingConfiguration;
+                    }
+                }
+            );
         }
     }
 

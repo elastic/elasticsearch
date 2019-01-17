@@ -105,7 +105,7 @@ public final class IndicesPermission {
      * has the privilege for executing the given action on.
      */
     public Predicate<String> allowedIndicesMatcher(String action) {
-        return allowedIndicesMatchersForAction.computeIfAbsent(action, Group::buildIndexMatcherPredicateForAction);
+        return allowedIndicesMatchersForAction.computeIfAbsent(action, a -> Group.buildIndexMatcherPredicateForAction(a, groups));
     }
 
     /**

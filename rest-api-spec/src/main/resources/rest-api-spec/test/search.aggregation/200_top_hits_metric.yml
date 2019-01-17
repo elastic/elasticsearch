@@ -81,3 +81,39 @@
   - match: { aggregations.to-users.users.hits.hits.2._index: my-index }
   - match: { aggregations.to-users.users.hits.hits.2._nested.field: users }
   - match: { aggregations.to-users.users.hits.hits.2._nested.offset: 1 }
+
+
+---
+"top_hits aggregation with sequence numbers":
+  - skip:
+      version: " - 6.99.99"
+      reason: support was added in 7.0
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            to-users:
+              nested:
+                path: users
+              aggs:
+                users:
+                  top_hits:
+                    sort: "users.last.keyword"
+                    seq_no_primary_term: true
+
+  - match: { hits.total: 2 }
+  - length: { aggregations.to-users.users.hits.hits: 3 }
+  - match: { aggregations.to-users.users.hits.hits.0._id: "2" }
+  - match: { aggregations.to-users.users.hits.hits.0._index: my-index }
+  - gte: { aggregations.to-users.users.hits.hits.0._seq_no: 0 }
+  - gte: { aggregations.to-users.users.hits.hits.0._primary_term: 1 }
+  - match: { aggregations.to-users.users.hits.hits.1._id: "1" }
+  - match: { aggregations.to-users.users.hits.hits.1._index: my-index }
+  - gte: { aggregations.to-users.users.hits.hits.1._seq_no: 0 }
+  - gte: { aggregations.to-users.users.hits.hits.1._primary_term: 1 }
+  - match: { aggregations.to-users.users.hits.hits.2._id: "1" }
+  - match: { aggregations.to-users.users.hits.hits.2._index: my-index }
+  - gte: { aggregations.to-users.users.hits.hits.2._seq_no: 0 }
+  - gte: { aggregations.to-users.users.hits.hits.2._primary_term: 1 }

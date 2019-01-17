@@ -273,7 +273,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         new WatcherIndexTemplateRegistry(clusterService, threadPool, client);
 
         // http client
-        httpClient = new HttpClient(settings, getSslService(), cryptoService);
+        httpClient = new HttpClient(settings, getSslService(), cryptoService, clusterService);
 
         // notification
         EmailService emailService = new EmailService(settings, cryptoService, clusterService.getClusterSettings());

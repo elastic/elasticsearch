@@ -89,6 +89,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
@@ -209,7 +210,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             mappingBuilder.startObject().startObject("properties").startObject("field");
             mappingBuilder.field("type", "text");
             mappingBuilder.endObject().endObject().endObject();
-            createIndexRequest.mapping("type_name", mappingBuilder);
+            createIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder);
 
             CreateIndexResponse createIndexResponse =
                     execute(createIndexRequest, highLevelClient().indices()::create, highLevelClient().indices()::createAsync);
@@ -226,7 +227,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             Map<String, Object> term = (Map) filter.get("term");
             assertEquals(2016, term.get("year"));
 
-            assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.type_name.properties.field.type", getIndexResponse));
+            assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type", getIndexResponse));
         }
     }
 
@@ -340,7 +341,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .put(SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
-        String mappings = "\"type-1\":{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}";
+        String mappings = "\"properties\":{\"field-1\":{\"type\":\"integer\"}}";
         createIndex(indexName, basicSettings, mappings);
 
         GetIndexRequest getIndexRequest = new GetIndexRequest()
@@ -353,8 +354,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertEquals("1", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_SHARDS));
         assertEquals("0", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_REPLICAS));
         assertNotNull(getIndexResponse.getMappings().get(indexName));
-        assertNotNull(getIndexResponse.getMappings().get(indexName).get("type-1"));
-        Object o = getIndexResponse.getMappings().get(indexName).get("type-1").getSourceAsMap().get("properties");
+        assertNotNull(getIndexResponse.getMappings().get(indexName).get("_doc"));
+        Object o = getIndexResponse.getMappings().get(indexName).get("_doc").getSourceAsMap().get("properties");
         assertThat(o, instanceOf(Map.class));
         //noinspection unchecked
         assertThat(((Map<String, Object>) o).get("field-1"), instanceOf(Map.class));
@@ -370,7 +371,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .put(SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
-        String mappings = "\"type-1\":{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}";
+        String mappings = "\"properties\":{\"field-1\":{\"type\":\"integer\"}}";
         createIndex(indexName, basicSettings, mappings);
 
         GetIndexRequest getIndexRequest = new GetIndexRequest()
@@ -384,8 +385,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertEquals("1", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_SHARDS));
         assertEquals("0", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_REPLICAS));
         assertNotNull(getIndexResponse.getMappings().get(indexName));
-        assertNotNull(getIndexResponse.getMappings().get(indexName).get("type-1"));
-        Object o = getIndexResponse.getMappings().get(indexName).get("type-1").getSourceAsMap().get("properties");
+        assertNotNull(getIndexResponse.getMappings().get(indexName).get("_doc"));
+        Object o = getIndexResponse.getMappings().get(indexName).get("_doc").getSourceAsMap().get("properties");
         assertThat(o, instanceOf(Map.class));
         assertThat(((Map<String, Object>) o).get("field-1"), instanceOf(Map.class));
         Map<String, Object> fieldMapping = (Map<String, Object>) ((Map<String, Object>) o).get("field-1");
@@ -408,7 +409,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         createIndex(indexName, Settings.EMPTY);
 
         PutMappingRequest putMappingRequest = new PutMappingRequest(indexName);
-        putMappingRequest.type("type_name");
+        putMappingRequest.type("_doc");
         XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
         mappingBuilder.startObject().startObject("properties").startObject("field");
         mappingBuilder.field("type", "text");
@@ -420,7 +421,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertTrue(putMappingResponse.isAcknowledged());
 
         Map<String, Object> getIndexResponse = getAsMap(indexName);
-        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.type_name.properties.field.type", getIndexResponse));
+        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type", getIndexResponse));
     }
 
     public void testGetMapping() throws IOException {
@@ -440,7 +441,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertTrue(putMappingResponse.isAcknowledged());
 
         Map<String, Object> getIndexResponse = getAsMap(indexName);
-        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings._doc.properties.field.type", getIndexResponse));
+        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type", getIndexResponse));
 
         GetMappingsRequest request = new GetMappingsRequest()
             .indices(indexName)
@@ -1250,8 +1251,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(extractRawValues("my-template.index_patterns", templates), contains("pattern-1", "name-*"));
         assertThat(extractValue("my-template.settings.index.number_of_shards", templates), equalTo("3"));
         assertThat(extractValue("my-template.settings.index.number_of_replicas", templates), equalTo("0"));
-        assertThat(extractValue("my-template.mappings.doc.properties.host_name.type", templates), equalTo("keyword"));
-        assertThat(extractValue("my-template.mappings.doc.properties.description.type", templates), equalTo("text"));
+        assertThat(extractValue("my-template.mappings.properties.host_name.type", templates), equalTo("keyword"));
+        assertThat(extractValue("my-template.mappings.properties.description.type", templates), equalTo("text"));
         assertThat((Map<String, String>) extractValue("my-template.aliases.alias-1", templates), hasEntry("index_routing", "abc"));
         assertThat((Map<String, String>) extractValue("my-template.aliases.{index}-write", templates), hasEntry("search_routing", "xyz"));
     }

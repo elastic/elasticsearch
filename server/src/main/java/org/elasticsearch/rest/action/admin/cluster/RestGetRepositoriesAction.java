@@ -51,7 +51,7 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "get_respositories_action";
+        return "get_repositories_action";
     }
 
     @Override

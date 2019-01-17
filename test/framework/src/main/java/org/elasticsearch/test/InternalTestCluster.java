@@ -139,7 +139,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -148,7 +147,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
-import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING;
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.discovery.DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING;
@@ -390,6 +389,8 @@ public final class InternalTestCluster extends TestCluster {
         // always reduce this - it can make tests really slow
         builder.put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.getKey(), TimeValue.timeValueMillis(
                 RandomNumbers.randomIntBetween(random, 20, 50)));
+        builder.put(RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.getKey(),
+            RandomNumbers.randomIntBetween(random, 1, 5));
         defaultSettings = builder.build();
         executor = EsExecutors.newScaling("internal_test_cluster_executor", 0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS,
                 EsExecutors.daemonThreadFactory("test_" + clusterName), new ThreadContext(Settings.EMPTY));
@@ -525,10 +526,15 @@ public final class InternalTestCluster extends TestCluster {
         if (randomNodeAndClient != null) {
             return randomNodeAndClient;
         }
-        final int ord = nextNodeId.getAndIncrement();
         final Runnable onTransportServiceStarted = () -> {}; // do not create unicast host file for this one node.
-        final Settings settings = Settings.builder().put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 1).build();
-        final NodeAndClient buildNode = buildNode(ord, random.nextLong(), settings, false, 1, onTransportServiceStarted);
+
+        final int nodeId = nextNodeId.getAndIncrement();
+        final Settings settings = getNodeSettings(nodeId, random.nextLong(), Settings.EMPTY, 1);
+        final Settings nodeSettings = Settings.builder()
+                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), Node.NODE_NAME_SETTING.get(settings))
+                .put(settings)
+                .build();
+        final NodeAndClient buildNode = buildNode(nodeId, nodeSettings, false, onTransportServiceStarted);
         assert nodes.isEmpty();
         buildNode.startNode();
         publishNode(buildNode);
@@ -598,71 +604,66 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    /**
-     * builds a new node given the settings.
-     *
-     * @param settings              the settings to use
-     * @param defaultMinMasterNodes min_master_nodes value to use if min_master_nodes is auto managed
-     * @param onTransportServiceStarted callback to run when transport service is started
-     */
-    private NodeAndClient buildNode(Settings settings, int defaultMinMasterNodes, Runnable onTransportServiceStarted) {
-        int ord = nextNodeId.getAndIncrement();
-        return buildNode(ord, random.nextLong(), settings, false, defaultMinMasterNodes, onTransportServiceStarted);
+    private Settings getNodeSettings(final int nodeId, final long seed, final Settings extraSettings, final int defaultMinMasterNodes) {
+        final Settings settings = getSettings(nodeId, seed, extraSettings);
+
+        final String name = buildNodeName(nodeId, settings);
+
+        final Settings.Builder updatedSettings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), baseDir) // allow overriding path.home
+                .put(settings)
+                .put("node.name", name)
+                .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), seed);
+
+        final boolean usingSingleNodeDiscovery = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(updatedSettings.build()).equals("single-node");
+        if (!usingSingleNodeDiscovery && autoManageMinMasterNodes) {
+            assert updatedSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) == null :
+                    "min master nodes may not be set when auto managed";
+            assert updatedSettings.get(INITIAL_STATE_TIMEOUT_SETTING.getKey()) == null :
+                    "automatically managing min master nodes require nodes to complete a join cycle" +
+                            " when starting";
+            updatedSettings
+                    // don't wait too long not to slow down tests
+                    .put(ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING.getKey(), "5s")
+                    .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), defaultMinMasterNodes);
+        } else if (!usingSingleNodeDiscovery && updatedSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) == null) {
+            throw new IllegalArgumentException(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + " must be configured");
+        }
+
+        return updatedSettings.build();
     }
 
     /**
      * builds a new node
      *
-     * @param nodeId                the node internal id (see {@link NodeAndClient#nodeAndClientId()}
-     * @param seed                  the node's random seed
-     * @param settings              the settings to use
-     * @param reuseExisting         if a node with the same name is already part of {@link #nodes}, no new node will be built and
-     *                              the method will return the existing one
-     * @param defaultMinMasterNodes min_master_nodes value to use if min_master_nodes is auto managed
+     * @param nodeId                    node ordinal
+     * @param settings                  the settings to use
+     * @param reuseExisting             if a node with the same name is already part of {@link #nodes}, no new node will be built and
+     *                                  the method will return the existing one
      * @param onTransportServiceStarted callback to run when transport service is started
      */
-    private NodeAndClient buildNode(int nodeId, long seed, Settings settings,
-                                    boolean reuseExisting, int defaultMinMasterNodes, Runnable onTransportServiceStarted) {
+    private NodeAndClient buildNode(int nodeId, Settings settings,
+                                    boolean reuseExisting, Runnable onTransportServiceStarted) {
         assert Thread.holdsLock(this);
         ensureOpen();
-        settings = getSettings(nodeId, seed, settings);
         Collection<Class<? extends Plugin>> plugins = getPlugins();
-        String name = buildNodeName(nodeId, settings);
+        String name = settings.get("node.name");
+
         if (reuseExisting && nodes.containsKey(name)) {
             onTransportServiceStarted.run(); // reusing an existing node implies its transport service already started
             return nodes.get(name);
         } else {
             assert reuseExisting == true || nodes.containsKey(name) == false :
-                "node name [" + name + "] already exists but not allowed to use it";
+                    "node name [" + name + "] already exists but not allowed to use it";
         }
-        Settings.Builder finalSettings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), baseDir) // allow overriding path.home
-            .put(settings)
-            .put("node.name", name)
-            .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), seed);
 
-        final boolean usingSingleNodeDiscovery = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(finalSettings.build()).equals("single-node");
-        if (!usingSingleNodeDiscovery && autoManageMinMasterNodes) {
-            assert finalSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) == null :
-                "min master nodes may not be set when auto managed";
-            assert finalSettings.get(INITIAL_STATE_TIMEOUT_SETTING.getKey()) == null :
-                "automatically managing min master nodes require nodes to complete a join cycle" +
-                    " when starting";
-            finalSettings
-                // don't wait too long not to slow down tests
-                .put(ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING.getKey(), "5s")
-                .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), defaultMinMasterNodes);
-        } else if (!usingSingleNodeDiscovery && finalSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) == null) {
-            throw new IllegalArgumentException(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + " must be configured");
-        }
-        SecureSettings secureSettings = finalSettings.getSecureSettings();
+        SecureSettings secureSettings = Settings.builder().put(settings).getSecureSettings();
         if (secureSettings instanceof MockSecureSettings) {
             // we clone this here since in the case of a node restart we might need it again
             secureSettings = ((MockSecureSettings) secureSettings).clone();
         }
-        final Settings nodeSettings = finalSettings.build();
         MockNode node = new MockNode(
-                nodeSettings,
+                settings,
                 plugins,
                 nodeConfigurationSource.nodeConfigPath(nodeId),
                 forbidPrivateIndexSettings);
@@ -677,13 +678,15 @@ public final class InternalTestCluster extends TestCluster {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return new NodeAndClient(name, node, nodeSettings, nodeId);
+        return new NodeAndClient(name, node, settings, nodeId);
+    }
+
+    private String getNodePrefix(Settings settings) {
+        return nodePrefix + getRoleSuffix(settings);
     }
 
     private String buildNodeName(int id, Settings settings) {
-        String prefix = nodePrefix;
-        prefix = prefix + getRoleSuffix(settings);
-        return prefix + id;
+        return getNodePrefix(settings) + id;
     }
 
     /**
@@ -1087,49 +1090,52 @@ public final class InternalTestCluster extends TestCluster {
         final List<NodeAndClient> toStartAndPublish = new ArrayList<>(); // we want to start nodes in one go due to min master nodes
         final Runnable onTransportServiceStarted = () -> rebuildUnicastHostFiles(toStartAndPublish);
 
-        final int bootstrapNodeIndex;
+        final List<Settings> settings = new ArrayList<>();
+
+        for (int i = 0; i < numSharedDedicatedMasterNodes; i++) {
+            final Settings.Builder extraSettings = Settings.builder();
+            extraSettings.put(Node.NODE_MASTER_SETTING.getKey(), true);
+            extraSettings.put(Node.NODE_DATA_SETTING.getKey(), false);
+            settings.add(getNodeSettings(i, sharedNodesSeeds[i], extraSettings.build(), defaultMinMasterNodes));
+        }
+        for (int i = numSharedDedicatedMasterNodes; i < numSharedDedicatedMasterNodes + numSharedDataNodes; i++) {
+            final Settings.Builder extraSettings = Settings.builder();
+            if (numSharedDedicatedMasterNodes > 0) {
+                // if we don't have dedicated master nodes, keep things default
+                extraSettings.put(Node.NODE_MASTER_SETTING.getKey(), false).build();
+                extraSettings.put(Node.NODE_DATA_SETTING.getKey(), true).build();
+            }
+            settings.add(getNodeSettings(i, sharedNodesSeeds[i], extraSettings.build(), defaultMinMasterNodes));
+        }
+        for (int i = numSharedDedicatedMasterNodes + numSharedDataNodes;
+             i < numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {
+            final Builder extraSettings = Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false)
+                .put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_INGEST_SETTING.getKey(), false);
+            settings.add(getNodeSettings(i, sharedNodesSeeds[i], extraSettings.build(), defaultMinMasterNodes));
+        }
+
+        int bootstrapNodeIndex = -1;
+        final List<String> masterNodeNames = settings.stream()
+                .filter(Node.NODE_MASTER_SETTING::get)
+                .map(Node.NODE_NAME_SETTING::get)
+                .collect(Collectors.toList());
+
         if (prevNodeCount == 0 && autoManageMinMasterNodes) {
             if (numSharedDedicatedMasterNodes > 0) {
                 bootstrapNodeIndex = RandomNumbers.randomIntBetween(random, 0, numSharedDedicatedMasterNodes - 1);
             } else if (numSharedDataNodes > 0) {
                 bootstrapNodeIndex = RandomNumbers.randomIntBetween(random, 0, numSharedDataNodes - 1);
-            } else {
-                bootstrapNodeIndex = -1;
             }
-        } else {
-            bootstrapNodeIndex = -1;
         }
 
-        for (int i = 0; i < numSharedDedicatedMasterNodes; i++) {
-            final Settings.Builder settings = Settings.builder();
-            settings.put(Node.NODE_MASTER_SETTING.getKey(), true);
-            settings.put(Node.NODE_DATA_SETTING.getKey(), false);
+        final List<Settings> updatedSettings = nodeConfigurationSource.addExtraClusterBootstrapSettings(settings);
+
+        for (int i = 0; i < numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {
+            Settings nodeSettings = updatedSettings.get(i);
             if (i == bootstrapNodeIndex) {
-                settings.put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), numSharedDedicatedMasterNodes);
+                nodeSettings = Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), masterNodeNames).put(nodeSettings).build();
             }
-            NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true, defaultMinMasterNodes,
-                onTransportServiceStarted);
-            toStartAndPublish.add(nodeAndClient);
-        }
-        for (int i = numSharedDedicatedMasterNodes; i < numSharedDedicatedMasterNodes + numSharedDataNodes; i++) {
-            final Settings.Builder settings = Settings.builder();
-            if (numSharedDedicatedMasterNodes > 0) {
-                // if we don't have dedicated master nodes, keep things default
-                settings.put(Node.NODE_MASTER_SETTING.getKey(), false).build();
-                settings.put(Node.NODE_DATA_SETTING.getKey(), true).build();
-            } else if (i == bootstrapNodeIndex) {
-                settings.put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), numSharedDataNodes);
-            }
-            NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true, defaultMinMasterNodes,
-                onTransportServiceStarted);
-            toStartAndPublish.add(nodeAndClient);
-        }
-        for (int i = numSharedDedicatedMasterNodes + numSharedDataNodes;
-             i < numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {
-            final Builder settings = Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false)
-                .put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_INGEST_SETTING.getKey(), false);
-            NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true, defaultMinMasterNodes,
-                onTransportServiceStarted);
+            final NodeAndClient nodeAndClient = buildNode(i, nodeSettings, true, onTransportServiceStarted);
             toStartAndPublish.add(nodeAndClient);
         }
 
@@ -1286,26 +1292,24 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    private IndexShard getShardOrNull(ClusterState clusterState, ShardRouting shardRouting) {
+        if (shardRouting == null || shardRouting.assignedToNode() == false) {
+            return null;
+        }
+        final DiscoveryNode assignedNode = clusterState.nodes().get(shardRouting.currentNodeId());
+        if (assignedNode == null) {
+            return null;
+        }
+        return getInstance(IndicesService.class, assignedNode.getName()).getShardOrNull(shardRouting.shardId());
+    }
+
     public void assertSeqNos() throws Exception {
-        final BiFunction<ClusterState, ShardRouting, IndexShard> getInstanceShardInstance = (clusterState, shardRouting) -> {
-            if (shardRouting.assignedToNode() == false) {
-                return null;
-            }
-            final DiscoveryNode assignedNode = clusterState.nodes().get(shardRouting.currentNodeId());
-            if (assignedNode == null) {
-                return null;
-            }
-            return getInstance(IndicesService.class, assignedNode.getName()).getShardOrNull(shardRouting.shardId());
-        };
         assertBusy(() -> {
             final ClusterState state = clusterService().state();
             for (ObjectObjectCursor<String, IndexRoutingTable> indexRoutingTable : state.routingTable().indicesRouting()) {
                 for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.value.shards()) {
                     ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();
-                    if (primaryShardRouting == null) {
-                        continue;
-                    }
-                    final IndexShard primaryShard = getInstanceShardInstance.apply(state, primaryShardRouting);
+                    final IndexShard primaryShard = getShardOrNull(state, primaryShardRouting);
                     if (primaryShard == null) {
                         continue; //just ignore - shard movement
                     }
@@ -1320,7 +1324,7 @@ public final class InternalTestCluster extends TestCluster {
                     assertThat(primaryShardRouting + " should have set the global checkpoint",
                         primarySeqNoStats.getGlobalCheckpoint(), not(equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO)));
                     for (ShardRouting replicaShardRouting : indexShardRoutingTable.value.replicaShards()) {
-                        final IndexShard replicaShard = getInstanceShardInstance.apply(state, replicaShardRouting);
+                        final IndexShard replicaShard = getShardOrNull(state, replicaShardRouting);
                         if (replicaShard == null) {
                             continue; //just ignore - shard movement
                         }
@@ -1349,12 +1353,10 @@ public final class InternalTestCluster extends TestCluster {
             for (ObjectObjectCursor<String, IndexRoutingTable> indexRoutingTable : state.routingTable().indicesRouting()) {
                 for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.value.shards()) {
                     ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();
-                    if (primaryShardRouting == null || primaryShardRouting.assignedToNode() == false) {
+                    IndexShard primaryShard = getShardOrNull(state, primaryShardRouting);
+                    if (primaryShard == null) {
                         continue;
                     }
-                    DiscoveryNode primaryNode = state.nodes().get(primaryShardRouting.currentNodeId());
-                    IndexShard primaryShard = getInstance(IndicesService.class, primaryNode.getName())
-                        .indexServiceSafe(primaryShardRouting.index()).getShard(primaryShardRouting.id());
                     final List<DocIdSeqNoAndTerm> docsOnPrimary;
                     try {
                         docsOnPrimary = IndexShardTestCase.getDocIdAndSeqNos(primaryShard);
@@ -1362,12 +1364,10 @@ public final class InternalTestCluster extends TestCluster {
                         continue;
                     }
                     for (ShardRouting replicaShardRouting : indexShardRoutingTable.value.replicaShards()) {
-                        if (replicaShardRouting.assignedToNode() == false) {
+                        IndexShard replicaShard = getShardOrNull(state, replicaShardRouting);
+                        if (replicaShard == null) {
                             continue;
                         }
-                        DiscoveryNode replicaNode = state.nodes().get(replicaShardRouting.currentNodeId());
-                        IndexShard replicaShard = getInstance(IndicesService.class, replicaNode.getName())
-                            .indexServiceSafe(replicaShardRouting.index()).getShard(replicaShardRouting.id());
                         final List<DocIdSeqNoAndTerm> docsOnReplica;
                         try {
                             docsOnReplica = IndexShardTestCase.getDocIdAndSeqNos(replicaShard);
@@ -1393,8 +1393,7 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private void wipePendingDataDirectories() {
-        assert Thread.holdsLock(this);
+    public synchronized void wipePendingDataDirectories() {
         if (!dataDirToClean.isEmpty()) {
             try {
                 for (Path path : dataDirToClean) {
@@ -1948,8 +1947,8 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Starts multiple nodes with the given settings and returns their names
      */
-    public synchronized List<String> startNodes(Settings... settings) {
-        final int newMasterCount = Math.toIntExact(Stream.of(settings).filter(Node.NODE_MASTER_SETTING::get).count());
+    public synchronized List<String> startNodes(Settings... extraSettings) {
+        final int newMasterCount = Math.toIntExact(Stream.of(extraSettings).filter(Node.NODE_MASTER_SETTING::get).count());
         final int defaultMinMasterNodes;
         if (autoManageMinMasterNodes) {
             defaultMinMasterNodes = getMinMasterNodes(getMasterNodesCount() + newMasterCount);
@@ -1958,19 +1957,39 @@ public final class InternalTestCluster extends TestCluster {
         }
         final List<NodeAndClient> nodes = new ArrayList<>();
         final int prevMasterCount = getMasterNodesCount();
-        int bootstrapMasterNodeIndex = prevMasterCount == 0 && autoManageMinMasterNodes && newMasterCount > 0 && Arrays.stream(settings)
+        int bootstrapMasterNodeIndex =
+                prevMasterCount == 0 && autoManageMinMasterNodes && newMasterCount > 0 && Arrays.stream(extraSettings)
             .allMatch(s -> Node.NODE_MASTER_SETTING.get(s) == false || TestZenDiscovery.USE_ZEN2.get(s) == true)
             ? RandomNumbers.randomIntBetween(random, 0, newMasterCount - 1) : -1;
 
-        for (Settings nodeSettings : settings) {
+        final int numOfNodes = extraSettings.length;
+        final int firstNodeId = nextNodeId.getAndIncrement();
+        final List<Settings> settings = new ArrayList<>();
+        for (int i = 0; i < numOfNodes; i++) {
+            settings.add(getNodeSettings(firstNodeId + i, random.nextLong(), extraSettings[i], defaultMinMasterNodes));
+        }
+        nextNodeId.set(firstNodeId + numOfNodes);
+
+        final List<String> initialMasterNodes = settings.stream()
+                .filter(Node.NODE_MASTER_SETTING::get)
+                .map(Node.NODE_NAME_SETTING::get)
+                .collect(Collectors.toList());
+
+        final List<Settings> updatedSettings = nodeConfigurationSource.addExtraClusterBootstrapSettings(settings);
+
+        for (int i = 0; i < numOfNodes; i++) {
+            final Settings nodeSettings = updatedSettings.get(i);
             final Builder builder = Settings.builder();
             if (Node.NODE_MASTER_SETTING.get(nodeSettings)) {
                 if (bootstrapMasterNodeIndex == 0) {
-                    builder.put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), newMasterCount);
+                    builder.putList(INITIAL_MASTER_NODES_SETTING.getKey(), initialMasterNodes);
                 }
                 bootstrapMasterNodeIndex -= 1;
             }
-            nodes.add(buildNode(builder.put(nodeSettings).build(), defaultMinMasterNodes, () -> rebuildUnicastHostFiles(nodes)));
+
+            final NodeAndClient nodeAndClient =
+                    buildNode(firstNodeId + i, builder.put(nodeSettings).build(), false, () -> rebuildUnicastHostFiles(nodes));
+            nodes.add(nodeAndClient);
         }
         startAndPublishNodesAndClients(nodes);
         if (autoManageMinMasterNodes) {

@@ -23,6 +23,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.tasks.TaskSubmissionResponse;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -32,7 +33,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.function.BooleanSupplier;
 
 public class ReindexIT extends ESRestHighLevelClientTestCase {
 
@@ -48,8 +48,8 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             createIndex(sourceIndex, settings);
             createIndex(destinationIndex, settings);
             BulkRequest bulkRequest = new BulkRequest()
-                .add(new IndexRequest(sourceIndex, "type", "1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
-                .add(new IndexRequest(sourceIndex, "type", "2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
+                .add(new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
+                .add(new IndexRequest(sourceIndex).id("2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             assertEquals(
                 RestStatus.OK,
@@ -64,7 +64,7 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             ReindexRequest reindexRequest = new ReindexRequest();
             reindexRequest.setSourceIndices(sourceIndex);
             reindexRequest.setDestIndex(destinationIndex);
-            reindexRequest.setSourceQuery(new IdsQueryBuilder().addIds("1").types("type"));
+            reindexRequest.setSourceQuery(new IdsQueryBuilder().addIds("1"));
             reindexRequest.setRefresh(true);
 
             BulkByScrollResponse bulkResponse = execute(reindexRequest, highLevelClient()::reindex, highLevelClient()::reindexAsync);
@@ -82,7 +82,7 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testReindexTask() throws IOException, InterruptedException {
+    public void testReindexTask() throws Exception {
         final String sourceIndex = "source123";
         final String destinationIndex = "dest2";
         {
@@ -94,8 +94,8 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             createIndex(sourceIndex, settings);
             createIndex(destinationIndex, settings);
             BulkRequest bulkRequest = new BulkRequest()
-                .add(new IndexRequest(sourceIndex, "type", "1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
-                .add(new IndexRequest(sourceIndex, "type", "2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
+                .add(new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
+                .add(new IndexRequest(sourceIndex).id("2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             assertEquals(
                 RestStatus.OK,
@@ -118,20 +118,14 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             String taskId = reindexSubmission.getTask(); // <3>
             // end::submit-reindex-task
 
-            BooleanSupplier hasUpgradeCompleted = checkCompletionStatus(taskId);
-            awaitBusy(hasUpgradeCompleted);
+            assertBusy(checkCompletionStatus(client(), taskId));
         }
     }
 
-    private BooleanSupplier checkCompletionStatus(String taskId) {
+    static CheckedRunnable<Exception> checkCompletionStatus(RestClient client, String taskId) {
         return () -> {
-            try {
-                Response response = client().performRequest(new Request("GET", "/_tasks/" + taskId));
-                return (boolean) entityAsMap(response).get("completed");
-            } catch (IOException e) {
-                fail(e.getMessage());
-                return false;
-            }
+            Response response = client.performRequest(new Request("GET", "/_tasks/" + taskId));
+            assertTrue((boolean) entityAsMap(response).get("completed"));
         };
     }
 }

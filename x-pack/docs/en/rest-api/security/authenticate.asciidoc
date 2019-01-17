@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-authenticate]]
 === Authenticate API
+++++
+<titleabbrev>Authenticate</titleabbrev>
+++++
 
 The Authenticate API enables you to submit a request with a basic auth header to
 authenticate a user and retrieve information about the authenticated user.

@@ -18,7 +18,7 @@ Index APIs::
 * Always enforce cluster-wide shard limit {pull}34892[#34892] (issues: {issue}20705[#20705], {issue}34021[#34021])
 
 Ranking::
-* Forbid negative scores in functon_score query {pull}35709[#35709] (issue: {issue}33309[#33309])
+* Forbid negative scores in function_score query {pull}35709[#35709] (issue: {issue}33309[#33309])
 
 Scripting::
 * Delete deprecated getValues from ScriptDocValues {pull}36183[#36183] (issue: {issue}22919[#22919])
@@ -26,7 +26,7 @@ Scripting::
 Search::
 * Remove the deprecated _termvector endpoint. {pull}36131[#36131] (issues: {issue}36098[#36098], {issue}8484[#8484])
 * Remove deprecated Graph endpoints {pull}35956[#35956]
-* Validate metdata on `_msearch` {pull}35938[#35938] (issue: {issue}35869[#35869])
+* Validate metadata on `_msearch` {pull}35938[#35938] (issue: {issue}35869[#35869])
 * Make hits.total an object in the search response {pull}35849[#35849] (issue: {issue}33028[#33028])
 * Remove the distinction between query and filter context in QueryBuilders {pull}35354[#35354] (issue: {issue}35293[#35293])
 * Throw a parsing exception when boost is set in span_or query (#28390) {pull}34112[#34112] (issue: {issue}28390[#28390])
@@ -544,7 +544,7 @@ Search::
 * Add a More Like This query routing requirement check (#29678) {pull}33974[#33974]
 
 Security::
-* Remove license state listeners on closables {pull}36308[#36308] (issues: {issue}33328[#33328], {issue}35627[#35627], {issue}35628[#35628])
+* Remove license state listeners on closeables {pull}36308[#36308] (issues: {issue}33328[#33328], {issue}35627[#35627], {issue}35628[#35628])
 
 Snapshot/Restore::
 * Upgrade GCS Dependencies to 1.55.0 {pull}36634[#36634] (issues: {issue}35229[#35229], {issue}35459[#35459])

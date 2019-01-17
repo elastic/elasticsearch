@@ -59,7 +59,7 @@ public class LifecyclePolicy implements ToXContentObject {
 
         ALLOWED_ACTIONS.put("hot", Sets.newHashSet(RolloverAction.NAME));
         ALLOWED_ACTIONS.put("warm", Sets.newHashSet(AllocateAction.NAME, ForceMergeAction.NAME, ReadOnlyAction.NAME, ShrinkAction.NAME));
-        ALLOWED_ACTIONS.put("cold", Sets.newHashSet(AllocateAction.NAME));
+        ALLOWED_ACTIONS.put("cold", Sets.newHashSet(AllocateAction.NAME, FreezeAction.NAME));
         ALLOWED_ACTIONS.put("delete", Sets.newHashSet(DeleteAction.NAME));
     }
 

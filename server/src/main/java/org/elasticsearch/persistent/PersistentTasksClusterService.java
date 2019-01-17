@@ -73,7 +73,8 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             this::setRecheckInterval);
     }
 
-    void setRecheckInterval(TimeValue recheckInterval) {
+    // visible for testing only
+    public void setRecheckInterval(TimeValue recheckInterval) {
         periodicRechecker.setInterval(recheckInterval);
     }
 

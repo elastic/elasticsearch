@@ -15,7 +15,7 @@ There are four ways that a geo-point may be specified, as demonstrated below:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {

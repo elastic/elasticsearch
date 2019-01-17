@@ -36,6 +36,7 @@ class ScrollIdForNode {
         return node;
     }
 
+    @Nullable
     public String getClusterAlias() {
         return clusterAlias;
     }

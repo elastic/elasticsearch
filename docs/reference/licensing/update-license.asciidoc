@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[update-license]]
-=== Update License API
+=== Update license API
+++++
+<titleabbrev>Update license</titleabbrev>
+++++
 
 This API enables you to update your license.
 

@@ -41,7 +41,6 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36258")
     public void testSingleSeries() throws Exception {
         Detector.Builder detector = new Detector.Builder("mean", "value");
 

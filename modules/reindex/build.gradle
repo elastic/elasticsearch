@@ -62,14 +62,14 @@ dependencies {
   testCompile project(path: ':modules:parent-join', configuration: 'runtime')
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
   // Commons logging
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',
   'org.apache.avalon.framework.logger.Logger',
   'org.apache.log.Hierarchy',
   'org.apache.log.Logger',
-]
+)
 
 // Support for testing reindex-from-remote against old Elaticsearch versions
 configurations {

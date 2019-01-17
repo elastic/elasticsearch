@@ -1,6 +1,9 @@
 [role="xpack"]
 [[watcher-api-put-watch]]
-=== Put Watch API
+=== Put watch API
+++++
+<titleabbrev>Put watch</titleabbrev>
+++++
 
 The PUT watch API either registers a new watch in {watcher} or update an
 existing one.

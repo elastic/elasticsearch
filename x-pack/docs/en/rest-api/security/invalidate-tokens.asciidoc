@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-invalidate-token]]
 === Invalidate token API
+++++
+<titleabbrev>Invalidate token</titleabbrev>
+++++
 
 Invalidates one or more access tokens or refresh tokens.
 

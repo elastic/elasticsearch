@@ -153,25 +153,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         assertEquals(7, maxOpenJobs);
     }
 
-    public void testMaxOpenJobsSetting_givenOldSettingOnly() {
-        Settings.Builder settings = Settings.builder();
-        settings.put(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), 9);
-        int maxOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings.build());
-        assertEquals(9, maxOpenJobs);
-        assertWarnings("[max_running_jobs] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                + "See the breaking changes documentation for the next major version.");
-    }
-
-    public void testMaxOpenJobsSetting_givenOldAndNewSettings() {
-        Settings.Builder settings = Settings.builder();
-        settings.put(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.getKey(), 7);
-        settings.put(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), 9);
-        int maxOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings.build());
-        assertEquals(7, maxOpenJobs);
-        assertWarnings("[max_running_jobs] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                + "See the breaking changes documentation for the next major version.");
-    }
-
     public void testOpenJob() {
         Client client = mock(Client.class);
         AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);

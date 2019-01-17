@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-post-resume-follow]]
-=== Resume Follower API
+=== Resume follower API
 ++++
-<titleabbrev>Resume Follower</titleabbrev>
+<titleabbrev>Resume follower</titleabbrev>
 ++++
 
 beta[]

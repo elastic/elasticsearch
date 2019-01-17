@@ -147,15 +147,3 @@ org.apache.logging.log4j.Logger#error(java.lang.Object)
 org.apache.logging.log4j.Logger#error(java.lang.Object, java.lang.Throwable)
 org.apache.logging.log4j.Logger#fatal(java.lang.Object)
 org.apache.logging.log4j.Logger#fatal(java.lang.Object, java.lang.Throwable)
-
-# Remove once Lucene 7.7 is integrated
-@defaultMessage Use org.apache.lucene.document.XLatLonShape classes instead
-org.apache.lucene.document.LatLonShape
-org.apache.lucene.document.LatLonShapeBoundingBoxQuery
-org.apache.lucene.document.LatLonShapeLineQuery
-org.apache.lucene.document.LatLonShapePolygonQuery
-org.apache.lucene.document.LatLonShapeQuery
-
-org.apache.lucene.geo.Rectangle2D @ use @org.apache.lucene.geo.XRectangle2D instead
-
-org.apache.lucene.geo.Tessellator @ use @org.apache.lucene.geo.XTessellator instead

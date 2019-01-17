@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.security.action.token;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -14,7 +13,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 
 import java.io.IOException;
@@ -65,48 +63,6 @@ public class InvalidateTokenResponseTests extends ESTestCase {
         }
     }
 
-    public void testSerializationToPre66Version() throws IOException{
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_2_0, Version.V_6_5_1);
-        TokensInvalidationResult result = new TokensInvalidationResult(Arrays.asList(generateRandomStringArray(20, 15, false, false)),
-            Arrays.asList(generateRandomStringArray(20, 15, false, false)),
-            Arrays.asList(new ElasticsearchException("foo", new IllegalArgumentException("this is an error message")),
-                new ElasticsearchException("bar", new IllegalArgumentException("this is an error message2"))),
-            randomIntBetween(0, 5));
-        InvalidateTokenResponse response = new InvalidateTokenResponse(result);
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(version);
-            response.writeTo(output);
-            try (StreamInput input = output.bytes().streamInput()) {
-                // False as we have errors and previously invalidated tokens
-                assertThat(input.readBoolean(), equalTo(false));
-            }
-        }
-
-        result = new TokensInvalidationResult(Arrays.asList(generateRandomStringArray(20, 15, false, false)),
-            Arrays.asList(generateRandomStringArray(20, 15, false, false)),
-            Collections.emptyList(), randomIntBetween(0, 5));
-        response = new InvalidateTokenResponse(result);
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(version);
-            response.writeTo(output);
-            try (StreamInput input = output.bytes().streamInput()) {
-                // False as we have previously invalidated tokens
-                assertThat(input.readBoolean(), equalTo(false));
-            }
-        }
-
-        result = new TokensInvalidationResult(Arrays.asList(generateRandomStringArray(20, 15, false, false)),
-            Collections.emptyList(), Collections.emptyList(), randomIntBetween(0, 5));
-        response = new InvalidateTokenResponse(result);
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(version);
-            response.writeTo(output);
-            try (StreamInput input = output.bytes().streamInput()) {
-                assertThat(input.readBoolean(), equalTo(true));
-            }
-        }
-    }
-
     public void testToXContent() throws IOException {
         List invalidatedTokens = Arrays.asList(generateRandomStringArray(20, 15, false));
         List previouslyInvalidatedTokens = Arrays.asList(generateRandomStringArray(20, 15, false));
@@ -118,7 +74,7 @@ public class InvalidateTokenResponseTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(Strings.toString(builder),
-            equalTo("{\"created\":false," +
+            equalTo("{" +
                 "\"invalidated_tokens\":" + invalidatedTokens.size() + "," +
                 "\"previously_invalidated_tokens\":" + previouslyInvalidatedTokens.size() + "," +
                 "\"error_count\":2," +

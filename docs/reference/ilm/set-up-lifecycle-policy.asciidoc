@@ -3,12 +3,10 @@
 [[set-up-lifecycle-policy]]
 == Set up {ilm} policy
 
-beta[]
-
 In order for an index to use an {ilm} policy to manage its lifecycle we must
-first define a lifecycle policy for it to use. The following request creates
-a policy called `my_policy` in Elasticsearch which we can later use to manage
-our indexes.
+first define a lifecycle policy for it to use. The following request creates a
+policy called `my_policy` in Elasticsearch which we can later use to manage our
+indexes.
 
 [source,js]
 ------------------------
@@ -39,7 +37,7 @@ PUT _ilm/policy/my_policy
 
 {ilm} will manage an index using the policy defined in the
 `index.lifecycle.name` index setting. If this setting does not exist in the
-settings for a particular index {ilm} will not manage that index.
+settings for a particular index, {ilm} will not manage that index.
 
 To set the policy for an index there are two options:
 
@@ -48,8 +46,6 @@ To set the policy for an index there are two options:
 
 [[applying-policy-to-template]]
 === Applying a policy to an index template
-
-beta[]
 
 The `index.lifecycle.name` setting can be set in an index template so that it
 is automatically applied to indexes matching the templates index pattern:
@@ -77,7 +73,7 @@ initial index which will be managed by our policy:
 
 [source,js]
 -----------------------
-PUT test-000001
+PUT test-000001?include_type_name=true
 {
   "aliases": {
     "test-alias":{
@@ -90,19 +86,17 @@ PUT test-000001
 <1> Set this initial index to be the write index for this alias.
 
 We can now write data to the `test-alias` alias. Because we have a rollover
-action defined in our policy when the index grows larger than 25GB {ilm} will
+action defined in our policy, when the index grows larger than 25GB {ilm} will
 create a new index and roll the alias over to use the new index automatically.
 
 === Apply a policy to a create index request
-
-beta[]
 
 The `index.lifecycle.name` setting can be set on an individual create index
 request so {ilm} immediately starts managing the index:
 
 [source,js]
 -----------------------
-PUT test-index
+PUT test-index?include_type_name=true
 {
   "settings": {
     "number_of_shards": 1,

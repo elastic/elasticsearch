@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[migration-api-deprecation]]
-=== Deprecation Info APIs
+=== Deprecation info APIs
+++++
+<titleabbrev>Deprecation info</titleabbrev>
+++++
 
 The deprecation API is to be used to retrieve information about different
 cluster, node, and index level settings that use deprecated features that will

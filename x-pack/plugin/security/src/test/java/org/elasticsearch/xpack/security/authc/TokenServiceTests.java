@@ -12,11 +12,6 @@ import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.get.MultiGetAction;
-import org.elasticsearch.action.get.MultiGetItemResponse;
-import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.get.MultiGetRequestBuilder;
-import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -27,7 +22,6 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -104,23 +98,6 @@ public class TokenServiceTests extends ESTestCase {
                     .setId((String) invocationOnMock.getArguments()[2]);
             return builder;
         }).when(client).prepareGet(anyString(), anyString(), anyString());
-        when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
-        doAnswer(invocationOnMock -> {
-            ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocationOnMock.getArguments()[1];
-            MultiGetResponse response = mock(MultiGetResponse.class);
-            MultiGetItemResponse[] responses = new MultiGetItemResponse[2];
-            when(response.getResponses()).thenReturn(responses);
-
-            GetResponse oldGetResponse = mock(GetResponse.class);
-            when(oldGetResponse.isExists()).thenReturn(false);
-            responses[0] = new MultiGetItemResponse(oldGetResponse, null);
-
-            GetResponse getResponse = mock(GetResponse.class);
-            responses[1] = new MultiGetItemResponse(getResponse, null);
-            when(getResponse.isExists()).thenReturn(false);
-            listener.onResponse(response);
-            return Void.TYPE;
-        }).when(client).multiGet(any(MultiGetRequest.class), any(ActionListener.class));
         when(client.prepareIndex(any(String.class), any(String.class), any(String.class)))
                 .thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
         when(client.prepareUpdate(any(String.class), any(String.class), any(String.class)))
@@ -168,8 +145,7 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap(), true);
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
-        mockGetTokenFromId(token);
-        mockCheckTokenInvalidationFromId(token);
+        mockGetTokenFromId(token, false);
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", randomFrom("Bearer ", "BEARER ", "bearer ") + tokenService.getUserTokenString(token));
@@ -215,8 +191,7 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap(), true);
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
-        mockGetTokenFromId(token);
-        mockCheckTokenInvalidationFromId(token);
+        mockGetTokenFromId(token, false);
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
@@ -244,7 +219,7 @@ public class TokenServiceTests extends ESTestCase {
 
         requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(newToken));
-        mockGetTokenFromId(newToken);
+        mockGetTokenFromId(newToken, false);
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -275,8 +250,7 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap(), true);
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
-        mockGetTokenFromId(token);
-        mockCheckTokenInvalidationFromId(token);
+        mockGetTokenFromId(token, false);
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
@@ -306,8 +280,7 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap(), true);
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
-        mockGetTokenFromId(token);
-        mockCheckTokenInvalidationFromId(token);
+        mockGetTokenFromId(token, false);
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
@@ -351,7 +324,7 @@ public class TokenServiceTests extends ESTestCase {
 
         requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(newToken));
-        mockGetTokenFromId(newToken);
+        mockGetTokenFromId(newToken, false);
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
@@ -368,8 +341,7 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap(), true);
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
-        mockGetTokenFromId(token);
-        mockCheckTokenInvalidationFromId(token);
+        mockGetTokenFromId(token, false);
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
@@ -413,33 +385,10 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap(), true);
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
-        doAnswer(invocationOnMock -> {
-            ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocationOnMock.getArguments()[1];
-            MultiGetResponse response = mock(MultiGetResponse.class);
-            MultiGetItemResponse[] responses = new MultiGetItemResponse[2];
-            when(response.getResponses()).thenReturn(responses);
-
-            final boolean newExpired = randomBoolean();
-            GetResponse oldGetResponse = mock(GetResponse.class);
-            when(oldGetResponse.isExists()).thenReturn(newExpired == false);
-            responses[0] = new MultiGetItemResponse(oldGetResponse, null);
-
-            GetResponse getResponse = mock(GetResponse.class);
-            responses[1] = new MultiGetItemResponse(getResponse, null);
-            when(getResponse.isExists()).thenReturn(newExpired);
-            if (newExpired) {
-                Map<String, Object> source = MapBuilder.<String, Object>newMapBuilder()
-                        .put("access_token", Collections.singletonMap("invalidated", true))
-                        .immutableMap();
-                when(getResponse.getSource()).thenReturn(source);
-            }
-            listener.onResponse(response);
-            return Void.TYPE;
-        }).when(client).multiGet(any(MultiGetRequest.class), any(ActionListener.class));
+        mockGetTokenFromId(token, true);
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
-        mockGetTokenFromId(token);
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -466,8 +415,7 @@ public class TokenServiceTests extends ESTestCase {
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
         tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap(), true);
         final UserToken token = tokenFuture.get().v1();
-        mockGetTokenFromId(token);
-        mockCheckTokenInvalidationFromId(token);
+        mockGetTokenFromId(token, false);
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
@@ -577,7 +525,7 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap(), true);
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
-        mockGetTokenFromId(token);
+        //mockGetTokenFromId(token, false);
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
@@ -586,7 +534,7 @@ public class TokenServiceTests extends ESTestCase {
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             listener.onFailure(new NoShardAvailableActionException(new ShardId(new Index("foo", "uuid"), 0), "shard oh shard"));
             return Void.TYPE;
-        }).when(client).multiGet(any(MultiGetRequest.class), any(ActionListener.class));
+        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -606,19 +554,19 @@ public class TokenServiceTests extends ESTestCase {
 
             when(securityIndex.isAvailable()).thenReturn(true);
             when(securityIndex.indexExists()).thenReturn(true);
-            mockCheckTokenInvalidationFromId(token);
+            mockGetTokenFromId(token, false);
             future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             assertEquals(token.getAuthentication(), future.get().getAuthentication());
         }
     }
 
-    public void testGetAuthenticationWorksWithExpiredToken() throws Exception {
+    public void testGetAuthenticationWorksWithExpiredUserToken() throws Exception {
         TokenService tokenService =
                 new TokenService(tokenServiceEnabledSettings, Clock.systemUTC(), client, securityIndex, clusterService);
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         UserToken expired = new UserToken(authentication, Instant.now().minus(3L, ChronoUnit.DAYS));
-        mockGetTokenFromId(expired);
+        mockGetTokenFromId(expired, false);
         String userTokenString = tokenService.getUserTokenString(expired);
         PlainActionFuture<Tuple<Authentication, Map<String, Object>>> authFuture = new PlainActionFuture<>();
         tokenService.getAuthenticationAndMetaData(userTokenString, authFuture);
@@ -626,62 +574,30 @@ public class TokenServiceTests extends ESTestCase {
         assertEquals(authentication, retrievedAuth);
     }
 
-    private void mockGetTokenFromId(UserToken userToken) {
-        mockGetTokenFromId(userToken, client);
+    private void mockGetTokenFromId(UserToken userToken, boolean isExpired) {
+        mockGetTokenFromId(userToken, isExpired, client);
     }
 
-    public static void mockGetTokenFromId(UserToken userToken, Client client) {
+    public static void mockGetTokenFromId(UserToken userToken, boolean isExpired, Client client) {
         doAnswer(invocationOnMock -> {
-            GetRequest getRequest = (GetRequest) invocationOnMock.getArguments()[0];
-            ActionListener<GetResponse> getResponseListener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
-            GetResponse getResponse = mock(GetResponse.class);
-            if (userToken.getId().equals(getRequest.id().replace("token_", ""))) {
-                when(getResponse.isExists()).thenReturn(true);
-                Map<String, Object> sourceMap = new HashMap<>();
-                try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-                    userToken.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                    sourceMap.put("access_token",
-                            Collections.singletonMap("user_token",
-                                    XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false)));
-                }
-                when(getResponse.getSource()).thenReturn(sourceMap);
-            }
-            getResponseListener.onResponse(getResponse);
-            return Void.TYPE;
-        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
-    }
-
-    private void mockCheckTokenInvalidationFromId(UserToken userToken) {
-        mockCheckTokenInvalidationFromId(userToken, client);
-    }
-
-    public static void mockCheckTokenInvalidationFromId(UserToken userToken, Client client) {
-        doAnswer(invocationOnMock -> {
-            MultiGetRequest request = (MultiGetRequest) invocationOnMock.getArguments()[0];
-            ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocationOnMock.getArguments()[1];
-            MultiGetResponse response = mock(MultiGetResponse.class);
-            MultiGetItemResponse[] responses = new MultiGetItemResponse[2];
-            when(response.getResponses()).thenReturn(responses);
-            GetResponse legacyResponse = mock(GetResponse.class);
-            responses[0] = new MultiGetItemResponse(legacyResponse, null);
-            when(legacyResponse.isExists()).thenReturn(false);
-            GetResponse tokenResponse = mock(GetResponse.class);
-            if (userToken.getId().equals(request.getItems().get(1).id().replace("token_", ""))) {
-                when(tokenResponse.isExists()).thenReturn(true);
+            GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
+            ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
+            GetResponse response = mock(GetResponse.class);
+            if (userToken.getId().equals(request.id().replace("token_", ""))) {
+                when(response.isExists()).thenReturn(true);
                 Map<String, Object> sourceMap = new HashMap<>();
                 try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
                     userToken.toXContent(builder, ToXContent.EMPTY_PARAMS);
                     Map<String, Object> accessTokenMap = new HashMap<>();
                     accessTokenMap.put("user_token",
                         XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false));
-                    accessTokenMap.put("invalidated", false);
+                    accessTokenMap.put("invalidated", isExpired);
                     sourceMap.put("access_token", accessTokenMap);
                 }
-                when(tokenResponse.getSource()).thenReturn(sourceMap);
+                when(response.getSource()).thenReturn(sourceMap);
             }
-            responses[1] = new MultiGetItemResponse(tokenResponse, null);
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).multiGet(any(MultiGetRequest.class), any(ActionListener.class));
+        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
     }
 }

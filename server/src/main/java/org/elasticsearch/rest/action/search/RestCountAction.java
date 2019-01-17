@@ -57,6 +57,8 @@ public class RestCountAction extends BaseRestHandler {
         controller.registerHandler(GET, "/_count", this);
         controller.registerHandler(POST, "/{index}/_count", this);
         controller.registerHandler(GET, "/{index}/_count", this);
+
+        // Deprecated typed endpoints.
         controller.registerHandler(POST, "/{index}/{type}/_count", this);
         controller.registerHandler(GET, "/{index}/{type}/_count", this);
     }

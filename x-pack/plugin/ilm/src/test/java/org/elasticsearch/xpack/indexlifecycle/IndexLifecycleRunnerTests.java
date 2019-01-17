@@ -71,6 +71,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.hamcrest.Matchers.containsString;
@@ -203,7 +204,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         step.setLatch(latch);
         runner.runPolicyAfterStateChange(policyName, indexMetaData);
 
-        latch.await(5, TimeUnit.SECONDS);
+        awaitLatch(latch, 5, TimeUnit.SECONDS);
         ClusterState after = clusterService.state();
 
         assertEquals(before, after);
@@ -264,7 +265,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         nextStep.setLatch(latch);
         runner.runPolicyAfterStateChange(policyName, indexMetaData);
 
-        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        awaitLatch(latch, 5, TimeUnit.SECONDS);
 
         // The cluster state can take a few extra milliseconds to update after the steps are executed
         assertBusy(() -> assertNotEquals(before, clusterService.state()));
@@ -373,13 +374,13 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetaData);
 
         // Wait for the cluster state action step
-        latch.await(5, TimeUnit.SECONDS);
+        awaitLatch(latch, 5, TimeUnit.SECONDS);
 
         CountDownLatch asyncLatch = new CountDownLatch(1);
         nextStep.setLatch(asyncLatch);
 
         // Wait for the async action step
-        asyncLatch.await(5, TimeUnit.SECONDS);
+        awaitLatch(asyncLatch, 5, TimeUnit.SECONDS);
         ClusterState after = clusterService.state();
 
         assertNotEquals(before, after);
@@ -440,7 +441,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         step.setLatch(latch);
         runner.runPeriodicStep(policyName, indexMetaData);
-        latch.await(5, TimeUnit.SECONDS);
+        awaitLatch(latch, 5, TimeUnit.SECONDS);
 
         ClusterState after = clusterService.state();
 

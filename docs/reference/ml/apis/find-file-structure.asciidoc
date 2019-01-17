@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[ml-find-file-structure]]
-=== Find File Structure API
+=== Find file structure API
 ++++
-<titleabbrev>Find File Structure</titleabbrev>
+<titleabbrev>Find file structure</titleabbrev>
 ++++
 
 experimental[]

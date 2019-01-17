@@ -23,7 +23,7 @@ The {es} {security-features} provide two ways to persist audit logs:
   index. The audit index can reside on the same cluster, or a separate cluster.
 
 By default, only the `logfile` output is used when enabling auditing,
-implicitly outputing to both `<clustername>_audit.log` and `<clustername>_access.log`.
+implicitly outputting to both `<clustername>_audit.log` and `<clustername>_access.log`.
 To facilitate browsing and analyzing the events, you can also enable
 indexing by setting `xpack.security.audit.outputs` in `elasticsearch.yml`:
 

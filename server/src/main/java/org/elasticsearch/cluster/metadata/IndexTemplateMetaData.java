@@ -20,7 +20,6 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -42,6 +41,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -330,17 +330,47 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             return new IndexTemplateMetaData(name, order, version, indexPatterns, settings, mappings.build(), aliases.build());
         }
 
-        public static void toXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder, ToXContent.Params params)
-                throws IOException {
+        /**
+         * Serializes the template to xContent, using the legacy format where the mappings are
+         * nested under the type name.
+         *
+         * This method is used for serializing templates before storing them in the cluster metadata,
+         * and also in the REST layer when returning a deprecated typed response.
+         */
+        public static void toXContentWithTypes(IndexTemplateMetaData indexTemplateMetaData,
+                                               XContentBuilder builder,
+                                               ToXContent.Params params) throws IOException {
             builder.startObject(indexTemplateMetaData.name());
-
-            toInnerXContent(indexTemplateMetaData, builder, params);
-
+            toInnerXContent(indexTemplateMetaData, builder, params, true);
             builder.endObject();
         }
 
-        public static void toInnerXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder, ToXContent.Params params)
-            throws IOException {
+        /**
+         * Serializes the template to xContent, making sure not to nest mappings under the
+         * type name.
+         *
+         * Note that this method should currently only be used for creating REST responses,
+         * and not when directly updating stored templates. Index templates are still stored
+         * in the old, typed format, and have yet to be migrated to be typeless.
+         */
+        public static void toXContent(IndexTemplateMetaData indexTemplateMetaData,
+                                      XContentBuilder builder,
+                                      ToXContent.Params params) throws IOException {
+            builder.startObject(indexTemplateMetaData.name());
+            toInnerXContent(indexTemplateMetaData, builder, params, false);
+            builder.endObject();
+        }
+
+        static void toInnerXContentWithTypes(IndexTemplateMetaData indexTemplateMetaData,
+                                             XContentBuilder builder,
+                                             ToXContent.Params params) throws IOException {
+            toInnerXContent(indexTemplateMetaData, builder, params, true);
+        }
+
+        private static void toInnerXContent(IndexTemplateMetaData indexTemplateMetaData,
+                                            XContentBuilder builder,
+                                            ToXContent.Params params,
+                                            boolean includeTypeName) throws IOException {
 
             builder.field("order", indexTemplateMetaData.order());
             if (indexTemplateMetaData.version() != null) {
@@ -353,18 +383,35 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             builder.endObject();
 
             if (params.paramAsBoolean("reduce_mappings", false)) {
-                builder.startObject("mappings");
-                for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetaData.mappings()) {
-                    byte[] mappingSource = cursor.value.uncompressed();
-                    Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(mappingSource), true).v2();
-                    if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
-                        // the type name is the root value, reduce it
-                        mapping = (Map<String, Object>) mapping.get(cursor.key);
+                // The parameter include_type_name is only ever used in the REST API, where reduce_mappings is
+                // always set to true. We therefore only check for include_type_name in this branch.
+                if (includeTypeName == false) {
+                    Map<String, Object> documentMapping = null;
+                    for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetaData.mappings()) {
+                        if (!cursor.key.equals(MapperService.DEFAULT_MAPPING)) {
+                            assert documentMapping == null;
+                            byte[] mappingSource = cursor.value.uncompressed();
+                            Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(mappingSource), true).v2();
+                            documentMapping = reduceMapping(cursor.key, mapping);
+                        }
                     }
-                    builder.field(cursor.key);
-                    builder.map(mapping);
+
+                    if (documentMapping != null) {
+                        builder.field("mappings", documentMapping);
+                    } else {
+                        builder.startObject("mappings").endObject();
+                    }
+                } else {
+                    builder.startObject("mappings");
+                    for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetaData.mappings()) {
+                        byte[] mappingSource = cursor.value.uncompressed();
+                        Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(mappingSource), true).v2();
+                        mapping = reduceMapping(cursor.key, mapping);
+                        builder.field(cursor.key);
+                        builder.map(mapping);
+                    }
+                    builder.endObject();
                 }
-                builder.endObject();
             } else {
                 builder.startArray("mappings");
                 for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetaData.mappings()) {
@@ -379,6 +426,16 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 AliasMetaData.Builder.toXContent(cursor.value, builder, params);
             }
             builder.endObject();
+        }
+
+        @SuppressWarnings("unchecked")
+        private static Map<String, Object> reduceMapping(String type, Map<String, Object> mapping) {
+            if (mapping.size() == 1 && mapping.containsKey(type)) {
+                // the type name is the root value, reduce it
+                return (Map<String, Object>) mapping.get(type);
+            } else {
+                return mapping;
+            }
         }
 
         public static IndexTemplateMetaData fromXContent(XContentParser parser, String templateName) throws IOException {

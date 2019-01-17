@@ -12,8 +12,6 @@ configurations {
 }
 
 dependencies {
-  dockerPlugins project(path: ":plugins:ingest-geoip", configuration: 'zip')
-  dockerPlugins project(path: ":plugins:ingest-user-agent", configuration: 'zip')
   dockerSource project(path: ":distribution:archives:tar")
   ossDockerSource project(path: ":distribution:archives:oss-tar")
 }
@@ -24,8 +22,6 @@ ext.expansions = { oss ->
     'jdkUrl' : 'https://download.java.net/java/GA/jdk11/13/GPL/openjdk-11.0.1_linux-x64_bin.tar.gz',
     'jdkVersion' : '11.0.1',
     'license': oss ? 'Apache-2.0' : 'Elastic License',
-    'ingest-geoip' : "ingest-geoip-${VersionProperties.elasticsearch}.zip",
-    'ingest-user-agent' : "ingest-user-agent-${VersionProperties.elasticsearch}.zip",
     'version' : VersionProperties.elasticsearch
   ]
 }

@@ -140,6 +140,8 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         assertEquals("scaled_float:[-9223372036854775808 TO 10]", scaledFloatQ.toString());
         scaledFloatQ = ft.rangeQuery(null, 0.105, true, true, null);
         assertEquals("scaled_float:[-9223372036854775808 TO 10]", scaledFloatQ.toString());
+        scaledFloatQ = ft.rangeQuery(null, 79.99, true, true, null);
+        assertEquals("scaled_float:[-9223372036854775808 TO 7999]", scaledFloatQ.toString());
     }
 
     public void testRoundsLowerBoundCorrectly() {

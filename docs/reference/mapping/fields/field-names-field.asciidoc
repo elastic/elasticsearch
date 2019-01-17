@@ -21,7 +21,7 @@ execute `exists` queries using those fields you might want to disable
 
 [source,js]
 --------------------------------------------------
-PUT tweets
+PUT tweets?include_type_name=true
 {
   "mappings": {
     "_doc": {

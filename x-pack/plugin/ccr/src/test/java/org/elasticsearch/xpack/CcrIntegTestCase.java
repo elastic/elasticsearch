@@ -65,6 +65,7 @@ import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngine;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -199,7 +200,9 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         builder.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
-        if (leaderSeedAddress != null) {
+        // Let cluster state api return quickly in order to speed up auto follow tests:
+        builder.put(CcrSettings.CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT.getKey(), TimeValue.timeValueMillis(100));
+        if (configureRemoteClusterViaNodeSettings() && leaderSeedAddress != null) {
             builder.put("cluster.remote.leader_cluster.seeds", leaderSeedAddress);
         }
         return new NodeConfigurationSource() {
@@ -241,6 +244,10 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     protected boolean reuseClusters() {
+        return true;
+    }
+
+    protected boolean configureRemoteClusterViaNodeSettings() {
         return true;
     }
 
@@ -556,9 +563,11 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         clusterService.submitStateUpdateTask("remove-ccr-related-metadata", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
+                AutoFollowMetadata empty =
+                    new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
                 ClusterState.Builder newState = ClusterState.builder(currentState);
                 newState.metaData(MetaData.builder(currentState.getMetaData())
-                    .removeCustom(AutoFollowMetadata.TYPE)
+                    .putCustom(AutoFollowMetadata.TYPE, empty)
                     .removeCustom(PersistentTasksCustomMetaData.TYPE)
                     .build());
                 return newState.build();

@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-datafeed]]
-=== Get {dfeeds-cap} API
+=== Get {dfeeds} API
 ++++
-<titleabbrev>Get {dfeeds-cap}</titleabbrev>
+<titleabbrev>Get {dfeeds}</titleabbrev>
 ++++
 
 Retrieves configuration information for {dfeeds}.
@@ -76,7 +76,6 @@ The API returns the following results:
       "indices": [
         "server-metrics"
       ],
-      "types": [],
       "query": {
         "match_all": {
           "boost": 1.0

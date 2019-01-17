@@ -51,6 +51,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
 
 public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
@@ -209,7 +210,6 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             PersistentTask<?> task = tasks.getTask(MlTasks.jobTaskId(jobId));
 
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
-            assertThat(node.getAttributes(), hasEntry(MachineLearning.ML_ENABLED_NODE_ATTR, "true"));
             assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "20"));
             JobTaskState jobTaskState = (JobTaskState) task.getState();
             assertNotNull(jobTaskState);
@@ -400,8 +400,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         String detailedMessage = detail.getMessage();
         assertTrue(detailedMessage,
             detailedMessage.startsWith("Could not open job because no suitable nodes were found, allocation explanation"));
-        assertTrue(detailedMessage, detailedMessage.endsWith("because not all primary shards are active for the following indices " +
-            "[.ml-state,.ml-anomalies-shared]]"));
+        assertThat(detailedMessage, containsString("because not all primary shards are active for the following indices"));
+        assertThat(detailedMessage, containsString(".ml-state"));
+        assertThat(detailedMessage, containsString(".ml-anomalies-shared"));
 
         logger.info("Start data node");
         String nonMlNode = internalCluster().startNode(Settings.builder()
@@ -425,7 +426,6 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertNotNull(task.getExecutorNode());
             assertFalse(needsReassignment(task.getAssignment(), clusterState.nodes()));
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
-            assertThat(node.getAttributes(), hasEntry(MachineLearning.ML_ENABLED_NODE_ATTR, "true"));
             assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "20"));
 
             JobTaskState jobTaskState = (JobTaskState) task.getState();

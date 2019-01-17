@@ -1048,6 +1048,9 @@
                 "leader_index": {
                   "type": "keyword"
                 },
+                "timestamp": {
+                  "type": "long"
+                },
                 "auto_follow_exception": {
                   "type": "object",
                   "properties": {

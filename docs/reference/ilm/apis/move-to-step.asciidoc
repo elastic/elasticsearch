@@ -1,12 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-move-to-step]]
-=== Move to Lifecycle Step API
+=== Move to lifecycle step API
 ++++
-<titleabbrev>Move to Step</titleabbrev>
+<titleabbrev>Move to step</titleabbrev>
 ++++
-
-beta[]
 
 Triggers execution of a specific step in the lifecycle policy.
 
@@ -74,7 +72,7 @@ PUT _ilm/policy/my_policy
   }
 }
 
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "index.lifecycle.name": "my_policy"

@@ -124,13 +124,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     public static final ParseField FREQUENCY = new ParseField("frequency");
     public static final ParseField INDEXES = new ParseField("indexes");
     public static final ParseField INDICES = new ParseField("indices");
-    public static final ParseField TYPES = new ParseField("types");
     public static final ParseField QUERY = new ParseField("query");
     public static final ParseField SCROLL_SIZE = new ParseField("scroll_size");
     public static final ParseField AGGREGATIONS = new ParseField("aggregations");
     public static final ParseField AGGS = new ParseField("aggs");
     public static final ParseField SCRIPT_FIELDS = new ParseField("script_fields");
-    public static final ParseField SOURCE = new ParseField("_source");
     public static final ParseField CHUNKING_CONFIG = new ParseField("chunking_config");
     public static final ParseField HEADERS = new ParseField("headers");
     public static final ParseField DELAYED_DATA_CHECK_CONFIG = new ParseField("delayed_data_check_config");
@@ -162,7 +160,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         parser.declareString(Builder::setJobId, Job.ID);
         parser.declareStringArray(Builder::setIndices, INDEXES);
         parser.declareStringArray(Builder::setIndices, INDICES);
-        parser.declareStringArray(Builder::setTypes, TYPES);
         parser.declareString((builder, val) ->
             builder.setQueryDelay(TimeValue.parseTimeValue(val, QUERY_DELAY.getPreferredName())), QUERY_DELAY);
         parser.declareString((builder, val) ->
@@ -185,9 +182,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             return parsedScriptFields;
         }, SCRIPT_FIELDS);
         parser.declareInt(Builder::setScrollSize, SCROLL_SIZE);
-        // TODO this is to read former _source field. Remove in v7.0.0
-        parser.declareBoolean((builder, value) -> {
-        }, SOURCE);
         parser.declareObject(Builder::setChunkingConfig, ignoreUnknownFields ? ChunkingConfig.LENIENT_PARSER : ChunkingConfig.STRICT_PARSER,
             CHUNKING_CONFIG);
 
@@ -216,7 +210,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     private final TimeValue frequency;
 
     private final List<String> indices;
-    private final List<String> types;
     private final Map<String, Object> query;
     private final Map<String, Object> aggregations;
     private final List<SearchSourceBuilder.ScriptField> scriptFields;
@@ -227,7 +220,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     private final CachedSupplier<QueryBuilder> querySupplier;
     private final CachedSupplier<AggregatorFactories.Builder> aggSupplier;
 
-    private DatafeedConfig(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices, List<String> types,
+    private DatafeedConfig(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices,
                            Map<String, Object> query, Map<String, Object> aggregations, List<SearchSourceBuilder.ScriptField> scriptFields,
                            Integer scrollSize, ChunkingConfig chunkingConfig, Map<String, String> headers,
                            DelayedDataCheckConfig delayedDataCheckConfig) {
@@ -236,7 +229,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.queryDelay = queryDelay;
         this.frequency = frequency;
         this.indices = indices == null ? null : Collections.unmodifiableList(indices);
-        this.types = types == null ? null : Collections.unmodifiableList(types);
         this.query = query == null ? null : Collections.unmodifiableMap(query);
         this.aggregations = aggregations == null ? null : Collections.unmodifiableMap(aggregations);
         this.scriptFields = scriptFields == null ? null : Collections.unmodifiableList(scriptFields);
@@ -258,10 +250,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         } else {
             this.indices = null;
         }
-        if (in.readBoolean()) {
-            this.types = Collections.unmodifiableList(in.readList(StreamInput::readString));
-        } else {
-            this.types = null;
+        // This consumes the list of types if there was one.
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            if (in.readBoolean()) {
+                in.readList(StreamInput::readString);
+            }
         }
         if (in.getVersion().before(Version.V_6_6_0)) {
             this.query = QUERY_TRANSFORMER.toMap(in.readNamedWriteable(QueryBuilder.class));
@@ -327,10 +320,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
     public List<String> getIndices() {
         return indices;
-    }
-
-    public List<String> getTypes() {
-        return types;
     }
 
     public Integer getScrollSize() {
@@ -423,11 +412,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         } else {
             out.writeBoolean(false);
         }
-        if (types != null) {
+        // Write the now removed types to prior versions.
+        // An empty list is expected
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeBoolean(true);
-            out.writeStringList(types);
-        } else {
-            out.writeBoolean(false);
+            out.writeStringList(Collections.emptyList());
         }
         if (out.getVersion().before(Version.V_6_6_0)) {
             out.writeNamedWriteable(getParsedQuery());
@@ -468,7 +457,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             builder.field(FREQUENCY.getPreferredName(), frequency.getStringRep());
         }
         builder.field(INDICES.getPreferredName(), indices);
-        builder.field(TYPES.getPreferredName(), types);
         builder.field(QUERY.getPreferredName(), query);
         if (aggregations != null) {
             builder.field(AGGREGATIONS.getPreferredName(), aggregations);
@@ -516,7 +504,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 && Objects.equals(this.frequency, that.frequency)
                 && Objects.equals(this.queryDelay, that.queryDelay)
                 && Objects.equals(this.indices, that.indices)
-                && Objects.equals(this.types, that.types)
                 && Objects.equals(this.query, that.query)
                 && Objects.equals(this.scrollSize, that.scrollSize)
                 && Objects.equals(this.aggregations, that.aggregations)
@@ -528,8 +515,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, jobId, frequency, queryDelay, indices, types, query, scrollSize, aggregations, scriptFields,
-                chunkingConfig, headers, delayedDataCheckConfig);
+        return Objects.hash(id, jobId, frequency, queryDelay, indices, query, scrollSize, aggregations, scriptFields, chunkingConfig,
+                headers, delayedDataCheckConfig);
     }
 
     @Override
@@ -595,7 +582,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         private TimeValue queryDelay;
         private TimeValue frequency;
         private List<String> indices = Collections.emptyList();
-        private List<String> types = Collections.emptyList();
         private Map<String, Object> query;
         private Map<String, Object> aggregations;
         private List<SearchSourceBuilder.ScriptField> scriptFields;
@@ -622,7 +608,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.queryDelay = config.queryDelay;
             this.frequency = config.frequency;
             this.indices = new ArrayList<>(config.indices);
-            this.types = new ArrayList<>(config.types);
             this.query = config.query == null ? null : new LinkedHashMap<>(config.query);
             this.aggregations = config.aggregations == null ? null : new LinkedHashMap<>(config.aggregations);
             this.scriptFields = config.scriptFields == null ? null : new ArrayList<>(config.scriptFields);
@@ -650,10 +635,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
         public void setIndices(List<String> indices) {
             this.indices = ExceptionsHelper.requireNonNull(indices, INDICES.getPreferredName());
-        }
-
-        public void setTypes(List<String> types) {
-            this.types = ExceptionsHelper.requireNonNull(types, TYPES.getPreferredName());
         }
 
         public void setQueryDelay(TimeValue queryDelay) {
@@ -745,15 +726,12 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (indices == null || indices.isEmpty() || indices.contains(null) || indices.contains("")) {
                 throw invalidOptionValue(INDICES.getPreferredName(), indices);
             }
-            if (types == null || types.contains(null) || types.contains("")) {
-                throw invalidOptionValue(TYPES.getPreferredName(), types);
-            }
 
             validateScriptFields();
             setDefaultChunkingConfig();
 
             setDefaultQueryDelay();
-            return new DatafeedConfig(id, jobId, queryDelay, frequency, indices, types, query, aggregations, scriptFields, scrollSize,
+            return new DatafeedConfig(id, jobId, queryDelay, frequency, indices, query, aggregations, scriptFields, scrollSize,
                     chunkingConfig, headers, delayedDataCheckConfig);
         }
 

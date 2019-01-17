@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -23,8 +23,8 @@ public class Histogram extends GroupingFunction {
     private final Literal interval;
     private final ZoneId zoneId;
 
-    public Histogram(Location location, Expression field, Expression interval, ZoneId zoneId) {
-        super(location, field);
+    public Histogram(Source source, Expression field, Expression interval, ZoneId zoneId) {
+        super(source, field);
         this.interval = (Literal) interval;
         this.zoneId = zoneId;
     }
@@ -42,7 +42,7 @@ public class Histogram extends GroupingFunction {
         TypeResolution resolution = Expressions.typeMustBeNumericOrDate(field(), "HISTOGRAM", ParamOrdinal.FIRST);
         if (resolution == TypeResolution.TYPE_RESOLVED) {
             // interval must be Literal interval
-            if (field().dataType() == DataType.DATE) {
+            if (field().dataType() == DataType.DATETIME) {
                 resolution = Expressions.typeMustBe(interval, DataTypes::isInterval, "(Date) HISTOGRAM", ParamOrdinal.SECOND, "interval");
             } else {
                 resolution = Expressions.typeMustBeNumeric(interval, "(Numeric) HISTOGRAM", ParamOrdinal.SECOND);
@@ -54,7 +54,7 @@ public class Histogram extends GroupingFunction {
 
     @Override
     protected GroupingFunction replaceChild(Expression newChild) {
-        return new Histogram(location(), newChild, interval, zoneId);
+        return new Histogram(source(), newChild, interval, zoneId);
     }
 
     @Override

@@ -94,8 +94,7 @@ setup:
         body:  >
           {
             "job_id":"preview-datafeed-job",
-            "indexes":"airline-data",
-            "types":"response"
+            "indexes":"airline-data"
           }
 
   - do:
@@ -140,7 +139,6 @@ setup:
           {
             "job_id":"aggregation-doc-count-job",
             "indexes":"airline-data",
-            "types":"response",
             "aggregations": {
               "buckets": {
                 "histogram": {
@@ -213,7 +211,6 @@ setup:
           {
             "job_id":"aggregation-custom-single-metric-summary-job",
             "indexes":"airline-data",
-            "types":"response",
             "aggregations": {
               "buckets": {
                 "histogram": {
@@ -272,7 +269,6 @@ setup:
           {
             "job_id":"aggregation-custom-multi-metric-summary-job",
             "indexes":"airline-data",
-            "types":"response",
             "aggregations": {
               "buckets": {
                 "histogram": {
@@ -358,8 +354,7 @@ setup:
         body:  >
           {
             "job_id":"unavailable-job",
-            "indexes":"unavailable-data",
-            "types":"response"
+            "indexes":"unavailable-data"
           }
 
   - do:
@@ -391,7 +386,6 @@ setup:
           {
             "job_id":"empty-job",
             "indexes":"airline-data",
-            "types":"response",
             "query": {
               "term": {"airline":"missing"}
             }

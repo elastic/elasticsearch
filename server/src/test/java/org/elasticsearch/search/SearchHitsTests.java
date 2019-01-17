@@ -150,7 +150,7 @@ public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHi
                 if (instance.getCollapseValues() == null) {
                     collapseValues = createCollapseValues(randomIntBetween(1, 5));
                 } else {
-                    collapseValues = randomBoolean() ? createCollapseValues(instance.getCollapseValues().length) : null;
+                    collapseValues = randomBoolean() ? createCollapseValues(instance.getCollapseValues().length + 1) : null;
                 }
                 return new SearchHits(instance.getHits(), instance.getTotalHits(), instance.getMaxScore(),
                     instance.getSortFields(), instance.getCollapseField(), collapseValues);

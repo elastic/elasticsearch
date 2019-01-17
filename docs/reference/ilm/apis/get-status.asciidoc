@@ -1,14 +1,12 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-get-status]]
-=== Get {ILM} Status API
+=== Get {ilm} status API
 ++++
-<titleabbrev>Get {ILM} Status</titleabbrev>
+<titleabbrev>Get {ilm} status</titleabbrev>
 ++++
 
-beta[]
-
-Retrieves the current {ilm} status.
+Retrieves the current {ilm} ({ilm-init}) status.
 
 ==== Request
 
@@ -16,9 +14,9 @@ Retrieves the current {ilm} status.
 
 ==== Description
 
-Returns the status of the {ILM} plugin. The `operation_mode` field in the
+Returns the status of the {ilm-init} plugin. The `operation_mode` field in the
 response shows one of three states: `STARTED`, `STOPPING`,
-or `STOPPED`. You can change the status of the {ILM} plugin with the
+or `STOPPED`. You can change the status of the {ilm-init} plugin with the
 <<ilm-start, Start ILM>> and <<ilm-stop, Stop ILM>> APIs.
 
 ==== Request Parameters
@@ -32,7 +30,7 @@ For more information, see {stack-ov}/security-privileges.html[Security Privilege
 
 ==== Examples
 
-The following example gets the {ILM} plugin status.
+The following example gets the {ilm-init} plugin status.
 
 [source,js]
 --------------------------------------------------

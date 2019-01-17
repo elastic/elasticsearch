@@ -41,6 +41,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -121,7 +122,8 @@ public class RestIndicesAction extends AbstractCatAction {
                         client.admin().indices().stats(indicesStatsRequest, new RestResponseListener<IndicesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(IndicesStatsResponse indicesStatsResponse) throws Exception {
-                                Table tab = buildTable(request, concreteIndices, clusterHealthResponse, indicesStatsResponse, state.metaData());
+                                Table tab = buildTable(request, concreteIndices, clusterHealthResponse,
+                                    indicesStatsResponse, state.metaData());
                                 return RestTable.buildResponse(tab, channel);
                             }
                         });
@@ -167,28 +169,36 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("completion.size", "sibling:pri;alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
         table.addCell("pri.completion.size", "default:false;text-align:right;desc:size of completion");
 
-        table.addCell("fielddata.memory_size", "sibling:pri;alias:fm,fielddataMemory;default:false;text-align:right;desc:used fielddata cache");
+        table.addCell("fielddata.memory_size",
+            "sibling:pri;alias:fm,fielddataMemory;default:false;text-align:right;desc:used fielddata cache");
         table.addCell("pri.fielddata.memory_size", "default:false;text-align:right;desc:used fielddata cache");
 
-        table.addCell("fielddata.evictions", "sibling:pri;alias:fe,fielddataEvictions;default:false;text-align:right;desc:fielddata evictions");
+        table.addCell("fielddata.evictions",
+            "sibling:pri;alias:fe,fielddataEvictions;default:false;text-align:right;desc:fielddata evictions");
         table.addCell("pri.fielddata.evictions", "default:false;text-align:right;desc:fielddata evictions");
 
-        table.addCell("query_cache.memory_size", "sibling:pri;alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
+        table.addCell("query_cache.memory_size",
+            "sibling:pri;alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
         table.addCell("pri.query_cache.memory_size", "default:false;text-align:right;desc:used query cache");
 
-        table.addCell("query_cache.evictions", "sibling:pri;alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
+        table.addCell("query_cache.evictions",
+            "sibling:pri;alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
         table.addCell("pri.query_cache.evictions", "default:false;text-align:right;desc:query cache evictions");
 
-        table.addCell("request_cache.memory_size", "sibling:pri;alias:rcm,requestCacheMemory;default:false;text-align:right;desc:used request cache");
+        table.addCell("request_cache.memory_size",
+            "sibling:pri;alias:rcm,requestCacheMemory;default:false;text-align:right;desc:used request cache");
         table.addCell("pri.request_cache.memory_size", "default:false;text-align:right;desc:used request cache");
 
-        table.addCell("request_cache.evictions", "sibling:pri;alias:rce,requestCacheEvictions;default:false;text-align:right;desc:request cache evictions");
+        table.addCell("request_cache.evictions",
+            "sibling:pri;alias:rce,requestCacheEvictions;default:false;text-align:right;desc:request cache evictions");
         table.addCell("pri.request_cache.evictions", "default:false;text-align:right;desc:request cache evictions");
 
-        table.addCell("request_cache.hit_count", "sibling:pri;alias:rchc,requestCacheHitCount;default:false;text-align:right;desc:request cache hit count");
+        table.addCell("request_cache.hit_count",
+            "sibling:pri;alias:rchc,requestCacheHitCount;default:false;text-align:right;desc:request cache hit count");
         table.addCell("pri.request_cache.hit_count", "default:false;text-align:right;desc:request cache hit count");
 
-        table.addCell("request_cache.miss_count", "sibling:pri;alias:rcmc,requestCacheMissCount;default:false;text-align:right;desc:request cache miss count");
+        table.addCell("request_cache.miss_count",
+            "sibling:pri;alias:rcmc,requestCacheMissCount;default:false;text-align:right;desc:request cache miss count");
         table.addCell("pri.request_cache.miss_count", "default:false;text-align:right;desc:request cache miss count");
 
         table.addCell("flush.total", "sibling:pri;alias:ft,flushTotal;default:false;text-align:right;desc:number of flushes");
@@ -206,49 +216,64 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("get.total", "sibling:pri;alias:gto,getTotal;default:false;text-align:right;desc:number of get ops");
         table.addCell("pri.get.total", "default:false;text-align:right;desc:number of get ops");
 
-        table.addCell("get.exists_time", "sibling:pri;alias:geti,getExistsTime;default:false;text-align:right;desc:time spent in successful gets");
+        table.addCell("get.exists_time",
+            "sibling:pri;alias:geti,getExistsTime;default:false;text-align:right;desc:time spent in successful gets");
         table.addCell("pri.get.exists_time", "default:false;text-align:right;desc:time spent in successful gets");
 
-        table.addCell("get.exists_total", "sibling:pri;alias:geto,getExistsTotal;default:false;text-align:right;desc:number of successful gets");
+        table.addCell("get.exists_total",
+            "sibling:pri;alias:geto,getExistsTotal;default:false;text-align:right;desc:number of successful gets");
         table.addCell("pri.get.exists_total", "default:false;text-align:right;desc:number of successful gets");
 
-        table.addCell("get.missing_time", "sibling:pri;alias:gmti,getMissingTime;default:false;text-align:right;desc:time spent in failed gets");
+        table.addCell("get.missing_time",
+            "sibling:pri;alias:gmti,getMissingTime;default:false;text-align:right;desc:time spent in failed gets");
         table.addCell("pri.get.missing_time", "default:false;text-align:right;desc:time spent in failed gets");
 
-        table.addCell("get.missing_total", "sibling:pri;alias:gmto,getMissingTotal;default:false;text-align:right;desc:number of failed gets");
+        table.addCell("get.missing_total",
+            "sibling:pri;alias:gmto,getMissingTotal;default:false;text-align:right;desc:number of failed gets");
         table.addCell("pri.get.missing_total", "default:false;text-align:right;desc:number of failed gets");
 
-        table.addCell("indexing.delete_current", "sibling:pri;alias:idc,indexingDeleteCurrent;default:false;text-align:right;desc:number of current deletions");
+        table.addCell("indexing.delete_current",
+            "sibling:pri;alias:idc,indexingDeleteCurrent;default:false;text-align:right;desc:number of current deletions");
         table.addCell("pri.indexing.delete_current", "default:false;text-align:right;desc:number of current deletions");
 
-        table.addCell("indexing.delete_time", "sibling:pri;alias:idti,indexingDeleteTime;default:false;text-align:right;desc:time spent in deletions");
+        table.addCell("indexing.delete_time",
+            "sibling:pri;alias:idti,indexingDeleteTime;default:false;text-align:right;desc:time spent in deletions");
         table.addCell("pri.indexing.delete_time", "default:false;text-align:right;desc:time spent in deletions");
 
-        table.addCell("indexing.delete_total", "sibling:pri;alias:idto,indexingDeleteTotal;default:false;text-align:right;desc:number of delete ops");
+        table.addCell("indexing.delete_total",
+            "sibling:pri;alias:idto,indexingDeleteTotal;default:false;text-align:right;desc:number of delete ops");
         table.addCell("pri.indexing.delete_total", "default:false;text-align:right;desc:number of delete ops");
 
-        table.addCell("indexing.index_current", "sibling:pri;alias:iic,indexingIndexCurrent;default:false;text-align:right;desc:number of current indexing ops");
+        table.addCell("indexing.index_current",
+            "sibling:pri;alias:iic,indexingIndexCurrent;default:false;text-align:right;desc:number of current indexing ops");
         table.addCell("pri.indexing.index_current", "default:false;text-align:right;desc:number of current indexing ops");
 
-        table.addCell("indexing.index_time", "sibling:pri;alias:iiti,indexingIndexTime;default:false;text-align:right;desc:time spent in indexing");
+        table.addCell("indexing.index_time",
+            "sibling:pri;alias:iiti,indexingIndexTime;default:false;text-align:right;desc:time spent in indexing");
         table.addCell("pri.indexing.index_time", "default:false;text-align:right;desc:time spent in indexing");
 
-        table.addCell("indexing.index_total", "sibling:pri;alias:iito,indexingIndexTotal;default:false;text-align:right;desc:number of indexing ops");
+        table.addCell("indexing.index_total",
+            "sibling:pri;alias:iito,indexingIndexTotal;default:false;text-align:right;desc:number of indexing ops");
         table.addCell("pri.indexing.index_total", "default:false;text-align:right;desc:number of indexing ops");
 
-        table.addCell("indexing.index_failed", "sibling:pri;alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops");
+        table.addCell("indexing.index_failed",
+            "sibling:pri;alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops");
         table.addCell("pri.indexing.index_failed", "default:false;text-align:right;desc:number of failed indexing ops");
 
-        table.addCell("merges.current", "sibling:pri;alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
+        table.addCell("merges.current",
+            "sibling:pri;alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
         table.addCell("pri.merges.current", "default:false;text-align:right;desc:number of current merges");
 
-        table.addCell("merges.current_docs", "sibling:pri;alias:mcd,mergesCurrentDocs;default:false;text-align:right;desc:number of current merging docs");
+        table.addCell("merges.current_docs",
+            "sibling:pri;alias:mcd,mergesCurrentDocs;default:false;text-align:right;desc:number of current merging docs");
         table.addCell("pri.merges.current_docs", "default:false;text-align:right;desc:number of current merging docs");
 
-        table.addCell("merges.current_size", "sibling:pri;alias:mcs,mergesCurrentSize;default:false;text-align:right;desc:size of current merges");
+        table.addCell("merges.current_size",
+            "sibling:pri;alias:mcs,mergesCurrentSize;default:false;text-align:right;desc:size of current merges");
         table.addCell("pri.merges.current_size", "default:false;text-align:right;desc:size of current merges");
 
-        table.addCell("merges.total", "sibling:pri;alias:mt,mergesTotal;default:false;text-align:right;desc:number of completed merge ops");
+        table.addCell("merges.total",
+            "sibling:pri;alias:mt,mergesTotal;default:false;text-align:right;desc:number of completed merge ops");
         table.addCell("pri.merges.total", "default:false;text-align:right;desc:number of completed merge ops");
 
         table.addCell("merges.total_docs", "sibling:pri;alias:mtd,mergesTotalDocs;default:false;text-align:right;desc:docs merged");
@@ -257,7 +282,8 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("merges.total_size", "sibling:pri;alias:mts,mergesTotalSize;default:false;text-align:right;desc:size merged");
         table.addCell("pri.merges.total_size", "default:false;text-align:right;desc:size merged");
 
-        table.addCell("merges.total_time", "sibling:pri;alias:mtt,mergesTotalTime;default:false;text-align:right;desc:time spent in merges");
+        table.addCell("merges.total_time",
+            "sibling:pri;alias:mtt,mergesTotalTime;default:false;text-align:right;desc:time spent in merges");
         table.addCell("pri.merges.total_time", "default:false;text-align:right;desc:time spent in merges");
 
         table.addCell("refresh.total", "sibling:pri;alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
@@ -266,37 +292,48 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("refresh.time", "sibling:pri;alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
         table.addCell("pri.refresh.time", "default:false;text-align:right;desc:time spent in refreshes");
 
-        table.addCell("refresh.listeners", "sibling:pri;alias:rli,refreshListeners;default:false;text-align:right;desc:number of pending refresh listeners");
+        table.addCell("refresh.listeners",
+            "sibling:pri;alias:rli,refreshListeners;default:false;text-align:right;desc:number of pending refresh listeners");
         table.addCell("pri.refresh.listeners", "default:false;text-align:right;desc:number of pending refresh listeners");
 
-        table.addCell("search.fetch_current", "sibling:pri;alias:sfc,searchFetchCurrent;default:false;text-align:right;desc:current fetch phase ops");
+        table.addCell("search.fetch_current",
+            "sibling:pri;alias:sfc,searchFetchCurrent;default:false;text-align:right;desc:current fetch phase ops");
         table.addCell("pri.search.fetch_current", "default:false;text-align:right;desc:current fetch phase ops");
 
-        table.addCell("search.fetch_time", "sibling:pri;alias:sfti,searchFetchTime;default:false;text-align:right;desc:time spent in fetch phase");
+        table.addCell("search.fetch_time",
+            "sibling:pri;alias:sfti,searchFetchTime;default:false;text-align:right;desc:time spent in fetch phase");
         table.addCell("pri.search.fetch_time", "default:false;text-align:right;desc:time spent in fetch phase");
 
-        table.addCell("search.fetch_total", "sibling:pri;alias:sfto,searchFetchTotal;default:false;text-align:right;desc:total fetch ops");
+        table.addCell("search.fetch_total",
+            "sibling:pri;alias:sfto,searchFetchTotal;default:false;text-align:right;desc:total fetch ops");
         table.addCell("pri.search.fetch_total", "default:false;text-align:right;desc:total fetch ops");
 
-        table.addCell("search.open_contexts", "sibling:pri;alias:so,searchOpenContexts;default:false;text-align:right;desc:open search contexts");
+        table.addCell("search.open_contexts",
+            "sibling:pri;alias:so,searchOpenContexts;default:false;text-align:right;desc:open search contexts");
         table.addCell("pri.search.open_contexts", "default:false;text-align:right;desc:open search contexts");
 
-        table.addCell("search.query_current", "sibling:pri;alias:sqc,searchQueryCurrent;default:false;text-align:right;desc:current query phase ops");
+        table.addCell("search.query_current",
+            "sibling:pri;alias:sqc,searchQueryCurrent;default:false;text-align:right;desc:current query phase ops");
         table.addCell("pri.search.query_current", "default:false;text-align:right;desc:current query phase ops");
 
-        table.addCell("search.query_time", "sibling:pri;alias:sqti,searchQueryTime;default:false;text-align:right;desc:time spent in query phase");
+        table.addCell("search.query_time",
+            "sibling:pri;alias:sqti,searchQueryTime;default:false;text-align:right;desc:time spent in query phase");
         table.addCell("pri.search.query_time", "default:false;text-align:right;desc:time spent in query phase");
 
-        table.addCell("search.query_total", "sibling:pri;alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops");
+        table.addCell("search.query_total",
+            "sibling:pri;alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops");
         table.addCell("pri.search.query_total", "default:false;text-align:right;desc:total query phase ops");
 
-        table.addCell("search.scroll_current", "sibling:pri;alias:scc,searchScrollCurrent;default:false;text-align:right;desc:open scroll contexts");
+        table.addCell("search.scroll_current",
+            "sibling:pri;alias:scc,searchScrollCurrent;default:false;text-align:right;desc:open scroll contexts");
         table.addCell("pri.search.scroll_current", "default:false;text-align:right;desc:open scroll contexts");
 
-        table.addCell("search.scroll_time", "sibling:pri;alias:scti,searchScrollTime;default:false;text-align:right;desc:time scroll contexts held open");
+        table.addCell("search.scroll_time",
+            "sibling:pri;alias:scti,searchScrollTime;default:false;text-align:right;desc:time scroll contexts held open");
         table.addCell("pri.search.scroll_time", "default:false;text-align:right;desc:time scroll contexts held open");
 
-        table.addCell("search.scroll_total", "sibling:pri;alias:scto,searchScrollTotal;default:false;text-align:right;desc:completed scroll contexts");
+        table.addCell("search.scroll_total",
+            "sibling:pri;alias:scto,searchScrollTotal;default:false;text-align:right;desc:completed scroll contexts");
         table.addCell("pri.search.scroll_total", "default:false;text-align:right;desc:completed scroll contexts");
 
         table.addCell("segments.count", "sibling:pri;alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
@@ -305,14 +342,20 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("segments.memory", "sibling:pri;alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
         table.addCell("pri.segments.memory", "default:false;text-align:right;desc:memory used by segments");
 
-        table.addCell("segments.index_writer_memory", "sibling:pri;alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer");
+        table.addCell("segments.index_writer_memory",
+            "sibling:pri;alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer");
         table.addCell("pri.segments.index_writer_memory", "default:false;text-align:right;desc:memory used by index writer");
 
-        table.addCell("segments.version_map_memory", "sibling:pri;alias:svmm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map");
+        table.addCell("segments.version_map_memory",
+            "sibling:pri;alias:svmm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map");
         table.addCell("pri.segments.version_map_memory", "default:false;text-align:right;desc:memory used by version map");
 
-        table.addCell("segments.fixed_bitset_memory", "sibling:pri;alias:sfbm,fixedBitsetMemory;default:false;text-align:right;desc:memory used by fixed bit sets for nested object field types and type filters for types referred in _parent fields");
-        table.addCell("pri.segments.fixed_bitset_memory", "default:false;text-align:right;desc:memory used by fixed bit sets for nested object field types and type filters for types referred in _parent fields");
+        table.addCell("segments.fixed_bitset_memory",
+            "sibling:pri;alias:sfbm,fixedBitsetMemory;default:false;text-align:right;desc:memory used by fixed bit sets for" +
+            " nested object field types and type filters for types referred in _parent fields");
+        table.addCell("pri.segments.fixed_bitset_memory",
+            "default:false;text-align:right;desc:memory used by fixed bit sets for nested object" +
+            " field types and type filters for types referred in _parent fields");
 
         table.addCell("warmer.current", "sibling:pri;alias:wc,warmerCurrent;default:false;text-align:right;desc:current warmer ops");
         table.addCell("pri.warmer.current", "default:false;text-align:right;desc:current warmer ops");
@@ -320,10 +363,12 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("warmer.total", "sibling:pri;alias:wto,warmerTotal;default:false;text-align:right;desc:total warmer ops");
         table.addCell("pri.warmer.total", "default:false;text-align:right;desc:total warmer ops");
 
-        table.addCell("warmer.total_time", "sibling:pri;alias:wtt,warmerTotalTime;default:false;text-align:right;desc:time spent in warmers");
+        table.addCell("warmer.total_time",
+            "sibling:pri;alias:wtt,warmerTotalTime;default:false;text-align:right;desc:time spent in warmers");
         table.addCell("pri.warmer.total_time", "default:false;text-align:right;desc:time spent in warmers");
 
-        table.addCell("suggest.current", "sibling:pri;alias:suc,suggestCurrent;default:false;text-align:right;desc:number of current suggest ops");
+        table.addCell("suggest.current",
+            "sibling:pri;alias:suc,suggestCurrent;default:false;text-align:right;desc:number of current suggest ops");
         table.addCell("pri.suggest.current", "default:false;text-align:right;desc:number of current suggest ops");
 
         table.addCell("suggest.time", "sibling:pri;alias:suti,suggestTime;default:false;text-align:right;desc:time spend in suggest");
@@ -335,12 +380,15 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("memory.total", "sibling:pri;alias:tm,memoryTotal;default:false;text-align:right;desc:total used memory");
         table.addCell("pri.memory.total", "default:false;text-align:right;desc:total user memory");
 
+        table.addCell("search.throttled", "alias:sth;default:false;desc:indicates if the index is search throttled");
+
         table.endHeaders();
         return table;
     }
 
     // package private for testing
-    Table buildTable(RestRequest request, Index[] indices, ClusterHealthResponse response, IndicesStatsResponse stats, MetaData indexMetaDatas) {
+    Table buildTable(RestRequest request, Index[] indices, ClusterHealthResponse response,
+                     IndicesStatsResponse stats, MetaData indexMetaDatas) {
         final String healthParam = request.param("health");
         final ClusterHealthStatus status;
         if (healthParam != null) {
@@ -357,6 +405,7 @@ public class RestIndicesAction extends AbstractCatAction {
             IndexStats indexStats = stats.getIndices().get(indexName);
             IndexMetaData indexMetaData = indexMetaDatas.getIndices().get(indexName);
             IndexMetaData.State state = indexMetaData.getState();
+            boolean searchThrottled = IndexSettings.INDEX_SEARCH_THROTTLED.get(indexMetaData.getSettings());
 
             if (status != null) {
                 if (state == IndexMetaData.State.CLOSE ||
@@ -370,7 +419,8 @@ public class RestIndicesAction extends AbstractCatAction {
             final CommonStats totalStats = indexStats == null ? new CommonStats() : indexStats.getTotal();
 
             table.startRow();
-            table.addCell(state == IndexMetaData.State.OPEN ? (indexHealth == null ? "red*" : indexHealth.getStatus().toString().toLowerCase(Locale.ROOT)) : null);
+            table.addCell(state == IndexMetaData.State.OPEN ?
+                (indexHealth == null ? "red*" : indexHealth.getStatus().toString().toLowerCase(Locale.ROOT)) : null);
             table.addCell(state.toString().toLowerCase(Locale.ROOT));
             table.addCell(indexName);
             table.addCell(index.getUUID());
@@ -557,6 +607,8 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getTotalMemory());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getTotalMemory());
+
+            table.addCell(searchThrottled);
 
             table.endRow();
         }

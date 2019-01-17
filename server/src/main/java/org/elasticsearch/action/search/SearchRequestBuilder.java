@@ -377,6 +377,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Indicates if the total hit count for the query should be tracked. Defaults to {@code true}
+     */
+    public SearchRequestBuilder setTrackTotalHitsUpTo(int trackTotalHitsUpTo) {
+        sourceBuilder().trackTotalHitsUpTo(trackTotalHitsUpTo);
+        return this;
+    }
+
+    /**
      * Adds stored fields to load and return (note, it must be stored) as part of the search request.
      * To disable the stored fields entirely (source and metadata fields) use {@code storedField("_none_")}.
      */

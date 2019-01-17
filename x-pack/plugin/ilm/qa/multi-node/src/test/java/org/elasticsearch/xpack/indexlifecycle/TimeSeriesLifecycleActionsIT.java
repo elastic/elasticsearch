@@ -19,11 +19,14 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.FrozenEngine;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
+import org.elasticsearch.xpack.core.indexlifecycle.FreezeAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
@@ -46,6 +49,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonMap;
@@ -99,7 +103,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // asserts that rollover was called
         assertBusy(() -> assertTrue(indexExists(secondIndex)));
         // asserts that shrink deleted the original index
-        assertBusy(() -> assertFalse(indexExists(originalIndex)));
+        assertBusy(() -> assertFalse(indexExists(originalIndex)), 20, TimeUnit.SECONDS);
         // asserts that the delete phase completed for the managed shrunken index
         assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
     }
@@ -177,7 +181,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // asserts that rollover was called
         assertBusy(() -> assertTrue(indexExists(secondIndex)));
         // asserts that shrink deleted the original index
-        assertBusy(() -> assertFalse(indexExists(originalIndex)));
+        assertBusy(() -> assertFalse(indexExists(originalIndex)), 20, TimeUnit.SECONDS);
         // asserts that the delete phase completed for the managed shrunken index
         assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
     }
@@ -422,6 +426,20 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         expectThrows(ResponseException.class, this::indexDocument);
     }
 
+    public void testFreezeAction() throws Exception {
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        createNewSingletonPolicy("cold", new FreezeAction());
+        updatePolicy(index, policy);
+        assertBusy(() -> {
+            Map<String, Object> settings = getOnlyIndexSettings(index);
+            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
+            assertThat(settings.get(IndexSettings.INDEX_SEARCH_THROTTLED.getKey()), equalTo("true"));
+            assertThat(settings.get(FrozenEngine.INDEX_FROZEN.getKey()), equalTo("true"));
+        });
+    }
+
     @SuppressWarnings("unchecked")
     public void testNonexistentPolicy() throws Exception {
         String indexPrefix = randomAlphaOfLengthBetween(5,15).toLowerCase(Locale.ROOT);
@@ -473,7 +491,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertEquals("policy [does_not_exist] does not exist", stepInfo.get("reason"));
             assertEquals("illegal_argument_exception", stepInfo.get("type"));
         });
-
     }
 
     public void testInvalidPolicyNames() throws UnsupportedEncodingException {

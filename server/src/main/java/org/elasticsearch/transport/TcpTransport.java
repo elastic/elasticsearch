@@ -141,7 +141,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
-    private final boolean compressAllResponses;
     private volatile BoundTransportAddress boundAddress;
     private final String transportName;
 
@@ -157,7 +156,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     public TcpTransport(String transportName, Settings settings,  Version version, ThreadPool threadPool,
                         PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService,
                         NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
-        super(settings);
         this.settings = settings;
         this.profileSettings = getProfileSettings(settings);
         this.version = version;
@@ -166,7 +164,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.pageCacheRecycler = pageCacheRecycler;
         this.circuitBreakerService = circuitBreakerService;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.compressAllResponses = TransportSettings.TRANSPORT_COMPRESS.get(settings);
         this.networkService = networkService;
         this.transportName = transportName;
         this.transportLogger = new TransportLogger();
@@ -826,14 +823,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final String action,
         boolean compress,
         byte status) throws IOException {
-        boolean compressMessage = compress || compressAllResponses;
 
         status = TransportStatus.setResponse(status);
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
-        CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, compressMessage);
+        CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, compress);
         boolean addedReleaseListener = false;
         try {
-            if (compressMessage) {
+            if (compress) {
                 status = TransportStatus.setCompress(status);
             }
             threadPool.getThreadContext().writeTo(stream);

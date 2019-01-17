@@ -95,15 +95,11 @@ public class AutodetectProcessManager {
     // available resources on that node: https://github.com/elastic/x-pack-elasticsearch/issues/546
     // However, it is useful to also be able to apply a hard limit.
 
-    // WARNING: These settings cannot be made DYNAMIC, because they are tied to several threadpools
+    // WARNING: This setting cannot be made DYNAMIC, because it is tied to several threadpools
     // and a threadpool's size can't be changed at runtime.
     // See MachineLearning#getExecutorBuilders(...)
-    // TODO: Remove the deprecated setting in 7.0 and move the default value to the replacement setting
-    @Deprecated
-    public static final Setting<Integer> MAX_RUNNING_JOBS_PER_NODE =
-            Setting.intSetting("max_running_jobs", 20, 1, 512, Property.NodeScope, Property.Deprecated);
     public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
-            Setting.intSetting("xpack.ml.max_open_jobs", MAX_RUNNING_JOBS_PER_NODE, 1, Property.NodeScope);
+            Setting.intSetting("xpack.ml.max_open_jobs", 20, 1, 512, Property.NodeScope);
 
     // Undocumented setting for integration test purposes
     public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP =
@@ -216,6 +212,13 @@ public class AutodetectProcessManager {
      */
     public void persistJob(JobTask jobTask, Consumer<Exception> handler) {
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
+        if (communicator == null) {
+            String message = String.format(Locale.ROOT, "Cannot persist because job [%s] does not have a corresponding autodetect process",
+                jobTask.getJobId());
+            logger.debug(message);
+            handler.accept(ExceptionsHelper.conflictStatusException(message));
+            return;
+        }
         communicator.persistJob((aVoid, e) -> handler.accept(e));
     }
 
@@ -243,7 +246,8 @@ public class AutodetectProcessManager {
                             XContentType xContentType, DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
         if (communicator == null) {
-            throw ExceptionsHelper.conflictStatusException("Cannot process data because job [" + jobTask.getJobId() + "] is not open");
+            throw ExceptionsHelper.conflictStatusException("Cannot process data because job [" + jobTask.getJobId() +
+                "] does not have a corresponding autodetect process");
         }
         communicator.writeToJob(input, analysisRegistry, xContentType, params, handler);
     }
@@ -261,7 +265,8 @@ public class AutodetectProcessManager {
         logger.debug("Flushing job {}", jobTask.getJobId());
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
         if (communicator == null) {
-            String message = String.format(Locale.ROOT, "Cannot flush because job [%s] is not open", jobTask.getJobId());
+            String message = String.format(Locale.ROOT, "Cannot flush because job [%s] does not have a corresponding autodetect process",
+                jobTask.getJobId());
             logger.debug(message);
             handler.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
@@ -311,7 +316,8 @@ public class AutodetectProcessManager {
         logger.debug("Forecasting job {}", jobId);
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
         if (communicator == null) {
-            String message = String.format(Locale.ROOT, "Cannot forecast because job [%s] is not open", jobId);
+            String message = String.format(Locale.ROOT,
+                "Cannot forecast because job [%s] does not have a corresponding autodetect process", jobId);
             logger.debug(message);
             handler.accept(ExceptionsHelper.conflictStatusException(message));
             return;
@@ -331,7 +337,8 @@ public class AutodetectProcessManager {
     public void writeUpdateProcessMessage(JobTask jobTask, UpdateParams updateParams, Consumer<Exception> handler) {
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
         if (communicator == null) {
-            String message = "Cannot process update model debug config because job [" + jobTask.getJobId() + "] is not open";
+            String message = "Cannot update the job config because job [" + jobTask.getJobId() +
+                "] does not have a corresponding autodetect process";
             logger.debug(message);
             handler.accept(ExceptionsHelper.conflictStatusException(message));
             return;
@@ -667,6 +674,14 @@ public class AutodetectProcessManager {
         return null;
     }
 
+    public boolean hasOpenAutodetectCommunicator(long jobAllocationId) {
+        ProcessContext processContext = processByAllocation.get(jobAllocationId);
+        if (processContext != null && processContext.getState() == ProcessContext.ProcessStateName.RUNNING) {
+            return processContext.getAutodetectCommunicator() != null;
+        }
+        return false;
+    }
+
     public Optional<Duration> jobOpenTime(JobTask jobTask) {
         AutodetectCommunicator communicator = getAutodetectCommunicator(jobTask);
         if (communicator == null) {
@@ -732,6 +747,10 @@ public class AutodetectProcessManager {
         AutodetectWorkerExecutorService autoDetectWorkerExecutor = new AutodetectWorkerExecutorService(threadPool.getThreadContext());
         executorService.submit(autoDetectWorkerExecutor::start);
         return autoDetectWorkerExecutor;
+    }
+
+    public ByteSizeValue getMinLocalStorageAvailable() {
+        return nativeStorageProvider.getMinLocalStorageAvailable();
     }
 
     /*

@@ -108,17 +108,20 @@ services:
     image: {docker-image}
     environment:
       - node.name=es01
-      - discovery.zen.minimum_master_nodes=2
+      - cluster.initial_master_nodes=es01,es02
       - ELASTIC_PASSWORD=$ELASTIC_PASSWORD <1>
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
       - xpack.license.self_generated.type=trial <2>
       - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.key=$CERTS_DIR/es01/es01.key
+      - xpack.security.http.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
+      - xpack.security.http.ssl.certificate=$CERTS_DIR/es01/es01.crt
       - xpack.security.transport.ssl.enabled=true
       - xpack.security.transport.ssl.verification_mode=certificate <3>
-      - xpack.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
-      - xpack.ssl.certificate=$CERTS_DIR/es01/es01.crt
-      - xpack.ssl.key=$CERTS_DIR/es01/es01.key
+      - xpack.security.transport.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
+      - xpack.security.transport.ssl.certificate=$CERTS_DIR/es01/es01.crt
+      - xpack.security.transport.ssl.key=$CERTS_DIR/es01/es01.key
     volumes: ['esdata_01:/usr/share/elasticsearch/data', './certs:$CERTS_DIR']
     ports:
       - 9200:9200
@@ -133,18 +136,21 @@ services:
     image: {docker-image}
     environment:
       - node.name=es02
-      - discovery.zen.minimum_master_nodes=2
-      - ELASTIC_PASSWORD=$ELASTIC_PASSWORD
       - discovery.zen.ping.unicast.hosts=es01
+      - cluster.initial_master_nodes=es01,es02
+      - ELASTIC_PASSWORD=$ELASTIC_PASSWORD
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
       - xpack.license.self_generated.type=trial
       - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.key=$CERTS_DIR/es02/es02.key
+      - xpack.security.http.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
+      - xpack.security.http.ssl.certificate=$CERTS_DIR/es02/es02.crt
       - xpack.security.transport.ssl.enabled=true
-      - xpack.security.transport.ssl.verification_mode=certificate
-      - xpack.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
-      - xpack.ssl.certificate=$CERTS_DIR/es02/es02.crt
-      - xpack.ssl.key=$CERTS_DIR/es02/es02.key
+      - xpack.security.transport.ssl.verification_mode=certificate <3>
+      - xpack.security.transport.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
+      - xpack.security.transport.ssl.certificate=$CERTS_DIR/es02/es02.crt
+      - xpack.security.transport.ssl.key=$CERTS_DIR/es02/es02.key
     volumes: ['esdata_02:/usr/share/elasticsearch/data', './certs:$CERTS_DIR']
 
   wait_until_ready:
@@ -199,9 +205,9 @@ WARNING: Windows users not running PowerShell will need to remove `\` and join l
 ----
 docker exec es01 /bin/bash -c "bin/elasticsearch-setup-passwords \
 auto --batch \
--Expack.ssl.certificate=certificates/es01/es01.crt \
--Expack.ssl.certificate_authorities=certificates/ca/ca.crt \
--Expack.ssl.key=certificates/es01/es01.key \
+-Expack.security.http.ssl.certificate=certificates/es01/es01.crt \
+-Expack.security.http.ssl.certificate_authorities=certificates/ca/ca.crt \
+-Expack.security.http.ssl.key=certificates/es01/es01.key \
 --url https://localhost:9200"
 ----
 --

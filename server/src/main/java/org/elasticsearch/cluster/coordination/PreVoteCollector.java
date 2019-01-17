@@ -182,7 +182,7 @@ public class PreVoteCollector {
 
             if (response.getLastAcceptedTerm() > clusterState.term()
                 || (response.getLastAcceptedTerm() == clusterState.term()
-                && response.getLastAcceptedVersion() > clusterState.version())) {
+                && response.getLastAcceptedVersion() > clusterState.getVersionOrMetaDataVersion())) {
                 logger.debug("{} ignoring {} from {} as it is fresher", this, response, sender);
                 return;
             }

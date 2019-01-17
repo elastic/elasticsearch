@@ -20,8 +20,8 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -33,7 +33,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -81,13 +80,17 @@ public class RestGetMappingAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.method().equals(HEAD)) {
-            deprecationLogger.deprecated("Type exists requests are deprecated, as types have been deprecated.");
-        }
-
-        final boolean includeTypeName = request.paramAsBoolean("include_type_name", true);
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
+        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+
+        if (request.method().equals(HEAD)) {
+            deprecationLogger.deprecated("Type exists requests are deprecated, as types have been deprecated.");
+        } else if (includeTypeName == false && types.length > 0) {
+            throw new IllegalArgumentException("Types cannot be provided in get mapping requests, unless" +
+                " include_type_name is set to true.");
+        }
+
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
         getMappingsRequest.indices(indices).types(types);
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
@@ -138,7 +141,7 @@ public class RestGetMappingAction extends BaseRestHandler {
                         builder.field("error", message);
                         builder.field("status", status.getStatus());
                     }
-                    response.toXContent(builder, ToXContent.EMPTY_PARAMS, includeTypeName);
+                    response.toXContent(builder, request);
                 }
                 builder.endObject();
 

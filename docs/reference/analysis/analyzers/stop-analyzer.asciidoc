@@ -130,7 +130,7 @@ words as stop words:
 
 [source,js]
 ----------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "analysis": {
@@ -248,7 +248,7 @@ customization:
 
 [source,js]
 ----------------------------------------------------
-PUT /stop_example
+PUT /stop_example?include_type_name=true
 {
   "settings": {
     "analysis": {

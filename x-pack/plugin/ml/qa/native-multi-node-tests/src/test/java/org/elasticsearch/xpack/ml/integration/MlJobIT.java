@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
@@ -22,7 +23,9 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
@@ -109,6 +112,21 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(implicitAll, containsString("\"job_id\":\"given-multiple-jobs-job-1\""));
         assertThat(implicitAll, containsString("\"job_id\":\"given-multiple-jobs-job-2\""));
         assertThat(implicitAll, containsString("\"job_id\":\"given-multiple-jobs-job-3\""));
+    }
+
+    // tests the _xpack/usage endpoint
+    public void testUsage() throws IOException {
+        createFarequoteJob("job-1");
+        createFarequoteJob("job-2");
+        Map<String, Object> usage = entityAsMap(client().performRequest(new Request("GET", "_xpack/usage")));
+        assertEquals(2, XContentMapValues.extractValue("ml.jobs._all.count", usage));
+        assertEquals(2, XContentMapValues.extractValue("ml.jobs.closed.count", usage));
+        Response openResponse = client().performRequest(new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/job-1/_open"));
+        assertEquals(Collections.singletonMap("opened", true), entityAsMap(openResponse));
+        usage = entityAsMap(client().performRequest(new Request("GET", "_xpack/usage")));
+        assertEquals(2, XContentMapValues.extractValue("ml.jobs._all.count", usage));
+        assertEquals(1, XContentMapValues.extractValue("ml.jobs.closed.count", usage));
+        assertEquals(1, XContentMapValues.extractValue("ml.jobs.opened.count", usage));
     }
 
     private Response createFarequoteJob(String jobId) throws IOException {

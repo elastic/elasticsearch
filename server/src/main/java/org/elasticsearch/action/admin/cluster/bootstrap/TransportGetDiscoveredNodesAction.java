@@ -152,10 +152,6 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
     }
 
     private static boolean checkWaitRequirements(GetDiscoveredNodesRequest request, Set<DiscoveryNode> nodes) {
-        if (nodes.size() < request.getWaitForNodes()) {
-            return false;
-        }
-
         List<String> requirements = request.getRequiredNodes();
         final Set<DiscoveryNode> selectedNodes = new HashSet<>();
         for (final String requirement : requirements) {

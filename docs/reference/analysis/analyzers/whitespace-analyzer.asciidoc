@@ -128,7 +128,7 @@ and you can use it as a starting point for further customization:
 
 [source,js]
 ----------------------------------------------------
-PUT /whitespace_example
+PUT /whitespace_example?include_type_name=true
 {
   "settings": {
     "analysis": {

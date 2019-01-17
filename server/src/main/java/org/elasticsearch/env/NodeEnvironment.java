@@ -305,6 +305,10 @@ public final class NodeEnvironment  implements Closeable {
 
             applySegmentInfosTrace(settings);
             assertCanWrite();
+
+            if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
+                ensureAtomicMoveSupported(nodePaths);
+            }
             success = true;
         } finally {
             if (success == false) {
@@ -1003,8 +1007,7 @@ public final class NodeEnvironment  implements Closeable {
      * not supported by the filesystem. This test is executed on each of the data directories.
      * This method cleans up all files even in the case of an error.
      */
-    public void ensureAtomicMoveSupported() throws IOException {
-        final NodePath[] nodePaths = nodePaths();
+    private static void ensureAtomicMoveSupported(final NodePath[] nodePaths) throws IOException {
         for (NodePath nodePath : nodePaths) {
             assert Files.isDirectory(nodePath.path) : nodePath.path + " is not a directory";
             final Path src = nodePath.path.resolve(TEMP_FILE_NAME + ".tmp");

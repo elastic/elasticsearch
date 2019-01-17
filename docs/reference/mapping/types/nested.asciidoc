@@ -75,7 +75,7 @@ queried independently of the others, with the <<query-dsl-nested-query,`nested` 
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {

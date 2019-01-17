@@ -15,6 +15,8 @@ Last but not least, {es-sql} tries to obey the https://en.wikipedia.org/wiki/Pri
 
 === Mapping concepts across SQL and {es}
 
+beta[]
+
 While SQL and {es} have different terms for the way the data is organized (and different semantics), essentially their purpose is the same.
 
 So let's start from the bottom; these roughly are:

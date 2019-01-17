@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-get-role]]
 === Get roles API
+++++
+<titleabbrev>Get roles</titleabbrev>
+++++
 
 Retrieves roles in the native realm.
 

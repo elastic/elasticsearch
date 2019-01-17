@@ -436,7 +436,7 @@ if (useFixture) {
   project.check.dependsOn(integTestECS)
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
   // classes are missing
   'javax.servlet.ServletContextEvent', 
   'javax.servlet.ServletContextListener', 
@@ -451,12 +451,12 @@ thirdPartyAudit.excludes = [
   'software.amazon.ion.system.IonBinaryWriterBuilder',
   'software.amazon.ion.system.IonSystemBuilder',
   'software.amazon.ion.system.IonTextWriterBuilder',
-  'software.amazon.ion.system.IonWriterBuilder',
-]
+  'software.amazon.ion.system.IonWriterBuilder'
+)
 
 // jarhell with jdk (intentionally, because jaxb was removed from default modules in java 9)
 if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.excludes += [
+  thirdPartyAudit.ignoreJarHellWithJDK (
     'javax.xml.bind.Binder',
     'javax.xml.bind.ContextFinder$1',
     'javax.xml.bind.ContextFinder',
@@ -558,9 +558,9 @@ if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
     'javax.xml.bind.util.JAXBSource',
     'javax.xml.bind.util.Messages',
     'javax.xml.bind.util.ValidationEventCollector'
-  ]
+  )
 } else {
-  thirdPartyAudit.excludes += ['javax.activation.DataHandler']
+  thirdPartyAudit.ignoreMissingClasses 'javax.activation.DataHandler'
 }
 
 // AWS SDK is exposing some deprecated methods which we call using a delegate:

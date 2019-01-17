@@ -48,13 +48,18 @@ public class RestIndexAction extends BaseRestHandler {
 
     public RestIndexAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(POST, "/{index}/{type}", this); // auto id creation
-        controller.registerHandler(PUT, "/{index}/{type}/{id}", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}", this);
+        controller.registerHandler(POST, "/{index}/_doc", this); // auto id creation
+        controller.registerHandler(PUT, "/{index}/_doc/{id}", this);
+        controller.registerHandler(POST, "/{index}/_doc/{id}", this);
 
         CreateHandler createHandler = new CreateHandler(settings);
         controller.registerHandler(PUT, "/{index}/_create/{id}", createHandler);
         controller.registerHandler(POST, "/{index}/_create/{id}/", createHandler);
+
+        // Deprecated typed endpoints.
+        controller.registerHandler(POST, "/{index}/{type}", this); // auto id creation
+        controller.registerHandler(PUT, "/{index}/{type}/{id}", this);
+        controller.registerHandler(POST, "/{index}/{type}/{id}", this);
         controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", createHandler);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
     }

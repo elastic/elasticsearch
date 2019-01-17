@@ -50,7 +50,10 @@ public class IndexLifecycleNamedXContentProvider implements NamedXContentProvide
                 RolloverAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class,
                 new ParseField(ShrinkAction.NAME),
-                ShrinkAction::parse)
+                ShrinkAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class,
+                new ParseField(FreezeAction.NAME),
+                FreezeAction::parse)
         );
     }
 }

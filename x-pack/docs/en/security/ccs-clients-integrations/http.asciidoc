@@ -56,7 +56,7 @@ http://elasticsearch-py.readthedocs.org/en/master/#ssl-and-authentication[Python
 https://metacpan.org/pod/Search::Elasticsearch::Cxn::HTTPTiny#CONFIGURATION[Perl],
 http://www.elastic.co/guide/en/elasticsearch/client/php-api/current/_security.html[PHP],
 http://nest.azurewebsites.net/elasticsearch-net/security.html[.NET],
-http://www.elastic.co/guide/en/elasticsearch/client/javascript-api/current/auth-reference.html[Javascript]
+http://www.elastic.co/guide/en/elasticsearch/client/javascript-api/current/auth-reference.html[JavaScript]
 
 ////
 Groovy - TODO link

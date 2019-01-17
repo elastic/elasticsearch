@@ -41,18 +41,18 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testSimplePivot() throws Exception {
-        String jobId = "simplePivot";
+        String transformId = "simplePivot";
         String dataFrameIndex = "pivot_reviews";
 
-        createPivotReviewsJob(jobId, dataFrameIndex);
+        createPivotReviewsTransform(transformId, dataFrameIndex);
 
-        // start the job
-        final Request startJobRequest = new Request("POST", DATAFRAME_ENDPOINT + jobId + "/_start");
-        Map<String, Object> startJobResponse = entityAsMap(client().performRequest(startJobRequest));
-        assertThat(startJobResponse.get("started"), equalTo(Boolean.TRUE));
+        // start the transform
+        final Request startTransformRequest = new Request("POST", DATAFRAME_ENDPOINT + transformId + "/_start");
+        Map<String, Object> startTransformResponse = entityAsMap(client().performRequest(startTransformRequest));
+        assertThat(startTransformResponse.get("started"), equalTo(Boolean.TRUE));
 
         // wait until the dataframe has been created and all data is available
-        waitForDataFrameGeneration(jobId);
+        waitForDataFrameGeneration(transformId);
         refreshIndex(dataFrameIndex);
 
         // we expect 27 documents as there shall be 27 user_id's
@@ -67,18 +67,18 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_26", 3.918918918);
     }
 
-    private void waitForDataFrameGeneration(String jobId) throws Exception {
+    private void waitForDataFrameGeneration(String transformId) throws Exception {
         assertBusy(() -> {
-            long generation = getDataFrameGeneration(jobId);
+            long generation = getDataFrameGeneration(transformId);
             assertEquals(1, generation);
         }, 30, TimeUnit.SECONDS);
     }
 
-    private static int getDataFrameGeneration(String jobId) throws IOException {
-        Response statsResponse = client().performRequest(new Request("GET", DATAFRAME_ENDPOINT + jobId + "/_stats"));
+    private static int getDataFrameGeneration(String transformId) throws IOException {
+        Response statsResponse = client().performRequest(new Request("GET", DATAFRAME_ENDPOINT + transformId + "/_stats"));
 
-        Map<?, ?> jobStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("jobs")).get(0);
-        return (int) XContentMapValues.extractValue("state.generation", jobStatsAsMap);
+        Map<?, ?> transformStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("transforms")).get(0);
+        return (int) XContentMapValues.extractValue("state.generation", transformStatsAsMap);
     }
 
     private void refreshIndex(String index) throws IOException {

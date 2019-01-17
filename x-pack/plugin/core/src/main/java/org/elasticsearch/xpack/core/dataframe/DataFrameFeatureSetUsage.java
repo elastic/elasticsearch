@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.dataframe.job.DataFrameIndexerJobStats;
+import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
 
 import java.io.IOException;
 import java.util.Map;
@@ -21,50 +21,50 @@ import java.util.Objects;
 
 public class DataFrameFeatureSetUsage extends Usage {
 
-    private final Map<String, Long> jobCountByState;
-    private final DataFrameIndexerJobStats accumulatedStats;
+    private final Map<String, Long> transformCountByState;
+    private final DataFrameIndexerTransformStats accumulatedStats;
 
     public DataFrameFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        this.jobCountByState = in.readMap(StreamInput::readString, StreamInput::readLong);
-        this.accumulatedStats = new DataFrameIndexerJobStats(in);
+        this.transformCountByState = in.readMap(StreamInput::readString, StreamInput::readLong);
+        this.accumulatedStats = new DataFrameIndexerTransformStats(in);
     }
 
-    public DataFrameFeatureSetUsage(boolean available, boolean enabled, Map<String, Long> jobCountByState,
-            DataFrameIndexerJobStats accumulatedStats) {
+    public DataFrameFeatureSetUsage(boolean available, boolean enabled, Map<String, Long> transformCountByState,
+            DataFrameIndexerTransformStats accumulatedStats) {
         super(XPackField.DATA_FRAME, available, enabled);
-        this.jobCountByState = Objects.requireNonNull(jobCountByState);
+        this.transformCountByState = Objects.requireNonNull(transformCountByState);
         this.accumulatedStats = Objects.requireNonNull(accumulatedStats);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(jobCountByState, StreamOutput::writeString, StreamOutput::writeLong);
+        out.writeMap(transformCountByState, StreamOutput::writeString, StreamOutput::writeLong);
         accumulatedStats.writeTo(out);
     }
 
     @Override
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         super.innerXContent(builder, params);
-        if (jobCountByState.isEmpty() == false) {
-            builder.startObject(DataFrameField.JOBS.getPreferredName());
+        if (transformCountByState.isEmpty() == false) {
+            builder.startObject(DataFrameField.TRANSFORMS.getPreferredName());
             long all = 0L;
-            for (Entry<String, Long> entry : jobCountByState.entrySet()) {
+            for (Entry<String, Long> entry : transformCountByState.entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
                 all+=entry.getValue();
             }
             builder.field(MetaData.ALL, all);
             builder.endObject();
 
-            // if there are no jobs, do not show any stats
+            // if there are no transforms, do not show any stats
             builder.field(DataFrameField.STATS_FIELD.getPreferredName(), accumulatedStats);
         }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(enabled, available, jobCountByState, accumulatedStats);
+        return Objects.hash(enabled, available, transformCountByState, accumulatedStats);
     }
 
     @Override
@@ -77,7 +77,7 @@ public class DataFrameFeatureSetUsage extends Usage {
         }
         DataFrameFeatureSetUsage other = (DataFrameFeatureSetUsage) obj;
         return Objects.equals(name, other.name) && available == other.available && enabled == other.enabled
-                && Objects.equals(jobCountByState, other.jobCountByState)
+                && Objects.equals(transformCountByState, other.transformCountByState)
                 && Objects.equals(accumulatedStats, other.accumulatedStats);
     }
 }

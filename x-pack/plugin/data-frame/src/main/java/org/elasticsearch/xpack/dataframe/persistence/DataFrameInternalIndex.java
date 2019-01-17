@@ -14,8 +14,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+
 import java.io.IOException;
 import java.util.Collections;
+
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public final class DataFrameInternalIndex {
@@ -36,7 +38,7 @@ public final class DataFrameInternalIndex {
     public static final String DOUBLE = "double";
     public static final String KEYWORD = "keyword";
 
-    // internal document types, e.g. "job_config"
+    // internal document types, e.g. "transform_config"
     public static final String DOC_TYPE = "doc_type";
 
     public static IndexTemplateMetaData getIndexTemplateMetaData() throws IOException {
@@ -68,8 +70,8 @@ public final class DataFrameInternalIndex {
         builder.startObject(PROPERTIES);
         // overall doc type
         builder.startObject(DOC_TYPE).field(TYPE, KEYWORD).endObject();
-        // add the schema for job configurations
-        addDataFrameJobConfigMappings(builder);
+        // add the schema for transform configurations
+        addDataFrameTransformsConfigMappings(builder);
 
         // end type
         builder.endObject();
@@ -80,7 +82,7 @@ public final class DataFrameInternalIndex {
         return builder;
     }
 
-    private static XContentBuilder addDataFrameJobConfigMappings(XContentBuilder builder) throws IOException {
+    private static XContentBuilder addDataFrameTransformsConfigMappings(XContentBuilder builder) throws IOException {
         return builder
             .startObject(DataFrameField.ID.getPreferredName())
                 .field(TYPE, KEYWORD)

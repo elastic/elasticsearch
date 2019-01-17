@@ -19,11 +19,11 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
-import org.elasticsearch.xpack.core.dataframe.job.DataFrameIndexerJobStats;
-import org.elasticsearch.xpack.dataframe.action.DataFrameJobStateAndStats;
-import org.elasticsearch.xpack.dataframe.action.DataFrameJobStateAndStatsTests;
-import org.elasticsearch.xpack.dataframe.action.GetDataFrameJobsStatsAction;
-import org.elasticsearch.xpack.dataframe.action.GetDataFrameJobsStatsAction.Response;
+import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.dataframe.action.DataFrameTransformStateAndStats;
+import org.elasticsearch.xpack.dataframe.action.DataFrameTransformStateAndStatsTests;
+import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsStatsAction;
+import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsStatsAction.Response;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -75,19 +75,19 @@ public class DataFrameFeatureSetTests extends ESTestCase {
 
         DataFrameFeatureSet featureSet = new DataFrameFeatureSet(Settings.EMPTY, client, licenseState);
 
-        List<DataFrameJobStateAndStats> jobsStateAndStats = new ArrayList<>();
+        List<DataFrameTransformStateAndStats> transformsStateAndStats = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(0, 10); ++i) {
-            jobsStateAndStats.add(DataFrameJobStateAndStatsTests.randomDataFrameJobStateAndStats());
+            transformsStateAndStats.add(DataFrameTransformStateAndStatsTests.randomDataFrameTransformStateAndStats());
         }
 
-        GetDataFrameJobsStatsAction.Response mockResponse = new GetDataFrameJobsStatsAction.Response(jobsStateAndStats);
+        GetDataFrameTransformsStatsAction.Response mockResponse = new GetDataFrameTransformsStatsAction.Response(transformsStateAndStats);
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<Response> listener = (ActionListener<Response>) invocationOnMock.getArguments()[2];
             listener.onResponse(mockResponse);
             return Void.TYPE;
-        }).when(client).execute(same(GetDataFrameJobsStatsAction.INSTANCE), any(), any());
+        }).when(client).execute(same(GetDataFrameTransformsStatsAction.INSTANCE), any(), any());
 
         PlainActionFuture<Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
@@ -101,20 +101,20 @@ public class DataFrameFeatureSetTests extends ESTestCase {
             Map<String, Object> usageAsMap = parser.map();
             assertTrue((boolean) XContentMapValues.extractValue("available", usageAsMap));
 
-            if (jobsStateAndStats.isEmpty()) {
-                // no jobs, no stats
-                assertEquals(null, XContentMapValues.extractValue("jobs", usageAsMap));
+            if (transformsStateAndStats.isEmpty()) {
+                // no transforms, no stats
+                assertEquals(null, XContentMapValues.extractValue("transforms", usageAsMap));
                 assertEquals(null, XContentMapValues.extractValue("stats", usageAsMap));
             } else {
-                assertEquals(jobsStateAndStats.size(), XContentMapValues.extractValue("jobs._all", usageAsMap));
+                assertEquals(transformsStateAndStats.size(), XContentMapValues.extractValue("transforms._all", usageAsMap));
 
                 Map<String, Integer> stateCounts = new HashMap<>();
-                jobsStateAndStats.stream().map(x -> x.getJobState().getIndexerState().value())
+                transformsStateAndStats.stream().map(x -> x.getTransformState().getIndexerState().value())
                         .forEach(x -> stateCounts.merge(x, 1, Integer::sum));
-                stateCounts.forEach((k, v) -> assertEquals(v, XContentMapValues.extractValue("jobs." + k, usageAsMap)));
+                stateCounts.forEach((k, v) -> assertEquals(v, XContentMapValues.extractValue("transforms." + k, usageAsMap)));
 
-                DataFrameIndexerJobStats combinedStats = jobsStateAndStats.stream().map(x -> x.getJobStats()).reduce((l, r) -> l.merge(r))
-                        .get();
+                DataFrameIndexerTransformStats combinedStats = transformsStateAndStats.stream().map(x -> x.getTransformStats())
+                        .reduce((l, r) -> l.merge(r)).get();
 
                 assertEquals(toIntExact(combinedStats.getIndexFailures()),
                         XContentMapValues.extractValue("stats.index_failures", usageAsMap));
@@ -144,8 +144,8 @@ public class DataFrameFeatureSetTests extends ESTestCase {
             Map<String, Object> usageAsMap = parser.map();
             assertTrue((boolean) XContentMapValues.extractValue("available", usageAsMap));
             assertFalse((boolean) XContentMapValues.extractValue("enabled", usageAsMap));
-            // not enabled -> no jobs, no stats
-            assertEquals(null, XContentMapValues.extractValue("jobs", usageAsMap));
+            // not enabled -> no transforms, no stats
+            assertEquals(null, XContentMapValues.extractValue("transforms", usageAsMap));
             assertEquals(null, XContentMapValues.extractValue("stats", usageAsMap));
         }
     }

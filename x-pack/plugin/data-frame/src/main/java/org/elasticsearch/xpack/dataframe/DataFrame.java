@@ -45,30 +45,30 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.dataframe.job.DataFrameJobState;
+import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
-import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameJobAction;
-import org.elasticsearch.xpack.dataframe.action.GetDataFrameJobsAction;
-import org.elasticsearch.xpack.dataframe.action.GetDataFrameJobsStatsAction;
-import org.elasticsearch.xpack.dataframe.action.PutDataFrameJobAction;
-import org.elasticsearch.xpack.dataframe.action.StartDataFrameJobAction;
-import org.elasticsearch.xpack.dataframe.action.StopDataFrameJobAction;
-import org.elasticsearch.xpack.dataframe.action.TransportDeleteDataFrameJobAction;
-import org.elasticsearch.xpack.dataframe.action.TransportGetDataFrameJobsAction;
-import org.elasticsearch.xpack.dataframe.action.TransportGetDataFrameJobsStatsAction;
-import org.elasticsearch.xpack.dataframe.action.TransportPutDataFrameJobAction;
-import org.elasticsearch.xpack.dataframe.action.TransportStartDataFrameJobAction;
-import org.elasticsearch.xpack.dataframe.action.TransportStopDataFrameJobAction;
-import org.elasticsearch.xpack.dataframe.job.DataFrameJob;
-import org.elasticsearch.xpack.dataframe.job.DataFrameJobPersistentTasksExecutor;
+import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsAction;
+import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsStatsAction;
+import org.elasticsearch.xpack.dataframe.action.PutDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.action.StartDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.action.StopDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.action.TransportDeleteDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.action.TransportGetDataFrameTransformsAction;
+import org.elasticsearch.xpack.dataframe.action.TransportGetDataFrameTransformsStatsAction;
+import org.elasticsearch.xpack.dataframe.action.TransportPutDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.action.TransportStartDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.action.TransportStopDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
-import org.elasticsearch.xpack.dataframe.persistence.DataFrameJobConfigManager;
-import org.elasticsearch.xpack.dataframe.rest.action.RestDeleteDataFrameJobAction;
-import org.elasticsearch.xpack.dataframe.rest.action.RestGetDataFrameJobsAction;
-import org.elasticsearch.xpack.dataframe.rest.action.RestGetDataFrameJobsStatsAction;
-import org.elasticsearch.xpack.dataframe.rest.action.RestPutDataFrameJobAction;
-import org.elasticsearch.xpack.dataframe.rest.action.RestStartDataFrameJobAction;
-import org.elasticsearch.xpack.dataframe.rest.action.RestStopDataFrameJobAction;
+import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.dataframe.rest.action.RestDeleteDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.rest.action.RestGetDataFrameTransformsAction;
+import org.elasticsearch.xpack.dataframe.rest.action.RestGetDataFrameTransformsStatsAction;
+import org.elasticsearch.xpack.dataframe.rest.action.RestPutDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.rest.action.RestStartDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.rest.action.RestStopDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.transform.DataFrameTransform;
+import org.elasticsearch.xpack.dataframe.transform.DataFrameTransformPersistentTasksExecutor;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -90,7 +90,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     public static final String NAME = "data_frame";
     public static final String TASK_THREAD_POOL_NAME = "data_frame_indexing";
 
-    // list of headers that will be stored when a job is created
+    // list of headers that will be stored when a transform is created
     public static final Set<String> HEADER_FILTERS = new HashSet<>(
             Arrays.asList("es-security-runas-user", "_xpack_security_authentication"));
 
@@ -99,7 +99,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     private final boolean enabled;
     private final Settings settings;
     private final boolean transportClientMode;
-    private final SetOnce<DataFrameJobConfigManager> dataFrameJobConfigManager = new SetOnce<>();
+    private final SetOnce<DataFrameTransformsConfigManager> dataFrameTransformsConfigManager = new SetOnce<>();
 
     public DataFrame(Settings settings) {
         this.settings = settings;
@@ -132,12 +132,12 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         }
 
         return Arrays.asList(
-                new RestPutDataFrameJobAction(settings, restController),
-                new RestStartDataFrameJobAction(settings, restController),
-                new RestStopDataFrameJobAction(settings, restController),
-                new RestDeleteDataFrameJobAction(settings, restController),
-                new RestGetDataFrameJobsAction(settings, restController),
-                new RestGetDataFrameJobsStatsAction(settings, restController)
+                new RestPutDataFrameTransformAction(settings, restController),
+                new RestStartDataFrameTransformAction(settings, restController),
+                new RestStopDataFrameTransformAction(settings, restController),
+                new RestDeleteDataFrameTransformAction(settings, restController),
+                new RestGetDataFrameTransformsAction(settings, restController),
+                new RestGetDataFrameTransformsStatsAction(settings, restController)
         );
     }
 
@@ -148,12 +148,12 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         }
 
         return Arrays.asList(
-                new ActionHandler<>(PutDataFrameJobAction.INSTANCE, TransportPutDataFrameJobAction.class),
-                new ActionHandler<>(StartDataFrameJobAction.INSTANCE, TransportStartDataFrameJobAction.class),
-                new ActionHandler<>(StopDataFrameJobAction.INSTANCE, TransportStopDataFrameJobAction.class),
-                new ActionHandler<>(DeleteDataFrameJobAction.INSTANCE, TransportDeleteDataFrameJobAction.class),
-                new ActionHandler<>(GetDataFrameJobsAction.INSTANCE, TransportGetDataFrameJobsAction.class),
-                new ActionHandler<>(GetDataFrameJobsStatsAction.INSTANCE, TransportGetDataFrameJobsStatsAction.class)
+                new ActionHandler<>(PutDataFrameTransformAction.INSTANCE, TransportPutDataFrameTransformAction.class),
+                new ActionHandler<>(StartDataFrameTransformAction.INSTANCE, TransportStartDataFrameTransformAction.class),
+                new ActionHandler<>(StopDataFrameTransformAction.INSTANCE, TransportStopDataFrameTransformAction.class),
+                new ActionHandler<>(DeleteDataFrameTransformAction.INSTANCE, TransportDeleteDataFrameTransformAction.class),
+                new ActionHandler<>(GetDataFrameTransformsAction.INSTANCE, TransportGetDataFrameTransformsAction.class),
+                new ActionHandler<>(GetDataFrameTransformsStatsAction.INSTANCE, TransportGetDataFrameTransformsStatsAction.class)
                 );
     }
 
@@ -177,9 +177,9 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
             return emptyList();
         }
 
-        dataFrameJobConfigManager.set(new DataFrameJobConfigManager(client, xContentRegistry));
+        dataFrameTransformsConfigManager.set(new DataFrameTransformsConfigManager(client, xContentRegistry));
 
-        return Collections.singletonList(dataFrameJobConfigManager.get());
+        return Collections.singletonList(dataFrameTransformsConfigManager.get());
     }
 
     @Override
@@ -203,10 +203,10 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
 
         SchedulerEngine schedulerEngine = new SchedulerEngine(settings, Clock.systemUTC());
 
-        // the job config manager should have been created
-        assert dataFrameJobConfigManager.get() != null;
+        // the transforms config manager should have been created
+        assert dataFrameTransformsConfigManager.get() != null;
         return Collections.singletonList(
-                new DataFrameJobPersistentTasksExecutor(client, dataFrameJobConfigManager.get(), schedulerEngine, threadPool));
+                new DataFrameTransformPersistentTasksExecutor(client, dataFrameTransformsConfigManager.get(), schedulerEngine, threadPool));
     }
 
     @Override
@@ -216,11 +216,11 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         }
         return  Arrays.asList(
                 new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(DataFrameField.TASK_NAME),
-                        DataFrameJob::fromXContent),
-                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(DataFrameJobState.NAME),
-                        DataFrameJobState::fromXContent),
-                new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(DataFrameJobState.NAME),
-                        DataFrameJobState::fromXContent)
+                        DataFrameTransform::fromXContent),
+                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(DataFrameTransformState.NAME),
+                        DataFrameTransformState::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(DataFrameTransformState.NAME),
+                        DataFrameTransformState::fromXContent)
                 );
     }
 }

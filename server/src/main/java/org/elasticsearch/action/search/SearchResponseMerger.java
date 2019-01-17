@@ -142,20 +142,17 @@ final class SearchResponseMerger {
             if (Float.isNaN(searchHits.getMaxScore()) == false) {
                 maxScore = Math.max(maxScore, searchHits.getMaxScore());
             }
-
             final TotalHits totalHits;
             if (searchHits.getTotalHits() == null) {
                 //in case we did't track total hits, we get null from each cluster, but we need to set 0 eq to the TopDocs
                 totalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
                 assert trackTotalHits == null || trackTotalHits == false;
                 trackTotalHits = false;
-
             } else {
                 totalHits = searchHits.getTotalHits();
                 assert trackTotalHits == null || trackTotalHits;
                 trackTotalHits = true;
             }
-
             topDocsList.add(searchHitsToTopDocs(searchHits, totalHits, shardResults));
         }
 
@@ -163,18 +160,13 @@ final class SearchResponseMerger {
         setShardIndex(shardResults.values());
         TopDocs topDocs = SearchPhaseController.mergeTopDocs(topDocsList, size, from);
         SearchHits mergedSearchHits = topDocsToSearchHits(topDocs, Float.isInfinite(maxScore) ? Float.NaN : maxScore, trackTotalHits);
-
         Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
-
         InternalAggregations reducedAggs = InternalAggregations.reduce(aggs, reduceContextFunction.apply(true));
-
         ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
         //make failures ordering consistent with ordinary search and CCS
         Arrays.sort(shardFailures, FAILURES_COMPARATOR);
-
         InternalSearchResponse response = new InternalSearchResponse(mergedSearchHits, reducedAggs, suggest,
             new SearchProfileShardResults(profileResults), timedOut, terminatedEarly, numReducePhases);
-
         long tookInMillis = searchTimeProvider.buildTookInMillis();
         return new SearchResponse(response, null, totalShards, successfulShards, skippedShards, tookInMillis, shardFailures, clusters);
     }

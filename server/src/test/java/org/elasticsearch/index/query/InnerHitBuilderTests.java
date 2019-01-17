@@ -140,6 +140,11 @@ public class InnerHitBuilderTests extends ESTestCase {
         }
     }
 
+    public static InnerHitBuilder randomNestedInnerHits() {
+        InnerHitBuilder innerHitBuilder = randomInnerHits();
+        innerHitBuilder.setSeqNoAndPrimaryTerm(false); // not supported by nested queries
+        return innerHitBuilder;
+    }
     public static InnerHitBuilder randomInnerHits() {
         InnerHitBuilder innerHits = new InnerHitBuilder();
         innerHits.setName(randomAlphaOfLengthBetween(1, 16));

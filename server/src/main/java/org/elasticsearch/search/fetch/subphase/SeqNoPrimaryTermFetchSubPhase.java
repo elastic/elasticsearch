@@ -56,8 +56,9 @@ public final class SeqNoPrimaryTermFetchSubPhase implements FetchSubPhase {
             int docId = hit.docId() - subReaderContext.docBase;
             long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
             long primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-            if (seqNoField != null && seqNoField.advanceExact(docId)) {
-                boolean found = primaryTermField.advanceExact(docId);
+            // we have to check the primary term field as it is only assigned for non-nested documents
+            if (primaryTermField != null && primaryTermField.advanceExact(docId)) {
+                boolean found = seqNoField.advanceExact(docId);
                 assert found: "found seq no for " + docId + " but not a primary term";
                 seqNo = seqNoField.longValue();
                 primaryTerm = primaryTermField.longValue();

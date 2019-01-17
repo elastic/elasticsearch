@@ -37,7 +37,7 @@ include-tagged::{sql-specs}/docs.csv-spec[conversionIntToStringCast]
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[conversionStringToDateCast]
+include-tagged::{sql-specs}/docs.csv-spec[conversionStringToDateTimeCast]
 ----
 
 

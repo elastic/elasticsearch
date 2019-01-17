@@ -144,7 +144,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         SearchHit hit = new SearchHit(1);
         DocumentField field = new DocumentField("my_date_field", documentFieldValues);
         hit.fields(singletonMap("my_date_field", field));
-        FieldHitExtractor extractor = new FieldHitExtractor("my_date_field", DataType.DATE, true);
+        FieldHitExtractor extractor = new FieldHitExtractor("my_date_field", DataType.DATETIME, true);
         assertEquals(DateUtils.of(millis), extractor.extract(hit));
     }
 

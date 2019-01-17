@@ -128,7 +128,7 @@ public class FieldHitExtractor implements HitExtractor {
         if (values instanceof Map) {
             throw new SqlIllegalArgumentException("Objects (returned by [{}]) are not supported", fieldName);
         }
-        if (dataType == DataType.DATE) {
+        if (dataType == DataType.DATETIME) {
             if (values instanceof String) {
                 return DateUtils.of(Long.parseLong(values.toString()));
             }

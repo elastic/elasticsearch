@@ -19,9 +19,6 @@
 
 package org.elasticsearch.common.util.set;
 
-import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.common.util.CollectionUtils;
-
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -35,7 +32,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;

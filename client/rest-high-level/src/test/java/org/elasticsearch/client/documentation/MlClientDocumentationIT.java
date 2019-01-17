@@ -139,6 +139,7 @@ import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -869,7 +870,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         String datafeedId = job.getId() + "-feed";
         String indexName = "preview_data_2";
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId())
             .setIndices(indexName)
@@ -928,7 +938,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         String datafeedId = job.getId() + "-feed";
         String indexName = "start_data_2";
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId())
             .setIndices(indexName)
@@ -1048,7 +1067,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         String datafeedId1 = job.getId() + "-feed";
         String indexName = "datafeed_stats_data_2";
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId1, job.getId())
             .setIndices(indexName)

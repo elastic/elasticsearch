@@ -1547,7 +1547,14 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
     // Not entirely sure if _termvectors belongs to CRUD, and in the absence of a better place, will have it here
     public void testTermVectors() throws Exception {
         RestHighLevelClient client = highLevelClient();
-        CreateIndexRequest authorsRequest = new CreateIndexRequest("authors").mapping("user", "type=keyword");
+        CreateIndexRequest authorsRequest = new CreateIndexRequest("authors")
+            .mapping(XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("user")
+                        .field("type", "keyword")
+                    .endObject()
+                .endObject()
+            .endObject());
         CreateIndexResponse authorsResponse = client.indices().create(authorsRequest, RequestOptions.DEFAULT);
         assertTrue(authorsResponse.isAcknowledged());
         client.index(new IndexRequest("index").id("1").source("user", "kimchy"), RequestOptions.DEFAULT);
@@ -1671,7 +1678,14 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
     // Not entirely sure if _mtermvectors belongs to CRUD, and in the absence of a better place, will have it here
     public void testMultiTermVectors() throws Exception {
         RestHighLevelClient client = highLevelClient();
-        CreateIndexRequest authorsRequest = new CreateIndexRequest("authors").mapping("user", "type=text");
+        CreateIndexRequest authorsRequest = new CreateIndexRequest("authors")
+            .mapping(XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("user")
+                        .field("type", "keyword")
+                    .endObject()
+                .endObject()
+            .endObject());
         CreateIndexResponse authorsResponse = client.indices().create(authorsRequest, RequestOptions.DEFAULT);
         assertTrue(authorsResponse.isAcknowledged());
         client.index(new IndexRequest("index").id("1").source("user", "kimchy"), RequestOptions.DEFAULT);

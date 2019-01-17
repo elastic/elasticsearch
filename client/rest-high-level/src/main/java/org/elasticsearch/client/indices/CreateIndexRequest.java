@@ -200,15 +200,6 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, Ind
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
-
-    /**
-     * A specialized simplified mapping source method, takes the form of simple properties definition:
-     * ("field1", "type=string,store=true").
-     */
-    public CreateIndexRequest mapping(Object... source) {
-        mapping(PutMappingRequest.buildFromSimplifiedDef(null, source));
-        return this;
-    }
     
     /**
      * Sets the aliases that will be associated with the index when it gets created

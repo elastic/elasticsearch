@@ -57,6 +57,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -1249,12 +1250,26 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private void indexSearchTestData() throws IOException {
         CreateIndexRequest authorsRequest = new CreateIndexRequest("authors")
-            .mapping("user", "type=keyword,doc_values=false");
+            .mapping(XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("user")
+                        .field("type", "keyword")
+                        .field("doc_values", "false")
+                    .endObject()
+                .endObject()
+            .endObject());
         CreateIndexResponse authorsResponse = highLevelClient().indices().create(authorsRequest, RequestOptions.DEFAULT);
         assertTrue(authorsResponse.isAcknowledged());
 
         CreateIndexRequest reviewersRequest = new CreateIndexRequest("contributors")
-            .mapping("user", "type=keyword,store=true");
+            .mapping(XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("user")
+                        .field("type", "keyword")
+                        .field("store", "true")
+                    .endObject()
+                .endObject()
+            .endObject());
         CreateIndexResponse reviewersResponse = highLevelClient().indices().create(reviewersRequest, RequestOptions.DEFAULT);
         assertTrue(reviewersResponse.isAcknowledged());
 
@@ -1368,7 +1383,14 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private static void indexCountTestData() throws IOException {
         CreateIndexRequest authorsRequest = new CreateIndexRequest("author")
-            .mapping("user", "type=keyword,doc_values=false");
+            .mapping(XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("user")
+                        .field("type", "keyword")
+                        .field("doc_values", "false")
+                    .endObject()
+                .endObject()
+            .endObject());
         CreateIndexResponse authorsResponse = highLevelClient().indices().create(authorsRequest, RequestOptions.DEFAULT);
         assertTrue(authorsResponse.isAcknowledged());
 

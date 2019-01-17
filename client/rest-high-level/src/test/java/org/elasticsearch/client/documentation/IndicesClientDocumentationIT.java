@@ -355,14 +355,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 CreateIndexResponse createIndexResponse = client.indices().create(request, RequestOptions.DEFAULT);
                 assertTrue(createIndexResponse.isAcknowledged());
             }
-            {
-                request = new CreateIndexRequest("twitter4");
-                //tag::create-index-mappings-shortcut
-                request.mapping("message", "type=text"); // <1>
-                //end::create-index-mappings-shortcut
-                CreateIndexResponse createIndexResponse = client.indices().create(request, RequestOptions.DEFAULT);
-                assertTrue(createIndexResponse.isAcknowledged());
-            }
 
             request = new CreateIndexRequest("twitter5");
             // tag::create-index-request-aliases

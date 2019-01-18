@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -25,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 public final class TransportPutFollowAction
     extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
@@ -143,10 +146,13 @@ public final class TransportPutFollowAction
             @Override
             public void onResponse(RestoreSnapshotResponse restoreSnapshotResponse) {
                 RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
-                if (restoreInfo == null || restoreInfo.failedShards() == 0) {
+
+                if (restoreInfo == null) {
                     // If restoreInfo is null then it is possible there was a master failure during the
-                    // restore. It is possible the index was restored. initiateFollowing will timeout waiting
-                    // for the shards to be active if the index was not successfully restored.
+                    // restore.
+                    // TODO: Implement
+                    listener.onFailure(null);
+                } else if (restoreInfo.failedShards() == 0) {
                     initiateFollowing(client, request, followingListener);
                 } else {
                     int failedShards = restoreInfo.failedShards();
@@ -164,15 +170,14 @@ public final class TransportPutFollowAction
             .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowRequest().getFollowerIndex())
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
         String leaderClusterRepoName = CcrRepository.NAME_PREFIX + remoteCluster;
-        RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(leaderClusterRepoName,
-            CcrRepository.LATEST, new String[]{request.getLeaderIndex()}, request.indicesOptions(),
-            "^(.*)$", request.getFollowRequest().getFollowerIndex(), Settings.EMPTY, request.masterNodeTimeout(), false,
-            false, false, settingsBuilder.build(), new String[0],
-            "restore_snapshot[" + leaderClusterRepoName + ":" + request.getLeaderIndex() + "]");
+        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
+            .indices(request.getLeaderIndex()).indicesOptions(request.indicesOptions()).renamePattern("^(.*)$")
+            .renameReplacement(request.getFollowRequest().getFollowerIndex()).masterNodeTimeout(request.masterNodeTimeout())
+            .indexSettings(settingsBuilder);
         initiateRestore(restoreRequest, restoreCompleteHandler);
     }
 
-    private void initiateRestore(RestoreService.RestoreRequest restoreRequest, ActionListener<RestoreSnapshotResponse> listener) {
+    private void initiateRestore(RestoreSnapshotRequest restoreRequest, ActionListener<RestoreSnapshotResponse> listener) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {

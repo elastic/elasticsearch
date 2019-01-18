@@ -127,6 +127,7 @@ public final class NioGroupFactory {
 
         @Override
         public void close() throws IOException {
+            throw new UnsupportedOperationException("Should not close. Instead use decRef call.");
         }
     }
 
@@ -147,12 +148,12 @@ public final class NioGroupFactory {
         public <S extends NioServerSocketChannel> S bindServerChannel(InetSocketAddress address, ChannelFactory<S, ?> factory)
             throws IOException {
             ensureOpen();
-            return refCountedNioGroup.nioGroup.bindServerChannel(address, factory);
+            return refCountedNioGroup.bindServerChannel(address, factory);
         }
 
         public <S extends NioSocketChannel> S openChannel(InetSocketAddress address, ChannelFactory<?, S> factory) throws IOException {
             ensureOpen();
-            return refCountedNioGroup.nioGroup.openChannel(address, factory);
+            return refCountedNioGroup.openChannel(address, factory);
         }
 
         @Override

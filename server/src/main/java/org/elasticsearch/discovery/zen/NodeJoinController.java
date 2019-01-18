@@ -511,7 +511,7 @@ public class NodeJoinController {
                 .blocks(currentState.blocks())
                 .removeGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)).build();
             tmpState = PersistentTasksCustomMetaData.disassociateDeadNodes(tmpState);
-            return ClusterState.builder(allocationService.deassociateDeadNodes(tmpState, false,
+            return ClusterState.builder(allocationService.disassociateDeadNodes(tmpState, false,
                 "removed dead nodes on election"));
         }
 

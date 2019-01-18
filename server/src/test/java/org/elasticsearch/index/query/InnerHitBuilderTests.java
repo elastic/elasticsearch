@@ -140,11 +140,6 @@ public class InnerHitBuilderTests extends ESTestCase {
         }
     }
 
-    public static InnerHitBuilder randomNestedInnerHits() {
-        InnerHitBuilder innerHitBuilder = randomInnerHits();
-        innerHitBuilder.setSeqNoAndPrimaryTerm(false); // not supported by nested queries
-        return innerHitBuilder;
-    }
     public static InnerHitBuilder randomInnerHits() {
         InnerHitBuilder innerHits = new InnerHitBuilder();
         innerHits.setName(randomAlphaOfLengthBetween(1, 16));
@@ -152,7 +147,6 @@ public class InnerHitBuilderTests extends ESTestCase {
         innerHits.setSize(randomIntBetween(0, 32));
         innerHits.setExplain(randomBoolean());
         innerHits.setVersion(randomBoolean());
-        innerHits.setSeqNoAndPrimaryTerm(randomBoolean());
         innerHits.setTrackScores(randomBoolean());
         if (randomBoolean()) {
             innerHits.setStoredFieldNames(randomListStuff(16, () -> randomAlphaOfLengthBetween(1, 16)));
@@ -195,7 +189,6 @@ public class InnerHitBuilderTests extends ESTestCase {
         modifiers.add(() -> copy.setSize(randomValueOtherThan(copy.getSize(), () -> randomIntBetween(0, 128))));
         modifiers.add(() -> copy.setExplain(!copy.isExplain()));
         modifiers.add(() -> copy.setVersion(!copy.isVersion()));
-        modifiers.add(() -> copy.setSeqNoAndPrimaryTerm(!copy.isSeqNoAndPrimaryTerm()));
         modifiers.add(() -> copy.setTrackScores(!copy.isTrackScores()));
         modifiers.add(() -> copy.setName(randomValueOtherThan(copy.getName(), () -> randomAlphaOfLengthBetween(1, 16))));
         modifiers.add(() -> {

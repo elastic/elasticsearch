@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -580,7 +579,6 @@ public class TopHitsIT extends ESIntegTestCase {
     }
 
     public void testFetchFeatures() {
-        final boolean seqNoAndTerm = randomBoolean();
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(matchQuery("text", "text").queryName("test"))
                 .addAggregation(terms("terms")
@@ -596,7 +594,6 @@ public class TopHitsIT extends ESIntegTestCase {
                                                 new Script(ScriptType.INLINE, MockScriptEngine.NAME, "5", Collections.emptyMap()))
                                             .fetchSource("text", null)
                                             .version(true)
-                                            .seqNoAndPrimaryTerm(seqNoAndTerm)
                                 )
                 )
                 .get();
@@ -624,13 +621,8 @@ public class TopHitsIT extends ESIntegTestCase {
             long version = hit.getVersion();
             assertThat(version, equalTo(1L));
 
-            if (seqNoAndTerm) {
-                assertThat(hit.getSeqNo(), greaterThanOrEqualTo(0L));
-                assertThat(hit.getPrimaryTerm(), greaterThanOrEqualTo(1L));
-            } else {
-                assertThat(hit.getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
-                assertThat(hit.getPrimaryTerm(), equalTo(SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
-            }
+            assertThat(hit.getSeqNo(), greaterThanOrEqualTo(0L));
+            assertThat(hit.getPrimaryTerm(), greaterThanOrEqualTo(1L));
 
             assertThat(hit.getMatchedQueries()[0], equalTo("test"));
 

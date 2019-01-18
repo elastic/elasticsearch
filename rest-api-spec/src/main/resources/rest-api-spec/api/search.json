@@ -164,10 +164,6 @@
           "type" : "boolean",
           "description" : "Specify whether to return document version as part of a hit"
         },
-        "seq_no_primary_term": {
-          "type" : "boolean",
-          "description" : "Specify whether to return sequence number and primary term of the last modification of each hit"
-        },
         "request_cache": {
           "type" : "boolean",
           "description" : "Specify if request cache should be used for this request or not, defaults to index level setting"

@@ -423,16 +423,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean seqNoAndPrimaryTerm() {
-        return in.seqNoAndPrimaryTerm();
-    }
-
-    @Override
-    public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
-        in.seqNoAndPrimaryTerm(seqNoAndPrimaryTerm);
-    }
-
-    @Override
     public int[] docIdsToLoad() {
         return in.docIdsToLoad();
     }

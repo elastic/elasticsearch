@@ -146,9 +146,6 @@ public class RandomSearchRequestGenerator {
             builder.version(randomBoolean());
         }
         if (randomBoolean()) {
-            builder.seqNoAndPrimaryTerm(randomBoolean());
-        }
-        if (randomBoolean()) {
             builder.trackScores(randomBoolean());
         }
         if (randomBoolean()) {

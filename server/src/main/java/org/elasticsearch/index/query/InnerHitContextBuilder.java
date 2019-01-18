@@ -78,7 +78,6 @@ public abstract class InnerHitContextBuilder {
         innerHitsContext.size(innerHitBuilder.getSize());
         innerHitsContext.explain(innerHitBuilder.isExplain());
         innerHitsContext.version(innerHitBuilder.isVersion());
-        innerHitsContext.seqNoAndPrimaryTerm(innerHitBuilder.isSeqNoAndPrimaryTerm());
         innerHitsContext.trackScores(innerHitBuilder.isTrackScores());
         if (innerHitBuilder.getStoredFieldsContext() != null) {
             innerHitsContext.storedFieldsContext(innerHitBuilder.getStoredFieldsContext());

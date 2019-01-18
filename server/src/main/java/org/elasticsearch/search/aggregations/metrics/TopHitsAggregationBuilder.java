@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -67,7 +66,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     private int size = 3;
     private boolean explain = false;
     private boolean version = false;
-    private boolean seqNoAndPrimaryTerm = false;
     private boolean trackScores = false;
     private List<SortBuilder<?>> sorts = null;
     private HighlightBuilder highlightBuilder;
@@ -87,7 +85,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         this.size = clone.size;
         this.explain = clone.explain;
         this.version = clone.version;
-        this.seqNoAndPrimaryTerm = clone.seqNoAndPrimaryTerm;
         this.trackScores = clone.trackScores;
         this.sorts = clone.sorts == null ? null : new ArrayList<>(clone.sorts);
         this.highlightBuilder = clone.highlightBuilder == null ? null :
@@ -140,9 +137,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         }
         trackScores = in.readBoolean();
         version = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            seqNoAndPrimaryTerm = in.readBoolean();
-        }
     }
 
     @Override
@@ -179,9 +173,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         }
         out.writeBoolean(trackScores);
         out.writeBoolean(version);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeBoolean(seqNoAndPrimaryTerm);
-        }
     }
 
     /**
@@ -536,23 +527,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     /**
-     * Should each {@link org.elasticsearch.search.SearchHit} be returned with the
-     * sequence number and primary term of the last modification of the document.
-     */
-    public TopHitsAggregationBuilder seqNoAndPrimaryTerm(Boolean seqNoAndPrimaryTerm) {
-        this.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
-        return this;
-    }
-
-    /**
-     * Indicates whether {@link org.elasticsearch.search.SearchHit}s should be returned with the
-     * sequence number and primary term of the last modification of the document.
-     */
-    public Boolean seqNoAndPrimaryTerm() {
-        return seqNoAndPrimaryTerm;
-    }
-
-    /**
      * Applies when sorting, and controls if scores will be tracked as well.
      * Defaults to {@code false}.
      */
@@ -605,7 +579,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         } else {
             optionalSort = SortBuilder.buildSort(sorts, context.getQueryShardContext());
         }
-        return new TopHitsAggregatorFactory(name, from, size, explain, version, seqNoAndPrimaryTerm, trackScores, optionalSort,
+        return new TopHitsAggregatorFactory(name, from, size, explain, version, trackScores, optionalSort,
             highlightBuilder, storedFieldsContext, docValueFields, fields, fetchSourceContext, context, parent, subfactoriesBuilder,
             metaData);
     }
@@ -616,7 +590,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         builder.field(SearchSourceBuilder.FROM_FIELD.getPreferredName(), from);
         builder.field(SearchSourceBuilder.SIZE_FIELD.getPreferredName(), size);
         builder.field(SearchSourceBuilder.VERSION_FIELD.getPreferredName(), version);
-        builder.field(SearchSourceBuilder.SEQ_NO_PRIMARY_TERM_FIELD.getPreferredName(), seqNoAndPrimaryTerm);
         builder.field(SearchSourceBuilder.EXPLAIN_FIELD.getPreferredName(), explain);
         if (fetchSourceContext != null) {
             builder.field(SearchSourceBuilder._SOURCE_FIELD.getPreferredName(), fetchSourceContext);
@@ -674,8 +647,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                     factory.size(parser.intValue());
                 } else if (SearchSourceBuilder.VERSION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     factory.version(parser.booleanValue());
-                } else if (SearchSourceBuilder.SEQ_NO_PRIMARY_TERM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    factory.seqNoAndPrimaryTerm(parser.booleanValue());
                 } else if (SearchSourceBuilder.EXPLAIN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     factory.explain(parser.booleanValue());
                 } else if (SearchSourceBuilder.TRACK_SCORES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -775,7 +746,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     @Override
     protected int doHashCode() {
         return Objects.hash(explain, fetchSourceContext, docValueFields, storedFieldsContext, from, highlightBuilder,
-            scriptFields, size, sorts, trackScores, version, seqNoAndPrimaryTerm);
+            scriptFields, size, sorts, trackScores, version);
     }
 
     @Override
@@ -791,8 +762,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                 && Objects.equals(size, other.size)
                 && Objects.equals(sorts, other.sorts)
                 && Objects.equals(trackScores, other.trackScores)
-                && Objects.equals(version, other.version)
-                && Objects.equals(seqNoAndPrimaryTerm, other.seqNoAndPrimaryTerm);
+                && Objects.equals(version, other.version);
     }
 
     @Override

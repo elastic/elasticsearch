@@ -902,10 +902,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.version(source.version());
         }
 
-        if (source.seqNoAndPrimaryTerm() != null) {
-            context.seqNoAndPrimaryTerm(source.seqNoAndPrimaryTerm());
-        }
-
         if (source.stats() != null) {
             context.groupStats(source.stats());
         }

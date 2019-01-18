@@ -418,9 +418,7 @@ setup:
         rest_total_hits_as_int: true
         index: test
         body:
-          collapse: { field: numeric_group, inner_hits: {
-            name: sub_hits, seq_no_primary_term: true, size: 2, sort: [{ sort: asc }]
-          } }
+          collapse: { field: numeric_group, inner_hits: { name: sub_hits, size: 2, sort: [{ sort: asc }]} }
           sort: [{ sort: desc }]
 
   - match: { hits.total: 6 }

@@ -2,7 +2,6 @@ setup:
   - do:
       index:
         index: testidx
-        type:  testtype
         id:    testing_document
         body:
             "text" : "The quick brown fox is brown."
@@ -98,7 +97,6 @@ setup:
   - do:
       index:
         index: another
-        type:  type
         id:    testing_document
         body:
             "text" : "The quick brown fox is brown."
@@ -131,7 +129,6 @@ setup:
   - do:
       index:
         index: index1
-        type:  type
         id:    testing_document
         body:
             "text" : "The quick brown fox is brown."
@@ -139,7 +136,6 @@ setup:
   - do:
       index:
         index: index2
-        type:  type
         id:    testing_document
         body:
             "text" : "The quick brown fox is brown."

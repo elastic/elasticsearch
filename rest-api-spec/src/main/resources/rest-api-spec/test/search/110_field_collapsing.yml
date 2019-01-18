@@ -11,7 +11,6 @@ setup:
   - do:
       index:
           index:  test
-          type:   test
           id:     1
           version_type: external
           version: 11
@@ -19,7 +18,6 @@ setup:
   - do:
       index:
           index:  test
-          type:   test
           id:     2
           version_type: external
           version: 22
@@ -27,7 +25,6 @@ setup:
   - do:
       index:
           index:  test
-          type:   test
           id:     3
           version_type: external
           version: 33
@@ -35,7 +32,6 @@ setup:
   - do:
       index:
           index:  test
-          type:   test
           id:     4
           version_type: external
           version: 44
@@ -43,7 +39,6 @@ setup:
   - do:
       index:
           index:  test
-          type:   test
           id:     5
           version_type: external
           version: 55
@@ -51,7 +46,6 @@ setup:
   - do:
       index:
           index:  test
-          type:   test
           id:     6
           version_type: external
           version: 66
@@ -278,7 +272,7 @@ setup:
         rest_total_hits_as_int: true
         index: test
         body:
-          collapse: 
+          collapse:
             field: numeric_group
             inner_hits:
               - { name: sub_hits_asc, size: 2, sort: [{ sort: asc }] }

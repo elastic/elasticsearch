@@ -198,4 +198,3 @@ setup:
      catch: bad_request
      indices.get:
        index: _foo
-

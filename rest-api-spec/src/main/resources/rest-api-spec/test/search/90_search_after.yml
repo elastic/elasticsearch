@@ -5,21 +5,18 @@ setup:
   - do:
       index:
           index:  test
-          type:   test
           id:     1
           body:   { foo: bar, age: 18 }
 
   - do:
       index:
           index:  test
-          type:   test
           id:     42
           body:   { foo: bar, age: 18 }
 
   - do:
         index:
             index:  test
-            type:   test
             id:     172
             body:   { foo: bar, age: 24 }
 

@@ -6,14 +6,12 @@
   - do:
       index:
         index:  test_scroll
-        type:   test
         id:     42
         body:   { foo: 1 }
 
   - do:
       index:
         index:  test_scroll
-        type:   test
         id:     43
         body:   { foo: 2 }
 
@@ -39,7 +37,6 @@
   - do:
       index:
         index:  test_scroll
-        type:   test
         id:     44
         body:   { foo: 3 }
 
@@ -81,14 +78,12 @@
   - do:
       index:
         index:  test_scroll
-        type:   test
         id:     42
         body:   { foo: 1 }
 
   - do:
       index:
         index:  test_scroll
-        type:   test
         id:     43
         body:   { foo: 2 }
 
@@ -114,7 +109,6 @@
   - do:
       index:
         index:  test_scroll
-        type:   test
         id:     44
         body:   { foo: 3 }
 
@@ -151,14 +145,12 @@
   - do:
       index:
         index:  test_scroll
-        type:   test
         id:     42
         body:   { foo: 1 }
 
   - do:
       index:
         index:  test_scroll
-        type:   test
         id:     43
         body:   { foo: 2 }
 
@@ -184,7 +176,6 @@
   - do:
       index:
         index:  test_scroll
-        type:   test
         id:     44
         body:   { foo: 3 }
 
@@ -256,14 +247,12 @@
   - do:
       index:
         index:  test_scroll
-        type:   test
         id:     42
         body:   { foo: 1 }
 
   - do:
       index:
         index:  test_scroll
-        type:   test
         id:     43
         body:   { foo: 2 }
 
@@ -305,14 +294,12 @@
   - do:
       index:
         index:  test_scroll
-        type:   test
         id:     42
         body:   { foo: 1 }
 
   - do:
       index:
         index:  test_scroll
-        type:   test
         id:     43
         body:   { foo: 2 }
 
@@ -356,4 +343,3 @@
   - do:
       clear_scroll:
         scroll_id: $scroll_id
-

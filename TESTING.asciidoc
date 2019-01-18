@@ -42,7 +42,7 @@ In order to start with a different distribution use the `-Drun.distribution` arg
 To for example start the open source distribution:
 
 -------------------------------------
-./gradlew run -Drun.distribution=oss-zip
+./gradlew run -Drun.distribution=oss
 -------------------------------------
 
 ==== License type

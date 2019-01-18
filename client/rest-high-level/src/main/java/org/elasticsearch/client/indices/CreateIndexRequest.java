@@ -43,6 +43,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -253,6 +254,14 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, Ind
      */
     public CreateIndexRequest alias(Alias alias) {
         this.aliases.add(alias);
+        return this;
+    }
+
+    /**
+     * Adds aliases that will be associated with the index when it gets created
+     */
+    public CreateIndexRequest aliases(Collection<Alias> aliases) {
+        this.aliases.addAll(aliases);
         return this;
     }
 

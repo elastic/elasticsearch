@@ -19,23 +19,12 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.test.ESTestCase.frequently;
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
-import static org.elasticsearch.test.ESTestCase.randomBoolean;
-import static org.elasticsearch.test.ESTestCase.randomIntBetween;
-
-public final class RandomCreateIndexGenerator {
-
-    private RandomCreateIndexGenerator() {}
+public class RandomCreateIndexGenerator {
 
     /**
      * Returns a random {@link CreateIndexRequest}.
@@ -44,107 +33,26 @@ public final class RandomCreateIndexGenerator {
      * index. When present, the mappings make no mention of types.
      */
     public static CreateIndexRequest randomCreateIndexRequest() {
-        String index = randomAlphaOfLength(5);
-        CreateIndexRequest request = new CreateIndexRequest(index);
-        randomAliases(request);
-        if (frequently()) {
-            try {
-                request.mapping(randomMapping());
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+        try {
+            // Create a random server request, and copy its contents into the HLRC request.
+            // Because client requests only accept typeless mappings, we must swap out the
+            // mapping definition for one that does not contain types.
+            org.elasticsearch.action.admin.indices.create.CreateIndexRequest serverRequest =
+                org.elasticsearch.index.RandomCreateIndexGenerator.randomCreateIndexRequest();
+            return new CreateIndexRequest(serverRequest.index())
+                .settings(serverRequest.settings())
+                .aliases(serverRequest.aliases())
+                .mapping(randomMapping());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
-        if (randomBoolean()) {
-            request.settings(randomIndexSettings());
-        }
-        return request;
-    }
-
-    /**
-     * Returns a {@link Settings} instance which include random values for
-     * {@link org.elasticsearch.cluster.metadata.IndexMetaData#SETTING_NUMBER_OF_SHARDS} and
-     * {@link org.elasticsearch.cluster.metadata.IndexMetaData#SETTING_NUMBER_OF_REPLICAS}
-     */
-    private static Settings randomIndexSettings() {
-        Settings.Builder builder = Settings.builder();
-
-        if (randomBoolean()) {
-            int numberOfShards = randomIntBetween(1, 10);
-            builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards);
-        }
-
-        if (randomBoolean()) {
-            int numberOfReplicas = randomIntBetween(1, 10);
-            builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas);
-        }
-
-        return builder.build();
     }
 
     private static XContentBuilder randomMapping() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
-        randomMappingFields(builder, true);
+        org.elasticsearch.index.RandomCreateIndexGenerator.randomMappingFields(builder, true);
         builder.endObject();
         return builder;
-    }
-
-    /**
-     * Adds random mapping fields to the provided {@link XContentBuilder}
-     */
-    private static void randomMappingFields(XContentBuilder builder, boolean allowObjectField) throws IOException {
-        builder.startObject("properties");
-
-        int fieldsNo = randomIntBetween(0, 5);
-        for (int i = 0; i < fieldsNo; i++) {
-            builder.startObject(randomAlphaOfLength(5));
-
-            if (allowObjectField && randomBoolean()) {
-                randomMappingFields(builder, false);
-            } else {
-                builder.field("type", "text");
-            }
-
-            builder.endObject();
-        }
-
-        builder.endObject();
-    }
-
-    /**
-     * Sets random aliases to the provided {@link CreateIndexRequest}
-     */
-    public static void randomAliases(CreateIndexRequest request) {
-        int aliasesNo = randomIntBetween(0, 2);
-        for (int i = 0; i < aliasesNo; i++) {
-            request.alias(randomAlias());
-        }
-    }
-
-    private static Alias randomAlias() {
-        Alias alias = new Alias(randomAlphaOfLength(5));
-
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                alias.routing(randomAlphaOfLength(5));
-            } else {
-                if (randomBoolean()) {
-                    alias.indexRouting(randomAlphaOfLength(5));
-                }
-                if (randomBoolean()) {
-                    alias.searchRouting(randomAlphaOfLength(5));
-                }
-            }
-        }
-
-        if (randomBoolean()) {
-            alias.filter("{\"term\":{\"year\":2016}}");
-        }
-
-        if (randomBoolean()) {
-            alias.writeIndex(randomBoolean());
-        }
-
-        return alias;
     }
 }

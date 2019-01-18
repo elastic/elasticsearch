@@ -52,9 +52,9 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.RandomCreateIndexGenerator;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
-import org.elasticsearch.client.indices.RandomCreateIndexGenerator;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -744,7 +744,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
                 org.elasticsearch.index.RandomCreateIndexGenerator.randomMapping(type));
         }
         if (ESTestCase.randomBoolean()) {
-            org.elasticsearch.index.RandomCreateIndexGenerator.randomAliases(rolloverRequest.getCreateIndexRequest());
+            randomAliases(rolloverRequest.getCreateIndexRequest());
         }
         if (ESTestCase.randomBoolean()) {
             rolloverRequest.getCreateIndexRequest().settings(

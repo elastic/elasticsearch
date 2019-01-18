@@ -140,68 +140,52 @@ final class S3ClientSettings {
     }
 
     /**
-     * Overrides the settings in this instance with settings found in repository metadata and
-     * settings from the clusterstate.
+     * Overrides the settings in this instance with settings found in repository metadata.
+     *
      * @param metadata RepositoryMetaData
-     * @param settings Cluster Settings
      * @return S3ClientSettings
      */
-    S3ClientSettings refine(RepositoryMetaData metadata, Settings settings) {
+    S3ClientSettings refine(RepositoryMetaData metadata) {
         final Settings repoSettings = metadata.settings();
-        final String clientName = S3Repository.CLIENT_NAME.get(repoSettings);
         final String newEndpoint;
         if (ENDPOINT_SETTING.exists(repoSettings)) {
             newEndpoint = ENDPOINT_SETTING.get(repoSettings);
-        } else if (hasConfigValue(settings, clientName, ENDPOINT_SETTING)) {
-            newEndpoint = getConfigValue(settings, clientName, ENDPOINT_SETTING);
         } else {
             newEndpoint = endpoint;
         }
         final Protocol newProtocol;
         if (PROTOCOL_SETTING.exists(repoSettings)) {
             newProtocol = PROTOCOL_SETTING.get(repoSettings);
-        } else if (hasConfigValue(settings, clientName, PROTOCOL_SETTING)) {
-            newProtocol = getConfigValue(settings, clientName, PROTOCOL_SETTING);
         } else {
             newProtocol = protocol;
         }
         final String newProxyHost;
         if (PROXY_HOST_SETTING.exists(repoSettings)) {
             newProxyHost = PROXY_HOST_SETTING.get(repoSettings);
-        } else if (hasConfigValue(settings, clientName, PROXY_HOST_SETTING)) {
-            newProxyHost = getConfigValue(settings, clientName, PROXY_HOST_SETTING);
         } else {
             newProxyHost = proxyHost;
         }
         final int newProxyPort;
         if (PROXY_PORT_SETTING.exists(repoSettings)) {
             newProxyPort = PROXY_PORT_SETTING.get(repoSettings);
-        } else if (hasConfigValue(settings, clientName, PROXY_PORT_SETTING)) {
-            newProxyPort = getConfigValue(settings, clientName, PROXY_PORT_SETTING);
         } else {
             newProxyPort = proxyPort;
         }
         final int newReadTimeoutMillis;
         if (READ_TIMEOUT_SETTING.exists(repoSettings)) {
             newReadTimeoutMillis = Math.toIntExact(READ_TIMEOUT_SETTING.get(repoSettings).millis());
-        } else if (hasConfigValue(settings, clientName, READ_TIMEOUT_SETTING)) {
-            newReadTimeoutMillis = Math.toIntExact(getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis());
         } else {
             newReadTimeoutMillis = readTimeoutMillis;
         }
         final int newMaxRetries;
         if (MAX_RETRIES_SETTING.exists(repoSettings)) {
             newMaxRetries = MAX_RETRIES_SETTING.get(repoSettings);
-        } else if (hasConfigValue(settings, clientName, MAX_RETRIES_SETTING)) {
-            newMaxRetries = getConfigValue(settings, clientName, MAX_RETRIES_SETTING);
         } else {
             newMaxRetries = maxRetries;
         }
         final boolean newThrottleRetries;
         if (USE_THROTTLE_RETRIES_SETTING.exists(repoSettings)) {
             newThrottleRetries = USE_THROTTLE_RETRIES_SETTING.get(repoSettings);
-        } else if (hasConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING)) {
-            newThrottleRetries = getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING);
         } else {
             newThrottleRetries = throttleRetries;
         }

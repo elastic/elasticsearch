@@ -30,8 +30,6 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
@@ -52,18 +50,18 @@ class S3BlobStore implements BlobStore {
 
     private final StorageClass storageClass;
 
-    private final Tuple<RepositoryMetaData, Settings> settingsKey;
+    private final RepositoryMetaData repositoryMetaData;
 
     S3BlobStore(S3Service service, String bucket, boolean serverSideEncryption,
                 ByteSizeValue bufferSize, String cannedACL, String storageClass,
-                RepositoryMetaData repositoryMetaData, Settings settings) {
+                RepositoryMetaData repositoryMetaData) {
         this.service = service;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
-        settingsKey = new Tuple<>(repositoryMetaData, settings);
+        this.repositoryMetaData = repositoryMetaData;
     }
 
     @Override
@@ -72,7 +70,7 @@ class S3BlobStore implements BlobStore {
     }
 
     public AmazonS3Reference clientReference() {
-        return service.client(settingsKey);
+        return service.client(repositoryMetaData);
     }
 
     public String bucket() {

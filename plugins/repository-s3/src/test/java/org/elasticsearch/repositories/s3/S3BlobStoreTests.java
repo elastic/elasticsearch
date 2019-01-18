@@ -25,7 +25,6 @@ import com.amazonaws.services.s3.model.StorageClass;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -120,11 +119,11 @@ public class S3BlobStoreTests extends ESBlobStoreTestCase {
         final AmazonS3 client = new MockAmazonS3(new ConcurrentHashMap<>(), bucket, serverSideEncryption, cannedACL, storageClass);
         final S3Service service = new S3Service() {
             @Override
-            public synchronized AmazonS3Reference client(Tuple<RepositoryMetaData, Settings> settings) {
+            public synchronized AmazonS3Reference client(RepositoryMetaData repositoryMetaData) {
                 return new AmazonS3Reference(client);
             }
         };
         return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass,
-            new RepositoryMetaData(bucket, "s3", Settings.EMPTY), Settings.EMPTY);
+            new RepositoryMetaData(bucket, "s3", Settings.EMPTY));
     }
 }

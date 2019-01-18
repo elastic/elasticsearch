@@ -35,7 +35,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.Closeable;
@@ -60,7 +59,7 @@ class S3Service implements Closeable {
      * Client settings derived from those in {@link #staticClientSettings} by combining them with settings
      * in the {@link RepositoryMetaData} and {@link Settings} from the clusterstate.
      */
-    private volatile Map<S3ClientSettings, Map<Tuple<RepositoryMetaData, Settings>, S3ClientSettings>> derivedClientSettings = emptyMap();
+    private volatile Map<S3ClientSettings, Map<RepositoryMetaData, S3ClientSettings>> derivedClientSettings = emptyMap();
 
     /**
      * Refreshes the settings for the AmazonS3 clients and clears the cache of
@@ -82,8 +81,8 @@ class S3Service implements Closeable {
      * Attempts to retrieve a client by its repository metadata and settings from the cache.
      * If the client does not exist it will be created.
      */
-    public AmazonS3Reference client(Tuple<RepositoryMetaData, Settings> settings) {
-        final S3ClientSettings clientSettings = settings(settings);
+    public AmazonS3Reference client(RepositoryMetaData repositoryMetaData) {
+        final S3ClientSettings clientSettings = settings(repositoryMetaData);
         {
             final AmazonS3Reference clientReference = clientsCache.get(clientSettings);
             if (clientReference != null && clientReference.tryIncRef()) {
@@ -103,34 +102,31 @@ class S3Service implements Closeable {
     }
 
     /**
-     * Either fetches {@link S3ClientSettings} for a given combination of {@link RepositoryMetaData} and {@link Settings}
-     * from cached settings or creates them by overriding static client settings from {@link #staticClientSettings}
-     * with settings found in repository metadata and the settings.
-     * @param coordinates Tuple of {@link RepositoryMetaData} and {@link Settings}
+     * Either fetches {@link S3ClientSettings} for a givne {@link RepositoryMetaData} from cached settings or creates them
+     * by overriding static client settings from {@link #staticClientSettings} with settings found in the repository metadata.
+     * @param repositoryMetaData Repository Metadata
      * @return S3ClientSettings
      */
-    private S3ClientSettings settings(Tuple<RepositoryMetaData, Settings> coordinates) {
-        final RepositoryMetaData repositoryMetaData = coordinates.v1();
+    private S3ClientSettings settings(RepositoryMetaData repositoryMetaData) {
         final String clientName = S3Repository.CLIENT_NAME.get(repositoryMetaData.settings());
         final S3ClientSettings staticSettings = staticClientSettings.get(clientName);
         if (staticSettings != null) {
             {
-                final S3ClientSettings existing = derivedClientSettings.getOrDefault(staticSettings, emptyMap()).get(coordinates);
+                final S3ClientSettings existing = derivedClientSettings.getOrDefault(staticSettings, emptyMap()).get(repositoryMetaData);
                 if (existing != null) {
                     return existing;
                 }
             }
-            final Settings settings = coordinates.v2();
             synchronized (this) {
-                final Map<Tuple<RepositoryMetaData, Settings>, S3ClientSettings> derivedSettings =
+                final Map<RepositoryMetaData, S3ClientSettings> derivedSettings =
                     derivedClientSettings.getOrDefault(staticSettings, emptyMap());
-                final S3ClientSettings existing = derivedSettings.get(coordinates);
+                final S3ClientSettings existing = derivedSettings.get(repositoryMetaData);
                 if (existing != null) {
                     return existing;
                 }
-                final S3ClientSettings newSettings = staticSettings.refine(repositoryMetaData, settings);
+                final S3ClientSettings newSettings = staticSettings.refine(repositoryMetaData);
                 derivedClientSettings = MapBuilder.newMapBuilder(derivedClientSettings).put(
-                    staticSettings, MapBuilder.newMapBuilder(derivedSettings).put(coordinates, newSettings).immutableMap()
+                    staticSettings, MapBuilder.newMapBuilder(derivedSettings).put(repositoryMetaData, newSettings).immutableMap()
                 ).immutableMap();
                 return newSettings;
             }

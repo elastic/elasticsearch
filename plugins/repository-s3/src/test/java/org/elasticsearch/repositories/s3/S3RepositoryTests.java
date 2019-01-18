@@ -21,7 +21,6 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.services.s3.AbstractAmazonS3;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -49,7 +48,7 @@ public class S3RepositoryTests extends ESTestCase {
 
     private static class DummyS3Service extends S3Service {
         @Override
-        public AmazonS3Reference client(Tuple<RepositoryMetaData, Settings> settings) {
+        public AmazonS3Reference client(RepositoryMetaData repositoryMetaData) {
             return new AmazonS3Reference(new DummyS3Client());
         }
 

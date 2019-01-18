@@ -147,8 +147,6 @@ class S3Repository extends BlobStoreRepository {
      */
     static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path");
 
-    private final Settings settings;
-
     private final S3Service service;
 
     private final String bucket;
@@ -177,7 +175,6 @@ class S3Repository extends BlobStoreRepository {
                  final NamedXContentRegistry namedXContentRegistry,
                  final S3Service service) {
         super(metadata, settings, namedXContentRegistry);
-        this.settings = settings;
         this.service = service;
 
         this.repositoryMetaData = metadata;
@@ -228,8 +225,7 @@ class S3Repository extends BlobStoreRepository {
 
     @Override
     protected S3BlobStore createBlobStore() {
-        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass,
-            repositoryMetaData, settings);
+        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass, repositoryMetaData);
     }
 
     // only use for testing

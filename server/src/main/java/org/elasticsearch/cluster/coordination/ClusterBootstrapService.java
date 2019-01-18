@@ -24,6 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -34,7 +35,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
@@ -57,22 +58,26 @@ public class ClusterBootstrapService {
         Setting.timeSetting("discovery.unconfigured_bootstrap_timeout",
             TimeValue.timeValueSeconds(3), TimeValue.timeValueMillis(1), Property.NodeScope);
 
+    static final String BOOTSTRAP_PLACEHOLDER_PREFIX = "{bootstrap-placeholder}";
+
     private static final Logger logger = LogManager.getLogger(ClusterBootstrapService.class);
     private final List<String> initialMasterNodes;
     @Nullable // null if discoveryIsConfigured()
     private final TimeValue unconfiguredBootstrapTimeout;
     private final TransportService transportService;
+    private final Random random;
     private final Supplier<Iterable<DiscoveryNode>> discoveredNodesSupplier;
     private final BooleanSupplier isBootstrappedSupplier;
     private final Consumer<VotingConfiguration> votingConfigurationConsumer;
     private final AtomicBoolean bootstrappingPermitted = new AtomicBoolean(true);
 
-    public ClusterBootstrapService(Settings settings, TransportService transportService,
+    public ClusterBootstrapService(Settings settings, TransportService transportService, Random random,
                                    Supplier<Iterable<DiscoveryNode>> discoveredNodesSupplier, BooleanSupplier isBootstrappedSupplier,
                                    Consumer<VotingConfiguration> votingConfigurationConsumer) {
         initialMasterNodes = INITIAL_MASTER_NODES_SETTING.get(settings);
         unconfiguredBootstrapTimeout = discoveryIsConfigured(settings) ? null : UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
+        this.random = random;
         this.discoveredNodesSupplier = discoveredNodesSupplier;
         this.isBootstrappedSupplier = isBootstrappedSupplier;
         this.votingConfigurationConsumer = votingConfigurationConsumer;
@@ -88,7 +93,7 @@ public class ClusterBootstrapService {
         if (transportService.getLocalNode().isMasterNode() && initialMasterNodes.isEmpty() == false
             && isBootstrappedSupplier.getAsBoolean() == false && nodes.stream().noneMatch(Coordinator::isZen1Node)) {
 
-            final Optional<Set<DiscoveryNode>> nodesMatchingRequirements;
+            final Set<DiscoveryNode> nodesMatchingRequirements;
             try {
                 nodesMatchingRequirements = getNodesMatchingRequirements(nodes);
             } catch (IllegalStateException e) {
@@ -97,7 +102,9 @@ public class ClusterBootstrapService {
                 return;
             }
 
-            nodesMatchingRequirements.ifPresent(this::startBootstrap);
+            if (nodesMatchingRequirements.size() * 2 > initialMasterNodes.size()) {
+                startBootstrap(nodesMatchingRequirements, initialMasterNodes.size() - nodesMatchingRequirements.size());
+            }
         }
     }
 
@@ -120,7 +127,7 @@ public class ClusterBootstrapService {
                 final List<DiscoveryNode> zen1Nodes = discoveredNodes.stream().filter(Coordinator::isZen1Node).collect(Collectors.toList());
                 if (zen1Nodes.isEmpty()) {
                     logger.debug("performing best-effort cluster bootstrapping with {}", discoveredNodes);
-                    startBootstrap(discoveredNodes);
+                    startBootstrap(discoveredNodes, 0);
                 } else {
                     logger.info("avoiding best-effort cluster bootstrapping due to discovery of pre-7.0 nodes {}", zen1Nodes);
                 }
@@ -138,11 +145,14 @@ public class ClusterBootstrapService {
             StreamSupport.stream(discoveredNodesSupplier.get().spliterator(), false)).collect(Collectors.toSet());
     }
 
-    private void startBootstrap(Set<DiscoveryNode> discoveryNodes) {
+    private void startBootstrap(Set<DiscoveryNode> discoveryNodes, int placeholderCount) {
         assert discoveryNodes.stream().allMatch(DiscoveryNode::isMasterNode) : discoveryNodes;
         assert discoveryNodes.stream().noneMatch(Coordinator::isZen1Node) : discoveryNodes;
+        assert placeholderCount < discoveryNodes.size() : discoveryNodes.size() + " <= " + placeholderCount;
         if (bootstrappingPermitted.compareAndSet(true, false)) {
-            doBootstrap(new VotingConfiguration(discoveryNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet())));
+            doBootstrap(new VotingConfiguration(Stream.concat(discoveryNodes.stream().map(DiscoveryNode::getId),
+                Stream.generate(() -> BOOTSTRAP_PLACEHOLDER_PREFIX + UUIDs.randomBase64UUID(random)).limit(placeholderCount))
+                .collect(Collectors.toSet())));
         }
     }
 
@@ -175,15 +185,12 @@ public class ClusterBootstrapService {
             || discoveryNode.getAddress().getAddress().equals(requirement);
     }
 
-    private Optional<Set<DiscoveryNode>> getNodesMatchingRequirements(Set<DiscoveryNode> nodes) {
+    private Set<DiscoveryNode> getNodesMatchingRequirements(Set<DiscoveryNode> nodes) {
         final Set<DiscoveryNode> selectedNodes = new HashSet<>();
         for (final String requirement : initialMasterNodes) {
             final Set<DiscoveryNode> matchingNodes
                 = nodes.stream().filter(n -> matchesRequirement(n, requirement)).collect(Collectors.toSet());
 
-            if (matchingNodes.isEmpty()) {
-                return Optional.empty();
-            }
             if (matchingNodes.size() > 1) {
                 throw new IllegalStateException("requirement [" + requirement + "] matches multiple nodes: " + matchingNodes);
             }
@@ -196,6 +203,6 @@ public class ClusterBootstrapService {
             }
         }
 
-        return Optional.of(Collections.unmodifiableSet(selectedNodes));
+        return selectedNodes;
     }
 }

@@ -10,18 +10,17 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationRequest;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
+import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 
-import java.util.List;
-import java.util.stream.Collectors;
 
 public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTransportAction<OpenIdConnectPrepareAuthenticationRequest,
     OpenIdConnectPrepareAuthenticationResponse> {
@@ -32,33 +31,26 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
     public TransportOpenIdConnectPrepareAuthenticationAction(TransportService transportService,
                                                              ActionFilters actionFilters, Realms realms) {
         super(OpenIdConnectPrepareAuthenticationAction.NAME, transportService, actionFilters,
-            OpenIdConnectPrepareAuthenticationRequest::new);
+            (Writeable.Reader<OpenIdConnectPrepareAuthenticationRequest>) OpenIdConnectPrepareAuthenticationRequest::new);
         this.realms = realms;
     }
 
     @Override
     protected void doExecute(Task task, OpenIdConnectPrepareAuthenticationRequest request,
                              ActionListener<OpenIdConnectPrepareAuthenticationResponse> listener) {
-        List<OpenIdConnectRealm> realms = this.realms.stream()
-            .filter(r -> r instanceof OpenIdConnectRealm)
-            .map(r -> (OpenIdConnectRealm) r)
-            .filter(r -> r.name().equals(request.getRealmName()))
-            .collect(Collectors.toList());
-        if (realms.isEmpty()) {
-            listener.onFailure(new ElasticsearchSecurityException("Cannot find OIDC realm with name [{}]", request.getRealmName()));
-        } else if (realms.size() > 1) {
-            // Can't define multiple realms with the same name in configuration, but check, still.
-            listener.onFailure(new ElasticsearchSecurityException("Found multiple ([{}]) OIDC realms with name [{}]", realms.size(),
-                request.getRealmName()));
+        final Realm realm = this.realms.realm(request.getRealmName());
+        if (null == realm || realm instanceof OpenIdConnectRealm == false) {
+            listener.onFailure(
+                new ElasticsearchSecurityException("Cannot find OpenID Connect realm with name [{}]", request.getRealmName()));
         } else {
-            prepareAuthenticationResponse(realms.get(0), request.getState(), request.getNonce(), listener);
+            prepareAuthenticationResponse((OpenIdConnectRealm) realm, listener);
         }
     }
 
-    private void prepareAuthenticationResponse(OpenIdConnectRealm realm, @Nullable String state, @Nullable String nonce,
+    private void prepareAuthenticationResponse(OpenIdConnectRealm realm,
                                                ActionListener<OpenIdConnectPrepareAuthenticationResponse> listener) {
         try {
-            final OpenIdConnectPrepareAuthenticationResponse authenticationResponse = realm.buildAuthenticationRequestUri(state, nonce);
+            final OpenIdConnectPrepareAuthenticationResponse authenticationResponse = realm.buildAuthenticationRequestUri();
             listener.onResponse(authenticationResponse);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);

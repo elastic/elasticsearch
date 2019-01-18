@@ -5,14 +5,9 @@
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -28,7 +23,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import java.util.Collections;
+import java.util.Base64;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT;
@@ -36,30 +31,22 @@ import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectReal
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_NAME;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_USERINFO_ENDPOINT;
-import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_ALLOWED_SCOPES;
-import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_ALLOWED_SIGNATURE_ALGORITHMS;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_CLIENT_ID;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_REDIRECT_URI;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_RESPONSE_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_REQUESTED_SCOPES;
 
-public class OpenIdConnectRealm extends Realm implements Releasable {
+public class OpenIdConnectRealm extends Realm {
 
     public static final String CONTEXT_TOKEN_DATA = "_oidc_tokendata";
     private static final SecureRandom RANDOM_INSTANCE = new SecureRandom();
-    private static final Logger logger = LogManager.getLogger(OpenIdConnectRealm.class);
-    private final OPConfiguration opConfiguration;
-    private final RPConfiguration rpConfiguration;
+    private final OpenIdConnectProviderConfiguration opConfiguration;
+    private final RelyingPartyConfiguration rpConfiguration;
 
     public OpenIdConnectRealm(RealmConfig config) {
         super(config);
-        this.rpConfiguration = buildRPConfiguration(config);
-        this.opConfiguration = buildOPConfiguration(config);
-    }
-
-    @Override
-    public void close() {
-
+        this.rpConfiguration = buildRelyingPartyConfiguration(config);
+        this.opConfiguration = buildOpenIdConnectProviderConfiguration(config);
     }
 
     @Override
@@ -82,27 +69,27 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
 
     }
 
-    private RPConfiguration buildRPConfiguration(RealmConfig config) {
+    private RelyingPartyConfiguration buildRelyingPartyConfiguration(RealmConfig config) {
         String redirectUri = require(config, RP_REDIRECT_URI);
         String clientId = require(config, RP_CLIENT_ID);
         String responseType = require(config, RP_RESPONSE_TYPE);
-        List<String> requestedScopes = config.hasSetting(RP_REQUESTED_SCOPES) ?
-            config.getSetting(RP_REQUESTED_SCOPES) : Collections.emptyList();
-        List<String> allowedScopes = config.hasSetting(RP_ALLOWED_SCOPES) ?
-            config.getSetting(RP_ALLOWED_SCOPES) : Collections.emptyList();
-        List<String> allowedSignatureAlgorithms = requireListSetting(config, RP_ALLOWED_SIGNATURE_ALGORITHMS);
+        if (responseType.equals("id_token") == false && responseType.equals("code") == false) {
+            throw new SettingsException("The configuration setting [" + RealmSettings.getFullSettingKey(config, RP_RESPONSE_TYPE)
+                + "] value can only be code or id_token");
+        }
+        List<String> requestedScopes = config.getSetting(RP_REQUESTED_SCOPES);
 
-        return new RPConfiguration(clientId, redirectUri, responseType, allowedSignatureAlgorithms, requestedScopes, allowedScopes);
+        return new RelyingPartyConfiguration(clientId, redirectUri, responseType, requestedScopes);
     }
 
-    private OPConfiguration buildOPConfiguration(RealmConfig config) {
+    private OpenIdConnectProviderConfiguration buildOpenIdConnectProviderConfiguration(RealmConfig config) {
         String providerName = require(config, OP_NAME);
         String authorizationEndpoint = require(config, OP_AUTHORIZATION_ENDPOINT);
         String issuer = require(config, OP_ISSUER);
         String tokenEndpoint = config.getSetting(OP_TOKEN_ENDPOINT, () -> null);
         String userinfoEndpoint = config.getSetting(OP_USERINFO_ENDPOINT, () -> null);
 
-        return new OPConfiguration(providerName, issuer, authorizationEndpoint, tokenEndpoint, userinfoEndpoint);
+        return new OpenIdConnectProviderConfiguration(providerName, issuer, authorizationEndpoint, tokenEndpoint, userinfoEndpoint);
     }
 
     static String require(RealmConfig config, Setting.AffixSetting<String> setting) {
@@ -114,30 +101,17 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         return value;
     }
 
-    static List<String> requireListSetting(RealmConfig config, Setting.AffixSetting<List<String>> setting) {
-        final List<String> value = config.getSetting(setting);
-        if (value.isEmpty()) {
-            throw new SettingsException("The configuration setting [" + RealmSettings.getFullSettingKey(config, setting)
-                + "] is required");
-        }
-        return value;
-    }
-
     /**
-     * Creates the URI for an OIDC Authentication Request from the realm configuration using URI Query String Serialization and possibly
-     * generates a state parameter. It then returns the URI and state encapsulated in a {@link OpenIdConnectPrepareAuthenticationResponse}
+     * Creates the URI for an OIDC Authentication Request from the realm configuration using URI Query String Serialization and
+     * generates a state parameter and a nonce. It then returns the URI, state and nonce encapsulated in a
+     * {@link OpenIdConnectPrepareAuthenticationResponse}
      *
-     * @param state The oAuth2 state parameter used for CSRF protection. If the facilitator doesn't supply one, we generate one ourselves
-     * @param nonce String value used to associate a Client session with an ID Token, and to mitigate replay attacks. If the facilitator
-     *              doesn't supply one, we don't set one for the authentication request
      * @return an {@link OpenIdConnectPrepareAuthenticationResponse}
      */
-    public OpenIdConnectPrepareAuthenticationResponse buildAuthenticationRequestUri(@Nullable String state, @Nullable String nonce)
-        throws ElasticsearchException {
+    public OpenIdConnectPrepareAuthenticationResponse buildAuthenticationRequestUri() throws ElasticsearchException {
         try {
-            if (Strings.hasText(state) == false) {
-                state = createNonceValue();
-            }
+            final String state = createNonceValue();
+            final String nonce = createNonceValue();
             StringBuilder builder = new StringBuilder();
             builder.append(opConfiguration.getAuthorizationEndpoint());
             addParameter(builder, "response_type", rpConfiguration.getResponseType(), true);
@@ -148,9 +122,9 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                 addParameter(builder, "nonce", nonce);
             }
             addParameter(builder, "redirect_uri", rpConfiguration.getRedirectUri());
-            return new OpenIdConnectPrepareAuthenticationResponse(builder.toString(), state);
+            return new OpenIdConnectPrepareAuthenticationResponse(builder.toString(), state, nonce);
         } catch (UnsupportedEncodingException e) {
-            throw new ElasticsearchException("Cannot build OIDC Authentication Request", e);
+            throw new ElasticsearchException("Cannot build OpenID Connect Authentication Request", e);
         }
     }
 
@@ -166,13 +140,15 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
     }
 
     /**
-     * Creates a cryptographically secure alphanumeric string to be used as a nonce
+     * Creates a cryptographically secure alphanumeric string to be used as a nonce or state. It adheres to the
+     * <a href="https://tools.ietf.org/html/rfc6749#section-10.10">specification's requirements</a> by using 180 bits for the random value.
+     * The random string is encoded in a URL safe manner.
      *
      * @return an alphanumeric string
      */
     private static String createNonceValue() {
-        final byte[] randomBytes = new byte[16];
+        final byte[] randomBytes = new byte[20];
         RANDOM_INSTANCE.nextBytes(randomBytes);
-        return MessageDigests.toHexString(randomBytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
     }
 }

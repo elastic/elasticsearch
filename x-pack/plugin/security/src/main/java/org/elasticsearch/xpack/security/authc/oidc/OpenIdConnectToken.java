@@ -21,12 +21,12 @@ public class OpenIdConnectToken implements AuthenticationToken {
     private String nonce;
 
     /**
-     * @param redirectUri The URI were the OP redirected the browser after the authentication event at the OP. This is passed as is from the
-     *                    facilitator entity (i.e. Kibana), so it is URL Encoded.
-     * @param state       The state value that either we or the facilitator generated for this specific flow and that was stored
-     *                    at the user's session with the facilitator.
-     * @param nonce       The nonce value that  the facilitator generated for this specific flow and that was stored at the user's
-     *                    session with the facilitator.
+     * @param redirectUri The URI where the OP redirected the browser after the authentication event at the OP. This is passed as is from
+     *                    the facilitator entity (i.e. Kibana), so it is URL Encoded.
+     * @param state       The state value that we generated for this specific flow and should be stored at the user's session with the
+     *                    facilitator.
+     * @param nonce       The nonce value that we generated for this specific flow and should be stored at the user's session with the
+     *                    facilitator.
      */
     public OpenIdConnectToken(String redirectUri, String state, String nonce) {
         this.redirectUri = redirectUri;
@@ -36,7 +36,7 @@ public class OpenIdConnectToken implements AuthenticationToken {
 
     @Override
     public String principal() {
-        return "<unauthenticated-oidc-user>";
+        return "<OIDC Token>";
     }
 
     @Override

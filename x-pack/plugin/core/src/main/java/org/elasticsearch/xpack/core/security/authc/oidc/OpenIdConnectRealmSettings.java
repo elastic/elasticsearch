@@ -45,17 +45,11 @@ public class OpenIdConnectRealmSettings {
     public static final Setting.AffixSetting<List<String>> RP_REQUESTED_SCOPES = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE), "rp.requested_scopes",
         key -> Setting.listSetting(key, Collections.singletonList("openid"), Function.identity(), Setting.Property.NodeScope));
-    public static final Setting.AffixSetting<List<String>> RP_ALLOWED_SCOPES = Setting.affixKeySetting(
-        RealmSettings.realmSettingPrefix(TYPE), "rp.allowed_scopes",
-        key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Setting.Property.NodeScope));
-    public static final Setting.AffixSetting<List<String>> RP_ALLOWED_SIGNATURE_ALGORITHMS = Setting.affixKeySetting(
-        RealmSettings.realmSettingPrefix(TYPE), "rp.allowed_signature_algorithms",
-        key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Setting.Property.NodeScope));
 
     public static Set<Setting.AffixSetting<?>> getSettings() {
         final Set<Setting.AffixSetting<?>> set = Sets.newHashSet(
-            OP_NAME, RP_CLIENT_ID, RP_REDIRECT_URI, RP_RESPONSE_TYPE, RP_REQUESTED_SCOPES, RP_ALLOWED_SCOPES, RP_CLIENT_SECRET,
-            RP_ALLOWED_SIGNATURE_ALGORITHMS, OP_AUTHORIZATION_ENDPOINT, OP_TOKEN_ENDPOINT, OP_USERINFO_ENDPOINT, OP_ISSUER);
+            OP_NAME, RP_CLIENT_ID, RP_REDIRECT_URI, RP_RESPONSE_TYPE, RP_REQUESTED_SCOPES, RP_CLIENT_SECRET,
+            OP_AUTHORIZATION_ENDPOINT, OP_TOKEN_ENDPOINT, OP_USERINFO_ENDPOINT, OP_ISSUER);
         set.addAll(DelegatedAuthorizationSettings.getSettings(TYPE));
         set.addAll(RealmSettings.getStandardSettings(TYPE));
         return set;

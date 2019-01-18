@@ -18,24 +18,32 @@ import java.io.IOException;
 public class OpenIdConnectAuthenticateRequest extends ActionRequest {
 
     /**
-     * The URI were the OP redirected the browser after the authentication attempt. This is passed as is from the
+     * The URI where the OP redirected the browser after the authentication attempt. This is passed as is from the
      * facilitator entity (i.e. Kibana)
      */
     private String redirectUri;
 
     /**
-     * The state value that either we or the facilitator generated for this specific flow and that was stored at the user's session with
+     * The state value that we generated for this specific flow and that should be stored at the user's session with
      * the facilitator
      */
     private String state;
 
     /**
-     * The nonce value that the facilitator generated for this specific flow and that was stored at the user's session with
+     * The nonce value that we generated for this specific flow and that should be stored at the user's session with
      * the facilitator
      */
     private String nonce;
 
     public OpenIdConnectAuthenticateRequest() {
+
+    }
+
+    public OpenIdConnectAuthenticateRequest(StreamInput in) throws IOException {
+        super.readFrom(in);
+        redirectUri = in.readString();
+        state = in.readString();
+        nonce = in.readOptionalString();
     }
 
     public String getRedirectUri() {
@@ -76,11 +84,8 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        redirectUri = in.readString();
-        state = in.readString();
-        nonce = in.readOptionalString();
+    public void readFrom(StreamInput in) {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     public String toString() {

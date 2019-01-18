@@ -31,13 +31,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestOpenIdConnectPrepareAuthenticationAction extends OpenIdConnectBaseRestHandler {
 
-    static final ObjectParser<OpenIdConnectPrepareAuthenticationRequest, Void> PARSER = new ObjectParser<>("oidc_prepare_auithentication",
+    static final ObjectParser<OpenIdConnectPrepareAuthenticationRequest, Void> PARSER = new ObjectParser<>("oidc_prepare_authentication",
         OpenIdConnectPrepareAuthenticationRequest::new);
 
     static {
         PARSER.declareString(OpenIdConnectPrepareAuthenticationRequest::setRealmName, new ParseField("realm"));
-        PARSER.declareString(OpenIdConnectPrepareAuthenticationRequest::setState, new ParseField("state"));
-        PARSER.declareString(OpenIdConnectPrepareAuthenticationRequest::setNonce, new ParseField("nonce"));
     }
 
     public RestOpenIdConnectPrepareAuthenticationAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
@@ -56,11 +54,7 @@ public class RestOpenIdConnectPrepareAuthenticationAction extends OpenIdConnectB
                     public RestResponse buildResponse(OpenIdConnectPrepareAuthenticationResponse response, XContentBuilder builder)
                         throws Exception {
                         logger.trace("OIDC Prepare Authentication Response: " + response);
-                        builder.startObject();
-                        builder.field("authentication_request_url", response.getAuthenticationRequestUrl());
-                        builder.field("state", response.getState());
-                        builder.endObject();
-                        return new BytesRestResponse(RestStatus.OK, builder);
+                        return new BytesRestResponse(RestStatus.OK, response.toXContent(builder, request));
                     }
                 });
         }

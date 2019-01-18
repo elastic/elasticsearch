@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
@@ -27,8 +28,8 @@ import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectToken;
 
 import java.util.Map;
 
-public class TransportOpenIdConnectAuthenticateAction extends HandledTransportAction<OpenIdConnectAuthenticateRequest,
-    OpenIdConnectAuthenticateResponse> {
+public class TransportOpenIdConnectAuthenticateAction
+    extends HandledTransportAction<OpenIdConnectAuthenticateRequest, OpenIdConnectAuthenticateResponse> {
 
     private final ThreadPool threadPool;
     private final AuthenticationService authenticationService;
@@ -38,7 +39,8 @@ public class TransportOpenIdConnectAuthenticateAction extends HandledTransportAc
     public TransportOpenIdConnectAuthenticateAction(ThreadPool threadPool, TransportService transportService,
                                                     ActionFilters actionFilters, AuthenticationService authenticationService,
                                                     TokenService tokenService) {
-        super(OpenIdConnectAuthenticateAction.NAME, transportService, actionFilters, OpenIdConnectAuthenticateRequest::new);
+        super(OpenIdConnectAuthenticateAction.NAME, transportService, actionFilters,
+            (Writeable.Reader<OpenIdConnectAuthenticateRequest>) OpenIdConnectAuthenticateRequest::new);
         this.threadPool = threadPool;
         this.authenticationService = authenticationService;
         this.tokenService = tokenService;

@@ -58,7 +58,7 @@ public class RealmSettings {
     }
 
     /**
-     * Create a {@link SecureSetting#secureString secure string} {@link Setting} object for a realm of
+     * Create a {@link SecureSetting#secureString secure string} {@link Setting} object of a realm of
      * with the provided type and setting suffix.
      *
      * @param realmType The type of the realm, used within the setting prefix

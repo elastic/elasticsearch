@@ -71,20 +71,27 @@ public abstract class AsyncRetryDuringSnapshotActionStep extends AsyncActionStep
         @Override
         public void onFailure(Exception e) {
             if (e instanceof SnapshotInProgressException) {
-                logger.debug("[{}] attempted to run ILM step but a snapshot is in progress, step will retry at a later time",
-                    index.getName());
-                observer.waitForNextChange(
-                    new NoSnapshotRunningListener(observer, index.getName(), state -> {
-                        IndexMetaData idxMeta = state.metaData().index(index);
-                        if (idxMeta == null) {
-                            // The index has since been deleted, mission accomplished!
-                            originalListener.onResponse(true);
-                        }
-                        // Re-invoke the performAction method with the new state
-                        performAction(idxMeta, state, observer, originalListener);
-                    }, originalListener::onFailure),
-                    // TODO: what is a good timeout value for no new state received during this time?
-                    TimeValue.timeValueHours(12));
+                try {
+                    logger.debug("[{}] attempted to run ILM step but a snapshot is in progress, step will retry at a later time",
+                        index.getName());
+                    observer.waitForNextChange(
+                        new NoSnapshotRunningListener(observer, index.getName(), state -> {
+                            IndexMetaData idxMeta = state.metaData().index(index);
+                            if (idxMeta == null) {
+                                // The index has since been deleted, mission accomplished!
+                                originalListener.onResponse(true);
+                            }
+                            // Re-invoke the performAction method with the new state
+                            performAction(idxMeta, state, observer, originalListener);
+                        }, originalListener::onFailure),
+                        // TODO: what is a good timeout value for no new state received during this time?
+                        TimeValue.timeValueHours(12));
+                } catch (Exception secondError) {
+                    // There was a second error trying to set up an observer,
+                    // fail the original listener
+                    secondError.addSuppressed(e);
+                    originalListener.onFailure(secondError);
+                }
             } else {
                 originalListener.onFailure(e);
             }

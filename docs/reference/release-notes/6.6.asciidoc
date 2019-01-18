@@ -56,6 +56,8 @@ coming[6.6.0]
 === New features
 
 Machine Learning::
+* Store job configuration information in the new `.ml-config` index
+{pull}36698[#36698] (issue: {issue}32905[#32905])
 * Determine when data is missing from a bucket due to ingest latency
 {pull}35387[#35387] (issue: {issue}35131[#35131])
 

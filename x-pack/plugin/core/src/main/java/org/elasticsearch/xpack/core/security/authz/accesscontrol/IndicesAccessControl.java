@@ -122,11 +122,11 @@ public class IndicesAccessControl {
         } else {
             granted = false;
         }
-        Set<String> indexes = new HashSet<>(indicesAccessControl.indexPermissions.keySet());
-        Set<String> otherIndexes = new HashSet<>(scopedByIndicesAccessControl.indexPermissions.keySet());
+        Set<String> indexes = indicesAccessControl.indexPermissions.keySet();
+        Set<String> otherIndexes = scopedByIndicesAccessControl.indexPermissions.keySet();
         Set<String> commonIndexes = Sets.intersection(indexes, otherIndexes);
 
-        Map<String, IndexAccessControl> indexPermissions = new HashMap<>();
+        Map<String, IndexAccessControl> indexPermissions = new HashMap<>(commonIndexes.size());
         for (String index : commonIndexes) {
             IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
             IndexAccessControl otherIndexAccessControl = scopedByIndicesAccessControl.getIndexPermissions(index);

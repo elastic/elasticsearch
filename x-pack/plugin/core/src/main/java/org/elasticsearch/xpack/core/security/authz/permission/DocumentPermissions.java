@@ -47,11 +47,11 @@ import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
  * The document level permissions may be scoped by another set of queries in that case the scoped
  * queries are used as an additional filter.
  */
-public class DocumentPermissions {
+public final class DocumentPermissions {
     private final Set<BytesReference> queries;
     private final Set<BytesReference> scopedByQueries;
 
-    private static DocumentPermissions DEFAULT = new DocumentPermissions();
+    private static DocumentPermissions ALLOW_ALL = new DocumentPermissions();
 
     DocumentPermissions() {
         this.queries = null;
@@ -229,7 +229,7 @@ public class DocumentPermissions {
      * @return {@link DocumentPermissions}
      */
     public static DocumentPermissions allowAll() {
-        return DEFAULT;
+        return ALLOW_ALL;
     }
 
     /**

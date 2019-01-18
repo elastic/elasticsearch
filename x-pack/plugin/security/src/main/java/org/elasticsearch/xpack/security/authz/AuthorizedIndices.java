@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.authz.permission.ScopedRole;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -46,23 +45,14 @@ class AuthorizedIndices {
     }
 
     private List<String> load() {
-        Predicate<String> predicate = userRoles.indices().allowedIndicesMatcher(action);
-        Predicate<String> scopedRolePredicate = null;
-        if (userRoles instanceof ScopedRole) {
-            // TODO yuck
-            if (((ScopedRole) userRoles).scopedBy() != null) {
-                scopedRolePredicate = ((ScopedRole) userRoles).scopedBy().indices().allowedIndicesMatcher(action);
-            }
-        }
+        Predicate<String> predicate = userRoles.allowedIndicesMatcher(action);
 
         List<String> indicesAndAliases = new ArrayList<>();
         // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
         for (Map.Entry<String, AliasOrIndex> entry : metaData.getAliasAndIndexLookup().entrySet()) {
             String aliasOrIndex = entry.getKey();
             if (predicate.test(aliasOrIndex)) {
-                if (scopedRolePredicate == null || scopedRolePredicate != null && scopedRolePredicate.test(aliasOrIndex)) {
-                    indicesAndAliases.add(aliasOrIndex);
-                }
+                indicesAndAliases.add(aliasOrIndex);
             }
         }
 

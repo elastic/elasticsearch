@@ -306,8 +306,8 @@ public class ApiKeyService {
                 rolesStore.buildAndCacheRoleFromDescriptors(authnRoleDescriptorsList, apiKeyId, ActionListener.wrap(scopedByRole -> {
                     Role finalRole = ScopedRole.createScopedRole(role, scopedByRole);
                     listener.onResponse(finalRole);
-                }, e -> listener.onFailure(e)));
-            }, e -> listener.onFailure(e)));
+                }, listener::onFailure));
+            }, listener::onFailure));
         }
 
     }

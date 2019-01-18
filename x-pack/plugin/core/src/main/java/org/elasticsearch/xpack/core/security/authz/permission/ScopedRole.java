@@ -11,13 +11,14 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * A {@link Role} scoped by another role.<br>
  * The effective permissions returned on {@link #authorize(String, Set, MetaData, FieldPermissionsCache)} call would be scoped by the
  * provided role.
  */
-public class ScopedRole extends Role {
+public final class ScopedRole extends Role {
     private final Role scopedBy;
 
     ScopedRole(String[] names, ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application,
@@ -41,7 +42,20 @@ public class ScopedRole extends Role {
     }
 
     /**
-     * Check if indices permissions allow for the given action
+     * @return A predicate that will match all the indices that this role and
+     * the scoped by role has the privilege for executing the given action on.
+     */
+    public Predicate<String> allowedIndicesMatcher(String action) {
+        Predicate<String> predicate = indices().allowedIndicesMatcher(action);
+        if (scopedBy != null) {
+            predicate = predicate.and(scopedBy.indices().allowedIndicesMatcher(action));
+        }
+        return predicate;
+    }
+
+    /**
+     * Check if indices permissions allow for the given action,
+     * also checks whether the scoped by role allows the given actions
      *
      * @param action indices action
      * @return {@code true} if action is allowed else returns {@code false}
@@ -56,7 +70,8 @@ public class ScopedRole extends Role {
     }
 
     /**
-     * Check if cluster permissions allow for the given action
+     * Check if cluster permissions allow for the given action,
+     * also checks whether the scoped by role allows the given actions
      *
      * @param action cluster action
      * @param request {@link TransportRequest}

@@ -26,7 +26,10 @@ import java.util.Map;
 /**
  * Helper class that helps to evaluate the query source template.
  */
-public class SecurityQueryTemplateEvaluator {
+public final class SecurityQueryTemplateEvaluator {
+
+    private SecurityQueryTemplateEvaluator() {
+    }
 
     /**
      * If the query source is a template, then parses the script, compiles the

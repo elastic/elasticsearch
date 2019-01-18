@@ -41,10 +41,10 @@ public class ScopedRoleTests extends ESTestCase {
             assertThat(role.checkClusterAction("cluster:other-action", mock(TransportRequest.class)), is(false));
         }
         {
-            Role scopedRole = Role.builder("scoped-role")
+            Role scopedByRole = Role.builder("scoped-role")
                     .cluster(Collections.singleton(ClusterPrivilegeName.MONITOR), Collections.emptyList()).build();
-            assertThat(scopedRole.checkClusterAction("cluster:monitor/me", mock(TransportRequest.class)), is(true));
-            Role role = ScopedRole.createScopedRole(fromRole, scopedRole);
+            assertThat(scopedByRole.checkClusterAction("cluster:monitor/me", mock(TransportRequest.class)), is(true));
+            Role role = ScopedRole.createScopedRole(fromRole, scopedByRole);
             assertThat(role.checkClusterAction("cluster:monitor/me", mock(TransportRequest.class)), is(false));
         }
     }
@@ -63,11 +63,37 @@ public class ScopedRoleTests extends ESTestCase {
             assertThat(role.checkIndicesAction(CreateIndexAction.NAME), is(false));
         }
         {
-            Role scopedRole = Role.builder("scoped-role").add(IndexPrivilege.NONE, "ind-1").build();
-            assertThat(scopedRole.checkIndicesAction(SearchAction.NAME), is(false));
-            Role role = ScopedRole.createScopedRole(fromRole, scopedRole);
+            Role scopedByRole = Role.builder("scoped-role").add(IndexPrivilege.NONE, "ind-1").build();
+            assertThat(scopedByRole.checkIndicesAction(SearchAction.NAME), is(false));
+            Role role = ScopedRole.createScopedRole(fromRole, scopedByRole);
             assertThat(role.checkIndicesAction(SearchAction.NAME), is(false));
             assertThat(role.checkIndicesAction(CreateIndexAction.NAME), is(false));
+        }
+    }
+
+    public void testAllowedIndicesMatcher() {
+        Role fromRole = Role.builder("a-role").add(IndexPrivilege.READ, "ind-1*").build();
+        assertThat(fromRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-1"), is(true));
+        assertThat(fromRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-11"), is(true));
+        assertThat(fromRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-2"), is(false));
+
+        {
+            Role scopedByRole = Role.builder("scoped-role").add(IndexPrivilege.READ, "ind-1", "ind-2").build();
+            assertThat(scopedByRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-1"), is(true));
+            assertThat(scopedByRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-11"), is(false));
+            assertThat(scopedByRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-2"), is(true));
+            Role role = ScopedRole.createScopedRole(fromRole, scopedByRole);
+            assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test("ind-1"), is(true));
+            assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test("ind-11"), is(false));
+            assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test("ind-2"), is(false));
+        }
+        {
+            Role scopedByRole = Role.builder("scoped-role").add(IndexPrivilege.READ, "ind-*").build();
+            assertThat(scopedByRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-1"), is(true));
+            assertThat(scopedByRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-2"), is(true));
+            Role role = ScopedRole.createScopedRole(fromRole, scopedByRole);
+            assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test("ind-1"), is(true));
+            assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test("ind-2"), is(false));
         }
     }
 }

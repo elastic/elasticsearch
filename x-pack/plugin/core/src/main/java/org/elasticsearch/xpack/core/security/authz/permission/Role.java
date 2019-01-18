@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 
 public class Role {
 
@@ -72,6 +73,14 @@ public class Role {
 
     public static Builder builder(RoleDescriptor rd, FieldPermissionsCache fieldPermissionsCache) {
         return new Builder(rd, fieldPermissionsCache);
+    }
+
+    /**
+     * @return A predicate that will match all the indices that this role
+     * has the privilege for executing the given action on.
+     */
+    public Predicate<String> allowedIndicesMatcher(String action) {
+        return indices().allowedIndicesMatcher(action);
     }
 
     /**

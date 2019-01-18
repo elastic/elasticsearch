@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-snapshot]]
-=== Get Model Snapshots API
+=== Get model snapshots API
 ++++
-<titleabbrev>Get Model Snapshots</titleabbrev>
+<titleabbrev>Get model snapshots</titleabbrev>
 ++++
 
 Retrieves information about model snapshots.

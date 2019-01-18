@@ -258,7 +258,7 @@ final class BootstrapChecks {
         private final int limit;
 
         FileDescriptorCheck() {
-            this(1 << 16);
+            this(65535);
         }
 
         protected FileDescriptorCheck(final int limit) {
@@ -398,8 +398,8 @@ final class BootstrapChecks {
 
         @Override
         public BootstrapCheckResult check(final BootstrapContext context) {
-            // we only enforce the check if mmapfs is an allowed store type
-            if (IndexModule.NODE_STORE_ALLOW_MMAPFS.get(context.settings())) {
+            // we only enforce the check if a store is allowed to use mmap at all
+            if (IndexModule.NODE_STORE_ALLOW_MMAP.get(context.settings())) {
                 if (getMaxMapCount() != -1 && getMaxMapCount() < LIMIT) {
                     final String message = String.format(
                             Locale.ROOT,

@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-revert-snapshot]]
-=== Revert Model Snapshots API
+=== Revert model snapshots API
 ++++
-<titleabbrev>Revert Model Snapshots</titleabbrev>
+<titleabbrev>Revert model snapshots</titleabbrev>
 ++++
 
 Reverts to a specific snapshot.

@@ -8,14 +8,14 @@ package org.elasticsearch.xpack.sql.plan.logical;
 import java.util.Arrays;
 import java.util.Objects;
 
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 abstract class BinaryPlan extends LogicalPlan {
 
     private final LogicalPlan left, right;
 
-    BinaryPlan(Location location, LogicalPlan left, LogicalPlan right) {
-        super(location, Arrays.asList(left, right));
+    BinaryPlan(Source source, LogicalPlan left, LogicalPlan right) {
+        super(source, Arrays.asList(left, right));
         this.left = left;
         this.right = right;
     }

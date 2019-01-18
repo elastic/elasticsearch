@@ -1,12 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-get-lifecycle]]
-=== Get Lifecycle Policy API
+=== Get lifecycle policy API
 ++++
-<titleabbrev>Get Policy</titleabbrev>
+<titleabbrev>Get policy</titleabbrev>
 ++++
-
-beta[]
 
 Retrieves a lifecycle policy.
 

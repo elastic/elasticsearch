@@ -34,6 +34,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.rest.BaseRestHandler;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -112,24 +114,47 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        boolean includeTypeName = params.paramAsBoolean(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, true);
+
         builder.startObject();
         for (Map.Entry<String, Map<String, Map<String, FieldMappingMetaData>>> indexEntry : mappings.entrySet()) {
             builder.startObject(indexEntry.getKey());
             builder.startObject(MAPPINGS.getPreferredName());
-            for (Map.Entry<String, Map<String, FieldMappingMetaData>> typeEntry : indexEntry.getValue().entrySet()) {
-                builder.startObject(typeEntry.getKey());
-                for (Map.Entry<String, FieldMappingMetaData> fieldEntry : typeEntry.getValue().entrySet()) {
-                    builder.startObject(fieldEntry.getKey());
-                    fieldEntry.getValue().toXContent(builder, params);
+
+            if (includeTypeName == false) {
+                Map<String, FieldMappingMetaData> mappings = null;
+                for (Map.Entry<String, Map<String, FieldMappingMetaData>> typeEntry : indexEntry.getValue().entrySet()) {
+                    if (typeEntry.getKey().equals(MapperService.DEFAULT_MAPPING) == false) {
+                        assert mappings == null;
+                        mappings = typeEntry.getValue();
+                    }
+                }
+                if (mappings != null) {
+                    addFieldMappingsToBuilder(builder, params, mappings);
+                }
+            } else {
+                for (Map.Entry<String, Map<String, FieldMappingMetaData>> typeEntry : indexEntry.getValue().entrySet()) {
+                    builder.startObject(typeEntry.getKey());
+                    addFieldMappingsToBuilder(builder, params, typeEntry.getValue());
                     builder.endObject();
                 }
-                builder.endObject();
             }
+
             builder.endObject();
             builder.endObject();
         }
         builder.endObject();
         return builder;
+    }
+
+    private void addFieldMappingsToBuilder(XContentBuilder builder,
+                                           Params params,
+                                           Map<String, FieldMappingMetaData> mappings) throws IOException {
+        for (Map.Entry<String, FieldMappingMetaData> fieldEntry : mappings.entrySet()) {
+            builder.startObject(fieldEntry.getKey());
+            fieldEntry.getValue().toXContent(builder, params);
+            builder.endObject();
+        }
     }
 
     public static GetFieldMappingsResponse fromXContent(XContentParser parser) throws IOException {

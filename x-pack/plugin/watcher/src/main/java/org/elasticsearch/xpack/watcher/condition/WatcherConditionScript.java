@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
-import org.elasticsearch.script.ParameterMap;
+import org.elasticsearch.script.DeprecationMap;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
@@ -40,7 +40,7 @@ public abstract class WatcherConditionScript {
         Map<String, Object> paramsWithCtx = new HashMap<>(params);
         Map<String, Object> ctx = Variables.createCtx(watcherContext, watcherContext.payload());
         paramsWithCtx.put("ctx", ctx);
-        this.params = new ParameterMap(Collections.unmodifiableMap(paramsWithCtx), DEPRECATIONS);
+        this.params = new DeprecationMap(Collections.unmodifiableMap(paramsWithCtx), DEPRECATIONS);
         this.ctx = ctx;
     }
 

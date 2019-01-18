@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-disable-user]]
 === Disable users API
+++++
+<titleabbrev>Disable users</titleabbrev>
+++++
 
 Disables users in the native realm. 
 

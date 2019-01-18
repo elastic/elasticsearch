@@ -44,7 +44,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
-@TestLogging("org.elasticsearch.xpack.ml.action:DEBUG")
+@TestLogging("org.elasticsearch.xpack.ml.action:DEBUG,org.elasticsearch.xpack.ml.MlConfigMigrator:DEBUG,"
+        + "org.elasticsearch.xpack.ml.process.MlMemoryTracker:DEBUG")
 public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
 
     @Before

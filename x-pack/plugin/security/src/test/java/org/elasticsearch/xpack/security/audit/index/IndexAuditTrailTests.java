@@ -236,7 +236,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                         SecuritySettingsSourceField.TEST_PASSWORD);
 
         if (remoteUseSSL) {
-            cluster2SettingsSource.addClientSSLSettings(builder, "xpack.security.audit.index.client.");
+            cluster2SettingsSource.addClientSSLSettings(builder, "xpack.security.audit.index.client.xpack.security.transport.");
             builder.put("xpack.security.audit.index.client.xpack.security.transport.ssl.enabled", true);
         }
         if (useSecurity == false && builder.get(NetworkModule.TRANSPORT_TYPE_KEY) == null) {

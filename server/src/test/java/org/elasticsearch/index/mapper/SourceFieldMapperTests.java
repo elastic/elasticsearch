@@ -135,7 +135,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(mapper.sourceMapper().enabled(), equalTo(false));
             fail();
         } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), equalTo("malformed mapping no root object found"));
+            assertThat(e.getMessage(), equalTo("malformed mapping, no type name found"));
             // all is well
         }
     }

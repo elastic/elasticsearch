@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.store.Store;
@@ -26,7 +27,6 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.util.List;
-
 
 public interface RecoveryTargetHandler {
 
@@ -43,8 +43,9 @@ public interface RecoveryTargetHandler {
      * updates the global checkpoint.
      *
      * @param globalCheckpoint the global checkpoint on the recovery source
+     * @param listener         the listener which will be notified when this method is completed
      */
-    void finalizeRecovery(long globalCheckpoint) throws IOException;
+    void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener);
 
     /**
      * Blockingly waits for cluster state with at least clusterStateVersion to be available
@@ -91,6 +92,6 @@ public interface RecoveryTargetHandler {
 
     /** writes a partial file chunk to the target store */
     void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
-                        boolean lastChunk, int totalTranslogOps) throws IOException;
+                        boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener);
 
 }

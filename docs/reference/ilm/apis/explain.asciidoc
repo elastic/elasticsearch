@@ -1,12 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-explain-lifecycle]]
-=== Explain Lifecycle API
+=== Explain lifecycle API
 ++++
-<titleabbrev>Explain Lifecycle</titleabbrev>
+<titleabbrev>Explain lifecycle</titleabbrev>
 ++++
-
-beta[]
 
 Shows an index's current lifecycle status.
 
@@ -170,7 +168,7 @@ entered this phase
 <3> The date the loaded policy was last modified
 <4> The epoch time when the loaded policy was last modified
 
-If {ILM} is waiting for a step to complete, the response includes status
+If {ilm-init} is waiting for a step to complete, the response includes status
 information for the step that's being performed on the index.
 
 [source,js]

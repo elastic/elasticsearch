@@ -29,8 +29,9 @@ import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -45,6 +46,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -227,6 +229,8 @@ public class DatafeedJobTests extends ESTestCase {
         flushJobResponse = new FlushJobAction.Response(true, new Date(2000));
         Bucket bucket = mock(Bucket.class);
         when(bucket.getTimestamp()).thenReturn(new Date(2000));
+        when(bucket.getEpoch()).thenReturn(2L);
+        when(bucket.getBucketSpan()).thenReturn(4L);
         when(flushJobFuture.actionGet()).thenReturn(flushJobResponse);
         when(client.execute(same(FlushJobAction.INSTANCE), flushJobRequests.capture())).thenReturn(flushJobFuture);
         when(delayedDataDetector.detectMissingData(2000))
@@ -269,15 +273,15 @@ public class DatafeedJobTests extends ESTestCase {
 
         Annotation expectedAnnotation = new Annotation(msg,
             new Date(currentTime),
-            SystemUser.NAME,
+            XPackUser.NAME,
             bucket.getTimestamp(),
-            bucket.getTimestamp(),
+            new Date((bucket.getEpoch() + bucket.getBucketSpan()) * 1000),
             jobId,
-            null,
-            null,
+            new Date(currentTime),
+            XPackUser.NAME,
             "annotation");
 
-        IndexRequest request = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
+        IndexRequest request = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME, ElasticsearchMappings.DOC_TYPE);
         try (XContentBuilder xContentBuilder = expectedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
             request.source(xContentBuilder);
         }
@@ -287,8 +291,13 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(request.source(), equalTo(indexRequestArgumentCaptor.getValue().source()));
 
         // Execute a fourth time, this time we return a new delayedDataDetector response to verify annotation gets updated
+        Bucket bucket2 = mock(Bucket.class);
+        when(bucket2.getTimestamp()).thenReturn(new Date(6000));
+        when(bucket2.getEpoch()).thenReturn(6L);
+        when(bucket2.getBucketSpan()).thenReturn(4L);
         when(delayedDataDetector.detectMissingData(2000))
-            .thenReturn(Collections.singletonList(BucketWithMissingData.fromMissingAndBucket(15, bucket)));
+            .thenReturn(Arrays.asList(BucketWithMissingData.fromMissingAndBucket(10, bucket),
+                BucketWithMissingData.fromMissingAndBucket(5, bucket2)));
         currentTime = currentTime + DatafeedJob.MISSING_DATA_CHECK_INTERVAL_MS + 1;
         inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
@@ -298,14 +307,15 @@ public class DatafeedJobTests extends ESTestCase {
 
         msg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA,
             15,
-            XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(2000));
+            XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(6000));
         // What we expect the updated annotation to be indexed as
-        IndexRequest indexRequest = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
+        IndexRequest indexRequest = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME, ElasticsearchMappings.DOC_TYPE);
         indexRequest.id(annotationDocId);
         Annotation updatedAnnotation = new Annotation(expectedAnnotation);
         updatedAnnotation.setAnnotation(msg);
         updatedAnnotation.setModifiedTime(new Date(currentTime));
-        updatedAnnotation.setModifiedUsername(SystemUser.NAME);
+        updatedAnnotation.setModifiedUsername(XPackUser.NAME);
+        updatedAnnotation.setEndTimestamp(new Date((bucket2.getEpoch() + bucket2.getBucketSpan()) * 1000));
         try (XContentBuilder xContentBuilder = updatedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
             indexRequest.source(xContentBuilder);
         }
@@ -318,6 +328,17 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(indexRequest.source().utf8ToString(),
             equalTo(updateRequestArgumentCaptor.getValue().source().utf8ToString()));
         assertThat(updateRequestArgumentCaptor.getValue().opType(), equalTo(DocWriteRequest.OpType.INDEX));
+
+        // Execute a fifth time, no changes should occur as annotation is the same
+        currentTime = currentTime + DatafeedJob.MISSING_DATA_CHECK_INTERVAL_MS + 1;
+        inputStream = new ByteArrayInputStream(contentBytes);
+        when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
+        when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        datafeedJob.runRealtime();
+
+        // We should not get 3 index requests for the annotations
+        verify(client, atMost(2)).index(any());
     }
 
     public void testEmptyDataCountGivenlookback() throws Exception {

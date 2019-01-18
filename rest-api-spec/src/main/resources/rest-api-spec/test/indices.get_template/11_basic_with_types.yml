@@ -1,0 +1,49 @@
+setup:
+  - do:
+      indices.put_template:
+        name: test
+        body:
+          index_patterns: test-*
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+          mappings:
+            doc:
+              properties:
+                field:
+                  type: keyword
+
+---
+"Get template":
+  - skip:
+      version: " - 5.99.99"
+      reason:  this uses a new API that has been added in 6.0
+  - do:
+      indices.get_template:
+        name: test
+
+  - match: {test.index_patterns: ["test-*"]}
+  - match: {test.settings: {index: {number_of_shards: '1', number_of_replicas: '0'}}}
+  - match: {test.mappings: {doc: {properties: {field: {type: keyword}}}}}
+
+---
+"Get template with no mappings":
+  - skip:
+      version: " - 5.99.99"
+      reason:  this uses a new API that has been added in 6.0
+  - do:
+      indices.put_template:
+        name: test_no_mappings
+        body:
+          index_patterns: test-*
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      indices.get_template:
+        name: test_no_mappings
+
+  - match: {test_no_mappings.index_patterns: ["test-*"]}
+  - match: {test_no_mappings.settings: {index: {number_of_shards: '1', number_of_replicas: '0'}}}
+  - match: {test_no_mappings.mappings: {}}

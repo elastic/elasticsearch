@@ -302,7 +302,7 @@ public class JobResultsPersister extends AbstractComponent {
      * @param jobId The job Id
      * */
     public void commitStateWrites(String jobId) {
-        String indexName = AnomalyDetectorsIndex.jobStateIndexName();
+        String indexName = AnomalyDetectorsIndex.jobStateIndexPattern();
         // Refresh should wait for Lucene to make the data searchable
         logger.trace("[{}] ES API CALL: refresh index {}", jobId, indexName);
         RefreshRequest refreshRequest = new RefreshRequest(indexName);

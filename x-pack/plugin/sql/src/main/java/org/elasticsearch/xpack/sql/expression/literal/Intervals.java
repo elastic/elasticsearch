@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -63,7 +63,7 @@ public final class Intervals {
         return millis;
     }
 
-    public static TemporalAmount of(Location source, long duration, TimeUnit unit) {
+    public static TemporalAmount of(Source source, long duration, TimeUnit unit) {
         // Cannot use Period.of since it accepts int so use plus which accepts long
         // Further more Period and Duration have inconsistent addition methods but plus is there
         try {
@@ -90,7 +90,7 @@ public final class Intervals {
         }
     }
 
-    public static DataType intervalType(Location source, TimeUnit leading, TimeUnit trailing) {
+    public static DataType intervalType(Source source, TimeUnit leading, TimeUnit trailing) {
         if (trailing == null) {
             switch (leading) {
                 case YEAR:
@@ -208,7 +208,7 @@ public final class Intervals {
             this.name = name;
         }
 
-        TemporalAmount parse(Location source, String string) {
+        TemporalAmount parse(Source source, String string) {
             int unitIndex = 0;
             int startToken = 0;
             int endToken = 0;
@@ -408,7 +408,7 @@ public final class Intervals {
                 .build());
     }
 
-    public static TemporalAmount parseInterval(Location source, String value, DataType intervalType) {
+    public static TemporalAmount parseInterval(Source source, String value, DataType intervalType) {
         return PARSERS.get(intervalType).parse(source, value);
     }
 

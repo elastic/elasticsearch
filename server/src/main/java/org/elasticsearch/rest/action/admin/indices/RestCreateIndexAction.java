@@ -25,12 +25,18 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 public class RestCreateIndexAction extends BaseRestHandler {
 
@@ -48,9 +54,16 @@ public class RestCreateIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
         if (request.hasContent()) {
-            createIndexRequest.source(request.content(), request.getXContentType());
+            Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.content(), false, request.getXContentType()).v2();
+            if (includeTypeName == false && sourceAsMap.containsKey("mappings")) {
+                Map<String, Object> newSourceAsMap = new HashMap<>(sourceAsMap);
+                newSourceAsMap.put("mappings", Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, sourceAsMap.get("mappings")));
+                sourceAsMap = newSourceAsMap;
+            }
+            createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
         }
         if (request.hasParam("update_all_types")) {
             DEPRECATION_LOGGER.deprecated("[update_all_types] is deprecated since indices may not have more than one type anymore");

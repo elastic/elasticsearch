@@ -23,12 +23,14 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -71,14 +73,16 @@ import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -114,7 +118,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     public static class CustomScriptPlugin extends MockScriptPlugin {
 
         static final String DUMMY_SCRIPT = "dummyScript";
-
 
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
@@ -152,7 +155,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 }
             });
         }
-
     }
 
     @Override
@@ -645,5 +647,29 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             InternalAggregation.ReduceContext reduceContext = service.createReduceContext(false);
             reduceContext.consumeBucketsAndMaybeBreak(MultiBucketConsumerService.SOFT_LIMIT_MAX_BUCKETS + 1);
         }
+    }
+
+    public void testCreateSearchContext() throws IOException {
+        String index = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
+        IndexService indexService = createIndex(index);
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        ShardId shardId = new ShardId(indexService.index(), 0);
+        long nowInMillis = System.currentTimeMillis();
+        String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10);
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(randomBoolean());
+        ShardSearchTransportRequest request = new ShardSearchTransportRequest(OriginalIndices.NONE, searchRequest, shardId,
+            indexService.numberOfShards(), AliasFilter.EMPTY, 1f, nowInMillis, clusterAlias, Strings.EMPTY_ARRAY);
+        DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()));
+        SearchShardTarget searchShardTarget = searchContext.shardTarget();
+        QueryShardContext queryShardContext = searchContext.getQueryShardContext();
+        String expectedIndexName = clusterAlias == null ? index : clusterAlias + ":" + index;
+        assertEquals(expectedIndexName, queryShardContext.getFullyQualifiedIndex().getName());
+        assertEquals(expectedIndexName, searchShardTarget.getFullyQualifiedIndexName());
+        assertEquals(clusterAlias, searchShardTarget.getClusterAlias());
+        assertEquals(shardId, searchShardTarget.getShardId());
+        assertSame(searchShardTarget, searchContext.dfsResult().getSearchShardTarget());
+        assertSame(searchShardTarget, searchContext.queryResult().getSearchShardTarget());
+        assertSame(searchShardTarget, searchContext.fetchResult().getSearchShardTarget());
     }
 }

@@ -243,7 +243,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param settings Settings for the node this repository object is created on
      */
     protected BlobStoreRepository(RepositoryMetaData metadata, Settings settings, NamedXContentRegistry namedXContentRegistry) {
-        super(settings);
         this.settings = settings;
         this.metadata = metadata;
         this.namedXContentRegistry = namedXContentRegistry;
@@ -482,12 +481,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     // we'll ignore that and accept that cleanup didn't fully succeed.
                     // since we are using UUIDs for path names, this won't be an issue for
                     // snapshotting indices of the same name
-                    logger.debug(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, but failed to clean up " +
-                            "its index folder due to the directory not being empty.", metadata.name(), indexId), dnee);
+                    logger.debug(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, " +
+                        "but failed to clean up its index folder due to the directory not being empty.", metadata.name(), indexId), dnee);
                 } catch (IOException ioe) {
                     // a different IOException occurred while trying to delete - will just log the issue for now
-                    logger.debug(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, but failed to clean up " +
-                            "its index folder.", metadata.name(), indexId), ioe);
+                    logger.debug(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, " +
+                        "but failed to clean up its index folder.", metadata.name(), indexId), ioe);
                 }
             }
         } catch (IOException | ResourceNotFoundException ex) {
@@ -527,7 +526,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         try {
             indexMetaDataFormat.delete(indexMetaDataBlobContainer, snapshotId.getUUID());
         } catch (IOException ex) {
-            logger.warn(() -> new ParameterizedMessage("[{}] failed to delete metadata for index [{}]", snapshotId, indexId.getName()), ex);
+            logger.warn(() -> new ParameterizedMessage("[{}] failed to delete metadata for index [{}]",
+                snapshotId, indexId.getName()), ex);
         }
     }
 
@@ -864,7 +864,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
+    public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
+                             RecoveryState recoveryState) {
         final RestoreContext snapshotContext = new RestoreContext(shard, snapshotId, indexId, snapshotShardId, recoveryState);
         try {
             snapshotContext.restore();
@@ -901,12 +902,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         testBlobContainer.writeBlob("data-" + localNode.getId() + ".dat", stream, bytes.length(), true);
                     }
                 } catch (IOException exp) {
-                    throw new RepositoryVerificationException(metadata.name(), "store location [" + blobStore() + "] is not accessible on the node [" + localNode + "]", exp);
+                    throw new RepositoryVerificationException(metadata.name(), "store location [" + blobStore() +
+                        "] is not accessible on the node [" + localNode + "]", exp);
                 }
             } else {
-                throw new RepositoryVerificationException(metadata.name(), "a file written by master to the store [" + blobStore() + "] cannot be accessed on the node [" + localNode + "]. "
-                    + "This might indicate that the store [" + blobStore() + "] is not shared between this node and the master node or "
-                    + "that permissions on the store don't allow reading files written by the master node");
+                throw new RepositoryVerificationException(metadata.name(), "a file written by master to the store [" + blobStore() +
+                    "] cannot be accessed on the node [" + localNode + "]. " +
+                    "This might indicate that the store [" + blobStore() + "] is not shared between this node and the master node or " +
+                    "that permissions on the store don't allow reading files written by the master node");
             }
         }
     }
@@ -948,7 +951,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Context(SnapshotId snapshotId, IndexId indexId, ShardId shardId, ShardId snapshotShardId) {
             this.snapshotId = snapshotId;
             this.shardId = shardId;
-            blobContainer = blobStore().blobContainer(basePath().add("indices").add(indexId.getId()).add(Integer.toString(snapshotShardId.getId())));
+            blobContainer = blobStore().blobContainer(basePath().add("indices").add(indexId.getId())
+                .add(Integer.toString(snapshotShardId.getId())));
         }
 
         /**
@@ -1237,7 +1241,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 // in a bwc compatible way.
                                 maybeRecalculateMetadataHash(blobContainer, fileInfo, metadata);
                             } catch (Exception e) {
-                                logger.warn(() -> new ParameterizedMessage("{} Can't calculate hash from blob for file [{}] [{}]", shardId, fileInfo.physicalName(), fileInfo.metadata()), e);
+                                logger.warn(() -> new ParameterizedMessage("{} Can't calculate hash from blob for file [{}] [{}]",
+                                    shardId, fileInfo.physicalName(), fileInfo.metadata()), e);
                             }
                             if (fileInfo.isSame(md) && snapshotFileExistsInBlobs(fileInfo, blobs)) {
                                 // a commit point file with the same name, size and checksum was already copied to repository
@@ -1255,7 +1260,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         indexIncrementalFileCount++;
                         indexIncrementalSize += md.length();
                         // create a new FileInfo
-                        BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = new BlobStoreIndexShardSnapshot.FileInfo(fileNameFromGeneration(++generation), md, chunkSize());
+                        BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo =
+                            new BlobStoreIndexShardSnapshot.FileInfo(fileNameFromGeneration(++generation), md, chunkSize());
                         indexCommitPointFiles.add(snapshotFileInfo);
                         filesToSnapshot.add(snapshotFileInfo);
                     } else {
@@ -1416,7 +1422,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * The new logic for StoreFileMetaData reads the entire {@code .si} and {@code segments.n} files to strengthen the
      * comparison of the files on a per-segment / per-commit level.
      */
-    private static void maybeRecalculateMetadataHash(final BlobContainer blobContainer, final BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store.MetadataSnapshot snapshot) throws Exception {
+    private static void maybeRecalculateMetadataHash(final BlobContainer blobContainer, final BlobStoreIndexShardSnapshot.FileInfo fileInfo,
+                                                     Store.MetadataSnapshot snapshot) throws Exception {
         final StoreFileMetaData metadata;
         if (fileInfo != null && (metadata = snapshot.get(fileInfo.physicalName())) != null) {
             if (metadata.hash().length > 0 && fileInfo.metadata().hash().length == 0) {
@@ -1518,7 +1525,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.trace("[{}] [{}] restoring from to an empty shard", shardId, snapshotId);
                     recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
                 } catch (IOException e) {
-                    logger.warn(() -> new ParameterizedMessage("{} Can't read metadata from store, will not reuse any local file while restoring", shardId), e);
+                    logger.warn(() -> new ParameterizedMessage("{} Can't read metadata from store, will not reuse any " +
+                        "local file while restoring", shardId), e);
                     recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
                 }
 
@@ -1534,7 +1542,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         maybeRecalculateMetadataHash(blobContainer, fileInfo, recoveryTargetMetadata);
                     } catch (Exception e) {
                         // if the index is broken we might not be able to read it
-                        logger.warn(() -> new ParameterizedMessage("{} Can't calculate hash from blog for file [{}] [{}]", shardId, fileInfo.physicalName(), fileInfo.metadata()), e);
+                        logger.warn(() -> new ParameterizedMessage("{} Can't calculate hash from blog for file [{}] [{}]",
+                            shardId, fileInfo.physicalName(), fileInfo.metadata()), e);
                     }
                     snapshotMetaData.put(fileInfo.metadata().name(), fileInfo.metadata());
                     fileInfos.put(fileInfo.metadata().name(), fileInfo);
@@ -1552,7 +1561,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
                     recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length(), true);
                     if (logger.isTraceEnabled()) {
-                        logger.trace("[{}] [{}] not_recovering [{}] from [{}], exists in local store and is same", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
+                        logger.trace("[{}] [{}] not_recovering [{}] from [{}], exists in local store and is same",
+                            shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
                     }
                 }
 
@@ -1562,9 +1572,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length(), false);
                     if (logger.isTraceEnabled()) {
                         if (md == null) {
-                            logger.trace("[{}] [{}] recovering [{}] from [{}], does not exists in local store", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
+                            logger.trace("[{}] [{}] recovering [{}] from [{}], does not exists in local store",
+                                shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
                         } else {
-                            logger.trace("[{}] [{}] recovering [{}] from [{}], exists in local store but is different", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
+                            logger.trace("[{}] [{}] recovering [{}] from [{}], exists in local store but is different",
+                                shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
                         }
                     }
                 }
@@ -1646,7 +1658,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     stream = new RateLimitingInputStream(partSliceStream, restoreRateLimiter, restoreRateLimitingTimeInNanos::inc);
                 }
 
-                try (IndexOutput indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
+                try (IndexOutput indexOutput = store.createVerifyingOutput(fileInfo.physicalName(),
+                                                                           fileInfo.metadata(), IOContext.DEFAULT)) {
                     final byte[] buffer = new byte[BUFFER_SIZE];
                     int length;
                     while ((length = stream.read(buffer)) > 0) {

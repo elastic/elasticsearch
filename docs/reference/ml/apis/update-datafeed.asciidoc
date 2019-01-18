@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-update-datafeed]]
-=== Update {dfeeds-cap} API
+=== Update {dfeeds} API
 ++++
-<titleabbrev>Update {dfeeds-cap}</titleabbrev>
+<titleabbrev>Update {dfeeds}</titleabbrev>
 ++++
 
 Updates certain properties of a {dfeed}.

@@ -102,6 +102,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public static final String REALM_FIELD_NAME = "realm";
     public static final String URL_PATH_FIELD_NAME = "url.path";
     public static final String URL_QUERY_FIELD_NAME = "url.query";
+    public static final String REQUEST_METHOD_FIELD_NAME = "request.method";
     public static final String REQUEST_BODY_FIELD_NAME = "request.body";
     public static final String REQUEST_ID_FIELD_NAME = "request.id";
     public static final String ACTION_FIELD_NAME = "action";
@@ -220,7 +221,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
                     .with(REALM_FIELD_NAME, realm)
-                    .withRestUri(request)
+                    .withRestUriAndMethod(request)
                     .withRequestId(requestId)
                     .withPrincipal(user)
                     .withRestOrigin(request)
@@ -285,7 +286,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "anonymous_access_denied")
-                    .withRestUri(request)
+                    .withRestUriAndMethod(request)
                     .withRestOrigin(request)
                     .withRequestBody(request)
                     .withRequestId(requestId)
@@ -325,7 +326,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
-                    .withRestUri(request)
+                    .withRestUriAndMethod(request)
                     .withRestOrigin(request)
                     .withRequestBody(request)
                     .withRequestId(requestId)
@@ -366,7 +367,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
                     .with(PRINCIPAL_FIELD_NAME, token.principal())
-                    .withRestUri(request)
+                    .withRestUriAndMethod(request)
                     .withRestOrigin(request)
                     .withRequestBody(request)
                     .withRequestId(requestId)
@@ -410,7 +411,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .with(EVENT_ACTION_FIELD_NAME, "realm_authentication_failed")
                     .with(REALM_FIELD_NAME, realm)
                     .with(PRINCIPAL_FIELD_NAME, token.principal())
-                    .withRestUri(request)
+                    .withRestUriAndMethod(request)
                     .withRestOrigin(request)
                     .withRequestBody(request)
                     .withRequestId(requestId)
@@ -477,7 +478,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "tampered_request")
-                    .withRestUri(request)
+                    .withRestUriAndMethod(request)
                     .withRestOrigin(request)
                     .withRequestBody(request)
                     .withRequestId(requestId)
@@ -626,7 +627,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "run_as_denied")
                     .with(PRINCIPAL_ROLES_FIELD_NAME, roleNames)
-                    .withRestUri(request)
+                    .withRestUriAndMethod(request)
                     .withRunAsSubject(authentication)
                     .withRestOrigin(request)
                     .withRequestBody(request)
@@ -646,7 +647,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             logEntry = new StringMapMessage(LoggingAuditTrail.this.entryCommonFields.commonFields);
         }
 
-        LogEntryBuilder withRestUri(RestRequest request) {
+        LogEntryBuilder withRestUriAndMethod(RestRequest request) {
             final int queryStringIndex = request.uri().indexOf('?');
             int queryStringLength = request.uri().indexOf('#');
             if (queryStringLength < 0) {
@@ -660,6 +661,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             if (queryStringIndex > -1) {
                 logEntry.with(URL_QUERY_FIELD_NAME, request.uri().substring(queryStringIndex + 1, queryStringLength));
             }
+            logEntry.with(REQUEST_METHOD_FIELD_NAME, request.method().toString());
             return this;
         }
 

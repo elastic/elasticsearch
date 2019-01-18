@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -16,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -82,9 +82,9 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
                                 // Delete the snapshot and any associated state files
                                 JobDataDeleter deleter = new JobDataDeleter(client, request.getJobId());
                                 deleter.deleteModelSnapshots(Collections.singletonList(deleteCandidate),
-                                        new ActionListener<BulkResponse>() {
+                                        new ActionListener<BulkByScrollResponse>() {
                                             @Override
-                                            public void onResponse(BulkResponse bulkResponse) {
+                                            public void onResponse(BulkByScrollResponse bulkResponse) {
                                                 String msg = Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_DELETED,
                                                         deleteCandidate.getSnapshotId(), deleteCandidate.getDescription());
 

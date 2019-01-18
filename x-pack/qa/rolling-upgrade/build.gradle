@@ -72,6 +72,9 @@ forbiddenPatterns {
   exclude '**/system_key'
 }
 
+// Tests are pushed down to subprojects 
+testingConventions.enabled = false 
+
 /**
  * Subdirectories of this project are test rolling upgrades with various
  * configuration options based on their name.
@@ -152,8 +155,8 @@ subprojects {
       setting 'xpack.security.authc.token.enabled', 'true'
       setting 'xpack.security.audit.enabled', 'true'
       setting 'xpack.security.audit.outputs', 'index'
-      setting 'xpack.ssl.keystore.path', 'testnode.jks'
-      setting 'xpack.ssl.keystore.password', 'testnode'
+      setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
+      setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
       if (version.onOrAfter('6.0.0') == false) {
         // this is needed since in 5.6 we don't bootstrap the token service if there is no explicit initial password
         keystoreSetting 'xpack.security.authc.token.passphrase', 'xpack_token_passphrase'
@@ -209,8 +212,8 @@ subprojects {
         setting 'xpack.license.self_generated.type', 'trial'
         setting 'xpack.security.enabled', 'true'
         setting 'xpack.security.transport.ssl.enabled', 'true'
-        setting 'xpack.ssl.keystore.path', 'testnode.jks'
-        keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
+        setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
+        keystoreSetting 'xpack.security.transport.ssl.keystore.secure_password', 'testnode'
         if (version.onOrAfter('6.0.0') == false) {
           // this is needed since in 5.6 we don't bootstrap the token service if there is no explicit initial password
           keystoreSetting 'xpack.security.authc.token.passphrase', 'xpack_token_passphrase'
@@ -292,8 +295,17 @@ subprojects {
               systemProperty 'tests.rest.blacklist', '/20_security/Verify default password migration results in upgraded cluster'
           }
       }
+      def toBlackList = []
+      // If we are upgrading on a minor version, these tests fail
+      // They only work if we are upgrading between major versions
+      if (versionParts[0].equals("6")) {
+        toBlackList << 'upgraded_cluster/80_ml_results_upgrade/Migrate results data to latest index binary version'
+      }
       if (version.before('6.1.0') || version.onOrAfter('6.3.0')) {
-        systemProperty 'tests.rest.blacklist', '/30_ml_jobs_crud/Test model memory limit is updated'
+        toBlackList << '/30_ml_jobs_crud/Test model memory limit is updated'
+      }
+      if (!toBlackList.empty) {
+        systemProperty 'tests.rest.blacklist', toBlackList.join(',')
       }
     }
 

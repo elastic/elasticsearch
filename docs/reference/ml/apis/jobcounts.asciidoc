@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-jobstats]]
-=== Job Statistics
+=== Job statistics
 
 The get job statistics API provides information about the operational
 progress of a job.

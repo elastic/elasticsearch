@@ -26,13 +26,11 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -381,11 +379,25 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             DirectoryService directoryService = indexStore.newDirectoryService(path);
             store = new Store(shardId, this.indexSettings, directoryService.newDirectory(), lock,
                     new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)));
-            indexShard = new IndexShard(routing, this.indexSettings, path, store, indexSortSupplier,
-                indexCache, mapperService, similarityService, engineFactory,
-                eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
-                searchOperationListeners, indexingOperationListeners, () -> globalCheckpointSyncer.accept(shardId),
-                circuitBreakerService);
+            indexShard = new IndexShard(
+                    routing,
+                    this.indexSettings,
+                    path,
+                    store,
+                    indexSortSupplier,
+                    indexCache,
+                    mapperService,
+                    similarityService,
+                    engineFactory,
+                    eventListener,
+                    searcherWrapper,
+                    threadPool,
+                    bigArrays,
+                    engineWarmer,
+                    searchOperationListeners,
+                    indexingOperationListeners,
+                    () -> globalCheckpointSyncer.accept(shardId),
+                    circuitBreakerService);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
@@ -758,23 +770,18 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         continue;
                     case STARTED:
                         try {
-                            shard.acquirePrimaryOperationPermit(
-                                    ActionListener.wrap(
-                                            releasable -> {
-                                                try (Releasable ignored = releasable) {
-                                                        shard.maybeSyncGlobalCheckpoint("background");
-                                                }
-                                            },
-                                            e -> {
-                                                if (!(e instanceof AlreadyClosedException || e instanceof IndexShardClosedException)) {
-                                                    logger.info(
-                                                            new ParameterizedMessage(
-                                                                    "{} failed to execute background global checkpoint sync",
-                                                                    shard.shardId()),
-                                                            e);
-                                                }
-                                            }),
-                                    ThreadPool.Names.SAME, "background global checkpoint sync");
+                            shard.runUnderPrimaryPermit(
+                                    () -> shard.maybeSyncGlobalCheckpoint("background"),
+                                    e -> {
+                                        if (e instanceof AlreadyClosedException == false
+                                                && e instanceof IndexShardClosedException == false) {
+                                            logger.warn(
+                                                    new ParameterizedMessage(
+                                                            "{} failed to execute background global checkpoint sync", shard.shardId()), e);
+                                        }
+                                    },
+                                    ThreadPool.Names.SAME,
+                                    "background global checkpoint sync");
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {
                             // the shard was closed concurrently, continue
                         }

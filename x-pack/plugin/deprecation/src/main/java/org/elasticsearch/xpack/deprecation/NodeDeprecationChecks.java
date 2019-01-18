@@ -98,6 +98,22 @@ public class NodeDeprecationChecks {
         return null;
     }
 
+    static DeprecationIssue authRealmsTypeCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
+        List<String> nodesFound = nodeInfos.stream()
+            .filter(nodeInfo -> nodeInfo.getSettings().getGroups("xpack.security.authc.realms").size() > 0)
+            .map(nodeInfo -> nodeInfo.getNode().getName())
+            .collect(Collectors.toList());
+
+        if (nodesFound.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Security realm settings structure changed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "#include-realm-type-in-setting",
+                "nodes have authentication realm configuration which must be updated at time of upgrade to 7.0: " + nodesFound);
+        }
+        return null;
+    }
+
     static DeprecationIssue httpPipeliningCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
         List<String> nodesFound = nodeInfos.stream()
             .filter(nodeInfo -> nodeInfo.getSettings().hasValue(HttpTransportSettings.SETTING_PIPELINING.getKey()))
@@ -242,6 +258,21 @@ public class NodeDeprecationChecks {
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_file_based_discovery_plugin",
                 "nodes with discovery-file installed: " + nodesFound);
+        }
+        return null;
+    }
+
+    static DeprecationIssue defaultSSLSettingsRemoved(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
+        List<String> nodesFound = nodeInfos.stream()
+            .filter(nodeInfo -> nodeInfo.getSettings().getByPrefix("xpack.ssl").isEmpty() == false)
+            .map(nodeInfo -> nodeInfo.getNode().getName())
+            .collect(Collectors.toList());
+        if (nodesFound.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Default TLS/SSL settings have been removed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "#tls-setting-fallback",
+                "Nodes with default TLS/SSL settings: " + nodesFound);
         }
         return null;
     }

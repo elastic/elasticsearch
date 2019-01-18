@@ -1,12 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-remove-policy]]
-=== Remove Policy from Index API
+=== Remove policy from index API
 ++++
-<titleabbrev>Remove Policy</titleabbrev>
+<titleabbrev>Remove policy</titleabbrev>
 ++++
-
-beta[]
 
 Removes the assigned lifecycle policy from an index.
 

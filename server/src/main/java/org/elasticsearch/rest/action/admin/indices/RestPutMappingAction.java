@@ -26,6 +26,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -72,8 +73,13 @@ public class RestPutMappingAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
         PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        putMappingRequest.type(request.param("type"));
+        final String type = request.param("type");
+        if (type != null && includeTypeName == false) {
+            throw new IllegalArgumentException("Cannot set include_type_name=false and provide a type at the same time");
+        }
+        putMappingRequest.type(includeTypeName ? type : MapperService.SINGLE_MAPPING_NAME);
         putMappingRequest.source(request.requiredContent(), request.getXContentType());
         if (request.hasParam("update_all_types")) {
             DEPRECATION_LOGGER.deprecated("[update_all_types] is deprecated since indices may not have more than one type anymore");

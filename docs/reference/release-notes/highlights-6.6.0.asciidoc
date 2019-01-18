@@ -1,0 +1,9 @@
+[[release-highlights-6.6.0]]
+== 6.6.0 release highlights
+++++
+<titleabbrev>6.6.0</titleabbrev>
+++++
+
+See also <<release-notes-6.6.0,{es} 6.6.0 release notes>>. 
+
+coming[6.6.0]

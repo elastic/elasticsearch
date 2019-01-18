@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[start-trial]]
-=== Start Trial API
+=== Start trial API
+++++
+<titleabbrev>Start trial</titleabbrev>
+++++
 
 This API starts a 30-day trial license.
 

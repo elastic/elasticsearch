@@ -25,8 +25,8 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -75,6 +75,7 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -242,7 +243,7 @@ final class RequestConverters {
                 content.write(separator);
             }
         }
-        request.setEntity(new ByteArrayEntity(content.toByteArray(), 0, content.size(), requestContentType));
+        request.setEntity(new NByteArrayEntity(content.toByteArray(), 0, content.size(), requestContentType));
         return request;
     }
 
@@ -313,7 +314,7 @@ final class RequestConverters {
 
         BytesRef source = indexRequest.source().toBytesRef();
         ContentType contentType = createContentType(indexRequest.getContentType());
-        request.setEntity(new ByteArrayEntity(source.bytes, source.offset, source.length, contentType));
+        request.setEntity(new NByteArrayEntity(source.bytes, source.offset, source.length, contentType));
         return request;
     }
 
@@ -421,7 +422,7 @@ final class RequestConverters {
 
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, xContent);
-        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
+        request.setEntity(new NByteArrayEntity(source, createContentType(xContent.type())));
         return request;
     }
 
@@ -454,7 +455,7 @@ final class RequestConverters {
 
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, xContent);
-        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
+        request.setEntity(new NByteArrayEntity(source, createContentType(xContent.type())));
         return request;
     }
 
@@ -674,7 +675,7 @@ final class RequestConverters {
     static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType, ToXContent.Params toXContentParams)
         throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, toXContentParams, false).toBytesRef();
-        return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
+        return new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
 
     static String endpoint(String index, String type, String id) {
@@ -926,6 +927,14 @@ final class RequestConverters {
         Params withIncludeDefaults(boolean includeDefaults) {
             if (includeDefaults) {
                 return putParam("include_defaults", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withIncludeTypeName(boolean includeTypeName) {
+            if (includeTypeName) {
+                return putParam(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER,
+                        Boolean.toString(BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY));
             }
             return this;
         }

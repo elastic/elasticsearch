@@ -43,7 +43,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
@@ -241,11 +240,15 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         }
 
         // Verify .ml-state doesn't contain unused state documents
-        SearchResponse stateDocsResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
+        SearchResponse stateDocsResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
                 .setFetchSource(false)
+                .setTrackTotalHits(true)
                 .setSize(10000)
                 .get();
-        assertThat(stateDocsResponse.getHits().getTotalHits(), lessThan(10000L));
+
+        // Assert at least one state doc for each job
+        assertThat(stateDocsResponse.getHits().getTotalHits(), greaterThanOrEqualTo(5L));
+
         for (SearchHit hit : stateDocsResponse.getHits().getHits()) {
             assertThat(hit.getId().startsWith("non_existing_job"), is(false));
         }

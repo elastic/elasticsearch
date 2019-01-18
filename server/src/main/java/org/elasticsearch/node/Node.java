@@ -41,6 +41,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -334,7 +335,8 @@ public abstract class Node implements Closeable {
                     environment.configFile(), Arrays.toString(environment.dataFiles()), environment.logsFile(), environment.pluginsFile());
             }
 
-            this.pluginsService = new PluginsService(tmpSettings, environment.configFile(), environment.modulesFile(), environment.pluginsFile(), classpathPlugins);
+            this.pluginsService = new PluginsService(tmpSettings, environment.configFile(), environment.modulesFile(),
+                environment.pluginsFile(), classpathPlugins);
             this.settings = pluginsService.updatedSettings();
             localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
 
@@ -631,6 +633,29 @@ public abstract class Node implements Closeable {
         }
     }
 
+    /**
+     * Checks if a subdirectory sharing the same name as the cluster is found in one of the data paths.
+     *
+     * @param clusterName the name of the cluster
+     * @param dataFiles the node's data directories
+     * @throws NodeValidationException if a subdirectory named after the cluster is found in one of the data directories
+     */
+    static void checkIfClusterNameInDataPaths(ClusterName clusterName, Path[] dataFiles) throws NodeValidationException {
+        final List<Path> existingPathsWithClusterName = Arrays.stream(dataFiles)
+            .map(p -> p.resolve(clusterName.value()))
+            .filter(Files::exists).collect(Collectors.toList());
+        if (existingPathsWithClusterName.isEmpty() == false) {
+            final List<String> clusterPathStrings = existingPathsWithClusterName.stream()
+                .map(Path::toString).collect(Collectors.toList());
+            final List<String> dataPathStrings = existingPathsWithClusterName.stream()
+                .map(Path::getParent).map(Path::toString).collect(Collectors.toList());
+            throw new NodeValidationException("Cluster name [" + clusterName.value()
+                + "] subdirectory exists in data paths [" + String.join(",", clusterPathStrings) + "]. " +
+                "All data under these paths must be moved up one directory to paths [" + String.join(",", dataPathStrings) + "]");
+        }
+
+    }
+
     static void warnIfPreRelease(final Version version, final boolean isSnapshot, final Logger logger) {
         if (!version.isRelease() || isSnapshot) {
             logger.warn(
@@ -730,11 +755,12 @@ public abstract class Node implements Closeable {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        validateNodeBeforeAcceptingRequests(new BootstrapContext(environment, onDiskMetadata), transportService.boundAddress(), pluginsService
-            .filterPlugins(Plugin
-            .class)
-            .stream()
-            .flatMap(p -> p.getBootstrapChecks().stream()).collect(Collectors.toList()));
+
+        checkIfClusterNameInDataPaths(clusterService.getClusterName(), environment.dataFiles());
+
+        validateNodeBeforeAcceptingRequests(new BootstrapContext(environment, onDiskMetadata), transportService.boundAddress(),
+            pluginsService.filterPlugins(Plugin.class).stream()
+                .flatMap(p -> p.getBootstrapChecks().stream()).collect(Collectors.toList()));
 
         clusterService.addStateApplier(transportService.getTaskManager());
         // start after transport service so the local disco is known
@@ -836,8 +862,9 @@ public abstract class Node implements Closeable {
     }
 
     // During concurrent close() calls we want to make sure that all of them return after the node has completed it's shutdown cycle.
-    // If not, the hook that is added in Bootstrap#setup() will be useless: close() might not be executed, in case another (for example api) call
-    // to close() has already set some lifecycles to stopped. In this case the process will be terminated even if the first call to close() has not finished yet.
+    // If not, the hook that is added in Bootstrap#setup() will be useless:
+    // close() might not be executed, in case another (for example api) call to close() has already set some lifecycles to stopped.
+    // In this case the process will be terminated even if the first call to close() has not finished yet.
     @Override
     public synchronized void close() throws IOException {
         if (lifecycle.started()) {

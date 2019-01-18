@@ -5,6 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.index.query.ExistsQueryBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.TestUtils;
@@ -19,11 +24,14 @@ import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
+import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
@@ -41,6 +49,7 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -55,6 +64,8 @@ public class QueryTranslatorTests extends ESTestCase {
 
     private static SqlParser parser;
     private static Analyzer analyzer;
+    private static Optimizer optimizer;
+    private static Planner planner;
 
     @BeforeClass
     public static void init() {
@@ -64,6 +75,8 @@ public class QueryTranslatorTests extends ESTestCase {
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
         analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        optimizer = new Optimizer();
+        planner = new Planner();
     }
 
     @AfterClass
@@ -74,6 +87,10 @@ public class QueryTranslatorTests extends ESTestCase {
 
     private LogicalPlan plan(String sql) {
         return analyzer.analyze(parser.createStatement(sql), true);
+    }
+    
+    private PhysicalPlan optimizeAndPlan(String sql) {
+        return  planner.plan(optimizer.optimize(plan(sql)), true);
     }
 
     public void testTermEqualityAnalyzer() {
@@ -153,7 +170,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testDateRangeCast() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > CAST('1969-05-13T12:34:56Z' AS DATE)");
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > CAST('1969-05-13T12:34:56Z' AS DATETIME)");
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
@@ -260,7 +277,7 @@ public class QueryTranslatorTests extends ESTestCase {
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.isNull(params.a0))",
             aggFilter.scriptTemplate().toString());
-        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
+        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int){a->"));
     }
 
     public void testTranslateIsNotNullExpression_HavingClause_Painless() {
@@ -273,7 +290,7 @@ public class QueryTranslatorTests extends ESTestCase {
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.isNotNull(params.a0))",
             aggFilter.scriptTemplate().toString());
-        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
+        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int){a->"));
     }
 
     public void testTranslateInExpression_WhereClause() {
@@ -311,8 +328,10 @@ public class QueryTranslatorTests extends ESTestCase {
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
         SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
-        assertEquals("Line 1:52: Comparisons against variables are not (currently) supported; " +
-                "offender [keyword] in [keyword IN (foo, bar, keyword)]", ex.getMessage());
+        assertEquals(
+                "Line 1:52: Comparisons against variables are not (currently) supported; "
+                        + "offender [keyword] in [keyword IN ('foo', 'bar', keyword)]",
+                ex.getMessage());
     }
 
     public void testTranslateInExpression_WhereClause_Painless() {
@@ -341,7 +360,7 @@ public class QueryTranslatorTests extends ESTestCase {
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.in(params.a0, params.v0))",
             aggFilter.scriptTemplate().toString());
-        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
+        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int){a->"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=[10, 20]}]"));
     }
 
@@ -355,7 +374,7 @@ public class QueryTranslatorTests extends ESTestCase {
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.in(params.a0, params.v0))",
             aggFilter.scriptTemplate().toString());
-        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
+        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int){a->"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=[10]}]"));
 
     }
@@ -370,7 +389,7 @@ public class QueryTranslatorTests extends ESTestCase {
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.in(params.a0, params.v0))",
             aggFilter.scriptTemplate().toString());
-        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
+        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int){a->"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=[10, null, 20, 30]}]"));
     }
 
@@ -389,7 +408,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils." +
             operation.name().toLowerCase(Locale.ROOT) + "(params.a0),params.v0))",
             aggFilter.scriptTemplate().toString());
-        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
+        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int){a->"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=10}]"));
     }
 
@@ -433,6 +452,7 @@ public class QueryTranslatorTests extends ESTestCase {
             scriptTemplate.toString());
         assertEquals("[{v=int}, {v=10}]", scriptTemplate.params().toString());
     }
+
     public void testGroupByDateHistogram() {
         LogicalPlan p = plan("SELECT MAX(int) FROM test GROUP BY HISTOGRAM(int, 1000)");
         assertTrue(p instanceof Aggregate);
@@ -448,7 +468,6 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(DataType.INTEGER, field.dataType());
     }
 
-
     public void testGroupByHistogram() {
         LogicalPlan p = plan("SELECT MAX(int) FROM test GROUP BY HISTOGRAM(date, INTERVAL 2 YEARS)");
         assertTrue(p instanceof Aggregate);
@@ -461,6 +480,93 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("+2-0", h.interval().fold().toString());
         Expression field = h.field();
         assertEquals(FieldAttribute.class, field.getClass());
-        assertEquals(DataType.DATE, field.dataType());
+        assertEquals(DataType.DATETIME, field.dataType());
+    }
+    
+    public void testCountAndCountDistinctFolding() {
+        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(DISTINCT keyword) dkey, COUNT(keyword) key FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertEquals(2, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("dkey{a->"));
+        assertThat(ee.output().get(1).toString(), startsWith("key{a->"));
+        
+        Collection<AggregationBuilder> subAggs = ee.queryContainer().aggs().asAggBuilder().getSubAggregations();
+        assertEquals(2, subAggs.size());
+        assertTrue(subAggs.toArray()[0] instanceof CardinalityAggregationBuilder);
+        assertTrue(subAggs.toArray()[1] instanceof FilterAggregationBuilder);
+
+        CardinalityAggregationBuilder cardinalityKeyword = (CardinalityAggregationBuilder) subAggs.toArray()[0];
+        assertEquals("keyword", cardinalityKeyword.field());
+        
+        FilterAggregationBuilder existsKeyword = (FilterAggregationBuilder) subAggs.toArray()[1];
+        assertTrue(existsKeyword.getFilter() instanceof ExistsQueryBuilder);
+        assertEquals("keyword", ((ExistsQueryBuilder) existsKeyword.getFilter()).fieldName());
+        
+        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("{\"filter\":{\"exists\":{\"field\":\"keyword\",\"boost\":1.0}}}}}}"));
+    }
+    
+    public void testAllCountVariantsWithHavingGenerateCorrectAggregations() {
+        PhysicalPlan p = optimizeAndPlan("SELECT AVG(int), COUNT(keyword) ln, COUNT(distinct keyword) dln, COUNT(some.dotted.field) fn,"
+                + "COUNT(distinct some.dotted.field) dfn, COUNT(*) ccc FROM test GROUP BY bool "
+                + "HAVING dln > 3 AND ln > 32 AND dfn > 1 AND fn > 2 AND ccc > 5 AND AVG(int) > 50000");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertEquals(6, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("AVG(int){a->"));
+        assertThat(ee.output().get(1).toString(), startsWith("ln{a->"));
+        assertThat(ee.output().get(2).toString(), startsWith("dln{a->"));
+        assertThat(ee.output().get(3).toString(), startsWith("fn{a->"));
+        assertThat(ee.output().get(4).toString(), startsWith("dfn{a->"));
+        assertThat(ee.output().get(5).toString(), startsWith("ccc{a->"));
+        
+        Collection<AggregationBuilder> subAggs = ee.queryContainer().aggs().asAggBuilder().getSubAggregations();
+        assertEquals(5, subAggs.size());
+        assertTrue(subAggs.toArray()[0] instanceof AvgAggregationBuilder);
+        assertTrue(subAggs.toArray()[1] instanceof FilterAggregationBuilder);
+        assertTrue(subAggs.toArray()[2] instanceof CardinalityAggregationBuilder);
+        assertTrue(subAggs.toArray()[3] instanceof FilterAggregationBuilder);
+        assertTrue(subAggs.toArray()[4] instanceof CardinalityAggregationBuilder);
+        
+        AvgAggregationBuilder avgInt = (AvgAggregationBuilder) subAggs.toArray()[0];
+        assertEquals("int", avgInt.field());
+        
+        FilterAggregationBuilder existsKeyword = (FilterAggregationBuilder) subAggs.toArray()[1];
+        assertTrue(existsKeyword.getFilter() instanceof ExistsQueryBuilder);
+        assertEquals("keyword", ((ExistsQueryBuilder) existsKeyword.getFilter()).fieldName());
+        
+        CardinalityAggregationBuilder cardinalityKeyword = (CardinalityAggregationBuilder) subAggs.toArray()[2];
+        assertEquals("keyword", cardinalityKeyword.field());
+        
+        FilterAggregationBuilder existsDottedField = (FilterAggregationBuilder) subAggs.toArray()[3];
+        assertTrue(existsDottedField.getFilter() instanceof ExistsQueryBuilder);
+        assertEquals("some.dotted.field", ((ExistsQueryBuilder) existsDottedField.getFilter()).fieldName());
+        
+        CardinalityAggregationBuilder cardinalityDottedField = (CardinalityAggregationBuilder) subAggs.toArray()[4];
+        assertEquals("some.dotted.field", cardinalityDottedField.field());
+
+        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("{\"buckets_path\":{"
+                        + "\"a0\":\"" + cardinalityKeyword.getName() + "\","
+                        + "\"a1\":\"" + existsKeyword.getName() + "._count\","
+                        + "\"a2\":\"" + cardinalityDottedField.getName() + "\","
+                        + "\"a3\":\"" + existsDottedField.getName() + "._count\","
+                        + "\"a4\":\"_count\","
+                        + "\"a5\":\"" + avgInt.getName() + "\"},"
+                        + "\"script\":{\"source\":\""
+                        + "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.and("
+                        +   "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.and("
+                        +     "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.and("
+                        +       "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.and("
+                        +         "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.and("
+                        +           "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a0,params.v0)),"
+                        +           "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a1,params.v1)))),"
+                        +         "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a2,params.v2)))),"
+                        +       "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a3,params.v3)))),"
+                        +     "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a4,params.v4)))),"
+                        +   "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a5,params.v5))))\","
+                        + "\"lang\":\"painless\",\"params\":{\"v0\":3,\"v1\":32,\"v2\":1,\"v3\":2,\"v4\":5,\"v5\":50000}},"
+                        + "\"gap_policy\":\"skip\"}}}}}"));
     }
 }

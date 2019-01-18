@@ -275,10 +275,10 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     @Override
-    protected boolean isCachable(TermsQueryBuilder queryBuilder) {
-        // even though we use a terms lookup here we do this during rewrite and that means we are cachable on toQuery
+    protected boolean isCacheable(TermsQueryBuilder queryBuilder) {
+        // even though we use a terms lookup here we do this during rewrite and that means we are cacheable on toQuery
         // that's why we return true here all the time
-        return super.isCachable(queryBuilder);
+        return super.isCacheable(queryBuilder);
     }
 
     public void testSerializationFailsUnlessFetched() throws IOException {

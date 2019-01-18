@@ -38,6 +38,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null);
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();
+    private static final FreezeAction TEST_FREEZE_ACTION = new FreezeAction();
+    private static final SetPriorityAction TEST_PRIORITY_ACTION = new SetPriorityAction(0);
 
     public void testValidatePhases() {
         boolean invalid = randomBoolean();
@@ -60,7 +62,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         Map<String, LifecycleAction> actions = VALID_HOT_ACTIONS
             .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
         if (randomBoolean()) {
-            invalidAction = getTestAction(randomFrom("allocate", "forcemerge", "delete", "shrink"));
+            invalidAction = getTestAction(randomFrom("allocate", "forcemerge", "delete", "shrink", "freeze"));
             actions.put(invalidAction.getWriteableName(), invalidAction);
         }
         Map<String, Phase> hotPhase = Collections.singletonMap("hot",
@@ -81,7 +83,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         Map<String, LifecycleAction> actions = randomSubsetOf(VALID_WARM_ACTIONS)
             .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
         if (randomBoolean()) {
-            invalidAction = getTestAction(randomFrom("rollover", "delete"));
+            invalidAction = getTestAction(randomFrom("rollover", "delete", "freeze"));
             actions.put(invalidAction.getWriteableName(), invalidAction);
         }
         Map<String, Phase> warmPhase = Collections.singletonMap("warm",
@@ -123,7 +125,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         Map<String, LifecycleAction> actions = VALID_DELETE_ACTIONS
             .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
         if (randomBoolean()) {
-            invalidAction = getTestAction(randomFrom("allocate", "rollover", "forcemerge", "shrink"));
+            invalidAction = getTestAction(randomFrom("allocate", "rollover", "forcemerge", "shrink", "freeze", "set_priority"));
             actions.put(invalidAction.getWriteableName(), invalidAction);
         }
         Map<String, Phase> deletePhase = Collections.singletonMap("delete",
@@ -162,6 +164,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
         List<LifecycleAction> orderedActions = TimeseriesLifecycleType.INSTANCE.getOrderedActions(hotPhase);
         assertTrue(isSorted(orderedActions, LifecycleAction::getWriteableName, ORDERED_VALID_HOT_ACTIONS));
+        assertThat(orderedActions.indexOf(TEST_PRIORITY_ACTION), equalTo(0));
     }
 
     public void testGetOrderedActionsWarm() {
@@ -170,6 +173,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, actions);
         List<LifecycleAction> orderedActions = TimeseriesLifecycleType.INSTANCE.getOrderedActions(warmPhase);
         assertTrue(isSorted(orderedActions, LifecycleAction::getWriteableName, ORDERED_VALID_WARM_ACTIONS));
+        assertThat(orderedActions.indexOf(TEST_PRIORITY_ACTION), equalTo(0));
     }
 
     public void testGetOrderedActionsCold() {
@@ -178,6 +182,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         Phase coldPhase = new Phase("cold", TimeValue.ZERO, actions);
         List<LifecycleAction> orderedActions = TimeseriesLifecycleType.INSTANCE.getOrderedActions(coldPhase);
         assertTrue(isSorted(orderedActions, LifecycleAction::getWriteableName, ORDERED_VALID_COLD_ACTIONS));
+        assertThat(orderedActions.indexOf(TEST_PRIORITY_ACTION), equalTo(0));
     }
 
     public void testGetOrderedActionsDelete() {
@@ -300,6 +305,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     public void testGetNextActionName() {
         // Hot Phase
+        assertNextActionName("hot", SetPriorityAction.NAME, null, new String[] {});
+        assertNextActionName("hot", SetPriorityAction.NAME, RolloverAction.NAME, new String[]{SetPriorityAction.NAME, RolloverAction.NAME});
         assertNextActionName("hot", RolloverAction.NAME, null, new String[] {});
         assertNextActionName("hot", RolloverAction.NAME, null, new String[] { RolloverAction.NAME });
         assertInvalidAction("hot", "foo", new String[] { RolloverAction.NAME });
@@ -310,6 +317,16 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertInvalidAction("hot", ShrinkAction.NAME, new String[] { RolloverAction.NAME });
 
         // Warm Phase
+        assertNextActionName("warm", SetPriorityAction.NAME, ReadOnlyAction.NAME,
+            new String[]{SetPriorityAction.NAME, ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME});
+        assertNextActionName("warm", SetPriorityAction.NAME, AllocateAction.NAME,
+            new String[]{SetPriorityAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME});
+        assertNextActionName("warm", SetPriorityAction.NAME, ShrinkAction.NAME,
+            new String[]{SetPriorityAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME});
+        assertNextActionName("warm", SetPriorityAction.NAME, ForceMergeAction.NAME,
+            new String[]{SetPriorityAction.NAME, ForceMergeAction.NAME});
+        assertNextActionName("warm", SetPriorityAction.NAME, null, new String[]{SetPriorityAction.NAME});
+
         assertNextActionName("warm", ReadOnlyAction.NAME, AllocateAction.NAME,
                 new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
         assertNextActionName("warm", ReadOnlyAction.NAME, ShrinkAction.NAME,
@@ -354,11 +371,17 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
 
         // Cold Phase
+        assertNextActionName("cold", SetPriorityAction.NAME, FreezeAction.NAME, new String[]{SetPriorityAction.NAME, FreezeAction.NAME});
+        assertNextActionName("cold", SetPriorityAction.NAME, AllocateAction.NAME,
+            new String[]{SetPriorityAction.NAME, AllocateAction.NAME});
+        assertNextActionName("cold", SetPriorityAction.NAME, null, new String[] { SetPriorityAction.NAME });
+        assertNextActionName("cold", SetPriorityAction.NAME, null, new String[] {});
         assertNextActionName("cold", AllocateAction.NAME, null, new String[] { AllocateAction.NAME });
-
         assertNextActionName("cold", AllocateAction.NAME, null, new String[] {});
-
         assertNextActionName("cold", AllocateAction.NAME, null, new String[] {});
+        assertNextActionName("cold", AllocateAction.NAME, FreezeAction.NAME, FreezeAction.NAME);
+        assertNextActionName("cold", FreezeAction.NAME, null);
+        assertNextActionName("cold", FreezeAction.NAME, null, AllocateAction.NAME);
 
         assertInvalidAction("cold", "foo", new String[] { AllocateAction.NAME });
         assertInvalidAction("cold", DeleteAction.NAME, new String[] { AllocateAction.NAME });
@@ -376,6 +399,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertInvalidAction("delete", ReadOnlyAction.NAME, new String[] { DeleteAction.NAME });
         assertInvalidAction("delete", RolloverAction.NAME, new String[] { DeleteAction.NAME });
         assertInvalidAction("delete", ShrinkAction.NAME, new String[] { DeleteAction.NAME });
+        assertInvalidAction("delete", FreezeAction.NAME, new String[] { DeleteAction.NAME });
+        assertInvalidAction("delete", SetPriorityAction.NAME, new String[] { DeleteAction.NAME });
 
         Phase phase = new Phase("foo", TimeValue.ZERO, Collections.emptyMap());
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
@@ -415,6 +440,10 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 return new RolloverAction(ByteSizeValue.parseBytesSizeValue("0b", "test"), TimeValue.ZERO, 1L);
             case ShrinkAction.NAME:
                 return new ShrinkAction(1);
+            case FreezeAction.NAME:
+                return new FreezeAction();
+            case SetPriorityAction.NAME:
+                return new SetPriorityAction(0);
             }
             return new DeleteAction();
         }).collect(Collectors.toConcurrentMap(LifecycleAction::getWriteableName, Function.identity()));
@@ -476,6 +505,10 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 return TEST_ROLLOVER_ACTION;
             case ShrinkAction.NAME:
                 return TEST_SHRINK_ACTION;
+            case FreezeAction.NAME:
+                return TEST_FREEZE_ACTION;
+            case SetPriorityAction.NAME:
+                return TEST_PRIORITY_ACTION;
             default:
                 throw new IllegalArgumentException("unsupported timeseries phase action [" + actionName + "]");
         }

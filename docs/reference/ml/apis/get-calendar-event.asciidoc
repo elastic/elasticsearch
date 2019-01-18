@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-calendar-event]]
-=== Get Scheduled Events API
+=== Get scheduled events API
 ++++
-<titleabbrev>Get Scheduled Events</titleabbrev>
+<titleabbrev>Get scheduled events</titleabbrev>
 ++++
 
 Retrieves information about the scheduled events in

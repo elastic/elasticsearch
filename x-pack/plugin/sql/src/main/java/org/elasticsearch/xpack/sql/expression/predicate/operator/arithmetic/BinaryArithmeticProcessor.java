@@ -76,7 +76,7 @@ public class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Object,
                 return Arithmetics.sub((ZonedDateTime) l, ((IntervalDayTime) r).interval());
             }
             if (r instanceof ZonedDateTime && l instanceof Interval<?>) {
-                throw new SqlIllegalArgumentException("Cannot substract a date from an interval; do you mean the reverse?");
+                throw new SqlIllegalArgumentException("Cannot subtract a date from an interval; do you mean the reverse?");
             }
 
             throw new SqlIllegalArgumentException("Cannot compute [-] between [{}] [{}]", l.getClass().getSimpleName(),

@@ -327,10 +327,11 @@ setup:
 ---
 "Composite aggregation and array size":
   - skip:
-      version: " - 6.3.99"
-      reason:  starting in 6.4 the composite sources do not allocate arrays eagerly.
+      version: " - 6.6.99"
+      reason:  starting in 6.7 the composite aggregation throws an execption if the provided size is greater than search.max_buckets.
 
   - do:
+        catch: /.*Trying to create too many buckets.*/
         search:
           index: test
           body:
@@ -347,8 +348,3 @@ setup:
                       }
                     }
                   ]
-
-  - match: {hits.total: 6}
-  - length: { aggregations.test.buckets: 2 }
-  - length: { aggregations.test.after_key: 1 }
-  - match: { aggregations.test.after_key.keyword:  "foo" }

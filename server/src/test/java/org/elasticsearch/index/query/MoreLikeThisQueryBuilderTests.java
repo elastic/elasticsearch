@@ -360,7 +360,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     }
 
     @Override
-    protected boolean isCachable(MoreLikeThisQueryBuilder queryBuilder) {
+    protected boolean isCacheable(MoreLikeThisQueryBuilder queryBuilder) {
         return queryBuilder.likeItems().length == 0; // items are always fetched
     }
 

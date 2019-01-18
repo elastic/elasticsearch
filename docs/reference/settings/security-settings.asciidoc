@@ -1213,6 +1213,10 @@ through the list of URLs will continue until a successful connection is made.
 [[ssl-tls-settings]]
 ==== Default TLS/SSL settings
 
+deprecated[6.7.0, fallback to the default TLS/SSL settings is deprecated as it
+leads to ambiguity in what configuration is used. Fully configure each components'
+TLS/SSL settings as the default settings will be removed in 7.0]
+
 You can configure the following TLS/SSL settings in
 `elasticsearch.yml`. For more information, see
 {stack-ov}/encrypting-communications.html[Encrypting communications]. These

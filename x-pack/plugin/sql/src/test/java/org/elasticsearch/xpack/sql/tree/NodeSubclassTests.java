@@ -92,8 +92,9 @@ import static org.mockito.Mockito.mock;
  */
 public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCase {
 
-    private static final List<Class<? extends Node<?>>> CLASSES_WITH_MIN_TWO_CHILDREN = Arrays.asList(
-        IfNull.class, In.class, InPipe.class, Percentile.class, Percentiles.class, PercentileRanks.class);
+
+    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = Arrays.<Class<?>> asList(IfNull.class, In.class, InPipe.class,
+            Percentile.class, Percentiles.class, PercentileRanks.class);
 
     private final Class<T> subclass;
 
@@ -251,7 +252,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
              * Transforming using the way we did above should only change
              * the one property of the node that we intended to transform.
              */
-            assertEquals(node.location(), transformed.location());
+            assertEquals(node.source(), transformed.source());
             List<Object> op = node.properties();
             List<Object> tp = transformed.properties();
             for (int p = 0; p < op.size(); p++) {
@@ -462,7 +463,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             }
         } else if (toBuildClass == CurrentDateTime.class) {
             if (argClass == Expression.class) {
-                return Literal.of(LocationTests.randomLocation(), randomInt(9));
+                return Literal.of(SourceTests.randomSource(), randomInt(9));
             }
         }
         if (Expression.class == argClass) {
@@ -516,9 +517,9 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             // Nor strings
             return randomAlphaOfLength(5);
         }
-        if (argClass == Location.class) {
+        if (argClass == Source.class) {
             // Location is final and can't be mocked but we have a handy method to generate ones.
-            return LocationTests.randomLocation();
+            return SourceTests.randomSource();
         }
         try {
             return mock(argClass);

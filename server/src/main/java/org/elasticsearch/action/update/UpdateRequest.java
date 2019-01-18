@@ -410,7 +410,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     public UpdateRequest fetchSource(@Nullable String include, @Nullable String exclude) {
         FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;
-        this.fetchSourceContext = new FetchSourceContext(context.fetchSource(), new String[] {include}, new String[]{exclude});
+        String[] includes = include == null ? Strings.EMPTY_ARRAY : new String[]{include};
+        String[] excludes = exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude};
+        this.fetchSourceContext = new FetchSourceContext(context.fetchSource(), includes, excludes);
         return this;
     }
 

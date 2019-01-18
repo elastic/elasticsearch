@@ -138,6 +138,8 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(profileConfiguration, notNullValue());
         assertThat(profileConfiguration.trustConfig(), instanceOf(StoreTrustConfig.class));
         assertThat(((StoreTrustConfig) profileConfiguration.trustConfig()).trustStorePath, equalTo(testClientStore.toString()));
+        assertWarnings("SSL configuration [xpack.http.ssl] relies upon fallback to another configuration for [" +
+            "trust configuration], which is deprecated.");
     }
 
     public void testThatSslContextCachingWorks() throws Exception {
@@ -158,6 +160,8 @@ public class SSLServiceTests extends ESTestCase {
         final SSLConfiguration configuration = sslService.getSSLConfiguration("xpack.ssl");
         final SSLContext configContext = sslService.sslContext(configuration);
         assertThat(configContext, is(sameInstance(sslContext)));
+        assertWarnings("SSL configuration [xpack.http.ssl] relies upon fallback to another configuration for [key configuration, " +
+            "trust configuration], which is deprecated.");
     }
 
     public void testThatKeyStoreAndKeyCanHaveDifferentPasswords() throws Exception {
@@ -174,6 +178,8 @@ public class SSLServiceTests extends ESTestCase {
         final SSLService sslService = new SSLService(settings, env);
         SSLConfiguration configuration = globalConfiguration(sslService);
         sslService.createSSLEngine(configuration, null, -1);
+        assertWarnings("SSL configuration [xpack.http.ssl] relies upon fallback to another configuration for [key configuration, " +
+            "trust configuration], which is deprecated.");
     }
 
     public void testIncorrectKeyPasswordThrowsException() throws Exception {
@@ -208,6 +214,8 @@ public class SSLServiceTests extends ESTestCase {
         SSLConfiguration configuration = globalConfiguration(sslService);
         SSLEngine engine = sslService.createSSLEngine(configuration, null, -1);
         assertThat(Arrays.asList(engine.getEnabledProtocols()), not(hasItem("SSLv3")));
+        assertWarnings("SSL configuration [xpack.http.ssl] relies upon fallback to another configuration for [key configuration, " +
+            "trust configuration], which is deprecated.");
     }
 
     public void testThatCreateClientSSLEngineWithoutAnySettingsWorks() throws Exception {
@@ -228,6 +236,8 @@ public class SSLServiceTests extends ESTestCase {
         SSLConfiguration configuration = globalConfiguration(sslService);
         SSLEngine sslEngine = sslService.createSSLEngine(configuration, null, -1);
         assertThat(sslEngine, notNullValue());
+        assertWarnings("SSL configuration [xpack.http.ssl] relies upon fallback to another configuration for [" +
+            "trust configuration], which is deprecated.");
     }
 
 
@@ -243,6 +253,8 @@ public class SSLServiceTests extends ESTestCase {
         SSLService sslService = new SSLService(settings, env);
 
         assertTrue(sslService.isConfigurationValidForServerUsage(globalConfiguration(sslService)));
+        assertWarnings("SSL configuration [xpack.http.ssl] relies upon fallback to another configuration for [key configuration, " +
+            "trust configuration], which is deprecated.");
     }
 
     public void testValidForServerWithFallback() throws Exception {
@@ -268,6 +280,8 @@ public class SSLServiceTests extends ESTestCase {
         sslService = new SSLService(settings, env);
         assertFalse(sslService.isConfigurationValidForServerUsage(globalConfiguration(sslService)));
         assertTrue(sslService.isConfigurationValidForServerUsage(sslService.getSSLConfiguration("xpack.security.transport.ssl")));
+        assertWarnings("SSL configuration [xpack.http.ssl] relies upon fallback to another configuration for [" +
+            "trust configuration], which is deprecated.");
     }
 
     public void testGetVerificationMode() throws Exception {
@@ -285,6 +299,8 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(sslService.getSSLConfiguration("xpack.security.transport.ssl.").verificationMode(), is(VerificationMode.CERTIFICATE));
         assertThat(sslService.getSSLConfiguration("transport.profiles.foo.xpack.security.ssl.").verificationMode(),
             is(VerificationMode.FULL));
+        assertWarnings("SSL configuration [xpack.http.ssl] relies upon fallback to another configuration for [trust configuration, " +
+            "certificate verification mode], which is deprecated.");
     }
 
     public void testIsSSLClientAuthEnabled() throws Exception {
@@ -300,6 +316,8 @@ public class SSLServiceTests extends ESTestCase {
         assertFalse(sslService.isSSLClientAuthEnabled(globalConfiguration(sslService)));
         assertTrue(sslService.isSSLClientAuthEnabled(sslService.getSSLConfiguration("xpack.security.transport.ssl")));
         assertTrue(sslService.isSSLClientAuthEnabled(sslService.getSSLConfiguration("transport.profiles.foo.xpack.security.ssl")));
+        assertWarnings("SSL configuration [xpack.http.ssl] relies upon fallback to another configuration for [" +
+            "client authentication], which is deprecated.");
     }
 
     public void testThatHttpClientAuthDefaultsToNone() throws Exception {
@@ -314,6 +332,8 @@ public class SSLServiceTests extends ESTestCase {
 
         final SSLConfiguration httpConfig = sslService.getHttpTransportSSLConfiguration();
         assertThat(httpConfig.sslClientAuth(), is(SSLClientAuth.NONE));
+        assertWarnings("SSL configuration [xpack.http.ssl] relies upon fallback to another configuration for [client authentication" +
+            "], which is deprecated.");
     }
 
     public void testThatTruststorePasswordIsRequired() throws Exception {
@@ -342,9 +362,6 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     public void testCiphersAndInvalidCiphersWork() throws Exception {
-        List<String> ciphers = new ArrayList<>(XPackSettings.DEFAULT_CIPHERS);
-        ciphers.add("foo");
-        ciphers.add("bar");
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
@@ -358,6 +375,8 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(engine, is(notNullValue()));
         String[] enabledCiphers = engine.getEnabledCipherSuites();
         assertThat(Arrays.asList(enabledCiphers), not(contains("foo", "bar")));
+        assertWarnings("SSL configuration [xpack.http.ssl] relies upon fallback to another configuration for [key configuration, " +
+            "trust configuration], which is deprecated.");
     }
 
     public void testInvalidCiphersOnlyThrowsException() throws Exception {
@@ -388,6 +407,8 @@ public class SSLServiceTests extends ESTestCase {
         SSLEngine engine = sslService.createSSLEngine(configuration, null, -1);
         assertThat(engine, is(notNullValue()));
         assertTrue(engine.getSSLParameters().getUseCipherSuitesOrder());
+        assertWarnings("SSL configuration [xpack.http.ssl] relies upon fallback to another configuration for [key configuration, " +
+            "trust configuration], which is deprecated.");
     }
 
     public void testThatSSLSocketFactoryHasProperCiphersAndProtocols() throws Exception {
@@ -413,6 +434,8 @@ public class SSLServiceTests extends ESTestCase {
             assertThat(socket.getSSLParameters().getProtocols(), arrayContainingInAnyOrder(supportedProtocols));
             assertTrue(socket.getSSLParameters().getUseCipherSuitesOrder());
         }
+        assertWarnings("SSL configuration [xpack.http.ssl] relies upon fallback to another configuration for [key configuration, " +
+            "trust configuration], which is deprecated.");
     }
 
     public void testThatSSLEngineHasProperCiphersAndProtocols() throws Exception {
@@ -433,6 +456,8 @@ public class SSLServiceTests extends ESTestCase {
         // the order we set the protocols in is not going to be what is returned as internally the JDK may sort the versions
         assertThat(engine.getEnabledProtocols(), arrayContainingInAnyOrder(supportedProtocols));
         assertThat(engine.getSSLParameters().getProtocols(), arrayContainingInAnyOrder(supportedProtocols));
+        assertWarnings("SSL configuration [xpack.http.ssl] relies upon fallback to another configuration for [key configuration, " +
+            "trust configuration], which is deprecated.");
     }
 
     public void testSSLStrategy() {

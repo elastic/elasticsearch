@@ -20,7 +20,7 @@ xpack.security.audit.index.client.cluster.name: logging-prod <2>
 xpack.security.audit.index.client.xpack.security.user: myuser:mypassword <3>
 --------------------------------------------------
 <1> A list of hosts in the remote cluster. If you are not using the default 
-value for the `transport.tcp.port` setting on the remote cluster, you must 
+value for the `transport.port` setting on the remote cluster, you must
 specify the appropriate port number (prefixed by a colon) after each host. 
 <2> The remote cluster name.
 <3> A valid user and password, which must have authority to create the 

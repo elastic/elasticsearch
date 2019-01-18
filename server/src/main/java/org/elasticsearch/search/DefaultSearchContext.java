@@ -159,7 +159,7 @@ final class DefaultSearchContext extends SearchContext {
     DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, ClusterService clusterService, IndexService indexService,
                          IndexShard indexShard, BigArrays bigArrays, Counter timeEstimateCounter, TimeValue timeout,
-                         FetchPhase fetchPhase, String clusterAlias, Version minNodeVersion) {
+                         FetchPhase fetchPhase, Version minNodeVersion) {
         this.id = id;
         this.request = request;
         this.fetchPhase = fetchPhase;
@@ -179,7 +179,7 @@ final class DefaultSearchContext extends SearchContext {
         this.timeout = timeout;
         this.minNodeVersion = minNodeVersion;
         queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher.getIndexReader(), request::nowInMillis,
-            clusterAlias);
+            shardTarget.getClusterAlias());
         queryShardContext.setTypes(request.types());
         queryBoost = request.indexBoost();
     }

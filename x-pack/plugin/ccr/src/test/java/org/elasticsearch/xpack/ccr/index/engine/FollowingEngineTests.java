@@ -270,9 +270,9 @@ public class FollowingEngineTests extends ESTestCase {
                 null,
                 new NoneCircuitBreakerService(),
                 globalCheckpoint::longValue,
+                Collections::emptyList,
                 () -> primaryTerm.get(),
-                EngineTestCase.tombstoneDocSupplier()
-        );
+                EngineTestCase.tombstoneDocSupplier());
     }
 
     private static Store createStore(

@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.LoggedExec
-
 esplugin {
   description 'The Google Compute Engine (GCE) Discovery plugin allows to use GCE API for the unicast discovery mechanism.'
   classname 'org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin'
@@ -36,7 +34,7 @@ unitTest {
   systemProperty 'tests.artifact', project.name 
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
   // classes are missing
   'com.google.common.base.Splitter', 
   'com.google.common.collect.Lists', 
@@ -44,5 +42,5 @@ thirdPartyAudit.excludes = [
   'javax.servlet.ServletContextListener', 
   'org.apache.avalon.framework.logger.Logger', 
   'org.apache.log.Hierarchy', 
-  'org.apache.log.Logger',
-]
+  'org.apache.log.Logger'
+)

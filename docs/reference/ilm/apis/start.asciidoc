@@ -1,14 +1,12 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-start]]
-=== Start {ILM} API
+=== Start {ilm} API
 ++++
-<titleabbrev>Start {ILM}</titleabbrev>
+<titleabbrev>Start {ilm}</titleabbrev>
 ++++
 
-beta[]
-
-Start the {ILM} plugin.
+Start the {ilm} ({ilm-init}) plugin.
 
 ==== Request
 
@@ -16,9 +14,9 @@ Start the {ILM} plugin.
 
 ==== Description
 
-Starts the {ILM} plugin if it is currently stopped. {ILM} is started
-automatically when the cluster is formed. Restarting {ILM} is only
-necessary if it has been stopped using the <<ilm-stop, Stop {ILM} API>>.
+Starts the {ilm-init} plugin if it is currently stopped. {ilm-init} is started
+automatically when the cluster is formed. Restarting {ilm-init} is only
+necessary if it has been stopped using the <<ilm-stop, Stop {ilm-init} API>>.
 
 ==== Request Parameters
 
@@ -27,7 +25,7 @@ include::{docdir}/rest-api/timeoutparms.asciidoc[]
 ==== Authorization
 
 You must have the `manage_ilm` cluster privilege to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security Privileges].
+For more information, see {stack-ov}/security-privileges.html[Security privileges].
 
 ==== Examples
 

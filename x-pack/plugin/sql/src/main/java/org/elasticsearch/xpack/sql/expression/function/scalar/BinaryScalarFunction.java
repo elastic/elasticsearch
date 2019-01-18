@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Arrays;
 import java.util.List;
@@ -18,8 +18,8 @@ public abstract class BinaryScalarFunction extends ScalarFunction {
 
     private final Expression left, right;
 
-    protected BinaryScalarFunction(Location location, Expression left, Expression right) {
-        super(location, Arrays.asList(left, right));
+    protected BinaryScalarFunction(Source source, Expression left, Expression right) {
+        super(source, Arrays.asList(left, right));
         this.left = left;
         this.right = right;
     }

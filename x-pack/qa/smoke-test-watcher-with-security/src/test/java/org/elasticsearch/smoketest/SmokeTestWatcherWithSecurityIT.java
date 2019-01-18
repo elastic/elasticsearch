@@ -148,7 +148,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
             builder.startObject("condition").startObject("compare").startObject("ctx.payload.hits.total").field("gte", 1)
                     .endObject().endObject().endObject();
             builder.startObject("actions").startObject("logging").startObject("logging")
-                    .field("text", "successfully ran " + watchId + "to test for search inpput").endObject().endObject().endObject();
+                    .field("text", "successfully ran " + watchId + "to test for search input").endObject().endObject().endObject();
             builder.endObject();
 
             indexWatch(watchId, builder);

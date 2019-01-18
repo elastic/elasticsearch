@@ -16,14 +16,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.CcrIntegTestCase;
-import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowParameters;
+import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowerInfo;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.util.Arrays;
@@ -139,7 +141,13 @@ public class AutoFollowIT extends CcrIntegTestCase {
             assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo((long) expectedVal1));
         });
 
+        // Delete auto follow pattern and make sure that in the background the auto follower has stopped
+        // then the leader index created after that should never be auto followed:
         deleteAutoFollowPatternSetting();
+        assertBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getAutoFollowedClusters().size(), equalTo(0));
+        });
         createLeaderIndex("logs-does-not-count", leaderIndexSettings);
 
         putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
@@ -151,15 +159,20 @@ public class AutoFollowIT extends CcrIntegTestCase {
         int expectedVal2 = numIndices;
 
         MetaData[] metaData = new MetaData[1];
+        AutoFollowStats[] autoFollowStats = new AutoFollowStats[1];
         try {
             assertBusy(() -> {
                 metaData[0] = followerClient().admin().cluster().prepareState().get().getState().metaData();
+                autoFollowStats[0] = getAutoFollowStats();
                 int count = (int) Arrays.stream(metaData[0].getConcreteAllIndices()).filter(s -> s.startsWith("copy-")).count();
                 assertThat(count, equalTo(expectedVal2));
+                // Ensure that there are no auto follow errors:
+                // (added specifically to see that there are no leader indices auto followed multiple times)
+                assertThat(autoFollowStats[0].getRecentAutoFollowErrors().size(), equalTo(0));
             });
         } catch (AssertionError ae) {
             logger.warn("metadata={}", Strings.toString(metaData[0]));
-            logger.warn("auto follow stats={}", Strings.toString(getAutoFollowStats()));
+            logger.warn("auto follow stats={}", Strings.toString(autoFollowStats[0]));
             throw ae;
         }
     }
@@ -212,42 +225,52 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         createLeaderIndex("logs-201901", leaderIndexSettings);
         assertBusy(() -> {
-            PersistentTasksCustomMetaData persistentTasksMetaData =
-                followerClient().admin().cluster().prepareState().get().getState().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            assertThat(persistentTasksMetaData, notNullValue());
-            assertThat(persistentTasksMetaData.tasks().size(), equalTo(1));
-            ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTasksMetaData.tasks().iterator().next().getParams();
-            assertThat(shardFollowTask.getLeaderShardId().getIndexName(), equalTo("logs-201901"));
-            assertThat(shardFollowTask.getFollowShardId().getIndexName(), equalTo("copy-logs-201901"));
+            FollowInfoAction.Request followInfoRequest = new FollowInfoAction.Request();
+            followInfoRequest.setFollowerIndices("copy-logs-201901");
+            FollowInfoAction.Response followInfoResponse;
+            try {
+                 followInfoResponse = followerClient().execute(FollowInfoAction.INSTANCE, followInfoRequest).actionGet();
+            } catch (IndexNotFoundException e) {
+                throw new AssertionError(e);
+            }
+
+            assertThat(followInfoResponse.getFollowInfos().size(), equalTo(1));
+            FollowerInfo followerInfo = followInfoResponse.getFollowInfos().get(0);
+            assertThat(followerInfo.getFollowerIndex(), equalTo("copy-logs-201901"));
+            assertThat(followerInfo.getRemoteCluster(), equalTo("leader_cluster"));
+            assertThat(followerInfo.getLeaderIndex(), equalTo("logs-201901"));
+
+            FollowParameters followParameters = followerInfo.getParameters();
+            assertThat(followParameters, notNullValue());
             if (request.getMaxWriteBufferCount() != null) {
-                assertThat(shardFollowTask.getMaxWriteBufferCount(), equalTo(request.getMaxWriteBufferCount()));
+                assertThat(followParameters.getMaxWriteBufferCount(), equalTo(request.getMaxWriteBufferCount()));
             }
             if (request.getMaxWriteBufferSize() != null) {
-                assertThat(shardFollowTask.getMaxWriteBufferSize(), equalTo(request.getMaxWriteBufferSize()));
+                assertThat(followParameters.getMaxWriteBufferSize(), equalTo(request.getMaxWriteBufferSize()));
             }
             if (request.getMaxConcurrentReadBatches() != null) {
-                assertThat(shardFollowTask.getMaxOutstandingReadRequests(), equalTo(request.getMaxConcurrentReadBatches()));
+                assertThat(followParameters.getMaxOutstandingReadRequests(), equalTo(request.getMaxConcurrentReadBatches()));
             }
             if (request.getMaxConcurrentWriteBatches() != null) {
-                assertThat(shardFollowTask.getMaxOutstandingWriteRequests(), equalTo(request.getMaxConcurrentWriteBatches()));
+                assertThat(followParameters.getMaxOutstandingWriteRequests(), equalTo(request.getMaxConcurrentWriteBatches()));
             }
             if (request.getMaxReadRequestOperationCount() != null) {
-                assertThat(shardFollowTask.getMaxReadRequestOperationCount(), equalTo(request.getMaxReadRequestOperationCount()));
+                assertThat(followParameters.getMaxReadRequestOperationCount(), equalTo(request.getMaxReadRequestOperationCount()));
             }
             if (request.getMaxReadRequestSize() != null) {
-                assertThat(shardFollowTask.getMaxReadRequestSize(), equalTo(request.getMaxReadRequestSize()));
+                assertThat(followParameters.getMaxReadRequestSize(), equalTo(request.getMaxReadRequestSize()));
             }
             if (request.getMaxRetryDelay() != null) {
-                assertThat(shardFollowTask.getMaxRetryDelay(), equalTo(request.getMaxRetryDelay()));
+                assertThat(followParameters.getMaxRetryDelay(), equalTo(request.getMaxRetryDelay()));
             }
             if (request.getReadPollTimeout() != null) {
-                assertThat(shardFollowTask.getReadPollTimeout(), equalTo(request.getReadPollTimeout()));
+                assertThat(followParameters.getReadPollTimeout(), equalTo(request.getReadPollTimeout()));
             }
             if (request.getMaxWriteRequestOperationCount() != null) {
-                assertThat(shardFollowTask.getMaxWriteRequestOperationCount(), equalTo(request.getMaxWriteRequestOperationCount()));
+                assertThat(followParameters.getMaxWriteRequestOperationCount(), equalTo(request.getMaxWriteRequestOperationCount()));
             }
             if (request.getMaxWriteRequestSize() != null) {
-                assertThat(shardFollowTask.getMaxWriteRequestSize(), equalTo(request.getMaxWriteRequestSize()));
+                assertThat(followParameters.getMaxWriteRequestSize(), equalTo(request.getMaxWriteRequestSize()));
             }
         });
     }
@@ -281,12 +304,12 @@ public class AutoFollowIT extends CcrIntegTestCase {
             assertThat(autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
 
             assertThat(autoFollowStats.getRecentAutoFollowErrors().size(), equalTo(2));
-            ElasticsearchException autoFollowError1 = autoFollowStats.getRecentAutoFollowErrors().get("my-pattern1:logs-201801");
+            ElasticsearchException autoFollowError1 = autoFollowStats.getRecentAutoFollowErrors().get("my-pattern1:logs-201801").v2();
             assertThat(autoFollowError1, notNullValue());
             assertThat(autoFollowError1.getRootCause().getMessage(), equalTo("index to follow [logs-201801] for pattern [my-pattern1] " +
                 "matches with other patterns [my-pattern2]"));
 
-            ElasticsearchException autoFollowError2 = autoFollowStats.getRecentAutoFollowErrors().get("my-pattern2:logs-201801");
+            ElasticsearchException autoFollowError2 = autoFollowStats.getRecentAutoFollowErrors().get("my-pattern2:logs-201801").v2();
             assertThat(autoFollowError2, notNullValue());
             assertThat(autoFollowError2.getRootCause().getMessage(), equalTo("index to follow [logs-201801] for pattern [my-pattern2] " +
                 "matches with other patterns [my-pattern1]"));
@@ -311,7 +334,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(0L));
             assertThat(autoFollowStats.getNumberOfFailedFollowIndices(), equalTo(1L));
             assertThat(autoFollowStats.getRecentAutoFollowErrors().size(), equalTo(1));
-            ElasticsearchException failure  = autoFollowStats.getRecentAutoFollowErrors().firstEntry().getValue();
+            ElasticsearchException failure  = autoFollowStats.getRecentAutoFollowErrors().firstEntry().getValue().v2();
             assertThat(failure.getMessage(), equalTo("index [logs-20200101] cannot be followed, " +
                 "because soft deletes are not enabled"));
             IndicesExistsRequest request = new IndicesExistsRequest("copy-logs-20200101");

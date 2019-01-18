@@ -27,6 +27,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.HandledTransportAction.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -358,7 +359,7 @@ public class SearchTransportService {
         TransportActionProxy.registerProxyActionWithDynamicResponseType(transportService, QUERY_ACTION_NAME,
             (request) -> ((ShardSearchRequest)request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new);
 
-        transportService.registerRequestHandler(QUERY_ID_ACTION_NAME, QuerySearchRequest::new, ThreadPool.Names.SEARCH,
+        transportService.registerRequestHandler(QUERY_ID_ACTION_NAME, QuerySearchRequest::new, ThreadPool.Names.SAME,
             new TaskAwareTransportRequestHandler<QuerySearchRequest>() {
                 @Override
                 public void messageReceived(QuerySearchRequest request, TransportChannel channel, Task task) {
@@ -368,7 +369,7 @@ public class SearchTransportService {
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_ID_ACTION_NAME, QuerySearchResult::new);
 
-        transportService.registerRequestHandler(QUERY_SCROLL_ACTION_NAME, InternalScrollSearchRequest::new, ThreadPool.Names.SEARCH,
+        transportService.registerRequestHandler(QUERY_SCROLL_ACTION_NAME, InternalScrollSearchRequest::new, ThreadPool.Names.SAME,
             new TaskAwareTransportRequestHandler<InternalScrollSearchRequest>() {
                 @Override
                 public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel, Task task) {
@@ -378,7 +379,7 @@ public class SearchTransportService {
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, ScrollQuerySearchResult::new);
 
-        transportService.registerRequestHandler(QUERY_FETCH_SCROLL_ACTION_NAME, InternalScrollSearchRequest::new, ThreadPool.Names.SEARCH,
+        transportService.registerRequestHandler(QUERY_FETCH_SCROLL_ACTION_NAME, InternalScrollSearchRequest::new, ThreadPool.Names.SAME,
             new TaskAwareTransportRequestHandler<InternalScrollSearchRequest>() {
                 @Override
                 public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel, Task task) {
@@ -388,7 +389,7 @@ public class SearchTransportService {
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME, ScrollQueryFetchSearchResult::new);
 
-        transportService.registerRequestHandler(FETCH_ID_SCROLL_ACTION_NAME, ShardFetchRequest::new, ThreadPool.Names.SEARCH,
+        transportService.registerRequestHandler(FETCH_ID_SCROLL_ACTION_NAME, ShardFetchRequest::new, ThreadPool.Names.SAME,
             new TaskAwareTransportRequestHandler<ShardFetchRequest>() {
                 @Override
                 public void messageReceived(ShardFetchRequest request, TransportChannel channel, Task task){
@@ -398,7 +399,7 @@ public class SearchTransportService {
             });
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_SCROLL_ACTION_NAME, FetchSearchResult::new);
 
-        transportService.registerRequestHandler(FETCH_ID_ACTION_NAME, ShardFetchSearchRequest::new, ThreadPool.Names.SEARCH, true, true,
+        transportService.registerRequestHandler(FETCH_ID_ACTION_NAME, ShardFetchSearchRequest::new, ThreadPool.Names.SAME, true, true,
             new TaskAwareTransportRequestHandler<ShardFetchSearchRequest>() {
                 @Override
                 public void messageReceived(ShardFetchSearchRequest request, TransportChannel channel, Task task) {
@@ -423,11 +424,11 @@ public class SearchTransportService {
     /**
      * Returns a connection to the given node on the provided cluster. If the cluster alias is <code>null</code> the node will be resolved
      * against the local cluster.
-     * @param clusterAlias the cluster alias the node should be resolve against
+     * @param clusterAlias the cluster alias the node should be resolved against
      * @param node the node to resolve
      * @return a connection to the given node belonging to the cluster with the provided alias.
      */
-    Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+    Transport.Connection getConnection(@Nullable String clusterAlias, DiscoveryNode node) {
         if (clusterAlias == null) {
             return transportService.getConnection(node);
         } else {

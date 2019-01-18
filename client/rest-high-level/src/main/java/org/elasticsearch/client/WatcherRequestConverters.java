@@ -23,8 +23,8 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NByteArrayEntity;
 import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.DeactivateWatchRequest;
@@ -77,7 +77,7 @@ final class WatcherRequestConverters {
         }
         ContentType contentType = RequestConverters.createContentType(putWatchRequest.xContentType());
         BytesReference source = putWatchRequest.getSource();
-        request.setEntity(new ByteArrayEntity(source.toBytesRef().bytes, 0, source.length(), contentType));
+        request.setEntity(new NByteArrayEntity(source.toBytesRef().bytes, 0, source.length(), contentType));
         return request;
     }
 

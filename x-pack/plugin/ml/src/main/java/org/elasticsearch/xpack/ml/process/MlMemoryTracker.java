@@ -21,6 +21,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.JobManager;
@@ -154,6 +155,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     aVoid -> logger.trace("Job memory requirement refresh request completed successfully"),
                     e -> logger.error("Failed to refresh job memory requirements", e)
                 );
+                logger.debug("scheduling async refresh");
                 threadPool.executor(executorName()).execute(
                     () -> refresh(clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE), listener));
                 return true;
@@ -252,6 +254,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             return;
         }
 
+        logger.debug("refreshing memory for job [{}]", jobId);
         try {
             jobResultsProvider.getEstablishedMemoryUsage(jobId, null, null,
                 establishedModelMemoryBytes -> {
@@ -276,15 +279,16 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
     private void setJobMemoryToLimit(String jobId, ActionListener<Long> listener) {
         jobManager.getJob(jobId, ActionListener.wrap(job -> {
-            Long memoryLimitMb = job.getAnalysisLimits().getModelMemoryLimit();
-            if (memoryLimitMb != null) {
-                Long memoryRequirementBytes = ByteSizeUnit.MB.toBytes(memoryLimitMb) + Job.PROCESS_MEMORY_OVERHEAD.getBytes();
-                memoryRequirementByJob.put(jobId, memoryRequirementBytes);
-                listener.onResponse(memoryRequirementBytes);
-            } else {
-                memoryRequirementByJob.remove(jobId);
-                listener.onResponse(null);
+            Long memoryLimitMb = (job.getAnalysisLimits() != null) ? job.getAnalysisLimits().getModelMemoryLimit() : null;
+            // Although recent versions of the code enforce a non-null model_memory_limit
+            // when parsing, the job could have been streamed from an older version node in
+            // a mixed version cluster
+            if (memoryLimitMb == null) {
+                memoryLimitMb = AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB;
             }
+            Long memoryRequirementBytes = ByteSizeUnit.MB.toBytes(memoryLimitMb) + Job.PROCESS_MEMORY_OVERHEAD.getBytes();
+            memoryRequirementByJob.put(jobId, memoryRequirementBytes);
+            listener.onResponse(memoryRequirementBytes);
         }, e -> {
             if (e instanceof ResourceNotFoundException) {
                 // TODO: does this also happen if the .ml-config index exists but is unavailable?

@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -37,8 +37,8 @@ public class SysTypes extends Command {
 
     private final Integer type;
 
-    public SysTypes(Location location, int type) {
-        super(location);
+    public SysTypes(Source source, int type) {
+        super(source);
         this.type = Integer.valueOf(type);
     }
 

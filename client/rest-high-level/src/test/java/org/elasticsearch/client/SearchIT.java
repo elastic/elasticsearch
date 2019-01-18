@@ -65,6 +65,9 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStats;
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.weighted_avg.WeightedAvg;
+import org.elasticsearch.search.aggregations.metrics.weighted_avg.WeightedAvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -367,6 +370,42 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 assertEquals("second", bucket.getKeyAsString());
                 assertEquals(2, bucket.getDocCount());
             }
+        }
+    }
+
+    public void testSearchWithTermsAndWeightedAvg() throws IOException {
+        SearchRequest searchRequest = new SearchRequest("index");
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        TermsAggregationBuilder agg = new TermsAggregationBuilder("agg1", ValueType.STRING).field("type.keyword");
+        agg.subAggregation(new WeightedAvgAggregationBuilder("subagg")
+            .value(new MultiValuesSourceFieldConfig.Builder().setFieldName("num").build())
+            .weight(new MultiValuesSourceFieldConfig.Builder().setFieldName("num2").build())
+        );
+        searchSourceBuilder.aggregation(agg);
+        searchSourceBuilder.size(0);
+        searchRequest.source(searchSourceBuilder);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        assertSearchHeader(searchResponse);
+        assertNull(searchResponse.getSuggest());
+        assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
+        assertEquals(0, searchResponse.getHits().getHits().length);
+        assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
+        Terms termsAgg = searchResponse.getAggregations().get("agg1");
+        assertEquals("agg1", termsAgg.getName());
+        assertEquals(2, termsAgg.getBuckets().size());
+        Terms.Bucket type1 = termsAgg.getBucketByKey("type1");
+        assertEquals(3, type1.getDocCount());
+        assertEquals(1, type1.getAggregations().asList().size());
+        {
+            WeightedAvg weightedAvg = type1.getAggregations().get("subagg");
+            assertEquals(24.4, weightedAvg.getValue(), 0f);
+        }
+        Terms.Bucket type2 = termsAgg.getBucketByKey("type2");
+        assertEquals(2, type2.getDocCount());
+        assertEquals(1, type2.getAggregations().asList().size());
+        {
+            WeightedAvg weightedAvg = type2.getAggregations().get("subagg");
+            assertEquals(100, weightedAvg.getValue(), 0f);
         }
     }
 

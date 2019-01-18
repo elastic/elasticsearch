@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -22,8 +22,8 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
 
 public class Quarter extends BaseDateTimeFunction {
 
-    public Quarter(Location location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId);
+    public Quarter(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId);
     }
 
     @Override
@@ -48,7 +48,7 @@ public class Quarter extends BaseDateTimeFunction {
 
     @Override
     protected Quarter replaceChild(Expression newChild) {
-        return new Quarter(location(), newChild, zoneId());
+        return new Quarter(source(), newChild, zoneId());
     }
 
     @Override

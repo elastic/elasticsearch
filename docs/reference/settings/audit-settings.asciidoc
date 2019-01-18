@@ -176,8 +176,8 @@ To index audit events to a remote {es} cluster, you configure the following
 `xpack.security.audit.index.client.hosts`::
 Specifies a comma-separated list of `host:port` pairs. These hosts should be
 nodes in the remote cluster. If you are using default values for the 
-<<common-network-settings,`transport.tcp.port`>> setting, you can omit the 
-`port` value. Otherwise, it must match the `transport.tcp.port` setting. 
+<<common-network-settings,`transport.port`>> setting, you can omit the
+`port` value. Otherwise, it must match the `transport.port` setting.
 
 `xpack.security.audit.index.client.cluster.name`::
 Specifies the name of the remote cluster.

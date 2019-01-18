@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-ssl]]
-=== SSL Certificate API
+=== SSL certificate API
+++++
+<titleabbrev>SSL certificate</titleabbrev>
+++++
 
 The `certificates` API enables you to retrieve information about the X.509
 certificates that are used to encrypt communications in your {es} cluster.

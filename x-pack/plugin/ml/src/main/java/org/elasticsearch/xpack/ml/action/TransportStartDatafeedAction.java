@@ -175,7 +175,9 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     final RemoteClusterLicenseChecker remoteClusterLicenseChecker =
                             new RemoteClusterLicenseChecker(client, XPackLicenseState::isMachineLearningAllowedForOperationMode);
                     remoteClusterLicenseChecker.checkRemoteClusterLicenses(
-                            RemoteClusterLicenseChecker.remoteClusterAliases(params.getDatafeedIndices()),
+                            RemoteClusterLicenseChecker.remoteClusterAliases(
+                                    transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(),
+                                    params.getDatafeedIndices()),
                             ActionListener.wrap(
                                     response -> {
                                         if (response.isSuccess() == false) {
@@ -310,7 +312,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
     private ElasticsearchStatusException createUnknownLicenseError(
             final String datafeedId, final List<String> remoteIndices, final Exception cause) {
-        final int numberOfRemoteClusters = RemoteClusterLicenseChecker.remoteClusterAliases(remoteIndices).size();
+        final int numberOfRemoteClusters = RemoteClusterLicenseChecker.remoteClusterAliases(
+                transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(), remoteIndices).size();
         assert numberOfRemoteClusters > 0;
         final String remoteClusterQualifier = numberOfRemoteClusters == 1 ? "a remote cluster" : "remote clusters";
         final String licenseTypeQualifier = numberOfRemoteClusters == 1 ? "" : "s";

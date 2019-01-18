@@ -81,9 +81,9 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
 
         assertTaskFailed(result, ":absurd");
         assertOutputContains(result.getOutput(),
-            "> Audit of third party dependencies failed:",
-            "  Classes with violations:",
-            "    * TestingIO"
+            "Classes with violations:",
+            "  * TestingIO",
+            "> Audit of third party dependencies failed"
         );
         assertOutputDoesNotContain(result.getOutput(),"Missing classes:");
     }
@@ -98,9 +98,9 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
         assertTaskFailed(result, ":absurd");
 
         assertOutputContains(result.getOutput(),
-            "> Audit of third party dependencies failed:",
-            "  Missing classes:",
-            "    * org.apache.logging.log4j.LogManager"
+            "Missing classes:",
+            "  * org.apache.logging.log4j.LogManager",
+            "> Audit of third party dependencies failed"
         );
         assertOutputDoesNotContain(result.getOutput(), "Classes with violations:");
     }

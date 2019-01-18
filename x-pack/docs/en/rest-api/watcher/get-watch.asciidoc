@@ -1,6 +1,9 @@
 [role="xpack"]
 [[watcher-api-get-watch]]
-=== Get Watch API
+=== Get watch API
+++++
+<titleabbrev>Get watch</titleabbrev>
+++++
 
 This API retrieves a watch by its ID.
 

@@ -259,7 +259,7 @@ public interface AuthorizationEngine {
 
         private final IndicesAccessControl indicesAccessControl;
 
-        IndexAuthorizationResult(boolean auditable, IndicesAccessControl indicesAccessControl) {
+        public IndexAuthorizationResult(boolean auditable, IndicesAccessControl indicesAccessControl) {
             super(indicesAccessControl == null || indicesAccessControl.isGranted(), auditable);
             this.indicesAccessControl = indicesAccessControl;
         }

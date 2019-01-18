@@ -139,7 +139,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             assertEquals(sortedDocs[i].shardIndex, sortedDocs2[i].shardIndex);
             assertEquals(sortedDocs[i].score, sortedDocs2[i].score, 0.0f);
         }
-        assertEquals(topDocsStats.maxScore, topDocsStats2.maxScore, 0.0f);
+        assertEquals(topDocsStats.getMaxScore(), topDocsStats2.getMaxScore(), 0.0f);
         assertEquals(topDocsStats.getTotalHits().value, topDocsStats2.getTotalHits().value);
         assertEquals(topDocsStats.getTotalHits().relation, topDocsStats2.getTotalHits().relation);
         assertEquals(topDocsStats.fetchHits, topDocsStats2.fetchHits);

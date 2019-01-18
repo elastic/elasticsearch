@@ -32,6 +32,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.profile.SearchProfileShardResultsTests;
@@ -84,7 +85,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
         SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponseMerger merger = new SearchResponseMerger(randomIntBetween(0, 1000), randomIntBetween(0, 10000),
-            timeProvider, clusters, flag -> null);
+            SearchContext.TRACK_TOTAL_HITS_ACCURATE, timeProvider, clusters, flag -> null);
         for (int i = 0; i < numResponses; i++) {
             SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null, 1, 1, 0, randomLong(),
                 ShardSearchFailure.EMPTY_ARRAY, SearchResponseTests.randomClusters());
@@ -97,7 +98,8 @@ public class SearchResponseMergerTests extends ESTestCase {
 
     public void testMergeShardFailures() throws InterruptedException {
         SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
-        SearchResponseMerger merger = new SearchResponseMerger(0, 0, searchTimeProvider, SearchResponse.Clusters.EMPTY, flag -> null);
+        SearchResponseMerger merger = new SearchResponseMerger(0, 0, SearchContext.TRACK_TOTAL_HITS_ACCURATE,
+            searchTimeProvider, SearchResponse.Clusters.EMPTY, flag -> null);
         PriorityQueue<Tuple<ShardId, ShardSearchFailure>> priorityQueue = new PriorityQueue<>(Comparator.comparing(Tuple::v1));
         int numIndices = numResponses * randomIntBetween(1, 3);
         Iterator<Map.Entry<String, Index[]>> indicesPerCluster = randomRealisticIndices(numIndices, numResponses).entrySet().iterator();
@@ -136,7 +138,8 @@ public class SearchResponseMergerTests extends ESTestCase {
 
     public void testMergeShardFailuresNullShardId() throws InterruptedException {
         SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
-        SearchResponseMerger merger = new SearchResponseMerger(0, 0, searchTimeProvider, SearchResponse.Clusters.EMPTY, flag -> null);
+        SearchResponseMerger merger = new SearchResponseMerger(0, 0, SearchContext.TRACK_TOTAL_HITS_ACCURATE,
+            searchTimeProvider, SearchResponse.Clusters.EMPTY, flag -> null);
         List<ShardSearchFailure> expectedFailures = new ArrayList<>();
         for (int i = 0; i < numResponses; i++) {
             int numFailures = randomIntBetween(1, 50);
@@ -157,7 +160,8 @@ public class SearchResponseMergerTests extends ESTestCase {
 
     public void testMergeProfileResults() throws InterruptedException {
         SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
-        SearchResponseMerger merger = new SearchResponseMerger(0, 0, searchTimeProvider, SearchResponse.Clusters.EMPTY, flag -> null);
+        SearchResponseMerger merger = new SearchResponseMerger(0, 0, SearchContext.TRACK_TOTAL_HITS_ACCURATE,
+            searchTimeProvider, SearchResponse.Clusters.EMPTY, flag -> null);
         Map<String, ProfileShardResult> expectedProfile = new HashMap<>();
         for (int i = 0; i < numResponses; i++) {
             SearchProfileShardResults profile = SearchProfileShardResultsTests.createTestItem();
@@ -206,10 +210,14 @@ public class SearchResponseMergerTests extends ESTestCase {
             sortFields = null;
             scoreSort = true;
         }
-        TotalHits.Relation totalHitsRelation = frequently() ? randomFrom(TotalHits.Relation.values()) : null;
+        Tuple<Integer, TotalHits.Relation> randomTrackTotalHits = randomTrackTotalHits();
+        int trackTotalHitsUpTo = randomTrackTotalHits.v1();
+        TotalHits.Relation totalHitsRelation = randomTrackTotalHits.v2();
 
         PriorityQueue<SearchHit> priorityQueue = new PriorityQueue<>(new SearchHitComparator(sortFields));
-        SearchResponseMerger searchResponseMerger = new SearchResponseMerger(from, size, timeProvider, clusters, flag -> null);
+        SearchResponseMerger searchResponseMerger = new SearchResponseMerger(from, size, trackTotalHitsUpTo,
+            timeProvider, clusters, flag -> null);
+
         TotalHits expectedTotalHits = null;
         int expectedTotal = 0;
         int expectedSuccessful = 0;
@@ -232,11 +240,10 @@ public class SearchResponseMergerTests extends ESTestCase {
             expectedSkipped += skipped;
 
             TotalHits totalHits = null;
-            if (totalHitsRelation != null) {
-                //TODO totalHits may overflow if each cluster reports a very high number?
+            if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 totalHits = new TotalHits(randomLongBetween(0, 1000), totalHitsRelation);
                 long previousValue = expectedTotalHits == null ? 0 : expectedTotalHits.value;
-                expectedTotalHits = new TotalHits(previousValue + totalHits.value, totalHitsRelation);
+                expectedTotalHits = new TotalHits(Math.min(previousValue + totalHits.value, trackTotalHitsUpTo), totalHitsRelation);
             }
 
             final int numDocs = totalHits == null || totalHits.value >= requestedSize ? requestedSize : (int) totalHits.value;
@@ -318,6 +325,19 @@ public class SearchResponseMergerTests extends ESTestCase {
         for (SearchHit hit : hits) {
             SearchHit expected = priorityQueue.poll();
             assertSame(expected, hit);
+        }
+    }
+
+    private static Tuple<Integer, TotalHits.Relation> randomTrackTotalHits() {
+        switch(randomIntBetween(0, 2)) {
+            case 0:
+                return Tuple.tuple(SearchContext.TRACK_TOTAL_HITS_DISABLED, null);
+            case 1:
+                return Tuple.tuple(randomIntBetween(10, 1000), TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
+            case 2:
+                return Tuple.tuple(SearchContext.TRACK_TOTAL_HITS_ACCURATE, TotalHits.Relation.EQUAL_TO);
+            default:
+                throw new UnsupportedOperationException();
         }
     }
 

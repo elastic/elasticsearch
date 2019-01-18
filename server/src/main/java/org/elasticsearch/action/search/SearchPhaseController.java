@@ -443,7 +443,7 @@ public final class SearchPhaseController {
         Boolean terminatedEarly = null;
         if (queryResults.isEmpty()) { // early terminate we have nothing to reduce
             final TotalHits totalHits = topDocsStats.getTotalHits();
-            return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.maxScore,
+            return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
                 timedOut, terminatedEarly, null, null, null, SortedTopDocs.EMPTY, null, numReducePhases, 0, 0, true);
         }
         final QuerySearchResult firstResult = queryResults.stream().findFirst().get().queryResult();
@@ -508,7 +508,7 @@ public final class SearchPhaseController {
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, queryResults, bufferedTopDocs, topDocsStats, from, size);
         final TotalHits totalHits = topDocsStats.getTotalHits();
-        return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.maxScore,
+        return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
             timedOut, terminatedEarly, suggest, aggregations, shardResults, sortedTopDocs,
             firstResult.sortValueFormats(), numReducePhases, size, from, false);
     }
@@ -577,11 +577,7 @@ public final class SearchPhaseController {
             }
             this.totalHits = totalHits;
             this.fetchHits = fetchHits;
-            if (Float.isInfinite(maxScore)) {
-                this.maxScore = Float.NaN;
-            } else {
-                this.maxScore = maxScore;
-            }
+            this.maxScore = maxScore;
             this.timedOut = timedOut;
             this.terminatedEarly = terminatedEarly;
             this.suggest = suggest;
@@ -744,7 +740,7 @@ public final class SearchPhaseController {
         private long totalHits;
         private TotalHits.Relation totalHitsRelation;
         long fetchHits;
-        float maxScore = Float.NEGATIVE_INFINITY;
+        private float maxScore = Float.NEGATIVE_INFINITY;
 
         TopDocsStats() {
             this(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
@@ -754,6 +750,10 @@ public final class SearchPhaseController {
             this.trackTotalHitsUpTo = trackTotalHitsUpTo;
             this.totalHits = 0;
             this.totalHitsRelation = Relation.EQUAL_TO;
+        }
+
+        float getMaxScore() {
+            return Float.isInfinite(maxScore) ? Float.NaN : maxScore;
         }
 
         TotalHits getTotalHits() {

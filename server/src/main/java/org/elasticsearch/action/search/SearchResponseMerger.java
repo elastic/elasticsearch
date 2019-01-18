@@ -28,6 +28,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -52,6 +53,8 @@ import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 
+import static org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
+import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs;
 import static org.elasticsearch.action.search.SearchResponse.Clusters;
 
 /**
@@ -66,15 +69,17 @@ import static org.elasticsearch.action.search.SearchResponse.Clusters;
 final class SearchResponseMerger {
     private final int from;
     private final int size;
+    int trackTotalHitsUpTo;
     private final SearchTimeProvider searchTimeProvider;
     private final Clusters clusters;
     private final Function<Boolean, ReduceContext> reduceContextFunction;
     private final List<SearchResponse> searchResponses = new CopyOnWriteArrayList<>();
 
-    SearchResponseMerger(int from, int size, SearchTimeProvider searchTimeProvider, Clusters clusters,
+    SearchResponseMerger(int from, int size, int trackTotalHitsUpTo, SearchTimeProvider searchTimeProvider, Clusters clusters,
                          Function<Boolean, ReduceContext> reduceContextFunction) {
         this.from = from;
         this.size = size;
+        this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         this.searchTimeProvider = Objects.requireNonNull(searchTimeProvider);
         this.clusters = Objects.requireNonNull(clusters);
         this.reduceContextFunction = Objects.requireNonNull(reduceContextFunction);
@@ -102,7 +107,6 @@ final class SearchResponseMerger {
         Boolean terminatedEarly = null;
         //the current reduce phase counts as one
         int numReducePhases = 1;
-        float maxScore = Float.NEGATIVE_INFINITY;
         List<ShardSearchFailure> failures = new ArrayList<>();
         Map<String, ProfileShardResult> profileResults = new HashMap<>();
         List<InternalAggregations> aggs = new ArrayList<>();
@@ -110,6 +114,8 @@ final class SearchResponseMerger {
         List<TopDocs> topDocsList = new ArrayList<>(searchResponses.size());
         Map<String, List<Suggest.Suggestion>> groupedSuggestions = new HashMap<>();
         Boolean trackTotalHits = null;
+
+        TopDocsStats topDocsStats = new TopDocsStats(trackTotalHitsUpTo);
 
         for (SearchResponse searchResponse : searchResponses) {
             totalShards += searchResponse.getTotalShards();
@@ -139,12 +145,10 @@ final class SearchResponseMerger {
             }
 
             SearchHits searchHits = searchResponse.getHits();
-            if (Float.isNaN(searchHits.getMaxScore()) == false) {
-                maxScore = Math.max(maxScore, searchHits.getMaxScore());
-            }
+
             final TotalHits totalHits;
             if (searchHits.getTotalHits() == null) {
-                //in case we did't track total hits, we get null from each cluster, but we need to set 0 eq to the TopDocs
+                //in case we didn't track total hits, we get null from each cluster, but we need to set 0 eq to the TopDocs
                 totalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
                 assert trackTotalHits == null || trackTotalHits == false;
                 trackTotalHits = false;
@@ -153,7 +157,9 @@ final class SearchResponseMerger {
                 assert trackTotalHits == null || trackTotalHits;
                 trackTotalHits = true;
             }
-            topDocsList.add(searchHitsToTopDocs(searchHits, totalHits, shards));
+            TopDocs topDocs = searchHitsToTopDocs(searchHits, totalHits, shards);
+            topDocsStats.add(new TopDocsAndMaxScore(topDocs, searchHits.getMaxScore()));
+            topDocsList.add(topDocs);
         }
 
         //now that we've gone through all the hits and we collected all the shards they come from, we can assign shardIndex to each shard
@@ -165,13 +171,15 @@ final class SearchResponseMerger {
         for (TopDocs topDocs : topDocsList) {
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                 FieldDocAndSearchHit fieldDocAndSearchHit = (FieldDocAndSearchHit) scoreDoc;
+                //When hits come from the indices with same names on multiple clusters and same shard identifier, we rely on such indices
+                //to have a different uuid across multiple clusters. That's how they will get a different shardIndex.
                 ShardId shardId = fieldDocAndSearchHit.searchHit.getShard().getShardId();
                 fieldDocAndSearchHit.shardIndex = shards.get(shardId);
             }
         }
 
-        TopDocs topDocs = SearchPhaseController.mergeTopDocs(topDocsList, size, from);
-        SearchHits mergedSearchHits = topDocsToSearchHits(topDocs, Float.isInfinite(maxScore) ? Float.NaN : maxScore, trackTotalHits);
+        TopDocs topDocs = mergeTopDocs(topDocsList, size, from);
+        SearchHits mergedSearchHits = topDocsToSearchHits(topDocs, topDocsStats);
         Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
         InternalAggregations reducedAggs = InternalAggregations.reduce(aggs, reduceContextFunction.apply(true));
         ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
@@ -250,7 +258,7 @@ final class SearchResponseMerger {
         return topDocs;
     }
 
-    private static SearchHits topDocsToSearchHits(TopDocs topDocs, float maxScore, boolean trackTotalHits) {
+    private static SearchHits topDocsToSearchHits(TopDocs topDocs, TopDocsStats topDocsStats) {
         SearchHit[] searchHits = new SearchHit[topDocs.scoreDocs.length];
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             FieldDocAndSearchHit scoreDoc = (FieldDocAndSearchHit)topDocs.scoreDocs[i];
@@ -268,9 +276,8 @@ final class SearchResponseMerger {
                 collapseValues = collapseTopFieldDocs.collapseValues;
             }
         }
-        //in case we didn't track total hits, we got null from each cluster, and we need to set null to the final response
-        final TotalHits totalHits = trackTotalHits ? topDocs.totalHits : null;
-        return new SearchHits(searchHits, totalHits, maxScore, sortFields, collapseField, collapseValues);
+        return new SearchHits(searchHits, topDocsStats.getTotalHits(), topDocsStats.getMaxScore(),
+            sortFields, collapseField, collapseValues);
     }
 
     private static void setShardIndex(Collection<List<FieldDoc>> shardResults) {

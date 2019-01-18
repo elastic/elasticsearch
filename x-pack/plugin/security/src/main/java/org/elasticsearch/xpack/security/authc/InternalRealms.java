@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosRealm;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
+import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.support.RoleMappingFileBootstrapCheck;
@@ -111,6 +113,7 @@ public final class InternalRealms {
         map.put(PkiRealmSettings.TYPE, config -> new PkiRealm(config, resourceWatcherService, nativeRoleMappingStore));
         map.put(SamlRealmSettings.TYPE, config -> SamlRealm.create(config, sslService, resourceWatcherService, nativeRoleMappingStore));
         map.put(KerberosRealmSettings.TYPE, config -> new KerberosRealm(config, nativeRoleMappingStore, threadPool));
+        map.put(OpenIdConnectRealmSettings.TYPE, config -> new OpenIdConnectRealm(config));
         return Collections.unmodifiableMap(map);
     }
 

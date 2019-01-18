@@ -18,7 +18,7 @@ import java.util.Objects;
  * Following shrinking an index and deleting the original index, this step creates an alias with the same name as the original index which
  * points to the new shrunken index to allow clients to continue to use the original index name without being aware that it has shrunk.
  */
-public class ShrinkSetAliasStep extends RetryDuringSnapshotStep {
+public class ShrinkSetAliasStep extends AsyncRetryDuringSnapshotActionStep {
     public static final String NAME = "aliases";
     private String shrunkIndexPrefix;
 

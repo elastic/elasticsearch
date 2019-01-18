@@ -19,18 +19,23 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 
-public abstract class RetryDuringSnapshotStep extends AsyncActionStep {
-    private final Logger logger = LogManager.getLogger(RetryDuringSnapshotStep.class);
+/**
+ * This is an abstract AsyncActionStep that wraps the performed action listener, checking to see
+ * if the action fails due to a snapshot being in progress. If a snapshot is in progress, it
+ * registers an observer and waits to try again when a snapshot is no longer running.
+ */
+public abstract class AsyncRetryDuringSnapshotActionStep extends AsyncActionStep {
+    private final Logger logger = LogManager.getLogger(AsyncRetryDuringSnapshotActionStep.class);
 
-    public RetryDuringSnapshotStep(StepKey key, StepKey nextStepKey, Client client) {
+    public AsyncRetryDuringSnapshotActionStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
     }
 
     @Override
     public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState,
                               ClusterStateObserver observer, Listener listener) {
+        // Wrap the original listener to handle exceptions caused by ongoing snapshots
         SnapshotExceptionListener snapshotExceptionListener = new SnapshotExceptionListener(indexMetaData.getIndex(), listener, observer);
         performDuringNoSnapshot(indexMetaData, currentClusterState, snapshotExceptionListener);
     }
@@ -77,7 +82,9 @@ public abstract class RetryDuringSnapshotStep extends AsyncActionStep {
                         }
                         // Re-invoke the performAction method with the new state
                         performAction(idxMeta, state, observer, originalListener);
-                    }, originalListener::onFailure));
+                    }, originalListener::onFailure),
+                    // TODO: what is a good timeout value for no new state received during this time?
+                    TimeValue.timeValueHours(12));
             } else {
                 originalListener.onFailure(e);
             }
@@ -86,7 +93,8 @@ public abstract class RetryDuringSnapshotStep extends AsyncActionStep {
 
     /**
      * A {@link ClusterStateObserver.Listener} that invokes the given function with the new state,
-     * passing any exceptions to the original exception listener if they occur.
+     * once no snapshots are running. If a snapshot is still running it registers a new listener
+     * and tries again. Passes any exceptions to the original exception listener if they occur.
      */
     class NoSnapshotRunningListener implements ClusterStateObserver.Listener {
 
@@ -145,37 +153,6 @@ public abstract class RetryDuringSnapshotStep extends AsyncActionStep {
         @Override
         public void onTimeout(TimeValue timeout) {
             exceptionConsumer.accept(new IllegalStateException("step timed out while waiting for snapshots to complete"));
-        }
-    }
-
-    /**
-     * A predicate waiting for no snapshot to be executing for a given index name
-     */
-    class WaitForNoSnapshotPredicate implements Predicate<ClusterState> {
-        private final String indexName;
-
-        WaitForNoSnapshotPredicate(String indexName) {
-            this.indexName = indexName;
-        }
-
-        @Override
-        public boolean test(ClusterState state) {
-            SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
-            if (snapshotsInProgress == null || snapshotsInProgress.entries().isEmpty()) {
-                // No snapshots are running, new state is acceptable to proceed
-                return true;
-            }
-
-            for (SnapshotsInProgress.Entry snapshot : snapshotsInProgress.entries()) {
-                if (snapshot.indices().stream()
-                    .map(IndexId::getName)
-                    .anyMatch(name -> name.equals(indexName))) {
-                    // There is a snapshot running with this index name
-                    return false;
-                }
-            }
-            // There are snapshots, but none for this index, so it's okay to proceed with this state
-            return true;
         }
     }
 }

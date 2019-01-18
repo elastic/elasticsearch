@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 /**
  * Deletes a single index.
  */
-public class DeleteStep extends RetryDuringSnapshotStep {
+public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
     public static final String NAME = "delete";
 
     public DeleteStep(StepKey key, StepKey nextStepKey, Client client) {

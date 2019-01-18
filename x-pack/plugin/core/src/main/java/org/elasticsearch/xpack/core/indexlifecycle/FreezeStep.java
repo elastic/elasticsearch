@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.action.TransportFreezeIndexAction;
 /**
  * Freezes an index.
  */
-public class FreezeStep extends RetryDuringSnapshotStep {
+public class FreezeStep extends AsyncRetryDuringSnapshotActionStep {
     public static final String NAME = "freeze";
 
     public FreezeStep(StepKey key, StepKey nextStepKey, Client client) {

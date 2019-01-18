@@ -15,7 +15,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.indexlifecycle.UnfollowAction.CCR_METADATA_KEY;
 
-final class CloseFollowerIndexStep extends RetryDuringSnapshotStep {
+final class CloseFollowerIndexStep extends AsyncRetryDuringSnapshotActionStep {
 
     static final String NAME = "close-follower-index";
 

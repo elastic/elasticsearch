@@ -936,7 +936,7 @@ public final class InternalTestCluster extends TestCluster {
             if (minMasterNodes >= 0) {
                 assert DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(newSettings.build()) == false : "min master nodes is auto managed";
                 newSettings.put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes);
-                if (INITIAL_MASTER_NODES_SETTING.exists(callbackSettings) == false) {
+                if (callbackSettings != null && INITIAL_MASTER_NODES_SETTING.exists(callbackSettings) == false) {
                     newSettings.putList(INITIAL_MASTER_NODES_SETTING.getKey());
                 }
             }

@@ -157,15 +157,6 @@ public class DeprecationLogger {
      * arbitrary token; here we use the Elasticsearch version and build hash. The warn text must be quoted. The warn-date is an optional
      * quoted field that can be in a variety of specified date formats; here we use RFC 1123 format.
      */
-    private static final String WARNING_FORMAT =
-            String.format(
-                    Locale.ROOT,
-                    "299 Elasticsearch-%s%s-%s ",
-                    Version.CURRENT.toString(),
-                    Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
-                    Build.CURRENT.shortHash()) +
-                    "\"%s\" \"%s\"";
-
     private static final String WARNING_PREFIX =
             String.format(
                     Locale.ROOT,

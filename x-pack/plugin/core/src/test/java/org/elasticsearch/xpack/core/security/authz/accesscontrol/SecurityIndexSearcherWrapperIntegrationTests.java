@@ -189,10 +189,13 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
         if (noScopedIndexPermissions == false) {
             restrictiveScopedIndexPermissions = randomBoolean();
         }
+        Set<BytesReference> queries = new HashSet<>();
+        queries.add(new BytesArray("{\"terms\" : { \"f2\" : [\"fv22\"] } }"));
+        queries.add(new BytesArray("{\"terms\" : { \"f2\" : [\"fv32\"] } }"));
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, new
                 FieldPermissions(),
-                DocumentPermissions.filteredBy(singleton(new BytesArray("{\"terms\" : { \"f2\" : [\"fv22\", \"fv32\"] } }"))));
-        Set<BytesReference> queries = singleton(new BytesArray("{\"terms\" : { \"f1\" : [\"fv11\", \"fv21\", \"fv31\"] } }"));
+                DocumentPermissions.filteredBy(queries));
+        queries = singleton(new BytesArray("{\"terms\" : { \"f1\" : [\"fv11\", \"fv21\", \"fv31\"] } }"));
         if (restrictiveScopedIndexPermissions) {
             queries = singleton(new BytesArray("{\"terms\" : { \"f1\" : [\"fv11\", \"fv31\"] } }"));
         }

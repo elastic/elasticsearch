@@ -100,19 +100,25 @@ public final class DocumentPermissions {
      * @throws IOException thrown if there is an exception during parsing
      */
     public static BooleanQuery filter(User user, ScriptService scriptService, ShardId shardId,
-            Function<ShardId, QueryShardContext> queryShardContextProvider, DocumentPermissions documentPermissions) throws IOException {
+                                      Function<ShardId, QueryShardContext> queryShardContextProvider,
+                                      DocumentPermissions documentPermissions) throws IOException {
         if (documentPermissions.hasDocumentLevelPermissions()) {
-            BooleanQuery.Builder filter = new BooleanQuery.Builder();
-            if (documentPermissions.scopedByQueries != null) {
-                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, documentPermissions.scopedByQueries, filter,
-                        FILTER);
-            }
+            BooleanQuery.Builder filter;
+            if (documentPermissions.queries != null && documentPermissions.scopedByQueries != null) {
+                filter = new BooleanQuery.Builder();
+                BooleanQuery.Builder scopedFilter = new BooleanQuery.Builder();
+                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, documentPermissions.scopedByQueries, scopedFilter);
+                filter.add(scopedFilter.build(), FILTER);
 
-            if (documentPermissions.queries != null) {
-                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, documentPermissions.queries, filter, SHOULD);
-
-                // at least one of the queries should match
-                filter.setMinimumNumberShouldMatch(1);
+                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, documentPermissions.queries, filter);
+            } else if (documentPermissions.queries != null) {
+                filter = new BooleanQuery.Builder();
+                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, documentPermissions.queries, filter);
+            } else if (documentPermissions.scopedByQueries != null) {
+                filter = new BooleanQuery.Builder();
+                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, documentPermissions.scopedByQueries, filter);
+            } else {
+                return null;
             }
             return filter.build();
         }
@@ -120,8 +126,8 @@ public final class DocumentPermissions {
     }
 
     private static void buildRoleQuery(User user, ScriptService scriptService, ShardId shardId,
-            Function<ShardId, QueryShardContext> queryShardContextProvider, Set<BytesReference> queries, BooleanQuery.Builder filter,
-            Occur operator) throws IOException {
+                                       Function<ShardId, QueryShardContext> queryShardContextProvider, Set<BytesReference> queries,
+                                       BooleanQuery.Builder filter) throws IOException {
         for (BytesReference bytesReference : queries) {
             QueryShardContext queryShardContext = queryShardContextProvider.apply(shardId);
             String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(bytesReference.utf8ToString(), scriptService, user);
@@ -131,7 +137,7 @@ public final class DocumentPermissions {
                 verifyRoleQuery(queryBuilder);
                 failIfQueryUsesClient(queryBuilder, queryShardContext);
                 Query roleQuery = queryShardContext.toQuery(queryBuilder).query();
-                filter.add(roleQuery, operator);
+                filter.add(roleQuery, SHOULD);
                 if (queryShardContext.getMapperService().hasNested()) {
                     NestedHelper nestedHelper = new NestedHelper(queryShardContext.getMapperService());
                     if (nestedHelper.mightMatchNestedDocs(roleQuery)) {
@@ -146,6 +152,8 @@ public final class DocumentPermissions {
                 }
             }
         }
+        // at least one of the queries should match
+        filter.setMinimumNumberShouldMatch(1);
     }
 
     /**

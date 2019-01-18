@@ -2511,9 +2511,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         PutMappingRequest pmReq = new PutMappingRequest("my_index")
             .source(XContentFactory.jsonBuilder().startObject()
-                .startObject("my_field")
-                    .field("type", "text")
-                    .field("analyzer", "english")
+                .startObject("properties")
+                    .startObject("my_field")
+                        .field("type", "text")
+                        .field("analyzer", "english")
+                    .endObject()
                 .endObject()
             .endObject());
         AcknowledgedResponse pmResp = client.indices().putMapping(pmReq, RequestOptions.DEFAULT);

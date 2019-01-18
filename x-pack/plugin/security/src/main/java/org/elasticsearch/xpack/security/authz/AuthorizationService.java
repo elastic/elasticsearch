@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationEngine.AuthorizationI
 import org.elasticsearch.xpack.security.authz.AuthorizationEngine.AuthorizationResult;
 import org.elasticsearch.xpack.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.security.authz.AuthorizationEngine.IndexAuthorizationResult;
+import org.elasticsearch.xpack.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.ResolvedIndices;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
@@ -145,78 +146,84 @@ public class AuthorizationService {
             authorizeSystemUser(authentication, action, auditId, unwrappedRequest, listener);
         } else {
             final String finalAuditId = auditId;
+            final RequestInfo requestInfo = new RequestInfo(authentication, unwrappedRequest, action);
             final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(
                 authorizationInfo -> {
                     putTransientIfNonExisting(AUTHORIZATION_INFO_KEY, authorizationInfo);
-                    maybeAuthorizeRunAs(authentication, action, unwrappedRequest, finalAuditId, authorizationInfo, listener);
+                    maybeAuthorizeRunAs(requestInfo, finalAuditId, authorizationInfo, listener);
                 }, listener::onFailure), threadContext);
-            getAuthorizationEngine(authentication).resolveAuthorizationInfo(authentication, unwrappedRequest, action, authzInfoListener);
+            getAuthorizationEngine(authentication).resolveAuthorizationInfo(requestInfo, authzInfoListener);
         }
     }
 
-    private void maybeAuthorizeRunAs(final Authentication authentication, final String action, final TransportRequest unwrappedRequest,
-                                     final String requestId, final AuthorizationInfo authzInfo, final ActionListener<Void> listener) {
+    private void maybeAuthorizeRunAs(final RequestInfo requestInfo, final String requestId, final AuthorizationInfo authzInfo,
+                                     final ActionListener<Void> listener) {
+        final Authentication authentication = requestInfo.getAuthentication();
+        final TransportRequest request = requestInfo.getRequest();
+        final String action = requestInfo.getAction();
         final boolean isRunAs = authentication.getUser().isRunAs();
         if (isRunAs) {
             ActionListener<AuthorizationResult> runAsListener = wrapPreservingContext(ActionListener.wrap(result -> {
                 if (result.isGranted()) {
                     if (result.isAuditable()) {
-                        auditTrail.runAsGranted(requestId, authentication, action, unwrappedRequest,
+                        auditTrail.runAsGranted(requestId, authentication, action, request,
                             authzInfo.getAuthenticatedUserAuthorizationInfo());
                     }
-                    authorizeAction(authentication, action, requestId, unwrappedRequest, authzInfo, listener);
+                    authorizeAction(requestInfo, requestId, authzInfo, listener);
                 } else {
-                    listener.onFailure(denyRunAs(requestId, authentication, action, unwrappedRequest,
+                    listener.onFailure(denyRunAs(requestId, authentication, action, request,
                         authzInfo.getAuthenticatedUserAuthorizationInfo()));
                 }
             }, e -> {
                 // TODO need a failure handler better than this!
-                listener.onFailure(denyRunAs(requestId, authentication, action, unwrappedRequest, authzInfo, e));
+                listener.onFailure(denyRunAs(requestId, authentication, action, request, authzInfo, e));
             }), threadContext);
-            authorizeRunAs(authentication, action, requestId, unwrappedRequest, authzInfo, runAsListener);
+            authorizeRunAs(requestInfo, requestId, authzInfo, runAsListener);
         } else {
-            authorizeAction(authentication, action, requestId, unwrappedRequest, authzInfo, listener);
+            authorizeAction(requestInfo, requestId, authzInfo, listener);
         }
     }
 
-    private void authorizeAction(final Authentication authentication, final String action, final String requestId,
-                                 final TransportRequest unwrappedRequest, final AuthorizationInfo authzInfo,
+    private void authorizeAction(final RequestInfo requestInfo, final String requestId, final AuthorizationInfo authzInfo,
                                  final ActionListener<Void> listener) {
+        final Authentication authentication = requestInfo.getAuthentication();
+        final TransportRequest request = requestInfo.getRequest();
+        final String action = requestInfo.getAction();
         final AuthorizationEngine authzEngine = getAuthorizationEngine(authentication);
         if (ClusterPrivilege.ACTION_MATCHER.test(action)) {
             final ActionListener<AuthorizationResult> clusterAuthzListener = wrapPreservingContext(ActionListener.wrap(result -> {
                 if (result.isGranted()) {
                     if (result.isAuditable()) {
-                        auditTrail.accessGranted(requestId, authentication, action, unwrappedRequest, authzInfo);
+                        auditTrail.accessGranted(requestId, authentication, action, request, authzInfo);
                     }
                     putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
                     listener.onResponse(null);
                 } else {
-                    listener.onFailure(denial(requestId, authentication, action, unwrappedRequest, authzInfo));
+                    listener.onFailure(denial(requestId, authentication, action, request, authzInfo));
                 }
             }, e -> {
                 // TODO need a failure handler better than this!
-                listener.onFailure(denial(requestId, authentication, action, unwrappedRequest, authzInfo, e));
+                listener.onFailure(denial(requestId, authentication, action, request, authzInfo, e));
             }), threadContext);
-            authzEngine.authorizeClusterAction(authentication, unwrappedRequest, action, authzInfo, clusterAuthzListener);
+            authzEngine.authorizeClusterAction(requestInfo, authzInfo, clusterAuthzListener);
         } else if (IndexPrivilege.ACTION_MATCHER.test(action)) {
             final MetaData metaData = clusterService.state().metaData();
             final AsyncSupplier<List<String>> authorizedIndicesSupplier = new CachingAsyncSupplier<>(authzIndicesListener ->
-                authzEngine.loadAuthorizedIndices(authentication, action, authzInfo, metaData.getAliasAndIndexLookup(),
+                authzEngine.loadAuthorizedIndices(requestInfo, authzInfo, metaData.getAliasAndIndexLookup(),
                     authzIndicesListener));
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>((resolvedIndicesListener) -> {
                 authorizedIndicesSupplier.get(ActionListener.wrap(authorizedIndices -> {
-                    resolveIndexNames(unwrappedRequest, metaData, authorizedIndices, resolvedIndicesListener);
+                    resolveIndexNames(request, metaData, authorizedIndices, resolvedIndicesListener);
                 }, e -> {
                     if (e instanceof IndexNotFoundException) {
-                        auditTrail.accessDenied(requestId, authentication, action, unwrappedRequest, authzInfo);
+                        auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
                         listener.onFailure(e);
                     } else {
-                        listener.onFailure(denial(requestId, authentication, action, unwrappedRequest, authzInfo, e));
+                        listener.onFailure(denial(requestId, authentication, action, request, authzInfo, e));
                     }
                 }));
             });
-            authzEngine.authorizeIndexAction(authentication, unwrappedRequest, action, authzInfo, resolvedIndicesAsyncSupplier,
+            authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier,
                 metaData.getAliasAndIndexLookup()::get, ActionListener.wrap(indexAuthorizationResult -> {
                     if (indexAuthorizationResult.isGranted()) {
                         if (indexAuthorizationResult.getIndicesAccessControl() != null) {
@@ -225,10 +232,11 @@ public class AuthorizationService {
                         }
                         //if we are creating an index we need to authorize potential aliases created at the same time
                         if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {
-                            assert unwrappedRequest instanceof CreateIndexRequest;
-                            Set<Alias> aliases = ((CreateIndexRequest) unwrappedRequest).aliases();
+                            assert request instanceof CreateIndexRequest;
+                            Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
                             if (aliases.isEmpty() == false) {
-                                authzEngine.authorizeIndexAction(authentication, unwrappedRequest, IndicesAliasesAction.NAME, authzInfo,
+                                final RequestInfo aliasesRequestInfo = new RequestInfo(authentication, request, IndicesAliasesAction.NAME);
+                                authzEngine.authorizeIndexAction(aliasesRequestInfo, authzInfo,
                                     ril -> {
                                         resolvedIndicesAsyncSupplier.get(ActionListener.wrap(resolvedIndices -> {
                                             List<String> aliasesAndIndices = new ArrayList<>(resolvedIndices.getLocal());
@@ -243,15 +251,15 @@ public class AuthorizationService {
                                         if (authorizationResult.isGranted()) {
                                             if (authorizationResult.isAuditable()) {
                                                 auditTrail.accessGranted(requestId, authentication, IndicesAliasesAction.NAME,
-                                                    unwrappedRequest, authzInfo);
+                                                    request, authzInfo);
                                             }
                                             if (indexAuthorizationResult.isAuditable()) {
-                                                auditTrail.accessGranted(requestId, authentication, action, unwrappedRequest, authzInfo);
+                                                auditTrail.accessGranted(requestId, authentication, action, request, authzInfo);
                                             }
                                             listener.onResponse(null);
                                         } else {
                                             listener.onFailure(denial(requestId, authentication, IndicesAliasesAction.NAME,
-                                                unwrappedRequest, authzInfo));
+                                                request, authzInfo));
                                         }
                                     }, listener::onFailure));
                             } else {
@@ -259,29 +267,28 @@ public class AuthorizationService {
                             }
                         } else if (action.equals(TransportShardBulkAction.ACTION_NAME)) {
                             // if this is performing multiple actions on the index, then check each of those actions.
-                            assert unwrappedRequest instanceof BulkShardRequest
-                                : "Action " + action + " requires " + BulkShardRequest.class + " but was " + unwrappedRequest.getClass();
+                            assert request instanceof BulkShardRequest
+                                : "Action " + action + " requires " + BulkShardRequest.class + " but was " + request.getClass();
 
-                            authorizeBulkItems(authentication, (BulkShardRequest) unwrappedRequest, authzInfo, authzEngine,
-                                resolvedIndicesAsyncSupplier, authorizedIndicesSupplier, metaData, requestId,
-                                ActionListener.wrap(ignore -> {
+                            authorizeBulkItems(requestInfo, authzInfo, authzEngine, resolvedIndicesAsyncSupplier, authorizedIndicesSupplier,
+                                metaData, requestId, ActionListener.wrap(ignore -> {
                                     if (indexAuthorizationResult.isAuditable()) {
-                                        auditTrail.accessGranted(requestId, authentication, action, unwrappedRequest, authzInfo);
+                                        auditTrail.accessGranted(requestId, authentication, action, request, authzInfo);
                                     }
                                     listener.onResponse(null);
                                 }, listener::onFailure));
                         } else {
                             if (indexAuthorizationResult.isAuditable()) {
-                                auditTrail.accessGranted(requestId, authentication, action, unwrappedRequest, authzInfo);
+                                auditTrail.accessGranted(requestId, authentication, action, request, authzInfo);
                             }
                             listener.onResponse(null);
                         }
                     } else {
-                        listener.onFailure(denial(requestId, authentication, action, unwrappedRequest, authzInfo));
+                        listener.onFailure(denial(requestId, authentication, action, request, authzInfo));
                     }
                 }, listener::onFailure));
         } else {
-            listener.onFailure(denial(requestId, authentication, action, unwrappedRequest, authzInfo));
+            listener.onFailure(denial(requestId, authentication, action, request, authzInfo));
         }
     }
 
@@ -336,16 +343,18 @@ public class AuthorizationService {
         return SystemUser.is(user) || XPackUser.is(user) || XPackSecurityUser.is(user);
     }
 
-    private void authorizeRunAs(final Authentication authentication, final String action, final String requestId,
-                                final TransportRequest request, final AuthorizationInfo authzInfo,
+    private void authorizeRunAs(final RequestInfo requestInfo, final String requestId, final AuthorizationInfo authzInfo,
                                 final ActionListener<AuthorizationResult> listener) {
+        final Authentication authentication = requestInfo.getAuthentication();
+        final TransportRequest request = requestInfo.getRequest();
+        final String action = requestInfo.getAction();
         if (authentication.getLookedUpBy() == null) {
             // this user did not really exist
             // TODO(jaymode) find a better way to indicate lookup failed for a user and we need to fail authz
             throw denyRunAs(requestId, authentication, action, request, authzInfo.getAuthenticatedUserAuthorizationInfo());
         } else {
             final AuthorizationEngine runAsAuthzEngine = getRunAsAuthorizationEngine(authentication);
-            runAsAuthzEngine.authorizeRunAs(authentication, request, action, authzInfo, listener);
+            runAsAuthzEngine.authorizeRunAs(requestInfo, authzInfo, listener);
         }
     }
 
@@ -363,10 +372,12 @@ public class AuthorizationService {
      * is very small, but the results must be cached, to avoid adding a high
      * overhead to each bulk request.
      */
-    private void authorizeBulkItems(Authentication authentication, BulkShardRequest request, AuthorizationInfo authzInfo,
+    private void authorizeBulkItems(RequestInfo requestInfo, AuthorizationInfo authzInfo,
                                     AuthorizationEngine authzEngine, AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
                                     AsyncSupplier<List<String>> authorizedIndicesSupplier,
                                     MetaData metaData, String requestId, ActionListener<Void> listener) {
+        final Authentication authentication = requestInfo.getAuthentication();
+        final BulkShardRequest request = (BulkShardRequest) requestInfo.getRequest();
         // Maps original-index -> expanded-index-name (expands date-math, but not aliases)
         final Map<String, String> resolvedIndexNames = new HashMap<>();
         // Maps action -> resolved indices set
@@ -436,7 +447,9 @@ public class AuthorizationService {
                     new GroupedActionListener<>(bulkAuthzListener, actionToIndicesMap.size(), Collections.emptyList()), threadContext);
 
                 actionToIndicesMap.forEach((bulkItemAction, indices) -> {
-                    authzEngine.authorizeIndexAction(authentication, request, bulkItemAction, authzInfo,
+                    final RequestInfo bulkItemInfo =
+                        new RequestInfo(requestInfo.getAuthentication(), requestInfo.getRequest(), bulkItemAction);
+                    authzEngine.authorizeIndexAction(bulkItemInfo, authzInfo,
                         ril -> ril.onResponse(new ResolvedIndices(new ArrayList<>(indices), Collections.emptyList())),
                         metaData.getAliasAndIndexLookup()::get, ActionListener.wrap(indexAuthorizationResult ->
                                 groupedActionListener.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult)),

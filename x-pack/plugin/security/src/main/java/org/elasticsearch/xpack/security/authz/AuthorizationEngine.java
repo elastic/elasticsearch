@@ -20,21 +20,17 @@ import java.util.function.Function;
 
 public interface AuthorizationEngine {
 
-    void resolveAuthorizationInfo(Authentication authentication, TransportRequest request, String action,
-                                  ActionListener<AuthorizationInfo> listener);
+    void resolveAuthorizationInfo(RequestInfo requestInfo, ActionListener<AuthorizationInfo> listener);
 
-    void authorizeRunAs(Authentication authentication, TransportRequest request, String action, AuthorizationInfo authorizationInfo,
-                        ActionListener<AuthorizationResult> listener);
+    void authorizeRunAs(RequestInfo requestInfo, AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener);
 
-    void authorizeClusterAction(Authentication authentication, TransportRequest request, String action, AuthorizationInfo authorizationInfo,
-                                ActionListener<AuthorizationResult> listener);
+    void authorizeClusterAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener);
 
-    void authorizeIndexAction(Authentication authentication, TransportRequest request, String action,
-                              AuthorizationInfo authorizationInfo, AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                              Function<String, AliasOrIndex> aliasOrIndexFunction,
+    void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
+                              AsyncSupplier<ResolvedIndices> indicesAsyncSupplier, Function<String, AliasOrIndex> aliasOrIndexFunction,
                               ActionListener<IndexAuthorizationResult> listener);
 
-    void loadAuthorizedIndices(Authentication authentication, String action, AuthorizationInfo info,
+    void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo info,
                                Map<String, AliasOrIndex> aliasAndIndexLookup, ActionListener<List<String>> listener);
 
     interface AuthorizationInfo {
@@ -55,6 +51,31 @@ public interface AuthorizationEngine {
         @Override
         public Map<String, Object> asMap() {
             return Collections.emptyMap();
+        }
+    }
+
+    final class RequestInfo {
+
+        private final Authentication authentication;
+        private final TransportRequest request;
+        private final String action;
+
+        public RequestInfo(Authentication authentication, TransportRequest request, String action) {
+            this.authentication = authentication;
+            this.request = request;
+            this.action = action;
+        }
+
+        public String getAction() {
+            return action;
+        }
+
+        public Authentication getAuthentication() {
+            return authentication;
+        }
+
+        public TransportRequest getRequest() {
+            return request;
         }
     }
 

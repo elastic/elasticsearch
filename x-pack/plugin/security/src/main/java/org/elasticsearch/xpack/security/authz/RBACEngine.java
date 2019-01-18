@@ -78,8 +78,8 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public void resolveAuthorizationInfo(Authentication authentication, TransportRequest request, String action,
-                                         ActionListener<AuthorizationInfo> listener) {
+    public void resolveAuthorizationInfo(RequestInfo requestInfo, ActionListener<AuthorizationInfo> listener) {
+        final Authentication authentication = requestInfo.getAuthentication();
         getRoles(authentication.getUser(), ActionListener.wrap(role -> {
             if (authentication.getUser().isRunAs()) {
                 getRoles(authentication.getUser().authenticatedUser(), ActionListener.wrap(
@@ -96,11 +96,11 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public void authorizeRunAs(Authentication authentication, TransportRequest request, String action, AuthorizationInfo authorizationInfo,
-                               ActionListener<AuthorizationResult> listener) {
+    public void authorizeRunAs(RequestInfo requestInfo, AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getAuthenticatedUserAuthorizationInfo().getRole();
-            listener.onResponse(new AuthorizationResult(role.runAs().check(authentication.getUser().principal())));
+            listener.onResponse(
+                new AuthorizationResult(role.runAs().check(requestInfo.getAuthentication().getUser().principal())));
         } else {
             listener.onFailure(new IllegalArgumentException("unsupported authorization info:" +
                 authorizationInfo.getClass().getSimpleName()));
@@ -108,13 +108,13 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public void authorizeClusterAction(Authentication authentication, TransportRequest request, String action,
-                                       AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener) {
+    public void authorizeClusterAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
+                                       ActionListener<AuthorizationResult> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-            if (role.cluster().check(action, request)) {
+            if (role.cluster().check(requestInfo.getAction(), requestInfo.getRequest())) {
                 listener.onResponse(AuthorizationResult.granted());
-            } else if (checkSameUserPermissions(action, request, authentication)) {
+            } else if (checkSameUserPermissions(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
                 listener.onResponse(AuthorizationResult.granted());
             } else {
                 listener.onResponse(AuthorizationResult.deny());
@@ -186,10 +186,13 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public void authorizeIndexAction(Authentication authentication, TransportRequest request, String action,
-                                     AuthorizationInfo authorizationInfo, AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
+    public void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
+                                     AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
                                      Function<String, AliasOrIndex> aliasOrIndexFunction,
                                      ActionListener<IndexAuthorizationResult> listener) {
+        final String action = requestInfo.getAction();
+        final TransportRequest request = requestInfo.getRequest();
+        final Authentication authentication = requestInfo.getAuthentication();
         if (TransportActionProxy.isProxyAction(action) || shouldAuthorizeIndexActionNameOnly(action, request)) {
             // we've already validated that the request is a proxy request so we can skip that but we still
             // need to validate that the action is allowed and then move on
@@ -278,11 +281,11 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public void loadAuthorizedIndices(Authentication authentication, String action, AuthorizationInfo authorizationInfo,
+    public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                       Map<String, AliasOrIndex> aliasAndIndexLookup, ActionListener<List<String>> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-            listener.onResponse(resolveAuthorizedIndicesFromRole(role, action, aliasAndIndexLookup));
+            listener.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo.getAction(), aliasAndIndexLookup));
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));

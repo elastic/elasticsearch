@@ -23,18 +23,25 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
 public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase<GetMappingsResponse> {
 
@@ -82,12 +89,6 @@ public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase
         return mutate(instance);
     }
 
-    public static ImmutableOpenMap<String, MappingMetaData> createMappingsForIndex() {
-        // rarely have no types
-        int typeCount = rarely() ? 0 : scaledRandomIntBetween(1, 3);
-        return createMappingsForIndex(typeCount, true);
-    }
-
     public static ImmutableOpenMap<String, MappingMetaData> createMappingsForIndex(int typeCount, boolean randomTypeName) {
         List<MappingMetaData> typeMappings = new ArrayList<>(typeCount);
 
@@ -118,8 +119,13 @@ public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase
 
     @Override
     protected GetMappingsResponse createTestInstance() {
+        return createTestInstance(true);
+    }
+
+    private GetMappingsResponse createTestInstance(boolean randomTypeNames) {
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> indexBuilder = ImmutableOpenMap.builder();
-        indexBuilder.put("index-" + randomAlphaOfLength(5), createMappingsForIndex());
+        int typeCount = rarely() ? 0 : 1;
+        indexBuilder.put("index-" + randomAlphaOfLength(5), createMappingsForIndex(typeCount, randomTypeNames));
         GetMappingsResponse resp = new GetMappingsResponse(indexBuilder.build());
         logger.debug("--> created: {}", resp);
         return resp;
@@ -156,5 +162,58 @@ public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase
             mappings.put("type", "keyword");
         }
         return mappings;
+    }
+
+    @Override
+    protected GetMappingsResponse createXContextTestInstance(XContentType xContentType) {
+        // don't use random type names for XContent roundtrip tests because we cannot parse them back anymore
+        return createTestInstance(false);
+    }
+
+    /**
+     * check that the "old" legacy response format with types works as expected
+     */
+    public void testToXContentWithTypes() throws IOException {
+        Params params = new ToXContent.MapParams(Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "true"));
+        xContentTester(this::createParser, t -> createTestInstance(), params, this::fromXContentWithTypes)
+                .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
+                .supportsUnknownFields(supportsUnknownFields())
+                .shuffleFieldsExceptions(getShuffleFieldsExceptions())
+                .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
+                .assertEqualsConsumer(this::assertEqualInstances)
+                .assertToXContentEquivalence(true)
+                .test();
+    }
+
+    /**
+     * including the pre-7.0 parsing code here to test that older HLRC clients using this can parse the responses that are
+     * returned when "include_type_name=true"
+     */
+    private GetMappingsResponse fromXContentWithTypes(XContentParser parser) throws IOException {
+        if (parser.currentToken() == null) {
+            parser.nextToken();
+        }
+        assert parser.currentToken() == XContentParser.Token.START_OBJECT;
+        Map<String, Object> parts = parser.map();
+
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> builder = new ImmutableOpenMap.Builder<>();
+        for (Map.Entry<String, Object> entry : parts.entrySet()) {
+            final String indexName = entry.getKey();
+            assert entry.getValue() instanceof Map : "expected a map as type mapping, but got: " + entry.getValue().getClass();
+            final Map<String, Object> mapping = (Map<String, Object>) ((Map) entry.getValue()).get("mappings");
+
+            ImmutableOpenMap.Builder<String, MappingMetaData> typeBuilder = new ImmutableOpenMap.Builder<>();
+            for (Map.Entry<String, Object> typeEntry : mapping.entrySet()) {
+                final String typeName = typeEntry.getKey();
+                assert typeEntry.getValue() instanceof Map : "expected a map as inner type mapping, but got: "
+                        + typeEntry.getValue().getClass();
+                final Map<String, Object> fieldMappings = (Map<String, Object>) typeEntry.getValue();
+                MappingMetaData mmd = new MappingMetaData(typeName, fieldMappings);
+                typeBuilder.put(typeName, mmd);
+            }
+            builder.put(indexName, typeBuilder.build());
+        }
+
+        return new GetMappingsResponse(builder.build());
     }
 }

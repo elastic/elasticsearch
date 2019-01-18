@@ -112,7 +112,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Does any node in the cluster being tested have x-pack installed?
      */
-    public static boolean hasXPack() throws IOException {
+    public static boolean hasXPack() {
         if (hasXPack == null) {
             throw new IllegalStateException("must be called inside of a rest test case test");
         }
@@ -554,7 +554,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
-    private void wipeRollupJobs() throws IOException, InterruptedException {
+    private void wipeRollupJobs() throws IOException {
         Response response = adminClient().performRequest(new Request("GET", "/_rollup/job/_all"));
         Map<String, Object> jobs = entityAsMap(response);
         @SuppressWarnings("unchecked")
@@ -617,7 +617,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Logs a message if there are still running tasks. The reasoning is that any tasks still running are state the is trying to bleed into
      * other tests.
      */
-    private void logIfThereAreRunningTasks() throws InterruptedException, IOException {
+    private void logIfThereAreRunningTasks() throws IOException {
         Set<String> runningTasks = runningTasks(adminClient().performRequest(new Request("GET", "/_tasks")));
         // Ignore the task list API - it doesn't count against us
         runningTasks.remove(ListTasksAction.NAME);
@@ -801,7 +801,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void createIndex(String name, Settings settings) throws IOException {
-        createIndex(name, settings, "");
+        Request request = new Request("PUT", "/" + name);
+        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings) + "}");
+        client().performRequest(request);
     }
 
     protected static void createIndex(String name, Settings settings, String mapping) throws IOException {

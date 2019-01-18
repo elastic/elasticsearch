@@ -68,11 +68,13 @@ public class RestPutMappingAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, true);
+        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
+            DEFAULT_INCLUDE_TYPE_NAME_POLICY);
         PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
         final String type = request.param("type");
         if (type != null && includeTypeName == false) {
-            throw new IllegalArgumentException("Cannot set include_type_name=false and provide a type at the same time");
+            throw new IllegalArgumentException("Types cannot be provided in put mapping requests, unless " +
+                "the include_type_name parameter is set to true.");
         }
         putMappingRequest.type(includeTypeName ? type : MapperService.SINGLE_MAPPING_NAME);
         putMappingRequest.source(request.requiredContent(), request.getXContentType());

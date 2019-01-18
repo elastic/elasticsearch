@@ -33,7 +33,7 @@ public class IndexStore extends AbstractIndexComponent {
      * The shard store class that should be used for each shard.
      */
     public DirectoryService newDirectoryService(ShardPath path) {
-        return new FsDirectoryService(indexSettings, this, path);
+        return new FsDirectoryService(indexSettings, path);
     }
 
 }

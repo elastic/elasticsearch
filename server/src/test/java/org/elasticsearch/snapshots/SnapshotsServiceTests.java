@@ -463,32 +463,43 @@ public class SnapshotsServiceTests extends ESTestCase {
                 transportService, indicesService, actionFilters, indexNameExpressionResolver);
             final ShardStateAction shardStateAction = new ShardStateAction(
                 clusterService, transportService, allocationService,
-                new RoutingService(settings, clusterService, allocationService),
+                new RoutingService(clusterService, allocationService),
                 deterministicTaskQueue.getThreadPool()
             );
             indicesClusterStateService = new IndicesClusterStateService(
-                settings, indicesService, clusterService, threadPool,
-                new PeerRecoveryTargetService(
-                    deterministicTaskQueue.getThreadPool(), transportService, recoverySettings,
-                    clusterService
-                ),
-                shardStateAction,
-                new NodeMappingRefreshAction(transportService, new MetaDataMappingService(clusterService, indicesService)),
-                repositoriesService,
-                mock(SearchService.class),
-                new SyncedFlushService(indicesService, clusterService, transportService, indexNameExpressionResolver),
-                new PeerRecoverySourceService(transportService, indicesService, recoverySettings),
-                snapshotShardsService,
-                new PrimaryReplicaSyncer(
-                    transportService,
-                    new TransportResyncReplicationAction(
-                        settings, transportService, clusterService, indicesService, threadPool,
-                        shardStateAction, actionFilters, indexNameExpressionResolver)
-                ),
-                new GlobalCheckpointSyncAction(
-                    settings, transportService, clusterService, indicesService, threadPool,
-                    shardStateAction, actionFilters, indexNameExpressionResolver)
-            );
+                    settings,
+                    indicesService,
+                    clusterService,
+                    threadPool,
+                    new PeerRecoveryTargetService(
+                            deterministicTaskQueue.getThreadPool(), transportService, recoverySettings, clusterService),
+                    shardStateAction,
+                    new NodeMappingRefreshAction(transportService, new MetaDataMappingService(clusterService, indicesService)),
+                    repositoriesService,
+                    mock(SearchService.class),
+                    new SyncedFlushService(indicesService, clusterService, transportService, indexNameExpressionResolver),
+                    new PeerRecoverySourceService(transportService, indicesService, recoverySettings),
+                    snapshotShardsService,
+                    new PrimaryReplicaSyncer(
+                            transportService,
+                            new TransportResyncReplicationAction(
+                                    settings,
+                                    transportService,
+                                    clusterService,
+                                    indicesService,
+                                    threadPool,
+                                    shardStateAction,
+                                    actionFilters,
+                                    indexNameExpressionResolver)),
+                    new GlobalCheckpointSyncAction(
+                            settings,
+                            transportService,
+                            clusterService,
+                            indicesService,
+                            threadPool,
+                            shardStateAction,
+                            actionFilters,
+                            indexNameExpressionResolver));
             Map<Action, TransportAction> actions = new HashMap<>();
             actions.put(CreateIndexAction.INSTANCE,
                 new TransportCreateIndexAction(

@@ -6,7 +6,7 @@ documents in queries with a <<query-dsl-feature-query,`feature`>> query.
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {

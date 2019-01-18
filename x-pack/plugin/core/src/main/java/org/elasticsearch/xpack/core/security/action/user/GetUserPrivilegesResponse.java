@@ -86,8 +86,8 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         super.writeTo(out);
         out.writeCollection(cluster, StreamOutput::writeString);
         out.writeCollection(conditionalCluster, ConditionalClusterPrivileges.WRITER);
-        out.writeCollection(index, (o, p) -> p.writeTo(o));
-        out.writeCollection(application, (o, p) -> p.writeTo(o));
+        out.writeCollection(index);
+        out.writeCollection(application);
         out.writeCollection(runAs, StreamOutput::writeString);
     }
 

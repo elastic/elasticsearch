@@ -12,12 +12,14 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -749,12 +751,16 @@ public class AutodetectProcessManager {
         return autoDetectWorkerExecutor;
     }
 
+    public ByteSizeValue getMinLocalStorageAvailable() {
+        return nativeStorageProvider.getMinLocalStorageAvailable();
+    }
+
     /*
      * The autodetect native process can only handle a single operation at a time. In order to guarantee that, all
      * operations are initially added to a queue and a worker thread from ml autodetect threadpool will process each
      * operation at a time.
      */
-    class AutodetectWorkerExecutorService extends AbstractExecutorService {
+    static class AutodetectWorkerExecutorService extends AbstractExecutorService {
 
         private final ThreadContext contextHolder;
         private final CountDownLatch awaitTermination = new CountDownLatch(1);
@@ -762,6 +768,7 @@ public class AutodetectProcessManager {
 
         private volatile boolean running = true;
 
+        @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
         AutodetectWorkerExecutorService(ThreadContext contextHolder) {
             this.contextHolder = contextHolder;
         }
@@ -809,6 +816,7 @@ public class AutodetectProcessManager {
                         } catch (Exception e) {
                             logger.error("error handling job operation", e);
                         }
+                        EsExecutors.rethrowErrors(contextHolder.unwrap(runnable));
                     }
                 }
             } catch (InterruptedException e) {

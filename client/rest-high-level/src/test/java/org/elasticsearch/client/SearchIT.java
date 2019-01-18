@@ -140,11 +140,9 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             create.setJsonEntity(
                 "{" +
                 "  \"mappings\": {" +
-                "    \"_doc\": {" +
-                "      \"properties\": {" +
-                "        \"rating\": {" +
-                "          \"type\":  \"keyword\"" +
-                "        }" +
+                "    \"properties\": {" +
+                "      \"rating\": {" +
+                "        \"type\":  \"keyword\"" +
                 "      }" +
                 "    }" +
                 "  }" +
@@ -172,16 +170,14 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             create.setJsonEntity(
                     "{" +
                     "  \"mappings\": {" +
-                    "    \"_doc\": {" +
-                    "      \"properties\": {" +
-                    "        \"field1\": {" +
-                    "          \"type\":  \"keyword\"," +
-                    "          \"store\":  true" +
-                    "        }," +
-                    "        \"field2\": {" +
-                    "          \"type\":  \"keyword\"," +
-                    "          \"store\":  true" +
-                    "        }" +
+                    "    \"properties\": {" +
+                    "      \"field1\": {" +
+                    "        \"type\":  \"keyword\"," +
+                    "        \"store\":  true" +
+                    "      }," +
+                    "      \"field2\": {" +
+                    "        \"type\":  \"keyword\"," +
+                    "        \"store\":  true" +
                     "      }" +
                     "    }" +
                     "  }" +
@@ -445,12 +441,10 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         createIndex.setJsonEntity(
                 "{\n" +
                 "    \"mappings\": {\n" +
-                "        \"_doc\" : {\n" +
-                "            \"properties\" : {\n" +
-                "                \"qa_join_field\" : {\n" +
-                "                    \"type\" : \"join\",\n" +
-                "                    \"relations\" : { \"question\" : \"answer\" }\n" +
-                "                }\n" +
+                "        \"properties\" : {\n" +
+                "            \"qa_join_field\" : {\n" +
+                "                \"type\" : \"join\",\n" +
+                "                \"relations\" : { \"question\" : \"answer\" }\n" +
                 "            }\n" +
                 "        }\n" +
                 "    }" +

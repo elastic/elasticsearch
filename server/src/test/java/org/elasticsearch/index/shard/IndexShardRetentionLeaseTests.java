@@ -43,6 +43,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -161,7 +162,11 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             final SegmentInfos segmentCommitInfos = indexShard.store().readLastCommittedSegmentsInfo();
             assertTrue(segmentCommitInfos.getUserData().containsKey(Engine.RETENTION_LEASES));
             final Collection<RetentionLease> retentionLeases = indexShard.getEngine().config().retentionLeasesSupplier().get();
-            assertThat(IndexShard.getRetentionLeases(segmentCommitInfos), contains(retentionLeases.toArray(new RetentionLease[0])));
+            if (retentionLeases.isEmpty()) {
+                assertThat(IndexShard.getRetentionLeases(segmentCommitInfos), empty());
+            } else {
+                assertThat(IndexShard.getRetentionLeases(segmentCommitInfos), contains(retentionLeases.toArray(new RetentionLease[0])));
+            }
 
             // when we recover, we should recover the retention leases
             final IndexShard recoveredShard = reinitShard(
@@ -169,9 +174,13 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
                     ShardRoutingHelper.initWithSameId(indexShard.routingEntry(), RecoverySource.ExistingStoreRecoverySource.INSTANCE));
             try {
                 recoverShardFromStore(recoveredShard);
-                assertThat(
-                        recoveredShard.getEngine().config().retentionLeasesSupplier().get(),
-                        contains(retentionLeases.toArray(new RetentionLease[0])));
+                if (retentionLeases.isEmpty()) {
+                    assertThat(recoveredShard.getEngine().config().retentionLeasesSupplier().get(), empty());
+                } else {
+                    assertThat(
+                            recoveredShard.getEngine().config().retentionLeasesSupplier().get(),
+                            contains(retentionLeases.toArray(new RetentionLease[0])));
+                }
             } finally {
                 closeShards(recoveredShard);
             }

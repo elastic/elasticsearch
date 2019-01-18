@@ -292,7 +292,7 @@ public class QueryFolderTests extends ESTestCase {
         assertThat(ee.output().get(1).toString(), startsWith("a{s->"));
     }
 
-    public void testGroupKeyTypes_Date() {
+    public void testGroupKeyTypes_DateTime() {
         PhysicalPlan p = plan("SELECT count(*), date + INTERVAL '1-2' YEAR TO MONTH AS a FROM test GROUP BY a");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;

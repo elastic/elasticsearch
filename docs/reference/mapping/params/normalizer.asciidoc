@@ -12,7 +12,7 @@ such as the <<query-dsl-term-query,`term`>> query.
 
 [source,js]
 --------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "settings": {
     "analysis": {

@@ -16,7 +16,7 @@ Below is an example of configuring a mapping with various range fields followed 
 
 [source,js]
 --------------------------------------------------
-PUT range_index
+PUT range_index?include_type_name=true
 {
   "settings": {
     "number_of_shards": 2
@@ -184,7 +184,7 @@ https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_notation[CIDR]
 
 [source,js]
 --------------------------------------------------
-PUT range_index/_mapping/_doc
+PUT range_index/_mapping
 {
   "properties": {
     "ip_whitelist": {

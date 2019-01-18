@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -20,6 +22,8 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 public abstract class RetryDuringSnapshotStep extends AsyncActionStep {
+    private final Logger logger = LogManager.getLogger(RetryDuringSnapshotStep.class);
+
     public RetryDuringSnapshotStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
     }
@@ -62,6 +66,8 @@ public abstract class RetryDuringSnapshotStep extends AsyncActionStep {
         @Override
         public void onFailure(Exception e) {
             if (e instanceof SnapshotInProgressException) {
+                logger.debug("[{}] attempted to run ILM step but a snapshot is in progress, step will retry at a later time",
+                    index.getName());
                 observer.waitForNextChange(
                     new NoSnapshotRunningListener(observer, index.getName(), state -> {
                         IndexMetaData idxMeta = state.metaData().index(index);
@@ -104,6 +110,7 @@ public abstract class RetryDuringSnapshotStep extends AsyncActionStep {
                 if (snapshotInProgress(state)) {
                     observer.waitForNextChange(this);
                 } else {
+                    logger.debug("[{}] retrying ILM step after snapshot has completed", indexName);
                     reRun.accept(state);
                 }
             } catch (Exception e) {

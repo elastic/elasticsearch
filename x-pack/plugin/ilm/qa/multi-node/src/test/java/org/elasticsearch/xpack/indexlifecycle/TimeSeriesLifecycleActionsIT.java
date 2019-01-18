@@ -508,7 +508,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
         }, 2, TimeUnit.MINUTES);
         expectThrows(ResponseException.class, this::indexDocument);
-        // assert that snapshot is still in progress and clean up
+        // assert that snapshot succeeded
         assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
         ResponseException e = expectThrows(ResponseException.class,

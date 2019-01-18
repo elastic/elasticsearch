@@ -31,6 +31,8 @@ public class DataFrameMessages {
             "Failed to load data frame transform configuration for transform [{0}]";
     public static final String FAILED_TO_PARSE_TRANSFORM_CONFIGURATION =
             "Failed to parse transform configuration for data frame transform [{0}]";
+    public static final String DATA_FRAME_TRANSFORM_CONFIGURATION_NO_TRANSFORM =
+            "Data frame transform configuration must have 1 transform";
 
     private DataFrameMessages() {
     }

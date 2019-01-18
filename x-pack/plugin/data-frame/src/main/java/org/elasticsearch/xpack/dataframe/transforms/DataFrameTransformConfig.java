@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.PivotConfig;
 
@@ -70,15 +71,18 @@ public class DataFrameTransformConfig implements Writeable, ToXContentObject {
     }
 
     public DataFrameTransformConfig(final String id,
-                                        final String indexPattern,
-                                        final String destinationIndex,
-                                        final PivotConfig pivotConfig) {
+                                    final String source,
+                                    final String dest,
+                                    final PivotConfig pivotConfig) {
         this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
-        this.source = ExceptionsHelper.requireNonNull(indexPattern, SOURCE.getPreferredName());
-        this.dest = ExceptionsHelper.requireNonNull(destinationIndex, DESTINATION.getPreferredName());
+        this.source = ExceptionsHelper.requireNonNull(source, SOURCE.getPreferredName());
+        this.dest = ExceptionsHelper.requireNonNull(source, DESTINATION.getPreferredName());
         this.pivotConfig = pivotConfig;
 
-        // todo: check that at least one transform is defined
+        // at least one transform must be defined
+        if (this.pivotConfig == null) {
+            throw new IllegalArgumentException(DataFrameMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_NO_TRANSFORM);
+        }
     }
 
     public DataFrameTransformConfig(final StreamInput in) throws IOException {

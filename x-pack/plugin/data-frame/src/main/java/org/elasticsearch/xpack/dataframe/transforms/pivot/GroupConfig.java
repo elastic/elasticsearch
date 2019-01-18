@@ -21,13 +21,16 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+/*
+ * Wraps a single group for groupby
+ */
 public class GroupConfig implements Writeable, ToXContentObject {
 
     private final String destinationFieldName;
     private final SingleGroupSource.Type groupType;
     private final SingleGroupSource<?> groupSource;
 
-    public GroupConfig(String destinationFieldName, SingleGroupSource.Type groupType, SingleGroupSource<?> groupSource) {
+    public GroupConfig(final String destinationFieldName, final SingleGroupSource.Type groupType, final SingleGroupSource<?> groupSource) {
         this.destinationFieldName = destinationFieldName;
         this.groupType = groupType;
         this.groupSource = groupSource;

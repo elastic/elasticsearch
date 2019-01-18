@@ -12,6 +12,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/*
+ * A terms aggregation source for group_by
+ */
 public class TermsGroupSource extends SingleGroupSource<TermsGroupSource> {
     private static final String NAME = "data_frame_terms_group";
 
@@ -28,7 +31,7 @@ public class TermsGroupSource extends SingleGroupSource<TermsGroupSource> {
         return parser;
     }
 
-    public TermsGroupSource(String field) {
+    public TermsGroupSource(final String field) {
         super(field);
     }
 

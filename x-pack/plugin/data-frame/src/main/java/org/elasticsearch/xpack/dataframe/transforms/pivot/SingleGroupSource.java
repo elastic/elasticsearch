@@ -21,6 +21,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/*
+ * Base class for a single source for group_by
+ */
 public abstract class SingleGroupSource<AB extends SingleGroupSource<AB>> implements Writeable, ToXContentObject {
 
     public enum Type {

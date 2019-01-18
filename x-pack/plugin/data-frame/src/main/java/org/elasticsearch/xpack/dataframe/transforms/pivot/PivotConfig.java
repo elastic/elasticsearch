@@ -52,8 +52,8 @@ public class PivotConfig implements Writeable, ToXContentObject {
     }
 
     public PivotConfig(final List<GroupConfig> groups, final AggregationConfig aggregationConfig) {
-        this.groups = groups;
-        this.aggregationConfig = aggregationConfig;
+        this.groups = Objects.requireNonNull(groups);
+        this.aggregationConfig = Objects.requireNonNull(aggregationConfig);
     }
 
     public PivotConfig(StreamInput in) throws IOException {

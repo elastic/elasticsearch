@@ -742,10 +742,6 @@ public final class SearchPhaseController {
         long fetchHits;
         private float maxScore = Float.NEGATIVE_INFINITY;
 
-        TopDocsStats() {
-            this(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
-        }
-
         TopDocsStats(int trackTotalHitsUpTo) {
             this.trackTotalHitsUpTo = trackTotalHitsUpTo;
             this.totalHits = 0;

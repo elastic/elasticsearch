@@ -102,9 +102,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
             size = first.get().queryResult().size();
         }
         int accumulatedLength = Math.min(queryResultSize, getTotalQueryHits(results));
-        ScoreDoc[] sortedDocs = SearchPhaseController.sortDocs(true, results.asList(), null, new SearchPhaseController.TopDocsStats(),
-            from, size)
-            .scoreDocs;
+        ScoreDoc[] sortedDocs = SearchPhaseController.sortDocs(true, results.asList(), null,
+            new SearchPhaseController.TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE), from, size).scoreDocs;
         for (Suggest.Suggestion<?> suggestion : reducedSuggest(results)) {
             int suggestionSize = suggestion.getEntries().get(0).getOptions().size();
             accumulatedLength += suggestionSize;
@@ -126,12 +125,12 @@ public class SearchPhaseControllerTests extends ESTestCase {
             from = first.get().queryResult().from();
             size = first.get().queryResult().size();
         }
-        SearchPhaseController.TopDocsStats topDocsStats = new SearchPhaseController.TopDocsStats();
+        SearchPhaseController.TopDocsStats topDocsStats = new SearchPhaseController.TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
         ScoreDoc[] sortedDocs = SearchPhaseController.sortDocs(ignoreFrom, results.asList(), null, topDocsStats, from, size).scoreDocs;
 
         results = generateSeededQueryResults(randomSeed, nShards, Collections.emptyList(), queryResultSize,
             useConstantScore);
-        SearchPhaseController.TopDocsStats topDocsStats2 = new SearchPhaseController.TopDocsStats();
+        SearchPhaseController.TopDocsStats topDocsStats2 = new SearchPhaseController.TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
         ScoreDoc[] sortedDocs2 = SearchPhaseController.sortDocs(ignoreFrom, results.asList(), null, topDocsStats2, from, size).scoreDocs;
         assertEquals(sortedDocs.length, sortedDocs2.length);
         for (int i = 0; i < sortedDocs.length; i++) {

@@ -10,14 +10,12 @@
   - do:
       index:
         index:  smb-test
-        type:   doc
         id:     1
         body:   { foo: bar }
 
   - do:
       get:
         index:  smb-test
-        type:   doc
         id:     1
 
   - match:   { _index:   smb-test }

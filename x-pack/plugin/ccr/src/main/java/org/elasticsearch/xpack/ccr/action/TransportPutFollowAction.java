@@ -43,6 +43,8 @@ import java.util.Objects;
 public final class TransportPutFollowAction
     extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
 
+    private static final ActionListener<PutFollowAction.Response> NOOP_LISTENER = ActionListener.wrap(() -> {});
+
     private final Client client;
     private final RestoreService restoreService;
     private final CcrLicenseChecker ccrLicenseChecker;
@@ -128,11 +130,13 @@ public final class TransportPutFollowAction
         Client client = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
 
         final ActionListener<PutFollowAction.Response> followingListener;
+        final ActionListener<PutFollowAction.Response> restoreInitiatedListener;
         if (request.getWaitForRestore()) {
             followingListener = listener;
+            restoreInitiatedListener = NOOP_LISTENER;
         } else {
-            followingListener = ActionListener.wrap(() -> {});
-            listener.onResponse(new PutFollowAction.Response(false, false, false));
+            followingListener = NOOP_LISTENER;
+            restoreInitiatedListener = listener;
         }
 
         ActionListener<RestoreSnapshotResponse> restoreCompleteHandler = new ActionListener<RestoreSnapshotResponse>() {
@@ -167,6 +171,8 @@ public final class TransportPutFollowAction
             .renameReplacement(request.getFollowRequest().getFollowerIndex()).masterNodeTimeout(request.masterNodeTimeout())
             .indexSettings(settingsBuilder);
         initiateRestore(restoreRequest, restoreCompleteHandler);
+
+        restoreInitiatedListener.onResponse(new PutFollowAction.Response(false, false, false));
     }
 
     private void initiateRestore(RestoreSnapshotRequest restoreRequest, ActionListener<RestoreSnapshotResponse> listener) {

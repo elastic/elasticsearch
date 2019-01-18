@@ -97,7 +97,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         PutFollowRequest putFollowRequest = new PutFollowRequest(
             "local", // <1>
             "leader", // <2>
-            "follower" // <3>
+            "follower", // <3>
             true // <4>
         );
         // end::ccr-put-follow-request

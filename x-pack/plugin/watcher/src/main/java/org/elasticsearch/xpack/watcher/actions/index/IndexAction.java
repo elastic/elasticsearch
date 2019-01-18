@@ -37,7 +37,7 @@ public class IndexAction implements Action {
     @Nullable final RefreshPolicy refreshPolicy;
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(IndexAction.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in a watcher index action is deprecated.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in a watcher index action is deprecated.";
 
     public IndexAction(@Nullable String index, @Nullable String docType, @Nullable String docId,
                        @Nullable String executionTimeField,

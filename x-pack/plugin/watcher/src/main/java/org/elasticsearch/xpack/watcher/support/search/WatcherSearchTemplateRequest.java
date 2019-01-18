@@ -47,7 +47,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
 
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(WatcherSearchTemplateRequest.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in a watcher search request is deprecated.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in a watcher search request is deprecated.";
 
     public WatcherSearchTemplateRequest(String[] indices, String[] types, SearchType searchType, IndicesOptions indicesOptions,
                                         BytesReference searchSource) {
@@ -313,7 +313,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
         }
 
         WatcherSearchTemplateRequest request = new WatcherSearchTemplateRequest(indices.toArray(new String[0]),
-            types.toArray(new String[0]), searchType, indicesOptions, searchSource, template);
+            types.size() == 0 ? null : types.toArray(new String[0]), searchType, indicesOptions, searchSource, template);
         request.setRestTotalHitsAsInt(totalHitsAsInt);
         return request;
     }

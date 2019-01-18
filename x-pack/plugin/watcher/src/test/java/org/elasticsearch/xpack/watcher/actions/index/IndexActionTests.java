@@ -92,7 +92,6 @@ public class IndexActionTests extends ESTestCase {
 
         ExecutableIndexAction executable = actionParser.parseExecutable(randomAlphaOfLength(5), randomAlphaOfLength(3), parser);
 
-        assertThat(executable.action().docType, equalTo("test-type"));
         if (includeIndex) {
             assertThat(executable.action().index, equalTo("test-index"));
         }

@@ -340,7 +340,7 @@ public class DeprecationLogger {
     public static String formatWarning(final String s) {
         return WARNING_PREFIX + " "
                 + "\"" + escapeAndEncode(s) + "\"" + " "
-                + "\"" + STARTUP_TIME;
+                + "\"" + STARTUP_TIME + "\"";
     }
 
     /**

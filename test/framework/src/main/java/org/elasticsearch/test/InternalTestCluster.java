@@ -929,14 +929,13 @@ public final class InternalTestCluster extends TestCluster {
             assert callback != null;
             close();
             Settings callbackSettings = callback.onNodeStopped(name);
+            assert callbackSettings != null;
             Settings.Builder newSettings = Settings.builder();
-            if (callbackSettings != null) {
-                newSettings.put(callbackSettings);
-            }
+            newSettings.put(callbackSettings);
             if (minMasterNodes >= 0) {
                 assert DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(newSettings.build()) == false : "min master nodes is auto managed";
                 newSettings.put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes);
-                if (callbackSettings != null && INITIAL_MASTER_NODES_SETTING.exists(callbackSettings) == false) {
+                if (INITIAL_MASTER_NODES_SETTING.exists(callbackSettings) == false) {
                     newSettings.putList(INITIAL_MASTER_NODES_SETTING.getKey());
                 }
             }
@@ -1694,12 +1693,7 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    public static final RestartCallback EMPTY_CALLBACK = new RestartCallback() {
-        @Override
-        public Settings onNodeStopped(String node) {
-            return null;
-        }
-    };
+    public static final RestartCallback EMPTY_CALLBACK = new RestartCallback();
 
     /**
      * Restarts all nodes in the cluster. It first stops all nodes and then restarts all the nodes again.

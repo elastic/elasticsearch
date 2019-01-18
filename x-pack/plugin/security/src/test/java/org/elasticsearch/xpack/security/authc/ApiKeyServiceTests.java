@@ -279,10 +279,11 @@ public class ApiKeyServiceTests extends ESTestCase {
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         service.getRoleForApiKey(authentication, rolesStore, roleFuture);
         Role role = roleFuture.get();
-        assertThat(role, instanceOf(ScopedRole.class));
         if (emptyApiKeyRoleDescriptor) {
+            assertThat(role, instanceOf(Role.class));
             assertThat(role.names(), arrayContaining("scoped role"));
         } else {
+            assertThat(role, instanceOf(ScopedRole.class));
             ScopedRole scopedRole = (ScopedRole) role;
             assertThat(scopedRole.names(), arrayContaining("a role"));
             assertThat(scopedRole.scopedBy(), is(notNullValue()));

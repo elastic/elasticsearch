@@ -23,9 +23,9 @@ package org.elasticsearch.index.engine;
  * Exception indicating that not all requested operations from {@link LuceneChangesSnapshot}
  * are available.
  */
-public final class OperationsMissingException extends IllegalStateException {
+public final class MissingHistoryOperationsException extends IllegalStateException {
 
-    OperationsMissingException(String message) {
+    MissingHistoryOperationsException(String message) {
         super(message);
     }
 }

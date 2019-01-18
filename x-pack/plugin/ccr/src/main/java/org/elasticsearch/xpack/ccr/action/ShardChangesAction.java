@@ -27,7 +27,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.OperationsMissingException;
+import org.elasticsearch.index.engine.MissingHistoryOperationsException;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
@@ -396,7 +396,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             ActionListener<Response> wrappedListener = ActionListener.wrap(listener::onResponse, e -> {
                 Throwable cause = ExceptionsHelper.unwrapCause(e);
-                if (cause instanceof OperationsMissingException) {
+                if (cause instanceof MissingHistoryOperationsException) {
                     String message = "Operations are no longer available for replicating. Maybe increase the retention setting [" +
                         IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey() + "]?";
                     // Make it easy to detect this error in ShardFollowNodeTask:

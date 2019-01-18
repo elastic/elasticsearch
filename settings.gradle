@@ -96,7 +96,7 @@ if (isEclipse) {
   projects << 'libs:secure-sm-tests'
   projects << 'libs:grok-tests'
   projects << 'libs:geo-tests'
-  projects << 'libs:ssl-config'
+  projects << 'libs:ssl-config-tests'
 }
 
 include projects.toArray(new String[0])

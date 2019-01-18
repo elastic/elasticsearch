@@ -443,9 +443,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         Map<String, Object> getIndexResponse = getAsMap(indexName);
         assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type", getIndexResponse));
 
-        GetMappingsRequest request = new GetMappingsRequest()
-            .indices(indexName)
-            .types("_doc");
+        GetMappingsRequest request = new GetMappingsRequest().indices(indexName);
 
         GetMappingsResponse getMappingsResponse =
             execute(request, highLevelClient().indices()::getMapping, highLevelClient().indices()::getMappingAsync);

@@ -120,6 +120,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     private final Settings settings;
     private final CcrLicenseChecker ccrLicenseChecker;
     private final SetOnce<CcrRestoreSourceService> restoreSourceService = new SetOnce<>();
+    private final SetOnce<CcrSettings> ccrSettings = new SetOnce<>();
     private Client client;
 
     /**
@@ -162,6 +163,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
         CcrRestoreSourceService restoreSourceService = new CcrRestoreSourceService();
         this.restoreSourceService.set(restoreSourceService);
+        CcrSettings ccrSettings = new CcrSettings(settings, clusterService.getClusterSettings());
+        this.ccrSettings.set(ccrSettings);
         return Arrays.asList(
             ccrLicenseChecker,
             restoreSourceService,
@@ -296,7 +299,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     @Override
     public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
-        Repository.Factory repositoryFactory = (metadata) -> new CcrRepository(metadata, client, ccrLicenseChecker, settings);
+        Repository.Factory repositoryFactory =
+            (metadata) -> new CcrRepository(metadata, client, ccrLicenseChecker, settings, ccrSettings.get());
         return Collections.singletonMap(CcrRepository.TYPE, repositoryFactory);
     }
 

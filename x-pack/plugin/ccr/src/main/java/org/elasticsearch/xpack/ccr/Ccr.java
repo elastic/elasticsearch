@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor;
 import org.elasticsearch.xpack.ccr.action.TransportCcrStatsAction;
 import org.elasticsearch.xpack.ccr.action.TransportDeleteAutoFollowPatternAction;
+import org.elasticsearch.xpack.ccr.action.TransportFollowInfoAction;
 import org.elasticsearch.xpack.ccr.action.TransportFollowStatsAction;
 import org.elasticsearch.xpack.ccr.action.TransportGetAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.action.TransportPauseFollowAction;
@@ -69,6 +70,7 @@ import org.elasticsearch.xpack.ccr.repository.CcrRepository;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 import org.elasticsearch.xpack.ccr.rest.RestCcrStatsAction;
 import org.elasticsearch.xpack.ccr.rest.RestDeleteAutoFollowPatternAction;
+import org.elasticsearch.xpack.ccr.rest.RestFollowInfoAction;
 import org.elasticsearch.xpack.ccr.rest.RestFollowStatsAction;
 import org.elasticsearch.xpack.ccr.rest.RestGetAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestPauseFollowAction;
@@ -81,6 +83,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
@@ -203,6 +206,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 // stats action
                 new ActionHandler<>(FollowStatsAction.INSTANCE, TransportFollowStatsAction.class),
                 new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsAction.class),
+                new ActionHandler<>(FollowInfoAction.INSTANCE, TransportFollowInfoAction.class),
                 // follow actions
                 new ActionHandler<>(PutFollowAction.INSTANCE, TransportPutFollowAction.class),
                 new ActionHandler<>(ResumeFollowAction.INSTANCE, TransportResumeFollowAction.class),
@@ -226,6 +230,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 // stats API
                 new RestFollowStatsAction(settings, restController),
                 new RestCcrStatsAction(settings, restController),
+                new RestFollowInfoAction(settings, restController),
                 // follow APIs
                 new RestPutFollowAction(settings, restController),
                 new RestResumeFollowAction(settings, restController),

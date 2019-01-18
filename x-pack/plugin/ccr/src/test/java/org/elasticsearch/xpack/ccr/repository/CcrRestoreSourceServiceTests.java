@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -24,8 +25,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
@@ -40,8 +39,8 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         super.setUp();
         Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
         taskQueue = new DeterministicTaskQueue(settings, random());
-        Set<Setting<?>> registeredSettings = new HashSet<>(Arrays.asList(CcrSettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
-            CcrSettings.RECOVERY_MAX_BYTES_PER_SECOND));
+        Set<Setting<?>> registeredSettings = Sets.newHashSet(CcrSettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
+            CcrSettings.RECOVERY_MAX_BYTES_PER_SECOND);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, registeredSettings);
         restoreSourceService = new CcrRestoreSourceService(taskQueue.getThreadPool(), new CcrSettings(Settings.EMPTY, clusterSettings));
     }
@@ -237,11 +236,7 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         // Task is cancelled when the session times out
         assertFalse(taskQueue.hasDeferredTasks());
 
-        try (CcrRestoreSourceService.SessionReader reader = restoreSourceService.getSessionReader(sessionUUID)) {
-            fail("Should have timed out.");
-        } catch (IllegalArgumentException e) {
-            // This is fine we want the session to be missing
-        }
+        expectThrows(IllegalArgumentException.class, () -> restoreSourceService.getSessionReader(sessionUUID));
 
         closeShards(indexShard);
     }

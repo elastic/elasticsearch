@@ -1,30 +1,28 @@
 setup:
   - do:
       indices.create:
+          include_type_name: false
           index: test
           body:
             settings:
               number_of_shards: 1
               number_of_replicas: 0
             mappings:
-              test:
-                properties:
-                  mentions:
-                    type: keyword
-                  notifications:
-                    type: keyword
+              properties:
+                mentions:
+                  type: keyword
+                notifications:
+                  type: keyword
 
   - do:
         index:
           index: test
-          type: test
           id: foo|bar|baz0
           body: { "notifications" : ["abc"] }
 
   - do:
       index:
         index: test
-        type: test
         id: foo|bar|baz1
         body: { "mentions" : ["abc"] }
 
@@ -39,7 +37,7 @@ setup:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
-        body: {"aggs": { "itemsNotify": { "filter": { "terms": { "mentions": { "index": "test", "type": "test", "id": "foo|bar|baz0", "path": "notifications"}}}, "aggs": { "mentions" : {"terms" : { "field" : "mentions" }}}}}}
+        body: {"aggs": { "itemsNotify": { "filter": { "terms": { "mentions": { "index": "test", "id": "foo|bar|baz0", "path": "notifications"}}}, "aggs": { "mentions" : {"terms" : { "field" : "mentions" }}}}}}
 
   # validate result
   - match: { hits.total: 2 }
@@ -74,4 +72,3 @@ setup:
   - match: { _all.total.request_cache.hit_count: 0 }
   - match: { _all.total.request_cache.miss_count: 1 }
   - is_true: indices.test
-

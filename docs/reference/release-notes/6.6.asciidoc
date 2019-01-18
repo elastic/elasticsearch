@@ -93,5 +93,3 @@ created a forecast for a large job and temporary storage was not cleaned up.
 * Fix x-pack usage regression caused by index migration {pull}36936[#36936]
 * Order get job stats API response by job id {pull}36841[#36841]
 (issue: {issue}36683[#36683])
-* Create the `.ml-config` index if job or datafeed configs need migration
-{pull}36792[#36792] (issue: {issue}34864[#34864])

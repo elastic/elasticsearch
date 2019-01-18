@@ -193,8 +193,9 @@ public final class IndicesClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      *
-     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
-     * {@link #putMapping(PutMappingRequest, RequestOptions)} should be used instead, which accepts a new request object.
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The
+     * method {@link #putMappingAsync(PutMappingRequest, RequestOptions, ActionListener)} should be used instead,
+     * which accepts a new request object.
      */
     @Deprecated
     public void putMappingAsync(org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest,

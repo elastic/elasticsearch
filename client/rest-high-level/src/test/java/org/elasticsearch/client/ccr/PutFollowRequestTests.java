@@ -37,7 +37,6 @@ public class PutFollowRequestTests extends AbstractXContentTestCase<PutFollowReq
         PARSER.declareString(ConstructingObjectParser.constructorArg(), PutFollowRequest.REMOTE_CLUSTER_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), PutFollowRequest.LEADER_INDEX_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), PutFollowRequest.FOLLOWER_INDEX_FIELD);
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), PutFollowRequest.WAIT_FOR_RESTORE);
         PARSER.declareInt(PutFollowRequest::setMaxReadRequestOperationCount, PutFollowRequest.MAX_READ_REQUEST_OPERATION_COUNT);
         PARSER.declareField(
             PutFollowRequest::setMaxReadRequestSize,

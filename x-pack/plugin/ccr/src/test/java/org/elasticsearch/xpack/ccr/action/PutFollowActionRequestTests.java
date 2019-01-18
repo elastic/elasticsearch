@@ -30,7 +30,7 @@ public class PutFollowActionRequestTests extends AbstractSerializingTestCase<Put
 
     @Override
     protected PutFollowAction.Request doParseInstance(XContentParser parser) throws IOException {
-        return PutFollowAction.Request.fromXContent(parser, null);
+        return PutFollowAction.Request.fromXContent(parser, null, false);
     }
 
     @Override

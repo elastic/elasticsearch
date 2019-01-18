@@ -131,6 +131,7 @@ public final class TransportPutFollowAction
 
         final ActionListener<PutFollowAction.Response> followingListener;
         final ActionListener<PutFollowAction.Response> restoreInitiatedListener;
+        logger.error("FUCK: " + request.getWaitForRestore());
         if (request.getWaitForRestore()) {
             followingListener = listener;
             restoreInitiatedListener = NOOP_LISTENER;

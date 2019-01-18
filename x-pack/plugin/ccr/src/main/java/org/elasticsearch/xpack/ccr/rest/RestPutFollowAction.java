@@ -38,7 +38,7 @@ public class RestPutFollowAction extends BaseRestHandler {
 
     static Request createRequest(RestRequest restRequest) throws IOException {
         try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
-            return Request.fromXContent(parser, restRequest.param("index"));
+            return Request.fromXContent(parser, restRequest.param("index"), restRequest.paramAsBoolean("wait_for_restore", false));
         }
     }
 }

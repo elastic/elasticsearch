@@ -46,6 +46,8 @@ final class CcrRequestConverters {
             .addPathPartAsIs("_ccr", "follow")
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        parameters.withWaitForRestore(putFollowRequest.getWaitForRestore());
         request.setEntity(createEntity(putFollowRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }

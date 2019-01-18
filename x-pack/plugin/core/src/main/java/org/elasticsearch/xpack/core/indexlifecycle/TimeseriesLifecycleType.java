@@ -34,10 +34,10 @@ public class TimeseriesLifecycleType implements LifecycleType {
 
     public static final String TYPE = "timeseries";
     static final List<String> VALID_PHASES = Arrays.asList("hot", "warm", "cold", "delete");
-    static final List<String> ORDERED_VALID_HOT_ACTIONS = Arrays.asList(UnfollowAction.NAME, SetPriorityAction.NAME, RolloverAction.NAME);
-    static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(UnfollowAction.NAME, SetPriorityAction.NAME, ReadOnlyAction.NAME,
+    static final List<String> ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME);
+    static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
         AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME);
-    static final List<String> ORDERED_VALID_COLD_ACTIONS = Arrays.asList(UnfollowAction.NAME, SetPriorityAction.NAME, AllocateAction.NAME,
+    static final List<String> ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, AllocateAction.NAME,
         FreezeAction.NAME);
     static final List<String> ORDERED_VALID_DELETE_ACTIONS = Arrays.asList(DeleteAction.NAME);
     static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);

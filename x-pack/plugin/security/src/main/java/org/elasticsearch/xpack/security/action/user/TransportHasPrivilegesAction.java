@@ -122,7 +122,7 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
                     privileges.putAll(existing.getPrivileges());
                 }
                 for (String privilege : check.getPrivileges()) {
-                    if (testIndexMatch(index, check.allowsRestrictedIndices(), privilege, userRole, predicateCache)) {
+                    if (testIndexMatch(index, check.allowRestrictedIndices(), privilege, userRole, predicateCache)) {
                         logger.debug(() -> new ParameterizedMessage("Role [{}] has [{}] on index [{}]",
                             Strings.arrayToCommaDelimitedString(userRole.names()), privilege, index));
                         privileges.put(privilege, true);

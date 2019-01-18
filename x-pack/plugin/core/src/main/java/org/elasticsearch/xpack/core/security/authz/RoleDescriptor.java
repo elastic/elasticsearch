@@ -667,7 +667,7 @@ public class RoleDescriptor implements ToXContentObject {
             return hasDeniedFields() || hasGrantedFields();
         }
 
-        public boolean allowsRestrictedIndices() {
+        public boolean allowRestrictedIndices() {
             return allowRestrictedIndices;
         }
 

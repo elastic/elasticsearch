@@ -191,7 +191,7 @@ public final class Role {
                 }
                 final Set<BytesReference> query = privilege.getQuery() == null ? null : Collections.singleton(privilege.getQuery());
                 list.add(new IndicesPermission.Group(IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())), fieldPermissions,
-                        query, privilege.allowsRestrictedIndices(), privilege.getIndices()));
+                        query, privilege.allowRestrictedIndices(), privilege.getIndices()));
             }
             return list;
         }

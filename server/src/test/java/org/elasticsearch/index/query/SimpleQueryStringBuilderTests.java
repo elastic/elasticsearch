@@ -184,6 +184,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     // Check operator handling, and default field handling.
     public void testDefaultOperatorHandling() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.").field(STRING_FIELD_NAME);
         QueryShardContext shardContext = createShardContext();
         shardContext.setAllowUnmappedFields(true); // to avoid occasional cases

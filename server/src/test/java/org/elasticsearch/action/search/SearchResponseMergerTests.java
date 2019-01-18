@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
@@ -42,6 +43,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.profile.SearchProfileShardResultsTests;
+import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.junit.Before;
@@ -194,9 +197,45 @@ public class SearchResponseMergerTests extends ESTestCase {
         assertEquals(expectedProfile, mergedResponse.getProfileResults());
     }
 
-    //TODO add tests for suggestions reduction?
-
-    //TODO do we want to have a specific test for field collapsing to check that the grouping actually works?
+    public void testMergeSuggestions()  throws InterruptedException {
+        String suggestionName = randomAlphaOfLengthBetween(4, 8);
+        boolean skipDuplicates = randomBoolean();
+        int size = randomIntBetween(1, 100);
+        SearchResponseMerger searchResponseMerger = new SearchResponseMerger(0, 0, 0, new SearchTimeProvider(0, 0, () -> 0),
+            SearchResponse.Clusters.EMPTY, flag -> null);
+        for (int i = 0; i < numResponses; i++) {
+            List<Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>> suggestions =
+                new ArrayList<>();
+            CompletionSuggestion completionSuggestion = new CompletionSuggestion(suggestionName, size, skipDuplicates);
+            CompletionSuggestion.Entry options = new CompletionSuggestion.Entry(new Text("suggest"), 0, 10);
+            options.addOption(new CompletionSuggestion.Entry.Option(randomInt(), new Text("suggestion"), i, Collections.emptyMap()));
+            completionSuggestion.addTerm(options);
+            suggestions.add(completionSuggestion);
+            Suggest suggest = new Suggest(suggestions);
+            SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
+            InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, null, suggest, null, false, null, 1);
+            SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, 1, 1, 0, randomLong(),
+                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+            addResponse(searchResponseMerger, searchResponse);
+        }
+        awaitResponsesAdded();
+        SearchResponse mergedResponse = searchResponseMerger.getMergedResponse();
+        assertEquals(numResponses, mergedResponse.getTotalShards());
+        assertEquals(numResponses, mergedResponse.getSuccessfulShards());
+        assertEquals(0, mergedResponse.getSkippedShards());
+        assertEquals(0, mergedResponse.getFailedShards());
+        assertEquals(0, mergedResponse.getShardFailures().length);
+        Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestion =
+            mergedResponse.getSuggest().getSuggestion(suggestionName);
+        assertEquals(1, suggestion.getEntries().size());
+        Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option> options = suggestion.getEntries().get(0);
+        assertEquals(skipDuplicates ? 1 : Math.min(numResponses, size), options.getOptions().size());
+        int i = numResponses;
+        for (Suggest.Suggestion.Entry.Option option : options) {
+            assertEquals("suggestion", option.getText().string());
+            assertEquals(--i, option.getScore(), 0f);
+        }
+    }
 
     public void testMergeAggs() throws InterruptedException {
         SearchResponseMerger searchResponseMerger = new SearchResponseMerger(0, 0, 0, new SearchTimeProvider(0, 0, () -> 0),

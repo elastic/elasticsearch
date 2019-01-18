@@ -449,10 +449,11 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         final AtomicBoolean bootstrapped = new AtomicBoolean();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(Settings.builder().putList(
             INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName()).build(),
-            transportService, random(), () -> Stream.of(otherNode1, otherNode2, extraNode).collect(Collectors.toList()), () -> false, vc -> {
-            assertTrue(bootstrapped.compareAndSet(false, true));
-            assertThat(vc.getNodeIds(), not(hasItem(extraNode.getId())));
-        });
+            transportService, random(), () -> Stream.of(otherNode1, otherNode2, extraNode).collect(Collectors.toList()), () -> false,
+            vc -> {
+                assertTrue(bootstrapped.compareAndSet(false, true));
+                assertThat(vc.getNodeIds(), not(hasItem(extraNode.getId())));
+            });
 
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();

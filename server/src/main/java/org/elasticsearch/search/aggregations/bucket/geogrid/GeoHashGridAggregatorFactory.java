@@ -55,7 +55,7 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
         final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize,
-                Collections.<GeoGridBucket> emptyList(), pipelineAggregators, metaData);
+                Collections.emptyList(), pipelineAggregators, metaData);
         return new NonCollectingAggregator(name, context, parent, pipelineAggregators, metaData) {
             @Override
             public InternalAggregation buildEmptyAggregation() {

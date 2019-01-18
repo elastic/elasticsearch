@@ -29,6 +29,10 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
 
+/**
+ * Wrapper class to help convert {@link MultiGeoPointValues}
+ * to numeric long values for bucketing.
+ */
 class CellIdSource extends ValuesSource.Numeric {
     private final ValuesSource.GeoPoint valuesSource;
     private final int precision;

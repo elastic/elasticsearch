@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -24,7 +23,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.snapshots.RestoreInfo;
@@ -165,33 +163,8 @@ public final class TransportPutFollowAction
         RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
             .indices(request.getLeaderIndex()).indicesOptions(request.indicesOptions()).renamePattern("^(.*)$")
             .renameReplacement(request.getFollowRequest().getFollowerIndex()).masterNodeTimeout(request.masterNodeTimeout())
-            .indexSettings(settingsBuilder);
-        initiateRestore(restoreRequest, restoreCompleteHandler);
-    }
-
-    private void initiateRestore(RestoreSnapshotRequest restoreRequest, ActionListener<RestoreSnapshotResponse> listener) {
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-
-            @Override
-            protected void doRun() {
-                restoreService.restoreSnapshot(restoreRequest, new ActionListener<RestoreService.RestoreCompletionResponse>() {
-                    @Override
-                    public void onResponse(RestoreService.RestoreCompletionResponse restoreCompletionResponse) {
-                        RestoreClusterStateListener.createAndRegisterListener(clusterService, restoreCompletionResponse, listener);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                });
-            }
-        });
-
+            .indexSettings(settingsBuilder).waitForCompletion(true);
+        client.admin().cluster().restoreSnapshot(restoreRequest, restoreCompleteHandler);
     }
 
     private void initiateFollowing(

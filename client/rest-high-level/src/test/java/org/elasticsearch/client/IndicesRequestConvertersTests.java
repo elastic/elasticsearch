@@ -40,7 +40,6 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -55,6 +54,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
+import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -163,7 +163,31 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
 
     public void testPutMapping() throws IOException {
-        PutMappingRequest putMappingRequest = new PutMappingRequest();
+        String[] indices = RequestConvertersTests.randomIndicesNames(0, 5);
+        PutMappingRequest putMappingRequest = new PutMappingRequest(indices);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        RequestConvertersTests.setRandomTimeout(putMappingRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        RequestConvertersTests.setRandomMasterTimeout(putMappingRequest, expectedParams);
+
+        Request request = IndicesRequestConverters.putMapping(putMappingRequest);
+
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String index = String.join(",", indices);
+        if (Strings.hasLength(index)) {
+            endpoint.add(index);
+        }
+        endpoint.add("_mapping");
+
+        Assert.assertEquals(endpoint.toString(), request.getEndpoint());
+        Assert.assertEquals(expectedParams, request.getParameters());
+        Assert.assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        RequestConvertersTests.assertToXContentBody(putMappingRequest, request.getEntity());
+    }
+
+    public void testPutMappingWithTypes() throws IOException {
+        org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest =
+            new org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest();
 
         String[] indices = RequestConvertersTests.randomIndicesNames(0, 5);
         putMappingRequest.indices(indices);

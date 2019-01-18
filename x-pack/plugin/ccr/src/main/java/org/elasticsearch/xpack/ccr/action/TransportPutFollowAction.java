@@ -49,22 +49,22 @@ public final class TransportPutFollowAction
 
     @Inject
     public TransportPutFollowAction(
-        final ThreadPool threadPool,
-        final TransportService transportService,
-        final ClusterService clusterService,
-        final ActionFilters actionFilters,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
-        final Client client,
-        final RestoreService restoreService,
-        final CcrLicenseChecker ccrLicenseChecker) {
+            final ThreadPool threadPool,
+            final TransportService transportService,
+            final ClusterService clusterService,
+            final ActionFilters actionFilters,
+            final IndexNameExpressionResolver indexNameExpressionResolver,
+            final Client client,
+            final RestoreService restoreService,
+            final CcrLicenseChecker ccrLicenseChecker) {
         super(
-            PutFollowAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            PutFollowAction.Request::new,
-            indexNameExpressionResolver);
+                PutFollowAction.NAME,
+                transportService,
+                clusterService,
+                threadPool,
+                actionFilters,
+                PutFollowAction.Request::new,
+                indexNameExpressionResolver);
         this.client = client;
         this.restoreService = restoreService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
@@ -87,9 +87,9 @@ public final class TransportPutFollowAction
 
     @Override
     protected void masterOperation(
-        final PutFollowAction.Request request,
-        final ClusterState state,
-        final ActionListener<PutFollowAction.Response> listener) {
+            final PutFollowAction.Request request,
+            final ClusterState state,
+            final ActionListener<PutFollowAction.Response> listener) throws Exception {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
@@ -108,10 +108,9 @@ public final class TransportPutFollowAction
     }
 
     private void createFollowerIndex(
-        final IndexMetaData leaderIndexMetaData,
-        final PutFollowAction.Request request,
-        final ActionListener<PutFollowAction.Response> listener) {
-
+            final IndexMetaData leaderIndexMetaData,
+            final PutFollowAction.Request request,
+            final ActionListener<PutFollowAction.Response> listener) {
         if (leaderIndexMetaData == null) {
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist"));
             return;

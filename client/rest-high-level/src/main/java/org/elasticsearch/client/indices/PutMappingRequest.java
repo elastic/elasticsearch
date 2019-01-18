@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.indices;
 
-import com.carrotsearch.hppc.ObjectHashSet;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -42,11 +41,6 @@ import java.util.Map;
  * be merged, the request will be rejected.
  */
 public class PutMappingRequest extends TimedRequest implements IndicesRequest, ToXContentObject {
-
-    private static ObjectHashSet<String> RESERVED_FIELDS = ObjectHashSet.from(
-            "_uid", "_id", "_type", "_source",  "_all", "_analyzer", "_parent", "_routing", "_index",
-            "_size", "_timestamp", "_ttl", "_field_names"
-    );
 
     private final String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);

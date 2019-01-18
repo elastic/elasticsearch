@@ -35,6 +35,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
@@ -70,7 +71,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -111,7 +112,7 @@ public class RecoverySourceHandler {
         this.logger = Loggers.getLogger(getClass(), request.shardId(), "recover to " + request.targetNode().getName());
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         // if the target is on an old version, it won't be able to handle out-of-order file chunks.
-        this.maxConcurrentFileChunks = request.targetNode().getVersion().onOrAfter(Version.V_7_0_0) ? maxConcurrentFileChunks : 1;
+        this.maxConcurrentFileChunks = request.targetNode().getVersion().onOrAfter(Version.V_6_7_0) ? maxConcurrentFileChunks : 1;
     }
 
     public StartRecoveryRequest getRequest() {
@@ -226,25 +227,27 @@ public class RecoverySourceHandler {
                 logger.trace("snapshot translog for recovery; current size is [{}]",
                     shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo));
             }
-            final SendSnapshotResult sendSnapshotResult;
-            try (Translog.Snapshot snapshot = shard.getHistoryOperations("peer-recovery", startingSeqNo)) {
-                // we can release the retention lock here because the snapshot itself will retain the required operations.
-                IOUtils.close(retentionLock, () -> resources.remove(retentionLock));
-                // we have to capture the max_seen_auto_id_timestamp and the max_seq_no_of_updates to make sure that these values
-                // are at least as high as the corresponding values on the primary when any of these operations were executed on it.
-                final long maxSeenAutoIdTimestamp = shard.getMaxSeenAutoIdTimestamp();
-                final long maxSeqNoOfUpdatesOrDeletes = shard.getMaxSeqNoOfUpdatesOrDeletes();
-                sendSnapshotResult = phase2(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot,
-                    maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes);
-            } catch (Exception e) {
-                throw new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e);
-            }
 
+            final Translog.Snapshot phase2Snapshot = shard.getHistoryOperations("peer-recovery", startingSeqNo);
+            resources.add(phase2Snapshot);
+            // we can release the retention lock here because the snapshot itself will retain the required operations.
+            IOUtils.close(retentionLock);
+            // we have to capture the max_seen_auto_id_timestamp and the max_seq_no_of_updates to make sure that these values
+            // are at least as high as the corresponding values on the primary when any of these operations were executed on it.
+            final long maxSeenAutoIdTimestamp = shard.getMaxSeenAutoIdTimestamp();
+            final long maxSeqNoOfUpdatesOrDeletes = shard.getMaxSeqNoOfUpdatesOrDeletes();
+            final StepListener<SendSnapshotResult> sendSnapshotStep = new StepListener<>();
+            phase2(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, phase2Snapshot, maxSeenAutoIdTimestamp,
+                maxSeqNoOfUpdatesOrDeletes, sendSnapshotStep);
+            sendSnapshotStep.whenComplete(
+                r -> IOUtils.close(phase2Snapshot),
+                e -> onFailure.accept(new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e)));
             final StepListener<Void> finalizeStep = new StepListener<>();
-            finalizeRecovery(sendSnapshotResult.targetLocalCheckpoint, finalizeStep);
+            sendSnapshotStep.whenComplete(r -> finalizeRecovery(r.targetLocalCheckpoint, finalizeStep), onFailure);
+
             finalizeStep.whenComplete(r -> {
-                assert resources.isEmpty() : "not every resource is released [" + resources + "]";
                 final long phase1ThrottlingWaitTime = 0L; // TODO: return the actual throttle time
+                final SendSnapshotResult sendSnapshotResult = sendSnapshotStep.result();
                 final RecoveryResponse response = new RecoveryResponse(sendFileResult.phase1FileNames, sendFileResult.phase1FileSizes,
                     sendFileResult.phase1ExistingFileNames, sendFileResult.phase1ExistingFileSizes, sendFileResult.totalSize,
                     sendFileResult.existingTotalSize, sendFileResult.took.millis(), phase1ThrottlingWaitTime,
@@ -507,10 +510,10 @@ public class RecoverySourceHandler {
      * @param snapshot                   a snapshot of the translog
      * @param maxSeenAutoIdTimestamp     the max auto_id_timestamp of append-only requests on the primary
      * @param maxSeqNoOfUpdatesOrDeletes the max seq_no of updates or deletes on the primary after these operations were executed on it.
-     * @return the send snapshot result
+     * @param listener                   a listener which will be notified with the local checkpoint on the target.
      */
-    SendSnapshotResult phase2(long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, Translog.Snapshot snapshot,
-                              long maxSeenAutoIdTimestamp, long maxSeqNoOfUpdatesOrDeletes) throws IOException {
+    void phase2(long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, Translog.Snapshot snapshot, long maxSeenAutoIdTimestamp,
+                long maxSeqNoOfUpdatesOrDeletes, ActionListener<SendSnapshotResult> listener) throws IOException {
         assert requiredSeqNoRangeStart <= endingSeqNo + 1:
             "requiredSeqNoRangeStart " + requiredSeqNoRangeStart + " is larger than endingSeqNo " + endingSeqNo;
         assert startingSeqNo <= requiredSeqNoRangeStart :
@@ -518,81 +521,87 @@ public class RecoverySourceHandler {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
-
-        final StopWatch stopWatch = new StopWatch().start();
-
         logger.trace("recovery [phase2]: sending transaction log operations (seq# from [" +  startingSeqNo  + "], " +
             "required [" + requiredSeqNoRangeStart + ":" + endingSeqNo + "]");
 
-        int ops = 0;
-        long size = 0;
-        int skippedOps = 0;
-        int totalSentOps = 0;
-        final AtomicLong targetLocalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
-        final List<Translog.Operation> operations = new ArrayList<>();
+        final AtomicInteger skippedOps = new AtomicInteger();
+        final AtomicInteger totalSentOps = new AtomicInteger();
         final LocalCheckpointTracker requiredOpsTracker = new LocalCheckpointTracker(endingSeqNo, requiredSeqNoRangeStart - 1);
+        final AtomicInteger lastBatchCount = new AtomicInteger(); // used to estimate the count of the subsequent batch.
+        final CheckedSupplier<List<Translog.Operation>, IOException> readNextBatch = () -> {
+            // We need to synchronized Snapshot#next() because it's called by different threads through sendBatch.
+            // Even though those calls are not concurrent, Snapshot#next() uses non-synchronized state and is not multi-thread-compatible.
+            synchronized (snapshot) {
+                final List<Translog.Operation> ops = lastBatchCount.get() > 0 ? new ArrayList<>(lastBatchCount.get()) : new ArrayList<>();
+                long batchSizeInBytes = 0L;
+                Translog.Operation operation;
+                while ((operation = snapshot.next()) != null) {
+                    if (shard.state() == IndexShardState.CLOSED) {
+                        throw new IndexShardClosedException(request.shardId());
+                    }
+                    cancellableThreads.checkForCancel();
+                    final long seqNo = operation.seqNo();
+                    if (seqNo < startingSeqNo || seqNo > endingSeqNo) {
+                        skippedOps.incrementAndGet();
+                        continue;
+                    }
+                    ops.add(operation);
+                    batchSizeInBytes += operation.estimateSize();
+                    totalSentOps.incrementAndGet();
+                    requiredOpsTracker.markSeqNoAsCompleted(seqNo);
 
-        final int expectedTotalOps = snapshot.totalOperations();
-        if (expectedTotalOps == 0) {
-            logger.trace("no translog operations to send");
-        }
-
-        final CancellableThreads.IOInterruptible sendBatch = () -> {
-            final long targetCheckpoint = recoveryTarget.indexTranslogOperations(
-                operations, expectedTotalOps, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes);
-            targetLocalCheckpoint.set(targetCheckpoint);
+                    // check if this request is past bytes threshold, and if so, send it off
+                    if (batchSizeInBytes >= chunkSizeInBytes) {
+                        break;
+                    }
+                }
+                lastBatchCount.set(ops.size());
+                return ops;
+            }
         };
 
-        // send operations in batches
-        Translog.Operation operation;
-        while ((operation = snapshot.next()) != null) {
-            if (shard.state() == IndexShardState.CLOSED) {
-                throw new IndexShardClosedException(request.shardId());
-            }
-            cancellableThreads.checkForCancel();
+        final StopWatch stopWatch = new StopWatch().start();
+        final ActionListener<Long> batchedListener = ActionListener.wrap(
+            targetLocalCheckpoint -> {
+                assert snapshot.totalOperations() == snapshot.skippedOperations() + skippedOps.get() + totalSentOps.get()
+                    : String.format(Locale.ROOT, "expected total [%d], overridden [%d], skipped [%d], total sent [%d]",
+                    snapshot.totalOperations(), snapshot.skippedOperations(), skippedOps.get(), totalSentOps.get());
+                if (requiredOpsTracker.getCheckpoint() < endingSeqNo) {
+                    throw new IllegalStateException("translog replay failed to cover required sequence numbers" +
+                        " (required range [" + requiredSeqNoRangeStart + ":" + endingSeqNo + "). first missing op is ["
+                        + (requiredOpsTracker.getCheckpoint() + 1) + "]");
+                }
+                stopWatch.stop();
+                final TimeValue tookTime = stopWatch.totalTime();
+                logger.trace("recovery [phase2]: took [{}]", tookTime);
+                listener.onResponse(new SendSnapshotResult(targetLocalCheckpoint, totalSentOps.get(), tookTime));
+            },
+            listener::onFailure
+        );
 
-            final long seqNo = operation.seqNo();
-            if (seqNo < startingSeqNo || seqNo > endingSeqNo) {
-                skippedOps++;
-                continue;
-            }
-            operations.add(operation);
-            ops++;
-            size += operation.estimateSize();
-            totalSentOps++;
-            requiredOpsTracker.markSeqNoAsCompleted(seqNo);
+        sendBatch(readNextBatch, true, SequenceNumbers.UNASSIGNED_SEQ_NO, snapshot.totalOperations(),
+            maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes, batchedListener);
+    }
 
-            // check if this request is past bytes threshold, and if so, send it off
-            if (size >= chunkSizeInBytes) {
-                cancellableThreads.executeIO(sendBatch);
-                logger.trace("sent batch of [{}][{}] (total: [{}]) translog operations", ops, new ByteSizeValue(size), expectedTotalOps);
-                ops = 0;
-                size = 0;
-                operations.clear();
-            }
+    private void sendBatch(CheckedSupplier<List<Translog.Operation>, IOException> nextBatch, boolean firstBatch,
+                           long targetLocalCheckpoint, int totalTranslogOps, long maxSeenAutoIdTimestamp,
+                           long maxSeqNoOfUpdatesOrDeletes, ActionListener<Long> listener) throws IOException {
+        final List<Translog.Operation> operations = nextBatch.get();
+        // send the leftover operations or if no operations were sent, request the target to respond with its local checkpoint
+        if (operations.isEmpty() == false || firstBatch) {
+            cancellableThreads.execute(() -> {
+                recoveryTarget.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes,
+                    ActionListener.wrap(
+                        newCheckpoint -> {
+                            sendBatch(nextBatch, false, SequenceNumbers.max(targetLocalCheckpoint, newCheckpoint),
+                                totalTranslogOps, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes, listener);
+                        },
+                        listener::onFailure
+                    ));
+            });
+        } else {
+            listener.onResponse(targetLocalCheckpoint);
         }
-
-        if (!operations.isEmpty() || totalSentOps == 0) {
-            // send the leftover operations or if no operations were sent, request the target to respond with its local checkpoint
-            cancellableThreads.executeIO(sendBatch);
-        }
-
-        assert expectedTotalOps == snapshot.skippedOperations() + skippedOps + totalSentOps
-            : String.format(Locale.ROOT, "expected total [%d], overridden [%d], skipped [%d], total sent [%d]",
-            expectedTotalOps, snapshot.skippedOperations(), skippedOps, totalSentOps);
-
-        if (requiredOpsTracker.getCheckpoint() < endingSeqNo) {
-            throw new IllegalStateException("translog replay failed to cover required sequence numbers" +
-                " (required range [" + requiredSeqNoRangeStart + ":" + endingSeqNo + "). first missing op is ["
-                + (requiredOpsTracker.getCheckpoint() + 1) + "]");
-        }
-
-        logger.trace("sent final batch of [{}][{}] (total: [{}]) translog operations", ops, new ByteSizeValue(size), expectedTotalOps);
-
-        stopWatch.stop();
-        final TimeValue tookTime = stopWatch.totalTime();
-        logger.trace("recovery [phase2]: took [{}]", tookTime);
-        return new SendSnapshotResult(targetLocalCheckpoint.get(), totalSentOps, tookTime);
     }
 
     void finalizeRecovery(final long targetLocalCheckpoint, final ActionListener<Void> listener) throws IOException {

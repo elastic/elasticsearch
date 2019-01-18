@@ -459,7 +459,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                 transportService, indicesService, actionFilters, indexNameExpressionResolver);
             final ShardStateAction shardStateAction = new ShardStateAction(
                 clusterService, transportService, allocationService,
-                new RoutingService(settings, clusterService, allocationService),
+                new RoutingService(clusterService, allocationService),
                 deterministicTaskQueue.getThreadPool()
             );
             indicesClusterStateService = new IndicesClusterStateService(

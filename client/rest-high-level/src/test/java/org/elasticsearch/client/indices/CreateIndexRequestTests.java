@@ -22,11 +22,9 @@ package org.elasticsearch.client.indices;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -49,20 +47,19 @@ public class CreateIndexRequestTests extends AbstractXContentTestCase<CreateInde
     }
 
     @Override
-    protected void assertEqualInstances(CreateIndexRequest expectedInstance, CreateIndexRequest newInstance) {
-        assertEquals(expectedInstance.settings(), newInstance.settings());
-        assertAliasesEqual(expectedInstance.aliases(), newInstance.aliases());
-        assertMappingsEqual(expectedInstance.mappings(), newInstance.mappings());
+    protected void assertEqualInstances(CreateIndexRequest expected, CreateIndexRequest actual) {
+        assertEquals(expected.settings(), actual.settings());
+        assertAliasesEqual(expected.aliases(), actual.aliases());
+        assertMappingsEqual(expected, actual);
     }
 
-    private void assertMappingsEqual(Map<String, String> expected, Map<String, String> actual) {
-        assertEquals(expected.keySet(), actual.keySet());
-
-        for (Map.Entry<String, String> expectedEntry : expected.entrySet()) {
-            String expectedValue = expectedEntry.getValue();
-            String actualValue = actual.get(expectedEntry.getKey());
-            try (XContentParser expectedJson = createParser(JsonXContent.jsonXContent, expectedValue);
-                 XContentParser actualJson = createParser(JsonXContent.jsonXContent, actualValue)) {
+    private void assertMappingsEqual(CreateIndexRequest expected, CreateIndexRequest actual) {
+        if (expected.mappings() == null) {
+            assertNull(actual.mappings());
+        } else {
+            assertNotNull(actual.mappings());
+            try (XContentParser expectedJson = createParser(expected.mappingsXContentType().xContent(), expected.mappings());
+                 XContentParser actualJson = createParser(actual.mappingsXContentType().xContent(), actual.mappings())) {
                 assertEquals(expectedJson.map(), actualJson.map());
             } catch (IOException e) {
                 throw new RuntimeException(e);

@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.TimedRequest;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -42,12 +40,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -65,7 +60,10 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, Ind
 
     private final String index;
     private Settings settings = EMPTY_SETTINGS;
-    private final Map<String, String> mappings = new HashMap<>();
+
+    private BytesReference mappings;
+    private XContentType mappingsXContentType;
+
     private final Set<Alias> aliases = new HashSet<>();
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
@@ -153,6 +151,8 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, Ind
     /**
      * Adds mapping that will be added when the index gets created.
      *
+     * Note that the definition should *not* be nested under a type name.
+     *
      * @param source The mapping source
      * @param xContentType The content type of the source
      */
@@ -163,22 +163,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, Ind
     /**
      * Adds mapping that will be added when the index gets created.
      *
-     * @param source The mapping source
-     * @param xContentType the content type of the mapping source
-     */
-    private CreateIndexRequest mapping(BytesReference source, XContentType xContentType) {
-        Objects.requireNonNull(xContentType);
-        try {
-            mappings.put(MapperService.SINGLE_MAPPING_NAME,
-                XContentHelper.convertToJson(source, false, false, xContentType));
-            return this;
-        } catch (IOException e) {
-            throw new UncheckedIOException("failed to convert to json", e);
-        }
-    }
-
-    /**
-     * Adds mapping that will be added when the index gets created.
+     * Note that the definition should *not* be nested under a type name.
      *
      * @param source The mapping source
      */
@@ -189,18 +174,35 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, Ind
     /**
      * Adds mapping that will be added when the index gets created.
      *
+     * Note that the definition should *not* be nested under a type name.
+     *
      * @param source The mapping source
      */
     public CreateIndexRequest mapping(Map<String, ?> source) {
        try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            return mapping(builder);
+            return mapping(BytesReference.bytes(builder), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
-    
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * Note that the definition should *not* be nested under a type name.
+     *
+     * @param source The mapping source
+     * @param xContentType the content type of the mapping source
+     */
+    private CreateIndexRequest mapping(BytesReference source, XContentType xContentType) {
+        Objects.requireNonNull(xContentType);
+        mappings = source;
+        mappingsXContentType = xContentType;
+        return this;
+    }
+
     /**
      * Sets the aliases that will be associated with the index when it gets created
      */
@@ -208,7 +210,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, Ind
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            return aliases(BytesReference.bytes(builder));
+            return aliases(BytesReference.bytes(builder), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -218,23 +220,23 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, Ind
      * Sets the aliases that will be associated with the index when it gets created
      */
     public CreateIndexRequest aliases(XContentBuilder source) {
-        return aliases(BytesReference.bytes(source));
+        return aliases(BytesReference.bytes(source), source.contentType());
     }
 
     /**
      * Sets the aliases that will be associated with the index when it gets created
      */
-    public CreateIndexRequest aliases(String source) {
-        return aliases(new BytesArray(source));
+    public CreateIndexRequest aliases(String source, XContentType contentType) {
+        return aliases(new BytesArray(source), contentType);
     }
 
     /**
      * Sets the aliases that will be associated with the index when it gets created
      */
-    public CreateIndexRequest aliases(BytesReference source) {
+    public CreateIndexRequest aliases(BytesReference source, XContentType contentType) {
         // EMPTY is safe here because we never call namedObject
-        try (XContentParser parser = XContentHelper
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source, contentType)) {
             //move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -256,6 +258,8 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, Ind
 
     /**
      * Sets the settings and mappings as a single source.
+     *
+     * Note that the mapping definition should *not* be nested under a type name.
      */
     public CreateIndexRequest source(String source, XContentType xContentType) {
         return source(new BytesArray(source), xContentType);
@@ -263,6 +267,8 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, Ind
 
     /**
      * Sets the settings and mappings as a single source.
+     *
+     * Note that the mapping definition should *not* be nested under a type name.
      */
     public CreateIndexRequest source(XContentBuilder source) {
         return source(BytesReference.bytes(source), source.contentType());
@@ -270,6 +276,8 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, Ind
 
     /**
      * Sets the settings and mappings as a single source.
+     *
+     * Note that the mapping definition should *not* be nested under a type name.
      */
     public CreateIndexRequest source(byte[] source, XContentType xContentType) {
         return source(source, 0, source.length, xContentType);
@@ -277,6 +285,8 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, Ind
 
     /**
      * Sets the settings and mappings as a single source.
+     *
+     * Note that the mapping definition should *not* be nested under a type name.
      */
     public CreateIndexRequest source(byte[] source, int offset, int length, XContentType xContentType) {
         return source(new BytesArray(source, offset, length), xContentType);
@@ -284,15 +294,20 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, Ind
 
     /**
      * Sets the settings and mappings as a single source.
+     *
+     * Note that the mapping definition should *not* be nested under a type name.
      */
     public CreateIndexRequest source(BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
-        source(XContentHelper.convertToMap(source, false, xContentType).v2(), LoggingDeprecationHandler.INSTANCE);
+        source(XContentHelper.convertToMap(source, false, xContentType).v2(),
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION);
         return this;
     }
 
     /**
      * Sets the settings and mappings as a single source.
+     *
+     * Note that the mapping definition should *not* be nested under a type name.
      */
     @SuppressWarnings("unchecked")
     public CreateIndexRequest source(Map<String, ?> source, DeprecationHandler deprecationHandler) {
@@ -301,8 +316,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, Ind
             if (SETTINGS.match(name, deprecationHandler)) {
                 settings((Map<String, Object>) entry.getValue());
             } else if (MAPPINGS.match(name, deprecationHandler)) {
-                Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
-                mapping(mappings);
+                mapping((Map<String, Object>) entry.getValue());
             } else if (ALIASES.match(name, deprecationHandler)) {
                 aliases((Map<String, Object>) entry.getValue());
             }
@@ -310,8 +324,12 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, Ind
         return this;
     }
 
-    public Map<String, String> mappings() {
-        return this.mappings;
+    public BytesReference mappings() {
+        return mappings;
+    }
+
+    public XContentType mappingsXContentType() {
+        return mappingsXContentType;
     }
 
     public Set<Alias> aliases() {
@@ -358,10 +376,9 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, Ind
         settings.toXContent(builder, params);
         builder.endObject();
 
-        if (!mappings.isEmpty()) {
-            String mapping = mappings.get(MapperService.SINGLE_MAPPING_NAME);
-            try (InputStream stream = new BytesArray(mapping).streamInput()) {
-                builder.rawField(MAPPINGS.getPreferredName(), stream, XContentType.JSON);
+        if (mappings != null) {
+            try (InputStream stream = mappings.streamInput()) {
+                builder.rawField(MAPPINGS.getPreferredName(), stream, mappingsXContentType);
             }
         }
 

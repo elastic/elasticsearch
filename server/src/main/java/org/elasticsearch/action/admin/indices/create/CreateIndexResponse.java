@@ -56,7 +56,7 @@ public class CreateIndexResponse extends ShardsAcknowledgedResponse {
 
     public CreateIndexResponse() {}
 
-    public CreateIndexResponse(boolean acknowledged, boolean shardsAcknowledged, String index) {
+    protected CreateIndexResponse(boolean acknowledged, boolean shardsAcknowledged, String index) {
         super(acknowledged, shardsAcknowledged);
         this.index = index;
     }

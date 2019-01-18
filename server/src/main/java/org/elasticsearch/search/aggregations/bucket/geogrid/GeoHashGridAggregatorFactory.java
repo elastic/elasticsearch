@@ -24,7 +24,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder.CellIdSource;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.GeoPoint;
@@ -56,7 +55,7 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
         final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize,
-                Collections.<InternalGeoHashGrid.Bucket> emptyList(), pipelineAggregators, metaData);
+                Collections.emptyList(), pipelineAggregators, metaData);
         return new NonCollectingAggregator(name, context, parent, pipelineAggregators, metaData) {
             @Override
             public InternalAggregation buildEmptyAggregation() {

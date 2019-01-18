@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.transform;
+package org.elasticsearch.xpack.dataframe.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -12,7 +12,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xpack.dataframe.transform.SourceConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.support;
+package org.elasticsearch.xpack.dataframe.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,37 +15,44 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRespon
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.dataframe.transform.DataFrameTransformConfig;
+import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformConfig;
 
+import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class TransformValidator {
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+
+public class Validator {
     private static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
 
-    private static final Logger logger = LogManager.getLogger(TransformValidator.class);
+    private static final Logger logger = LogManager.getLogger(Validator.class);
 
     private final Client client;
     private final DataFrameTransformConfig config;
 
-    public TransformValidator(DataFrameTransformConfig config, Client client) {
+    public Validator(DataFrameTransformConfig config, Client client) {
         this.client = Objects.requireNonNull(client);
         this.config = Objects.requireNonNull(config);
     }
 
     public void validate(final ActionListener<Boolean> listener) {
         // step 1: check if used aggregations are supported
-        for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
+        for (AggregationBuilder agg : config.getPivotConfig().getAggregationConfig().getAggregatorFactories()) {
             if (Aggregations.isSupportedByDataframe(agg.getType()) == false) {
                 listener.onFailure(new RuntimeException("Unsupported aggregation type [" + agg.getType() + "]"));
                 return;
@@ -63,11 +70,14 @@ public class TransformValidator {
         Map<String, String> aggregationTypes = new HashMap<>();
         // collects the fieldnames and target fieldnames used for grouping
         Map<String, String> fieldNamesForGrouping = new HashMap<>();
-        config.getSourceConfig().getSources().forEach(source -> {
-            fieldNamesForGrouping.put(source.name(), source.field());
+
+        final PivotConfig pivotConfig = config.getPivotConfig();
+
+        pivotConfig.getGroups().forEach(group -> {
+            fieldNamesForGrouping.put(group.getDestinationFieldName(), group.getGroupSource().getField());
         });
 
-        for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
+        for (AggregationBuilder agg : pivotConfig.getAggregationConfig().getAggregatorFactories()) {
             if (agg instanceof ValuesSourceAggregationBuilder) {
                 ValuesSourceAggregationBuilder<?, ?> valueSourceAggregation = (ValuesSourceAggregationBuilder<?, ?>) agg;
                 aggregationSourceFieldNames.put(valueSourceAggregation.getName(), valueSourceAggregation.field());
@@ -83,7 +93,7 @@ public class TransformValidator {
         allFieldNames.putAll(aggregationSourceFieldNames);
         allFieldNames.putAll(fieldNamesForGrouping);
 
-        getSourceFieldMappings(config.getIndexPattern(), allFieldNames.values().toArray(new String[0]),
+        getSourceFieldMappings(config.getSource(), allFieldNames.values().toArray(new String[0]),
                 ActionListener.wrap(sourceMappings -> {
                     Map<String, String> targetMapping = resolveMappings(aggregationSourceFieldNames, aggregationTypes,
                             fieldNamesForGrouping, sourceMappings);
@@ -130,14 +140,22 @@ public class TransformValidator {
 
     private void runTestQuery(final ActionListener<Boolean> listener) {
         QueryBuilder queryBuilder = new MatchAllQueryBuilder();
-        SearchRequest searchRequest = new SearchRequest(config.getIndexPattern());
+        SearchRequest searchRequest = new SearchRequest(config.getSource());
+        CompositeAggregationBuilder compositeAggregation;
 
-        List<CompositeValuesSourceBuilder<?>> sources = config.getSourceConfig().getSources();
+        try (XContentBuilder builder = jsonBuilder()) {
+            // write configuration for composite aggs into builder
+            config.getPivotConfig().toCompositeAggXContent(builder, ToXContentObject.EMPTY_PARAMS);
+            XContentParser parser = builder.generator().contentType().xContent()
+            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
 
-        CompositeAggregationBuilder compositeAggregation = new CompositeAggregationBuilder(COMPOSITE_AGGREGATION_NAME, sources);
+            compositeAggregation = CompositeAggregationBuilder.parse(COMPOSITE_AGGREGATION_NAME, parser);
+        } catch (IOException e1) {
+            throw new RuntimeException(e1);
+        }
         compositeAggregation.size(1);
 
-        for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
+        for (AggregationBuilder agg : config.getPivotConfig().getAggregationConfig().getAggregatorFactories()) {
             compositeAggregation.subAggregation(agg);
         }
 
@@ -161,7 +179,7 @@ public class TransformValidator {
             listener.onFailure(new RuntimeException("Failed to test query",e));
         }));
     }
-    
+
     /*
      * Very "magic" helper method to extract the source mappings
      */

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.dataframe.support;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.Aggregations;
 
 public class AggregationsTests extends ESTestCase {
     public void testResolveTargetMapping() {

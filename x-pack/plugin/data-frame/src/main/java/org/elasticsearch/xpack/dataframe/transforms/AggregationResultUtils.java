@@ -4,21 +4,20 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.transform;
+package org.elasticsearch.xpack.dataframe.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
 import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.GroupConfig;
 
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -35,14 +34,14 @@ final class AggregationResultUtils {
      * @return a map containing the results of the aggregation in a consumable way
      */
     public static Stream<Map<String, Object>> extractCompositeAggregationResults(CompositeAggregation agg,
-            List<CompositeValuesSourceBuilder<?>> sources, Collection<AggregationBuilder> aggregationBuilders,
+            Iterable<GroupConfig> sources, Collection<AggregationBuilder> aggregationBuilders,
             DataFrameIndexerTransformStats dataFrameIndexerTransformStats) {
         return agg.getBuckets().stream().map(bucket -> {
             dataFrameIndexerTransformStats.incrementNumDocuments(bucket.getDocCount());
 
             Map<String, Object> document = new HashMap<>();
-            for (CompositeValuesSourceBuilder<?> source : sources) {
-                String destinationFieldName = source.name();
+            for (GroupConfig source : sources) {
+                String destinationFieldName = source.getDestinationFieldName();
                 document.put(destinationFieldName, bucket.getKey().get(destinationFieldName));
             }
             for (AggregationBuilder aggregationBuilder : aggregationBuilders) {

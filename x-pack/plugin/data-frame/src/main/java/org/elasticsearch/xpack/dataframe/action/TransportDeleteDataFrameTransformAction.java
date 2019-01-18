@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameTransformAction.Request;
 import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameTransformAction.Response;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
-import org.elasticsearch.xpack.dataframe.transform.DataFrameTransformTask;
+import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
 import java.util.List;
 

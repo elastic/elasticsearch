@@ -4,11 +4,11 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.transform;
+package org.elasticsearch.xpack.dataframe.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.dataframe.transform.DataFrameTransformConfig;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.PivotConfigTests;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -19,8 +19,7 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
 
     public static DataFrameTransformConfig randomDataFrameTransformConfig() {
         return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-                randomAlphaOfLengthBetween(1, 10), SourceConfigTests.randomSourceConfig(),
-                AggregationConfigTests.randomAggregationConfig());
+                randomAlphaOfLengthBetween(1, 10), PivotConfigTests.randomPivotConfig());
     }
 
     @Before
@@ -31,9 +30,9 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
     @Override
     protected DataFrameTransformConfig doParseInstance(XContentParser parser) throws IOException {
         if (randomBoolean()) {
-            return DataFrameTransformConfig.fromXContent(parser, transformId);
+            return DataFrameTransformConfig.fromXContent(parser, transformId, false);
         } else {
-            return DataFrameTransformConfig.fromXContent(parser, null);
+            return DataFrameTransformConfig.fromXContent(parser, null, false);
         }
     }
 

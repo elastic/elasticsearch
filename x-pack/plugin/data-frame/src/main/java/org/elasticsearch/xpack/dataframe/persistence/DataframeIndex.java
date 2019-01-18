@@ -15,7 +15,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
-import org.elasticsearch.xpack.dataframe.transform.DataFrameTransformConfig;
+import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformConfig;
 
 import java.io.IOException;
 import java.util.Map;
@@ -35,7 +35,7 @@ public final class DataframeIndex {
 
     public static void createDestinationIndex(Client client, DataFrameTransformConfig transformConfig, Map<String, String> mappings,
             final ActionListener<Boolean> listener) {
-        CreateIndexRequest request = new CreateIndexRequest(transformConfig.getDestinationIndex());
+        CreateIndexRequest request = new CreateIndexRequest(transformConfig.getDestination());
 
         // TODO: revisit number of shards, number of replicas
         request.settings(Settings.builder() // <1>
@@ -47,7 +47,7 @@ public final class DataframeIndex {
             listener.onResponse(true);
         }, e -> {
             String message = DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_CREATE_DESTINATION_INDEX,
-                    transformConfig.getDestinationIndex(), transformConfig.getId());
+                    transformConfig.getDestination(), transformConfig.getId());
             logger.error(message);
             listener.onFailure(new RuntimeException(message, e));
         }));

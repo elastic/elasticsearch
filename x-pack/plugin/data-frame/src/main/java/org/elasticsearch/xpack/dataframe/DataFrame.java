@@ -67,8 +67,8 @@ import org.elasticsearch.xpack.dataframe.rest.action.RestGetDataFrameTransformsS
 import org.elasticsearch.xpack.dataframe.rest.action.RestPutDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestStartDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestStopDataFrameTransformAction;
-import org.elasticsearch.xpack.dataframe.transform.DataFrameTransform;
-import org.elasticsearch.xpack.dataframe.transform.DataFrameTransformPersistentTasksExecutor;
+import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransform;
+import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformPersistentTasksExecutor;
 
 import java.io.IOException;
 import java.time.Clock;

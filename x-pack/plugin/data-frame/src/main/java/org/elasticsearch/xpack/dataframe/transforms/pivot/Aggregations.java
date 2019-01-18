@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.support;
+package org.elasticsearch.xpack.dataframe.transforms.pivot;
 
 import java.util.Locale;
 import java.util.Set;

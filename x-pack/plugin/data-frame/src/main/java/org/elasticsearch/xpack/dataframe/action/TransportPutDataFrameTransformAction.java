@@ -32,8 +32,8 @@ import org.elasticsearch.xpack.dataframe.action.PutDataFrameTransformAction.Requ
 import org.elasticsearch.xpack.dataframe.action.PutDataFrameTransformAction.Response;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.persistence.DataframeIndex;
-import org.elasticsearch.xpack.dataframe.support.TransformValidator;
-import org.elasticsearch.xpack.dataframe.transform.DataFrameTransform;
+import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransform;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.Validator;
 
 public class TransportPutDataFrameTransformAction
         extends TransportMasterNodeAction<PutDataFrameTransformAction.Request, PutDataFrameTransformAction.Response> {
@@ -88,7 +88,7 @@ public class TransportPutDataFrameTransformAction
 
         // create the transform, note the non-state creating steps are done first, so we minimize the chance to end up with orphaned state
         // transform validation
-        TransformValidator transformValidator = new TransformValidator(request.getConfig(), client);
+        Validator transformValidator = new Validator(request.getConfig(), client);
         transformValidator.validate(ActionListener.wrap(validationResult -> {
             // deduce target mappings
             transformValidator.deduceMappings(ActionListener.wrap(mappings -> {

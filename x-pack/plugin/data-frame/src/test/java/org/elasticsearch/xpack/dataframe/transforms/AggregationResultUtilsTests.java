@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.transform;
+package org.elasticsearch.xpack.dataframe.transforms;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ContextParser;
@@ -17,9 +17,7 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.ParsedComposite;
-import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
@@ -46,7 +44,8 @@ import org.elasticsearch.search.aggregations.pipeline.ParsedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.dataframe.transform.AggregationResultUtils;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.GroupConfig;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.TermsGroupSource;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -57,6 +56,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.dataframe.transforms.pivot.SingleGroupSource.Type.TERMS;
 
 public class AggregationResultUtilsTests extends ESTestCase {
 
@@ -95,8 +95,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
     public void testExtractCompositeAggregationResults() throws IOException {
         String targetField = randomAlphaOfLengthBetween(5, 10);
 
-        List<CompositeValuesSourceBuilder<?>> sources = Collections.singletonList(
-                new TermsValuesSourceBuilder(targetField).field("doesn't_matter_for_this_test")
+        List<GroupConfig> sources = Collections.singletonList(
+                new GroupConfig(targetField, TERMS, new TermsGroupSource("doesn't_matter_for_this_test"))
                 );
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
@@ -148,9 +148,9 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        List<CompositeValuesSourceBuilder<?>> sources = asList(
-                new TermsValuesSourceBuilder(targetField).field("doesn't_matter_for_this_test"),
-                new TermsValuesSourceBuilder(targetField2).field("doesn't_matter_for_this_test_too")
+        List<GroupConfig> sources = asList(
+                new GroupConfig(targetField, TERMS, new TermsGroupSource("doesn't_matter_for_this_test")),
+                new GroupConfig(targetField2, TERMS, new TermsGroupSource("doesn't_matter_for_this_test"))
                 );
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
@@ -221,8 +221,9 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
     public void testExtractCompositeAggregationResultsMultiAggregations() throws IOException {
         String targetField = randomAlphaOfLengthBetween(5, 10);
-        List<CompositeValuesSourceBuilder<?>> sources = Collections.singletonList(
-                new TermsValuesSourceBuilder(targetField).field("doesn't_matter_for_this_test")
+
+        List<GroupConfig> sources = Collections.singletonList(
+                new GroupConfig(targetField, TERMS, new TermsGroupSource("doesn't_matter_for_this_test"))
                 );
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
@@ -282,8 +283,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
         executeTest(sources, aggregationBuilders, input, expected, 200);
     }
 
-    private void executeTest(List<CompositeValuesSourceBuilder<?>> sources, Collection<AggregationBuilder> aggregationBuilders,
-            Map<String, Object> input, List<Map<String, Object>> expected, long expectedDocCounts) throws IOException {
+    private void executeTest(Iterable<GroupConfig> sources, Collection<AggregationBuilder> aggregationBuilders, Map<String, Object> input,
+            List<Map<String, Object>> expected, long expectedDocCounts) throws IOException {
         DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.map(input);

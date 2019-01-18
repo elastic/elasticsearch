@@ -27,9 +27,12 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.xpack.dataframe.transform.AggregationConfig;
-import org.elasticsearch.xpack.dataframe.transform.DataFrameTransformConfig;
-import org.elasticsearch.xpack.dataframe.transform.SourceConfig;
+import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.AggregationConfig;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.GroupConfig;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.PivotConfig;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.TermsGroupSource;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.Validator;
 import org.junit.After;
 import org.junit.Before;
 
@@ -40,7 +43,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.dataframe.transforms.pivot.SingleGroupSource.Type.TERMS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransformValidatorTests extends ESTestCase {
@@ -76,58 +81,51 @@ public class TransformValidatorTests extends ESTestCase {
     }
 
     public void testValidateExistingIndex() throws Exception {
-        SourceConfig sourceConfig = getValidSourceConfig();
-        AggregationConfig aggregationConfig = getValidAggregationConfig();
+        PivotConfig pivotConfig = getValidPivotConfig();
 
         DataFrameTransformConfig config = new DataFrameTransformConfig(getTestName(), "existing_source_index", "non_existing_dest",
-                sourceConfig, aggregationConfig);
+                pivotConfig);
 
         assertValidTransform(client, config);
     }
 
     public void testValidateNonExistingIndex() throws Exception {
-        SourceConfig sourceConfig = getValidSourceConfig();
-        AggregationConfig aggregationConfig = getValidAggregationConfig();
+        PivotConfig pivotConfig = getValidPivotConfig();
 
         DataFrameTransformConfig config = new DataFrameTransformConfig(getTestName(), "non_existing_source_index",
-                "non_existing_dest", sourceConfig, aggregationConfig);
+                "non_existing_dest", pivotConfig);
 
         assertInvalidTransform(client, config);
     }
 
     public void testSearchFailure() throws Exception {
-        SourceConfig sourceConfig = getValidSourceConfig();
-        AggregationConfig aggregationConfig = getValidAggregationConfig();
+        PivotConfig pivotConfig = getValidPivotConfig();
 
         // test a failure during the search operation, transform creation fails if
         // search has failures although they might just be temporary
         DataFrameTransformConfig config = new DataFrameTransformConfig(getTestName(), "existing_source_index_with_failing_shards",
-                "non_existing_dest", sourceConfig, aggregationConfig);
+                "non_existing_dest", pivotConfig);
 
         assertInvalidTransform(client, config);
     }
 
     public void testValidateAllSupportedAggregations() throws Exception {
-        SourceConfig sourceConfig = getValidSourceConfig();
-
         for (String agg : supportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
             DataFrameTransformConfig config = new DataFrameTransformConfig(getTestName(), "existing_source", "non_existing_dest",
-                    sourceConfig, aggregationConfig);
+                    getValidPivotConfig(aggregationConfig));
 
             assertValidTransform(client, config);
         }
     }
 
     public void testValidateAllUnsupportedAggregations() throws Exception {
-        SourceConfig sourceConfig = getValidSourceConfig();
-
         for (String agg : unsupportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
             DataFrameTransformConfig config = new DataFrameTransformConfig(getTestName(), "existing_source", "non_existing_dest",
-                    sourceConfig, aggregationConfig);
+                    getValidPivotConfig(aggregationConfig));
 
             assertInvalidTransform(client, config);
         }
@@ -172,16 +170,22 @@ public class TransformValidatorTests extends ESTestCase {
         }
     }
 
-    private SourceConfig getValidSourceConfig() throws IOException {
-        return parseSource("{\"sources\": [\n" + "  {\n" + "    \"pivot\": {\n" + "      \"terms\": {\n" + "        \"field\": \"terms\"\n"
-                + "      }\n" + "    }\n" + "  }\n" + "]}");
+    private PivotConfig getValidPivotConfig() throws IOException {
+        List<GroupConfig> sources = asList(
+                new GroupConfig("terms", TERMS, new TermsGroupSource("terms")),
+                new GroupConfig("terms", TERMS, new TermsGroupSource("terms"))
+                );
+
+        return new PivotConfig(sources, getValidAggregationConfig());
     }
 
-    private SourceConfig parseSource(String json) throws IOException {
-        final XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry(),
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+    private PivotConfig getValidPivotConfig(AggregationConfig aggregationConfig) throws IOException {
+        List<GroupConfig> sources = asList(
+                new GroupConfig("terms", TERMS, new TermsGroupSource("terms")),
+                new GroupConfig("terms", TERMS, new TermsGroupSource("terms"))
+                );
 
-        return SourceConfig.fromXContent(parser);
+        return new PivotConfig(sources, aggregationConfig);
     }
 
     private AggregationConfig getValidAggregationConfig() throws IOException {
@@ -210,7 +214,7 @@ public class TransformValidatorTests extends ESTestCase {
     }
 
     private static void validate(Client client, DataFrameTransformConfig config, boolean expectValid) throws Exception {
-        TransformValidator validator = new TransformValidator(config, client);
+        Validator validator = new Validator(config, client);
 
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();

@@ -4,30 +4,34 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.transform;
+package org.elasticsearch.xpack.dataframe.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.GroupConfig;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
@@ -68,9 +72,10 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
      */
     private Stream<IndexRequest> processBucketsToIndexRequests(CompositeAggregation agg) {
         final DataFrameTransformConfig transformConfig = getConfig();
-        String indexName = transformConfig.getDestinationIndex();
-        List<CompositeValuesSourceBuilder<?>> sources = transformConfig.getSourceConfig().getSources();
-        Collection<AggregationBuilder> aggregationBuilders = transformConfig.getAggregationConfig().getAggregatorFactories();
+        String indexName = transformConfig.getDestination();
+        Iterable<GroupConfig> sources = transformConfig.getPivotConfig().getGroups();
+        Collection<AggregationBuilder> aggregationBuilders = transformConfig.getPivotConfig().getAggregationConfig()
+                .getAggregatorFactories();
 
         return AggregationResultUtils.extractCompositeAggregationResults(agg, sources, aggregationBuilders, getStats()).map(document -> {
             XContentBuilder builder;
@@ -92,18 +97,28 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
         final DataFrameTransformConfig transformConfig = getConfig();
 
         QueryBuilder queryBuilder = new MatchAllQueryBuilder();
-        SearchRequest searchRequest = new SearchRequest(transformConfig.getIndexPattern());
+        SearchRequest searchRequest = new SearchRequest(transformConfig.getSource());
 
-        List<CompositeValuesSourceBuilder<?>> sources = transformConfig.getSourceConfig().getSources();
+        CompositeAggregationBuilder compositeAggregation;
 
-        CompositeAggregationBuilder compositeAggregation = new CompositeAggregationBuilder(COMPOSITE_AGGREGATION_NAME, sources);
+        try (XContentBuilder builder = jsonBuilder()) {
+            // write configuration for composite aggs into builder
+            transformConfig.getPivotConfig().toCompositeAggXContent(builder, ToXContentObject.EMPTY_PARAMS);
+            XContentParser parser = builder.generator().contentType().xContent()
+            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
+
+            compositeAggregation = CompositeAggregationBuilder.parse(COMPOSITE_AGGREGATION_NAME, parser);
+        } catch (IOException e1) {
+            throw new RuntimeException(e1);
+        }
+
         compositeAggregation.size(1000);
 
         if (position != null) {
             compositeAggregation.aggregateAfter(position);
         }
 
-        for (AggregationBuilder agg : transformConfig.getAggregationConfig().getAggregatorFactories()) {
+        for (AggregationBuilder agg : transformConfig.getPivotConfig().getAggregationConfig().getAggregatorFactories()) {
             compositeAggregation.subAggregation(agg);
         }
 

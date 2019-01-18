@@ -33,7 +33,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
-import org.elasticsearch.xpack.dataframe.transform.DataFrameTransformConfig;
+import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformConfig;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -142,7 +142,7 @@ public class DataFrameTransformsConfigManager {
         try (InputStream stream = source.streamInput();
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                      .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
-            transformListener.onResponse(DataFrameTransformConfig.PARSER.parse(parser, transformId));
+            transformListener.onResponse(DataFrameTransformConfig.fromXContent(parser, transformId, true));
         } catch (Exception e) {
             logger.error(DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_PARSE_TRANSFORM_CONFIGURATION, transformId), e);
             transformListener.onFailure(e);

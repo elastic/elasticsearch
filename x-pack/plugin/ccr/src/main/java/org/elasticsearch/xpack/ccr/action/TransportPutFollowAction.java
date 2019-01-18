@@ -13,8 +13,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreClusterSt
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,7 +24,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
@@ -42,14 +39,12 @@ import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 public final class TransportPutFollowAction
     extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
 
     private final Client client;
     private final RestoreService restoreService;
-    private final ActiveShardsObserver activeShardsObserver;
     private final CcrLicenseChecker ccrLicenseChecker;
 
     @Inject
@@ -72,7 +67,6 @@ public final class TransportPutFollowAction
             indexNameExpressionResolver);
         this.client = client;
         this.restoreService = restoreService;
-        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
     }
 
@@ -150,8 +144,7 @@ public final class TransportPutFollowAction
                 if (restoreInfo == null) {
                     // If restoreInfo is null then it is possible there was a master failure during the
                     // restore.
-                    // TODO: Implement
-                    listener.onFailure(null);
+                    listener.onFailure(new ElasticsearchException("apparent master failure during restore"));
                 } else if (restoreInfo.failedShards() == 0) {
                     initiateFollowing(client, request, followingListener);
                 } else {
@@ -206,17 +199,10 @@ public final class TransportPutFollowAction
         final Client client,
         final PutFollowAction.Request request,
         final ActionListener<PutFollowAction.Response> listener) {
-        activeShardsObserver.waitForActiveShards(new String[]{request.getFollowRequest().getFollowerIndex()},
-            ActiveShardCount.DEFAULT, request.timeout(), result -> {
-                if (result) {
-                    client.execute(ResumeFollowAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
-                        r -> listener.onResponse(new PutFollowAction.Response(true, true, r.isAcknowledged())),
-                        listener::onFailure
-                    ));
-                } else {
-                    listener.onResponse(new PutFollowAction.Response(true, false, false));
-                }
-            }, listener::onFailure);
+        client.execute(ResumeFollowAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
+            r -> listener.onResponse(new PutFollowAction.Response(true, true, r.isAcknowledged())),
+            listener::onFailure
+        ));
     }
 
     @Override

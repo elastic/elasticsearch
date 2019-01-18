@@ -222,9 +222,7 @@ public class DeprecationLogger {
                 .toFormatter(Locale.getDefault(Locale.Category.FORMAT));
     }
 
-    private static final ZoneId GMT = ZoneId.of("GMT");
-
-    private static final String STARTUP_TIME = RFC_7231_DATE_TIME.format(ZonedDateTime.now(GMT));
+    private static final String STARTUP_TIME = RFC_7231_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("GMT")));
 
     /**
      * Regular expression to test if a string matches the RFC7234 specification for warning headers. This pattern assumes that the warn code

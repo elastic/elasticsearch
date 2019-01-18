@@ -168,9 +168,12 @@ public class JiraAccountTests extends ESTestCase {
 
     private void addAccountSettings(String name, Settings.Builder builder) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.notification.jira.account." + name + "." + JiraAccount.SECURE_URL_SETTING.getKey(), "https://internal-jira.elastic.co:443");
-        secureSettings.setString("xpack.notification.jira.account." + name + "." + JiraAccount.SECURE_USER_SETTING.getKey(), randomAlphaOfLength(10));
-        secureSettings.setString("xpack.notification.jira.account." + name + "." + JiraAccount.SECURE_PASSWORD_SETTING.getKey(), randomAlphaOfLength(10));
+        secureSettings.setString("xpack.notification.jira.account." + name + "." + JiraAccount.SECURE_URL_SETTING.getKey(),
+                "https://internal-jira.elastic.co:443");
+        secureSettings.setString("xpack.notification.jira.account." + name + "." + JiraAccount.SECURE_USER_SETTING.getKey(),
+                randomAlphaOfLength(10));
+        secureSettings.setString("xpack.notification.jira.account." + name + "." + JiraAccount.SECURE_PASSWORD_SETTING.getKey(),
+                randomAlphaOfLength(10));
         builder.setSecureSettings(secureSettings);
 
         Map<String, Object> defaults = randomIssueDefaults();

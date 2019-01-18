@@ -61,7 +61,16 @@ import static org.elasticsearch.action.search.SearchResponse.Clusters;
  * The CCS coordinating node sends one search request per remote cluster involved and gets one search response back from each one of them.
  * Such responses contain all the info to be able to perform an additional reduction and return results back to the user.
  * Preconditions are that only non final reduction has been performed on each cluster, meaning that buckets have not been pruned locally
- * and pipeline aggregations have not yet been executed. Also, from+size search hits need to be requested to each cluster.
+ * and pipeline aggregations have not yet been executed. Also, from+size search hits need to be requested to each cluster and such results
+ * have all already been fetched downstream.
+ * This approach consists of a different trade-off compared to ordinary cross-cluster search where we fan out to all the shards, no matter
+ * whether they belong to the local or the remote cluster. Assuming that there commonly is network latency when communicating with remote
+ * clusters, limiting the number of requests to one per cluster is beneficial, and outweighs the downside of fetching many more hits than
+ * needed downstream and returning bigger responses to the coordinating node.
+ * Known limitations:
+ * - scroll requests are not supported
+ * - field collapsing is supported, but whenever inner_hits are requested, they will be retrieved by each cluster locally after the fetch
+ * phase, through the {@link ExpandSearchPhase}. Such inner_hits are not merged together as part of hits reduction.
  */
 //TODO it may make sense to integrate the remote clusters responses as a shard response in the initial search phase and ignore hits coming
 //from the remote clusters in the fetch phase. This would be identical to the removed QueryAndFetch strategy except that only the remote

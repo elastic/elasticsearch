@@ -1029,6 +1029,17 @@
             "time_since_last_read_millis": {
               "type": "long"
             },
+            "fatal_exception": {
+              "type": "object",
+              "properties": {
+                "type" : {
+                  "type": "keyword"
+                },
+                "reason": {
+                  "type": "text"
+                }
+              }
+            },
             "fallen_behind_leader_shard": {
               "type": "boolean"
             }

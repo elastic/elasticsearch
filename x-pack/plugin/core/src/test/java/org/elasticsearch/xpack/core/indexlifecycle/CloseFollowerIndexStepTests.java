@@ -56,7 +56,7 @@ public class CloseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 completed[0] = complete;
@@ -98,7 +98,7 @@ public class CloseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 completed[0] = complete;

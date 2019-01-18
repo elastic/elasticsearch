@@ -151,65 +151,24 @@ public class NodeDeprecationChecks {
     }
 
     static DeprecationIssue watcherNotificationsSecureSettingsCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
-        List<String> nodesFound = nodeInfos.stream()
-                .filter(nodeInfo -> false == nodeInfo.getSettings().getByPrefix("xpack.notification.email.account.")
-                        .filter(s -> s.endsWith(".smtp.password")).isEmpty())
-                .map(nodeInfo -> nodeInfo.getNode().getName())
-                .collect(Collectors.toList());
+        List<String> nodesFound = nodeInfos.stream().filter(nodeInfo ->
+                        (false == nodeInfo.getSettings().getByPrefix("xpack.notification.email.account.")
+                            .filter(s -> s.endsWith(".smtp.password")).isEmpty())
+                        || (false == nodeInfo.getSettings().getByPrefix("xpack.notification.hipchat.account.")
+                                .filter(s -> s.endsWith(".auth_token")).isEmpty())
+                        || (false == nodeInfo.getSettings().getByPrefix("xpack.notification.jira.account.")
+                                .filter(s -> s.endsWith(".url") || s.endsWith(".user") || s.endsWith(".password")).isEmpty())
+                        || (false == nodeInfo.getSettings().getByPrefix("xpack.notification.pagerduty.account.")
+                                .filter(s -> s.endsWith(".service_api_key")).isEmpty())
+                        || (false == nodeInfo.getSettings().getByPrefix("xpack.notification.slack.account.").filter(s -> s.endsWith(".url"))
+                                .isEmpty()))
+                .map(nodeInfo -> nodeInfo.getNode().getName()).collect(Collectors.toList());
         if (nodesFound.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                    "Watcher email notifications' password settings has to be defined securely",
+                    "Watcher notification accounts' authentication settings must be defined securely",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                         "#watcher-notifications-account-settings",
-                    "nodes which have the un-secure setting are: " + nodesFound);
-        }
-        nodesFound = nodeInfos.stream()
-                .filter(nodeInfo -> false == nodeInfo.getSettings().getByPrefix("xpack.notification.hipchat.account.")
-                        .filter(s -> s.endsWith(".auth_token")).isEmpty())
-                .map(nodeInfo -> nodeInfo.getNode().getName())
-                .collect(Collectors.toList());
-        if (nodesFound.size() > 0) {
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                    "Watcher hipchat notifications' auth token settings has to be defined securely",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
-                        "#watcher-notifications-account-settings",
-                    "nodes which have the un-secure setting are: " + nodesFound);
-        }
-        nodesFound = nodeInfos.stream()
-                .filter(nodeInfo -> false == nodeInfo.getSettings().getByPrefix("xpack.notification.jira.account.")
-                        .filter(s -> s.endsWith(".url") || s.endsWith(".user") || s.endsWith(".password")).isEmpty())
-                .map(nodeInfo -> nodeInfo.getNode().getName())
-                .collect(Collectors.toList());
-        if (nodesFound.size() > 0) {
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                    "Watcher jira notifications' url, user and password settings have to be defined securely",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
-                        "#watcher-notifications-account-settings",
-                    "nodes which have the un-secure settings are: " + nodesFound);
-        }
-        nodesFound = nodeInfos.stream()
-                .filter(nodeInfo -> false == nodeInfo.getSettings().getByPrefix("xpack.notification.pagerduty.account.")
-                        .filter(s -> s.endsWith(".service_api_key")).isEmpty())
-                .map(nodeInfo -> nodeInfo.getNode().getName())
-                .collect(Collectors.toList());
-        if (nodesFound.size() > 0) {
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                    "Watcher pagerduty notifications' service api key setting has to be defined securely",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
-                        "#watcher-notifications-account-settings",
-                    "nodes which have the un-secure setting are: " + nodesFound);
-        }
-        nodesFound = nodeInfos.stream()
-                .filter(nodeInfo -> false == nodeInfo.getSettings().getByPrefix("xpack.notification.slack.account.")
-                        .filter(s -> s.endsWith(".url")).isEmpty())
-                .map(nodeInfo -> nodeInfo.getNode().getName())
-                .collect(Collectors.toList());
-        if (nodesFound.size() > 0) {
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                    "Watcher slack notifications' url setting has to be defined securely",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
-                        "#watcher-notifications-account-settings",
-                    "nodes which have the un-secure setting are: " + nodesFound);
+                    "nodes which have insecure notification account settings are: " + nodesFound);
         }
         return null;
     }

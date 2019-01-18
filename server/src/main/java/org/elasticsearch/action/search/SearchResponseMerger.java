@@ -71,24 +71,22 @@ final class SearchResponseMerger {
     private final int size;
     private final int trackTotalHitsUpTo;
     private final SearchTimeProvider searchTimeProvider;
-    private final Clusters clusters;
     private final Function<Boolean, ReduceContext> reduceContextFunction;
     private final List<SearchResponse> searchResponses = new CopyOnWriteArrayList<>();
 
-    SearchResponseMerger(int from, int size, int trackTotalHitsUpTo, SearchTimeProvider searchTimeProvider, Clusters clusters,
+    SearchResponseMerger(int from, int size, int trackTotalHitsUpTo, SearchTimeProvider searchTimeProvider,
                          Function<Boolean, ReduceContext> reduceContextFunction) {
         this.from = from;
         this.size = size;
         this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         this.searchTimeProvider = Objects.requireNonNull(searchTimeProvider);
-        this.clusters = Objects.requireNonNull(clusters);
         this.reduceContextFunction = Objects.requireNonNull(reduceContextFunction);
     }
 
     /**
      * Add a search response to the list of responses to be merged together into one.
-     * Merges currently happen at once when all responses are available and {@link #getMergedResponse()} is called. That may change
-     * in the future as it's possible to introduce incremental merges as responses come in if necessary.
+     * Merges currently happen at once when all responses are available and {@link #getMergedResponse(Clusters)} )} is called.
+     * That may change in the future as it's possible to introduce incremental merges as responses come in if necessary.
      */
     void add(SearchResponse searchResponse) {
         searchResponses.add(searchResponse);
@@ -98,7 +96,7 @@ final class SearchResponseMerger {
      * Returns the merged response. To be called once all responses have been added through {@link #add(SearchResponse)}
      * so that all responses are merged into a single one.
      */
-    SearchResponse getMergedResponse() {
+    SearchResponse getMergedResponse(Clusters clusters) {
         assert searchResponses.size() > 1;
         int totalShards = 0;
         int skippedShards = 0;

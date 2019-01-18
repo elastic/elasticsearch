@@ -395,7 +395,6 @@ class BuildPlugin implements Plugin<Project> {
             rootProject.rootProject.ext.requiredJavaVersions = [:].withDefault{key -> return []}
             rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
                 List<String> messages = []
-                println("Checking for java versions: " + rootProject.requiredJavaVersions.keySet())
                 for (entry in rootProject.requiredJavaVersions) {
                     if (rootProject.javaVersions.get(entry.key) != null) {
                         continue

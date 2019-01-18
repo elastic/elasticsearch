@@ -69,7 +69,7 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
     private final @Nullable String query;
 
     private IndicesPrivileges(Collection<String> indices, Collection<String> privileges, boolean allowRestrictedIndices,
-            @Nullable FieldSecurity fieldSecurity, @Nullable String query) {
+                              @Nullable FieldSecurity fieldSecurity, @Nullable String query) {
         super(indices, privileges, allowRestrictedIndices);
         this.fieldSecurity = fieldSecurity;
         this.query = query;

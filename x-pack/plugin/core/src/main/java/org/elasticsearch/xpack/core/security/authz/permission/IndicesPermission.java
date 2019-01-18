@@ -260,10 +260,9 @@ public final class IndicesPermission {
         private boolean check(String action, String index) {
             assert index != null;
             return check(action) && (indexNameMatcher.test(index)
-                    && ((false == RestrictedIndicesNames.NAMES_SET.contains(index)) // if it is not restricted no more checks are required
-                            || IndexPrivilege.MONITOR.predicate().test(action) // allow monitor as a special case, even for restricted
-                            || allowRestrictedIndices)
-                    );
+                    && (allowRestrictedIndices
+                            || (false == RestrictedIndicesNames.NAMES_SET.contains(index)) // if it is not restricted no more checks are required
+                            || IndexPrivilege.MONITOR.predicate().test(action))); // allow monitor as a special case, even for restricted
         }
 
         boolean hasQuery() {
@@ -295,9 +294,18 @@ public final class IndicesPermission {
                     }
                 }
             }
-            return indexMatcher(restrictedIndices)
+            final Predicate<String> predicate;
+            if (restrictedIndices.isEmpty()) {
+                predicate = indexMatcher(ordinaryIndices)
+                    .and(index -> false == RestrictedIndicesNames.NAMES_SET.contains(index));
+            } else if (ordinaryIndices.isEmpty()) {
+                predicate = indexMatcher(restrictedIndices);
+            } else {
+                predicate = indexMatcher(restrictedIndices)
                     .or(indexMatcher(ordinaryIndices)
-                            .and(index -> false == RestrictedIndicesNames.NAMES_SET.contains(index)));
+                         .and(index -> false == RestrictedIndicesNames.NAMES_SET.contains(index)));
+            }
+            return predicate;
         }
     }
 

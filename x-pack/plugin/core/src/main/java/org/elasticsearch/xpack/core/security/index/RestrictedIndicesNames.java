@@ -14,12 +14,14 @@ import org.elasticsearch.xpack.core.upgrade.IndexUpgradeCheckVersion;
 import java.util.Collections;
 import java.util.Set;
 
-public class RestrictedIndicesNames {
+public final class RestrictedIndicesNames {
     public static final String AUDIT_INDEX_NAME_PREFIX = ".security_audit_log";
     public static final String INTERNAL_SECURITY_INDEX = ".security-" + IndexUpgradeCheckVersion.UPRADE_VERSION;
     public static final String SECURITY_INDEX_NAME = ".security";
 
-    public static final Set<String> NAMES_SET = Collections
-            .unmodifiableSet(Sets.newHashSet(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX));
+    public static final Set<String> NAMES_SET = Collections.unmodifiableSet(Sets.newHashSet(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX));
     public static final Automaton NAMES_AUTOMATON = Automatons.patterns(NAMES_SET);
+
+    private RestrictedIndicesNames() {
+    }
 }

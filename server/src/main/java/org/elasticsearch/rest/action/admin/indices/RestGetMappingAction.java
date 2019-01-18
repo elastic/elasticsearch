@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
@@ -59,6 +60,8 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 public class RestGetMappingAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestGetMappingAction.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get mapping requests is deprecated. "
+            + "The parameter will be removed in the next major version.";
 
     public RestGetMappingAction(final Settings settings, final RestController controller) {
         super(settings);
@@ -89,6 +92,9 @@ public class RestGetMappingAction extends BaseRestHandler {
         } else if (includeTypeName == false && types.length > 0) {
             throw new IllegalArgumentException("Types cannot be provided in get mapping requests, unless" +
                 " include_type_name is set to true.");
+        }
+        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+            deprecationLogger.deprecatedAndMaybeLog("get_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest();

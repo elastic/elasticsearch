@@ -217,7 +217,6 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
 
             @Override
             public void onRemoval(ShardId shardId, Accountable accountable) {
-
             }
         });
 

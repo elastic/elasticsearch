@@ -31,7 +31,6 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.isIn;
 
 public class SetsTests extends ESTestCase {
 

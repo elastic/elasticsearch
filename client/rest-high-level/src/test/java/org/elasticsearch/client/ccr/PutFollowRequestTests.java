@@ -31,7 +31,7 @@ import java.io.IOException;
 public class PutFollowRequestTests extends AbstractXContentTestCase<PutFollowRequest> {
 
     private static final ConstructingObjectParser<PutFollowRequest, Void> PARSER = new ConstructingObjectParser<>("test_parser",
-        true, (args) -> new PutFollowRequest((String) args[0], (String) args[1], (String) args[2], (Boolean) args[3]));
+        true, (args) -> new PutFollowRequest((String) args[0], (String) args[1], (String) args[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), PutFollowRequest.REMOTE_CLUSTER_FIELD);
@@ -82,7 +82,7 @@ public class PutFollowRequestTests extends AbstractXContentTestCase<PutFollowReq
     @Override
     protected PutFollowRequest createTestInstance() {
         PutFollowRequest putFollowRequest =
-            new PutFollowRequest(randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4), randomBoolean());
+            new PutFollowRequest(randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4));
         if (randomBoolean()) {
             putFollowRequest.setMaxOutstandingReadRequests(randomIntBetween(0, Integer.MAX_VALUE));
         }

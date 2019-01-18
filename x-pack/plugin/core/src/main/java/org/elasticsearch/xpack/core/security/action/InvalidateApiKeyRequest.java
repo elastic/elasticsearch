@@ -39,7 +39,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         apiKeyName = in.readOptionalString();
     }
 
-    private InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
+    public InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
             @Nullable String apiKeyName) {
         this.realmName = realmName;
         this.userName = userName;

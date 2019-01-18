@@ -7,10 +7,29 @@ setup:
       cluster.health:
           wait_for_status: yellow
 
+  - do:
+      security.put_user:
+        username: "api_key_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "superuser" ],
+            "full_name" : "API key user"
+          }
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "api_key_user"
+        ignore: 404
+
 ---
 "Test create api key":
 
   - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk"
       security.create_api_key:
         body:  >
             {
@@ -18,7 +37,7 @@ setup:
               "expiration": "1d",
               "role_descriptors": {
                 "role-a": {
-                  "cluster": ["a-1"],
+                  "cluster": ["all"],
                   "index": [
                     {
                       "names": ["index-a"],
@@ -27,7 +46,7 @@ setup:
                   ]
                 },
                 "role-b": {
-                  "cluster": ["b-1"],
+                  "cluster": ["manage"],
                   "index": [
                     {
                       "names": ["index-b"],
@@ -41,3 +60,67 @@ setup:
   - is_true: id
   - is_true: api_key
   - is_true: expiration
+  - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
+
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}
+      security.authenticate: {}
+
+  - match: { username: "api_key_user" }
+  - match: { roles.0:  "role-b" }
+  - match: { roles.1:  "role-a" }
+  - match: { authentication_realm.name: "_es_api_key" }
+  - match: { authentication_realm.type: "_es_api_key" }
+
+---
+"Test invalidate api key":
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk"
+      security.create_api_key:
+        body:  >
+            {
+              "name": "my-api-key-1",
+              "expiration": "1d",
+              "role_descriptors": {
+                "role-a": {
+                  "cluster": ["all"],
+                  "index": [
+                    {
+                      "names": ["index-a"],
+                      "privileges": ["read"]
+                    }
+                  ]
+                },
+                "role-b": {
+                  "cluster": ["manage"],
+                  "index": [
+                    {
+                      "names": ["index-b"],
+                      "privileges": ["all"]
+                    }
+                  ]
+                }
+              }
+            }
+  - match: { name: "my-api-key-1" }
+  - is_true: id
+  - is_true: api_key
+  - is_true: expiration
+  - set: { id: api_key_id }
+  - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
+
+  - do:
+      headers:
+        Authorization: Apikey ${login_creds}
+      security.invalidate_api_key:
+        body:  >
+            {
+              "api_key_id": "${api_key_id}"
+            }
+  - length: { "invalidated_api_keys" : 1 }
+  - match: { "invalidated_api_keys.0" : "${api_key_id}" }
+  - length: { "previously_invalidated_api_keys" : 0 }
+  - match: { "error_count" : 0 }

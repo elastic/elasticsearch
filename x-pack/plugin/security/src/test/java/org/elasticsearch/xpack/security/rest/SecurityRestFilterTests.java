@@ -61,7 +61,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         when(licenseState.isAuthAllowed()).thenReturn(true);
         restHandler = mock(RestHandler.class);
         filter = new SecurityRestFilter(licenseState,
-                new ThreadContext(Settings.EMPTY), authcService, restHandler, false);
+                new ThreadContext(Settings.EMPTY), authcService, restHandler, false, tlsDeprecationHandler);
     }
 
     public void testProcess() throws Exception {
@@ -138,7 +138,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             callback.onResponse(new Authentication(XPackUser.INSTANCE, new RealmRef("test", "test", "t"), null));
             return Void.TYPE;
         }).when(authcService).authenticate(any(RestRequest.class), any(ActionListener.class));
-        filter = new SecurityRestFilter(licenseState, new ThreadContext(Settings.EMPTY), authcService, restHandler, false);
+        filter = new SecurityRestFilter(licenseState, new ThreadContext(Settings.EMPTY), authcService, restHandler, false, tlsDeprecationHandler);
 
         filter.handleRequest(restRequest, channel, null);
 

@@ -201,7 +201,7 @@ public class HttpExporterTests extends ESTestCase {
 
     public void testExporterWithUnknownBlacklistedClusterAlerts() {
         final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
-        when(sslService.sslIOSessionStrategy(any(Settings.class))).thenReturn(sslStrategy);
+        when(sslService.sslIOSessionStrategy(any(Settings.class), sslSetingPrefix)).thenReturn(sslStrategy);
 
         final List<String> blacklist = new ArrayList<>();
         blacklist.add("does_not_exist");
@@ -229,7 +229,7 @@ public class HttpExporterTests extends ESTestCase {
 
     public void testExporterWithHostOnly() throws Exception {
         final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
-        when(sslService.sslIOSessionStrategy(any(Settings.class))).thenReturn(sslStrategy);
+        when(sslService.sslIOSessionStrategy(any(Settings.class), sslSetingPrefix)).thenReturn(sslStrategy);
 
         final Settings.Builder builder = Settings.builder()
                 .put("xpack.monitoring.exporters._http.type", "http")
@@ -243,7 +243,7 @@ public class HttpExporterTests extends ESTestCase {
     public void testCreateRestClient() throws IOException {
         final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
 
-        when(sslService.sslIOSessionStrategy(any(Settings.class))).thenReturn(sslStrategy);
+        when(sslService.sslIOSessionStrategy(any(Settings.class), sslSetingPrefix)).thenReturn(sslStrategy);
 
         final Settings.Builder builder = Settings.builder()
                 .put("xpack.monitoring.exporters._http.type", "http")

@@ -487,10 +487,10 @@ public class SSLServiceTests extends ESTestCase {
         when(sslService.sslIOSessionStrategy(eq(sslContext), eq(protocols), eq(ciphers), verifier.capture())).thenReturn(sslStrategy);
 
         // ensure it actually goes through and calls the real method
-        when(sslService.sslIOSessionStrategy(settings)).thenCallRealMethod();
-        when(sslService.sslIOSessionStrategy(sslConfig)).thenCallRealMethod();
+        when(sslService.sslIOSessionStrategy(settings, sslSetingPrefix)).thenCallRealMethod();
+        when(sslService.sslIOSessionStrategy(sslConfig, )).thenCallRealMethod();
 
-        assertThat(sslService.sslIOSessionStrategy(settings), sameInstance(sslStrategy));
+        assertThat(sslService.sslIOSessionStrategy(settings, sslSetingPrefix), sameInstance(sslStrategy));
 
         if (mode.isHostnameVerificationEnabled()) {
             assertThat(verifier.getValue(), instanceOf(DefaultHostnameVerifier.class));
@@ -774,7 +774,7 @@ public class SSLServiceTests extends ESTestCase {
         SSLService sslService = new SSLService(Settings.EMPTY, env);
         SSLConfiguration sslConfiguration = globalConfiguration(sslService);
         logger.info("SSL Configuration: {}", sslConfiguration);
-        SSLIOSessionStrategy sslStrategy = sslService.sslIOSessionStrategy(sslConfiguration);
+        SSLIOSessionStrategy sslStrategy = sslService.sslIOSessionStrategy(sslConfiguration, );
         try (CloseableHttpAsyncClient client = getAsyncHttpClient(sslStrategy)) {
             client.start();
 
@@ -794,7 +794,7 @@ public class SSLServiceTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         final SSLService sslService = new SSLService(settings, env);
-        SSLIOSessionStrategy sslStrategy = sslService.sslIOSessionStrategy(globalConfiguration(sslService));
+        SSLIOSessionStrategy sslStrategy = sslService.sslIOSessionStrategy(globalConfiguration(sslService), );
         try (CloseableHttpAsyncClient client = getAsyncHttpClient(sslStrategy)) {
             client.start();
 

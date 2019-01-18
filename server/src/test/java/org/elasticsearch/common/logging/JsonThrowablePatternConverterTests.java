@@ -1,17 +1,3 @@
-package org.elasticsearch.common.logging;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.impl.Log4jLogEvent;
-import org.apache.logging.log4j.message.SimpleMessage;
-import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.StringReader;
-
-import static org.hamcrest.Matchers.equalTo;
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -30,6 +16,21 @@ import static org.hamcrest.Matchers.equalTo;
  * specific language governing permissions and limitations
  * under the License.
  */
+
+package org.elasticsearch.common.logging;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.impl.Log4jLogEvent;
+import org.apache.logging.log4j.message.SimpleMessage;
+import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.StringReader;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class JsonThrowablePatternConverterTests extends ESTestCase {
     JsonThrowablePatternConverter converter = JsonThrowablePatternConverter.newInstance(null, null);

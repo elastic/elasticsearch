@@ -216,8 +216,8 @@ appender.rolling.layout.type_name = server
 
 Each line contains a single JSON document with the properties configured in `ESJsonLayout`.
 See this class {es-json-layout-java-doc}[javadoc] for more details.
-However if a JSON document contains exception, it will be formatted as a multiline.
-First line will contain regular properties and subsequent lines will contain
+However if a JSON document contains an exception, it will be printted over multiple lines.
+The first line will contain regular properties and subsequent lines will contain the
 stacktrace formatted as a JSON array.
 
 

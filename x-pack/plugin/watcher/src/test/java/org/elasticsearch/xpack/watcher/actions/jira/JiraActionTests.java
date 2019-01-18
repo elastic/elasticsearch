@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.watcher.notification.jira.JiraAccount;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraAccountTests;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraIssue;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraService;
-import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyAccount;
 import org.elasticsearch.xpack.watcher.support.Variables;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;

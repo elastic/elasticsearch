@@ -267,13 +267,11 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             public ClusterState execute(ClusterState currentState) throws Exception {
                 PersistentTasksCustomMetaData.Builder tasksInProgress = builder(currentState);
                 if (tasksInProgress.hasTask(taskId, taskAllocationId)) {
+                    logger.trace("Unassigning task {} with allocation id {}", taskId, taskAllocationId);
                     return update(currentState, tasksInProgress.reassignTask(taskId, new Assignment(null, reason)));
                 } else {
                     if (tasksInProgress.hasTask(taskId)) {
-                        throw new ResourceNotFoundException("trying to unassign task {} with unexpected allocation id {}", taskId, taskAllocationId);
-                        //logger.warn("trying to unassign task {} with unexpected allocation id {}",
-                            //taskId,
-                            //taskAllocationId);
+                        logger.warn("trying to unassign task {} with unexpected allocation id {}", taskId, taskAllocationId);
                     } else {
                         logger.warn("trying to unassign non-existing task {}", taskId);
                     }

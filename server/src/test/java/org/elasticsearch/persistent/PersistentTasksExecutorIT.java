@@ -46,6 +46,7 @@ import java.util.Objects;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
@@ -156,11 +157,8 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         Settings nodeSettings = Settings.builder().put(nodeSettings(0)).put("node.attr.test_attr", "test").build();
         String newNode = internalCluster().startNode(nodeSettings);
         String newNodeId = internalCluster().clusterService(newNode).localNode().getId();
-        assertBusy(() -> {
-            // Wait for the task to start
-            assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks()
-                    .size(), equalTo(1));
-        });
+        waitForTaskToStart();
+
         TaskInfo taskInfo = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
                 .get().getTasks().get(0);
 
@@ -200,11 +198,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
 
         TestPersistentTasksExecutor.setNonClusterStateCondition(true);
 
-        assertBusy(() -> {
-            // Wait for the task to start
-            assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks()
-                .size(), equalTo(1));
-        });
+        waitForTaskToStart();
         TaskInfo taskInfo = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
             .get().getTasks().get(0);
 
@@ -222,12 +216,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
         persistentTasksService.sendStartRequest(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future);
         String taskId = future.get().getId();
-
-        assertBusy(() -> {
-            // Wait for the task to start
-            assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks()
-                    .size(), equalTo(1));
-        });
+        waitForTaskToStart();
         TaskInfo firstRunningTask = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
                 .get().getTasks().get(0);
 
@@ -322,23 +311,49 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         String taskId = task.getId();
 
         Settings nodeSettings = Settings.builder().put(nodeSettings(0)).put("node.attr.test_attr", "test").build();
-        String newNode = internalCluster().startNode(nodeSettings);
-        String newNodeId = internalCluster().clusterService(newNode).localNode().getId();
-        assertBusy(() -> {
-            // Wait for the task to start
-            assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks()
-                .size(), equalTo(1));
-        });
-        TaskInfo taskInfo = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
-            .get().getTasks().get(0);
+        internalCluster().startNode(nodeSettings);
+
+        waitForTaskToStart();
 
         PlainActionFuture<PersistentTask<?>> unassignmentFuture = new PlainActionFuture<>();
 
-        persistentTasksClusterService.unassignPersistentTask(taskId, task.getAllocationId() + 1, "unassignment test", unassignmentFuture);
+        // Disallow re-assignment after it is unallocated to verify master and node state
+        TestPersistentTasksExecutor.setNonClusterStateCondition(false);
+
+        persistentTasksClusterService.unassignPersistentTask(taskId,
+            task.getAllocationId() + 1,
+            "unassignment test",
+            unassignmentFuture);
         PersistentTask<?> unassignedTask = unassignmentFuture.get();
         assertThat(unassignedTask.getId(), equalTo(taskId));
         assertThat(unassignedTask.getAssignment().getExplanation(), equalTo("unassignment test"));
         assertThat(unassignedTask.getAssignment().getExecutorNode(), is(nullValue()));
+
+        assertBusy(() -> {
+            // Verify that the task is NOT running on the node
+            List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get()
+                .getTasks();
+            assertThat(tasks.size(), equalTo(0));
+
+            // Verify that the task is STILL in internal cluster state
+            assertThat(((PersistentTasksCustomMetaData) internalCluster().clusterService().state().getMetaData()
+                .custom(PersistentTasksCustomMetaData.TYPE)).tasks(), hasSize(1));
+        });
+
+        // Allow it to be reassigned again to the same node
+        TestPersistentTasksExecutor.setNonClusterStateCondition(true);
+
+        // Verify it starts again
+        waitForTaskToStart();
+
+        // Assert that we still have it in master state
+        assertThat(((PersistentTasksCustomMetaData) internalCluster().clusterService().state().getMetaData()
+            .custom(PersistentTasksCustomMetaData.TYPE)).tasks(), hasSize(1));
+
+        // Complete or cancel the running task
+        TaskInfo taskInfo = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
+            .get().getTasks().get(0);
+        stopOrCancelTask(taskInfo.getTaskId());
     }
 
     private void stopOrCancelTask(TaskId taskId) {
@@ -354,6 +369,14 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             assertThat(client().admin().cluster().prepareCancelTasks().setTaskId(taskId)
                     .get().getTasks().size(), equalTo(1));
         }
+    }
+
+    private void waitForTaskToStart() throws Exception {
+        assertBusy(() -> {
+            // Wait for the task to start
+            assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks()
+                .size(), equalTo(1));
+        });
     }
 
     private void assertNoRunningTasks() throws Exception {

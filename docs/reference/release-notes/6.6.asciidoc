@@ -49,8 +49,6 @@
 
 Also see <<breaking-changes-6.6,Breaking changes in 6.6>>.
 
-coming[6.6.0]
-
 [[bug-6.6.0]]
 [float]
 === Bug fixes

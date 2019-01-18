@@ -5,5 +5,3 @@
 ++++
 
 See also <<release-notes-6.6.0,{es} 6.6.0 release notes>>. 
-
-coming[6.6.0]

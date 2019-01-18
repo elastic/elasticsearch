@@ -24,8 +24,8 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
-import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class NodeEnvironmentIT extends ESIntegTestCase {
@@ -33,7 +33,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         final String indexName = "test-fail-on-data";
 
         logger.info("--> starting one node");
-        internalCluster().startNodes(1);
+        internalCluster().startNode();
 
         logger.info("--> creating index");
         prepareCreate(indexName, Settings.builder()
@@ -43,7 +43,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         final String indexUUID = resolveIndex(indexName).getUUID();
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex(indexName, "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(indexName, "type1", "1").setSource("field1", "value1").get();
 
         logger.info("--> restarting the node with node.data=true");
         internalCluster().restartRandomDataNode();
@@ -59,5 +59,9 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
                     }
                 }));
         assertThat(ex.getMessage(), containsString(indexUUID));
+        assertThat(ex.getMessage(),
+            startsWith("Node is started with "
+                + Node.NODE_DATA_SETTING.getKey()
+                + "=false, but has shard data"));
     }
 }

@@ -1742,7 +1742,7 @@ public final class InternalTestCluster extends TestCluster {
             nodeAndClient.startNode();
             success = true;
         } finally {
-            if (!success)
+            if (success == false)
                 nodes.remove(nodeAndClient.name);
         }
 

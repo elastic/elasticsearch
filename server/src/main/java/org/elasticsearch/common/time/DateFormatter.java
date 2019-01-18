@@ -146,6 +146,6 @@ public interface DateFormatter {
             return formatters.get(0);
         }
 
-        return DateFormatters.merge(input, formatters);
+        return DateFormatters.merge(input.substring(1), formatters);
     }
 }

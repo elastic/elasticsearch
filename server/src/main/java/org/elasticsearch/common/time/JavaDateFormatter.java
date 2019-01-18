@@ -21,9 +21,11 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
 
+import java.text.ParsePosition;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
@@ -123,10 +125,53 @@ class JavaDateFormatter implements DateFormatter {
         return format;
     }
 
-    JavaDateFormatter parseDefaulting(Map<TemporalField, Long> fields) {
-        final DateTimeFormatterBuilder parseDefaultingBuilder = new DateTimeFormatterBuilder().append(printer);
-        fields.forEach(parseDefaultingBuilder::parseDefaulting);
-        return new JavaDateFormatter(format, parseDefaultingBuilder.toFormatter(Locale.ROOT));
+    // visible for testing
+    static DateFormatter roundUpFormatter(JavaDateFormatter formatter) {
+        // the epoch formatters do not properly deal with the parseDefaulting mechanism of java time, so we need to do some special
+        // handling formatters that contain our self written parsers
+
+        // this formatter needs some special treatment once nanoseconds are supported, as we have to add 999_999 nanoseconds then
+        if ("epoch_millis".equals(formatter.format)) {
+            return formatter;
+        }
+
+        final DateTimeFormatterBuilder parseDefaultingBuilder = new DateTimeFormatterBuilder().append(formatter.parser);
+        ROUND_UP_BASE_FIELDS.forEach(parseDefaultingBuilder::parseDefaulting);
+
+        final DateFormatter roundUpFormatter;
+        if (formatter.format.contains("epoch_millis")) {
+            roundUpFormatter = new JavaDateFormatter(formatter.format, parseDefaultingBuilder.toFormatter(formatter.locale())) {
+                @Override
+                public TemporalAccessor parse(String input) {
+                    try {
+                        return super.parse(input);
+                    } catch (DateTimeParseException e) {
+                        TemporalAccessor accessor = getParser().parseUnresolved(input, new ParsePosition(0));
+                        return EpochTime.from(accessor);
+                    }
+                }
+            };
+        } else if (formatter.format.contains("epoch_second")) {
+            roundUpFormatter = new JavaDateFormatter(formatter.format, parseDefaultingBuilder.toFormatter(formatter.locale())) {
+                @Override
+                public TemporalAccessor parse(String input) {
+                    try {
+                        return super.parse(input);
+                    } catch (DateTimeParseException e) {
+                        TemporalAccessor accessor = getParser().parseUnresolved(input, new ParsePosition(0));
+                        return EpochTime.from(accessor);
+                    }
+                }
+            };
+        } else {
+            roundUpFormatter = new JavaDateFormatter(formatter.format, parseDefaultingBuilder.toFormatter(Locale.ROOT));
+        }
+
+        if (formatter.zone() != null) {
+            return roundUpFormatter.withLocale(formatter.locale()).withZone(formatter.zone());
+        } else {
+            return roundUpFormatter.withLocale(formatter.locale());
+        }
     }
 
     @Override
@@ -141,7 +186,7 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public DateMathParser toDateMathParser() {
-        return new JavaDateMathParser(this, this.parseDefaulting(ROUND_UP_BASE_FIELDS));
+        return new JavaDateMathParser(this, roundUpFormatter(this));
     }
 
     @Override

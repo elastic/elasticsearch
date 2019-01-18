@@ -157,4 +157,41 @@ public class DateFormattersTests extends ESTestCase {
         formatter.format(formatter.parse("2018-05-15T17:14:56.123456789+0100"));
         formatter.format(formatter.parse("2018-05-15T17:14:56.123456789+01:00"));
     }
+
+    public void testRoundupFormatterWithEpochDates() {
+        assertRoundupFormatter("8epoch_millis", "1234567890", 1234567890L);
+        assertRoundupFormatter("8strict_date_optional_time||epoch_millis", "2018-10-10T12:13:14.123Z", 1539173594123L);
+        assertRoundupFormatter("8strict_date_optional_time||epoch_millis", "1234567890", 1234567890L);
+        assertRoundupFormatter("8uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_millis", "2018-10-10T12:13:14.123Z", 1539173594123L);
+        assertRoundupFormatter("8uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_millis", "1234567890", 1234567890L);
+
+        assertRoundupFormatter("8epoch_second", "1234567890", 1234567890999L);
+        assertRoundupFormatter("8strict_date_optional_time||epoch_second", "2018-10-10T12:13:14.123Z", 1539173594123L);
+        assertRoundupFormatter("8strict_date_optional_time||epoch_second", "1234567890", 1234567890999L);
+        assertRoundupFormatter("8uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_second", "2018-10-10T12:13:14.123Z", 1539173594123L);
+        assertRoundupFormatter("8uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_second", "1234567890", 1234567890999L);
+    }
+
+    public void testRoundupFormatterZone() {
+        ZoneId zoneId = randomZone();
+        JavaDateFormatter formatter = (JavaDateFormatter) DateFormatter.forPattern("8strict_date_optional_time").withZone(zoneId);
+        JavaDateFormatter roundUpFormatter = (JavaDateFormatter) JavaDateFormatter.roundUpFormatter(formatter);
+        assertThat(roundUpFormatter.zone(), is(zoneId));
+        assertThat(formatter.zone(), is(zoneId));
+    }
+
+    public void testRoundupFormatterLocale() {
+        Locale locale = randomLocale(random());
+        JavaDateFormatter formatter = (JavaDateFormatter) DateFormatter.forPattern("8strict_date_optional_time").withLocale(locale);
+        JavaDateFormatter roundUpFormatter = (JavaDateFormatter) JavaDateFormatter.roundUpFormatter(formatter);
+        assertThat(roundUpFormatter.locale(), is(locale));
+        assertThat(formatter.locale(), is(locale));
+    }
+
+    private void assertRoundupFormatter(String format, String input, long expectedMilliSeconds) {
+        JavaDateFormatter dateFormatter = (JavaDateFormatter) DateFormatter.forPattern(format);
+        TemporalAccessor accessor = JavaDateFormatter.roundUpFormatter(dateFormatter).parse(input);
+        long millis = DateFormatters.toZonedDateTime(accessor).toInstant().toEpochMilli();
+        assertThat(millis, is(expectedMilliSeconds));
+    }
 }

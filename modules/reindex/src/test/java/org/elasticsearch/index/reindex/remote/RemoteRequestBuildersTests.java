@@ -179,12 +179,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
             fetchVersion = randomBoolean();
             searchRequest.source().version(fetchVersion);
         }
-        Boolean fetchSeqNoAndTerm = null;
-        if (randomBoolean()) {
-            fetchSeqNoAndTerm = randomBoolean();
-            searchRequest.source().seqNoAndPrimaryTerm(fetchSeqNoAndTerm);
-        }
-
+        
         Map<String, String> params = initialSearch(searchRequest, query, remoteVersion).getParameters();
 
         if (scroll == null) {
@@ -194,9 +189,6 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         }
         assertThat(params, hasEntry("size", Integer.toString(size)));
         assertThat(params, fetchVersion == null || fetchVersion == true ? hasEntry("version", null) : not(hasEntry("version", null)));
-        assertThat(params, fetchSeqNoAndTerm == null || fetchSeqNoAndTerm ? hasEntry("seq_no", null) : not(hasEntry("seq_no", null)));
-        assertThat(params, fetchSeqNoAndTerm == null || fetchSeqNoAndTerm ?
-            hasEntry("primary_term", null) : not(hasEntry("primary_term", null)));
     }
 
     private void assertScroll(Version remoteVersion, Map<String, String> params, TimeValue requested) {

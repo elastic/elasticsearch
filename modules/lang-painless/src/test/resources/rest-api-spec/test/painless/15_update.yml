@@ -4,7 +4,6 @@
   - do:
       index:
           index:  test_1
-          type:   test
           id:     1
           body:
               foo:    bar
@@ -13,7 +12,6 @@
   - do:
       update:
           index:  test_1
-          type:   test
           id:     1
           body:
             script:
@@ -22,14 +20,13 @@
               params: { bar: 'xxx' }
 
   - match: { _index:   test_1 }
-  - match: { _type:    test   }
+  - match: { _type:    _doc   }
   - match: { _id:      "1"    }
   - match: { _version: 2      }
 
   - do:
       get:
           index:  test_1
-          type:   test
           id:     1
 
   - match: { _source.foo:        xxx }
@@ -38,7 +35,6 @@
   - do:
       update:
           index:  test_1
-          type:   test
           id:     1
           body:
             script:
@@ -46,14 +42,13 @@
               source: "ctx._source.foo = 'yyy'"
 
   - match: { _index:   test_1 }
-  - match: { _type:    test   }
+  - match: { _type:    _doc   }
   - match: { _id:      "1"    }
   - match: { _version: 3      }
 
   - do:
       get:
           index:  test_1
-          type:   test
           id:     1
 
   - match: { _source.foo:        yyy }
@@ -62,7 +57,6 @@
   - do:
       update:
           index:  test_1
-          type:   test
           id:     1
           body:
             script:
@@ -70,14 +64,13 @@
               source: "ctx._source.missing_length = ctx._source.missing?.length()"
 
   - match: { _index:   test_1 }
-  - match: { _type:    test   }
+  - match: { _type:    _doc   }
   - match: { _id:      "1"    }
   - match: { _version: 4      }
 
   - do:
       get:
           index:  test_1
-          type:   test
           id:     1
 
   - match: { _source.foo:        yyy }
@@ -96,14 +89,13 @@
               source: "ctx._source.foo_length = ctx._source.foo?.length()"
 
   - match: { _index:   test_1 }
-  - match: { _type:    test   }
+  - match: { _type:    _doc   }
   - match: { _id:      "1"    }
   - match: { _version: 5      }
 
   - do:
       get:
           index:  test_1
-          type:   test
           id:     1
 
   - match: { _source.foo:        yyy }
@@ -117,7 +109,6 @@
   - do:
       index:
           index:  test_1
-          type:   test
           id:     2
           body:
               foo:    bar
@@ -127,7 +118,6 @@
       catch: bad_request
       update:
           index:  test_1
-          type:   test
           id:     2
           body:
             script:

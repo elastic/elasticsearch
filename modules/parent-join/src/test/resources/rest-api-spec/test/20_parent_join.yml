@@ -4,28 +4,24 @@ setup:
         index: test
         body:
           mappings:
-            doc:
-              properties:
-                join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" } }
+            properties:
+              join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" } }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    1
         body:  { "join_field": { "name": "parent" } }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    2
         body:  { "join_field": { "name": "parent" } }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    3
         routing: 1
         body:  { "join_field": { "name": "child", "parent": "1" } }
@@ -33,7 +29,6 @@ setup:
   - do:
       index:
         index: test
-        type:  doc
         id:    4
         routing: 1
         body:  { "join_field": { "name": "child", "parent": "1" } }
@@ -41,7 +36,6 @@ setup:
   - do:
       index:
         index: test
-        type:  doc
         id:    5
         routing: 1
         body:  { "join_field": { "name": "child", "parent": "2" } }
@@ -49,7 +43,6 @@ setup:
   - do:
       index:
         index: test
-        type:  doc
         id:    6
         routing: 1
         body:  { "join_field": { "name": "grand_child", "parent": "5" } }
@@ -122,5 +115,3 @@ setup:
     - match: { hits.hits.1._id: "4" }
     - match: { hits.hits.1._source.join_field.name: "child" }
     - match: { hits.hits.1._source.join_field.parent: "1" }
-
-

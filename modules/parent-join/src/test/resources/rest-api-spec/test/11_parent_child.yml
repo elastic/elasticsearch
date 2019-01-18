@@ -4,24 +4,23 @@ setup:
         index: test
         body:
             mappings:
-              doc:
-                properties:
-                  join_field:
-                    type: join
-                    relations:
-                      parent: child
+              properties:
+                join_field:
+                  type: join
+                  relations:
+                    parent: child
 
+---
+"Parent/child inner hits":
   - do:
       index:
         index: test
-        type:  doc
         id:    1
         body:  {"foo": "bar", "join_field": {"name" : "parent"} }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    2
         routing: 1
         body:  {"bar": "baz", "join_field": { "name" : "child", "parent": "1"} }

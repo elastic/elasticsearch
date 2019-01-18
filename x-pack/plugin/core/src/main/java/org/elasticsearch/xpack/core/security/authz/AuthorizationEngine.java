@@ -19,22 +19,25 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
+ * <p>
  * An AuthorizationEngine is responsible for making the core decisions about whether a request
  * should be authorized or not. The engine can and usually will be called multiple times during
  * the authorization of a request. Security categorizes requests into a few different buckets
  * and uses the action name as the indicator of what a request will perform. Internally, the
  * action name is used to map a {@link TransportRequest} to the actual
  * {@link org.elasticsearch.action.support.TransportAction} that will handle the request.
- * <p/>
+ * </p><br>
+ * <p>
  * Requests can be a <em>cluster</em> request or an <em>indices</em> request. Cluster requests
  * are requests that tend to be global in nature; they could affect the whole cluster.
  * Indices requests are those that deal with specific indices; the actions could have the affect
  * of reading data, modifying data, creating an index, deleting an index, or modifying metadata.
- * <p/>
+ * </p><br>
+ * <p>
  * Each call to the engine will contain a {@link RequestInfo} object that contains the request,
  * action name, and the authentication associated with the request. This data is provided by the
  * engine so that all information about the request can be used to make the authorization decision.
- * <p/>
+ * </p><br>
  * The methods of the engine will be called in the following order:
  * <ol>
  *     <li>{@link #resolveAuthorizationInfo(RequestInfo, ActionListener)} to retrieve information
@@ -55,11 +58,11 @@ import java.util.function.Function;
  *         {@link #loadAuthorizedIndices(RequestInfo, AuthorizationInfo, Map, ActionListener)} method
  *         if it is used as part of the authorization process.</li>
  * </ol>
- * <p/>
+ * <br><p>
  * <em>NOTE:</em> the {@link #loadAuthorizedIndices(RequestInfo, AuthorizationInfo, Map, ActionListener)}
  * method may be called prior to {@link #authorizeIndexAction(RequestInfo, AuthorizationInfo, AsyncSupplier, Function, ActionListener)}
  * in cases where wildcards need to be expanded.
- * <p/>
+ * </p><br>
  * Authorization engines can be called from various threads including network threads that should
  * not be blocked waiting for I/O. Network threads in elasticsearch are limited and we rely on
  * asynchronous processing to ensure optimal use of network threads; this is unlike many other Java

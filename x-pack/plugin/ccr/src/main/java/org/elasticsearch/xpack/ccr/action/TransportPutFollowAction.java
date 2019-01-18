@@ -129,7 +129,7 @@ public final class TransportPutFollowAction
         Client client = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
 
         final ActionListener<PutFollowAction.Response> followingListener;
-        if (request.getWaitForCompletion()) {
+        if (request.getWaitForRestore()) {
             followingListener = listener;
         } else {
             followingListener = ActionListener.wrap(() -> {});

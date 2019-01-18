@@ -63,7 +63,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
         private static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
         private static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
-        private static final ParseField WAIT_FOR_COMPLETION = new ParseField("wait_for_completion");
+        private static final ParseField WAIT_FOR_RESTORE = new ParseField("wait_for_restore");
 
         private static final ObjectParser<Request, String> PARSER = new ObjectParser<>(NAME, () -> {
             Request request = new Request();
@@ -74,7 +74,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
         static {
             PARSER.declareString(Request::setRemoteCluster, REMOTE_CLUSTER_FIELD);
             PARSER.declareString(Request::setLeaderIndex, LEADER_INDEX_FIELD);
-            PARSER.declareBoolean(Request::setWaitForCompletion, WAIT_FOR_COMPLETION);
+            PARSER.declareBoolean(Request::setWaitForRestore, WAIT_FOR_RESTORE);
             PARSER.declareString((req, val) -> req.followRequest.setFollowerIndex(val), FOLLOWER_INDEX_FIELD);
             PARSER.declareInt((req, val) -> req.followRequest.setMaxReadRequestOperationCount(val), MAX_READ_REQUEST_OPERATION_COUNT);
             PARSER.declareField(
@@ -124,7 +124,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
         private String remoteCluster;
         private String leaderIndex;
-        private boolean waitForCompletion;
+        private boolean waitForRestore;
         private ResumeFollowAction.Request followRequest;
 
         public Request() {
@@ -146,12 +146,12 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             this.leaderIndex = leaderIndex;
         }
 
-        public boolean getWaitForCompletion() {
-            return waitForCompletion;
+        public boolean getWaitForRestore() {
+            return waitForRestore;
         }
 
-        public void setWaitForCompletion(boolean waitForCompletion) {
-            this.waitForCompletion = waitForCompletion;
+        public void setWaitForRestore(boolean waitForRestore) {
+            this.waitForRestore = waitForRestore;
         }
 
         public ResumeFollowAction.Request getFollowRequest() {
@@ -190,9 +190,9 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             leaderIndex = in.readString();
             // TODO: Update after backport
             if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-                waitForCompletion = in.readBoolean();
+                waitForRestore = in.readBoolean();
             } else {
-                waitForCompletion = true;
+                waitForRestore = true;
             }
             followRequest = new ResumeFollowAction.Request(in);
         }
@@ -204,7 +204,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             out.writeString(leaderIndex);
             // TODO: Update after backport
             if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                out.writeBoolean(waitForCompletion);
+                out.writeBoolean(waitForRestore);
             }
             followRequest.writeTo(out);
         }
@@ -215,7 +215,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             {
                 builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
                 builder.field(LEADER_INDEX_FIELD.getPreferredName(), leaderIndex);
-                builder.field(WAIT_FOR_COMPLETION.getPreferredName(), waitForCompletion);
+                builder.field(WAIT_FOR_RESTORE.getPreferredName(), waitForRestore);
                 followRequest.toXContentFragment(builder, params);
             }
             builder.endObject();
@@ -229,13 +229,13 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             Request request = (Request) o;
             return Objects.equals(remoteCluster, request.remoteCluster) &&
                 Objects.equals(leaderIndex, request.leaderIndex) &&
-                Objects.equals(waitForCompletion, request.waitForCompletion) &&
+                Objects.equals(waitForRestore, request.waitForRestore) &&
                 Objects.equals(followRequest, request.followRequest);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(remoteCluster, leaderIndex, waitForCompletion, followRequest);
+            return Objects.hash(remoteCluster, leaderIndex, waitForRestore, followRequest);
         }
     }
 

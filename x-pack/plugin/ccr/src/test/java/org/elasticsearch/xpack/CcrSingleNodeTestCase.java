@@ -98,7 +98,7 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         request.setRemoteCluster("local");
         request.setLeaderIndex(leaderIndex);
         request.setFollowRequest(getResumeFollowRequest(followerIndex));
-        request.setWaitForCompletion(true);
+        request.setWaitForRestore(true);
         return request;
     }
 

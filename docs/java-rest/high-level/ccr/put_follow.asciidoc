@@ -20,6 +20,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 <1> The name of the remote cluster alias.
 <2> The name of the leader in the remote cluster.
 <3> The name of the follower index that gets created as part of the put follow API call.
+<4> Boolean indicating whether to wait until the follower has been restored from the leader.
 
 [id="{upid}-{api}-response"]
 ==== Response

@@ -532,7 +532,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
             request.setRemoteCluster(remoteCluster);
             request.setLeaderIndex(indexToFollow.getName());
             request.setFollowRequest(followRequest);
-            request.setWaitForCompletion(true);
+            request.setWaitForRestore(true);
 
             // Execute if the create and follow api call succeeds:
             Runnable successHandler = () -> {

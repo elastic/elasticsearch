@@ -38,7 +38,7 @@
       ccr.follow:
         index: bar
         body:
-          wait_for_completion: true
+          wait_for_restore: true
           remote_cluster: local
           leader_index: foo
   - is_true: follow_index_created

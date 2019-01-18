@@ -32,15 +32,22 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
     static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
     static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
     static final ParseField FOLLOWER_INDEX_FIELD = new ParseField("follower_index");
+    static final ParseField WAIT_FOR_RESTORE = new ParseField("wait_for_restore");
 
     private final String remoteCluster;
     private final String leaderIndex;
     private final String followerIndex;
+    private final boolean waitForRestore;
 
     public PutFollowRequest(String remoteCluster, String leaderIndex, String followerIndex) {
+        this(remoteCluster, leaderIndex, followerIndex, false);
+    }
+
+    public PutFollowRequest(String remoteCluster, String leaderIndex, String followerIndex, boolean waitForRestore) {
         this.remoteCluster = Objects.requireNonNull(remoteCluster, "remoteCluster");
         this.leaderIndex = Objects.requireNonNull(leaderIndex, "leaderIndex");
         this.followerIndex = Objects.requireNonNull(followerIndex, "followerIndex");
+        this.waitForRestore = waitForRestore;
     }
 
     @Override
@@ -49,6 +56,7 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
         builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
         builder.field(LEADER_INDEX_FIELD.getPreferredName(), leaderIndex);
         builder.field(FOLLOWER_INDEX_FIELD.getPreferredName(), followerIndex);
+        builder.field(WAIT_FOR_RESTORE.getPreferredName(), waitForRestore);
         toXContentFragment(builder, params);
         builder.endObject();
         return builder;
@@ -66,13 +74,18 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
         return followerIndex;
     }
 
+    public boolean isWaitForRestore() {
+        return waitForRestore;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (!super.equals(o)) return false;
         PutFollowRequest that = (PutFollowRequest) o;
-        return Objects.equals(remoteCluster, that.remoteCluster) &&
+        return waitForRestore == that.waitForRestore &&
+            Objects.equals(remoteCluster, that.remoteCluster) &&
             Objects.equals(leaderIndex, that.leaderIndex) &&
             Objects.equals(followerIndex, that.followerIndex);
     }
@@ -83,7 +96,7 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
             super.hashCode(),
             remoteCluster,
             leaderIndex,
-            followerIndex
-        );
+            followerIndex,
+            waitForRestore);
     }
 }

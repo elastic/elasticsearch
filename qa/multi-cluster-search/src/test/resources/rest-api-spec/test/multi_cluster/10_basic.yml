@@ -30,6 +30,7 @@
         rest_total_hits_as_int: true
         index: test_index,my_remote_cluster:test_index
         body:
+          seq_no_and_primary_term: true
           aggs:
             cluster:
               terms:
@@ -37,6 +38,8 @@
 
   - match: { _shards.total: 5 }
   - match: { hits.total: 11 }
+  - gte: { hits.hits.0._seq_no: 0 }
+  - gte: { hits.hits.0._primary_term: 1 }
   - length: { aggregations.cluster.buckets: 2 }
   - match: { aggregations.cluster.buckets.0.key: "remote_cluster" }
   - match: { aggregations.cluster.buckets.0.doc_count: 6 }

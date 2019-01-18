@@ -618,6 +618,8 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         }
         searchHit.score(get(Fields._SCORE, values, DEFAULT_SCORE));
         searchHit.version(get(Fields._VERSION, values, -1L));
+        searchHit.setSeqNo(get(Fields._SEQ_NO, values, SequenceNumbers.UNASSIGNED_SEQ_NO));
+        searchHit.setPrimaryTerm(get(Fields._PRIMARY_TERM, values, SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
         searchHit.sortValues(get(Fields.SORT, values, SearchSortValues.EMPTY));
         searchHit.highlightFields(get(Fields.HIGHLIGHT, values, null));
         searchHit.sourceRef(get(SourceFieldMapper.NAME, values, null));

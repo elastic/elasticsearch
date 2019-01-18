@@ -64,12 +64,13 @@ import static org.elasticsearch.action.search.SearchResponse.Clusters;
  * Preconditions are that only non final reduction has been performed on each cluster, meaning that buckets have not been pruned locally
  * and pipeline aggregations have not yet been executed. Also, from+size search hits need to be requested to each cluster.
  */
-//TODO it may make sense to investigate reusing existing merge code in SearchPhaseController#reducedQueryPhase, the logic is similar
-//yet there are substantial differences in terms of the objects exchanged and logic in the sortDocs method.
+//TODO it may make sense to integrate the remote clusters responses as a shard response in the initial search phase and ignore hits coming
+//from the remote clusters in the fetch phase. This would be identical to the removed QueryAndFetch strategy except that only the remote
+//cluster response would have the fetch results.
 final class SearchResponseMerger {
     private final int from;
     private final int size;
-    int trackTotalHitsUpTo;
+    private final int trackTotalHitsUpTo;
     private final SearchTimeProvider searchTimeProvider;
     private final Clusters clusters;
     private final Function<Boolean, ReduceContext> reduceContextFunction;

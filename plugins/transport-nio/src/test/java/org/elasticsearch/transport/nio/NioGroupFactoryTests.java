@@ -21,6 +21,7 @@ package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.nio.ChannelFactory;
+import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
@@ -36,16 +37,13 @@ import java.util.function.Consumer;
 
 public class NioGroupFactoryTests extends ESTestCase {
 
-    private NioGroupFactory groupFactory;
-
     public void testSharedGroupStillWorksWhenOneInstanceClosed() throws IOException {
-        groupFactory = new NioGroupFactory(Settings.EMPTY, logger);
+        NioGroupFactory groupFactory = new NioGroupFactory(Settings.EMPTY, logger);
 
         InetSocketAddress inetSocketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
-        SharedNioGroup httpGroup = groupFactory.getHttpGroup();
+        NioGroup httpGroup = groupFactory.getHttpGroup();
         try {
-            SharedNioGroup transportGroup = groupFactory.getTransportGroup();
-            assertTrue(transportGroup.shareSameGroup(httpGroup));
+            NioGroup transportGroup = groupFactory.getTransportGroup();
             transportGroup.close();
             expectThrows(IllegalStateException.class, () -> transportGroup.bindServerChannel(inetSocketAddress, new BindingFactory()));
 
@@ -54,25 +52,6 @@ public class NioGroupFactoryTests extends ESTestCase {
             httpGroup.close();
         }
         expectThrows(IllegalStateException.class, () -> httpGroup.bindServerChannel(inetSocketAddress, new BindingFactory()));
-    }
-
-    public void testWhenHttpThreadsAreNotConfiguredGroupIsTheSame() throws IOException {
-        groupFactory = new NioGroupFactory(Settings.EMPTY, logger);
-
-        try (SharedNioGroup transportGroup = groupFactory.getTransportGroup();
-             SharedNioGroup httpGroup = groupFactory.getHttpGroup()) {
-            assertTrue(transportGroup.shareSameGroup(httpGroup));
-        }
-    }
-
-    public void testWhenHttpThreadsAreConfiguredGroupIsNotTheSame() throws IOException {
-        Settings settings = Settings.builder().put(NioTransportPlugin.NIO_HTTP_WORKER_COUNT.getKey(), 1).build();
-        groupFactory = new NioGroupFactory(settings, logger);
-
-        try (SharedNioGroup transportGroup = groupFactory.getTransportGroup();
-             SharedNioGroup httpGroup = groupFactory.getHttpGroup()) {
-            assertFalse(transportGroup.shareSameGroup(httpGroup));
-        }
     }
 
     private static class BindingFactory extends ChannelFactory<NioServerSocketChannel, NioSocketChannel> {

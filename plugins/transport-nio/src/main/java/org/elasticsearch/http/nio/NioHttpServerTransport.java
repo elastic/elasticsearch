@@ -40,6 +40,7 @@ import org.elasticsearch.http.nio.cors.NioCorsConfigBuilder;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.InboundChannelBuffer;
+import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
@@ -47,7 +48,6 @@ import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.nio.NioGroupFactory;
-import org.elasticsearch.transport.nio.SharedNioGroup;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -89,7 +89,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
     protected final int tcpSendBufferSize;
     protected final int tcpReceiveBufferSize;
 
-    private volatile SharedNioGroup nioGroup;
+    private volatile NioGroup nioGroup;
     private ChannelFactory<NioHttpServerChannel, NioHttpChannel> channelFactory;
 
     public NioHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,

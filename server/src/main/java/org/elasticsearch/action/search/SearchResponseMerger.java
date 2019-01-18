@@ -103,8 +103,6 @@ final class SearchResponseMerger {
         int totalShards = 0;
         int skippedShards = 0;
         int successfulShards = 0;
-        boolean timedOut = false;
-        Boolean terminatedEarly = null;
         //the current reduce phase counts as one
         int numReducePhases = 1;
         List<ShardSearchFailure> failures = new ArrayList<>();
@@ -121,10 +119,6 @@ final class SearchResponseMerger {
             totalShards += searchResponse.getTotalShards();
             skippedShards += searchResponse.getSkippedShards();
             successfulShards += searchResponse.getSuccessfulShards();
-            timedOut = timedOut || searchResponse.isTimedOut();
-            if (searchResponse.isTerminatedEarly() != null && searchResponse.isTerminatedEarly()) {
-                terminatedEarly = true;
-            }
             numReducePhases += searchResponse.getNumReducePhases();
 
             Collections.addAll(failures, searchResponse.getShardFailures());
@@ -158,7 +152,8 @@ final class SearchResponseMerger {
                 trackTotalHits = true;
             }
             TopDocs topDocs = searchHitsToTopDocs(searchHits, totalHits, shards);
-            topDocsStats.add(new TopDocsAndMaxScore(topDocs, searchHits.getMaxScore()));
+            topDocsStats.add(new TopDocsAndMaxScore(topDocs, searchHits.getMaxScore()),
+                searchResponse.isTimedOut(), searchResponse.isTerminatedEarly());
             topDocsList.add(topDocs);
         }
 
@@ -186,7 +181,7 @@ final class SearchResponseMerger {
         //make failures ordering consistent with ordinary search and CCS
         Arrays.sort(shardFailures, FAILURES_COMPARATOR);
         InternalSearchResponse response = new InternalSearchResponse(mergedSearchHits, reducedAggs, suggest,
-            new SearchProfileShardResults(profileResults), timedOut, terminatedEarly, numReducePhases);
+            new SearchProfileShardResults(profileResults), topDocsStats.timedOut, topDocsStats.terminatedEarly, numReducePhases);
         long tookInMillis = searchTimeProvider.buildTookInMillis();
         return new SearchResponse(response, null, totalShards, successfulShards, skippedShards, tookInMillis, shardFailures, clusters);
     }

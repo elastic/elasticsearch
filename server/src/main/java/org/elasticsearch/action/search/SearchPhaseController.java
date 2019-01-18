@@ -170,7 +170,7 @@ public final class SearchPhaseController {
             if (queryResult.hasConsumedTopDocs() == false) { // already consumed?
                 final TopDocsAndMaxScore td = queryResult.consumeTopDocs();
                 assert td != null;
-                topDocsStats.add(td);
+                topDocsStats.add(td, queryResult.searchTimedOut(), queryResult.terminatedEarly());
                 // make sure we set the shard index before we add it - the consumer didn't do that yet
                 if (td.topDocs.scoreDocs.length > 0) {
                     setShardIndex(td.topDocs, queryResult.getShardIndex());
@@ -439,12 +439,10 @@ public final class SearchPhaseController {
                                                 boolean performFinalReduce) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
-        boolean timedOut = false;
-        Boolean terminatedEarly = null;
         if (queryResults.isEmpty()) { // early terminate we have nothing to reduce
             final TotalHits totalHits = topDocsStats.getTotalHits();
             return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
-                timedOut, terminatedEarly, null, null, null, SortedTopDocs.EMPTY, null, numReducePhases, 0, 0, true);
+                false, null, null, null, null, SortedTopDocs.EMPTY, null, numReducePhases, 0, 0, true);
         }
         final QuerySearchResult firstResult = queryResults.stream().findFirst().get().queryResult();
         final boolean hasSuggest = firstResult.suggest() != null;
@@ -476,16 +474,6 @@ public final class SearchPhaseController {
             QuerySearchResult result = entry.queryResult();
             from = result.from();
             size = result.size();
-            if (result.searchTimedOut()) {
-                timedOut = true;
-            }
-            if (result.terminatedEarly() != null) {
-                if (terminatedEarly == null) {
-                    terminatedEarly = result.terminatedEarly();
-                } else if (result.terminatedEarly()) {
-                    terminatedEarly = true;
-                }
-            }
             if (hasSuggest) {
                 assert result.suggest() != null;
                 for (Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> suggestion : result.suggest()) {
@@ -509,7 +497,7 @@ public final class SearchPhaseController {
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, queryResults, bufferedTopDocs, topDocsStats, from, size);
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
-            timedOut, terminatedEarly, suggest, aggregations, shardResults, sortedTopDocs,
+            topDocsStats.timedOut, topDocsStats.terminatedEarly, suggest, aggregations, shardResults, sortedTopDocs,
             firstResult.sortValueFormats(), numReducePhases, size, from, false);
     }
 
@@ -678,7 +666,7 @@ public final class SearchPhaseController {
             }
             if (hasTopDocs) {
                 final TopDocsAndMaxScore topDocs = querySearchResult.consumeTopDocs(); // can't be null
-                topDocsStats.add(topDocs);
+                topDocsStats.add(topDocs, querySearchResult.searchTimedOut(), querySearchResult.terminatedEarly());
                 setShardIndex(topDocs.topDocs, querySearchResult.getShardIndex());
                 topDocsBuffer[i] = topDocs.topDocs;
             }
@@ -741,6 +729,8 @@ public final class SearchPhaseController {
         private TotalHits.Relation totalHitsRelation;
         long fetchHits;
         private float maxScore = Float.NEGATIVE_INFINITY;
+        boolean timedOut;
+        Boolean terminatedEarly;
 
         TopDocsStats(int trackTotalHitsUpTo) {
             this.trackTotalHitsUpTo = trackTotalHitsUpTo;
@@ -773,7 +763,7 @@ public final class SearchPhaseController {
             }
         }
 
-        void add(TopDocsAndMaxScore topDocs) {
+        void add(TopDocsAndMaxScore topDocs, boolean timedOut, Boolean terminatedEarly) {
             if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 totalHits += topDocs.topDocs.totalHits.value;
                 if (topDocs.topDocs.totalHits.relation == Relation.GREATER_THAN_OR_EQUAL_TO) {
@@ -783,6 +773,16 @@ public final class SearchPhaseController {
             fetchHits += topDocs.topDocs.scoreDocs.length;
             if (!Float.isNaN(topDocs.maxScore)) {
                 maxScore = Math.max(maxScore, topDocs.maxScore);
+            }
+            if (timedOut) {
+                this.timedOut = true;
+            }
+            if (terminatedEarly != null) {
+                if (this.terminatedEarly == null) {
+                    this.terminatedEarly = terminatedEarly;
+                } else if (terminatedEarly) {
+                    this.terminatedEarly = true;
+                }
             }
         }
     }

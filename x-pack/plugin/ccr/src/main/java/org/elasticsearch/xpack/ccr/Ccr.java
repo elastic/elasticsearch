@@ -306,7 +306,9 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        indexModule.addIndexEventListener(this.restoreSourceService.get());
+        if (enabled) {
+            indexModule.addIndexEventListener(this.restoreSourceService.get());
+        }
     }
 
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }

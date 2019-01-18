@@ -73,7 +73,6 @@ import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
@@ -761,7 +760,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(role, "foo");
         assertOnlyReadAllowed(role, MlMetaIndex.INDEX_NAME);
-        assertOnlyReadAllowed(role, AnomalyDetectorsIndex.jobStateIndexName());
+        assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
         assertOnlyReadAllowed(role, AuditorField.NOTIFICATIONS_INDEX);
     }
@@ -813,7 +812,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(role, "foo");
         assertNoAccessAllowed(role, MlMetaIndex.INDEX_NAME);
-        assertNoAccessAllowed(role, AnomalyDetectorsIndex.jobStateIndexName());
+        assertNoAccessAllowed(role, AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
         assertOnlyReadAllowed(role, AuditorField.NOTIFICATIONS_INDEX);
     }

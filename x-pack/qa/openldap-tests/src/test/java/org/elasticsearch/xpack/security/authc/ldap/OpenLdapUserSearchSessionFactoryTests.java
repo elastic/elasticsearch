@@ -56,7 +56,8 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
          */
         globalSettings = Settings.builder()
             .put("path.home", createTempDir())
-            .put("xpack.ssl.certificate_authorities", caPath)
+            .put("xpack.security.authc.realms.oldap-test.type", "ldap")
+            .put("xpack.security.authc.realms.oldap-test.ssl.certificate_authorities", caPath)
             .build();
         threadPool = new TestThreadPool("LdapUserSearchSessionFactoryTests");
     }

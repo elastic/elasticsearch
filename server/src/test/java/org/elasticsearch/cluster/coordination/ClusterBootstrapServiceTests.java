@@ -100,12 +100,13 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
         final AtomicBoolean bootstrapped = new AtomicBoolean();
         ClusterBootstrapService clusterBootstrapService
-            = new ClusterBootstrapService(settings.build(), transportService, () -> discoveredNodesSupplier.get().get(), () -> false, vc -> {
-            assertTrue(bootstrapped.compareAndSet(false, true));
-            assertThat(vc.getNodeIds(),
-                equalTo(Stream.of(localNode, otherNode1, otherNode2).map(DiscoveryNode::getId).collect(Collectors.toSet())));
-            assertThat(deterministicTaskQueue.getCurrentTimeMillis(), greaterThanOrEqualTo(timeout));
-        });
+            = new ClusterBootstrapService(settings.build(), transportService, () -> discoveredNodesSupplier.get().get(), () -> false,
+            vc -> {
+                assertTrue(bootstrapped.compareAndSet(false, true));
+                assertThat(vc.getNodeIds(),
+                    equalTo(Stream.of(localNode, otherNode1, otherNode2).map(DiscoveryNode::getId).collect(Collectors.toSet())));
+                assertThat(deterministicTaskQueue.getCurrentTimeMillis(), greaterThanOrEqualTo(timeout));
+            });
 
         deterministicTaskQueue.scheduleAt(timeout - 1,
             () -> discoveredNodesSupplier.set(() -> Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toSet())));

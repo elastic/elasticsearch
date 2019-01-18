@@ -145,7 +145,7 @@ PUT my_index <1>
       "name":     { "type": "text"  }, <3>
       "age":      { "type": "integer" },  <3>
       "created":  {
-        "type":   "date", <4>
+        "type":   "date", <3>
         "format": "strict_date_optional_time||epoch_millis"
       }
     }

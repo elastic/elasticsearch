@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;

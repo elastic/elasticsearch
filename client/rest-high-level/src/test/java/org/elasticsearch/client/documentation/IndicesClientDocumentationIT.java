@@ -368,7 +368,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
             // end::create-index-request-masterTimeout
             // tag::create-index-request-waitForActiveShards
-            request.waitForActiveShards(2); // <1>
+            request.waitForActiveShards(ActiveShardCount.from(2)); // <1>
             request.waitForActiveShards(ActiveShardCount.DEFAULT); // <2>
             // end::create-index-request-waitForActiveShards
             {

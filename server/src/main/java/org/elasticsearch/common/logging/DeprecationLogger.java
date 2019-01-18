@@ -364,16 +364,16 @@ public class DeprecationLogger {
          * We want a fast path check to avoid creating the string builder and copying characters if needed. So we walk the string looking
          * for either of the characters that we need to escape. If we find a character that needs escaping, we start over and
          */
-        boolean encodingNeeded = false;
+        boolean escapingNeeded = false;
         for (int i = 0; i < s.length(); i++) {
             final char c = s.charAt(i);
             if (c == '\\' || c == '"') {
-                encodingNeeded = true;
+                escapingNeeded = true;
                 break;
             }
         }
 
-        if (encodingNeeded) {
+        if (escapingNeeded) {
             final StringBuilder sb = new StringBuilder();
             for (final char c : s.toCharArray()) {
                 if (c == '\\' || c == '"') {
@@ -409,7 +409,7 @@ public class DeprecationLogger {
         for (int i = 0x80; i <= 0xFF; i++) {
             doesNotNeedEncoding.set(i);
         }
-        assert doesNotNeedEncoding.get('%') == false;
+        assert doesNotNeedEncoding.get('%') == false : doesNotNeedEncoding;
     }
 
     private static final Charset UTF_8 = Charset.forName("UTF-8");

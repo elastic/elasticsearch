@@ -30,17 +30,17 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
-import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
-import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -657,63 +657,12 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
         
         @Override
-        public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePosIncrements) throws IOException {
-            PhraseQuery.Builder builder = new PhraseQuery.Builder();
-            builder.setSlop(slop);
-
-            TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
-            PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
-            int position = -1;
-
-            stream.reset();
-            while (stream.incrementToken()) {
-                if (enablePosIncrements) {
-                    position += posIncrAtt.getPositionIncrement();
-                }
-                else {
-                    position += 1;
-                }
-                builder.add(new Term(field, termAtt.getBytesRef()), position);
-            }
-
-            return builder.build();
+        public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
+            SpanMultiTermQueryWrapper<?> spanMulti =
+                new SpanMultiTermQueryWrapper<>(new PrefixQuery(new Term(name(), indexedValueForSearch(value))));
+            spanMulti.setRewriteMethod(method);
+            return spanMulti;
         }
-        
-        @Override
-        public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-
-            MultiPhraseQuery.Builder mpqb = new MultiPhraseQuery.Builder();
-            mpqb.setSlop(slop);
-
-            TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
-
-            PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
-            int position = -1;
-
-            List<Term> multiTerms = new ArrayList<>();
-            stream.reset();
-            while (stream.incrementToken()) {
-                int positionIncrement = posIncrAtt.getPositionIncrement();
-
-                if (positionIncrement > 0 && multiTerms.size() > 0) {
-                    if (enablePositionIncrements) {
-                        mpqb.add(multiTerms.toArray(new Term[0]), position);
-                    } else {
-                        mpqb.add(multiTerms.toArray(new Term[0]));
-                    }
-                    multiTerms.clear();
-                }
-                position += positionIncrement;
-                multiTerms.add(new Term(field, termAtt.getBytesRef()));
-            }
-
-            if (enablePositionIncrements) {
-                mpqb.add(multiTerms.toArray(new Term[0]), position);
-            } else {
-                mpqb.add(multiTerms.toArray(new Term[0]));
-            }
-            return mpqb.build();
-        }        
     }
     
     private int positionIncrementGap;

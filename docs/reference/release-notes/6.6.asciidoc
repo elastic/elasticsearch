@@ -50,3 +50,13 @@
 Also see <<breaking-changes-6.6,Breaking changes in 6.6>>.
 
 coming[6.6.0]
+
+[[bug-6.6.0]]
+[float]
+=== Bug fixes
+
+Machine Learning::
+* Fix cause of "Sample out of bounds" error message. {ml-pull}335[#335]
+* Fix hang when closing a job or creating a forecast. This problem occurs if you
+created a forecast for a large job and temporary storage was not cleaned up.
+{ml-pull}352[#352] (issue: {ml-issue}350[#350])

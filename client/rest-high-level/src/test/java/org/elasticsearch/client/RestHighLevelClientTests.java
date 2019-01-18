@@ -55,6 +55,7 @@ import org.elasticsearch.client.indexlifecycle.FreezeAction;
 import org.elasticsearch.client.indexlifecycle.LifecycleAction;
 import org.elasticsearch.client.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.client.indexlifecycle.RolloverAction;
+import org.elasticsearch.client.indexlifecycle.SetPriorityAction;
 import org.elasticsearch.client.indexlifecycle.ShrinkAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.CheckedFunction;
@@ -645,7 +646,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(18, namedXContents.size());
+        assertEquals(19, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -669,7 +670,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(MeanReciprocalRank.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
         assertTrue(names.contains(ExpectedReciprocalRank.NAME));
-        assertEquals(Integer.valueOf(7), categories.get(LifecycleAction.class));
+        assertEquals(Integer.valueOf(8), categories.get(LifecycleAction.class));
         assertTrue(names.contains(AllocateAction.NAME));
         assertTrue(names.contains(DeleteAction.NAME));
         assertTrue(names.contains(ForceMergeAction.NAME));
@@ -677,6 +678,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(RolloverAction.NAME));
         assertTrue(names.contains(ShrinkAction.NAME));
         assertTrue(names.contains(FreezeAction.NAME));
+        assertTrue(names.contains(SetPriorityAction.NAME));
     }
 
     public void testMethodWithHeadersArgumentAreDeprecated() {

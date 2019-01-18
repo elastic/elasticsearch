@@ -26,8 +26,8 @@ integTestCluster {
     autoSetInitialMasterNodes = false
     autoSetHostsProvider = false
     /**
-     * The intention is to provide a custom log4j configuration where layout is an old style pattern and confirm that Elasticsearch 
-     * can successfully startup. see CustomLoggingIT.
+     * Provide a custom log4j configuration where layout is an old style pattern and confirm that Elasticsearch 
+     * can successfully startup.
      */
     extraConfigFile 'log4j2.properties', 'custom-log4j2.properties'
 }

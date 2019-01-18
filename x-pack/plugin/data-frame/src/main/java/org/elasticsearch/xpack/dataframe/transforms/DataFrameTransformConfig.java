@@ -76,7 +76,7 @@ public class DataFrameTransformConfig implements Writeable, ToXContentObject {
                                     final PivotConfig pivotConfig) {
         this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
         this.source = ExceptionsHelper.requireNonNull(source, SOURCE.getPreferredName());
-        this.dest = ExceptionsHelper.requireNonNull(source, DESTINATION.getPreferredName());
+        this.dest = ExceptionsHelper.requireNonNull(dest, DESTINATION.getPreferredName());
         this.pivotConfig = pivotConfig;
 
         // at least one transform must be defined

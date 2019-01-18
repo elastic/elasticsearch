@@ -31,6 +31,12 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.range.InternalDateRange;
+import org.elasticsearch.search.aggregations.bucket.range.Range;
+import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.ProfileShardResult;
@@ -42,6 +48,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -124,11 +131,16 @@ public class SearchResponseMergerTests extends ESTestCase {
                 priorityQueue.add(Tuple.tuple(shardId, failure));
             }
             SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null,
-                1, 0, 0, 100L, shardSearchFailures, SearchResponse.Clusters.EMPTY);
+                1, 1, 0, 100L, shardSearchFailures, SearchResponse.Clusters.EMPTY);
             addResponse(merger, searchResponse);
         }
         awaitResponsesAdded();
-        ShardSearchFailure[] shardFailures = merger.getMergedResponse().getShardFailures();
+        SearchResponse mergedResponse = merger.getMergedResponse();
+        assertEquals(numResponses, mergedResponse.getTotalShards());
+        assertEquals(numResponses, mergedResponse.getSuccessfulShards());
+        assertEquals(0, mergedResponse.getSkippedShards());
+        assertEquals(priorityQueue.size(), mergedResponse.getFailedShards());
+        ShardSearchFailure[] shardFailures = mergedResponse.getShardFailures();
         assertEquals(priorityQueue.size(), shardFailures.length);
         for (ShardSearchFailure shardFailure : shardFailures) {
             ShardSearchFailure expected = priorityQueue.poll().v2();
@@ -150,7 +162,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 expectedFailures.add(shardSearchFailure);
             }
             SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null,
-                1, 0, 0, 100L, shardSearchFailures, SearchResponse.Clusters.EMPTY);
+                1, 1, 0, 100L, shardSearchFailures, SearchResponse.Clusters.EMPTY);
             addResponse(merger, searchResponse);
         }
         awaitResponsesAdded();
@@ -173,13 +185,63 @@ public class SearchResponseMergerTests extends ESTestCase {
             addResponse(merger, searchResponse);
         }
         awaitResponsesAdded();
-        SearchResponse searchResponse = merger.getMergedResponse();
-        assertEquals(expectedProfile, searchResponse.getProfileResults());
+        SearchResponse mergedResponse = merger.getMergedResponse();
+        assertEquals(numResponses, mergedResponse.getTotalShards());
+        assertEquals(numResponses, mergedResponse.getSuccessfulShards());
+        assertEquals(0, mergedResponse.getSkippedShards());
+        assertEquals(0, mergedResponse.getFailedShards());
+        assertEquals(0, mergedResponse.getShardFailures().length);
+        assertEquals(expectedProfile, mergedResponse.getProfileResults());
     }
 
-    //TODO add tests for suggestions and aggs reduction?
+    //TODO add tests for suggestions reduction?
 
     //TODO do we want to have a specific test for field collapsing to check that the grouping actually works?
+
+    public void testMergeAggs() throws InterruptedException {
+        SearchResponseMerger searchResponseMerger = new SearchResponseMerger(0, 0, 0, new SearchTimeProvider(0, 0, () -> 0),
+            SearchResponse.Clusters.EMPTY, flag -> new InternalAggregation.ReduceContext(null, null, flag));
+        String maxAggName = randomAlphaOfLengthBetween(5, 8);
+        String rangeAggName = randomAlphaOfLengthBetween(5, 8);
+        int totalCount = 0;
+        double maxValue = Double.MIN_VALUE;
+        for (int i = 0; i < numResponses; i++) {
+            double value = randomDouble();
+            maxValue = Math.max(value, maxValue);
+            InternalMax max = new InternalMax(maxAggName, value, DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap());
+            InternalDateRange.Factory factory = new InternalDateRange.Factory();
+            int count = randomIntBetween(1, 1000);
+            totalCount += count;
+            InternalDateRange.Bucket bucket = factory.createBucket("bucket", 0, 10000, count, InternalAggregations.EMPTY,
+                false, DocValueFormat.RAW);
+            InternalDateRange range = factory.create(rangeAggName, Collections.singletonList(bucket), DocValueFormat.RAW, false,
+                Collections.emptyList(), Collections.emptyMap());
+            InternalAggregations aggs = new InternalAggregations(Arrays.asList(range, max));
+            SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
+            InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, aggs, null, null, false, null, 1);
+            SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, 1, 1, 0, randomLong(),
+                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+            addResponse(searchResponseMerger, searchResponse);
+        }
+        awaitResponsesAdded();
+        SearchResponse mergedResponse = searchResponseMerger.getMergedResponse();
+
+        assertEquals(numResponses, mergedResponse.getTotalShards());
+        assertEquals(numResponses, mergedResponse.getSuccessfulShards());
+        assertEquals(0, mergedResponse.getSkippedShards());
+        assertEquals(0, mergedResponse.getFailedShards());
+        assertEquals(0, mergedResponse.getShardFailures().length);
+        assertEquals(0, mergedResponse.getHits().getHits().length);
+        assertEquals(2, mergedResponse.getAggregations().asList().size());
+        Max max = mergedResponse.getAggregations().get(maxAggName);
+        assertEquals(maxValue, max.getValue(), 0d);
+        Range range = mergedResponse.getAggregations().get(rangeAggName);
+        assertEquals(1, range.getBuckets().size());
+        Range.Bucket bucket = range.getBuckets().get(0);
+        assertEquals("0.0", bucket.getFromAsString());
+        assertEquals("10000.0", bucket.getToAsString());
+        assertEquals(totalCount, bucket.getDocCount());
+    }
 
     public void testMergeSearchHits() throws InterruptedException {
         final long currentRelativeTime = randomLong();
@@ -289,6 +351,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         assertEquals(expectedTotal, searchResponse.getTotalShards());
         assertEquals(expectedSuccessful, searchResponse.getSuccessfulShards());
         assertEquals(expectedSkipped, searchResponse.getSkippedShards());
+        assertEquals(0, searchResponse.getShardFailures().length);
         assertEquals(expectedReducePhases, searchResponse.getNumReducePhases());
         assertEquals(expectedTimedOut, searchResponse.isTimedOut());
         assertEquals(expectedTerminatedEarly, searchResponse.isTerminatedEarly());

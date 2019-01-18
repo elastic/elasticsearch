@@ -41,21 +41,22 @@ import java.util.stream.Stream;
  */
 public class CustomLoggingConfigIT extends ESRestTestCase {
 
-    Pattern LINE_STARTED = Pattern.compile(".*node-0 \"cluster.uuid\": \"\\w*\", \"node.id\": \"\\w*\" \\w* started.*");
+    private static final Pattern NODE_STARTED = Pattern.compile(
+        ".*node-0 \"cluster.uuid\": \"\\w*\", \"node.id\": \"\\w*\" \\w* started.*");
 
     public void testSuccessfulStartupWithCustomConfig()  {
         Stream<String> stringStream = openReader(getLogFile());
 
-        boolean startedLineFound = stringStream.anyMatch(line -> isStartupLine(line));
-        assertTrue("Log line indicating successful startup not found", startedLineFound);
+        assertTrue("Log line indicating successful startup not found",
+            stringStream.anyMatch(line -> isStartupLine(line)));
     }
 
     private boolean isStartupLine(String line) {
-        Matcher matcher = LINE_STARTED.matcher(line);
+        Matcher matcher = NODE_STARTED.matcher(line);
         return matcher.matches();
     }
 
-    protected Stream<String> openReader(Path logFile) {
+    private Stream<String> openReader(Path logFile) {
         return AccessController.doPrivileged((PrivilegedAction<Stream<String>>) () -> {
             try {
                 return Files.lines(logFile, StandardCharsets.UTF_8);

@@ -41,7 +41,7 @@ public class ExecutableSlackActionTests extends ESTestCase {
         when(httpClient.execute(argumentCaptor.capture())).thenReturn(new HttpResponse(200));
 
         Settings accountSettings = Settings.builder().put("url", "http://example.org").build();
-        SlackAccount account = new SlackAccount("account1", accountSettings, Settings.EMPTY, httpClient, logger);
+        SlackAccount account = new SlackAccount("account1", accountSettings, httpClient, logger);
 
         SlackService service = mock(SlackService.class);
         when(service.getAccount(eq("account1"))).thenReturn(account);

@@ -44,9 +44,9 @@ public class JiraAccount {
     static final String ISSUE_DEFAULTS_SETTING = "issue_defaults";
     static final String ALLOW_HTTP_SETTING = "allow_http";
 
-    private static final Setting<SecureString> SECURE_USER_SETTING = SecureSetting.secureString("secure_user", null);
-    private static final Setting<SecureString> SECURE_PASSWORD_SETTING = SecureSetting.secureString("secure_password", null);
-    private static final Setting<SecureString> SECURE_URL_SETTING = SecureSetting.secureString("secure_url", null);
+    static final Setting<SecureString> SECURE_USER_SETTING = SecureSetting.secureString("secure_user", null);
+    static final Setting<SecureString> SECURE_PASSWORD_SETTING = SecureSetting.secureString("secure_password", null);
+    static final Setting<SecureString> SECURE_URL_SETTING = SecureSetting.secureString("secure_url", null);
 
     private final HttpClient httpClient;
     private final String name;

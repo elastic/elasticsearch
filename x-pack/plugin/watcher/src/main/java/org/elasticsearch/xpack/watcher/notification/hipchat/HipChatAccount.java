@@ -31,7 +31,7 @@ public abstract class HipChatAccount  {
     public static final String DEFAULT_COLOR_SETTING = "message_defaults." + HipChatMessage.Field.COLOR.getPreferredName();
     public static final String DEFAULT_NOTIFY_SETTING = "message_defaults." + HipChatMessage.Field.NOTIFY.getPreferredName();
 
-    private static final Setting<SecureString> SECURE_AUTH_TOKEN_SETTING = SecureSetting.secureString("secure_auth_token", null);
+    static final Setting<SecureString> SECURE_AUTH_TOKEN_SETTING = SecureSetting.secureString("secure_auth_token", null);
 
     protected final Logger logger;
     protected final String name;
@@ -53,7 +53,8 @@ public abstract class HipChatAccount  {
     private static String getAuthToken(String name, Settings settings) {
         SecureString secureString = SECURE_AUTH_TOKEN_SETTING.get(settings);
         if (secureString == null || secureString.length() < 1) {
-            throw new SettingsException("hipchat account [" + name + "] missing required [" + SECURE_AUTH_TOKEN_SETTING + "] setting");
+            throw new SettingsException(
+                    "hipchat account [" + name + "] missing required [" + SECURE_AUTH_TOKEN_SETTING.getKey() + "] secure setting");
         }
         return secureString.toString();
     }

@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
 
 import java.sql.SQLException;
-import java.sql.Types;
 import java.util.Collections;
 import java.util.List;
 
@@ -109,7 +108,7 @@ public class ServerQueryCliCommandTests extends ESTestCase {
         List<List<Object>> rows;
         List<ColumnInfo> columns;
         if (includeColumns) {
-            columns = singletonList(new ColumnInfo("", "field", "string", Types.VARCHAR, 0));
+            columns = singletonList(new ColumnInfo("", "field", "string", 0));
         } else {
             columns = null;
         }

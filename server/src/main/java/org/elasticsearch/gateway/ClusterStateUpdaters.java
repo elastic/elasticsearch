@@ -130,6 +130,13 @@ public class ClusterStateUpdaters {
                 .build();
     }
 
+    public static ClusterState addStateNotRecoveredBlock(ClusterState state) {
+        return ClusterState.builder(state)
+                .blocks(ClusterBlocks.builder()
+                        .blocks(state.blocks()).addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())
+                .build();
+    }
+
     static ClusterState mixCurrentStateAndRecoveredState(final ClusterState currentState, final ClusterState recoveredState) {
         assert currentState.metaData().indices().isEmpty();
 

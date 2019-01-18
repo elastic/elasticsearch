@@ -29,7 +29,7 @@ StandardOutput=journal
 StandardError=inherit
 
 # Specifies the maximum file descriptor number that can be opened by this process
-LimitNOFILE=65536
+LimitNOFILE=65535
 
 # Specifies the maximum number of processes
 LimitNPROC=4096

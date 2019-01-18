@@ -48,10 +48,6 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
     private final CopyOnWriteArrayList<Consumer<String>> openSessionListeners = new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<Consumer<String>> closeSessionListeners = new CopyOnWriteArrayList<>();
 
-    public CcrRestoreSourceService(Settings settings) {
-        super(settings);
-    }
-
     @Override
     public synchronized void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {

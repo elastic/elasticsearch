@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 
@@ -19,7 +18,7 @@ import java.util.Objects;
  * Following shrinking an index and deleting the original index, this step creates an alias with the same name as the original index which
  * points to the new shrunken index to allow clients to continue to use the original index name without being aware that it has shrunk.
  */
-public class ShrinkSetAliasStep extends AsyncActionStep {
+public class ShrinkSetAliasStep extends RetryDuringSnapshotStep {
     public static final String NAME = "aliases";
     private String shrunkIndexPrefix;
 
@@ -33,7 +32,7 @@ public class ShrinkSetAliasStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
+    public void performDuringNoSnapshot(IndexMetaData indexMetaData, ClusterState currentState, Listener listener) {
         // get source index
         String index = indexMetaData.getIndex().getName();
         // get target shrink index

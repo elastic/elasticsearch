@@ -20,7 +20,6 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 public abstract class RetryDuringSnapshotStep extends AsyncActionStep {
-
     public RetryDuringSnapshotStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
     }
@@ -64,7 +63,7 @@ public abstract class RetryDuringSnapshotStep extends AsyncActionStep {
         public void onFailure(Exception e) {
             if (e instanceof SnapshotInProgressException) {
                 observer.waitForNextChange(
-                    new NoSnapshotRunningListener(state -> {
+                    new NoSnapshotRunningListener(observer, index.getName(), state -> {
                         IndexMetaData idxMeta = state.metaData().index(index);
                         if (idxMeta == null) {
                             // The index has since been deleted, mission accomplished!
@@ -72,8 +71,7 @@ public abstract class RetryDuringSnapshotStep extends AsyncActionStep {
                         }
                         // Re-invoke the performAction method with the new state
                         performAction(idxMeta, state, observer, originalListener);
-                    }, originalListener::onFailure),
-                    new WaitForNoSnapshotPredicate(index.getName()));
+                    }, originalListener::onFailure));
             } else {
                 originalListener.onFailure(e);
             }
@@ -87,20 +85,49 @@ public abstract class RetryDuringSnapshotStep extends AsyncActionStep {
     class NoSnapshotRunningListener implements ClusterStateObserver.Listener {
 
         private final Consumer<ClusterState> reRun;
-        private final Consumer<Exception> listener;
+        private final Consumer<Exception> exceptionConsumer;
+        private final ClusterStateObserver observer;
+        private final String indexName;
 
-        NoSnapshotRunningListener(Consumer<ClusterState> reRun, Consumer<Exception> listener) {
+        NoSnapshotRunningListener(ClusterStateObserver observer, String indexName,
+                                  Consumer<ClusterState> reRun,
+                                  Consumer<Exception> exceptionConsumer) {
+            this.observer = observer;
             this.reRun = reRun;
-            this.listener = listener;
+            this.exceptionConsumer = exceptionConsumer;
+            this.indexName = indexName;
         }
 
         @Override
         public void onNewClusterState(ClusterState state) {
             try {
-                reRun.accept(state);
+                if (snapshotInProgress(state)) {
+                    observer.waitForNextChange(this);
+                } else {
+                    reRun.accept(state);
+                }
             } catch (Exception e) {
-                listener.accept(e);
+                exceptionConsumer.accept(e);
             }
+        }
+
+        private boolean snapshotInProgress(ClusterState state) {
+            SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
+            if (snapshotsInProgress == null || snapshotsInProgress.entries().isEmpty()) {
+                // No snapshots are running, new state is acceptable to proceed
+                return false;
+            }
+
+            for (SnapshotsInProgress.Entry snapshot : snapshotsInProgress.entries()) {
+                if (snapshot.indices().stream()
+                    .map(IndexId::getName)
+                    .anyMatch(name -> name.equals(indexName))) {
+                    // There is a snapshot running with this index name
+                    return true;
+                }
+            }
+            // There are snapshots, but none for this index, so it's okay to proceed with this state
+            return false;
         }
 
         @Override
@@ -110,7 +137,7 @@ public abstract class RetryDuringSnapshotStep extends AsyncActionStep {
 
         @Override
         public void onTimeout(TimeValue timeout) {
-            listener.accept(new IllegalStateException("step timed out while waiting for snapshots to complete"));
+            exceptionConsumer.accept(new IllegalStateException("step timed out while waiting for snapshots to complete"));
         }
     }
 

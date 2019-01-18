@@ -41,7 +41,7 @@ referred to when running the `analyze` API on a specific index:
 
 [source,js]
 -------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "settings": {
     "analysis": {
@@ -58,12 +58,10 @@ PUT my_index?include_type_name=true
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_text": {
-          "type": "text",
-          "analyzer": "std_folded" <2>
-        }
+    "properties": {
+      "my_text": {
+        "type": "text",
+        "analyzer": "std_folded" <2>
       }
     }
   }

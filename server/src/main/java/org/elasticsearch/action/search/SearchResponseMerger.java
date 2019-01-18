@@ -42,7 +42,6 @@ import org.elasticsearch.search.suggest.Suggest;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -158,22 +157,8 @@ final class SearchResponseMerger {
             topDocsList.add(topDocs);
         }
 
-        //now that we've gone through all the hits and we collected all the shards they come from, we can assign shardIndex to each shard
-        int shardIndex = 0;
-        for (Map.Entry<ShardId, Integer> shard : shards.entrySet()) {
-            shard.setValue(shardIndex++);
-        }
-        //and go through all the scoreDocs from each cluster and set their corresponding shardIndex
-        for (TopDocs topDocs : topDocsList) {
-            for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-                FieldDocAndSearchHit fieldDocAndSearchHit = (FieldDocAndSearchHit) scoreDoc;
-                //When hits come from the indices with same names on multiple clusters and same shard identifier, we rely on such indices
-                //to have a different uuid across multiple clusters. That's how they will get a different shardIndex.
-                ShardId shardId = fieldDocAndSearchHit.searchHit.getShard().getShardId();
-                fieldDocAndSearchHit.shardIndex = shards.get(shardId);
-            }
-        }
-
+        //after going through all the hits and collecting all their distinct shards, we can assign shardIndex and set it to the ScoreDocs
+        setShardIndex(shards, topDocsList);
         TopDocs topDocs = mergeTopDocs(topDocsList, size, from);
         SearchHits mergedSearchHits = topDocsToSearchHits(topDocs, topDocsStats);
         Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
@@ -254,6 +239,23 @@ final class SearchResponseMerger {
         return topDocs;
     }
 
+    private static void setShardIndex(Map<ShardId, Integer> shards, List<TopDocs> topDocsList) {
+        int shardIndex = 0;
+        for (Map.Entry<ShardId, Integer> shard : shards.entrySet()) {
+            shard.setValue(shardIndex++);
+        }
+        //and go through all the scoreDocs from each cluster and set their corresponding shardIndex
+        for (TopDocs topDocs : topDocsList) {
+            for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+                FieldDocAndSearchHit fieldDocAndSearchHit = (FieldDocAndSearchHit) scoreDoc;
+                //When hits come from the indices with same names on multiple clusters and same shard identifier, we rely on such indices
+                //to have a different uuid across multiple clusters. That's how they will get a different shardIndex.
+                ShardId shardId = fieldDocAndSearchHit.searchHit.getShard().getShardId();
+                fieldDocAndSearchHit.shardIndex = shards.get(shardId);
+            }
+        }
+    }
+
     private static SearchHits topDocsToSearchHits(TopDocs topDocs, TopDocsStats topDocsStats) {
         SearchHit[] searchHits = new SearchHit[topDocs.scoreDocs.length];
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
@@ -274,18 +276,6 @@ final class SearchResponseMerger {
         }
         return new SearchHits(searchHits, topDocsStats.getTotalHits(), topDocsStats.getMaxScore(),
             sortFields, collapseField, collapseValues);
-    }
-
-    private static void setShardIndex(Collection<List<FieldDoc>> shardResults) {
-        //every group of hits comes from a different shard. When hits come from the same index on multiple clusters and same
-        //shard identifier, we rely on such indices to have a different uuid across multiple clusters.
-        int i = 0;
-        for (List<FieldDoc> shardHits : shardResults) {
-            for (FieldDoc shardHit : shardHits) {
-                shardHit.shardIndex = i;
-            }
-            i++;
-        }
     }
 
     private static final class FieldDocAndSearchHit extends FieldDoc {

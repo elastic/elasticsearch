@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.slack;
 
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -40,7 +41,9 @@ public class ExecutableSlackActionTests extends ESTestCase {
         ArgumentCaptor<HttpRequest> argumentCaptor = ArgumentCaptor.forClass(HttpRequest.class);
         when(httpClient.execute(argumentCaptor.capture())).thenReturn(new HttpResponse(200));
 
-        Settings accountSettings = Settings.builder().put("url", "http://example.org").build();
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("secure_url", "http://example.org");
+        Settings accountSettings = Settings.builder().setSecureSettings(secureSettings).build();
         SlackAccount account = new SlackAccount("account1", accountSettings, httpClient, logger);
 
         SlackService service = mock(SlackService.class);

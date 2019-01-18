@@ -32,7 +32,7 @@ import java.util.Set;
 public class Account {
 
     static final String SMTP_PROTOCOL = "smtp";
-    private static final Setting<SecureString> SECURE_PASSWORD_SETTING = SecureSetting.secureString("secure_password", null);
+    public static final Setting<SecureString> SECURE_PASSWORD_SETTING = SecureSetting.secureString("secure_password", null);
 
     static {
         SecurityManager sm = System.getSecurityManager();

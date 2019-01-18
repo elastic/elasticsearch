@@ -20,7 +20,7 @@ import java.io.IOException;
 public class PagerDutyAccount {
 
     private static final String TRIGGER_DEFAULTS_SETTING = "event_defaults";
-    private static final Setting<SecureString> SECURE_SERVICE_API_KEY_SETTING = SecureSetting.secureString("secure_service_api_key", null);
+    public static final Setting<SecureString> SECURE_SERVICE_API_KEY_SETTING = SecureSetting.secureString("secure_service_api_key", null);
 
     private final String name;
     private final String serviceKey;

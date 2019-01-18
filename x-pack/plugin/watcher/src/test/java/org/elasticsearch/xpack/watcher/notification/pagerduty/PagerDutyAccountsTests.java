@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
+import org.elasticsearch.xpack.watcher.notification.jira.JiraAccount;
 import org.elasticsearch.xpack.watcher.notification.slack.message.SlackMessageDefaultsTests;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -83,7 +85,11 @@ public class PagerDutyAccountsTests extends ESTestCase {
     }
 
     private void addAccountSettings(String name, Settings.Builder builder) {
-        builder.put("xpack.notification.pagerduty.account." + name + ".service_api_key", randomAlphaOfLength(50));
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(
+                "xpack.notification.pagerduty.account." + name + "." + PagerDutyAccount.SECURE_SERVICE_API_KEY_SETTING.getKey(),
+                randomAlphaOfLength(50));
+        builder.setSecureSettings(secureSettings);
         Settings defaults = SlackMessageDefaultsTests.randomSettings();
         for (String setting : defaults.keySet()) {
             builder.copy("xpack.notification.pagerduty.message_defaults." + setting, setting, defaults);

@@ -6,12 +6,14 @@
 package org.elasticsearch.xpack.watcher.notification.hipchat;
 
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
+import org.elasticsearch.xpack.watcher.notification.email.support.EmailServer;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -50,9 +52,11 @@ public class HipChatAccountsTests extends ESTestCase {
     }
 
     private void addAccountSettings(String name, Settings.Builder builder) {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.notification.hipchat.account." + name + ".secure_auth_token", randomAlphaOfLength(50));
         HipChatAccount.Profile profile = randomFrom(HipChatAccount.Profile.values());
         builder.put("xpack.notification.hipchat.account." + name + ".profile", profile.value());
-        builder.put("xpack.notification.hipchat.account." + name + ".auth_token", randomAlphaOfLength(50));
+        builder.setSecureSettings(secureSettings);
         if (profile == HipChatAccount.Profile.INTEGRATION) {
             builder.put("xpack.notification.hipchat.account." + name + ".room", randomAlphaOfLength(10));
         }

@@ -39,3 +39,9 @@ because `Settings` is no longer needed.
 
 The client method `termVector`, deprecated in 2.0, has been removed. The method
 `termVectors` (plural) should be used instead.
+
+[float]
+==== Deprecated constructor `AbstractLifecycleComponent(Settings settings)` removed
+
+The constructor `AbstractLifecycleComponent(Settings settings)`, deprecated in 6.7
+has been removed. The parameterless constructor should be used instead.

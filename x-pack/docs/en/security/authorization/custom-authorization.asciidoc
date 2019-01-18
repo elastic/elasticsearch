@@ -1,0 +1,66 @@
+[role="xpack"]
+[[custom-authorization]]
+=== Customizing authorization
+
+If the authorization system that is provided by the {es} {security-features}
+does not meet your needs, the authorization system can be overridden for users
+other than the reserved and internal users. You do this by implementing an
+authorization engine as an SPI loaded security extension that is part of an
+ordinary elasticsearch plugin.
+
+[[implementing-authorization-engine]]
+==== Implementing an authorization engine
+
+Sample code that illustrates the structure and implementation of a custom
+authorization engine is provided in the
+https://github.com/elastic/elasticsearch/tree/master/x-pack/qa/security-example-authorization-engine[elasticsearch]
+repository on GitHub. You can use this code as a starting point for creating your
+own authorization engine.
+
+To create an authorization engine, you need to:
+
+. Implement the `org.elasticsearch.xpack.core.security.authz.AuthorizationEngine`
+  interface in a class with the desired authorization behavior.
+. Implement the `org.elasticsearch.xpack.core.security.authz.Authorization.AuthorizationInfo`
+  interface in a class that contains the necessary information to authorize the request.
+
+To package your authorization engine as a plugin:
+
+. Implement a plugin class that extends `org.elasticsearch.plugins.Plugin`
+. Implement an extension class for your authorization engine that extends
+  `org.elasticsearch.xpack.core.security.SecurityExtension`. There you need to
+  override the following method:
++
+[source,java]
+----------------------------------------------------
+@Override
+public AuthorizationEngine getAuthorizationEngine(Settings settings) {
+    ...
+}
+----------------------------------------------------
++
+The `getAuthorizationEngine` method is used to provide the authorization engine
+implementation.
+
+. Create a build configuration file for the plugin; Gradle is our recommendation.
+. Create a `plugin-descriptor.properties` file as described in the
+  <<plugin-authors,plugin authors>> section.
+. Create a `META-INF/services/org.elasticsearch.xpack.core.security.SecurityExtension` descriptor file for the
+  extension that contains the fully qualified class name of your `org.elasticsearch.xpack.core.security.SecurityExtension` implementation
+. Bundle all in a single zip file.
+
+[[using-authorization-engine]]
+==== Using an authorization engine
+
+To use an authorization engine:
+
+. Install the authorization engine extension on each node in the cluster. You run
+  `bin/elasticsearch-plugin` with the `install` sub-command and specify the URL
+  pointing to the zip file that contains the extension. For example:
++
+[source,shell]
+----------------------------------------
+bin/elasticsearch-plugin install file:///<path>/my-authorization-engine-1.0.zip
+----------------------------------------
+
+. Restart Elasticsearch.

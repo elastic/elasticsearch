@@ -71,6 +71,7 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -94,8 +95,10 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
+import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -107,8 +110,11 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterP
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
+import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -132,6 +138,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
@@ -218,7 +225,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         }).when(rolesStore).getRoles(any(User.class), any(FieldPermissionsCache.class), any(ActionListener.class));
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService,
-            auditTrail, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings));
+            auditTrail, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings), null);
     }
 
     private void authorize(Authentication authentication, String action, TransportRequest request) {
@@ -635,7 +642,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "a_all").build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
-            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser);
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser, null);
 
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() }, null);
@@ -662,7 +669,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             .build();
         final Authentication authentication = createAuthentication(new AnonymousUser(settings));
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
-            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings));
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings), null);
 
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null);
@@ -1283,6 +1290,72 @@ public class AuthorizationServiceTests extends ESTestCase {
             () -> authorize(authentication, action, transportRequest), action, "test user");
         verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(clearScrollRequest),
             authzInfoRoles(new String[]{role.getName()}));
+    }
+
+    public void testAuthorizationEngineSelection() {
+        final AuthorizationEngine engine = new AuthorizationEngine() {
+            @Override
+            public void resolveAuthorizationInfo(RequestInfo requestInfo, ActionListener<AuthorizationInfo> listener) {
+                throw new UnsupportedOperationException("not implemented");
+            }
+
+            @Override
+            public void authorizeRunAs(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
+                                       ActionListener<AuthorizationResult> listener) {
+                throw new UnsupportedOperationException("not implemented");
+            }
+
+            @Override
+            public void authorizeClusterAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
+                                               ActionListener<AuthorizationResult> listener) {
+                throw new UnsupportedOperationException("not implemented");
+            }
+
+            @Override
+            public void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
+                                             AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
+                                             Function<String, AliasOrIndex> aliasOrIndexFunction,
+                                             ActionListener<IndexAuthorizationResult> listener) {
+                throw new UnsupportedOperationException("not implemented");
+            }
+
+            @Override
+            public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
+                                              Map<String, AliasOrIndex> aliasAndIndexLookup, ActionListener<List<String>> listener) {
+                throw new UnsupportedOperationException("not implemented");
+            }
+        };
+
+        authorizationService = new AuthorizationService(Settings.EMPTY, rolesStore, clusterService,
+            auditTrail, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(Settings.EMPTY),
+            engine);
+        Authentication authentication = createAuthentication(new User("test user", "a_all"));
+        assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
+
+        authentication = createAuthentication(new User("runas", new String[] { "runas_role" }, new User("runner", "runner_role")));
+        assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
+        assertEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
+
+        authentication = createAuthentication(new User("runas", new String[] { "runas_role" }, new ElasticUser(true)));
+        assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
+        assertNotEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
+        assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+
+        authentication = createAuthentication(new User("elastic", new String[] { "superuser" }, new User("runner", "runner_role")));
+        assertNotEquals(engine, authorizationService.getAuthorizationEngine(authentication));
+        assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        assertEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
+
+        authentication = createAuthentication(new User("kibana", new String[] { "kibana_system" }, new ElasticUser(true)));
+        assertNotEquals(engine, authorizationService.getAuthorizationEngine(authentication));
+        assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        assertNotEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
+        assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+
+        authentication = createAuthentication(randomFrom(XPackUser.INSTANCE, XPackSecurityUser.INSTANCE,
+            new ElasticUser(true), new KibanaUser(true)));
+        assertNotEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
+        assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
     }
 
     static AuthorizationInfo authzInfoRoles(String[] expectedRoles) {

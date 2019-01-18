@@ -1,9 +1,9 @@
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
-  name 'spi-extension'
-  description 'An example spi extension plugin for security'
-  classname 'org.elasticsearch.example.SpiExtensionPlugin'
+  name 'authorization-engine-example'
+  description 'An example spi extension plugin for security that implements an Authorization Engine'
+  classname 'org.elasticsearch.example.AuthorizationEnginePlugin'
   extendedPlugins = ['x-pack-security']
 }
 
@@ -19,10 +19,6 @@ integTestRunner {
 
 integTestCluster {
   dependsOn buildZip
-  setting 'xpack.security.authc.realms.custom.custom.order', '0'
-  setting 'xpack.security.authc.realms.custom.custom.filtered_setting', 'should be filtered'
-  setting 'xpack.security.authc.realms.file.esusers.order', '1'
-  setting 'xpack.security.authc.realms.native.native.order', '2'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
@@ -35,7 +31,7 @@ integTestCluster {
   distribution = 'default'
 
   setupCommand 'setupDummyUser',
-               'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+               'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'custom_superuser'
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
     ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",

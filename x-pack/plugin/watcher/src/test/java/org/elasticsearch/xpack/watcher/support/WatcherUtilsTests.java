@@ -90,7 +90,7 @@ public class WatcherUtilsTests extends ESTestCase {
 
     public void testSerializeSearchRequest() throws Exception {
         String[] expectedIndices = generateRandomStringArray(5, 5, true);
-        String[] expectedTypes = generateRandomStringArray(2, 5, true);
+        String[] expectedTypes = generateRandomStringArray(2, 5, true, false);
         IndicesOptions expectedIndicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
                 randomBoolean(), WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS);
         SearchType expectedSearchType = getRandomSupportedSearchType();

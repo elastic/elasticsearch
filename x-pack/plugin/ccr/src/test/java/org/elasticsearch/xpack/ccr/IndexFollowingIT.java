@@ -242,7 +242,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertFalse(response.isFollowIndexShardsAcked());
         assertFalse(response.isIndexFollowingStarted());
 
-        ensureFollowerGreen("index2");
+        ensureFollowerGreen(true, "index2");
 
         final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();
         final ShardStats[] firstBatchShardStats =

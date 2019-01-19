@@ -125,7 +125,7 @@ public class ApiKeyService {
     private final boolean enabled;
     private final Settings settings;
     private final ExpiredApiKeysRemover expiredApiKeysRemover;
-    private volatile long lastExpirationRunMs;
+    private final TimeValue deleteInterval;
     private final TimeValue deleteInterval;
 
     public ApiKeyService(Settings settings, Clock clock, Client client, SecurityIndexManager securityIndex, ClusterService clusterService) {

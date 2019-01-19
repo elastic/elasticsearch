@@ -98,6 +98,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
+import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -128,6 +129,15 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
 public class SnapshotsServiceTests extends ESTestCase {
+
+    private static final Logger LOGGER = LogManager.getLogger(SnapshotsServiceTests.class);
+
+    private static final NetworkDisruption.DisruptedLinks NO_DISRUPTION = new NetworkDisruption.DisruptedLinks() {
+        @Override
+        public boolean disrupt(final String node1, final String node2) {
+            return false;
+        }
+    };
 
     private DeterministicTaskQueue deterministicTaskQueue;
 
@@ -195,6 +205,48 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertEquals(shards, snapshotInfo.successfulShards());
         assertEquals(0, snapshotInfo.failedShards());
     }
+
+    public void testSnapshotWithMasterFailover() {
+        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+
+        String repoName = "repo";
+        String snapshotName = "snapshot";
+        final String index = "test";
+
+        final int shards = randomIntBetween(1, 10);
+
+        TestClusterNode masterNode =
+            testClusterNodes.currentMaster(testClusterNodes.nodes.values().iterator().next().clusterService.state());
+        final AtomicBoolean createdSnapshot = new AtomicBoolean();
+        masterNode.client.admin().cluster().preparePutRepository(repoName)
+            .setType(FsRepository.TYPE).setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
+            .execute(
+                assertNoFailureListener(
+                    () -> masterNode.client.admin().indices().create(
+                        new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL).settings(
+                            Settings.builder()
+                                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
+                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)),
+                        assertNoFailureListener(
+                            () -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                                .execute(assertNoFailureListener(() -> createdSnapshot.set(true)))))));
+
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        assertTrue(createdSnapshot.get());
+        SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
+        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
+        assertThat(snapshotIds, hasSize(1));
+
+        final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
+        assertEquals(shards, snapshotInfo.successfulShards());
+        assertEquals(0, snapshotInfo.failedShards());
+    }
+
 
     private void startCluster() {
         final ClusterState initialClusterState =
@@ -291,6 +343,8 @@ public class SnapshotsServiceTests extends ESTestCase {
 
         // LinkedHashMap so we have deterministic ordering when iterating over the map in tests
         private final Map<String, TestClusterNode> nodes = new LinkedHashMap<>();
+
+        private NetworkDisruption.DisruptedLinks disruptedLinks = NO_DISRUPTION;
 
         TestClusterNodes(int masterNodes, int dataNodes) {
             for (int i = 0; i < masterNodes; ++i) {
@@ -390,7 +444,8 @@ public class SnapshotsServiceTests extends ESTestCase {
             mockTransport = new DisruptableMockTransport(node, logger) {
                 @Override
                 protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {
-                    return ConnectionStatus.CONNECTED;
+                    return disruption.disrupt(sender.getName(), destination.getName())
+                        ? ConnectionStatus.DISCONNECTED : ConnectionStatus.CONNECTED;
                 }
 
                 @Override

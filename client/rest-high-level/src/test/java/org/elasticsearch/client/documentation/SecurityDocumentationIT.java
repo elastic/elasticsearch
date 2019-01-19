@@ -33,6 +33,8 @@ import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRealmCacheResponse;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheResponse;
+import org.elasticsearch.client.security.CreateApiKeyRequest;
+import org.elasticsearch.client.security.CreateApiKeyResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
@@ -79,14 +81,16 @@ import org.elasticsearch.client.security.user.privileges.ApplicationPrivilege;
 import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.Role;
+import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
+import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.UserIndicesPrivileges;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.hamcrest.Matchers;
 
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
-
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -98,6 +102,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -1747,4 +1754,66 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testCreateApiKey() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        List<Role> roles = Collections.singletonList(Role.builder().name("r1").clusterPrivileges(ClusterPrivilegeName.ALL)
+                .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
+        final TimeValue expiration = TimeValue.timeValueHours(24);
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        {
+            final String name = randomAlphaOfLength(5);
+            // tag::create-api-key-request
+            CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy);
+            // end::create-api-key-request
+
+            // tag::create-api-key-execute
+            CreateApiKeyResponse createApiKeyResponse = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
+            // end::create-api-key-execute
+
+            // tag::create-api-key-response
+            SecureString apiKey = createApiKeyResponse.getKey(); // <1>
+            Instant apiKeyExpiration = createApiKeyResponse.getExpiration(); // <2>
+            // end::create-api-key-response
+            assertThat(createApiKeyResponse.getName(), equalTo(name));
+            assertNotNull(apiKey);
+            assertNotNull(apiKeyExpiration);
+        }
+
+        {
+            final String name = randomAlphaOfLength(5);
+            CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy);
+
+            ActionListener<CreateApiKeyResponse> listener;
+            // tag::create-api-key-execute-listener
+            listener = new ActionListener<CreateApiKeyResponse>() {
+                @Override
+                public void onResponse(CreateApiKeyResponse createApiKeyResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::create-api-key-execute-listener
+
+            // Avoid unused variable warning
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            // tag::create-api-key-execute-async
+            client.security().createApiKeyAsync(createApiKeyRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::create-api-key-execute-async
+
+            assertNotNull(future.get(30, TimeUnit.SECONDS));
+            assertThat(future.get().getName(), equalTo(name));
+            assertNotNull(future.get().getKey());
+            assertNotNull(future.get().getExpiration());
+        }
+    }
 }

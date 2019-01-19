@@ -261,8 +261,10 @@ public final class IndicesPermission {
             assert index != null;
             return check(action) && (indexNameMatcher.test(index)
                     && (allowRestrictedIndices
-                            || (false == RestrictedIndicesNames.NAMES_SET.contains(index)) // if it is not restricted no more checks are required
-                            || IndexPrivilege.MONITOR.predicate().test(action))); // allow monitor as a special case, even for restricted
+                            // all good if it is not restricted
+                            || (false == RestrictedIndicesNames.NAMES_SET.contains(index))
+                            // allow monitor as a special case, even for restricted
+                            || IndexPrivilege.MONITOR.predicate().test(action)));
         }
 
         boolean hasQuery() {

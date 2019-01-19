@@ -48,7 +48,10 @@ public class RandomCreateIndexGenerator {
         }
     }
 
-    private static XContentBuilder randomMapping() throws IOException {
+    /**
+     * Creates a random mapping, with no mention of types.
+     */
+    public static XContentBuilder randomMapping() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         org.elasticsearch.index.RandomCreateIndexGenerator.randomMappingFields(builder, true);

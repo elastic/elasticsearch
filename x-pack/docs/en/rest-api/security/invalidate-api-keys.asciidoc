@@ -13,7 +13,7 @@ Invalidates one or more API keys.
 
 ==== Description
 
-The API keys created by <<security-api-create-api-key, create API key>> can be invalidated
+The API keys created by <<security-api-create-api-key,create API Key>> can be invalidated
 using this API.
 
 ==== Request Body
@@ -103,15 +103,15 @@ specific api keys.
 [source,js]
 --------------------------------------------------
 {
-  "invalidated_api_keys": [
+  "invalidated_api_keys": [ <1>
     "api-key-id-1"
   ],
-  "previously_invalidated_api_keys": [
+  "previously_invalidated_api_keys": [ <2>
     "api-key-id-2",
     "api-key-id-3"
   ],
-  "error_count": 2,
-  "error_details": [
+  "error_count": 2, <3>
+  "error_details": [ <4>
     {
       "type": "exception",
       "reason": "error occurred while invalidating api keys",

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.snapshots;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -109,11 +110,14 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -125,12 +129,11 @@ import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
 public class SnapshotsServiceTests extends ESTestCase {
-
-    private static final Logger LOGGER = LogManager.getLogger(SnapshotsServiceTests.class);
 
     private static final NetworkDisruption.DisruptedLinks NO_DISRUPTION = new NetworkDisruption.DisruptedLinks() {
         @Override
@@ -206,7 +209,8 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertEquals(0, snapshotInfo.failedShards());
     }
 
-    public void testSnapshotWithMasterFailover() {
+    @Repeat(iterations = 1000)
+    public void testSnapshotWithDataNodeDisconnects() {
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
         String repoName = "repo";
@@ -229,28 +233,31 @@ public class SnapshotsServiceTests extends ESTestCase {
                                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)),
                         assertNoFailureListener(
                             () -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
-                                .execute(assertNoFailureListener(() -> createdSnapshot.set(true)))))));
+                                .execute(assertNoFailureListener(() -> {
+                                    deterministicTaskQueue.scheduleNow(() -> testClusterNodes.disconnectNode(testClusterNodes.randomDataNode()));
+                                    deterministicTaskQueue.scheduleNow(() -> testClusterNodes.clearNetworkDisruptions());
+                                    createdSnapshot.set(true);
+                                }))))));
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        runUntil(() -> {
+            if (createdSnapshot.get() == false) {
+                return false;
+            }
+            final SnapshotsInProgress snapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+            return snapshotsInProgress.entries().isEmpty();
+        }, TimeUnit.MINUTES.toMillis(5L));
 
         assertTrue(createdSnapshot.get());
         SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
-        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
+        assertThat(finalSnapshotsInProgress.entries(), empty());
         final Repository repository = masterNode.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
-
-        final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
-        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
-        assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
-        assertEquals(shards, snapshotInfo.successfulShards());
-        assertEquals(0, snapshotInfo.failedShards());
     }
-
 
     private void startCluster() {
         final ClusterState initialClusterState =
-            new ClusterState.Builder(ClusterName.DEFAULT).nodes(testClusterNodes.randomDiscoveryNodes()).build();
+            new ClusterState.Builder(ClusterName.DEFAULT).nodes(testClusterNodes.discoveryNodes()).build();
         testClusterNodes.nodes.values().forEach(testClusterNode -> testClusterNode.start(initialClusterState));
 
         deterministicTaskQueue.advanceTime();
@@ -329,7 +336,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         // LinkedHashMap so we have deterministic ordering when iterating over the map in tests
         private final Map<String, TestClusterNode> nodes = new LinkedHashMap<>();
 
-        private NetworkDisruption.DisruptedLinks disruptedLinks = NO_DISRUPTION;
+        private DisconnectedNodes disruptedLinks = new DisconnectedNodes();
 
         TestClusterNodes(int masterNodes, int dataNodes) {
             for (int i = 0; i < masterNodes; ++i) {
@@ -366,16 +373,31 @@ public class SnapshotsServiceTests extends ESTestCase {
                     Collections.singleton(role), Version.CURRENT), this::getDisruption);
         }
 
+        public TestClusterNode randomDataNode() {
+            // Select from sorted list of data-nodes here to not have deterministic behaviour
+            return randomFrom(
+                testClusterNodes.nodes.values().stream().filter(n -> n.node.isDataNode())
+                    .sorted(Comparator.comparing(n -> n.node.getName())).collect(Collectors.toList())
+            );
+        }
+
+        public void disconnectNode(TestClusterNode node) {
+            disruptedLinks.disconnect(node.node.getName());
+        }
+
+        public void clearNetworkDisruptions() {
+            disruptedLinks.clear();
+        }
+
         private NetworkDisruption.DisruptedLinks getDisruption() {
             return disruptedLinks;
         }
 
         /**
-         * Builds a {@link DiscoveryNodes} instance that has one master eligible node set as its master
-         * by random.
-         * @return DiscoveryNodes with set master node
+         * Builds a {@link DiscoveryNodes} instance that holds the nodes in this test cluster.
+         * @return DiscoveryNodes
          */
-        public DiscoveryNodes randomDiscoveryNodes() {
+        public DiscoveryNodes discoveryNodes() {
             DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
             nodes.values().forEach(node -> builder.add(node.node));
             return builder.build();
@@ -525,39 +547,39 @@ public class SnapshotsServiceTests extends ESTestCase {
                 deterministicTaskQueue.getThreadPool()
             );
             indicesClusterStateService = new IndicesClusterStateService(
+                settings,
+                indicesService,
+                clusterService,
+                threadPool,
+                new PeerRecoveryTargetService(
+                    deterministicTaskQueue.getThreadPool(), transportService, recoverySettings, clusterService),
+                shardStateAction,
+                new NodeMappingRefreshAction(transportService, new MetaDataMappingService(clusterService, indicesService)),
+                repositoriesService,
+                mock(SearchService.class),
+                new SyncedFlushService(indicesService, clusterService, transportService, indexNameExpressionResolver),
+                new PeerRecoverySourceService(transportService, indicesService, recoverySettings),
+                snapshotShardsService,
+                new PrimaryReplicaSyncer(
+                    transportService,
+                    new TransportResyncReplicationAction(
+                        settings,
+                        transportService,
+                        clusterService,
+                        indicesService,
+                        threadPool,
+                        shardStateAction,
+                        actionFilters,
+                        indexNameExpressionResolver)),
+                new GlobalCheckpointSyncAction(
                     settings,
-                    indicesService,
+                    transportService,
                     clusterService,
+                    indicesService,
                     threadPool,
-                    new PeerRecoveryTargetService(
-                            deterministicTaskQueue.getThreadPool(), transportService, recoverySettings, clusterService),
                     shardStateAction,
-                    new NodeMappingRefreshAction(transportService, new MetaDataMappingService(clusterService, indicesService)),
-                    repositoriesService,
-                    mock(SearchService.class),
-                    new SyncedFlushService(indicesService, clusterService, transportService, indexNameExpressionResolver),
-                    new PeerRecoverySourceService(transportService, indicesService, recoverySettings),
-                    snapshotShardsService,
-                    new PrimaryReplicaSyncer(
-                            transportService,
-                            new TransportResyncReplicationAction(
-                                    settings,
-                                    transportService,
-                                    clusterService,
-                                    indicesService,
-                                    threadPool,
-                                    shardStateAction,
-                                    actionFilters,
-                                    indexNameExpressionResolver)),
-                    new GlobalCheckpointSyncAction(
-                            settings,
-                            transportService,
-                            clusterService,
-                            indicesService,
-                            threadPool,
-                            shardStateAction,
-                            actionFilters,
-                            indexNameExpressionResolver));
+                    actionFilters,
+                    indexNameExpressionResolver));
             Map<Action, TransportAction> actions = new HashMap<>();
             actions.put(CreateIndexAction.INSTANCE,
                 new TransportCreateIndexAction(
@@ -611,6 +633,24 @@ public class SnapshotsServiceTests extends ESTestCase {
             indicesService.start();
             indicesClusterStateService.start();
             coordinator.startInitialJoin();
+        }
+    }
+
+    private static final class DisconnectedNodes extends NetworkDisruption.DisruptedLinks {
+
+        private final Set<String> disconnected = new HashSet<>();
+
+        @Override
+        public boolean disrupt(String node1, String node2) {
+            return disconnected.contains(node1) || disconnected.contains(node2);
+        }
+
+        public void disconnect(String node) {
+            disconnected.add(node);
+        }
+
+        public void clear() {
+            disconnected.clear();
         }
     }
 }

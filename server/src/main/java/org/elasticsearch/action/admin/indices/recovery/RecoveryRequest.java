@@ -103,6 +103,8 @@ public class RecoveryRequest extends BroadcastRequest<RecoveryRequest> {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+        super.readFrom(in);
+        detailed = in.readBoolean();
+        activeOnly = in.readBoolean();
     }
 }

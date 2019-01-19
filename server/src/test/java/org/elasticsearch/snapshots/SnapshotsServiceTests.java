@@ -320,21 +320,6 @@ public class SnapshotsServiceTests extends ESTestCase {
             .build());
     }
 
-    private TestClusterNode newMasterNode(String nodeName) throws IOException {
-        return newNode(nodeName, DiscoveryNode.Role.MASTER);
-    }
-
-    private TestClusterNode newDataNode(String nodeName) throws IOException {
-        return newNode(nodeName, DiscoveryNode.Role.DATA);
-    }
-
-    private TestClusterNode newNode(String nodeName, DiscoveryNode.Role role) throws IOException {
-        return new TestClusterNode(
-            new DiscoveryNode(nodeName, randomAlphaOfLength(10), buildNewFakeTransportAddress(), emptyMap(),
-                Collections.singleton(role), Version.CURRENT)
-        );
-    }
-
     private static ClusterState stateForNode(ClusterState state, DiscoveryNode node) {
         return ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(node.getId())).build();
     }
@@ -350,7 +335,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             for (int i = 0; i < masterNodes; ++i) {
                 nodes.computeIfAbsent("node" + i, nodeName -> {
                     try {
-                        return SnapshotsServiceTests.this.newMasterNode(nodeName);
+                        return newMasterNode(nodeName);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -359,12 +344,30 @@ public class SnapshotsServiceTests extends ESTestCase {
             for (int i = 0; i < dataNodes; ++i) {
                 nodes.computeIfAbsent("data-node" + i, nodeName -> {
                     try {
-                        return SnapshotsServiceTests.this.newDataNode(nodeName);
+                        return newDataNode(nodeName);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
                 });
             }
+        }
+
+        private TestClusterNode newMasterNode(String nodeName) throws IOException {
+            return newNode(nodeName, DiscoveryNode.Role.MASTER);
+        }
+
+        private TestClusterNode newDataNode(String nodeName) throws IOException {
+            return newNode(nodeName, DiscoveryNode.Role.DATA);
+        }
+
+        private TestClusterNode newNode(String nodeName, DiscoveryNode.Role role) throws IOException {
+            return new TestClusterNode(
+                new DiscoveryNode(nodeName, randomAlphaOfLength(10), buildNewFakeTransportAddress(), emptyMap(),
+                    Collections.singleton(role), Version.CURRENT), this::getDisruption);
+        }
+
+        private NetworkDisruption.DisruptedLinks getDisruption() {
+            return disruptedLinks;
         }
 
         /**
@@ -427,7 +430,7 @@ public class SnapshotsServiceTests extends ESTestCase {
 
         private Coordinator coordinator;
 
-        TestClusterNode(DiscoveryNode node) throws IOException {
+        TestClusterNode(DiscoveryNode node, Supplier<NetworkDisruption.DisruptedLinks> disruption) throws IOException {
             this.node = node;
             final Environment environment = createEnvironment(node.getName());
             masterService = new FakeThreadPoolMasterService(node.getName(), "test", deterministicTaskQueue::scheduleNow);
@@ -444,7 +447,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             mockTransport = new DisruptableMockTransport(node, logger) {
                 @Override
                 protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {
-                    return disruption.disrupt(sender.getName(), destination.getName())
+                    return disruption.get().disrupt(node.getName(), destination.getName())
                         ? ConnectionStatus.DISCONNECTED : ConnectionStatus.CONNECTED;
                 }
 

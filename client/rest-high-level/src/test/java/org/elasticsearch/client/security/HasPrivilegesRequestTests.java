@@ -42,9 +42,9 @@ public class HasPrivilegesRequestTests extends ESTestCase {
             new LinkedHashSet<>(Arrays.asList("monitor", "manage_watcher", "manage_ml")),
             new LinkedHashSet<>(Arrays.asList(
                 IndicesPrivileges.builder().indices("index-001", "index-002").privileges("all")
-                    .allowRestrictedIndices(randomBoolean()).build(),
+                    .allowRestrictedIndices(true).build(),
                 IndicesPrivileges.builder().indices("index-003").privileges("read")
-                    .allowRestrictedIndices(randomBoolean()).build()
+                    .build()
             )),
             new LinkedHashSet<>(Arrays.asList(
                 new ApplicationResourcePrivileges("myapp", Arrays.asList("read", "write"), Arrays.asList("*")),
@@ -58,10 +58,12 @@ public class HasPrivilegesRequestTests extends ESTestCase {
             " \"cluster\":[\"monitor\",\"manage_watcher\",\"manage_ml\"]," +
             " \"index\":[{" +
             "   \"names\":[\"index-001\",\"index-002\"]," +
-            "   \"privileges\":[\"all\"]" +
+            "   \"privileges\":[\"all\"]," +
+            "   \"allow_restricted_indices\":true" +
             "  },{" +
             "   \"names\":[\"index-003\"]," +
-            "   \"privileges\":[\"read\"]" +
+            "   \"privileges\":[\"read\"]," +
+            "   \"allow_restricted_indices\":false" +
             " }]," +
             " \"application\":[{" +
             "   \"application\":\"myapp\"," +

@@ -61,7 +61,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
-import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 
@@ -80,6 +79,7 @@ import static org.elasticsearch.index.RandomCreateIndexGenerator.randomAliases;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomCreateIndexRequest;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings;
 import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -169,6 +169,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomTimeout(putMappingRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         RequestConvertersTests.setRandomMasterTimeout(putMappingRequest, expectedParams);
+        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "false");
 
         Request request = IndicesRequestConverters.putMapping(putMappingRequest);
 
@@ -390,7 +391,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.setRandomLocal(getIndexRequest, expectedParams);
         RequestConvertersTests.setRandomHumanReadable(getIndexRequest, expectedParams);
         // Force "include_type_name" parameter since responses need to be compatible when coming from 7.0 nodes
-        expectedParams.put(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "true");
+        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
 
         if (ESTestCase.randomBoolean()) {
             // the request object will not have include_defaults present unless it is set to

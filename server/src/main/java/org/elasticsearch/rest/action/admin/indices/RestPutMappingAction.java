@@ -77,12 +77,11 @@ public class RestPutMappingAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
             DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            deprecationLogger.deprecatedAndMaybeLog("put_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
-
         final String type = request.param("type");
-        if (type != null && includeTypeName == false) {
+
+        if (includeTypeName) {
+            deprecationLogger.deprecatedAndMaybeLog("put_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
+        } else if (type != null) {
             throw new IllegalArgumentException("Types cannot be provided in put mapping requests, unless " +
                 "the include_type_name parameter is set to true.");
         }

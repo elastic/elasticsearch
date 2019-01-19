@@ -430,7 +430,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertTrue(putMappingResponse.isAcknowledged());
 
         Map<String, Object> getIndexResponse = getAsMap(indexName);
-        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type",
+        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings._doc.properties.field.type",
             getIndexResponse));
     }
 
@@ -455,7 +455,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertTrue(putMappingResponse.isAcknowledged());
 
         Map<String, Object> getIndexResponse = getAsMap(indexName);
-        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type",
+        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.some_type.properties.field.type",
             getIndexResponse));
     }
 

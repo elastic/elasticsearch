@@ -41,20 +41,20 @@ public class RestPutMappingActionTests extends RestActionTestCase {
     }
 
     public void testIncludeTypeName() {
-        Map<String, String> params = new HashMap<>();
-        params.put(INCLUDE_TYPE_NAME_PARAMETER, randomFrom("true", "false"));
         RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.PUT)
             .withPath("/some_index/_mapping/")
-            .withParams(params)
             .build();
 
         dispatchRequest(deprecatedRequest);
         assertWarnings(RestPutMappingAction.TYPES_DEPRECATION_MESSAGE);
 
+        Map<String, String> params = new HashMap<>();
+        params.put(INCLUDE_TYPE_NAME_PARAMETER, "false");
         RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.PUT)
             .withPath("/some_index/_mapping")
+            .withParams(params)
             .build();
         dispatchRequest(validRequest);
     }
@@ -62,9 +62,13 @@ public class RestPutMappingActionTests extends RestActionTestCase {
     public void testTypeInPath() {
         // Test that specifying a type while include_type_name is false
         // results in an illegal argument exception.
+        Map<String, String> params = new HashMap<>();
+        params.put(INCLUDE_TYPE_NAME_PARAMETER, "false");
+
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.PUT)
             .withPath("/some_index/_mapping/some_type")
+            .withParams(params)
             .build();
 
         FakeRestChannel channel = new FakeRestChannel(request, false, 1);

@@ -58,6 +58,8 @@ import org.elasticsearch.common.Strings;
 import java.io.IOException;
 import java.util.Locale;
 
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
+
 final class IndicesRequestConverters {
 
     private IndicesRequestConverters() {}
@@ -120,13 +122,13 @@ final class IndicesRequestConverters {
         return request;
     }
 
-
     static Request putMapping(PutMappingRequest putMappingRequest) throws IOException {
         Request request = new Request(HttpPut.METHOD_NAME, RequestConverters.endpoint(putMappingRequest.indices(), "_mapping"));
 
         RequestConverters.Params parameters = new RequestConverters.Params(request);
         parameters.withTimeout(putMappingRequest.timeout());
         parameters.withMasterTimeout(putMappingRequest.masterNodeTimeout());
+        parameters.putParam(INCLUDE_TYPE_NAME_PARAMETER, "false");
 
         request.setEntity(RequestConverters.createEntity(putMappingRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;

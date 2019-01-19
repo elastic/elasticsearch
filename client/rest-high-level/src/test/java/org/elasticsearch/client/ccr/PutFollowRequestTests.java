@@ -31,13 +31,12 @@ import java.io.IOException;
 public class PutFollowRequestTests extends AbstractXContentTestCase<PutFollowRequest> {
 
     private static final ConstructingObjectParser<PutFollowRequest, Void> PARSER = new ConstructingObjectParser<>("test_parser",
-        true, (args) -> new PutFollowRequest((String) args[0], (String) args[1], (String) args[2], (Boolean) args[3]));
+        true, (args) -> new PutFollowRequest((String) args[0], (String) args[1], (String) args[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), PutFollowRequest.REMOTE_CLUSTER_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), PutFollowRequest.LEADER_INDEX_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), PutFollowRequest.FOLLOWER_INDEX_FIELD);
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), PutFollowRequest.WAIT_FOR_RESTORE);
         PARSER.declareInt(PutFollowRequest::setMaxReadRequestOperationCount, PutFollowRequest.MAX_READ_REQUEST_OPERATION_COUNT);
         PARSER.declareField(
             PutFollowRequest::setMaxReadRequestSize,
@@ -83,7 +82,7 @@ public class PutFollowRequestTests extends AbstractXContentTestCase<PutFollowReq
     @Override
     protected PutFollowRequest createTestInstance() {
         PutFollowRequest putFollowRequest =
-            new PutFollowRequest(randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4), randomBoolean());
+            new PutFollowRequest(randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4));
         if (randomBoolean()) {
             putFollowRequest.setMaxOutstandingReadRequests(randomIntBetween(0, Integer.MAX_VALUE));
         }

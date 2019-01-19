@@ -27,7 +27,7 @@ irreversible operation.
 
 [source,js]
 --------------------------------------------------
-PUT /follower_index/_ccr/follow
+PUT /follower_index/_ccr/follow?wait_for_restore=true
 {
   "remote_cluster" : "remote_cluster",
   "leader_index" : "leader_index"

@@ -29,10 +29,10 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.FOLLOWER_INDEX_FIELD;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_READ_REQUEST_OPERATION_COUNT;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_READ_REQUEST_SIZE;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_OUTSTANDING_READ_REQUESTS;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_OUTSTANDING_WRITE_REQUESTS;
+import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_READ_REQUEST_OPERATION_COUNT;
+import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_READ_REQUEST_SIZE;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_RETRY_DELAY_FIELD;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_BUFFER_COUNT;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_BUFFER_SIZE;
@@ -63,7 +63,6 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
         private static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
         private static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
-        private static final ParseField WAIT_FOR_RESTORE = new ParseField("wait_for_restore");
 
         private static final ObjectParser<Request, String> PARSER = new ObjectParser<>(NAME, () -> {
             Request request = new Request();
@@ -74,7 +73,6 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
         static {
             PARSER.declareString(Request::setRemoteCluster, REMOTE_CLUSTER_FIELD);
             PARSER.declareString(Request::setLeaderIndex, LEADER_INDEX_FIELD);
-            PARSER.declareBoolean(Request::setWaitForRestore, WAIT_FOR_RESTORE);
             PARSER.declareString((req, val) -> req.followRequest.setFollowerIndex(val), FOLLOWER_INDEX_FIELD);
             PARSER.declareInt((req, val) -> req.followRequest.setMaxReadRequestOperationCount(val), MAX_READ_REQUEST_OPERATION_COUNT);
             PARSER.declareField(
@@ -108,7 +106,8 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
                 ObjectParser.ValueType.STRING);
         }
 
-        public static Request fromXContent(final XContentParser parser, final String followerIndex) throws IOException {
+        public static Request fromXContent(final XContentParser parser, final String followerIndex, boolean waitForRestore)
+            throws IOException {
             Request request = PARSER.parse(parser, followerIndex);
             if (followerIndex != null) {
                 if (request.getFollowRequest().getFollowerIndex() == null) {
@@ -119,6 +118,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
                     }
                 }
             }
+            request.setWaitForRestore(waitForRestore);
             return request;
         }
 
@@ -215,7 +215,6 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             {
                 builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
                 builder.field(LEADER_INDEX_FIELD.getPreferredName(), leaderIndex);
-                builder.field(WAIT_FOR_RESTORE.getPreferredName(), waitForRestore);
                 followRequest.toXContentFragment(builder, params);
             }
             builder.endObject();

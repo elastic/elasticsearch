@@ -176,7 +176,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         String followIndex = "follower";
         // Follow index, so that it can be paused:
         {
-            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", followIndex);
+            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", followIndex, true);
             PutFollowResponse putFollowResponse = client.ccr().putFollow(putFollowRequest, RequestOptions.DEFAULT);
             assertThat(putFollowResponse.isFollowIndexCreated(), is(true));
             assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));
@@ -242,7 +242,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         String followIndex = "follower";
         // Follow index, so that it can be paused:
         {
-            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", followIndex);
+            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", followIndex, true);
             PutFollowResponse putFollowResponse = client.ccr().putFollow(putFollowRequest, RequestOptions.DEFAULT);
             assertThat(putFollowResponse.isFollowIndexCreated(), is(true));
             assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));
@@ -318,7 +318,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         String followIndex = "follower";
         // Follow index, pause and close, so that it can be unfollowed:
         {
-            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", followIndex);
+            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", followIndex, true);
             PutFollowResponse putFollowResponse = client.ccr().putFollow(putFollowRequest, RequestOptions.DEFAULT);
             assertThat(putFollowResponse.isFollowIndexCreated(), is(true));
             assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));
@@ -350,7 +350,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(followIndex);
             assertThat(client.indices().delete(deleteIndexRequest, RequestOptions.DEFAULT).isAcknowledged(), is(true));
 
-            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", followIndex);
+            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", followIndex, true);
             PutFollowResponse putFollowResponse = client.ccr().putFollow(putFollowRequest, RequestOptions.DEFAULT);
             assertThat(putFollowResponse.isFollowIndexCreated(), is(true));
             assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));

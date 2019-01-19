@@ -318,4 +318,51 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
+    public void testAbortWhenJavaHomeContainsQuotes() {
+        assumeThat(installation, is(notNullValue()));
+
+        final Installation.Executables bin = installation.executables();
+        final Shell sh = new Shell();
+
+        Platforms.onWindows(() -> {
+            final String originalJava = sh.run("$Env:JAVA_HOME").stdout.trim();
+
+            final String quote = "\\\"";
+            final String emptyJava = quote + quote;
+
+            // this won't persist to another session so we don't have to reset anything
+            final Result emptyJavaResult = sh.runIgnoreExitCode(
+                "$Env:JAVA_HOME = '" + emptyJava + "'; " +
+                bin.elasticsearch
+            );
+
+            assertThat(emptyJavaResult.exitCode, is(1));
+            assertThat(emptyJavaResult.stdout, containsString("JAVA_HOME is empty. Specify a valid path for JAVA_HOME"));
+
+            final String quotedJava = quote + originalJava + quote;
+
+            // this won't persist to another session so we don't have to reset anything
+            final Result quotedJavaResult = sh.runIgnoreExitCode(
+                "$Env:JAVA_HOME = '" + quotedJava + "'; " +
+                bin.elasticsearch
+            );
+
+            assertThat(quotedJavaResult.exitCode, is(1));
+            assertThat(quotedJavaResult.stdout,
+                containsString("JAVA_HOME cannot contain quotes (\"). Remove the quotes from JAVA_HOME and try again."));
+
+            final String singleQuoteJava = originalJava + quote;
+
+            // this won't persist to another session so we don't have to reset anything
+            final Result singleQuoteJavaResult = sh.runIgnoreExitCode(
+                "$Env:JAVA_HOME = '" + singleQuoteJava + "'; " +
+                bin.elasticsearch
+            );
+
+            assertThat(singleQuoteJavaResult.exitCode, is(1));
+            assertThat(singleQuoteJavaResult.stdout,
+                containsString("JAVA_HOME cannot contain quotes (\"). Remove the quotes from JAVA_HOME and try again."));
+        });
+    }
+
 }

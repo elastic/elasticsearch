@@ -172,22 +172,20 @@ For instance:
 
 [source,js]
 -------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "title": { <1>
-          "type": "text"
-        },
-        "first_name": {
-          "type": "text",
-          "store": true
-        },
-        "last_name": {
-          "type": "text",
-          "store": true
-        }
+    "properties": {
+      "title": { <1>
+        "type": "text"
+      },
+      "first_name": {
+        "type": "text",
+        "store": true
+      },
+      "last_name": {
+        "type": "text",
+        "store": true
       }
     }
   }

@@ -33,7 +33,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
         String policyName = "basic-test";
         if ("leader".equals(targetCluster)) {
-            putILMPolicy(policyName, "50GB", null, TimeValue.timeValueHours(7*24), randomBoolean());
+            putILMPolicy(policyName, "50GB", null, TimeValue.timeValueHours(7*24));
             Settings indexSettings = Settings.builder()
                 .put("index.soft_deletes.enabled", true)
                 .put("index.number_of_shards", 1)
@@ -45,7 +45,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             ensureGreen(indexName);
         } else if ("follow".equals(targetCluster)) {
             // Policy with the same name must exist in follower cluster too:
-            putILMPolicy(policyName, "50GB", null, TimeValue.timeValueHours(7*24), randomBoolean());
+            putILMPolicy(policyName, "50GB", null, TimeValue.timeValueHours(7*24));
             followIndex(indexName, indexName);
             // Aliases are not copied from leader index, so we need to add that for the rollover action in follower cluster:
             client().performRequest(new Request("PUT", "/" + indexName + "/_alias/logs"));
@@ -97,7 +97,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
         if ("leader".equals(targetCluster)) {
             // Create a policy on the leader
-            putILMPolicy(policyName, null, 1, null, randomBoolean());
+            putILMPolicy(policyName, null, 1, null);
             Request templateRequest = new Request("PUT", "_template/my_template");
             Settings indexSettings = Settings.builder()
                 .put("index.soft_deletes.enabled", true)
@@ -110,7 +110,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             assertOK(client().performRequest(templateRequest));
         } else if ("follow".equals(targetCluster)) {
             // Policy with the same name must exist in follower cluster too:
-            putILMPolicy(policyName, null, 1, null, randomBoolean());
+            putILMPolicy(policyName, null, 1, null);
 
             // Set up an auto-follow pattern
             Request createAutoFollowRequest = new Request("PUT", "/_ccr/auto_follow/my_auto_follow_pattern");
@@ -280,8 +280,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         }
     }
 
-    private static void putILMPolicy(String name, String maxSize, Integer maxDocs, TimeValue maxAge,
-                                     boolean explicitUnfollowInHot) throws IOException {
+    private static void putILMPolicy(String name, String maxSize, Integer maxDocs, TimeValue maxAge) throws IOException {
         final Request request = new Request("PUT", "_ilm/policy/" + name);
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
@@ -306,7 +305,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                             }
                             builder.endObject();
                         }
-                        if (explicitUnfollowInHot) {
+                        if (randomBoolean()) {
                             builder.startObject("unfollow");
                             builder.endObject();
                         }

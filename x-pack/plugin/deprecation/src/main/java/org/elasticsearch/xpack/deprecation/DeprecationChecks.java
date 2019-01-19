@@ -49,7 +49,7 @@ public class DeprecationChecks {
             NodeDeprecationChecks::azureRepositoryChanges,
             NodeDeprecationChecks::gcsRepositoryChanges,
             NodeDeprecationChecks::fileDiscoveryPluginRemoved,
-            NodeDeprecationChecks::defaultSSLSettingsRemoved
+            NodeDeprecationChecks::defaultSSLSettingsRemoved,
             NodeDeprecationChecks::watcherNotificationsSecureSettingsCheck
         ));
 

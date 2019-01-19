@@ -277,8 +277,13 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     protected final ClusterHealthStatus ensureFollowerGreen(String... indices) {
+        return ensureFollowerGreen(false, indices);
+    }
+
+    protected final ClusterHealthStatus ensureFollowerGreen(boolean waitForNoInitializingShards, String... indices) {
         logger.info("ensure green follower indices {}", Arrays.toString(indices));
-        return ensureColor(clusterGroup.followerCluster, ClusterHealthStatus.GREEN, TimeValue.timeValueSeconds(30), false, indices);
+        return ensureColor(clusterGroup.followerCluster, ClusterHealthStatus.GREEN, TimeValue.timeValueSeconds(30),
+            waitForNoInitializingShards, indices);
     }
 
     private ClusterHealthStatus ensureColor(TestCluster testCluster,

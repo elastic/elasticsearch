@@ -324,7 +324,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         Settings settings = Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "10s") // very often :)
             .build();
-        createIndex("test", settings);
+        IndexService indexService = createIndex("test", settings);
         ensureGreen("test");
 
         client()
@@ -333,6 +333,9 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             .prepareUpdateSettings("test")
             .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "5s"))
             .get();
+
+        assertNotNull(indexService.getFsyncTask());
+        assertTrue(indexService.getFsyncTask().mustReschedule());
 
         IndexMetaData indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
         assertEquals("5s", indexMetaData.getSettings().get(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey()));

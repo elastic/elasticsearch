@@ -619,6 +619,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     @Override
     public synchronized void updateMetaData(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) {
         final Translog.Durability oldTranslogDurability = indexSettings.getTranslogDurability();
+        final TimeValue oldSyncInterval = indexSettings.getTranslogSyncInterval();
 
         final boolean updateIndexMetaData = indexSettings.updateIndexMetaData(newIndexMetaData);
 
@@ -651,7 +652,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 // once we change the refresh interval we schedule yet another refresh
                 // to ensure we are in a clean and predictable state.
                 // it doesn't matter if we move from or to <code>-1</code>  in both cases we want
-                // docs to become visible immediately. This also flushes all pending indexing / search reqeusts
+                // docs to become visible immediately. This also flushes all pending indexing / search requests
                 // that are waiting for a refresh.
                 threadPool.executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
                     @Override
@@ -672,19 +673,27 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 rescheduleRefreshTasks();
             }
             final Translog.Durability durability = indexSettings.getTranslogDurability();
-            if (durability != oldTranslogDurability) {
+            final TimeValue syncInterval = indexSettings.getTranslogSyncInterval();
+            if (syncInterval.equals(oldSyncInterval) == false) {
+                rescheduleFsyncTask(() -> new AsyncTranslogFSync(IndexService.this));
+            }
+            else if (durability != oldTranslogDurability) {
                 rescheduleFsyncTask(durability);
             }
         }
     }
 
     private void rescheduleFsyncTask(Translog.Durability durability) {
+        rescheduleFsyncTask(() -> durability == Translog.Durability.REQUEST ? null : new AsyncTranslogFSync(IndexService.this));
+    }
+
+    private void rescheduleFsyncTask(Supplier<AsyncTranslogFSync> fsyncTaskSupplier) {
         try {
             if (fsyncTask != null) {
                 fsyncTask.close();
             }
         } finally {
-            fsyncTask = durability == Translog.Durability.REQUEST ? null : new AsyncTranslogFSync(this);
+            fsyncTask = fsyncTaskSupplier.get();
         }
     }
 

@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -18,6 +19,8 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -31,13 +34,16 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -148,11 +154,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
         securityClient.invalidateApiKey(InvalidateApiKeyRequest.usingRealmName("file"), listener);
         InvalidateApiKeyResponse invalidateResponse = listener.get();
-        assertThat(invalidateResponse.getInvalidatedApiKeys().size(), equalTo(noOfApiKeys));
-        assertThat(invalidateResponse.getInvalidatedApiKeys(),
-                equalTo(responses.stream().map(r -> r.getId()).collect(Collectors.toList())));
-        assertThat(invalidateResponse.getPreviouslyInvalidatedApiKeys().size(), equalTo(0));
-        assertThat(invalidateResponse.getErrors().size(), equalTo(0));
+        verifyInvalidateResponse(noOfApiKeys, responses, invalidateResponse);
     }
 
     public void testInvalidateApiKeysForUser() throws Exception {
@@ -164,11 +166,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
         securityClient.invalidateApiKey(InvalidateApiKeyRequest.usingUserName(SecuritySettingsSource.TEST_SUPERUSER), listener);
         InvalidateApiKeyResponse invalidateResponse = listener.get();
-        assertThat(invalidateResponse.getInvalidatedApiKeys().size(), equalTo(noOfApiKeys));
-        assertThat(invalidateResponse.getInvalidatedApiKeys(),
-                equalTo(responses.stream().map(r -> r.getId()).collect(Collectors.toList())));
-        assertThat(invalidateResponse.getPreviouslyInvalidatedApiKeys().size(), equalTo(0));
-        assertThat(invalidateResponse.getErrors().size(), equalTo(0));
+        verifyInvalidateResponse(noOfApiKeys, responses, invalidateResponse);
     }
 
     public void testInvalidateApiKeysForRealmAndUser() throws InterruptedException, ExecutionException {
@@ -180,11 +178,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         securityClient.invalidateApiKey(InvalidateApiKeyRequest.usingRealmAndUserName("file", SecuritySettingsSource.TEST_SUPERUSER),
                 listener);
         InvalidateApiKeyResponse invalidateResponse = listener.get();
-        assertThat(invalidateResponse.getInvalidatedApiKeys().size(), equalTo(1));
-        assertThat(invalidateResponse.getInvalidatedApiKeys(),
-                equalTo(responses.stream().map(r -> r.getId()).collect(Collectors.toList())));
-        assertThat(invalidateResponse.getPreviouslyInvalidatedApiKeys().size(), equalTo(0));
-        assertThat(invalidateResponse.getErrors().size(), equalTo(0));
+        verifyInvalidateResponse(1, responses, invalidateResponse);
     }
 
     public void testInvalidateApiKeysForApiKeyId() throws InterruptedException, ExecutionException {
@@ -195,11 +189,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
         securityClient.invalidateApiKey(InvalidateApiKeyRequest.usingApiKeyId(responses.get(0).getId()), listener);
         InvalidateApiKeyResponse invalidateResponse = listener.get();
-        assertThat(invalidateResponse.getInvalidatedApiKeys().size(), equalTo(1));
-        assertThat(invalidateResponse.getInvalidatedApiKeys(),
-                equalTo(responses.stream().map(r -> r.getId()).collect(Collectors.toList())));
-        assertThat(invalidateResponse.getPreviouslyInvalidatedApiKeys().size(), equalTo(0));
-        assertThat(invalidateResponse.getErrors().size(), equalTo(0));
+        verifyInvalidateResponse(1, responses, invalidateResponse);
     }
 
     public void testInvalidateApiKeysForApiKeyName() throws InterruptedException, ExecutionException {
@@ -210,11 +200,103 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
         securityClient.invalidateApiKey(InvalidateApiKeyRequest.usingApiKeyName(responses.get(0).getName()), listener);
         InvalidateApiKeyResponse invalidateResponse = listener.get();
-        assertThat(invalidateResponse.getInvalidatedApiKeys().size(), equalTo(1));
+        verifyInvalidateResponse(1, responses, invalidateResponse);
+    }
+
+    private void verifyInvalidateResponse(int noOfApiKeys, List<CreateApiKeyResponse> responses,
+                                          InvalidateApiKeyResponse invalidateResponse) {
+        assertThat(invalidateResponse.getInvalidatedApiKeys().size(), equalTo(noOfApiKeys));
         assertThat(invalidateResponse.getInvalidatedApiKeys(),
                 equalTo(responses.stream().map(r -> r.getId()).collect(Collectors.toList())));
         assertThat(invalidateResponse.getPreviouslyInvalidatedApiKeys().size(), equalTo(0));
         assertThat(invalidateResponse.getErrors().size(), equalTo(0));
+    }
+
+    public void testGetApiKeysForRealm() throws InterruptedException, ExecutionException {
+        int noOfApiKeys = randomIntBetween(3, 5);
+        List<CreateApiKeyResponse> responses = createApiKeys(noOfApiKeys, null);
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
+                .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        boolean invalidate= randomBoolean();
+        List<String> invalidatedApiKeyIds = null;
+        if (invalidate) {
+            PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
+            securityClient.invalidateApiKey(InvalidateApiKeyRequest.usingApiKeyId(responses.get(0).getId()), listener);
+            InvalidateApiKeyResponse invalidateResponse = listener.get();
+            invalidatedApiKeyIds = invalidateResponse.getInvalidatedApiKeys();
+        }
+
+        PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
+        securityClient.getApiKey(GetApiKeyRequest.usingRealmName("file"), listener);
+        GetApiKeyResponse response = listener.get();
+        verifyGetResponse(noOfApiKeys, responses, response, invalidatedApiKeyIds);
+    }
+
+    public void testGetApiKeysForUser() throws Exception {
+        int noOfApiKeys = randomIntBetween(3, 5);
+        List<CreateApiKeyResponse> responses = createApiKeys(noOfApiKeys, null);
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
+                .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
+        securityClient.getApiKey(GetApiKeyRequest.usingUserName(SecuritySettingsSource.TEST_SUPERUSER), listener);
+        GetApiKeyResponse response = listener.get();
+        verifyGetResponse(noOfApiKeys, responses, response, null);
+    }
+
+    public void testGetApiKeysForRealmAndUser() throws InterruptedException, ExecutionException {
+        List<CreateApiKeyResponse> responses = createApiKeys(1, null);
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
+                .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
+        securityClient.getApiKey(GetApiKeyRequest.usingRealmAndUserName("file", SecuritySettingsSource.TEST_SUPERUSER),
+                listener);
+        GetApiKeyResponse response = listener.get();
+        verifyGetResponse(1, responses, response, null);
+    }
+
+    public void testGetApiKeysForApiKeyId() throws InterruptedException, ExecutionException {
+        List<CreateApiKeyResponse> responses = createApiKeys(1, null);
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
+                .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
+        securityClient.getApiKey(GetApiKeyRequest.usingApiKeyId(responses.get(0).getId()), listener);
+        GetApiKeyResponse response = listener.get();
+        verifyGetResponse(1, responses, response, null);
+    }
+
+    public void testGetApiKeysForApiKeyName() throws InterruptedException, ExecutionException {
+        List<CreateApiKeyResponse> responses = createApiKeys(1, null);
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
+                .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
+        securityClient.getApiKey(GetApiKeyRequest.usingApiKeyName(responses.get(0).getName()), listener);
+        GetApiKeyResponse response = listener.get();
+        verifyGetResponse(1, responses, response, null);
+    }
+
+    private void verifyGetResponse(int noOfApiKeys, List<CreateApiKeyResponse> responses, GetApiKeyResponse response,
+                                   List<String> invalidatedApiKeyIds) {
+        assertThat(response.getApiKeyInfos().length, equalTo(noOfApiKeys));
+        List<String> expectedIds = responses.stream().map(o -> o.getId()).collect(Collectors.toList());
+        List<String> actualIds = Arrays.stream(response.getApiKeyInfos()).map(o -> o.getId()).collect(Collectors.toList());
+        assertThat(actualIds, containsInAnyOrder(expectedIds.toArray(Strings.EMPTY_ARRAY)));
+        List<String> expectedNames = responses.stream().map(o -> o.getName()).collect(Collectors.toList());
+        List<String> actualNames = Arrays.stream(response.getApiKeyInfos()).map(o -> o.getName()).collect(Collectors.toList());
+        assertThat(actualNames, containsInAnyOrder(expectedNames.toArray(Strings.EMPTY_ARRAY)));
+        Set<String> expectedUsernames = Collections.singleton(SecuritySettingsSource.TEST_SUPERUSER);
+        Set<String> actualUsernames = Arrays.stream(response.getApiKeyInfos()).map(o -> o.getUsername()).collect(Collectors.toSet());
+        assertThat(actualUsernames, containsInAnyOrder(expectedUsernames.toArray(Strings.EMPTY_ARRAY)));
+        if (invalidatedApiKeyIds != null) {
+            List<String> actualInvalidatedApiKeyIds = Arrays.stream(response.getApiKeyInfos()).filter(o -> o.isInvalidated())
+                    .map(o -> o.getId()).collect(Collectors.toList());
+            assertThat(invalidatedApiKeyIds, containsInAnyOrder(actualInvalidatedApiKeyIds.toArray(Strings.EMPTY_ARRAY)));
+        }
+
     }
 
     private List<CreateApiKeyResponse> createApiKeys(int noOfApiKeys, TimeValue expiration) {

@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.snapshots.RestoreInfo;
-import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -44,7 +43,6 @@ public final class TransportPutFollowAction
     private static final ActionListener<PutFollowAction.Response> NOOP_LISTENER = ActionListener.wrap(() -> {});
 
     private final Client client;
-    private final RestoreService restoreService;
     private final CcrLicenseChecker ccrLicenseChecker;
 
     @Inject
@@ -55,7 +53,6 @@ public final class TransportPutFollowAction
             final ActionFilters actionFilters,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final Client client,
-            final RestoreService restoreService,
             final CcrLicenseChecker ccrLicenseChecker) {
         super(
                 PutFollowAction.NAME,
@@ -66,7 +63,6 @@ public final class TransportPutFollowAction
                 PutFollowAction.Request::new,
                 indexNameExpressionResolver);
         this.client = client;
-        this.restoreService = restoreService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
     }
 

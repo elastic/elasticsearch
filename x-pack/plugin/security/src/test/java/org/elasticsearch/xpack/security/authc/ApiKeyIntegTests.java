@@ -265,7 +265,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    public void testExpiredApiKeysDeletedAfter24Hours() throws Exception {
+    public void testExpiredApiKeysDeletedAfter1Week() throws Exception {
         createApiKeys(1, null);
         Instant created = Instant.now();
 
@@ -282,11 +282,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             docId.set(searchResponse.getHits().getAt(0).getId());
         });
 
-        // hack doc to modify the expiration time to the day before
-        Instant yesterday = created.minus(36L, ChronoUnit.HOURS);
-        assertTrue(Instant.now().isAfter(yesterday));
+        // hack doc to modify the expiration time to the week before
+        Instant weekBefore = created.minus(8L, ChronoUnit.DAYS);
+        assertTrue(Instant.now().isAfter(weekBefore));
         client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "doc", docId.get())
-                .setDoc("expiration_time", yesterday.toEpochMilli()).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+                .setDoc("expiration_time", weekBefore.toEpochMilli()).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         AtomicBoolean deleteTriggered = new AtomicBoolean(false);
         assertBusy(() -> {
@@ -300,6 +300,29 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                     .setTerminateAfter(1).get();
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
         }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testActiveApiKeysWithNoExpirationNeverGetDeletedByRemover() throws Exception {
+        List<CreateApiKeyResponse> responses = createApiKeys(1, null);
+
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
+                .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
+        securityClient.invalidateApiKey(InvalidateApiKeyRequest.usingApiKeyId(randomAlphaOfLength(7)), listener);
+        InvalidateApiKeyResponse invalidateResponse = listener.get();
+        assertThat(invalidateResponse.getInvalidatedApiKeys().size(), equalTo(0));
+        assertThat(invalidateResponse.getPreviouslyInvalidatedApiKeys().size(), equalTo(0));
+        assertThat(invalidateResponse.getErrors().size(), equalTo(1));
+        AtomicReference<String> docId = new AtomicReference<>();
+        assertBusy(() -> {
+            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                    .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", "api_key")))
+                    .setSize(1).setTerminateAfter(1).get();
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+            docId.set(searchResponse.getHits().getAt(0).getId());
+        });
+        assertThat(docId.get(), equalTo(responses.get(0).getId()));
     }
 
     private List<CreateApiKeyResponse> createApiKeys(int noOfApiKeys, TimeValue expiration) {

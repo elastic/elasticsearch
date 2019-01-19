@@ -60,7 +60,7 @@ public final class ExpiredApiKeysRemover extends AbstractRunnable {
             .setQuery(QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termsQuery("doc_type", "api_key"))
                 .should(QueryBuilders.termsQuery("api_key_invalidated", true))
-                .should(QueryBuilders.rangeQuery("expiration_time").lte(now.minus(24L, ChronoUnit.HOURS).toEpochMilli()))
+                .should(QueryBuilders.rangeQuery("expiration_time").lte(now.minus(7L, ChronoUnit.DAYS).toEpochMilli()))
                 .minimumShouldMatch(1)
                 );
 

@@ -115,7 +115,7 @@ public class ApiKeyService {
     public static final Setting<TimeValue> DELETE_TIMEOUT = Setting.timeSetting("xpack.security.authc.api_key.delete.timeout",
             TimeValue.MINUS_ONE, Property.NodeScope);
     public static final Setting<TimeValue> DELETE_INTERVAL = Setting.timeSetting("xpack.security.authc.api_key.delete.interval",
-            TimeValue.timeValueMinutes(30L), Property.NodeScope);
+            TimeValue.timeValueHours(24L), Property.NodeScope);
 
     private final Clock clock;
     private final Client client;

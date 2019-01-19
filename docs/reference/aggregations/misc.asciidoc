@@ -143,6 +143,8 @@ In the response, the aggregations names will be changed to respectively `date_hi
                                   "_index": "twitter",
                                   "_type": "_doc",
                                   "_id": "0",
+                                  "_seq_no": 0,
+                                  "_primary_term": 1,
                                   "_score": 1.0,
                                   "_source": {
                                     "date": "2009-11-15T14:12:12",

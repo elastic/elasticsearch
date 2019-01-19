@@ -870,6 +870,8 @@ Response:
                 "_index": "twitter",
                 "_type": "_doc",
                 "_id": "1",
+                "_seq_no": 1,
+                "_primary_term": 1,
                 "_score": 1.601195,
                 "_source": {
                     "user": "test",
@@ -929,6 +931,8 @@ Response:
                 "_index": "twitter",
                 "_type": "_doc",
                 "_id": "1",
+                "_seq_no": 1,
+                "_primary_term": 1,
                 "_score": 1.601195,
                 "_source": {
                     "user": "test",

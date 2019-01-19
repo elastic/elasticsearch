@@ -99,6 +99,8 @@ both index and query time.
         "_index": "index",
         "_type": "_doc",
         "_id": "1",
+        "_seq_no": 0,
+        "_primary_term": 1,
         "_score": 0.47000363,
         "_source": {
           "foo": "BÀR"
@@ -108,6 +110,8 @@ both index and query time.
         "_index": "index",
         "_type": "_doc",
         "_id": "2",
+        "_seq_no": 1,
+        "_primary_term": 1,
         "_score": 0.47000363,
         "_source": {
           "foo": "bar"

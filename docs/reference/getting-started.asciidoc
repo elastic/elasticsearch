@@ -761,6 +761,8 @@ And the response (partially shown):
       "_type" : "_doc",
       "_id" : "0",
       "sort": [0],
+      "_primary_term": 1,
+      "_seq_no": 124,
       "_score" : null,
       "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
     }, {
@@ -768,6 +770,8 @@ And the response (partially shown):
       "_type" : "_doc",
       "_id" : "1",
       "sort": [1],
+      "_primary_term": 1,
+      "_seq_no": 0,
       "_score" : null,
       "_source" : {"account_number":1,"balance":39225,"firstname":"Amber","lastname":"Duke","age":32,"gender":"M","address":"880 Holmes Lane","employer":"Pyrami","email":"amberduke@pyrami.com","city":"Brogan","state":"IL"}
     }, ...
@@ -838,6 +842,8 @@ to clutter the docs with it:
       "_type" : "_doc",
       "_id" : "0",
       "sort": [0],
+      "_primary_term": 1,
+      "_seq_no": 124,
       "_score": null,
       "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
     }, {
@@ -845,6 +851,8 @@ to clutter the docs with it:
       "_type" : "_doc",
       "_id" : "1",
       "sort": [1],
+      "_primary_term": 1,
+      "_seq_no": 0,
       "_score": null,
       "_source" : {"account_number":1,"balance":39225,"firstname":"Amber","lastname":"Duke","age":32,"gender":"M","address":"880 Holmes Lane","employer":"Pyrami","email":"amberduke@pyrami.com","city":"Brogan","state":"IL"}
     }, ...

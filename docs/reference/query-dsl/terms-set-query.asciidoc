@@ -82,6 +82,8 @@ Response:
         "_index": "my-index",
         "_type": "_doc",
         "_id": "2",
+        "_seq_no": 1,
+        "_primary_term": 1,
         "_score": 0.87546873,
         "_source": {
           "codes": ["def", "ghi"],

@@ -22,18 +22,16 @@ package org.elasticsearch.join.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DocValuesTermsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -53,7 +51,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQueryBuilder> {
 
-    private static final String TYPE = "doc";
+    private static final String TYPE = "_doc";
     private static final String JOIN_FIELD_NAME = "join_field";
     private static final String PARENT_NAME = "parent";
     private static final String CHILD_NAME = "child";
@@ -64,16 +62,16 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
     }
 
     @Override
-    protected Settings indexSettings() {
+    protected Settings createTestIndexSettings() {
         return Settings.builder()
-            .put(super.indexSettings())
+            .put(super.createTestIndexSettings())
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
     }
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("doc").startObject("properties")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
             .startObject("join_field")
                 .field("type", "join")
                 .startObject("relations")
@@ -104,7 +102,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
             .endObject().endObject().endObject();
 
         mapperService.merge(TYPE,
-            new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+            new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     @Override

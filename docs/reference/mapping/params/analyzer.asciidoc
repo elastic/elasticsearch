@@ -41,10 +41,10 @@ in the field mapping, as follows:
 
 [source,js]
 --------------------------------------------------
-PUT /my_index
+PUT /my_index?include_type_name=true
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "text": { <1>
           "type": "text",
@@ -93,7 +93,7 @@ To disable stop words for phrases a field utilising three analyzer settings will
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
    "settings":{
       "analysis":{
@@ -123,7 +123,7 @@ PUT my_index
       }
    },
    "mappings":{
-      "my_type":{
+      "_doc":{
          "properties":{
             "title": {
                "type":"text",
@@ -136,17 +136,17 @@ PUT my_index
    }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
    "title":"The Quick Brown Fox"
 }
 
-PUT my_index/my_type/2
+PUT my_index/_doc/2
 {
    "title":"A Quick Brown Fox"
 }
 
-GET my_index/my_type/_search
+GET my_index/_search
 {
    "query":{
       "query_string":{

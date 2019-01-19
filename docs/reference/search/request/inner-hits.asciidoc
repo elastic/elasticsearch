@@ -1,12 +1,12 @@
 [[search-request-inner-hits]]
 === Inner hits
 
-The <<parent-join, parent-join> and <<nested, nested>> features allow the return of documents that
+The <<parent-join, parent-join>> and <<nested, nested>> features allow the return of documents that
 have matches in a different scope. In the parent/child case, parent documents are returned based on matches in child
 documents or child documents are returned based on matches in parent documents. In the nested case, documents are returned
 based on matches in nested inner objects.
 
-In both cases, the actual matches in the different scopes that caused a document to be returned is hidden. In many cases,
+In both cases, the actual matches in the different scopes that caused a document to be returned are hidden. In many cases,
 it's very useful to know which inner nested objects (in the case of nested) or children/parent documents (in the case
 of parent/child) caused certain information to be returned. The inner hits feature can be used for this. This feature
 returns per search hit in the search response additional nested hits that caused a search hit to match in a different scope.
@@ -87,17 +87,15 @@ The nested `inner_hits` can be used to include nested inner objects as inner hit
 PUT test
 {
   "mappings": {
-    "doc": {
-      "properties": {
-        "comments": {
-          "type": "nested"
-        }
+    "properties": {
+      "comments": {
+        "type": "nested"
       }
     }
   }
 }
 
-PUT test/doc/1?refresh
+PUT test/_doc/1?refresh
 {
   "title": "Test title",
   "comments": [
@@ -136,22 +134,31 @@ An example of a response snippet that could be generated from the above search r
 {
   ...,
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 1.0,
     "hits": [
       {
         "_index": "test",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 1.0,
         "_source": ...,
         "inner_hits": {
           "comments": { <1>
             "hits": {
-              "total": 1,
+              "total" : {
+                  "value": 1,
+                  "relation": "eq"
+              },
               "max_score": 1.0,
               "hits": [
                 {
+                  "_index": "test",
+                  "_type": "_doc",
+                  "_id": "1",
                   "_nested": {
                     "field": "comments",
                     "offset": 1
@@ -197,30 +204,22 @@ its `_source` field. To include the source of just the nested document, the sour
 the relevant bit for the nested document is included as source in the inner hit. Doing this for each matching nested document
 has an impact on the time it takes to execute the entire search request, especially when `size` and the inner hits' `size`
 are set higher than the default. To avoid the relatively expensive source extraction for nested inner hits, one can disable
-including the source and solely rely on stored fields. Like this:
+including the source and solely rely on doc values fields. Like this:
 
 [source,js]
 --------------------------------------------------
 PUT test
 {
   "mappings": {
-    "doc": {
-      "properties": {
-        "comments": {
-          "type": "nested",
-          "properties": {
-            "text": {
-              "type": "text",
-              "store": true
-            }
-          }
-        }
+    "properties": {
+      "comments": {
+        "type": "nested"
       }
     }
   }
 }
 
-PUT test/doc/1?refresh
+PUT test/_doc/1?refresh
 {
   "title": "Test title",
   "comments": [
@@ -245,7 +244,12 @@ POST test/_search
       },
       "inner_hits": {
         "_source" : false,
-        "stored_fields" : ["comments.text"]
+        "docvalue_fields" : [
+          {
+            "field": "comments.text.keyword",
+            "format": "use_field_mapping"
+          }
+        ]
       }
     }
   }
@@ -262,29 +266,38 @@ Response not included in text but tested for completeness sake.
 {
   ...,
   "hits": {
-    "total": 1,
-    "max_score": 1.0444683,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 1.0444684,
     "hits": [
       {
         "_index": "test",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
-        "_score": 1.0444683,
+        "_score": 1.0444684,
         "_source": ...,
         "inner_hits": {
           "comments": { <1>
             "hits": {
-              "total": 1,
-              "max_score": 1.0444683,
+              "total" : {
+                "value": 1,
+                "relation": "eq"
+              },
+              "max_score": 1.0444684,
               "hits": [
                 {
+                  "_index": "test",
+                  "_type": "_doc",
+                  "_id": "1",
                   "_nested": {
                     "field": "comments",
                     "offset": 1
                   },
-                  "_score": 1.0444683,
+                  "_score": 1.0444684,
                   "fields": {
-                    "comments.text": [
+                    "comments.text.keyword": [
                       "words words words"
                     ]
                   }
@@ -315,18 +328,12 @@ with the root hits then the following path can be defined:
 PUT test
 {
   "mappings": {
-    "doc": {
-      "properties": {
-        "comments": {
-          "type": "nested",
-          "properties": {
-            "message": {
-              "type": "text",
-              "store": true
-            },
-            "votes": {
-              "type": "nested"
-            }
+    "properties": {
+      "comments": {
+        "type": "nested",
+        "properties": {
+          "votes": {
+            "type": "nested"
           }
         }
       }
@@ -334,7 +341,7 @@ PUT test
   }
 }
 
-PUT test/doc/1?refresh
+PUT test/_doc/1?refresh
 {
   "title": "Test title",
   "comments": [
@@ -378,22 +385,31 @@ Which would look like:
 {
   ...,
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.6931472,
     "hits": [
       {
         "_index": "test",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 0.6931472,
         "_source": ...,
         "inner_hits": {
           "comments.votes": { <1>
             "hits": {
-              "total": 1,
+              "total" : {
+                  "value": 1,
+                  "relation": "eq"
+              },
               "max_score": 0.6931472,
               "hits": [
                 {
+                  "_index": "test",
+                  "_type": "_doc",
+                  "_id": "1",
                   "_nested": {
                     "field": "comments",
                     "offset": 1,
@@ -432,26 +448,24 @@ The parent/child `inner_hits` can be used to include parent or child:
 PUT test
 {
   "mappings": {
-    "doc": {
-      "properties": {
-        "my_join_field": {
-          "type": "join",
-          "relations": {
-            "my_parent": "my_child"
-          }
+    "properties": {
+      "my_join_field": {
+        "type": "join",
+        "relations": {
+          "my_parent": "my_child"
         }
       }
     }
   }
 }
 
-PUT test/doc/1?refresh
+PUT test/_doc/1?refresh
 {
   "number": 1,
   "my_join_field": "my_parent"
 }
 
-PUT test/doc/2?routing=1&refresh
+PUT test/_doc/2?routing=1&refresh
 {
   "number": 1,
   "my_join_field": {
@@ -486,12 +500,15 @@ An example of a response snippet that could be generated from the above search r
 {
     ...,
     "hits": {
-        "total": 1,
+        "total" : {
+            "value": 1,
+            "relation": "eq"
+        },
         "max_score": 1.0,
         "hits": [
             {
                 "_index": "test",
-                "_type": "doc",
+                "_type": "_doc",
                 "_id": "1",
                 "_score": 1.0,
                 "_source": {
@@ -501,11 +518,15 @@ An example of a response snippet that could be generated from the above search r
                 "inner_hits": {
                     "my_child": {
                         "hits": {
-                            "total": 1,
+                            "total" : {
+                                "value": 1,
+                                "relation": "eq"
+                            },
                             "max_score": 1.0,
                             "hits": [
                                 {
-                                    "_type": "doc",
+                                    "_index": "test",
+                                    "_type": "_doc",
                                     "_id": "2",
                                     "_score": 1.0,
                                     "_routing": "1",

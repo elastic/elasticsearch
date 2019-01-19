@@ -1,10 +1,13 @@
 ---
 "Internal version":
 
+ - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
+
  - do:
       index:
           index:   test_1
-          type:    test
           id:      1
           body:    { foo: bar }
 
@@ -14,14 +17,12 @@
       catch:       conflict
       delete:
           index:   test_1
-          type:    test
           id:      1
           version: 2
 
  - do:
       delete:
           index:   test_1
-          type:    test
           id:      1
           version: 1
 

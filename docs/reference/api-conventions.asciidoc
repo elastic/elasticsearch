@@ -1,9 +1,9 @@
 [[api-conventions]]
-= API Conventions
+= API conventions
 
 [partintro]
 --
-The *elasticsearch* REST APIs are exposed using <<modules-http,JSON over HTTP>>.
+The *Elasticsearch* REST APIs are exposed using <<modules-http,JSON over HTTP>>.
 
 The conventions listed in this chapter can be applied throughout the REST
 API, unless otherwise specified.
@@ -47,7 +47,7 @@ to. If `open` is specified then the wildcard expression is expanded to only
 open indices and if `closed` is specified then the wildcard expression is
 expanded only to closed indices. Also both values (`open,closed`) can be
 specified to expand to all indices.
-
++
 If `none` is specified then wildcard expansion will be disabled and if `all`
 is specified, wildcard expressions will expand to all indices (this is equivalent
 to specifying `open,closed`).
@@ -215,20 +215,19 @@ The supported units are:
 `m`:: minutes
 `s`:: seconds
 
-Some examples are:
+Assuming `now` is `2001-01-01 12:00:00`, some examples are:
 
-[horizontal]
-`now+1h`::              The current time plus one hour, with ms resolution.
-`now+1h+1m`::           The current time plus one hour plus one minute, with ms resolution.
-`now+1h/d`::            The current time plus one hour, rounded down to the nearest day.
-`2015-01-01||+1M/d`::   `2015-01-01` plus one month, rounded down to the nearest day.
+`now+1h`:: `now` in milliseconds plus one hour. Resolves to: `2001-01-01 13:00:00`
+`now-1h`:: `now` in milliseconds minus one hour. Resolves to: `2001-01-01 11:00:00`
+`now-1h/d`:: `now` in milliseconds minus one hour, rounded down to UTC 00:00. Resolves to: `2001-01-01 00:00:00``
+ `2001.02.01\|\|+1M/d`:: `2001-02-01` in milliseconds plus one month. Resolves to: `2001-03-01 00:00:00`
 
 [float]
 [[common-options-response-filtering]]
 === Response Filtering
 
 All REST APIs accept a `filter_path` parameter that can be used to reduce
-the response returned by elasticsearch. This parameter takes a comma
+the response returned by Elasticsearch. This parameter takes a comma
 separated list of filters expressed with the dot notation:
 
 [source,js]
@@ -301,11 +300,7 @@ Responds:
     "indices": {
       "twitter": {
         "shards": {
-          "0": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
-          "1": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
-          "2": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
-          "3": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
-          "4": [{"state": "STARTED"}, {"state": "UNASSIGNED"}]
+          "0": [{"state": "STARTED"}, {"state": "UNASSIGNED"}]
         }
       }
     }
@@ -360,7 +355,7 @@ Responds:
 --------------------------------------------------
 // TESTRESPONSE
 
-Note that elasticsearch sometimes returns directly the raw value of a field,
+Note that Elasticsearch sometimes returns directly the raw value of a field,
 like the `_source` field. If you want to filter `_source` fields, you should
 consider combining the already existing `_source` parameter (see
 <<get-source-filtering,Get API>> for more details) with the `filter_path`

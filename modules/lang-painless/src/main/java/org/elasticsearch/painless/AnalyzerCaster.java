@@ -19,31 +19,11 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.def;
 
 import java.util.Objects;
-
-import static org.elasticsearch.painless.Definition.BOOLEAN_OBJ_TYPE;
-import static org.elasticsearch.painless.Definition.BOOLEAN_TYPE;
-import static org.elasticsearch.painless.Definition.BYTE_OBJ_TYPE;
-import static org.elasticsearch.painless.Definition.BYTE_TYPE;
-import static org.elasticsearch.painless.Definition.CHAR_OBJ_TYPE;
-import static org.elasticsearch.painless.Definition.CHAR_TYPE;
-import static org.elasticsearch.painless.Definition.DEF_TYPE;
-import static org.elasticsearch.painless.Definition.DOUBLE_OBJ_TYPE;
-import static org.elasticsearch.painless.Definition.DOUBLE_TYPE;
-import static org.elasticsearch.painless.Definition.FLOAT_OBJ_TYPE;
-import static org.elasticsearch.painless.Definition.FLOAT_TYPE;
-import static org.elasticsearch.painless.Definition.INT_OBJ_TYPE;
-import static org.elasticsearch.painless.Definition.INT_TYPE;
-import static org.elasticsearch.painless.Definition.LONG_OBJ_TYPE;
-import static org.elasticsearch.painless.Definition.LONG_TYPE;
-import static org.elasticsearch.painless.Definition.NUMBER_TYPE;
-import static org.elasticsearch.painless.Definition.OBJECT_TYPE;
-import static org.elasticsearch.painless.Definition.SHORT_OBJ_TYPE;
-import static org.elasticsearch.painless.Definition.SHORT_TYPE;
-import static org.elasticsearch.painless.Definition.STRING_TYPE;
 
 /**
  * Used during the analysis phase to collect legal type casts and promotions
@@ -51,447 +31,381 @@ import static org.elasticsearch.painless.Definition.STRING_TYPE;
  */
 public final class AnalyzerCaster {
 
-    public static Cast getLegalCast(Location location, Type actual, Type expected, boolean explicit, boolean internal) {
+    public static PainlessCast getLegalCast(Location location, Class<?> actual, Class<?> expected, boolean explicit, boolean internal) {
         Objects.requireNonNull(actual);
         Objects.requireNonNull(expected);
 
-        if (actual.equals(expected)) {
+        if (actual == expected) {
             return null;
         }
 
-        if (actual.dynamic) {
-            if (expected.clazz == boolean.class) {
-                return new Cast(DEF_TYPE, BOOLEAN_OBJ_TYPE, explicit, null, BOOLEAN_TYPE, null, null);
-            } else if (expected.clazz == byte.class) {
-                return new Cast(DEF_TYPE, BYTE_OBJ_TYPE, explicit, null, BYTE_TYPE, null, null);
-            } else if (expected.clazz == short.class) {
-                return new Cast(DEF_TYPE, SHORT_OBJ_TYPE, explicit, null, SHORT_TYPE, null, null);
-            } else if (expected.clazz == char.class) {
-                return new Cast(DEF_TYPE, CHAR_OBJ_TYPE, explicit, null, CHAR_TYPE, null, null);
-            } else if (expected.clazz == int.class) {
-                return new Cast(DEF_TYPE, INT_OBJ_TYPE, explicit, null, INT_TYPE, null, null);
-            } else if (expected.clazz == long.class) {
-                return new Cast(DEF_TYPE, LONG_OBJ_TYPE, explicit, null, LONG_TYPE, null, null);
-            } else if (expected.clazz == float.class) {
-                return new Cast(DEF_TYPE, FLOAT_OBJ_TYPE, explicit, null, FLOAT_TYPE, null, null);
-            } else if (expected.clazz == double.class) {
-                return new Cast(DEF_TYPE, DOUBLE_OBJ_TYPE, explicit, null, DOUBLE_TYPE, null, null);
+        if (actual == def.class) {
+            if (expected == boolean.class) {
+                return PainlessCast.originalTypetoTargetType(def.class, boolean.class, explicit);
+            } else if (expected == byte.class) {
+                return PainlessCast.originalTypetoTargetType(def.class, byte.class, explicit);
+            } else if (expected == short.class) {
+                return PainlessCast.originalTypetoTargetType(def.class, short.class, explicit);
+            } else if (expected == char.class) {
+                return PainlessCast.originalTypetoTargetType(def.class, char.class, explicit);
+            } else if (expected == int.class) {
+                return PainlessCast.originalTypetoTargetType(def.class, int.class, explicit);
+            } else if (expected == long.class) {
+                return PainlessCast.originalTypetoTargetType(def.class, long.class, explicit);
+            } else if (expected == float.class) {
+                return PainlessCast.originalTypetoTargetType(def.class, float.class, explicit);
+            } else if (expected == double.class) {
+                return PainlessCast.originalTypetoTargetType(def.class, double.class, explicit);
+            } else if (expected == Boolean.class) {
+                return PainlessCast.originalTypetoTargetType(def.class, Boolean.class, explicit);
+            } else if (expected == Byte.class) {
+                return PainlessCast.originalTypetoTargetType(def.class, Byte.class, explicit);
+            } else if (expected == Short.class) {
+                return PainlessCast.originalTypetoTargetType(def.class, Short.class, explicit);
+            } else if (expected == Character.class) {
+                return PainlessCast.originalTypetoTargetType(def.class, Character.class, explicit);
+            } else if (expected == Integer.class) {
+                return PainlessCast.originalTypetoTargetType(def.class, Integer.class, explicit);
+            } else if (expected == Long.class) {
+                return PainlessCast.originalTypetoTargetType(def.class, Long.class, explicit);
+            } else if (expected == Float.class) {
+                return PainlessCast.originalTypetoTargetType(def.class, Float.class, explicit);
+            } else if (expected == Double.class) {
+                return PainlessCast.originalTypetoTargetType(def.class, Double.class, explicit);
             }
-        } else if (actual.clazz == Object.class) {
-            if (expected.clazz == byte.class && explicit && internal) {
-                return new Cast(OBJECT_TYPE, BYTE_OBJ_TYPE, true, null, BYTE_TYPE, null, null);
-            } else if (expected.clazz == short.class && explicit && internal) {
-                return new Cast(OBJECT_TYPE, SHORT_OBJ_TYPE, true, null, SHORT_TYPE, null, null);
-            } else if (expected.clazz == char.class && explicit && internal) {
-                return new Cast(OBJECT_TYPE, CHAR_OBJ_TYPE, true, null, CHAR_TYPE, null, null);
-            } else if (expected.clazz == int.class && explicit && internal) {
-                return new Cast(OBJECT_TYPE, INT_OBJ_TYPE, true, null, INT_TYPE, null, null);
-            } else if (expected.clazz == long.class && explicit && internal) {
-                return new Cast(OBJECT_TYPE, LONG_OBJ_TYPE, true, null, LONG_TYPE, null, null);
-            } else if (expected.clazz == float.class && explicit && internal) {
-                return new Cast(OBJECT_TYPE, FLOAT_OBJ_TYPE, true, null, FLOAT_TYPE, null, null);
-            } else if (expected.clazz == double.class && explicit && internal) {
-                return new Cast(OBJECT_TYPE, DOUBLE_OBJ_TYPE, true, null, DOUBLE_TYPE, null, null);
+        } else if (actual == String.class) {
+            if (expected == char.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(String.class, char.class, true);
             }
-        } else if (actual.clazz == Number.class) {
-            if (expected.clazz == byte.class && explicit && internal) {
-                return new Cast(NUMBER_TYPE, BYTE_OBJ_TYPE, true, null, BYTE_TYPE, null, null);
-            } else if (expected.clazz == short.class && explicit && internal) {
-                return new Cast(NUMBER_TYPE, SHORT_OBJ_TYPE, true, null, SHORT_TYPE, null, null);
-            } else if (expected.clazz == char.class && explicit && internal) {
-                return new Cast(NUMBER_TYPE, CHAR_OBJ_TYPE, true, null, CHAR_TYPE, null, null);
-            } else if (expected.clazz == int.class && explicit && internal) {
-                return new Cast(NUMBER_TYPE, INT_OBJ_TYPE, true, null, INT_TYPE, null, null);
-            } else if (expected.clazz == long.class && explicit && internal) {
-                return new Cast(NUMBER_TYPE, LONG_OBJ_TYPE, true, null, LONG_TYPE, null, null);
-            } else if (expected.clazz == float.class && explicit && internal) {
-                return new Cast(NUMBER_TYPE, FLOAT_OBJ_TYPE, true, null, FLOAT_TYPE, null, null);
-            } else if (expected.clazz == double.class && explicit && internal) {
-                return new Cast(NUMBER_TYPE, DOUBLE_OBJ_TYPE, true, null, DOUBLE_TYPE, null, null);
+        } else if (actual == boolean.class) {
+            if (expected == def.class) {
+                return PainlessCast.boxOriginalType(Boolean.class, def.class, explicit, boolean.class);
+            } else if (expected == Object.class && internal) {
+                return PainlessCast.boxOriginalType(Boolean.class, Object.class, explicit, boolean.class);
+            } else if (expected == Boolean.class && internal) {
+                return PainlessCast.boxTargetType(boolean.class, boolean.class, explicit, boolean.class);
             }
-        } else if (actual.clazz == String.class) {
-            if (expected.clazz == char.class && explicit) {
-                return new Cast(STRING_TYPE, CHAR_TYPE, true);
+        } else if (actual == byte.class) {
+            if (expected == def.class) {
+                return PainlessCast.boxOriginalType(Byte.class, def.class, explicit, byte.class);
+            } else if (expected == Object.class && internal) {
+                return PainlessCast.boxOriginalType(Byte.class, Object.class, explicit, byte.class);
+            } else if (expected == Number.class && internal) {
+                return PainlessCast.boxOriginalType(Byte.class, Number.class, explicit, byte.class);
+            } else if (expected == short.class) {
+                return PainlessCast.originalTypetoTargetType(byte.class, short.class, explicit);
+            } else if (expected == char.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(byte.class, char.class, true);
+            } else if (expected == int.class) {
+                return PainlessCast.originalTypetoTargetType(byte.class, int.class, explicit);
+            } else if (expected == long.class) {
+                return PainlessCast.originalTypetoTargetType(byte.class, long.class, explicit);
+            } else if (expected == float.class) {
+                return PainlessCast.originalTypetoTargetType(byte.class, float.class, explicit);
+            } else if (expected == double.class) {
+                return PainlessCast.originalTypetoTargetType(byte.class, double.class, explicit);
+            } else if (expected == Byte.class && internal) {
+                return PainlessCast.boxTargetType(byte.class, byte.class, explicit, byte.class);
+            } else if (expected == Short.class && internal) {
+                return PainlessCast.boxTargetType(byte.class, short.class, explicit, short.class);
+            } else if (expected == Integer.class && internal) {
+                return PainlessCast.boxTargetType(byte.class, int.class, explicit, int.class);
+            } else if (expected == Long.class && internal) {
+                return PainlessCast.boxTargetType(byte.class, long.class, explicit, long.class);
+            } else if (expected == Float.class && internal) {
+                return PainlessCast.boxTargetType(byte.class, float.class, explicit, float.class);
+            } else if (expected == Double.class && internal) {
+                return PainlessCast.boxTargetType(byte.class, double.class, explicit, double.class);
             }
-        } else if (actual.clazz == boolean.class) {
-            if (expected.dynamic) {
-                return new Cast(BOOLEAN_OBJ_TYPE, DEF_TYPE, explicit, null, null, BOOLEAN_TYPE, null);
-            } else if (expected.clazz == Object.class && internal) {
-                return new Cast(BOOLEAN_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, BOOLEAN_TYPE, null);
-            } else if (expected.clazz == Boolean.class && internal) {
-                return new Cast(BOOLEAN_TYPE, BOOLEAN_TYPE, explicit, null, null, null, BOOLEAN_TYPE);
+        } else if (actual == short.class) {
+            if (expected == def.class) {
+                return PainlessCast.boxOriginalType(Short.class, def.class, explicit, short.class);
+            } else if (expected == Object.class && internal) {
+                return PainlessCast.boxOriginalType(Short.class, Object.class, explicit, short.class);
+            } else if (expected == Number.class && internal) {
+                return PainlessCast.boxOriginalType(Short.class, Number.class, explicit, short.class);
+            } else if (expected == byte.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(short.class, byte.class, true);
+            } else if (expected == char.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(short.class, char.class, true);
+            } else if (expected == int.class) {
+                return PainlessCast.originalTypetoTargetType(short.class, int.class, explicit);
+            } else if (expected == long.class) {
+                return PainlessCast.originalTypetoTargetType(short.class, long.class, explicit);
+            } else if (expected == float.class) {
+                return PainlessCast.originalTypetoTargetType(short.class, float.class, explicit);
+            } else if (expected == double.class) {
+                return PainlessCast.originalTypetoTargetType(short.class, double.class, explicit);
+            } else if (expected == Short.class && internal) {
+                return PainlessCast.boxTargetType(short.class, short.class, explicit, short.class);
+            } else if (expected == Integer.class && internal) {
+                return PainlessCast.boxTargetType(short.class, int.class, explicit, int.class);
+            } else if (expected == Long.class && internal) {
+                return PainlessCast.boxTargetType(short.class, long.class, explicit, long.class);
+            } else if (expected == Float.class && internal) {
+                return PainlessCast.boxTargetType(short.class, float.class, explicit, float.class);
+            } else if (expected == Double.class && internal) {
+                return PainlessCast.boxTargetType(short.class, double.class, explicit, double.class);
             }
-        } else if (actual.clazz == byte.class) {
-            if (expected.dynamic) {
-                return new Cast(BYTE_OBJ_TYPE, DEF_TYPE, explicit, null, null, BYTE_TYPE, null);
-            } else if (expected.clazz == Object.class && internal) {
-                return new Cast(BYTE_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, BYTE_TYPE, null);
-            } else if (expected.clazz == Number.class && internal) {
-                return new Cast(BYTE_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, BYTE_TYPE, null);
-            } else if (expected.clazz == short.class) {
-                return new Cast(BYTE_TYPE, SHORT_TYPE, explicit);
-            } else if (expected.clazz == char.class && explicit) {
-                return new Cast(BYTE_TYPE, CHAR_TYPE, true);
-            } else if (expected.clazz == int.class) {
-                return new Cast(BYTE_TYPE, INT_TYPE, explicit);
-            } else if (expected.clazz == long.class) {
-                return new Cast(BYTE_TYPE, LONG_TYPE, explicit);
-            } else if (expected.clazz == float.class) {
-                return new Cast(BYTE_TYPE, FLOAT_TYPE, explicit);
-            } else if (expected.clazz == double.class) {
-                return new Cast(BYTE_TYPE, DOUBLE_TYPE, explicit);
-            } else if (expected.clazz == Byte.class && internal) {
-                return new Cast(BYTE_TYPE, BYTE_TYPE, explicit, null, null, null, BYTE_TYPE);
-            } else if (expected.clazz == Short.class && internal) {
-                return new Cast(BYTE_TYPE, SHORT_TYPE, explicit, null, null, null, SHORT_TYPE);
-            } else if (expected.clazz == Character.class && explicit && internal) {
-                return new Cast(BYTE_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-            } else if (expected.clazz == Integer.class && internal) {
-                return new Cast(BYTE_TYPE, INT_TYPE, explicit, null, null, null, INT_TYPE);
-            } else if (expected.clazz == Long.class && internal) {
-                return new Cast(BYTE_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
-            } else if (expected.clazz == Float.class && internal) {
-                return new Cast(BYTE_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
-            } else if (expected.clazz == Double.class && internal) {
-                return new Cast(BYTE_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+        } else if (actual == char.class) {
+            if (expected == def.class) {
+                return PainlessCast.boxOriginalType(Character.class, def.class, explicit, char.class);
+            } else if (expected == Object.class && internal) {
+                return PainlessCast.boxOriginalType(Character.class, Object.class, explicit, char.class);
+            } else if (expected == Number.class && internal) {
+                return PainlessCast.boxOriginalType(Character.class, Number.class, explicit, char.class);
+            } else if (expected == String.class) {
+                return PainlessCast.originalTypetoTargetType(char.class, String.class, explicit);
+            } else if (expected == byte.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(char.class, byte.class, true);
+            } else if (expected == short.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(char.class, short.class, true);
+            } else if (expected == int.class) {
+                return PainlessCast.originalTypetoTargetType(char.class, int.class, explicit);
+            } else if (expected == long.class) {
+                return PainlessCast.originalTypetoTargetType(char.class, long.class, explicit);
+            } else if (expected == float.class) {
+                return PainlessCast.originalTypetoTargetType(char.class, float.class, explicit);
+            } else if (expected == double.class) {
+                return PainlessCast.originalTypetoTargetType(char.class, double.class, explicit);
+            } else if (expected == Character.class && internal) {
+                return PainlessCast.boxTargetType(char.class, char.class, true, char.class);
+            } else if (expected == Integer.class && internal) {
+                return PainlessCast.boxTargetType(char.class, int.class, explicit, int.class);
+            } else if (expected == Long.class && internal) {
+                return PainlessCast.boxTargetType(char.class, long.class, explicit, long.class);
+            } else if (expected == Float.class && internal) {
+                return PainlessCast.boxTargetType(char.class, float.class, explicit, float.class);
+            } else if (expected == Double.class && internal) {
+                return PainlessCast.boxTargetType(char.class, double.class, explicit, double.class);
             }
-        } else if (actual.clazz == short.class) {
-            if (expected.dynamic) {
-                return new Cast(SHORT_OBJ_TYPE, DEF_TYPE, explicit, null, null, SHORT_TYPE, null);
-            } else if (expected.clazz == Object.class && internal) {
-                return new Cast(SHORT_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, SHORT_TYPE, null);
-            } else if (expected.clazz == Number.class && internal) {
-                return new Cast(SHORT_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, SHORT_TYPE, null);
-            } else if (expected.clazz == byte.class && explicit) {
-                return new Cast(SHORT_TYPE, BYTE_TYPE, true);
-            } else if (expected.clazz == char.class && explicit) {
-                return new Cast(SHORT_TYPE, CHAR_TYPE, true);
-            } else if (expected.clazz == int.class) {
-                return new Cast(SHORT_TYPE, INT_TYPE, explicit);
-            } else if (expected.clazz == long.class) {
-                return new Cast(SHORT_TYPE, LONG_TYPE, explicit);
-            } else if (expected.clazz == float.class) {
-                return new Cast(SHORT_TYPE, FLOAT_TYPE, explicit);
-            } else if (expected.clazz == double.class) {
-                return new Cast(SHORT_TYPE, DOUBLE_TYPE, explicit);
-            } else if (expected.clazz == Byte.class && explicit && internal) {
-                return new Cast(SHORT_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
-            } else if (expected.clazz == Short.class && internal) {
-                return new Cast(SHORT_TYPE, SHORT_TYPE, explicit, null, null, null, SHORT_TYPE);
-            } else if (expected.clazz == Character.class && explicit && internal) {
-                return new Cast(SHORT_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-            } else if (expected.clazz == Integer.class && internal) {
-                return new Cast(SHORT_TYPE, INT_TYPE, explicit, null, null, null, INT_TYPE);
-            } else if (expected.clazz == Long.class && internal) {
-                return new Cast(SHORT_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
-            } else if (expected.clazz == Float.class && internal) {
-                return new Cast(SHORT_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
-            } else if (expected.clazz == Double.class && internal) {
-                return new Cast(SHORT_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+        } else if (actual == int.class) {
+            if (expected == def.class) {
+                return PainlessCast.boxOriginalType(Integer.class, def.class, explicit, int.class);
+            } else if (expected == Object.class && internal) {
+                return PainlessCast.boxOriginalType(Integer.class, Object.class, explicit, int.class);
+            } else if (expected == Number.class && internal) {
+                return PainlessCast.boxOriginalType(Integer.class, Number.class, explicit, int.class);
+            } else if (expected == byte.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(int.class, byte.class, true);
+            } else if (expected == char.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(int.class, char.class, true);
+            } else if (expected == short.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(int.class, short.class, true);
+            } else if (expected == long.class) {
+                return PainlessCast.originalTypetoTargetType(int.class, long.class, explicit);
+            } else if (expected == float.class) {
+                return PainlessCast.originalTypetoTargetType(int.class, float.class, explicit);
+            } else if (expected == double.class) {
+                return PainlessCast.originalTypetoTargetType(int.class, double.class, explicit);
+            } else if (expected == Integer.class && internal) {
+                return PainlessCast.boxTargetType(int.class, int.class, explicit, int.class);
+            } else if (expected == Long.class && internal) {
+                return PainlessCast.boxTargetType(int.class, long.class, explicit, long.class);
+            } else if (expected == Float.class && internal) {
+                return PainlessCast.boxTargetType(int.class, float.class, explicit, float.class);
+            } else if (expected == Double.class && internal) {
+                return PainlessCast.boxTargetType(int.class, double.class, explicit, double.class);
             }
-        } else if (actual.clazz == char.class) {
-            if (expected.dynamic) {
-                return new Cast(CHAR_OBJ_TYPE, DEF_TYPE, explicit, null, null, CHAR_TYPE, null);
-            } else if (expected.clazz == Object.class && internal) {
-                return new Cast(CHAR_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, CHAR_TYPE, null);
-            } else if (expected.clazz == Number.class && internal) {
-                return new Cast(CHAR_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, CHAR_TYPE, null);
-            } else if (expected.clazz == String.class) {
-                return new Cast(CHAR_TYPE, STRING_TYPE, explicit);
-            } else if (expected.clazz == byte.class && explicit) {
-                return new Cast(CHAR_TYPE, BYTE_TYPE, true);
-            } else if (expected.clazz == short.class && explicit) {
-                return new Cast(CHAR_TYPE, SHORT_TYPE, true);
-            } else if (expected.clazz == int.class) {
-                return new Cast(CHAR_TYPE, INT_TYPE, explicit);
-            } else if (expected.clazz == long.class) {
-                return new Cast(CHAR_TYPE, LONG_TYPE, explicit);
-            } else if (expected.clazz == float.class) {
-                return new Cast(CHAR_TYPE, FLOAT_TYPE, explicit);
-            } else if (expected.clazz == double.class) {
-                return new Cast(CHAR_TYPE, DOUBLE_TYPE, explicit);
-            } else if (expected.clazz == Byte.class && explicit && internal) {
-                return new Cast(CHAR_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
-            } else if (expected.clazz == Short.class && internal) {
-                return new Cast(CHAR_TYPE, SHORT_TYPE, explicit, null, null, null, SHORT_TYPE);
-            } else if (expected.clazz == Character.class && internal) {
-                return new Cast(CHAR_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-            } else if (expected.clazz == Integer.class && internal) {
-                return new Cast(CHAR_TYPE, INT_TYPE, explicit, null, null, null, INT_TYPE);
-            } else if (expected.clazz == Long.class && internal) {
-                return new Cast(CHAR_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
-            } else if (expected.clazz == Float.class && internal) {
-                return new Cast(CHAR_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
-            } else if (expected.clazz == Double.class && internal) {
-                return new Cast(CHAR_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+        } else if (actual == long.class) {
+            if (expected == def.class) {
+                return PainlessCast.boxOriginalType(Long.class, def.class, explicit, long.class);
+            } else if (expected == Object.class && internal) {
+                return PainlessCast.boxOriginalType(Long.class, Object.class, explicit, long.class);
+            } else if (expected == Number.class && internal) {
+                return PainlessCast.boxOriginalType(Long.class, Number.class, explicit, long.class);
+            } else if (expected == byte.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(long.class, byte.class, true);
+            } else if (expected == char.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(long.class, char.class, true);
+            } else if (expected == short.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(long.class, short.class, true);
+            } else if (expected == int.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(long.class, int.class, true);
+            } else if (expected == float.class) {
+                return PainlessCast.originalTypetoTargetType(long.class, float.class, explicit);
+            } else if (expected == double.class) {
+                return PainlessCast.originalTypetoTargetType(long.class, double.class, explicit);
+            } else if (expected == Long.class && internal) {
+                return PainlessCast.boxTargetType(long.class, long.class, explicit, long.class);
+            } else if (expected == Float.class && internal) {
+                return PainlessCast.boxTargetType(long.class, float.class, explicit, float.class);
+            } else if (expected == Double.class && internal) {
+                return PainlessCast.boxTargetType(long.class, double.class, explicit, double.class);
             }
-        } else if (actual.clazz == int.class) {
-            if (expected.dynamic) {
-                return new Cast(INT_OBJ_TYPE, DEF_TYPE, explicit, null, null, INT_TYPE, null);
-            } else if (expected.clazz == Object.class && internal) {
-                return new Cast(INT_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, INT_TYPE, null);
-            } else if (expected.clazz == Number.class && internal) {
-                return new Cast(INT_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, INT_TYPE, null);
-            } else if (expected.clazz == byte.class && explicit) {
-                return new Cast(INT_TYPE, BYTE_TYPE, true);
-            } else if (expected.clazz == char.class && explicit) {
-                return new Cast(INT_TYPE, CHAR_TYPE, true);
-            } else if (expected.clazz == short.class && explicit) {
-                return new Cast(INT_TYPE, SHORT_TYPE, true);
-            } else if (expected.clazz == long.class) {
-                return new Cast(INT_TYPE, LONG_TYPE, explicit);
-            } else if (expected.clazz == float.class) {
-                return new Cast(INT_TYPE, FLOAT_TYPE, explicit);
-            } else if (expected.clazz == double.class) {
-                return new Cast(INT_TYPE, DOUBLE_TYPE, explicit);
-            } else if (expected.clazz == Byte.class && explicit && internal) {
-                return new Cast(INT_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
-            } else if (expected.clazz == Short.class && explicit && internal) {
-                return new Cast(INT_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
-            } else if (expected.clazz == Character.class && explicit && internal) {
-                return new Cast(INT_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-            } else if (expected.clazz == Integer.class && internal) {
-                return new Cast(INT_TYPE, INT_TYPE, explicit, null, null, null, INT_TYPE);
-            } else if (expected.clazz == Long.class && internal) {
-                return new Cast(INT_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
-            } else if (expected.clazz == Float.class && internal) {
-                return new Cast(INT_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
-            } else if (expected.clazz == Double.class && internal) {
-                return new Cast(INT_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+        } else if (actual == float.class) {
+            if (expected == def.class) {
+                return PainlessCast.boxOriginalType(Float.class, def.class, explicit, float.class);
+            } else if (expected == Object.class && internal) {
+                return PainlessCast.boxOriginalType(Float.class, Object.class, explicit, float.class);
+            } else if (expected == Number.class && internal) {
+                return PainlessCast.boxOriginalType(Float.class, Number.class, explicit, float.class);
+            } else if (expected == byte.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(float.class, byte.class, true);
+            } else if (expected == char.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(float.class, char.class, true);
+            } else if (expected == short.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(float.class, short.class, true);
+            } else if (expected == int.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(float.class, int.class, true);
+            } else if (expected == long.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(float.class, long.class, true);
+            } else if (expected == double.class) {
+                return PainlessCast.originalTypetoTargetType(float.class, double.class, explicit);
+            } else if (expected == Float.class && internal) {
+                return PainlessCast.boxTargetType(float.class, float.class, explicit, float.class);
+            } else if (expected == Double.class && internal) {
+                return PainlessCast.boxTargetType(float.class, double.class, explicit, double.class);
             }
-        } else if (actual.clazz == long.class) {
-            if (expected.dynamic) {
-                return new Cast(LONG_OBJ_TYPE, DEF_TYPE, explicit, null, null, LONG_TYPE, null);
-            } else if (expected.clazz == Object.class && internal) {
-                return new Cast(LONG_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, LONG_TYPE, null);
-            } else if (expected.clazz == Number.class && internal) {
-                return new Cast(LONG_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, LONG_TYPE, null);
-            } else if (expected.clazz == byte.class && explicit) {
-                return new Cast(LONG_TYPE, BYTE_TYPE, true);
-            } else if (expected.clazz == char.class && explicit) {
-                return new Cast(LONG_TYPE, CHAR_TYPE, true);
-            } else if (expected.clazz == short.class && explicit) {
-                return new Cast(LONG_TYPE, SHORT_TYPE, true);
-            } else if (expected.clazz == int.class && explicit) {
-                return new Cast(LONG_TYPE, INT_TYPE, true);
-            } else if (expected.clazz == float.class) {
-                return new Cast(LONG_TYPE, FLOAT_TYPE, explicit);
-            } else if (expected.clazz == double.class) {
-                return new Cast(LONG_TYPE, DOUBLE_TYPE, explicit);
-            } else if (expected.clazz == Byte.class && explicit && internal) {
-                return new Cast(LONG_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
-            } else if (expected.clazz == Short.class && explicit && internal) {
-                return new Cast(LONG_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
-            } else if (expected.clazz == Character.class && explicit && internal) {
-                return new Cast(LONG_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-            } else if (expected.clazz == Integer.class && explicit && internal) {
-                return new Cast(LONG_TYPE, INT_TYPE, true, null, null, null, INT_TYPE);
-            } else if (expected.clazz == Long.class && internal) {
-                return new Cast(LONG_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
-            } else if (expected.clazz == Float.class && internal) {
-                return new Cast(LONG_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
-            } else if (expected.clazz == Double.class && internal) {
-                return new Cast(LONG_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+        } else if (actual == double.class) {
+            if (expected == def.class) {
+                return PainlessCast.boxOriginalType(Double.class, def.class, explicit, double.class);
+            } else if (expected == Object.class && internal) {
+                return PainlessCast.boxOriginalType(Double.class, Object.class, explicit, double.class);
+            } else if (expected == Number.class && internal) {
+                return PainlessCast.boxOriginalType(Double.class, Number.class, explicit, double.class);
+            } else if (expected == byte.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(double.class, byte.class, true);
+            } else if (expected == char.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(double.class, char.class, true);
+            } else if (expected == short.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(double.class, short.class, true);
+            } else if (expected == int.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(double.class, int.class, true);
+            } else if (expected == long.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(double.class, long.class, true);
+            } else if (expected == float.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(double.class, float.class, true);
+            } else if (expected == Double.class && internal) {
+                return PainlessCast.boxTargetType(double.class, double.class, explicit, double.class);
             }
-        } else if (actual.clazz == float.class) {
-            if (expected.dynamic) {
-                return new Cast(FLOAT_OBJ_TYPE, DEF_TYPE, explicit, null, null, FLOAT_TYPE, null);
-            } else if (expected.clazz == Object.class && internal) {
-                return new Cast(FLOAT_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, FLOAT_TYPE, null);
-            } else if (expected.clazz == Number.class && internal) {
-                return new Cast(FLOAT_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, FLOAT_TYPE, null);
-            } else if (expected.clazz == byte.class && explicit) {
-                return new Cast(FLOAT_TYPE, BYTE_TYPE, true);
-            } else if (expected.clazz == char.class && explicit) {
-                return new Cast(FLOAT_TYPE, CHAR_TYPE, true);
-            } else if (expected.clazz == short.class && explicit) {
-                return new Cast(FLOAT_TYPE, SHORT_TYPE, true);
-            } else if (expected.clazz == int.class && explicit) {
-                return new Cast(FLOAT_TYPE, INT_TYPE, true);
-            } else if (expected.clazz == long.class && explicit) {
-                return new Cast(FLOAT_TYPE, LONG_TYPE, true);
-            } else if (expected.clazz == double.class) {
-                return new Cast(FLOAT_TYPE, DOUBLE_TYPE, explicit);
-            } else if (expected.clazz == Byte.class && explicit && internal) {
-                return new Cast(FLOAT_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
-            } else if (expected.clazz == Short.class && explicit && internal) {
-                return new Cast(FLOAT_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
-            } else if (expected.clazz == Character.class && explicit && internal) {
-                return new Cast(FLOAT_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-            } else if (expected.clazz == Integer.class && explicit && internal) {
-                return new Cast(FLOAT_TYPE, INT_TYPE, true, null, null, null, INT_TYPE);
-            } else if (expected.clazz == Long.class && explicit && internal) {
-                return new Cast(FLOAT_TYPE, LONG_TYPE, true, null, null, null, LONG_TYPE);
-            } else if (expected.clazz == Float.class && internal) {
-                return new Cast(FLOAT_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
-            } else if (expected.clazz == Double.class && internal) {
-                return new Cast(FLOAT_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+        } else if (actual == Boolean.class) {
+            if (expected == boolean.class && internal) {
+                return PainlessCast.unboxOriginalType(boolean.class, boolean.class, explicit, boolean.class);
             }
-        } else if (actual.clazz == double.class) {
-            if (expected.dynamic) {
-                return new Cast(DOUBLE_OBJ_TYPE, DEF_TYPE, explicit, null, null, DOUBLE_TYPE, null);
-            } else if (expected.clazz == Object.class && internal) {
-                return new Cast(DOUBLE_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, DOUBLE_TYPE, null);
-            } else if (expected.clazz == Number.class && internal) {
-                return new Cast(DOUBLE_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, DOUBLE_TYPE, null);
-            } else if (expected.clazz == byte.class && explicit) {
-                return new Cast(DOUBLE_TYPE, BYTE_TYPE, true);
-            } else if (expected.clazz == char.class && explicit) {
-                return new Cast(DOUBLE_TYPE, CHAR_TYPE, true);
-            } else if (expected.clazz == short.class && explicit) {
-                return new Cast(DOUBLE_TYPE, SHORT_TYPE, true);
-            } else if (expected.clazz == int.class && explicit) {
-                return new Cast(DOUBLE_TYPE, INT_TYPE, true);
-            } else if (expected.clazz == long.class && explicit) {
-                return new Cast(DOUBLE_TYPE, LONG_TYPE, true);
-            } else if (expected.clazz == float.class && explicit) {
-                return new Cast(DOUBLE_TYPE, FLOAT_TYPE, true);
-            } else if (expected.clazz == Byte.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
-            } else if (expected.clazz == Short.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
-            } else if (expected.clazz == Character.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-            } else if (expected.clazz == Integer.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, INT_TYPE, true, null, null, null, INT_TYPE);
-            } else if (expected.clazz == Long.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, LONG_TYPE, true, null, null, null, LONG_TYPE);
-            } else if (expected.clazz == Float.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, FLOAT_TYPE, true, null, null, null, FLOAT_TYPE);
-            } else if (expected.clazz == Double.class && internal) {
-                return new Cast(DOUBLE_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+        } else if (actual == Byte.class) {
+            if (expected == byte.class && internal) {
+                return PainlessCast.unboxOriginalType(byte.class, byte.class, explicit, byte.class);
+            } else if (expected == short.class && internal) {
+                return PainlessCast.unboxOriginalType(byte.class, short.class, explicit, byte.class);
+            } else if (expected == int.class && internal) {
+                return PainlessCast.unboxOriginalType(byte.class, int.class, explicit, byte.class);
+            } else if (expected == long.class && internal) {
+                return PainlessCast.unboxOriginalType(byte.class, long.class, explicit, byte.class);
+            } else if (expected == float.class && internal) {
+                return PainlessCast.unboxOriginalType(byte.class, float.class, explicit, byte.class);
+            } else if (expected == double.class && internal) {
+                return PainlessCast.unboxOriginalType(byte.class, double.class, explicit, byte.class);
+            } else if (expected == Short.class && internal) {
+                return PainlessCast.unboxOriginalTypeToBoxTargetType(explicit, byte.class, short.class);
+            } else if (expected == Integer.class && internal) {
+                return PainlessCast.unboxOriginalTypeToBoxTargetType(explicit, byte.class, int.class);
+            } else if (expected == Long.class && internal) {
+                return PainlessCast.unboxOriginalTypeToBoxTargetType(explicit, byte.class, long.class);
+            } else if (expected == Float.class && internal) {
+                return PainlessCast.unboxOriginalTypeToBoxTargetType(explicit, byte.class, float.class);
+            } else if (expected == Double.class && internal) {
+                return PainlessCast.unboxOriginalTypeToBoxTargetType(explicit, byte.class, double.class);
             }
-        } else if (actual.clazz == Boolean.class) {
-            if (expected.clazz == boolean.class && internal) {
-                return new Cast(BOOLEAN_TYPE, BOOLEAN_TYPE, explicit, BOOLEAN_TYPE, null, null, null);
+        } else if (actual == Short.class) {
+            if (expected == short.class && internal) {
+                return PainlessCast.unboxOriginalType(short.class, short.class, explicit, short.class);
+            } else if (expected == int.class && internal) {
+                return PainlessCast.unboxOriginalType(short.class, int.class, explicit, short.class);
+            } else if (expected == long.class && internal) {
+                return PainlessCast.unboxOriginalType(short.class, long.class, explicit, short.class);
+            } else if (expected == float.class && internal) {
+                return PainlessCast.unboxOriginalType(short.class, float.class, explicit, short.class);
+            } else if (expected == double.class && internal) {
+                return PainlessCast.unboxOriginalType(short.class, double.class, explicit, short.class);
+            } else if (expected == Integer.class && internal) {
+                return PainlessCast.unboxOriginalTypeToBoxTargetType(explicit, short.class, int.class);
+            } else if (expected == Long.class && internal) {
+                return PainlessCast.unboxOriginalTypeToBoxTargetType(explicit, short.class, long.class);
+            } else if (expected == Float.class && internal) {
+                return PainlessCast.unboxOriginalTypeToBoxTargetType(explicit, short.class, float.class);
+            } else if (expected == Double.class && internal) {
+                return PainlessCast.unboxOriginalTypeToBoxTargetType(explicit, short.class, double.class);
             }
-        } else if (actual.clazz == Byte.class) {
-            if (expected.clazz == byte.class && internal) {
-                return new Cast(BYTE_TYPE, BYTE_TYPE, explicit, BYTE_TYPE, null, null, null);
-            } else if (expected.clazz == short.class && internal) {
-                return new Cast(BYTE_TYPE, SHORT_TYPE, explicit, BYTE_TYPE, null, null, null);
-            } else if (expected.clazz == char.class && explicit && internal) {
-                return new Cast(BYTE_TYPE, CHAR_TYPE, true, BYTE_TYPE, null, null, null);
-            } else if (expected.clazz == int.class && internal) {
-                return new Cast(BYTE_TYPE, INT_TYPE, explicit, BYTE_TYPE, null, null, null);
-            } else if (expected.clazz == long.class && internal) {
-                return new Cast(BYTE_TYPE, LONG_TYPE, explicit, BYTE_TYPE, null, null, null);
-            } else if (expected.clazz == float.class && internal) {
-                return new Cast(BYTE_TYPE, FLOAT_TYPE, explicit, BYTE_TYPE, null, null, null);
-            } else if (expected.clazz == double.class && internal) {
-                return new Cast(BYTE_TYPE, DOUBLE_TYPE, explicit, BYTE_TYPE, null, null, null);
+        } else if (actual == Character.class) {
+            if (expected == char.class && internal) {
+                return PainlessCast.unboxOriginalType(char.class, char.class, explicit, char.class);
+            } else if (expected == int.class && internal) {
+                return PainlessCast.unboxOriginalType(char.class, int.class, explicit, char.class);
+            } else if (expected == long.class && internal) {
+                return PainlessCast.unboxOriginalType(char.class, long.class, explicit, char.class);
+            } else if (expected == float.class && internal) {
+                return PainlessCast.unboxOriginalType(char.class, float.class, explicit, char.class);
+            } else if (expected == double.class && internal) {
+                return PainlessCast.unboxOriginalType(char.class, double.class, explicit, char.class);
+            } else if (expected == Integer.class && internal) {
+                return PainlessCast.unboxOriginalTypeToBoxTargetType(explicit, char.class, int.class);
+            } else if (expected == Long.class && internal) {
+                return PainlessCast.unboxOriginalTypeToBoxTargetType(explicit, char.class, long.class);
+            } else if (expected == Float.class && internal) {
+                return PainlessCast.unboxOriginalTypeToBoxTargetType(explicit, char.class, float.class);
+            } else if (expected == Double.class && internal) {
+                return PainlessCast.unboxOriginalTypeToBoxTargetType(explicit, char.class, double.class);
             }
-        } else if (actual.clazz == Short.class) {
-            if (expected.clazz == byte.class && explicit && internal) {
-                return new Cast(SHORT_TYPE, BYTE_TYPE, true, SHORT_TYPE, null, null, null);
-            } else if (expected.clazz == short.class && internal) {
-                return new Cast(SHORT_TYPE, SHORT_TYPE, explicit, SHORT_TYPE, null, null, null);
-            } else if (expected.clazz == char.class && explicit && internal) {
-                return new Cast(SHORT_TYPE, CHAR_TYPE, true, SHORT_TYPE, null, null, null);
-            } else if (expected.clazz == int.class && internal) {
-                return new Cast(SHORT_TYPE, INT_TYPE, explicit, SHORT_TYPE, null, null, null);
-            } else if (expected.clazz == long.class && internal) {
-                return new Cast(SHORT_TYPE, LONG_TYPE, explicit, SHORT_TYPE, null, null, null);
-            } else if (expected.clazz == float.class && internal) {
-                return new Cast(SHORT_TYPE, FLOAT_TYPE, explicit, SHORT_TYPE, null, null, null);
-            } else if (expected.clazz == double.class && internal) {
-                return new Cast(SHORT_TYPE, DOUBLE_TYPE, explicit, SHORT_TYPE, null, null, null);
+        } else if (actual == Integer.class) {
+            if (expected == int.class && internal) {
+                return PainlessCast.unboxOriginalType(int.class, int.class, explicit, int.class);
+            } else if (expected == long.class && internal) {
+                return PainlessCast.unboxOriginalType(int.class, long.class, explicit, int.class);
+            } else if (expected == float.class && internal) {
+                return PainlessCast.unboxOriginalType(int.class, float.class, explicit, int.class);
+            } else if (expected == double.class && internal) {
+                return PainlessCast.unboxOriginalType(int.class, double.class, explicit, int.class);
+            } else if (expected == Long.class && internal) {
+                return PainlessCast.unboxOriginalTypeToBoxTargetType(explicit, int.class, long.class);
+            } else if (expected == Float.class && internal) {
+                return PainlessCast.unboxOriginalTypeToBoxTargetType(explicit, int.class, float.class);
+            } else if (expected == Double.class && internal) {
+                return PainlessCast.unboxOriginalTypeToBoxTargetType(explicit, int.class, double.class);
             }
-        } else if (actual.clazz == Character.class) {
-            if (expected.clazz == byte.class && explicit && internal) {
-                return new Cast(CHAR_TYPE, BYTE_TYPE, true, CHAR_TYPE, null, null, null);
-            } else if (expected.clazz == short.class && explicit && internal) {
-                return new Cast(CHAR_TYPE, SHORT_TYPE, true, CHAR_TYPE, null, null, null);
-            } else if (expected.clazz == char.class && internal) {
-                return new Cast(CHAR_TYPE, CHAR_TYPE, explicit, CHAR_TYPE, null, null, null);
-            } else if (expected.clazz == int.class && internal) {
-                return new Cast(CHAR_TYPE, INT_TYPE, explicit, CHAR_TYPE, null, null, null);
-            } else if (expected.clazz == long.class && internal) {
-                return new Cast(CHAR_TYPE, LONG_TYPE, explicit, CHAR_TYPE, null, null, null);
-            } else if (expected.clazz == float.class && internal) {
-                return new Cast(CHAR_TYPE, FLOAT_TYPE, explicit, CHAR_TYPE, null, null, null);
-            } else if (expected.clazz == double.class && internal) {
-                return new Cast(CHAR_TYPE, DOUBLE_TYPE, explicit, CHAR_TYPE, null, null, null);
+        } else if (actual == Long.class) {
+            if (expected == long.class && internal) {
+                return PainlessCast.unboxOriginalType(long.class, long.class, explicit, long.class);
+            } else if (expected == float.class && internal) {
+                return PainlessCast.unboxOriginalType(long.class, float.class, explicit, long.class);
+            } else if (expected == double.class && internal) {
+                return PainlessCast.unboxOriginalType(long.class, double.class, explicit, long.class);
+            } else if (expected == Float.class && internal) {
+                return PainlessCast.unboxOriginalTypeToBoxTargetType(explicit, long.class, float.class);
+            } else if (expected == Double.class && internal) {
+                return PainlessCast.unboxOriginalTypeToBoxTargetType(explicit, long.class, double.class);
             }
-        } else if (actual.clazz == Integer.class) {
-            if (expected.clazz == byte.class && explicit && internal) {
-                return new Cast(INT_TYPE, BYTE_TYPE, true, INT_TYPE, null, null, null);
-            } else if (expected.clazz == short.class && explicit && internal) {
-                return new Cast(INT_TYPE, SHORT_TYPE, true, INT_TYPE, null, null, null);
-            } else if (expected.clazz == char.class && explicit && internal) {
-                return new Cast(INT_TYPE, CHAR_TYPE, true, INT_TYPE, null, null, null);
-            } else if (expected.clazz == int.class && internal) {
-                return new Cast(INT_TYPE, INT_TYPE, explicit, INT_TYPE, null, null, null);
-            } else if (expected.clazz == long.class && internal) {
-                return new Cast(INT_TYPE, LONG_TYPE, explicit, INT_TYPE, null, null, null);
-            } else if (expected.clazz == float.class && internal) {
-                return new Cast(INT_TYPE, FLOAT_TYPE, explicit, INT_TYPE, null, null, null);
-            } else if (expected.clazz == double.class && internal) {
-                return new Cast(INT_TYPE, DOUBLE_TYPE, explicit, INT_TYPE, null, null, null);
+        } else if (actual == Float.class) {
+            if (expected == float.class && internal) {
+                return PainlessCast.unboxOriginalType(float.class, float.class, explicit, float.class);
+            } else if (expected == double.class && internal) {
+                return PainlessCast.unboxOriginalType(float.class, double.class, explicit, float.class);
+            } else if (expected == Double.class && internal) {
+                return PainlessCast.unboxOriginalTypeToBoxTargetType(explicit, float.class, double.class);
             }
-        } else if (actual.clazz == Long.class) {
-            if (expected.clazz == byte.class && explicit && internal) {
-                return new Cast(LONG_TYPE, BYTE_TYPE, true, LONG_TYPE, null, null, null);
-            } else if (expected.clazz == short.class && explicit && internal) {
-                return new Cast(LONG_TYPE, SHORT_TYPE, true, LONG_TYPE, null, null, null);
-            } else if (expected.clazz == char.class && explicit && internal) {
-                return new Cast(LONG_TYPE, CHAR_TYPE, true, LONG_TYPE, null, null, null);
-            } else if (expected.clazz == int.class && explicit && internal) {
-                return new Cast(LONG_TYPE, INT_TYPE, true, LONG_TYPE, null, null, null);
-            } else if (expected.clazz == long.class && internal) {
-                return new Cast(LONG_TYPE, LONG_TYPE, explicit, LONG_TYPE, null, null, null);
-            } else if (expected.clazz == float.class && internal) {
-                return new Cast(LONG_TYPE, FLOAT_TYPE, explicit, LONG_TYPE, null, null, null);
-            } else if (expected.clazz == double.class && internal) {
-                return new Cast(LONG_TYPE, DOUBLE_TYPE, explicit, LONG_TYPE, null, null, null);
-            }
-        } else if (actual.clazz == Float.class) {
-            if (expected.clazz == byte.class && explicit && internal) {
-                return new Cast(FLOAT_TYPE, BYTE_TYPE, true, FLOAT_TYPE, null, null, null);
-            } else if (expected.clazz == short.class && explicit && internal) {
-                return new Cast(FLOAT_TYPE, SHORT_TYPE, true, FLOAT_TYPE, null, null, null);
-            } else if (expected.clazz == char.class && explicit && internal) {
-                return new Cast(FLOAT_TYPE, CHAR_TYPE, true, FLOAT_TYPE, null, null, null);
-            } else if (expected.clazz == int.class && explicit && internal) {
-                return new Cast(FLOAT_TYPE, INT_TYPE, true, FLOAT_TYPE, null, null, null);
-            } else if (expected.clazz == long.class && explicit && internal) {
-                return new Cast(FLOAT_TYPE, LONG_TYPE, true, FLOAT_TYPE, null, null, null);
-            } else if (expected.clazz == float.class && internal) {
-                return new Cast(FLOAT_TYPE, FLOAT_TYPE, explicit, FLOAT_TYPE, null, null, null);
-            } else if (expected.clazz == double.class && internal) {
-                return new Cast(FLOAT_TYPE, DOUBLE_TYPE, explicit, FLOAT_TYPE, null, null, null);
-            }
-        } else if (actual.clazz == Double.class) {
-            if (expected.clazz == byte.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, BYTE_TYPE, true, DOUBLE_TYPE, null, null, null);
-            } else if (expected.clazz == short.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, SHORT_TYPE, true, DOUBLE_TYPE, null, null, null);
-            } else if (expected.clazz == char.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, CHAR_TYPE, true, DOUBLE_TYPE, null, null, null);
-            } else if (expected.clazz == int.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, INT_TYPE, true, DOUBLE_TYPE, null, null, null);
-            } else if (expected.clazz == long.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, LONG_TYPE, true, DOUBLE_TYPE, null, null, null);
-            } else if (expected.clazz == float.class && explicit && internal) {
-                return new Cast(DOUBLE_TYPE, FLOAT_TYPE, true, DOUBLE_TYPE, null, null, null);
-            } else if (expected.clazz == double.class && internal) {
-                return new Cast(DOUBLE_TYPE, DOUBLE_TYPE, explicit, DOUBLE_TYPE, null, null, null);
+        } else if (actual == Double.class) {
+            if (expected == double.class && internal) {
+                return PainlessCast.unboxOriginalType(double.class, double.class, explicit, double.class);
             }
         }
 
-        if (    actual.dynamic                                   ||
-                (actual.clazz != void.class && expected.dynamic) ||
-                expected.clazz.isAssignableFrom(actual.clazz)    ||
-                (actual.clazz.isAssignableFrom(expected.clazz) && explicit)) {
-            return new Cast(actual, expected, explicit);
+        if (
+                actual == def.class                             ||
+                (actual != void.class && expected == def.class) ||
+                expected.isAssignableFrom(actual)               ||
+                (actual.isAssignableFrom(expected) && explicit)
+        ) {
+            return PainlessCast.originalTypetoTargetType(actual, expected, explicit);
         } else {
-            throw location.createError(new ClassCastException("Cannot cast from [" + actual.name + "] to [" + expected.name + "]."));
+            throw location.createError(new ClassCastException("Cannot cast from " +
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(actual) + "] to " +
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "]."));
         }
     }
 
-    public static Object constCast(Location location, final Object constant, final Cast cast) {
-        Class<?> fsort = cast.from.clazz;
-        Class<?> tsort = cast.to.clazz;
+    public static Object constCast(Location location, Object constant, PainlessCast cast) {
+        Class<?> fsort = cast.originalType;
+        Class<?> tsort = cast.targetType;
 
         if (fsort == tsort) {
             return constant;
@@ -500,7 +414,7 @@ public final class AnalyzerCaster {
         } else if (fsort == char.class && tsort == String.class) {
             return Utility.charToString((char)constant);
         } else if (fsort.isPrimitive() && fsort != boolean.class && tsort.isPrimitive() && tsort != boolean.class) {
-            final Number number;
+            Number number;
 
             if (fsort == char.class) {
                 number = (int)(char)constant;
@@ -517,232 +431,209 @@ public final class AnalyzerCaster {
             else if (tsort == double.class) return number.doubleValue();
             else {
                 throw location.createError(new IllegalStateException("Cannot cast from " +
-                    "[" + cast.from.clazz.getCanonicalName() + "] to [" + cast.to.clazz.getCanonicalName() + "]."));
+                    "[" + cast.originalType.getCanonicalName() + "] to [" + cast.targetType.getCanonicalName() + "]."));
             }
         } else {
             throw location.createError(new IllegalStateException("Cannot cast from " +
-                "[" + cast.from.clazz.getCanonicalName() + "] to [" + cast.to.clazz.getCanonicalName() + "]."));
+                "[" + cast.originalType.getCanonicalName() + "] to [" + cast.targetType.getCanonicalName() + "]."));
         }
     }
 
-    public static Type promoteNumeric(Type from, boolean decimal) {
-        Class<?> sort = from.clazz;
-
-        if (from.dynamic) {
-            return DEF_TYPE;
-        } else if ((sort == double.class) && decimal) {
-            return DOUBLE_TYPE;
-        } else if ((sort == float.class) && decimal) {
-            return  FLOAT_TYPE;
-        } else if (sort == long.class) {
-            return LONG_TYPE;
-        } else if (sort == int.class || sort == char.class || sort == short.class || sort == byte.class) {
-            return INT_TYPE;
+    public static Class<?> promoteNumeric(Class<?> from, boolean decimal) {
+        if (from == def.class || from == double.class && decimal || from == float.class && decimal || from == long.class) {
+            return from;
+        } else if (from == int.class || from == char.class || from == short.class || from == byte.class) {
+            return int.class;
         }
 
         return null;
     }
 
-    public static Type promoteNumeric(Type from0, Type from1, boolean decimal) {
-        Class<?> sort0 = from0.clazz;
-        Class<?> sort1 = from1.clazz;
-
-        if (from0.dynamic || from1.dynamic) {
-            return DEF_TYPE;
+    public static Class<?> promoteNumeric(Class<?> from0, Class<?> from1, boolean decimal) {
+        if (from0 == def.class || from1 == def.class) {
+            return def.class;
         }
 
         if (decimal) {
-            if (sort0 == double.class || sort1 == double.class) {
-                return DOUBLE_TYPE;
-            } else if (sort0 == float.class || sort1 == float.class) {
-                return FLOAT_TYPE;
+            if (from0 == double.class || from1 == double.class) {
+                return double.class;
+            } else if (from0 == float.class || from1 == float.class) {
+                return float.class;
             }
         }
 
-        if (sort0 == long.class || sort1 == long.class) {
-            return LONG_TYPE;
-        } else if (sort0 == int.class   || sort1 == int.class   ||
-                   sort0 == char.class  || sort1 == char.class  ||
-                   sort0 == short.class || sort1 == short.class ||
-                   sort0 == byte.class  || sort1 == byte.class) {
-            return INT_TYPE;
+        if (from0 == long.class || from1 == long.class) {
+            return long.class;
+        } else if (from0 == int.class   || from1 == int.class   ||
+                   from0 == char.class  || from1 == char.class  ||
+                   from0 == short.class || from1 == short.class ||
+                   from0 == byte.class  || from1 == byte.class) {
+            return int.class;
         }
 
         return null;
     }
 
-    public static Type promoteAdd(Type from0, Type from1) {
-        Class<?> sort0 = from0.clazz;
-        Class<?> sort1 = from1.clazz;
-
-        if (sort0 == String.class || sort1 == String.class) {
-            return STRING_TYPE;
+    public static Class<?> promoteAdd(Class<?> from0, Class<?> from1) {
+        if (from0 == String.class || from1 == String.class) {
+            return String.class;
         }
 
         return promoteNumeric(from0, from1, true);
     }
 
-    public static Type promoteXor(Type from0, Type from1) {
-        Class<?> sort0 = from0.clazz;
-        Class<?> sort1 = from1.clazz;
-
-        if (from0.dynamic || from1.dynamic) {
-            return DEF_TYPE;
+    public static Class<?> promoteXor(Class<?> from0, Class<?> from1) {
+        if (from0 == def.class || from1 == def.class) {
+            return def.class;
         }
 
-        if (sort0 == boolean.class || sort1 == boolean.class) {
-            return BOOLEAN_TYPE;
+        if (from0 == boolean.class || from1 == boolean.class) {
+            return boolean.class;
         }
 
         return promoteNumeric(from0, from1, false);
     }
 
-    public static Type promoteEquality(Type from0, Type from1) {
-        Class<?> sort0 = from0.clazz;
-        Class<?> sort1 = from1.clazz;
-
-        if (from0.dynamic || from1.dynamic) {
-            return DEF_TYPE;
+    public static Class<?> promoteEquality(Class<?> from0, Class<?> from1) {
+        if (from0 == def.class || from1 == def.class) {
+            return def.class;
         }
 
-        if (sort0.isPrimitive() && sort1.isPrimitive()) {
-            if (sort0 == boolean.class && sort1 == boolean.class) {
-                return BOOLEAN_TYPE;
+        if (from0.isPrimitive() && from1.isPrimitive()) {
+            if (from0 == boolean.class && from1 == boolean.class) {
+                return boolean.class;
             }
 
             return promoteNumeric(from0, from1, true);
         }
 
-        return OBJECT_TYPE;
+        return Object.class;
     }
 
-    public static Type promoteConditional(Type from0, Type from1, Object const0, Object const1) {
-        if (from0.equals(from1)) {
+    public static Class<?> promoteConditional(Class<?> from0, Class<?> from1, Object const0, Object const1) {
+        if (from0 == from1) {
             return from0;
         }
 
-        Class<?> sort0 = from0.clazz;
-        Class<?> sort1 = from1.clazz;
-
-        if (from0.dynamic || from1.dynamic) {
-            return DEF_TYPE;
+        if (from0 == def.class || from1 == def.class) {
+            return def.class;
         }
 
-        if (sort0.isPrimitive() && sort1.isPrimitive()) {
-            if (sort0 == boolean.class && sort1 == boolean.class) {
-                return BOOLEAN_TYPE;
+        if (from0.isPrimitive() && from1.isPrimitive()) {
+            if (from0 == boolean.class && from1 == boolean.class) {
+                return boolean.class;
             }
 
-            if (sort0 == double.class || sort1 == double.class) {
-                return DOUBLE_TYPE;
-            } else if (sort0 == float.class || sort1 == float.class) {
-                return FLOAT_TYPE;
-            } else if (sort0 == long.class || sort1 == long.class) {
-                return LONG_TYPE;
+            if (from0 == double.class || from1 == double.class) {
+                return double.class;
+            } else if (from0 == float.class || from1 == float.class) {
+                return float.class;
+            } else if (from0 == long.class || from1 == long.class) {
+                return long.class;
             } else {
-                if (sort0 == byte.class) {
-                    if (sort1 == byte.class) {
-                        return BYTE_TYPE;
-                    } else if (sort1 == short.class) {
+                if (from0 == byte.class) {
+                    if (from1 == byte.class) {
+                        return byte.class;
+                    } else if (from1 == short.class) {
                         if (const1 != null) {
                             final short constant = (short)const1;
 
                             if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return BYTE_TYPE;
+                                return byte.class;
                             }
                         }
 
-                        return SHORT_TYPE;
-                    } else if (sort1 == char.class) {
-                        return INT_TYPE;
-                    } else if (sort1 == int.class) {
+                        return short.class;
+                    } else if (from1 == char.class) {
+                        return int.class;
+                    } else if (from1 == int.class) {
                         if (const1 != null) {
                             final int constant = (int)const1;
 
                             if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return BYTE_TYPE;
+                                return byte.class;
                             }
                         }
 
-                        return INT_TYPE;
+                        return int.class;
                     }
-                } else if (sort0 == short.class) {
-                    if (sort1 == byte.class) {
+                } else if (from0 == short.class) {
+                    if (from1 == byte.class) {
                         if (const0 != null) {
                             final short constant = (short)const0;
 
                             if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return BYTE_TYPE;
+                                return byte.class;
                             }
                         }
 
-                        return SHORT_TYPE;
-                    } else if (sort1 == short.class) {
-                        return SHORT_TYPE;
-                    } else if (sort1 == char.class) {
-                        return INT_TYPE;
-                    } else if (sort1 == int.class) {
+                        return short.class;
+                    } else if (from1 == short.class) {
+                        return short.class;
+                    } else if (from1 == char.class) {
+                        return int.class;
+                    } else if (from1 == int.class) {
                         if (const1 != null) {
                             final int constant = (int)const1;
 
                             if (constant <= Short.MAX_VALUE && constant >= Short.MIN_VALUE) {
-                                return SHORT_TYPE;
+                                return short.class;
                             }
                         }
 
-                        return INT_TYPE;
+                        return int.class;
                     }
-                } else if (sort0 == char.class) {
-                    if (sort1 == byte.class) {
-                        return INT_TYPE;
-                    } else if (sort1 == short.class) {
-                        return INT_TYPE;
-                    } else if (sort1 == char.class) {
-                        return CHAR_TYPE;
-                    } else if (sort1 == int.class) {
+                } else if (from0 == char.class) {
+                    if (from1 == byte.class) {
+                        return int.class;
+                    } else if (from1 == short.class) {
+                        return int.class;
+                    } else if (from1 == char.class) {
+                        return char.class;
+                    } else if (from1 == int.class) {
                         if (const1 != null) {
                             final int constant = (int)const1;
 
                             if (constant <= Character.MAX_VALUE && constant >= Character.MIN_VALUE) {
-                                return BYTE_TYPE;
+                                return byte.class;
                             }
                         }
 
-                        return INT_TYPE;
+                        return int.class;
                     }
-                } else if (sort0 == int.class) {
-                    if (sort1 == byte.class) {
+                } else if (from0 == int.class) {
+                    if (from1 == byte.class) {
                         if (const0 != null) {
                             final int constant = (int)const0;
 
                             if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return BYTE_TYPE;
+                                return byte.class;
                             }
                         }
 
-                        return INT_TYPE;
-                    } else if (sort1 == short.class) {
+                        return int.class;
+                    } else if (from1 == short.class) {
                         if (const0 != null) {
                             final int constant = (int)const0;
 
                             if (constant <= Short.MAX_VALUE && constant >= Short.MIN_VALUE) {
-                                return BYTE_TYPE;
+                                return byte.class;
                             }
                         }
 
-                        return INT_TYPE;
-                    } else if (sort1 == char.class) {
+                        return int.class;
+                    } else if (from1 == char.class) {
                         if (const0 != null) {
                             final int constant = (int)const0;
 
                             if (constant <= Character.MAX_VALUE && constant >= Character.MIN_VALUE) {
-                                return BYTE_TYPE;
+                                return byte.class;
                             }
                         }
 
-                        return INT_TYPE;
-                    } else if (sort1 == int.class) {
-                        return INT_TYPE;
+                        return int.class;
+                    } else if (from1 == int.class) {
+                        return int.class;
                     }
                 }
             }
@@ -752,8 +643,10 @@ public final class AnalyzerCaster {
         // TODO: to calculate the highest upper bound for the two types and return that.
         // TODO: However, for now we just return objectType that may require an extra cast.
 
-        return OBJECT_TYPE;
+        return Object.class;
     }
 
-    private AnalyzerCaster() {}
+    private AnalyzerCaster() {
+
+    }
 }

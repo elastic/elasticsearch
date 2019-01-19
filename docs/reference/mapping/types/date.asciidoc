@@ -10,6 +10,13 @@ JSON doesn't have a date datatype, so dates in Elasticsearch can either be:
 Internally, dates are converted to UTC (if the time-zone is specified) and
 stored as a long number representing milliseconds-since-the-epoch.
 
+Queries on dates are internally converted to range queries on this long
+representation, and the result of aggregations and stored fields is converted
+back to a string depending on the date format that is associated with the field.
+
+NOTE: Dates will always be rendered as strings, even if they were initially
+supplied as a long in the JSON document.
+
 Date formats can be customised, but if no `format` is specified then it uses
 the default:
 
@@ -23,10 +30,10 @@ For instance:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "date": {
           "type": "date" <1>
@@ -36,13 +43,13 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 { "date": "2015-01-01" } <2>
 
-PUT my_index/my_type/2
+PUT my_index/_doc/2
 { "date": "2015-01-01T12:10:30Z" } <3>
 
-PUT my_index/my_type/3
+PUT my_index/_doc/3
 { "date": 1420070400001 } <4>
 
 GET my_index/_search
@@ -67,10 +74,10 @@ into a string.
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "date": {
           "type":   "date",

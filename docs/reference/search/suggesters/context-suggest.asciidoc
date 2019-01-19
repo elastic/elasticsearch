@@ -13,15 +13,18 @@ Every context mapping has a unique name and a type. There are two types: `catego
 and `geo`. Context mappings are configured under the `contexts` parameter in
 the field mapping.
 
+NOTE: It is mandatory to provide a context when indexing and querying
+      a context enabled completion field.
+
 The following defines types, each with two context mappings for a completion
 field:
 
 [source,js]
 --------------------------------------------------
-PUT place
+PUT place?include_type_name=true
 {
     "mappings": {
-        "shops" : {
+        "_doc" : {
             "properties" : {
                 "suggest" : {
                     "type" : "completion",
@@ -41,10 +44,10 @@ PUT place
         }
     }
 }
-PUT place_path_category
+PUT place_path_category?include_type_name=true
 {
     "mappings": {
-        "shops" : {
+        "_doc" : {
             "properties" : {
                 "suggest" : {
                     "type" : "completion",
@@ -97,7 +100,7 @@ be sent in the suggest field like this:
 
 [source,js]
 --------------------------------------------------
-PUT place/shops/1
+PUT place/_doc/1
 {
     "suggest": {
         "input": ["timmy's", "starbucks", "dunkin donuts"],
@@ -115,7 +118,7 @@ add the categories:
 
 [source,js]
 --------------------------------------------------
-PUT place_path_category/shops/1
+PUT place_path_category/_doc/1
 {
     "suggest": ["timmy's", "starbucks", "dunkin donuts"],
     "cat": ["cafe", "food"] <1>
@@ -156,9 +159,9 @@ POST place/_search?pretty
 // CONSOLE
 // TEST[continued]
 
-NOTE: When no categories are provided at query-time, all indexed documents are considered.
-Querying with no categories on a category enabled completion field should be avoided, as it
-will degrade search performance.
+NOTE: If multiple categories or category contexts are set on the query
+they are merged as a disjunction. This means that suggestions match
+if they contain at least one of the provided context values.
 
 Suggestions with certain categories can be boosted higher than others.
 The following filters suggestions by categories and additionally boosts
@@ -214,6 +217,9 @@ multiple category context clauses. The following parameters are supported for a
     so on, by specifying a category prefix of 'type'.
     Defaults to `false`
 
+NOTE: If a suggestion entry matches multiple contexts the final score is computed as the
+maximum score produced by any matching contexts.
+
 [[suggester-context-geo]]
 [float]
 ==== Geo location Context
@@ -248,7 +254,7 @@ with two geo location contexts:
 
 [source,js]
 --------------------------------------------------
-PUT place/shops/1
+PUT place/_doc/1
 {
     "suggest": {
         "input": "timmy's",
@@ -303,6 +309,10 @@ POST place/_search
 NOTE: When a location with a lower precision at query time is specified, all suggestions
 that fall within the area will be considered.
 
+NOTE: If multiple categories or category contexts are set on the query
+they are merged as a disjunction. This means that suggestions match
+if they contain at least one of the provided context values.
+
 Suggestions that are within an area represented by a geohash can also be boosted higher
 than others, as shown by the following:
 
@@ -344,6 +354,9 @@ POST place/_search?pretty
     with a precision of '2' and boosts suggestions
     that fall under the geohash representation of '(43.6624803, -79.3863353)'
     with a default precision of '6' by a factor of `2`
+
+NOTE: If a suggestion entry matches multiple contexts the final score is computed as the
+maximum score produced by any matching contexts.
 
 In addition to accepting context values, a context query can be composed of
 multiple context clauses. The following parameters are supported for a

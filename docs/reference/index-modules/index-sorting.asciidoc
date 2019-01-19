@@ -1,9 +1,7 @@
 [[index-modules-index-sorting]]
 == Index Sorting
 
-beta[]
-
-When creating a new index in elasticsearch it is possible to configure how the Segments
+When creating a new index in Elasticsearch it is possible to configure how the Segments
 inside each Shard will be sorted. By default Lucene does not apply any sort.
 The `index.sort.*` settings define which fields should be used to sort the documents inside each Segment.
 
@@ -16,7 +14,7 @@ For instance the following example shows how to define a sort on a single field:
 
 [source,js]
 --------------------------------------------------
-PUT twitter
+PUT twitter?include_type_name=true
 {
     "settings" : {
         "index" : {
@@ -25,7 +23,7 @@ PUT twitter
         }
     },
     "mappings": {
-        "tweet": {
+        "_doc": {
             "properties": {
                 "date": {
                     "type": "date"
@@ -44,7 +42,7 @@ It is also possible to sort the index by more than one field:
 
 [source,js]
 --------------------------------------------------
-PUT twitter
+PUT twitter?include_type_name=true
 {
     "settings" : {
         "index" : {
@@ -53,7 +51,7 @@ PUT twitter
         }
     },
     "mappings": {
-        "tweet": {
+        "_doc": {
             "properties": {
                 "username": {
                     "type": "keyword",
@@ -112,7 +110,7 @@ before activating this feature.
 [[early-terminate]]
 === Early termination of search request
 
-By default in elasticsearch a search request must visit every document that match a query to
+By default in Elasticsearch a search request must visit every document that match a query to
 retrieve the top documents sorted by a specified sort.
 Though when the index sort and the search sort are the same it is possible to limit
 the number of documents that should be visited per segment to retrieve the N top ranked documents globally.
@@ -120,7 +118,7 @@ For example, let's say we have an index that contains events sorted by a timesta
 
 [source,js]
 --------------------------------------------------
-PUT events
+PUT events?include_type_name=true
 {
     "settings" : {
         "index" : {
@@ -190,8 +188,7 @@ as soon as N documents have been collected per segment.
 --------------------------------------------------
 {
   "_shards": ...
-   "hits" : {
-      "total" : -1,     <1>
+   "hits" : {  <1>
       "max_score" : null,
       "hits" : []
   },

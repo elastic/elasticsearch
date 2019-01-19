@@ -1,38 +1,42 @@
 [[ingest]]
-= Ingest Node
+= Ingest node
 
 [partintro]
 --
-You can use ingest node to pre-process documents before the actual indexing takes place.
-This pre-processing happens by an ingest node that intercepts bulk and index requests, applies the
-transformations, and then passes the documents back to the index or bulk APIs.
+Use an ingest node to pre-process documents before the actual document indexing happens. 
+The ingest node intercepts bulk and index requests, it applies transformations, and it then
+passes the documents back to the index or bulk APIs.
 
-You can enable ingest on any node or even have dedicated ingest nodes. Ingest is enabled by default
-on all nodes. To disable ingest on a node, configure the following setting in the `elasticsearch.yml` file:
+All nodes enable ingest by default, so any node can handle ingest tasks. You can also create
+dedicated ingest nodes. To disable ingest for a node, configure the following setting in the
+elasticsearch.yml file:
 
 [source,yaml]
 --------------------------------------------------
 node.ingest: false
 --------------------------------------------------
 
-To pre-process documents before indexing, you <<pipeline,define a pipeline>> that specifies
-a series of <<ingest-processors,processors>>. Each processor transforms the document in some way.
-For example, you may have a pipeline that consists of one processor that removes a field from
-the document followed by another processor that renames a field. Configured pipelines are then stored
-in the <<cluster-state,cluster state>>.
+To pre-process documents before indexing, <<pipeline,define a pipeline>> that specifies a series of
+<<ingest-processors,processors>>. Each processor transforms the document in some specific way. For example, a
+pipeline might have one processor that removes a field from the document, followed by
+another processor that renames a field. The <<cluster-state,cluster state>> then stores
+the configured pipelines.
 
-To use a pipeline, you simply specify the `pipeline` parameter on an index or bulk request to
-tell the ingest node which pipeline to use. For example:
+To use a pipeline, simply specify the `pipeline` parameter on an index or bulk request. This
+way, the ingest node knows which pipeline to use. For example:
 
 [source,js]
 --------------------------------------------------
-PUT my-index/my-type/my-id?pipeline=my_pipeline_id
+PUT my-index/_doc/my-id?pipeline=my_pipeline_id
 {
   "foo": "bar"
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[catch:bad_request]
+
+An index may also declare a <<dynamic-index-settings,default pipeline>> that will be used in the
+absence of the `pipeline` parameter.
 
 See <<ingest-apis,Ingest APIs>> for more information about creating, adding, and deleting pipelines.
 

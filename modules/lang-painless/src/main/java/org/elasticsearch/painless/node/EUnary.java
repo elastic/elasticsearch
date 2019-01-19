@@ -19,21 +19,21 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Label;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 
 import java.util.Objects;
 import java.util.Set;
-
-import org.elasticsearch.painless.MethodWriter;
-import org.objectweb.asm.Opcodes;
 
 /**
  * Represents a unary math expression.
@@ -43,7 +43,7 @@ public final class EUnary extends AExpression {
     private final Operation operation;
     private AExpression child;
 
-    private Type promote;
+    private Class<?> promote;
     private boolean originallyExplicit = false; // record whether there was originally an explicit cast
 
     public EUnary(Location location, Operation operation, AExpression child) {
@@ -76,7 +76,7 @@ public final class EUnary extends AExpression {
     }
 
     void analyzeNot(Locals variables) {
-        child.expected = Definition.BOOLEAN_TYPE;
+        child.expected = boolean.class;
         child.analyze(variables);
         child = child.cast(variables);
 
@@ -84,7 +84,7 @@ public final class EUnary extends AExpression {
             constant = !(boolean)child.constant;
         }
 
-        actual = Definition.BOOLEAN_TYPE;
+        actual = boolean.class;
     }
 
     void analyzeBWNot(Locals variables) {
@@ -93,25 +93,24 @@ public final class EUnary extends AExpression {
         promote = AnalyzerCaster.promoteNumeric(child.actual, false);
 
         if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply not [~] to type [" + child.actual.name + "]."));
+            throw createError(new ClassCastException("Cannot apply not [~] to type " +
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(child.actual) + "]."));
         }
 
         child.expected = promote;
         child = child.cast(variables);
 
         if (child.constant != null) {
-            Class<?> sort = promote.clazz;
-
-            if (sort == int.class) {
+            if (promote == int.class) {
                 constant = ~(int)child.constant;
-            } else if (sort == long.class) {
+            } else if (promote == long.class) {
                 constant = ~(long)child.constant;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
-        if (promote.dynamic && expected != null) {
+        if (promote == def.class && expected != null) {
             actual = expected;
         } else {
             actual = promote;
@@ -124,29 +123,28 @@ public final class EUnary extends AExpression {
         promote = AnalyzerCaster.promoteNumeric(child.actual, true);
 
         if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply positive [+] to type [" + child.actual.name + "]."));
+            throw createError(new ClassCastException("Cannot apply positive [+] to type " +
+                    "[" + PainlessLookupUtility.typeToJavaType(child.actual) + "]."));
         }
 
         child.expected = promote;
         child = child.cast(variables);
 
         if (child.constant != null) {
-            Class<?> sort = promote.clazz;
-
-            if (sort == int.class) {
+            if (promote == int.class) {
                 constant = +(int)child.constant;
-            } else if (sort == long.class) {
+            } else if (promote == long.class) {
                 constant = +(long)child.constant;
-            } else if (sort == float.class) {
+            } else if (promote == float.class) {
                 constant = +(float)child.constant;
-            } else if (sort == double.class) {
+            } else if (promote == double.class) {
                 constant = +(double)child.constant;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
-        if (promote.dynamic && expected != null) {
+        if (promote == def.class && expected != null) {
             actual = expected;
         } else {
             actual = promote;
@@ -159,29 +157,28 @@ public final class EUnary extends AExpression {
         promote = AnalyzerCaster.promoteNumeric(child.actual, true);
 
         if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply negative [-] to type [" + child.actual.name + "]."));
+            throw createError(new ClassCastException("Cannot apply negative [-] to type " +
+                    "[" + PainlessLookupUtility.typeToJavaType(child.actual) + "]."));
         }
 
         child.expected = promote;
         child = child.cast(variables);
 
         if (child.constant != null) {
-            Class<?> sort = promote.clazz;
-
-            if (sort == int.class) {
+            if (promote == int.class) {
                 constant = -(int)child.constant;
-            } else if (sort == long.class) {
+            } else if (promote == long.class) {
                 constant = -(long)child.constant;
-            } else if (sort == float.class) {
+            } else if (promote == float.class) {
                 constant = -(float)child.constant;
-            } else if (sort == double.class) {
+            } else if (promote == double.class) {
                 constant = -(double)child.constant;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
-        if (promote.dynamic && expected != null) {
+        if (promote == def.class && expected != null) {
             actual = expected;
         } else {
             actual = promote;
@@ -205,7 +202,6 @@ public final class EUnary extends AExpression {
             writer.push(true);
             writer.mark(end);
         } else {
-            Class<?> sort = promote.clazz;
             child.write(writer, globals);
 
             // Def calls adopt the wanted return value. If there was a narrowing cast,
@@ -216,31 +212,34 @@ public final class EUnary extends AExpression {
                 defFlags |= DefBootstrap.OPERATOR_EXPLICIT_CAST;
             }
 
+            Type actualType = MethodWriter.getType(actual);
+            Type childType = MethodWriter.getType(child.actual);
+
             if (operation == Operation.BWNOT) {
-                if (promote.dynamic) {
-                    org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actual.type, child.actual.type);
+                if (promote == def.class) {
+                    org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actualType, childType);
                     writer.invokeDefCall("not", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
                 } else {
-                    if (sort == int.class) {
+                    if (promote == int.class) {
                         writer.push(-1);
-                    } else if (sort == long.class) {
+                    } else if (promote == long.class) {
                         writer.push(-1L);
                     } else {
                         throw createError(new IllegalStateException("Illegal tree structure."));
                     }
 
-                    writer.math(MethodWriter.XOR, actual.type);
+                    writer.math(MethodWriter.XOR, actualType);
                 }
             } else if (operation == Operation.SUB) {
-                if (promote.dynamic) {
-                    org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actual.type, child.actual.type);
+                if (promote == def.class) {
+                    org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actualType, childType);
                     writer.invokeDefCall("neg", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
                 } else {
-                    writer.math(MethodWriter.NEG, actual.type);
+                    writer.math(MethodWriter.NEG, actualType);
                 }
             } else if (operation == Operation.ADD) {
-                if (promote.dynamic) {
-                    org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actual.type, child.actual.type);
+                if (promote == def.class) {
+                    org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actualType, childType);
                     writer.invokeDefCall("plus", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
                 }
             } else {

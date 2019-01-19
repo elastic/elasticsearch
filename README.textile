@@ -27,7 +27,6 @@ Elasticsearch is a distributed RESTful search engine built for the cloud. Featur
 ** All the power of Lucene easily exposed through simple configuration / plugins.
 * Per operation consistency
 ** Single document level operations are atomic, consistent, isolated and durable.
-* Open Source under the Apache License, version 2 ("ALv2")
 
 h2. Getting Started
 
@@ -49,21 +48,21 @@ h3. Indexing
 Let's try and index some twitter like information. First, let's index some tweets (the @twitter@ index will be created automatically):
 
 <pre>
-curl -XPUT 'http://localhost:9200/twitter/doc/1?pretty' -H 'Content-Type: application/json' -d '
+curl -XPUT 'http://localhost:9200/twitter/_doc/1?pretty' -H 'Content-Type: application/json' -d '
 {
     "user": "kimchy",
     "post_date": "2009-11-15T13:12:00",
     "message": "Trying out Elasticsearch, so far so good?"
 }'
 
-curl -XPUT 'http://localhost:9200/twitter/doc/2?pretty' -H 'Content-Type: application/json' -d '
+curl -XPUT 'http://localhost:9200/twitter/_doc/2?pretty' -H 'Content-Type: application/json' -d '
 {
     "user": "kimchy",
     "post_date": "2009-11-15T14:12:12",
     "message": "Another tweet, will it be indexed?"
 }'
 
-curl -XPUT 'http://localhost:9200/twitter/doc/3?pretty' -H 'Content-Type: application/json' -d '
+curl -XPUT 'http://localhost:9200/twitter/_doc/3?pretty' -H 'Content-Type: application/json' -d '
 {
     "user": "elastic",
     "post_date": "2010-01-15T01:46:38",
@@ -74,9 +73,9 @@ curl -XPUT 'http://localhost:9200/twitter/doc/3?pretty' -H 'Content-Type: applic
 Now, let's see if the information was added by GETting it:
 
 <pre>
-curl -XGET 'http://localhost:9200/twitter/doc/1?pretty=true'
-curl -XGET 'http://localhost:9200/twitter/doc/2?pretty=true'
-curl -XGET 'http://localhost:9200/twitter/doc/3?pretty=true'
+curl -XGET 'http://localhost:9200/twitter/_doc/1?pretty=true'
+curl -XGET 'http://localhost:9200/twitter/_doc/2?pretty=true'
+curl -XGET 'http://localhost:9200/twitter/_doc/3?pretty=true'
 </pre>
 
 h3. Searching
@@ -134,14 +133,14 @@ Elasticsearch supports multiple indices. In the previous example we used an inde
 Another way to define our simple twitter system is to have a different index per user (note, though that each index has an overhead). Here is the indexing curl's in this case:
 
 <pre>
-curl -XPUT 'http://localhost:9200/kimchy/doc/1?pretty' -H 'Content-Type: application/json' -d '
+curl -XPUT 'http://localhost:9200/kimchy/_doc/1?pretty' -H 'Content-Type: application/json' -d '
 {
     "user": "kimchy",
     "post_date": "2009-11-15T13:12:00",
     "message": "Trying out Elasticsearch, so far so good?"
 }'
 
-curl -XPUT 'http://localhost:9200/kimchy/doc/2?pretty' -H 'Content-Type: application/json' -d '
+curl -XPUT 'http://localhost:9200/kimchy/_doc/2?pretty' -H 'Content-Type: application/json' -d '
 {
     "user": "kimchy",
     "post_date": "2009-11-15T14:12:12",
@@ -192,7 +191,7 @@ h3. Distributed, Highly Available
 
 Let's face it, things will fail....
 
-Elasticsearch is a highly available and distributed search engine. Each index is broken down into shards, and each shard can have one or more replica. By default, an index is created with 5 shards and 1 replica per shard (5/1). There are many topologies that can be used, including 1/10 (improve search performance), or 20/1 (improve indexing performance, with search executed in a map reduce fashion across shards).
+Elasticsearch is a highly available and distributed search engine. Each index is broken down into shards, and each shard can have one or more replicas. By default, an index is created with 5 shards and 1 replica per shard (5/1). There are many topologies that can be used, including 1/10 (improve search performance), or 20/1 (improve indexing performance, with search executed in a map reduce fashion across shards).
 
 In order to play with the distributed nature of Elasticsearch, simply bring more nodes up and shut down nodes. The system will continue to serve requests (make sure you use the correct http port) with the latest data indexed.
 
@@ -202,39 +201,14 @@ We have just covered a very small portion of what Elasticsearch is all about. Fo
 
 h3. Building from Source
 
-Elasticsearch uses "Gradle":https://gradle.org for its build system. You'll need to have at least version 3.3 of Gradle installed.
+Elasticsearch uses "Gradle":https://gradle.org for its build system.
 
-In order to create a distribution, simply run the @gradle assemble@ command in the cloned directory.
+In order to create a distribution, simply run the @./gradlew assemble@ command in the cloned directory.
 
 The distribution for each project will be created under the @build/distributions@ directory in that project.
 
-See the "TESTING":TESTING.asciidoc file for more information about
-running the Elasticsearch test suite.
+See the "TESTING":TESTING.asciidoc file for more information about running the Elasticsearch test suite.
 
-h3. Upgrading from Elasticsearch 1.x?
+h3. Upgrading from older Elasticsearch versions
 
-In order to ensure a smooth upgrade process from earlier versions of
-Elasticsearch (1.x), it is required to perform a full cluster restart. Please
-see the "setup reference":
-https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html
-for more details on the upgrade process.
-
-h1. License
-
-<pre>
-This software is licensed under the Apache License, version 2 ("ALv2"), quoted below.
-
-Copyright 2009-2016 Elasticsearch <https://www.elastic.co>
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not
-use this file except in compliance with the License. You may obtain a copy of
-the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-License for the specific language governing permissions and limitations under
-the License.
-</pre>
+In order to ensure a smooth upgrade process from earlier versions of Elasticsearch, please see our "upgrade documentation":https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html for more details on the upgrade process.

@@ -21,9 +21,20 @@ package org.elasticsearch.plugins;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.IOUtils;
+import org.bouncycastle.bcpg.ArmoredInputStream;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.openpgp.PGPException;
+import org.bouncycastle.openpgp.PGPPublicKey;
+import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
+import org.bouncycastle.openpgp.PGPSignature;
+import org.bouncycastle.openpgp.PGPSignatureList;
+import org.bouncycastle.openpgp.PGPUtil;
+import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
+import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
+import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
@@ -33,8 +44,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.BufferedReader;
@@ -43,6 +53,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLDecoder;
@@ -59,12 +71,15 @@ import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
@@ -84,8 +99,8 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
  * <li>A URL to a plugin zip</li>
  * </ul>
  *
- * Plugins are packaged as zip files. Each packaged plugin must contain a
- * plugin properties file. See {@link PluginInfo}.
+ * Plugins are packaged as zip files. Each packaged plugin must contain a plugin properties file.
+ * See {@link PluginInfo}.
  * <p>
  * The installation process first extracts the plugin files into a temporary
  * directory in order to verify the plugin satisfies the following requirements:
@@ -113,7 +128,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     static final int PLUGIN_EXISTS = 1;
     /** The plugin zip is not properly structured. */
     static final int PLUGIN_MALFORMED = 2;
-
 
     /** The builtin modules, which are plugins, but cannot be installed or removed. */
     static final Set<String> MODULES;
@@ -143,7 +157,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 plugins.add(line.trim());
                 line = reader.readLine();
             }
-            plugins.add("x-pack");
             OFFICIAL_PLUGINS = Collections.unmodifiableSet(plugins);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -199,7 +212,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         String pluginId = arguments.value(options);
-        boolean isBatch = options.has(batchOption) || System.console() == null;
+        final boolean isBatch = options.has(batchOption);
         execute(terminal, pluginId, isBatch, env);
     }
 
@@ -209,29 +222,50 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "plugin id is required");
         }
 
-        Path pluginZip = download(terminal, pluginId, env.tmpFile());
+        if ("x-pack".equals(pluginId)) {
+            handleInstallXPack(buildFlavor());
+        }
+
+        Path pluginZip = download(terminal, pluginId, env.tmpFile(), isBatch);
         Path extractedZip = unzip(pluginZip, env.pluginsFile());
         install(terminal, isBatch, extractedZip, env);
     }
 
+    Build.Flavor buildFlavor() {
+        return Build.CURRENT.flavor();
+    }
+
+    private static void handleInstallXPack(final Build.Flavor flavor) throws UserException {
+        switch (flavor) {
+            case DEFAULT:
+                throw new UserException(ExitCodes.CONFIG, "this distribution of Elasticsearch contains X-Pack by default");
+            case OSS:
+                throw new UserException(
+                        ExitCodes.CONFIG,
+                        "X-Pack is not available with the oss distribution; to use X-Pack features use the default distribution");
+            case UNKNOWN:
+                throw new IllegalStateException("your distribution is broken");
+        }
+    }
+
     /** Downloads the plugin and returns the file it was downloaded to. */
-    private Path download(Terminal terminal, String pluginId, Path tmpDir) throws Exception {
+    private Path download(Terminal terminal, String pluginId, Path tmpDir, boolean isBatch) throws Exception {
         if (OFFICIAL_PLUGINS.contains(pluginId)) {
-            final String url = getElasticUrl(terminal, getStagingHash(), Version.CURRENT, pluginId, Platforms.PLATFORM_NAME);
+            final String url = getElasticUrl(terminal, getStagingHash(), Version.CURRENT, isSnapshot(), pluginId, Platforms.PLATFORM_NAME);
             terminal.println("-> Downloading " + pluginId + " from elastic");
-            return downloadZipAndChecksum(terminal, url, tmpDir, false);
+            return downloadAndValidate(terminal, url, tmpDir, true, isBatch);
         }
 
         // now try as maven coordinates, a valid URL would only have a colon and slash
         String[] coordinates = pluginId.split(":");
-        if (coordinates.length == 3 && pluginId.contains("/") == false) {
+        if (coordinates.length == 3 && pluginId.contains("/") == false && pluginId.startsWith("file:") == false) {
             String mavenUrl = getMavenUrl(terminal, coordinates, Platforms.PLATFORM_NAME);
             terminal.println("-> Downloading " + pluginId + " from maven central");
-            return downloadZipAndChecksum(terminal, mavenUrl, tmpDir, true);
+            return downloadAndValidate(terminal, mavenUrl, tmpDir, false, isBatch);
         }
 
         // fall back to plain old URL
-        if (pluginId.contains(":/") == false) {
+        if (pluginId.contains(":") == false) {
             // definitely not a valid url, so assume it is a plugin name
             List<String> plugins = checkMisspelledPlugin(pluginId);
             String msg = "Unknown plugin " + pluginId;
@@ -241,7 +275,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, msg);
         }
         terminal.println("-> Downloading " + URLDecoder.decode(pluginId, "UTF-8"));
-        return downloadZip(terminal, pluginId, tmpDir);
+        return downloadZip(terminal, pluginId, tmpDir, isBatch);
     }
 
     // pkg private so tests can override
@@ -249,22 +283,43 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         return System.getProperty(PROPERTY_STAGING_ID);
     }
 
+    boolean isSnapshot() {
+        return Build.CURRENT.isSnapshot();
+    }
+
     /** Returns the url for an official elasticsearch plugin. */
-    private String getElasticUrl(Terminal terminal, String stagingHash, Version version,
-                                        String pluginId, String platform) throws IOException {
+    private String getElasticUrl(
+            final Terminal terminal,
+            final String stagingHash,
+            final Version version,
+            final boolean isSnapshot,
+            final String pluginId,
+            final String platform) throws IOException, UserException {
         final String baseUrl;
-        if (stagingHash != null) {
-            baseUrl = String.format(Locale.ROOT,
-                "https://staging.elastic.co/%s-%s/downloads/elasticsearch-plugins/%s", version, stagingHash, pluginId);
-        } else {
-            baseUrl = String.format(Locale.ROOT,
-                "https://artifacts.elastic.co/downloads/elasticsearch-plugins/%s", pluginId);
+        if (isSnapshot && stagingHash == null) {
+            throw new UserException(
+                    ExitCodes.CONFIG, "attempted to install release build of official plugin on snapshot build of Elasticsearch");
         }
-        final String platformUrl = String.format(Locale.ROOT, "%s/%s-%s-%s.zip", baseUrl, pluginId, platform, version);
+        if (stagingHash != null) {
+            if (isSnapshot) {
+                baseUrl = nonReleaseUrl("snapshots", version, stagingHash, pluginId);
+            } else {
+                baseUrl = nonReleaseUrl("staging", version, stagingHash, pluginId);
+            }
+        } else {
+            baseUrl = String.format(Locale.ROOT, "https://artifacts.elastic.co/downloads/elasticsearch-plugins/%s", pluginId);
+        }
+        final String platformUrl =
+                String.format(Locale.ROOT, "%s/%s-%s-%s.zip", baseUrl, pluginId, platform, Build.CURRENT.getQualifiedVersion());
         if (urlExists(terminal, platformUrl)) {
             return platformUrl;
         }
-        return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, version);
+        return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, Build.CURRENT.getQualifiedVersion());
+    }
+
+    private String nonReleaseUrl(final String hostname, final Version version, final String stagingHash, final String pluginId) {
+        return String.format(
+                Locale.ROOT, "https://%s.elastic.co/%s-%s/downloads/elasticsearch-plugins/%s", hostname, version, stagingHash, pluginId);
     }
 
     /** Returns the url for an elasticsearch plugin in maven. */
@@ -300,7 +355,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     /** Returns all the official plugin names that look similar to pluginId. **/
     private List<String> checkMisspelledPlugin(String pluginId) {
-        LevensteinDistance ld = new LevensteinDistance();
+        LevenshteinDistance ld = new LevenshteinDistance();
         List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
         for (String officialPlugin : OFFICIAL_PLUGINS) {
             float distance = ld.getDistance(pluginId, officialPlugin);
@@ -315,14 +370,14 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     /** Downloads a zip from the url, into a temp file under the given temp dir. */
     // pkg private for tests
     @SuppressForbidden(reason = "We use getInputStream to download plugins")
-    Path downloadZip(Terminal terminal, String urlString, Path tmpDir) throws IOException {
+    Path downloadZip(Terminal terminal, String urlString, Path tmpDir, boolean isBatch) throws IOException {
         terminal.println(VERBOSE, "Retrieving zip from " + urlString);
         URL url = new URL(urlString);
         Path zip = Files.createTempFile(tmpDir, null, ".zip");
         URLConnection urlConnection = url.openConnection();
         urlConnection.addRequestProperty("User-Agent", "elasticsearch-plugin-installer");
-        int contentLength = urlConnection.getContentLength();
-        try (InputStream in = new TerminalProgressInputStream(urlConnection.getInputStream(), contentLength, terminal)) {
+        try (InputStream in = isBatch ? urlConnection.getInputStream() :
+            new TerminalProgressInputStream(urlConnection.getInputStream(),urlConnection.getContentLength(),terminal)) {
             // must overwrite since creating the temp file above actually created the file
             Files.copy(in, zip, StandardCopyOption.REPLACE_EXISTING);
         }
@@ -363,16 +418,45 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         }
     }
 
-    /** Downloads a zip from the url, as well as a SHA512 (or SHA1) checksum, and checks the checksum. */
-    // pkg private for tests
-    @SuppressForbidden(reason = "We use openStream to download plugins")
-    private Path downloadZipAndChecksum(Terminal terminal, String urlString, Path tmpDir, boolean allowSha1) throws Exception {
-        Path zip = downloadZip(terminal, urlString, tmpDir);
+    @SuppressForbidden(reason = "URL#openStream")
+    private InputStream urlOpenStream(final URL url) throws IOException {
+        return url.openStream();
+    }
+
+    /**
+     * Downloads a ZIP from the URL. This method also validates the downloaded plugin ZIP via the following means:
+     * <ul>
+     * <li>
+     * For an official plugin we download the SHA-512 checksum and validate the integrity of the downloaded ZIP. We also download the
+     * armored signature and validate the authenticity of the downloaded ZIP.
+     * </li>
+     * <li>
+     * For a non-official plugin we download the SHA-512 checksum and fallback to the SHA-1 checksum and validate the integrity of the
+     * downloaded ZIP.
+     * </li>
+     * </ul>
+     *
+     * @param terminal       a terminal to log messages to
+     * @param urlString      the URL of the plugin ZIP
+     * @param tmpDir         a temporary directory to write downloaded files to
+     * @param officialPlugin true if the plugin is an official plugin
+     * @param isBatch        true if the install is running in batch mode
+     * @return the path to the downloaded plugin ZIP
+     * @throws IOException   if an I/O exception occurs download or reading files and resources
+     * @throws PGPException  if an exception occurs verifying the downloaded ZIP signature
+     * @throws UserException if checksum validation fails
+     */
+    private Path downloadAndValidate(
+        final Terminal terminal,
+        final String urlString,
+        final Path tmpDir,
+        final boolean officialPlugin, boolean isBatch) throws IOException, PGPException, UserException {
+        Path zip = downloadZip(terminal, urlString, tmpDir, isBatch);
         pathsToDeleteOnShutdown.add(zip);
         String checksumUrlString = urlString + ".sha512";
         URL checksumUrl = openUrl(checksumUrlString);
         String digestAlgo = "SHA-512";
-        if (checksumUrl == null && allowSha1) {
+        if (checksumUrl == null && officialPlugin == false) {
             // fallback to sha1, until 7.0, but with warning
             terminal.println("Warning: sha512 not found, falling back to sha1. This behavior is deprecated and will be removed in a " +
                              "future release. Please update the plugin to use a sha512 checksum.");
@@ -384,22 +468,136 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.IO_ERROR, "Plugin checksum missing: " + checksumUrlString);
         }
         final String expectedChecksum;
-        try (InputStream in = checksumUrl.openStream()) {
-            BufferedReader checksumReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-            expectedChecksum = checksumReader.readLine();
-            if (checksumReader.readLine() != null) {
-                throw new UserException(ExitCodes.IO_ERROR, "Invalid checksum file at " + checksumUrl);
+        try (InputStream in = urlOpenStream(checksumUrl)) {
+            /*
+             * The supported format of the SHA-1 files is a single-line file containing the SHA-1. The supported format of the SHA-512 files
+             * is a single-line file containing the SHA-512 and the filename, separated by two spaces. For SHA-1, we verify that the hash
+             * matches, and that the file contains a single line. For SHA-512, we verify that the hash and the filename match, and that the
+             * file contains a single line.
+             */
+            if (digestAlgo.equals("SHA-1")) {
+                final BufferedReader checksumReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+                expectedChecksum = checksumReader.readLine();
+                if (checksumReader.readLine() != null) {
+                    throw new UserException(ExitCodes.IO_ERROR, "Invalid checksum file at " + checksumUrl);
+                }
+            } else {
+                final BufferedReader checksumReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+                final String checksumLine = checksumReader.readLine();
+                final String[] fields = checksumLine.split(" {2}");
+                if (fields.length != 2) {
+                    throw new UserException(ExitCodes.IO_ERROR, "Invalid checksum file at " + checksumUrl);
+                }
+                expectedChecksum = fields[0];
+                final String[] segments = URI.create(urlString).getPath().split("/");
+                final String expectedFile = segments[segments.length - 1];
+                if (fields[1].equals(expectedFile) == false) {
+                    final String message = String.format(
+                            Locale.ROOT,
+                            "checksum file at [%s] is not for this plugin, expected [%s] but was [%s]",
+                            checksumUrl,
+                            expectedFile,
+                            fields[1]);
+                    throw new UserException(ExitCodes.IO_ERROR, message);
+                }
+                if (checksumReader.readLine() != null) {
+                    throw new UserException(ExitCodes.IO_ERROR, "Invalid checksum file at " + checksumUrl);
+                }
             }
         }
 
-        byte[] zipbytes = Files.readAllBytes(zip);
-        String gotChecksum = MessageDigests.toHexString(MessageDigest.getInstance(digestAlgo).digest(zipbytes));
-        if (expectedChecksum.equals(gotChecksum) == false) {
-            throw new UserException(ExitCodes.IO_ERROR,
-                digestAlgo + " mismatch, expected " + expectedChecksum + " but got " + gotChecksum);
+        try {
+            final byte[] zipBytes = Files.readAllBytes(zip);
+            final String actualChecksum = MessageDigests.toHexString(MessageDigest.getInstance(digestAlgo).digest(zipBytes));
+            if (expectedChecksum.equals(actualChecksum) == false) {
+                throw new UserException(
+                        ExitCodes.IO_ERROR,
+                        digestAlgo + " mismatch, expected " + expectedChecksum + " but got " + actualChecksum);
+            }
+        } catch (final NoSuchAlgorithmException e) {
+            // this should never happen as we are using SHA-1 and SHA-512 here
+            throw new AssertionError(e);
+        }
+
+        if (officialPlugin) {
+            verifySignature(zip, urlString);
         }
 
         return zip;
+    }
+
+    /**
+     * Verify the signature of the downloaded plugin ZIP. The signature is obtained from the source of the downloaded plugin by appending
+     * ".asc" to the URL. It is expected that the plugin is signed with the Elastic signing key with ID D27D666CD88E42B4.
+     *
+     * @param zip       the path to the downloaded plugin ZIP
+     * @param urlString the URL source of the downloade plugin ZIP
+     * @throws IOException  if an I/O exception occurs reading from various input streams
+     * @throws PGPException if the PGP implementation throws an internal exception during verification
+     */
+    void verifySignature(final Path zip, final String urlString) throws IOException, PGPException {
+        final String ascUrlString = urlString + ".asc";
+        final URL ascUrl = openUrl(ascUrlString);
+        try (
+                // fin is a file stream over the downloaded plugin zip whose signature to verify
+                InputStream fin = pluginZipInputStream(zip);
+                // sin is a URL stream to the signature corresponding to the downloaded plugin zip
+                InputStream sin = urlOpenStream(ascUrl);
+                // ain is a input stream to the public key in ASCII-Armor format (RFC4880)
+                InputStream ain = new ArmoredInputStream(getPublicKey())) {
+            final JcaPGPObjectFactory factory = new JcaPGPObjectFactory(PGPUtil.getDecoderStream(sin));
+            final PGPSignature signature = ((PGPSignatureList) factory.nextObject()).get(0);
+
+            // validate the signature has key ID matching our public key ID
+            final String keyId = Long.toHexString(signature.getKeyID()).toUpperCase(Locale.ROOT);
+            if (getPublicKeyId().equals(keyId) == false) {
+                throw new IllegalStateException("key id [" + keyId + "] does not match expected key id [" + getPublicKeyId() + "]");
+            }
+
+            // compute the signature of the downloaded plugin zip
+            final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
+            final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
+            signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleProvider()), key);
+            final byte[] buffer = new byte[1024];
+            int read;
+            while ((read = fin.read(buffer)) != -1) {
+                signature.update(buffer, 0, read);
+            }
+
+            // finally we verify the signature of the downloaded plugin zip matches the expected signature
+            if (signature.verify() == false) {
+                throw new IllegalStateException("signature verification for [" + urlString + "] failed");
+            }
+        }
+    }
+
+    /**
+     * An input stream to the raw bytes of the plugin ZIP.
+     *
+     * @param zip the path to the downloaded plugin ZIP
+     * @return an input stream to the raw bytes of the plugin ZIP.
+     * @throws IOException if an I/O exception occurs preparing the input stream
+     */
+    InputStream pluginZipInputStream(final Path zip) throws IOException {
+        return Files.newInputStream(zip);
+    }
+
+    /**
+     * Return the public key ID of the signing key that is expected to have signed the official plugin.
+     *
+     * @return the public key ID
+     */
+    String getPublicKeyId() {
+        return "D27D666CD88E42B4";
+    }
+
+    /**
+     * An input stream to the public key of the signing key.
+     *
+     * @return an input stream to the public key
+     */
+    InputStream getPublicKey() {
+        return InstallPluginCommand.class.getResourceAsStream("/public_key.asc");
     }
 
     /**
@@ -408,7 +606,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
      * If the URL returns a 404, {@code null} is returned, otherwise the open URL opject is returned.
      */
     // pkg private for tests
-    URL openUrl(String urlString) throws Exception {
+    URL openUrl(String urlString) throws IOException {
         URL checksumUrl = new URL(urlString);
         HttpURLConnection connection = (HttpURLConnection)checksumUrl.openConnection();
         if (connection.getResponseCode() == 404) {
@@ -423,17 +621,15 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         final Path target = stagingDirectory(pluginsDir);
         pathsToDeleteOnShutdown.add(target);
 
-        boolean hasEsDir = false;
         try (ZipInputStream zipInput = new ZipInputStream(Files.newInputStream(zip))) {
             ZipEntry entry;
             byte[] buffer = new byte[8192];
             while ((entry = zipInput.getNextEntry()) != null) {
-                if (entry.getName().startsWith("elasticsearch/") == false) {
-                    // only extract the elasticsearch directory
-                    continue;
+                if (entry.getName().startsWith("elasticsearch/")) {
+                    throw new UserException(PLUGIN_MALFORMED, "This plugin was built with an older plugin structure." +
+                        " Contact the plugin author to remove the intermediate \"elasticsearch\" directory within the plugin zip.");
                 }
-                hasEsDir = true;
-                Path targetFile = target.resolve(entry.getName().substring("elasticsearch/".length()));
+                Path targetFile = target.resolve(entry.getName());
 
                 // Using the entry name as a path can result in an entry outside of the plugin dir,
                 // either if the name starts with the root of the filesystem, or it is a relative
@@ -460,13 +656,11 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 }
                 zipInput.closeEntry();
             }
+        } catch (UserException e) {
+            IOUtils.rm(target);
+            throw e;
         }
         Files.delete(zip);
-        if (hasEsDir == false) {
-            IOUtils.rm(target);
-            throw new UserException(PLUGIN_MALFORMED,
-                                    "`elasticsearch` directory is missing in the plugin zip");
-        }
         return target;
     }
 
@@ -495,125 +689,91 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         return Files.createTempDirectory(pluginsDir, ".installing-");
     }
 
-    /** Load information about the plugin, and verify it can be installed with no errors. */
-    private PluginInfo verify(Terminal terminal, Path pluginRoot, boolean isBatch, Environment env) throws Exception {
-        // read and validate the plugin descriptor
-        PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
+    // checking for existing version of the plugin
+    private void verifyPluginName(Path pluginPath, String pluginName) throws UserException, IOException {
+        // don't let user install plugin conflicting with module...
+        // they might be unavoidably in maven central and are packaged up the same way)
+        if (MODULES.contains(pluginName)) {
+            throw new UserException(ExitCodes.USAGE, "plugin '" + pluginName + "' cannot be installed as a plugin, it is a system module");
+        }
 
-        // checking for existing version of the plugin
-        final Path destination = env.pluginsFile().resolve(info.getName());
+        final Path destination = pluginPath.resolve(pluginName);
         if (Files.exists(destination)) {
             final String message = String.format(
                 Locale.ROOT,
                 "plugin directory [%s] already exists; if you need to update the plugin, " +
                     "uninstall it first using command 'remove %s'",
                 destination.toAbsolutePath(),
-                info.getName());
+                pluginName);
             throw new UserException(PLUGIN_EXISTS, message);
         }
+    }
+
+    /** Load information about the plugin, and verify it can be installed with no errors. */
+    private PluginInfo loadPluginInfo(Terminal terminal, Path pluginRoot, Environment env) throws Exception {
+        final PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
+        if (info.hasNativeController()) {
+            throw new IllegalStateException("plugins can not have native controllers");
+        }
+        PluginsService.verifyCompatibility(info);
+
+        // checking for existing version of the plugin
+        verifyPluginName(env.pluginsFile(), info.getName());
 
         PluginsService.checkForFailedPluginRemovals(env.pluginsFile());
 
         terminal.println(VERBOSE, info.toString());
 
-        // don't let user install plugin as a module...
-        // they might be unavoidably in maven central and are packaged up the same way)
-        if (MODULES.contains(info.getName())) {
-            throw new UserException(ExitCodes.USAGE, "plugin '" + info.getName() +
-                "' cannot be installed like this, it is a system module");
-        }
-
         // check for jar hell before any copying
-        jarHellCheck(pluginRoot, env.pluginsFile());
-
-        // read optional security policy (extra permissions)
-        // if it exists, confirm or warn the user
-        Path policy = pluginRoot.resolve(PluginInfo.ES_PLUGIN_POLICY);
-        if (Files.exists(policy)) {
-            PluginSecurity.readPolicy(info, policy, terminal, env::tmpFile, isBatch);
-        }
+        jarHellCheck(info, pluginRoot, env.pluginsFile(), env.modulesFile());
 
         return info;
     }
 
-    /** check a candidate plugin for jar hell before installing it */
-    void jarHellCheck(Path candidate, Path pluginsDir) throws Exception {
-        // create list of current jars in classpath
-        final Set<URL> jars = new HashSet<>(JarHell.parseClassPath());
+    private static final String LIB_TOOLS_PLUGIN_CLI_CLASSPATH_JAR;
 
-        // read existing bundles. this does some checks on the installation too.
-        PluginsService.getPluginBundles(pluginsDir);
-
-        // add plugin jars to the list
-        Path pluginJars[] = FileSystemUtils.files(candidate, "*.jar");
-        for (Path jar : pluginJars) {
-            if (jars.add(jar.toUri().toURL()) == false) {
-                throw new IllegalStateException("jar hell! duplicate plugin jar: " + jar);
-            }
-        }
-        // TODO: no jars should be an error
-        // TODO: verify the classname exists in one of the jars!
-
-        // check combined (current classpath + new jars to-be-added)
-        JarHell.checkJarHell(jars);
+    static {
+        LIB_TOOLS_PLUGIN_CLI_CLASSPATH_JAR =
+                String.format(Locale.ROOT, ".+%1$slib%1$stools%1$splugin-cli%1$s[^%1$s]+\\.jar", "(/|\\\\)");
     }
 
-    /**
-     * Installs the plugin from {@code tmpRoot} into the plugins dir.
-     * If the plugin has a bin dir and/or a config dir, those are copied.
-     */
+    /** check a candidate plugin for jar hell before installing it */
+    void jarHellCheck(PluginInfo candidateInfo, Path candidateDir, Path pluginsDir, Path modulesDir) throws Exception {
+        // create list of current jars in classpath
+        final Set<URL> classpath =
+                JarHell.parseClassPath()
+                        .stream()
+                        .filter(url -> {
+                            try {
+                                return url.toURI().getPath().matches(LIB_TOOLS_PLUGIN_CLI_CLASSPATH_JAR) == false;
+                            } catch (final URISyntaxException e) {
+                                throw new AssertionError(e);
+                            }
+                        })
+                        .collect(Collectors.toSet());
+
+        // read existing bundles. this does some checks on the installation too.
+        Set<PluginsService.Bundle> bundles = new HashSet<>(PluginsService.getPluginBundles(pluginsDir));
+        bundles.addAll(PluginsService.getModuleBundles(modulesDir));
+        bundles.add(new PluginsService.Bundle(candidateInfo, candidateDir));
+        List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
+
+        // check jarhell of all plugins so we know this plugin and anything depending on it are ok together
+        // TODO: optimize to skip any bundles not connected to the candidate plugin?
+        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
+        for (PluginsService.Bundle bundle : sortedBundles) {
+            PluginsService.checkBundleJarHell(classpath, bundle, transitiveUrls);
+        }
+
+        // TODO: no jars should be an error
+        // TODO: verify the classname exists in one of the jars!
+    }
+
     private void install(Terminal terminal, boolean isBatch, Path tmpRoot, Environment env) throws Exception {
         List<Path> deleteOnFailure = new ArrayList<>();
         deleteOnFailure.add(tmpRoot);
-
         try {
-            PluginInfo info = verify(terminal, tmpRoot, isBatch, env);
-            final Path destination = env.pluginsFile().resolve(info.getName());
-
-            Path tmpBinDir = tmpRoot.resolve("bin");
-            if (Files.exists(tmpBinDir)) {
-                Path destBinDir = env.binFile().resolve(info.getName());
-                deleteOnFailure.add(destBinDir);
-                installBin(info, tmpBinDir, destBinDir);
-            }
-
-            Path tmpConfigDir = tmpRoot.resolve("config");
-            if (Files.exists(tmpConfigDir)) {
-                // some files may already exist, and we don't remove plugin config files on plugin removal,
-                // so any installed config files are left on failure too
-                installConfig(info, tmpConfigDir, env.configFile().resolve(info.getName()));
-            }
-
-            Files.move(tmpRoot, destination, StandardCopyOption.ATOMIC_MOVE);
-            Files.walkFileTree(destination, new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
-                    if ("bin".equals(file.getParent().getFileName().toString())) {
-                        setFileAttributes(file, BIN_FILES_PERMS);
-                    } else {
-                        setFileAttributes(file, PLUGIN_FILES_PERMS);
-                    }
-                    return FileVisitResult.CONTINUE;
-                }
-
-                @Override
-                public FileVisitResult postVisitDirectory(final Path dir, final IOException exc) throws IOException {
-                    setFileAttributes(dir, PLUGIN_DIR_PERMS);
-                    return FileVisitResult.CONTINUE;
-                }
-            });
-
-            if (info.requiresKeystore()) {
-                KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
-                if (keystore == null) {
-                    terminal.println("Elasticsearch keystore is required by plugin [" + info.getName() + "], creating...");
-                    keystore = KeyStoreWrapper.create(new char[0]);
-                    keystore.save(env.configFile());
-                }
-            }
-
-            terminal.println("-> Installed " + info.getName());
-
+            installPlugin(terminal, isBatch, tmpRoot, env, deleteOnFailure);
         } catch (Exception installProblem) {
             try {
                 IOUtils.rm(deleteOnFailure.toArray(new Path[0]));
@@ -624,12 +784,77 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         }
     }
 
+    /**
+     * Installs the plugin from {@code tmpRoot} into the plugins dir.
+     * If the plugin has a bin dir and/or a config dir, those are moved.
+     */
+    private void installPlugin(Terminal terminal, boolean isBatch, Path tmpRoot,
+                               Environment env, List<Path> deleteOnFailure) throws Exception {
+        final PluginInfo info = loadPluginInfo(terminal, tmpRoot, env);
+        // read optional security policy (extra permissions), if it exists, confirm or warn the user
+        Path policy = tmpRoot.resolve(PluginInfo.ES_PLUGIN_POLICY);
+        final Set<String> permissions;
+        if (Files.exists(policy)) {
+            permissions = PluginSecurity.parsePermissions(policy, env.tmpFile());
+        } else {
+            permissions = Collections.emptySet();
+        }
+        PluginSecurity.confirmPolicyExceptions(terminal, permissions, isBatch);
+
+        final Path destination = env.pluginsFile().resolve(info.getName());
+        deleteOnFailure.add(destination);
+
+        installPluginSupportFiles(info, tmpRoot, env.binFile().resolve(info.getName()),
+                                  env.configFile().resolve(info.getName()), deleteOnFailure);
+        movePlugin(tmpRoot, destination);
+        terminal.println("-> Installed " + info.getName());
+    }
+
+    /** Moves bin and config directories from the plugin if they exist */
+    private void installPluginSupportFiles(PluginInfo info, Path tmpRoot,
+                                           Path destBinDir, Path destConfigDir, List<Path> deleteOnFailure) throws Exception {
+        Path tmpBinDir = tmpRoot.resolve("bin");
+        if (Files.exists(tmpBinDir)) {
+            deleteOnFailure.add(destBinDir);
+            installBin(info, tmpBinDir, destBinDir);
+        }
+
+        Path tmpConfigDir = tmpRoot.resolve("config");
+        if (Files.exists(tmpConfigDir)) {
+            // some files may already exist, and we don't remove plugin config files on plugin removal,
+            // so any installed config files are left on failure too
+            installConfig(info, tmpConfigDir, destConfigDir);
+        }
+    }
+
+    /** Moves the plugin directory into its final destination. **/
+    private void movePlugin(Path tmpRoot, Path destination) throws IOException {
+        Files.move(tmpRoot, destination, StandardCopyOption.ATOMIC_MOVE);
+        Files.walkFileTree(destination, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
+                if ("bin".equals(file.getParent().getFileName().toString())) {
+                    setFileAttributes(file, BIN_FILES_PERMS);
+                } else {
+                    setFileAttributes(file, PLUGIN_FILES_PERMS);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(final Path dir, final IOException exc) throws IOException {
+                setFileAttributes(dir, PLUGIN_DIR_PERMS);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
+
     /** Copies the files from {@code tmpBinDir} into {@code destBinDir}, along with permissions from dest dirs parent. */
     private void installBin(PluginInfo info, Path tmpBinDir, Path destBinDir) throws Exception {
         if (Files.isDirectory(tmpBinDir) == false) {
             throw new UserException(PLUGIN_MALFORMED, "bin in plugin " + info.getName() + " is not a directory");
         }
-        Files.createDirectory(destBinDir);
+        Files.createDirectories(destBinDir);
         setFileAttributes(destBinDir, BIN_DIR_PERMS);
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmpBinDir)) {

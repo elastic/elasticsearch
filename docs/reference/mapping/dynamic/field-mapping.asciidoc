@@ -48,7 +48,7 @@ For example:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "create_date": "2015/09/02"
 }
@@ -66,16 +66,16 @@ Dynamic date detection can be disabled by setting `date_detection` to `false`:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "date_detection": false
     }
   }
 }
 
-PUT my_index/my_type/1 <1>
+PUT my_index/_doc/1 <1>
 {
   "create": "2015/09/02"
 }
@@ -91,16 +91,16 @@ own <<mapping-date-format,date formats>>:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "dynamic_date_formats": ["MM/dd/yyyy"]
     }
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "create_date": "09/25/2015"
 }
@@ -119,22 +119,22 @@ correct solution is to map these fields explicitly, but numeric detection
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "numeric_detection": true
     }
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "my_float":   "1.0", <1>
   "my_integer": "1" <2>
 }
 --------------------------------------------------
 // CONSOLE
-<1> The `my_float` field is added as a <<number,`double`>> field.
+<1> The `my_float` field is added as a <<number,`float`>> field.
 <2> The `my_integer` field is added as a <<number,`long`>> field.
 

@@ -1,7 +1,7 @@
 [[modules-http]]
 == HTTP
 
-The http module allows to expose *elasticsearch* APIs
+The http module allows to expose *Elasticsearch* APIs
 over HTTP.
 
 The http mechanism is completely asynchronous in nature, meaning that
@@ -20,7 +20,7 @@ http://en.wikipedia.org/wiki/Chunked_transfer_encoding[HTTP chunking].
 
 The settings in the table below can be configured for HTTP. Note that none of
 them are dynamically updatable so for them to take effect they should be set in
-`elasticsearch.yml`.
+the Elasticsearch <<settings, configuration file>>.
 
 [cols="<,<",options="header",]
 |=======================================================================
@@ -39,7 +39,7 @@ from the outside. Defaults to the actual port assigned via `http.port`.
 |`http.host` |Used to set the `http.bind_host` and the `http.publish_host` Defaults to `http.host` or `network.host`.
 
 |`http.max_content_length` |The max content of an HTTP request. Defaults to
-`100mb`. If set to greater than `Integer.MAX_VALUE`, it will be reset to 100mb.
+`100mb`.
 
 |`http.max_initial_line_length` |The max length of an HTTP URL. Defaults
 to `4kb`
@@ -74,7 +74,7 @@ allowed. If you prepend and append a `/` to the value, this will
 be treated as a regular expression, allowing you to support HTTP and HTTPs.
 for example using `/https?:\/\/localhost(:[0-9]+)?/` would return the
 request header appropriately in both cases. `*` is a valid value but is
-considered a *security risk* as your elasticsearch instance is open to cross origin
+considered a *security risk* as your Elasticsearch instance is open to cross origin
 requests from *anywhere*.
 
 |`http.cors.max-age` |Browsers send a "preflight" OPTIONS-request to
@@ -96,24 +96,15 @@ and stack traces in response output. Note: When set to `false` and the `error_tr
 parameter is specified, an error will be returned; when `error_trace` is not specified, a
 simple message will be returned. Defaults to `true`
 
-|`http.pipelining` |Enable or disable HTTP pipelining, defaults to `true`.
+|`http.pipelining.max_events` |The maximum number of events to be queued up in memory before an HTTP connection is closed, defaults to `10000`.
 
-|`http.pipelining.max_events` |The maximum number of events to be queued up in memory before a HTTP connection is closed, defaults to `10000`.
+|`http.max_warning_header_count` |The maximum number of warning headers in
+ client HTTP responses, defaults to unbounded.
+
+|`http.max_warning_header_size` |The maximum total size of warning headers in
+client HTTP responses, defaults to unbounded.
 
 |=======================================================================
 
 It also uses the common
 <<modules-network,network settings>>.
-
-[float]
-=== Disable HTTP
-
-The http module can be completely disabled and not started by setting
-`http.enabled` to `false`. Elasticsearch nodes (and Java clients) communicate
-internally using the <<modules-transport,transport interface>>, not HTTP. It
-might make  sense to disable the `http` layer entirely on nodes which are not
-meant to serve REST requests directly. For instance, you could disable HTTP on
-<<modules-node,data-only nodes>> if you also have
-<<modules-node,client nodes>> which are intended to serve all REST requests.
-Be aware, however, that you will not be able to send any REST requests (eg to
-retrieve node stats) directly to nodes which have HTTP disabled.

@@ -1,6 +1,9 @@
-# Integration tests for Repository GCS component
+# Integration tests for repository-gcs
 #
-"Repository GCS loaded":
+"Plugin repository-gcs is loaded":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
     - do:
         cluster.state: {}
 
@@ -10,4 +13,4 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins.0.name: repository-gcs  }
+    - contains:  { nodes.$master.plugins: { name: repository-gcs } }

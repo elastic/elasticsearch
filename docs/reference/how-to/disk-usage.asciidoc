@@ -4,7 +4,7 @@
 [float]
 === Disable the features you do not need
 
-By default elasticsearch indexes and adds doc values to most fields so that they
+By default Elasticsearch indexes and adds doc values to most fields so that they
 can be searched and aggregated out of the box. For instance if you have a numeric
 field called `foo` that you need to run histograms on but that you never need to
 filter on, you can safely disable indexing on this field in your
@@ -12,10 +12,10 @@ filter on, you can safely disable indexing on this field in your
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "foo": {
           "type": "integer",
@@ -30,15 +30,15 @@ PUT index
 
 <<text,`text`>> fields store normalization factors in the index in order to be
 able to score documents. If you only need matching capabilities on a `text`
-field but do not care about the produced scores, you can configure elasticsearch
+field but do not care about the produced scores, you can configure Elasticsearch
 to not write norms to the index:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "foo": {
           "type": "text",
@@ -54,14 +54,14 @@ PUT index
 <<text,`text`>> fields also store frequencies and positions in the index by
 default. Frequencies are used to compute scores and positions are used to run
 phrase queries. If you do not need to run phrase queries, you can tell
-elasticsearch to not index positions:
+Elasticsearch to not index positions:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "foo": {
           "type": "text",
@@ -75,16 +75,16 @@ PUT index
 // CONSOLE
 
 Furthermore if you do not care about scoring either, you can configure
-elasticsearch to just index matching documents for every term. You will
+Elasticsearch to just index matching documents for every term. You will
 still be able to search on this field, but phrase queries will raise errors
 and scoring will assume that terms appear only once in every document.
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "foo": {
           "type": "text",
@@ -115,10 +115,10 @@ fields as `keyword`:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "dynamic_templates": [
         {
           "strings": {

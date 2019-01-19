@@ -53,6 +53,41 @@ setup:
   - is_true: test_index.mappings
 
 ---
+"Test include_type_name":
+  - skip:
+      version: " - 6.6.99"
+      reason: the include_type_name parameter is not supported before 6.7
+
+  - do:
+      indices.get:
+        include_type_name: true
+        index: test_index
+
+  - is_true: test_index.mappings
+  - is_true: test_index.mappings.type_1
+
+  - do:
+      indices.get:
+        include_type_name: false
+        index: test_index
+
+  - is_true: test_index.mappings
+  - is_false: test_index.mappings.type_1
+
+---
+"Test include_type_name dafaults to false":
+  - skip:
+      version: " - 6.99.99"
+      reason: the include_type_name parameter default is different on 6.x and 7.0, so only test this on 7.0 clusters
+
+  - do:
+      indices.get:
+        index: test_index
+
+  - is_true: test_index.mappings
+  - is_false: test_index.mappings.type_1
+
+---
 "Get index infos should work for wildcards":
 
   - do:
@@ -137,10 +172,6 @@ setup:
 ---
 "Should return test_index_3 if expand_wildcards=closed":
 
-  - skip:
-      version:     " - 2.0.0"
-      reason:      Requires fix for issue 7258
-
   - do:
       indices.get:
         index: test_index_*
@@ -162,9 +193,6 @@ setup:
 
 ---
 "Should return an exception when querying invalid indices":
- - skip:
-     version: " - 5.99.99"
-     reason: "bad request logic added in 6.0.0"
 
  - do:
      catch: bad_request

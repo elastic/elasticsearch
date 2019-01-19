@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -91,6 +93,7 @@ public class CancelTests extends ReindexTestCase {
         int numDocs = getNumShards(INDEX).numPrimaries * 10 * builder.request().getSlices();
         ALLOWED_OPERATIONS.release(numDocs);
 
+        logger.debug("setting up [{}] docs", numDocs);
         indexRandom(true, false, true, IntStream.range(0, numDocs)
                 .mapToObj(i -> client().prepareIndex(INDEX, TYPE, String.valueOf(i)).setSource("n", i))
                 .collect(Collectors.toList()));
@@ -102,17 +105,25 @@ public class CancelTests extends ReindexTestCase {
         // Scroll by 1 so that cancellation is easier to control
         builder.source().setSize(1);
 
-        /* Allow a random number of the documents less the number of workers to be modified by the reindex action. That way at least one
-         * worker is blocked. */
+        /* Allow a random number of the documents less the number of workers
+         * to be modified by the reindex action. That way at least one worker
+         * is blocked. */
         int numModifiedDocs = randomIntBetween(builder.request().getSlices() * 2, numDocs);
+        logger.debug("chose to modify [{}] out of [{}] docs", numModifiedDocs, numDocs);
         ALLOWED_OPERATIONS.release(numModifiedDocs - builder.request().getSlices());
 
         // Now execute the reindex action...
         ActionFuture<? extends BulkByScrollResponse> future = builder.execute();
 
-        /* ... and waits for the indexing operation listeners to block. It is important to realize that some of the workers might have
-         * exhausted their slice while others might have quite a bit left to work on. We can't control that. */
-        awaitBusy(() -> ALLOWED_OPERATIONS.hasQueuedThreads() && ALLOWED_OPERATIONS.availablePermits() == 0);
+        /* ... and wait for the indexing operation listeners to block. It
+         * is important to realize that some of the workers might have
+         * exhausted their slice while others might have quite a bit left
+         * to work on. We can't control that. */
+        logger.debug("waiting for updates to be blocked");
+        boolean blocked = awaitBusy(
+            () -> ALLOWED_OPERATIONS.hasQueuedThreads() && ALLOWED_OPERATIONS.availablePermits() == 0,
+            1, TimeUnit.MINUTES); // 10 seconds is usually fine but on heavily loaded machines this can take a while
+        assertTrue("updates blocked", blocked);
 
         // Status should show the task running
         TaskInfo mainTask = findTaskToCancel(action, builder.request().getSlices());
@@ -122,21 +133,25 @@ public class CancelTests extends ReindexTestCase {
         // Description shouldn't be empty
         assertThat(mainTask.getDescription(), taskDescriptionMatcher);
 
-        // Cancel the request while the reindex action is blocked by the indexing operation listeners.
+        // Cancel the request while the action is blocked by the indexing operation listeners.
         // This will prevent further requests from being sent.
         ListTasksResponse cancelTasksResponse = client().admin().cluster().prepareCancelTasks().setTaskId(mainTask.getTaskId()).get();
         cancelTasksResponse.rethrowFailures("Cancel");
         assertThat(cancelTasksResponse.getTasks(), hasSize(1));
 
-        // The status should now show canceled. The request will still be in the list because it is (or its children are) still blocked.
+        /* The status should now show canceled. The request will still be in the
+         * list because it is (or its children are) still blocked. */
         mainTask = client().admin().cluster().prepareGetTask(mainTask.getTaskId()).get().getTask().getTask();
         status = (BulkByScrollTask.Status) mainTask.getStatus();
+        logger.debug("asserting that parent is marked canceled {}", status);
         assertEquals(CancelTasksRequest.DEFAULT_REASON, status.getReasonCancelled());
+
         if (builder.request().getSlices() > 1) {
             boolean foundCancelled = false;
             ListTasksResponse sliceList = client().admin().cluster().prepareListTasks().setParentTaskId(mainTask.getTaskId())
                     .setDetailed(true).get();
             sliceList.rethrowFailures("Fetch slice tasks");
+            logger.debug("finding at least one canceled child among {}", sliceList.getTasks());
             for (TaskInfo slice: sliceList.getTasks()) {
                 BulkByScrollTask.Status sliceStatus = (BulkByScrollTask.Status) slice.getStatus();
                 if (sliceStatus.getReasonCancelled() == null) continue;
@@ -146,7 +161,7 @@ public class CancelTests extends ReindexTestCase {
             assertTrue("Didn't find at least one sub task that was cancelled", foundCancelled);
         }
 
-        // Unblock the last operations
+        logger.debug("unblocking the blocked update");
         ALLOWED_OPERATIONS.release(builder.request().getSlices());
 
         // Checks that no more operations are executed
@@ -180,7 +195,7 @@ public class CancelTests extends ReindexTestCase {
         assertion.assertThat(response, numDocs, numModifiedDocs);
     }
 
-    private TaskInfo findTaskToCancel(String actionName, int workerCount) {
+    public static TaskInfo findTaskToCancel(String actionName, int workerCount) {
         ListTasksResponse tasks;
         long start = System.nanoTime();
         do {
@@ -283,6 +298,7 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public static class BlockingOperationListener implements IndexingOperationListener {
+        private static final Logger log = LogManager.getLogger(CancelTests.class);
 
         @Override
         public Engine.Index preIndex(ShardId shardId, Engine.Index index) {
@@ -300,7 +316,9 @@ public class CancelTests extends ReindexTestCase {
             }
 
             try {
+                log.debug("checking");
                 if (ALLOWED_OPERATIONS.tryAcquire(30, TimeUnit.SECONDS)) {
+                    log.debug("passed");
                     return operation;
                 }
             } catch (InterruptedException e) {

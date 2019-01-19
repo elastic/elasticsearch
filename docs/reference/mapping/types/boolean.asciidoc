@@ -17,10 +17,10 @@ For example:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "is_published": {
           "type": "boolean"
@@ -30,7 +30,7 @@ PUT my_index
   }
 }
 
-POST my_index/my_type/1
+POST my_index/_doc/1
 {
   "is_published": "true" <1>
 }
@@ -55,12 +55,12 @@ return `1` and `0`:
 
 [source,js]
 --------------------------------------------------
-POST my_index/my_type/1
+POST my_index/_doc/1
 {
   "is_published": true
 }
 
-POST my_index/my_type/2
+POST my_index/_doc/2
 {
   "is_published": false
 }

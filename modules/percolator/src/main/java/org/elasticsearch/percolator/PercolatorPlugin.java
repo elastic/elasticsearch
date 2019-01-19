@@ -20,7 +20,6 @@
 package org.elasticsearch.percolator;
 
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -35,13 +34,6 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 
 public class PercolatorPlugin extends Plugin implements MapperPlugin, SearchPlugin {
-
-    private final Settings settings;
-
-    public PercolatorPlugin(Settings settings) {
-        this.settings = settings;
-    }
-
     @Override
     public List<QuerySpec<?>> getQueries() {
         return singletonList(new QuerySpec<>(PercolateQueryBuilder.NAME, PercolateQueryBuilder::new, PercolateQueryBuilder::fromXContent));
@@ -51,14 +43,13 @@ public class PercolatorPlugin extends Plugin implements MapperPlugin, SearchPlug
     public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
         return Arrays.asList(
             new PercolatorMatchedSlotSubFetchPhase(),
-            new PercolatorHighlightSubFetchPhase(settings, context.getHighlighters())
+            new PercolatorHighlightSubFetchPhase(context.getHighlighters())
         );
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING,
-            PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
+        return Arrays.asList(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING);
     }
 
     @Override

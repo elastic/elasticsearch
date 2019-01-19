@@ -30,13 +30,10 @@ setup:
 ---
 "search with search_after parameter":
 
-  - skip:
-      version: " - 5.99.99"
-      reason: fielddata on _id is only available as of 6.0.0
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
-        type:  test
         body:
           size: 1
           query:
@@ -53,8 +50,8 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
-        type:  test
         body:
           size: 1
           query:
@@ -72,8 +69,8 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
-        type:  test
         body:
           size: 1
           query:
@@ -91,8 +88,8 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
-        type:  test
         body:
           size: 1
           query:

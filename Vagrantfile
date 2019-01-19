@@ -21,167 +21,204 @@
 # specific language governing permissions and limitations
 # under the License.
 
+define_opts = {
+  autostart: false
+}.freeze
+
 Vagrant.configure(2) do |config|
-  config.vm.define "ubuntu-1404" do |config|
-    config.vm.box = "elastic/ubuntu-14.04-x86_64"
-    ubuntu_common config
+
+  config.vm.provider 'virtualbox' do |vbox|
+    # Give the box more memory and cpu because our tests are beasts!
+    vbox.memory = Integer(ENV['VAGRANT_MEMORY'] || 8192)
+    vbox.cpus = Integer(ENV['VAGRANT_CPUS'] || 4)
+
+    # see https://github.com/hashicorp/vagrant/issues/9524
+    vbox.customize ["modifyvm", :id, "--audio", "none"]
   end
-  config.vm.define "ubuntu-1604" do |config|
-    config.vm.box = "elastic/ubuntu-16.04-x86_64"
-    ubuntu_common config, extra: <<-SHELL
-      # Install Jayatana so we can work around it being present.
-      [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
-    SHELL
+
+  # Switch the default share for the project root from /vagrant to
+  # /elasticsearch because /vagrant is confusing when there is a project inside
+  # the elasticsearch project called vagrant....
+  config.vm.synced_folder '.', '/vagrant', disabled: true
+  config.vm.synced_folder '.', '/elasticsearch'
+
+  # Expose project directory. Note that VAGRANT_CWD may not be the same as Dir.pwd
+  PROJECT_DIR = ENV['VAGRANT_PROJECT_DIR'] || Dir.pwd
+  config.vm.synced_folder PROJECT_DIR, '/project'
+
+  'ubuntu-1404'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/ubuntu-14.04-x86_64'
+      deb_common config, box
+    end
+  end
+  'ubuntu-1604'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/ubuntu-16.04-x86_64'
+      deb_common config, box, extra: <<-SHELL
+        # Install Jayatana so we can work around it being present.
+        [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
+      SHELL
+    end
+  end
+  'ubuntu-1804'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/ubuntu-18.04-x86_64'
+      deb_common config, box, extra: <<-SHELL
+       # Install Jayatana so we can work around it being present.
+       [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
+      SHELL
+    end
   end
   # Wheezy's backports don't contain Openjdk 8 and the backflips
   # required to get the sun jdk on there just aren't worth it. We have
   # jessie and stretch for testing debian and it works fine.
-  config.vm.define "debian-8" do |config|
-    config.vm.box = "elastic/debian-8-x86_64"
-    deb_common config
-  end
-  config.vm.define "debian-9" do |config|
-    config.vm.box = "elastic/debian-9-x86_64"
-    deb_common config
-  end
-  config.vm.define "centos-6" do |config|
-    config.vm.box = "elastic/centos-6-x86_64"
-    rpm_common config
-  end
-  config.vm.define "centos-7" do |config|
-    config.vm.box = "elastic/centos-7-x86_64"
-    rpm_common config
-  end
-  config.vm.define "oel-6" do |config|
-    config.vm.box = "elastic/oraclelinux-6-x86_64"
-    rpm_common config
-  end
-  config.vm.define "oel-7" do |config|
-    config.vm.box = "elastic/oraclelinux-7-x86_64"
-    rpm_common config
-  end
-  config.vm.define "fedora-25" do |config|
-    config.vm.box = "elastic/fedora-25-x86_64"
-    dnf_common config
-  end
-  config.vm.define "fedora-26" do |config|
-    config.vm.box = "elastic/fedora-26-x86_64"
-    dnf_common config
-  end
-  config.vm.define "opensuse-42" do |config|
-    config.vm.box = "elastic/opensuse-42-x86_64"
-    opensuse_common config
-  end
-  config.vm.define "sles-12" do |config|
-    config.vm.box = "elastic/sles-12-x86_64"
-    sles_common config
-  end
-  # Switch the default share for the project root from /vagrant to
-  # /elasticsearch because /vagrant is confusing when there is a project inside
-  # the elasticsearch project called vagrant....
-  config.vm.synced_folder ".", "/vagrant", disabled: true
-  config.vm.synced_folder ".", "/elasticsearch"
-  # Expose project directory
-  PROJECT_DIR = ENV['VAGRANT_PROJECT_DIR'] || Dir.pwd
-  config.vm.synced_folder PROJECT_DIR, "/project"
-  config.vm.provider "virtualbox" do |v|
-    # Give the boxes 3GB because Elasticsearch defaults to using 2GB
-    v.memory = 3072
-  end
-  if Vagrant.has_plugin?("vagrant-cachier")
-    config.cache.scope = :box
-  end
-  config.vm.defined_vms.each do |name, config|
-    config.options[:autostart] = false
-    set_prompt = lambda do |config|
-      # Sets up a consistent prompt for all users. Or tries to. The VM might
-      # contain overrides for root and vagrant but this attempts to work around
-      # them by re-source-ing the standard prompt file.
-      config.vm.provision "prompt", type: "shell", inline: <<-SHELL
-        cat \<\<PROMPT > /etc/profile.d/elasticsearch_prompt.sh
-export PS1='#{name}:\\w$ '
-PROMPT
-        grep 'source /etc/profile.d/elasticsearch_prompt.sh' ~/.bashrc |
-          cat \<\<SOURCE_PROMPT >> ~/.bashrc
-# Replace the standard prompt with a consistent one
-source /etc/profile.d/elasticsearch_prompt.sh
-SOURCE_PROMPT
-        grep 'source /etc/profile.d/elasticsearch_prompt.sh' ~vagrant/.bashrc |
-          cat \<\<SOURCE_PROMPT >> ~vagrant/.bashrc
-# Replace the standard prompt with a consistent one
-source /etc/profile.d/elasticsearch_prompt.sh
-SOURCE_PROMPT
-      SHELL
-      # Creates a file to mark the machine as created by vagrant. Tests check
-      # for this file and refuse to run if it is not present so that they can't
-      # be run unexpectedly.
-      config.vm.provision "markerfile", type: "shell", inline: <<-SHELL
-        touch /etc/is_vagrant_vm
-      SHELL
+  'debian-8'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/debian-8-x86_64'
+      deb_common config, box
     end
-    config.config_procs.push ['2', set_prompt]
+  end
+  'debian-9'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/debian-9-x86_64'
+      deb_common config, box
+    end
+  end
+  'centos-6'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/centos-6-x86_64'
+      rpm_common config, box
+    end
+  end
+  'centos-7'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/centos-7-x86_64'
+      rpm_common config, box
+    end
+  end
+  'oel-6'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/oraclelinux-6-x86_64'
+      rpm_common config, box
+    end
+  end
+  'oel-7'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/oraclelinux-7-x86_64'
+      rpm_common config, box
+    end
+  end
+  'fedora-27'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/fedora-27-x86_64'
+      dnf_common config, box
+    end
+  end
+  'fedora-28'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/fedora-28-x86_64'
+      dnf_common config, box
+    end
+  end
+  'opensuse-42'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/opensuse-42-x86_64'
+      suse_common config, box
+    end
+  end
+  'sles-12'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/sles-12-x86_64'
+      sles_common config, box
+    end
+  end
+
+  windows_2012r2_box = ENV['VAGRANT_WINDOWS_2012R2_BOX']
+  if windows_2012r2_box && windows_2012r2_box.empty? == false
+    'windows-2012r2'.tap do |box|
+      config.vm.define box, define_opts do |config|
+        config.vm.box = windows_2012r2_box
+        windows_common config, box
+      end
+    end
+  end
+
+  windows_2016_box = ENV['VAGRANT_WINDOWS_2016_BOX']
+  if windows_2016_box && windows_2016_box.empty? == false
+    'windows-2016'.tap do |box|
+      config.vm.define box, define_opts do |config|
+        config.vm.box = windows_2016_box
+        windows_common config, box
+      end
+    end
   end
 end
 
-def ubuntu_common(config, extra: '')
-  deb_common config, extra: extra
-end
-
-def deb_common(config, extra: '')
+def deb_common(config, name, extra: '')
   # http://foo-o-rama.com/vagrant--stdin-is-not-a-tty--fix.html
-  config.vm.provision "fix-no-tty", type: "shell" do |s|
+  config.vm.provision 'fix-no-tty', type: 'shell' do |s|
       s.privileged = false
       s.inline = "sudo sed -i '/tty/!s/mesg n/tty -s \\&\\& mesg n/' /root/.profile"
   end
-  provision(config,
-    update_command: "apt-get update",
-    update_tracking_file: "/var/cache/apt/archives/last_update",
-    install_command: "apt-get install -y",
-    extra: extra)
+  linux_common(
+    config,
+    name,
+    update_command: 'apt-get update',
+    update_tracking_file: '/var/cache/apt/archives/last_update',
+    install_command: 'apt-get install -y',
+    extra: extra
+  )
 end
 
-def rpm_common(config)
-  provision(config,
-    update_command: "yum check-update",
-    update_tracking_file: "/var/cache/yum/last_update",
-    install_command: "yum install -y")
+def rpm_common(config, name)
+  linux_common(
+    config,
+    name,
+    update_command: 'yum check-update',
+    update_tracking_file: '/var/cache/yum/last_update',
+    install_command: 'yum install -y'
+  )
 end
 
-def dnf_common(config)
-  provision(config,
-    update_command: "dnf check-update",
-    update_tracking_file: "/var/cache/dnf/last_update",
-    install_command: "dnf install -y",
-    install_command_retries: 5)
-  if Vagrant.has_plugin?("vagrant-cachier")
-    # Autodetect doesn't work....
+def dnf_common(config, name)
+  # Autodetect doesn't work....
+  if Vagrant.has_plugin?('vagrant-cachier')
     config.cache.auto_detect = false
-    config.cache.enable :generic, { :cache_dir => "/var/cache/dnf" }
+    config.cache.enable :generic, { :cache_dir => '/var/cache/dnf' }
   end
+  linux_common(
+    config,
+    name,
+    update_command: 'dnf check-update',
+    update_tracking_file: '/var/cache/dnf/last_update',
+    install_command: 'dnf install -y',
+    install_command_retries: 5
+  )
 end
 
-def opensuse_common(config)
-  suse_common config, ''
+def suse_common(config, name, extra: '')
+  linux_common(
+    config,
+    name,
+    update_command: 'zypper --non-interactive list-updates',
+    update_tracking_file: '/var/cache/zypp/packages/last_update',
+    install_command: 'zypper --non-interactive --quiet install --no-recommends',
+    extra: extra
+  )
 end
 
-def suse_common(config, extra)
-  provision(config,
-    update_command: "zypper --non-interactive list-updates",
-    update_tracking_file: "/var/cache/zypp/packages/last_update",
-    install_command: "zypper --non-interactive --quiet install --no-recommends",
-    extra: extra)
-end
-
-def sles_common(config)
+def sles_common(config, name)
   extra = <<-SHELL
     zypper rr systemsmanagement_puppet puppetlabs-pc1
     zypper --non-interactive install git-core
-SHELL
-  suse_common config, extra
+  SHELL
+  suse_common config, name, extra: extra
 end
 
-# Register the main box provisioning script.
+# Configuration needed for all linux boxes
 # @param config Vagrant's config object. Required.
+# @param name [String] The box name. Required.
 # @param update_command [String] The command used to update the package
 #   manager. Required. Think `apt-get update`.
 # @param update_tracking_file [String] The location of the file tracking the
@@ -189,27 +226,77 @@ end
 #   is cached by vagrant-cachier.
 # @param install_command [String] The command used to install a package.
 #   Required. Think `apt-get install #{package}`.
-# @param extra [String] Extra provisioning commands run before anything else.
-#   Optional. Used for things like setting up the ppa for Java 8.
-def provision(config,
-    update_command: 'required',
-    update_tracking_file: 'required',
-    install_command: 'required',
-    install_command_retries: 0,
-    extra: '')
-  # Vagrant run ruby 2.0.0 which doesn't have required named parameters....
-  raise ArgumentError.new('update_command is required') if update_command == 'required'
-  raise ArgumentError.new('update_tracking_file is required') if update_tracking_file == 'required'
-  raise ArgumentError.new('install_command is required') if install_command == 'required'
-  config.vm.provider "virtualbox" do |v|
-    # Give the box more memory and cpu because our tests are beasts!
-    v.memory = Integer(ENV['VAGRANT_MEMORY'] || 8192)
-    v.cpus = Integer(ENV['VAGRANT_CPUS'] || 4)
+# @param install_command_retries [Integer] Number of times to retry
+#   a failed install command
+# @param extra [String] Additional script to run before installing
+#   dependencies
+#
+def linux_common(config,
+                 name,
+                 update_command: 'required',
+                 update_tracking_file: 'required',
+                 install_command: 'required',
+                 install_command_retries: 0,
+                 extra: '')
+
+  raise ArgumentError, 'update_command is required' if update_command == 'required'
+  raise ArgumentError, 'update_tracking_file is required' if update_tracking_file == 'required'
+  raise ArgumentError, 'install_command is required' if install_command == 'required'
+
+  if Vagrant.has_plugin?('vagrant-cachier')
+    config.cache.scope = :box
   end
-  config.vm.synced_folder "#{Dir.home}/.gradle/caches", "/home/vagrant/.gradle/caches",
-    create: true,
-    owner: "vagrant"
-  config.vm.provision "dependencies", type: "shell", inline: <<-SHELL
+
+  config.vm.provision 'markerfile', type: 'shell', inline: <<-SHELL
+    touch /etc/is_vagrant_vm
+    touch /is_vagrant_vm # for consistency between linux and windows
+  SHELL
+
+  # This prevents leftovers from previous tests using the
+  # same VM from messing up the current test
+  config.vm.provision 'clean es installs in tmp', run: 'always', type: 'shell', inline: <<-SHELL
+    rm -rf /tmp/elasticsearch*
+  SHELL
+
+  sh_set_prompt config, name
+  sh_install_deps(
+    config,
+    update_command,
+    update_tracking_file,
+    install_command,
+    install_command_retries,
+    extra
+  )
+end
+
+# Sets up a consistent prompt for all users. Or tries to. The VM might
+# contain overrides for root and vagrant but this attempts to work around
+# them by re-source-ing the standard prompt file.
+def sh_set_prompt(config, name)
+  config.vm.provision 'set prompt', type: 'shell', inline: <<-SHELL
+      cat \<\<PROMPT > /etc/profile.d/elasticsearch_prompt.sh
+export PS1='#{name}:\\w$ '
+PROMPT
+      grep 'source /etc/profile.d/elasticsearch_prompt.sh' ~/.bashrc |
+        cat \<\<SOURCE_PROMPT >> ~/.bashrc
+# Replace the standard prompt with a consistent one
+source /etc/profile.d/elasticsearch_prompt.sh
+SOURCE_PROMPT
+      grep 'source /etc/profile.d/elasticsearch_prompt.sh' ~vagrant/.bashrc |
+        cat \<\<SOURCE_PROMPT >> ~vagrant/.bashrc
+# Replace the standard prompt with a consistent one
+source /etc/profile.d/elasticsearch_prompt.sh
+SOURCE_PROMPT
+  SHELL
+end
+
+def sh_install_deps(config,
+                    update_command,
+                    update_tracking_file,
+                    install_command,
+                    install_command_retries,
+                    extra)
+  config.vm.provision 'install dependencies', type: 'shell', inline:  <<-SHELL
     set -e
     set -o pipefail
 
@@ -243,9 +330,9 @@ def provision(config,
       echo "==> Installing $1"
       if [ #{install_command_retries} -eq 0 ]
       then
-            #{install_command} $1
+        #{install_command} $1
       else
-            retry_installcommand $1 #{install_command_retries}
+        retry_installcommand $1 #{install_command_retries}
       fi
     }
 
@@ -256,12 +343,13 @@ def provision(config,
     #{extra}
 
     installed java || {
-      echo "==> Java is not installed on vagrant box ${config.vm.box}"
+      echo "==> Java is not installed"
       return 1
     }
     ensure tar
     ensure curl
     ensure unzip
+    ensure rsync
 
     installed bats || {
       # Bats lives in a git repository....
@@ -273,27 +361,16 @@ def provision(config,
       rm -rf /tmp/bats
     }
 
-    installed gradle || {
-      echo "==> Installing Gradle"
-      curl -sS -o /tmp/gradle.zip -L https://services.gradle.org/distributions/gradle-3.3-bin.zip
-      unzip -q /tmp/gradle.zip -d /opt
-      rm -rf /tmp/gradle.zip
-      ln -s /opt/gradle-3.3/bin/gradle /usr/bin/gradle
-      # make nfs mounted gradle home dir writeable
-      chown vagrant:vagrant /home/vagrant/.gradle
-    }
-
-
     cat \<\<VARS > /etc/profile.d/elasticsearch_vars.sh
 export ZIP=/elasticsearch/distribution/zip/build/distributions
 export TAR=/elasticsearch/distribution/tar/build/distributions
 export RPM=/elasticsearch/distribution/rpm/build/distributions
 export DEB=/elasticsearch/distribution/deb/build/distributions
 export BATS=/project/build/bats
-export BATS_UTILS=/project/build/bats/utils
-export BATS_TESTS=/project/build/bats/tests
-export BATS_ARCHIVES=/project/build/bats/archives
-export GRADLE_HOME=/opt/gradle-3.3
+export BATS_UTILS=/project/build/packaging/bats/utils
+export BATS_TESTS=/project/build/packaging/bats/tests
+export PACKAGING_ARCHIVES=/project/build/packaging/archives
+export PACKAGING_TESTS=/project/build/packaging/tests
 VARS
     cat \<\<SUDOERS_VARS > /etc/sudoers.d/elasticsearch_vars
 Defaults   env_keep += "ZIP"
@@ -303,8 +380,28 @@ Defaults   env_keep += "DEB"
 Defaults   env_keep += "BATS"
 Defaults   env_keep += "BATS_UTILS"
 Defaults   env_keep += "BATS_TESTS"
-Defaults   env_keep += "BATS_ARCHIVES"
+Defaults   env_keep += "PACKAGING_ARCHIVES"
+Defaults   env_keep += "PACKAGING_TESTS"
 SUDOERS_VARS
     chmod 0440 /etc/sudoers.d/elasticsearch_vars
+  SHELL
+end
+
+def windows_common(config, name)
+  config.vm.provision 'markerfile', type: 'shell', inline: <<-SHELL
+    $ErrorActionPreference = "Stop"
+    New-Item C:/is_vagrant_vm -ItemType file -Force | Out-Null
+  SHELL
+
+  config.vm.provision 'set prompt', type: 'shell', inline: <<-SHELL
+    $ErrorActionPreference = "Stop"
+    $ps_prompt = 'function Prompt { "#{name}:$($ExecutionContext.SessionState.Path.CurrentLocation)>" }'
+    $ps_prompt | Out-File $PsHome/Microsoft.PowerShell_profile.ps1
+  SHELL
+
+  config.vm.provision 'set env variables', type: 'shell', inline: <<-SHELL
+    $ErrorActionPreference = "Stop"
+    [Environment]::SetEnvironmentVariable("PACKAGING_ARCHIVES", "C:/project/build/packaging/archives", "Machine")
+    [Environment]::SetEnvironmentVariable("PACKAGING_TESTS", "C:/project/build/packaging/tests", "Machine")
   SHELL
 end

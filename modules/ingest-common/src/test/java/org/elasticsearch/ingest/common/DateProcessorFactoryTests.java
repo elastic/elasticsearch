@@ -20,8 +20,10 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -34,8 +36,14 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DateProcessorFactoryTests extends ESTestCase {
 
+    private DateProcessor.Factory factory;
+
+    @Before
+    public void init() {
+        factory = new DateProcessor.Factory(TestTemplateService.instance());
+    }
+
     public void testBuildDefaults() throws Exception {
-        DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
@@ -46,12 +54,11 @@ public class DateProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getField(), equalTo(sourceField));
         assertThat(processor.getTargetField(), equalTo(DateProcessor.DEFAULT_TARGET_FIELD));
         assertThat(processor.getFormats(), equalTo(Collections.singletonList("dd/MM/yyyyy")));
-        assertThat(processor.getLocale(), equalTo(Locale.ROOT));
-        assertThat(processor.getTimezone(), equalTo(DateTimeZone.UTC));
+        assertNull(processor.getLocale());
+        assertNull(processor.getTimezone());
     }
 
     public void testMatchFieldIsMandatory() throws Exception {
-        DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         String targetField = randomAlphaOfLengthBetween(1, 10);
         config.put("target_field", targetField);
@@ -66,7 +73,6 @@ public class DateProcessorFactoryTests extends ESTestCase {
     }
 
     public void testMatchFormatsIsMandatory() throws Exception {
-        DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         String sourceField = randomAlphaOfLengthBetween(1, 10);
         String targetField = randomAlphaOfLengthBetween(1, 10);
@@ -82,7 +88,6 @@ public class DateProcessorFactoryTests extends ESTestCase {
     }
 
     public void testParseLocale() throws Exception {
-        DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
@@ -91,39 +96,10 @@ public class DateProcessorFactoryTests extends ESTestCase {
         config.put("locale", locale.toLanguageTag());
 
         DateProcessor processor = factory.create(null, null, config);
-        assertThat(processor.getLocale().toLanguageTag(), equalTo(locale.toLanguageTag()));
-    }
-
-    public void testParseInvalidLocale() throws Exception {
-        String[] locales = new String[] { "invalid_locale", "english", "xy", "xy-US" };
-        for (String locale : locales) {
-            DateProcessor.Factory factory = new DateProcessor.Factory();
-            Map<String, Object> config = new HashMap<>();
-            String sourceField = randomAlphaOfLengthBetween(1, 10);
-            config.put("field", sourceField);
-            config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
-            config.put("locale", locale);
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> factory.create(null, null, config));
-            assertThat(e.getMessage(), equalTo("Unknown language: " + locale.split("[_-]")[0]));
-        }
-
-        locales = new String[] { "en-XY", "en-Canada" };
-        for (String locale : locales) {
-            DateProcessor.Factory factory = new DateProcessor.Factory();
-            Map<String, Object> config = new HashMap<>();
-            String sourceField = randomAlphaOfLengthBetween(1, 10);
-            config.put("field", sourceField);
-            config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
-            config.put("locale", locale);
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> factory.create(null, null, config));
-            assertThat(e.getMessage(), equalTo("Unknown country: " + locale.split("[_-]")[1]));
-        }
+        assertThat(processor.getLocale().newInstance(Collections.emptyMap()).execute(), equalTo(locale.toLanguageTag()));
     }
 
     public void testParseTimezone() throws Exception {
-        DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
@@ -132,26 +108,10 @@ public class DateProcessorFactoryTests extends ESTestCase {
         DateTimeZone timezone = randomDateTimeZone();
         config.put("timezone", timezone.getID());
         DateProcessor processor = factory.create(null, null, config);
-        assertThat(processor.getTimezone(), equalTo(timezone));
-    }
-
-    public void testParseInvalidTimezone() throws Exception {
-        DateProcessor.Factory factory = new DateProcessor.Factory();
-        Map<String, Object> config = new HashMap<>();
-        String sourceField = randomAlphaOfLengthBetween(1, 10);
-        config.put("field", sourceField);
-        config.put("match_formats", Collections.singletonList("dd/MM/yyyyy"));
-        config.put("timezone", "invalid_timezone");
-        try {
-            factory.create(null, null, config);
-            fail("invalid timezone should fail");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("The datetime zone id 'invalid_timezone' is not recognised"));
-        }
+        assertThat(processor.getTimezone().newInstance(Collections.emptyMap()).execute(), equalTo(timezone.getID()));
     }
 
     public void testParseMatchFormats() throws Exception {
-        DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
@@ -162,7 +122,6 @@ public class DateProcessorFactoryTests extends ESTestCase {
     }
 
     public void testParseMatchFormatsFailure() throws Exception {
-        DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
@@ -177,7 +136,6 @@ public class DateProcessorFactoryTests extends ESTestCase {
     }
 
     public void testParseTargetField() throws Exception {
-        DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         String sourceField = randomAlphaOfLengthBetween(1, 10);
         String targetField = randomAlphaOfLengthBetween(1, 10);

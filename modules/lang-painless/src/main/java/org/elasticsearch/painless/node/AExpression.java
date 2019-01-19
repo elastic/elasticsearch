@@ -20,11 +20,10 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 import java.util.Objects;
 
@@ -60,7 +59,7 @@ public abstract class AExpression extends ANode {
      * Set to the expected type this node needs to be.  Note this variable
      * is always set by the parent as input and should never be read from.
      */
-    Type expected = null;
+    Class<?> expected = null;
 
     /**
      * Set to the actual type this node is.  Note this variable is always
@@ -68,7 +67,7 @@ public abstract class AExpression extends ANode {
      * node itself.  <b>Also, actual can always be read after a cast is
      * called on this node to get the type of the node after the cast.</b>
      */
-    Type actual = null;
+    Class<?> actual = null;
 
     /**
      * Set by {@link EExplicit} if a cast made on an expression node should be
@@ -119,7 +118,7 @@ public abstract class AExpression extends ANode {
      * @return The new child node for the parent node calling this method.
      */
     AExpression cast(Locals locals) {
-        Cast cast = AnalyzerCaster.getLegalCast(location, actual, expected, explicit, internal);
+        PainlessCast cast = AnalyzerCaster.getLegalCast(location, actual, expected, explicit, internal);
 
         if (cast == null) {
             if (constant == null || this instanceof EConstant) {
@@ -158,7 +157,7 @@ public abstract class AExpression extends ANode {
 
                 return ecast;
             } else {
-                if (Definition.isConstantType(expected)) {
+                if (PainlessLookupUtility.isConstantType(expected)) {
                     // For the case where a cast is required, a constant is set,
                     // and the constant can be immediately cast to the expected type.
                     // An EConstant replaces this node with the constant cast appropriately

@@ -19,14 +19,14 @@
 
 lexer grammar PainlessLexer;
 
-@members{
+@members {
 /**
  * Check against the current whitelist to determine whether a token is a type
  * or not. Called by the {@code TYPE} token defined in {@code PainlessLexer.g4}.
  * See also
  * <a href="https://en.wikipedia.org/wiki/The_lexer_hack">The lexer hack</a>.
  */
-protected abstract boolean isSimpleType(String name);
+protected abstract boolean isType(String name);
 
 /**
  * Is the preceding {@code /} a the beginning of a regex (true) or a division
@@ -133,7 +133,7 @@ NULL: 'null';
 // or not.  Note this works by processing one character at a time
 // and the rule is added or removed as this happens.  This is also known
 // as "the lexer hack."  See (https://en.wikipedia.org/wiki/The_lexer_hack).
-TYPE: ID ( DOT ID )* { isSimpleType(getText()) }?;
+TYPE: ID ( DOT ID )* { isType(getText()) }?;
 ID: [_a-zA-Z] [_a-zA-Z0-9]*;
 
 mode AFTER_DOT;

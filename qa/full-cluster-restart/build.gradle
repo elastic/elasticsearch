@@ -17,8 +17,9 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.test.RestIntegTestTask
+
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.standalone-test'
 
@@ -29,7 +30,7 @@ task bwcTest {
   group = 'verification'
 }
 
-for (Version version : indexCompatVersions) {
+for (Version version : bwcVersions.indexCompatible) {
   String baseName = "v${version}"
 
   Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
@@ -43,7 +44,6 @@ for (Version version : indexCompatVersions) {
 
   Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
   configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-    distribution = 'zip'
     bwcVersion = version
     numBwcNodes = 2
     numNodes = 2
@@ -51,9 +51,6 @@ for (Version version : indexCompatVersions) {
 
     // some tests rely on the translog not being flushed
     setting 'indices.memory.shard_inactive_time', '20m'
-
-    // debug logging for testRecovery
-    setting 'logger.level', 'DEBUG'
 
     if (version.onOrAfter('5.3.0')) {
       setting 'http.content_type.required', 'true'
@@ -69,14 +66,10 @@ for (Version version : indexCompatVersions) {
     dependsOn oldClusterTest,
         "${baseName}#oldClusterTestCluster#node0.stop",
         "${baseName}#oldClusterTestCluster#node1.stop"
-    distribution = 'zip'
     clusterName = 'full-cluster-restart'
 
     // some tests rely on the translog not being flushed
     setting 'indices.memory.shard_inactive_time', '20m'
-
-    // debug logging for testRecovery
-    setting 'logger.level', 'DEBUG'
 
     numNodes = 2
     dataDir = { nodeNum -> oldClusterTest.nodes[nodeNum].dataDir }
@@ -99,16 +92,16 @@ for (Version version : indexCompatVersions) {
   }
 }
 
-test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+unitTest.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
 // basic integ tests includes testing bwc against the most recent version
 task integTest {
   if (project.bwc_tests_enabled) {
-    dependsOn "v${indexCompatVersions[-1]}#bwcTest"
-    if (indexCompatVersions[-1].bugfix == 0) {
-      dependsOn "v${indexCompatVersions[-2]}#bwcTest"
+    for (final def version : bwcVersions.unreleasedIndexCompatible) {
+      dependsOn "v${version}#bwcTest"
     }
   }
 }
 
 check.dependsOn(integTest)
+

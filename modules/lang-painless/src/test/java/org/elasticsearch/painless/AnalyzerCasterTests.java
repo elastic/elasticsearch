@@ -19,20 +19,12 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.test.ESTestCase;
-
-import static org.elasticsearch.painless.Definition.BYTE_TYPE;
-import static org.elasticsearch.painless.Definition.DOUBLE_TYPE;
-import static org.elasticsearch.painless.Definition.FLOAT_TYPE;
-import static org.elasticsearch.painless.Definition.INT_TYPE;
-import static org.elasticsearch.painless.Definition.LONG_TYPE;
-import static org.elasticsearch.painless.Definition.SHORT_TYPE;
 
 public class AnalyzerCasterTests extends ESTestCase {
 
-    private static void assertCast(Type actual, Type expected, boolean mustBeExplicit) {
+    private static void assertCast(Class<?> actual, Class<?> expected, boolean mustBeExplicit) {
         Location location = new Location("dummy", 0);
 
         if (actual.equals(expected)) {
@@ -42,9 +34,9 @@ public class AnalyzerCasterTests extends ESTestCase {
             return;
         }
 
-        Cast cast = AnalyzerCaster.getLegalCast(location, actual, expected, true, false);
-        assertEquals(actual, cast.from);
-        assertEquals(expected, cast.to);
+        PainlessCast cast = AnalyzerCaster.getLegalCast(location, actual, expected, true, false);
+        assertEquals(actual, cast.originalType);
+        assertEquals(expected, cast.targetType);
 
         if (mustBeExplicit) {
             ClassCastException error = expectThrows(ClassCastException.class,
@@ -52,53 +44,53 @@ public class AnalyzerCasterTests extends ESTestCase {
             assertTrue(error.getMessage().startsWith("Cannot cast"));
         } else {
             cast = AnalyzerCaster.getLegalCast(location, actual, expected, false, false);
-            assertEquals(actual, cast.from);
-            assertEquals(expected, cast.to);
+            assertEquals(actual, cast.originalType);
+            assertEquals(expected, cast.targetType);
         }
     }
 
     public void testNumericCasts() {
-        assertCast(BYTE_TYPE, BYTE_TYPE, false);
-        assertCast(BYTE_TYPE, SHORT_TYPE, false);
-        assertCast(BYTE_TYPE, INT_TYPE, false);
-        assertCast(BYTE_TYPE, LONG_TYPE, false);
-        assertCast(BYTE_TYPE, FLOAT_TYPE, false);
-        assertCast(BYTE_TYPE, DOUBLE_TYPE, false);
+        assertCast(byte.class, byte.class, false);
+        assertCast(byte.class, short.class, false);
+        assertCast(byte.class, int.class, false);
+        assertCast(byte.class, long.class, false);
+        assertCast(byte.class, float.class, false);
+        assertCast(byte.class, double.class, false);
 
-        assertCast(SHORT_TYPE, BYTE_TYPE, true);
-        assertCast(SHORT_TYPE, SHORT_TYPE, false);
-        assertCast(SHORT_TYPE, INT_TYPE, false);
-        assertCast(SHORT_TYPE, LONG_TYPE, false);
-        assertCast(SHORT_TYPE, FLOAT_TYPE, false);
-        assertCast(SHORT_TYPE, DOUBLE_TYPE, false);
+        assertCast(short.class, byte.class, true);
+        assertCast(short.class, short.class, false);
+        assertCast(short.class, int.class, false);
+        assertCast(short.class, long.class, false);
+        assertCast(short.class, float.class, false);
+        assertCast(short.class, double.class, false);
 
-        assertCast(INT_TYPE, BYTE_TYPE, true);
-        assertCast(INT_TYPE, SHORT_TYPE, true);
-        assertCast(INT_TYPE, INT_TYPE, false);
-        assertCast(INT_TYPE, LONG_TYPE, false);
-        assertCast(INT_TYPE, FLOAT_TYPE, false);
-        assertCast(INT_TYPE, DOUBLE_TYPE, false);
+        assertCast(int.class, byte.class, true);
+        assertCast(int.class, short.class, true);
+        assertCast(int.class, int.class, false);
+        assertCast(int.class, long.class, false);
+        assertCast(int.class, float.class, false);
+        assertCast(int.class, double.class, false);
 
-        assertCast(LONG_TYPE, BYTE_TYPE, true);
-        assertCast(LONG_TYPE, SHORT_TYPE, true);
-        assertCast(LONG_TYPE, INT_TYPE, true);
-        assertCast(LONG_TYPE, LONG_TYPE, false);
-        assertCast(LONG_TYPE, FLOAT_TYPE, false);
-        assertCast(LONG_TYPE, DOUBLE_TYPE, false);
+        assertCast(long.class, byte.class, true);
+        assertCast(long.class, short.class, true);
+        assertCast(long.class, int.class, true);
+        assertCast(long.class, long.class, false);
+        assertCast(long.class, float.class, false);
+        assertCast(long.class, double.class, false);
 
-        assertCast(FLOAT_TYPE, BYTE_TYPE, true);
-        assertCast(FLOAT_TYPE, SHORT_TYPE, true);
-        assertCast(FLOAT_TYPE, INT_TYPE, true);
-        assertCast(FLOAT_TYPE, LONG_TYPE, true);
-        assertCast(FLOAT_TYPE, FLOAT_TYPE, false);
-        assertCast(FLOAT_TYPE, DOUBLE_TYPE, false);
+        assertCast(float.class, byte.class, true);
+        assertCast(float.class, short.class, true);
+        assertCast(float.class, int.class, true);
+        assertCast(float.class, long.class, true);
+        assertCast(float.class, float.class, false);
+        assertCast(float.class, double.class, false);
 
-        assertCast(DOUBLE_TYPE, BYTE_TYPE, true);
-        assertCast(DOUBLE_TYPE, SHORT_TYPE, true);
-        assertCast(DOUBLE_TYPE, INT_TYPE, true);
-        assertCast(DOUBLE_TYPE, LONG_TYPE, true);
-        assertCast(DOUBLE_TYPE, FLOAT_TYPE, true);
-        assertCast(DOUBLE_TYPE, DOUBLE_TYPE, false);
+        assertCast(double.class, byte.class, true);
+        assertCast(double.class, short.class, true);
+        assertCast(double.class, int.class, true);
+        assertCast(double.class, long.class, true);
+        assertCast(double.class, float.class, true);
+        assertCast(double.class, double.class, false);
     }
 
 }

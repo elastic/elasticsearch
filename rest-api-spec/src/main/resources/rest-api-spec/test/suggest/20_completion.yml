@@ -51,6 +51,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -77,6 +78,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -90,6 +92,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -129,6 +132,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -173,6 +177,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -187,6 +192,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -216,6 +222,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -229,6 +236,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -272,6 +280,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -319,6 +328,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:

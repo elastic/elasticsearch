@@ -6,7 +6,7 @@ objects which, in turn, may contain inner objects themselves:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 { <1>
   "region": "US",
   "manager": { <2>
@@ -41,10 +41,10 @@ An explicit mapping for the above document could look like this:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
-    "my_type": { <1>
+    "_doc": { <1>
       "properties": {
         "region": {
           "type": "keyword"

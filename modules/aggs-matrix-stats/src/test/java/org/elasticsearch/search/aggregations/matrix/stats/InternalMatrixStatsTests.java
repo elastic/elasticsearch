@@ -22,6 +22,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -160,7 +161,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         multiPassStats.computeStats(aValues, bValues);
 
         ScriptService mockScriptService = mockScriptService();
-        MockBigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
+        MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         InternalAggregation.ReduceContext context =
             new InternalAggregation.ReduceContext(bigArrays, mockScriptService, true);
         InternalMatrixStats reduced = (InternalMatrixStats) shardResults.get(0).reduce(shardResults, context);
@@ -193,7 +194,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         }
 
         final String unknownField = randomAlphaOfLength(3);
-        final String other = randomAlphaOfLength(3);
+        final String other = randomValueOtherThan(unknownField, () -> randomAlphaOfLength(3));
 
         for (MatrixStats matrix : Arrays.asList(actual)) {
 

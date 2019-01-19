@@ -1,0 +1,2 @@
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.test.fixtures'

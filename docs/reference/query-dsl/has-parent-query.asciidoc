@@ -25,6 +25,13 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
+Note that the `has_parent` is a slow query compared to other queries in the
+query dsl due to the fact that it performs a join. The performance degrades
+as the number of matching parent documents increases. If you care about query
+performance you should not use this query. However if you do happen to use
+this query then use it as less as possible. Each `has_parent` query that gets
+added to a search request can increase query time significantly.
+
 [float]
 ==== Scoring capabilities
 

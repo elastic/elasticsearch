@@ -29,21 +29,16 @@ apply plugin: 'war'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.rest-test'
 
-final String wildflyVersion = '10.0.0.Final'
+final String wildflyVersion = '11.0.0.Final'
 final String wildflyDir = "${buildDir}/wildfly"
 final String wildflyInstall = "${buildDir}/wildfly/wildfly-${wildflyVersion}"
-// TODO: use ephemeral ports
-final int portOffset = 30000
-final int managementPort = 9990 + portOffset
-// we skip these tests on Windows so we do not need to worry about compatibility here
-final String stopWildflyCommand = "${wildflyInstall}/bin/jboss-cli.sh --controller=localhost:${managementPort} --connect command=shutdown"
+int managementPort
 
 repositories {
-    mavenCentral()
     // the Wildfly distribution is not available via a repository, so we fake an Ivy repository on top of the download site
     ivy {
         url "http://download.jboss.org"
-        layout 'pattern', {
+        patternLayout {
             artifact 'wildfly/[revision]/[module]-[revision].[ext]'
         }
     }
@@ -88,7 +83,7 @@ task deploy(type: Copy) {
 }
 
 task writeElasticsearchProperties {
-    onlyIf { !Os.isFamily(Os.FAMILY_WINDOWS) && project.rootProject.ext.javaVersion == JavaVersion.VERSION_1_8 }
+    onlyIf { !Os.isFamily(Os.FAMILY_WINDOWS) }
     dependsOn 'integTestCluster#wait', deploy
     doLast {
         final File elasticsearchProperties = file("${wildflyInstall}/standalone/configuration/elasticsearch.properties")
@@ -114,31 +109,56 @@ task enableIPv6 {
 
 task startWildfly {
     dependsOn enableIPv6, writeElasticsearchProperties
-    doFirst {
-        // we skip these tests on Windows so we do no need to worry about compatibility here
-        final File script = new File(project.buildDir, "wildfly/wildfly.killer.sh")
-        script.setText(
-                ["function shutdown {",
-                 "  ${stopWildflyCommand}",
-                 "}",
-                 "trap shutdown EXIT",
-                 // will wait indefinitely for input, but we never pass input, and the pipe is only closed when the build dies
-                 "read line"].join('\n'), 'UTF-8')
-        final ProcessBuilder pb = new ProcessBuilder("bash", script.absolutePath)
-        pb.start()
-    }
     doLast {
         // we skip these tests on Windows so we do no need to worry about compatibility here
-        final ProcessBuilder pb =
-                new ProcessBuilder("${wildflyInstall}/bin/standalone.sh", "-Djboss.socket.binding.port-offset=${portOffset}")
-        final Process process = pb.start()
+        final ProcessBuilder wildfly = new ProcessBuilder(
+                "${wildflyInstall}/bin/standalone.sh",
+                "-Djboss.http.port=0",
+                "-Djboss.https.port=0",
+                "-Djboss.management.http.port=0")
+        final Process process = wildfly.start()
         new BufferedReader(new InputStreamReader(process.getInputStream())).withReader { br ->
             String line
+            int httpPort = 0
             while ((line = br.readLine()) != null) {
-                if (line.matches(".*WildFly Full \\d+\\.\\d+\\.\\d+\\.Final \\(WildFly Core \\d+\\.\\d+\\.\\d+\\.Final\\) started.*")) {
+                logger.info(line)
+                if (line.matches('.*Undertow HTTP listener default listening on .*:\\d+$')) {
+                    assert httpPort == 0
+                    final int index = line.lastIndexOf(":")
+                    assert index >= 0
+                    httpPort = Integer.parseInt(line.substring(index + 1))
+                    // set this system property so the test runner knows the port Wildfly is listening for HTTP requests on
+                    integTestRunner.systemProperty("tests.jboss.root", "http://localhost:$httpPort/wildfly-$version/transport")
+                } else if (line.matches('.*Http management interface listening on http://.*:\\d+/management$')) {
+                    assert managementPort == 0
+                    final int colonIndex = line.lastIndexOf(":")
+                    assert colonIndex >= 0
+                    final int slashIndex = line.lastIndexOf("/")
+                    assert slashIndex >= 0
+                    managementPort = Integer.parseInt(line.substring(colonIndex + 1, slashIndex))
+
+                    /*
+                     * As soon as we know the management port, we fork a process that will ensure the Wildfly process is killed if we
+                     * teardown abnormally. We skip these tests on Windows so we do not need to worry about CLI compatibility here.
+                     */
+                    final File script = new File(project.buildDir, "wildfly/wildfly.killer.sh")
+                    script.setText(
+                            ["function shutdown {",
+                             "  ${wildflyInstall}/bin/jboss-cli.sh --controller=localhost:${-> managementPort} --connect command=shutdown",
+                             "}",
+                             "trap shutdown EXIT",
+                             // will wait indefinitely for input, but we never pass input, and the pipe is only closed when the build dies
+                             "read line\n"].join('\n'), 'UTF-8')
+                    final ProcessBuilder killer = new ProcessBuilder("bash", script.absolutePath)
+                    killer.start()
+
+                } else if (line.matches(".*WildFly Full \\d+\\.\\d+\\.\\d+\\.Final \\(WildFly Core \\d+\\.\\d+\\.\\d+\\.Final\\) started.*")) {
                     break
                 }
             }
+
+            assert httpPort > 0
+            assert managementPort > 0
         }
     }
 }
@@ -147,16 +167,17 @@ task configureTransportClient(type: LoggedExec) {
     dependsOn startWildfly
     // we skip these tests on Windows so we do not need to worry about compatibility here
     commandLine "${wildflyInstall}/bin/jboss-cli.sh",
-            "--controller=localhost:${managementPort}",
+            "--controller=localhost:${-> managementPort}",
             "--connect",
             "--command=/system-property=elasticsearch.properties:add(value=\${jboss.server.config.dir}/elasticsearch.properties)"
 }
 
 task stopWildfly(type: LoggedExec) {
-    commandLine stopWildflyCommand.split(' ')
+    // we skip these tests on Windows so we do not need to worry about CLI compatibility here
+    commandLine "${wildflyInstall}/bin/jboss-cli.sh", "--controller=localhost:${-> managementPort}", "--connect", "command=shutdown"
 }
 
-if (!Os.isFamily(Os.FAMILY_WINDOWS) && project.rootProject.ext.javaVersion == JavaVersion.VERSION_1_8) {
+if (!Os.isFamily(Os.FAMILY_WINDOWS)) {
     integTestRunner.dependsOn(configureTransportClient)
     final TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {
         @Override
@@ -190,8 +211,20 @@ if (!Os.isFamily(Os.FAMILY_WINDOWS) && project.rootProject.ext.javaVersion == Ja
 
 check.dependsOn(integTest)
 
-test.enabled = false
+unitTest.enabled = false
 
 dependencyLicenses.enabled = false
+dependenciesInfo.enabled = false
 
 thirdPartyAudit.enabled = false
+
+
+testingConventions {
+    naming.clear()
+    // We only have one "special" integration test here to connect to wildfly
+    naming {
+        IT {
+            baseClass 'org.apache.lucene.util.LuceneTestCase'
+        }
+    }
+}

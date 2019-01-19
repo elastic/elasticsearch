@@ -17,7 +17,6 @@
  * under the License.
  */
 
-import java.util.Locale
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.test.RestIntegTestTask
@@ -31,13 +30,12 @@ task bwcTest {
     group = 'verification'
 }
 
-for (Version version : indexCompatVersions) {
+for (Version version : bwcVersions.indexCompatible) {
     String baseName = "v${version}"
     Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
         mustRunAfter(precommit)
     }
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-        distribution = 'zip'
         bwcVersion = version
         numBwcNodes = 1
         numNodes = 1
@@ -54,10 +52,13 @@ for (Version version : indexCompatVersions) {
     bwcTest.dependsOn(versionBwcTest)
 }
 
-test.enabled = false
+unitTest.enabled = false
 
 task integTest {
-    dependsOn = ["v${indexCompatVersions[-1]}#bwcTest"]
+  if (project.bwc_tests_enabled) {
+    final def version = bwcVersions.unreleasedIndexCompatible.first()
+    dependsOn "v${version}#bwcTest"
+  }
 }
 
 task verifyDocsLuceneVersion {
@@ -74,10 +75,8 @@ task verifyDocsLuceneVersion {
       throw new GradleException('Could not find lucene version in docs version file')
     }
     String expectedLuceneVersion = VersionProperties.lucene
-    if (expectedLuceneVersion.contains('-snapshot-')) {
-      expectedLuceneVersion = expectedLuceneVersion.substring(0, expectedLuceneVersion.lastIndexOf('-'))
-      expectedLuceneVersion = expectedLuceneVersion.toUpperCase(Locale.ROOT)
-    }
+    // remove potential -snapshot-{gitrev} suffix
+    expectedLuceneVersion -= ~/-snapshot-[0-9a-f]+$/
     if (docsLuceneVersion != expectedLuceneVersion) {
       throw new GradleException("Lucene version in docs [${docsLuceneVersion}] does not match version.properties [${expectedLuceneVersion}]")
     }

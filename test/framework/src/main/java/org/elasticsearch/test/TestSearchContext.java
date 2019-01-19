@@ -24,15 +24,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -86,7 +83,7 @@ public class TestSearchContext extends SearchContext {
     SearchTask task;
     SortAndFormats sort;
     boolean trackScores = false;
-    boolean trackTotalHits = true;
+    int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
 
     ContextIndexSearcher searcher;
     int size;
@@ -367,14 +364,14 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext trackTotalHits(boolean trackTotalHits) {
-        this.trackTotalHits = trackTotalHits;
+    public SearchContext trackTotalHitsUpTo(int trackTotalHitsUpTo) {
+        this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         return this;
     }
 
     @Override
-    public boolean trackTotalHits() {
-        return trackTotalHits;
+    public int trackTotalHitsUpTo() {
+        return trackTotalHitsUpTo;
     }
 
     @Override

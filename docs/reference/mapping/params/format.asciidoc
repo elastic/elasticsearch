@@ -11,10 +11,10 @@ Besides the <<built-in-date-formats,built-in formats>>, your own
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "date": {
           "type":   "date",
@@ -31,10 +31,6 @@ Many APIs which support date values also support <<date-math,date math>>
 expressions, such as `now-1m/d` -- the current time, minus one month, rounded
 down to the nearest day.
 
-TIP: The `format` setting can be updated on existing fields using the
-<<indices-put-mapping,PUT mapping API>>.
-
-
 [[custom-date-formats]]
 ==== Custom date formats
 
@@ -44,12 +40,18 @@ http://www.joda.org/joda-time/apidocs/org/joda/time/format/DateTimeFormat.html[i
 [[built-in-date-formats]]
 ==== Built In Formats
 
-Most of the below dates have a `strict` companion dates, which means, that
-year, month and day parts of the week must have prepending zeros in order
-to be valid. This means, that a date like `5/11/1` would not be valid, but
-you would need to specify the full date, which would be `2005/11/01` in this
-example. So instead of `date_optional_time` you would need to specify
-`strict_date_optional_time`.
+Most of the below formats have a `strict` companion format, which means that
+year, month and day parts of the week must use respectively 4, 2 and 2 digits
+exactly, potentially prepending zeros. For instance a date like `5/11/1` would
+be considered invalid and would need to be rewritten to `2005/11/01` to be
+accepted by the date parser.
+
+To use them, you need to prepend `strict_` to the name of the date format, for
+instance `strict_date_optional_time` instead of `date_optional_time`.
+
+These strict date formats are especially useful when
+<<date-detection,date fields are dynamically mapped>> in order to make sure to
+not accidentally map irrelevant strings as dates.
 
 The following tables lists all the defaults ISO formats supported:
 

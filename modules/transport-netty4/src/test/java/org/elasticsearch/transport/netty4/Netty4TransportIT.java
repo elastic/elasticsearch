@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.transport.netty4;
 
-import io.netty.channel.Channel;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -30,15 +29,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -80,7 +80,7 @@ public class Netty4TransportIT extends ESNetty4IntegTestCase {
             fail("Expected exception, but didn't happen");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("MY MESSAGE"));
-            assertThat(channelProfileName, is(TcpTransport.DEFAULT_PROFILE));
+            assertThat(channelProfileName, is(TransportSettings.DEFAULT_PROFILE));
         }
     }
 
@@ -89,12 +89,13 @@ public class Netty4TransportIT extends ESNetty4IntegTestCase {
         public static class TestPlugin extends Plugin implements NetworkPlugin {
 
             @Override
-            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool,
+                                                                  PageCacheRecycler pageCacheRecycler,
                                                                   CircuitBreakerService circuitBreakerService,
                                                                   NamedWriteableRegistry namedWriteableRegistry,
                                                                   NetworkService networkService) {
                 return Collections.singletonMap("exception-throwing",
-                    () -> new ExceptionThrowingNetty4Transport(settings, threadPool, networkService, bigArrays,
+                    () -> new ExceptionThrowingNetty4Transport(settings, threadPool, networkService, pageCacheRecycler,
                     namedWriteableRegistry, circuitBreakerService));
             }
         }
@@ -103,18 +104,19 @@ public class Netty4TransportIT extends ESNetty4IntegTestCase {
                 Settings settings,
                 ThreadPool threadPool,
                 NetworkService networkService,
-                BigArrays bigArrays,
+                PageCacheRecycler recycler,
                 NamedWriteableRegistry namedWriteableRegistry,
                 CircuitBreakerService circuitBreakerService) {
-            super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
+            super(settings, Version.CURRENT, threadPool, networkService, recycler, namedWriteableRegistry, circuitBreakerService);
         }
 
-        protected String handleRequest(Channel channel, String profileName,
+        @Override
+        protected String handleRequest(TcpChannel channel, String profileName,
                                        StreamInput stream, long requestId, int messageLengthBytes, Version version,
                                        InetSocketAddress remoteAddress, byte status) throws IOException {
             String action = super.handleRequest(channel, profileName, stream, requestId, messageLengthBytes, version,
                     remoteAddress, status);
-            channelProfileName = TcpTransport.DEFAULT_PROFILE;
+            channelProfileName = TransportSettings.DEFAULT_PROFILE;
             return action;
         }
 

@@ -20,9 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.Map;
@@ -92,12 +90,6 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
         }
     }
 
-    public void testSetParent() throws Exception {
-        String parent = randomRealisticUnicodeOfLengthBetween(5, 20);
-        IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_parent", parent));
-        assertEquals(parent, index.parent());
-    }
-
     public void testSetRouting() throws Exception {
         String routing = randomRealisticUnicodeOfLengthBetween(5, 20);
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_routing", routing));
@@ -106,12 +98,12 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
 
     @Override
     protected ReindexRequest request() {
-        return new ReindexRequest(new SearchRequest(), new IndexRequest());
+        return new ReindexRequest();
     }
 
     @Override
     protected TransportReindexAction.AsyncIndexBySearchAction action(ScriptService scriptService, ReindexRequest request) {
-        return new TransportReindexAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request, scriptService, null,
-                listener(), Settings.EMPTY);
+        return new TransportReindexAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request, scriptService,
+                null, listener());
     }
 }

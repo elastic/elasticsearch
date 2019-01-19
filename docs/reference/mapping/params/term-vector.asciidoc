@@ -29,10 +29,10 @@ index.
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "text": {
           "type":        "text",
@@ -43,7 +43,7 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "text": "Quick brown fox"
 }

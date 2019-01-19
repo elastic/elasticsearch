@@ -9,10 +9,10 @@ For instance:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "name": { <1>
           "type": "text",
@@ -28,10 +28,10 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 { "name": "John Smith" }
 
-PUT my_index/my_type/2
+PUT my_index/_doc/2
 { "name": "Rachel Alice Williams" }
 
 GET my_index/_search
@@ -81,7 +81,7 @@ Defaults to `true`.
 
 <<mapping-index,`index`>>::
 
-    Should the field be searchable? Accepts `not_analyzed` (default) and `no`.
+    Should the field be searchable? Accepts `true` (default) and `false`.
 
 <<null-value,`null_value`>>::
 

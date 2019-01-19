@@ -49,7 +49,7 @@ replace any embedded dashes in numbers with underscores, i.e `123-456-789` ->
 
 [source,js]
 ----------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "analysis": {
@@ -87,7 +87,7 @@ The above example produces the following term:
 
 [source,text]
 ---------------------------
-[ My, credit, card, is 123_456_789 ]
+[ My, credit, card, is, 123_456_789 ]
 ---------------------------
 
 WARNING: Using a replacement string that changes the length of the original
@@ -100,7 +100,7 @@ camelCase words to be queried individually:
 
 [source,js]
 ----------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "analysis": {
@@ -125,7 +125,7 @@ PUT my_index
     }
   },
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "text": {
           "type": "text",
@@ -205,7 +205,7 @@ the length of the original text:
 
 [source,js]
 ----------------------------
-PUT my_index/my_type/1?refresh
+PUT my_index/_doc/1?refresh
 {
   "text": "The fooBarBaz method"
 }
@@ -235,18 +235,21 @@ The output from the above is:
   "timed_out": false,
   "took": $body.took,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.2876821,
     "hits": [
       {
         "_index": "my_index",
-        "_type": "my_type",
+        "_type": "_doc",
         "_id": "1",
         "_score": 0.2876821,
         "_source": {

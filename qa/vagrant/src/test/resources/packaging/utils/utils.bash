@@ -68,8 +68,11 @@ if [ ! -x "`which unzip 2>/dev/null`" ]; then
 fi
 
 if [ ! -x "`which java 2>/dev/null`" ]; then
-    echo "'java' command is mandatory to run the tests"
-    exit 1
+    # there are some tests that move java temporarily
+    if [ ! -x "`command -v java.bak 2>/dev/null`" ]; then
+        echo "'java' command is mandatory to run the tests"
+        exit 1
+    fi
 fi
 
 # Returns 0 if the 'dpkg' command is available
@@ -139,6 +142,11 @@ skip_not_zip() {
 
 assert_file_exist() {
     local file="$1"
+    local count=$(echo "$file" | wc -l)
+    [[ "$count" == "1" ]] || {
+      echo "assert_file_exist must be run on a single file at a time but was called on [$count] files: $file"
+      false
+    }
     if [ ! -e "$file" ]; then
         echo "Should exist: ${file} but does not"
     fi
@@ -249,6 +257,7 @@ clean_before_test() {
                             "/etc/sysconfig/elasticsearch"  \
                             "/var/run/elasticsearch"  \
                             "/usr/share/doc/elasticsearch" \
+                            "/usr/share/doc/elasticsearch-oss" \
                             "/tmp/elasticsearch" \
                             "/usr/lib/systemd/system/elasticsearch.conf" \
                             "/usr/lib/tmpfiles.d/elasticsearch.conf" \
@@ -283,20 +292,20 @@ clean_before_test() {
 purge_elasticsearch() {
     # Removes RPM package
     if is_rpm; then
-        rpm --quiet -e elasticsearch > /dev/null 2>&1 || true
+        rpm --quiet -e $PACKAGE_NAME > /dev/null 2>&1 || true
     fi
 
     if [ -x "`which yum 2>/dev/null`" ]; then
-        yum remove -y elasticsearch > /dev/null 2>&1 || true
+        yum remove -y $PACKAGE_NAME > /dev/null 2>&1 || true
     fi
 
     # Removes DEB package
     if is_dpkg; then
-        dpkg --purge elasticsearch > /dev/null 2>&1 || true
+        dpkg --purge $PACKAGE_NAME > /dev/null 2>&1 || true
     fi
 
     if [ -x "`which apt-get 2>/dev/null`" ]; then
-        apt-get --quiet --yes purge elasticsearch > /dev/null 2>&1 || true
+        apt-get --quiet --yes purge $PACKAGE_NAME > /dev/null 2>&1 || true
     fi
 }
 
@@ -410,6 +419,59 @@ stop_elasticsearch_service() {
     fi
 }
 
+# the default netcat packages in the distributions we test are not all compatible
+# so we use /dev/tcp - a feature of bash which makes tcp connections
+# http://tldp.org/LDP/abs/html/devref1.html#DEVTCP
+test_port() {
+    local host="$1"
+    local port="$2"
+    cat < /dev/null > "/dev/tcp/$host/$port"
+}
+
+describe_port() {
+    local host="$1"
+    local port="$2"
+    if test_port "$host" "$port"; then
+        echo "port $port on host $host is open"
+    else
+        echo "port $port on host $host is not open"
+    fi
+}
+
+debug_collect_logs() {
+    local es_logfile="$ESLOG/elasticsearch.log"
+    local system_logfile='/var/log/messages'
+
+    if [ -e "$es_logfile" ]; then
+        echo "Here's the elasticsearch log:"
+        cat "$es_logfile"
+    else
+        echo "The elasticsearch log doesn't exist at $es_logfile"
+    fi
+
+    if [ -e "$system_logfile" ]; then
+        echo "Here's the tail of the log at $system_logfile:"
+        tail -n20 "$system_logfile"
+    else
+        echo "The logfile at $system_logfile doesn't exist"
+    fi
+
+    echo "Current java processes:"
+    ps aux | grep java || true
+
+    echo "Testing if ES ports are open:"
+    describe_port 127.0.0.1 9200
+    describe_port 127.0.0.1 9201
+}
+
+set_debug_logging() {
+    if [ "$ESCONFIG" ] && [ -d "$ESCONFIG" ] && [ -f /etc/os-release ] && (grep -qi suse /etc/os-release); then
+        echo 'logger.org.elasticsearch.indices: TRACE' >> "$ESCONFIG/elasticsearch.yml"
+        echo 'logger.org.elasticsearch.gateway: TRACE' >> "$ESCONFIG/elasticsearch.yml"
+        echo 'logger.org.elasticsearch.cluster: DEBUG' >> "$ESCONFIG/elasticsearch.yml"
+    fi
+}
+
 # Waits for Elasticsearch to reach some status.
 # $1 - expected status - defaults to green
 wait_for_elasticsearch_status() {
@@ -417,15 +479,10 @@ wait_for_elasticsearch_status() {
     local index=$2
 
     echo "Making sure elasticsearch is up..."
-    wget -O - --retry-connrefused --waitretry=1 --timeout=60 --tries 60 http://localhost:9200/_cluster/health || {
-          echo "Looks like elasticsearch never started. Here is its log:"
-          if [ -e "$ESLOG/elasticsearch.log" ]; then
-              cat "$ESLOG/elasticsearch.log"
-          else
-              echo "The elasticsearch log doesn't exist. Maybe /var/log/messages has something:"
-              tail -n20 /var/log/messages
-          fi
-          false
+    wget -O - --retry-connrefused --waitretry=1 --timeout=120 --tries=120 http://localhost:9200/_cluster/health || {
+        echo "Looks like elasticsearch never started"
+        debug_collect_logs
+        false
     }
 
     if [ -z "index" ]; then
@@ -459,13 +516,19 @@ wait_for_elasticsearch_status() {
 # $1 - expected version
 check_elasticsearch_version() {
     local version=$1
-    local versionToCheck=$(echo $version | sed -e 's/-SNAPSHOT//')
+    local versionToCheck
+    local major=$(echo ${version} | cut -d. -f1 )
+    if [ $major -ge 7 ] ; then
+        versionToCheck=$version
+    else
+        versionToCheck=$(echo ${version} | sed -e 's/-SNAPSHOT//')
+    fi
 
     run curl -s localhost:9200
     [ "$status" -eq 0 ]
 
     echo $output | grep \"number\"\ :\ \"$versionToCheck\" || {
-        echo "Installed an unexpected version:"
+        echo "Expected $versionToCheck but installed an unexpected version:"
         curl -s localhost:9200
         false
     }
@@ -498,7 +561,10 @@ run_elasticsearch_tests() {
 # Move the config directory to another directory and properly chown it.
 move_config() {
     local oldConfig="$ESCONFIG"
-    export ESCONFIG="${1:-$(mktemp -d -t 'config.XXXX')}"
+    # The custom config directory is not under /tmp or /var/tmp because
+    # systemd's private temp directory functionally means different
+    # processes can have different views of what's in these directories
+    export ESCONFIG="${1:-$(mktemp -p /etc -d -t 'config.XXXX')}"
     echo "Moving configuration directory from $oldConfig to $ESCONFIG"
 
     # Move configuration files to the new configuration directory
@@ -523,4 +589,18 @@ file_privileges_for_user_from_umask() {
     shift
 
     echo $((0777 & ~$(sudo -E -u $user sh -c umask) & ~0111))
+}
+
+# move java to simulate it not being in the path
+move_java() {
+    which_java=`command -v java`
+    assert_file_exist $which_java
+    mv $which_java ${which_java}.bak
+}
+
+# move java back to its original location
+unmove_java() {
+    which_java=`command -v java.bak`
+    assert_file_exist $which_java
+    mv $which_java `dirname $which_java`/java
 }

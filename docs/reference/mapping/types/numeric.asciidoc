@@ -8,19 +8,19 @@ The following numeric types are supported:
 `integer`::      A signed 32-bit integer with a minimum value of +-2^31^+ and a maximum value of +2^31^-1+.
 `short`::        A signed 16-bit integer with a minimum value of +-32,768+ and a maximum value of +32,767+.
 `byte`::         A signed 8-bit integer with a minimum value of +-128+ and a maximum value of +127+.
-`double`::       A double-precision 64-bit IEEE 754 floating point.
-`float`::        A single-precision 32-bit IEEE 754 floating point.
-`half_float`::   A half-precision 16-bit IEEE 754 floating point.
-`scaled_float`:: A floating point that is backed by a `long` and a fixed scaling factor.
+`double`::       A double-precision 64-bit IEEE 754 floating point number, restricted to finite values.
+`float`::        A single-precision 32-bit IEEE 754 floating point number, restricted to finite values.
+`half_float`::   A half-precision 16-bit IEEE 754 floating point number, restricted to finite values.
+`scaled_float`:: A floating point number that is backed by a `long`, scaled by a fixed `double` scaling factor.
 
 Below is an example of configuring a mapping with numeric fields:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "number_of_bytes": {
           "type": "integer"
@@ -49,15 +49,15 @@ bound is `+0.0` then `-0.0` will not match.
 
 As far as integer types (`byte`, `short`, `integer` and `long`) are concerned,
 you should pick the smallest type which is enough for your use-case. This will
-help indexing and searching be more efficient. Note however that given that
-storage is optimized based on the actual values that are stored, picking one
-type over another one will have no impact on storage requirements.
+help indexing and searching be more efficient. Note however that storage is
+optimized based on the actual values that are stored, so picking one type over
+another one will have no impact on storage requirements.
 
 For floating-point types, it is often more efficient to store floating-point
 data into an integer using a scaling factor, which is what the `scaled_float`
 type does under the hood. For instance, a `price` field could be stored in a
 `scaled_float` with a `scaling_factor` of +100+. All APIs would work as if
-the field was stored as a double, but under the hood elasticsearch would be
+the field was stored as a double, but under the hood Elasticsearch would be
 working with the number of cents, +price*100+, which is an integer. This is
 mostly helpful to save disk space since integers are way easier to compress
 than floating points. `scaled_float` is also fine to use in order to trade

@@ -17,7 +17,7 @@ For example, let's index a simple doc:
 
 [source,js]
 --------------------------------------------------
-PUT test/type1/1
+PUT test/_doc/1
 {
     "counter" : 1,
     "tags" : ["red"]
@@ -32,7 +32,7 @@ Now, we can execute a script that would increment the counter:
 
 [source,js]
 --------------------------------------------------
-POST test/type1/1/_update
+POST test/_doc/1/_update
 {
     "script" : {
         "source": "ctx._source.counter += params.count",
@@ -47,14 +47,36 @@ POST test/type1/1/_update
 // TEST[continued]
 
 We can add a tag to the list of tags (note, if the tag exists, it
-will still add it, since its a list):
+will still add it, since it's a list):
 
 [source,js]
 --------------------------------------------------
-POST test/type1/1/_update
+POST test/_doc/1/_update
 {
     "script" : {
         "source": "ctx._source.tags.add(params.tag)",
+        "lang": "painless",
+        "params" : {
+            "tag" : "blue"
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+We can remove a tag from the list of tags. Note that the Painless function to
+`remove` a tag takes as its parameter the array index of the element you wish
+to remove, so you need a bit more logic to locate it while avoiding a runtime
+error. Note that if the tag was present more than once in the list, this will
+remove only one occurrence of it:
+
+[source,js]
+--------------------------------------------------
+POST test/_doc/1/_update
+{
+    "script" : {
+        "source": "if (ctx._source.tags.contains(params.tag)) { ctx._source.tags.remove(ctx._source.tags.indexOf(params.tag)) }",
         "lang": "painless",
         "params" : {
             "tag" : "blue"
@@ -73,7 +95,7 @@ We can also add a new field to the document:
 
 [source,js]
 --------------------------------------------------
-POST test/type1/1/_update
+POST test/_doc/1/_update
 {
     "script" : "ctx._source.new_field = 'value_of_new_field'"
 }
@@ -85,7 +107,7 @@ Or remove a field from the document:
 
 [source,js]
 --------------------------------------------------
-POST test/type1/1/_update
+POST test/_doc/1/_update
 {
     "script" : "ctx._source.remove('new_field')"
 }
@@ -99,7 +121,7 @@ the doc if the `tags` field contain `green`, otherwise it does nothing
 
 [source,js]
 --------------------------------------------------
-POST test/type1/1/_update
+POST test/_doc/1/_update
 {
     "script" : {
         "source": "if (ctx._source.tags.contains(params.tag)) { ctx.op = 'delete' } else { ctx.op = 'none' }",
@@ -118,12 +140,15 @@ POST test/type1/1/_update
 
 The update API also support passing a partial document,
 which will be merged into the existing document (simple recursive merge,
-inner merging of objects, replacing core "keys/values" and arrays). For
-example:
+inner merging of objects, replacing core "keys/values" and arrays).
+To fully replace the existing document, the <<docs-index_,`index` API>> should
+be used instead.
+The following partial update adds a new field to the
+existing document:
 
 [source,js]
 --------------------------------------------------
-POST test/type1/1/_update
+POST test/_doc/1/_update
 {
     "doc" : {
         "name" : "new_name"
@@ -144,7 +169,7 @@ By default updates that don't change anything detect that they don't change anyt
 
 [source,js]
 --------------------------------------------------
-POST test/type1/1/_update
+POST test/_doc/1/_update
 {
     "doc" : {
         "name" : "new_name"
@@ -167,9 +192,9 @@ the request was ignored.
         "failed": 0
    },
    "_index": "test",
-   "_type": "type1",
+   "_type": "_doc",
    "_id": "1",
-   "_version": 6,
+   "_version": 7,
    "result": "noop"
 }
 --------------------------------------------------
@@ -179,7 +204,7 @@ You can disable this behavior by setting "detect_noop": false like this:
 
 [source,js]
 --------------------------------------------------
-POST test/type1/1/_update
+POST test/_doc/1/_update
 {
     "doc" : {
         "name" : "new_name"
@@ -200,7 +225,7 @@ will be inserted as a new document.  If the document does exist, then the
 
 [source,js]
 --------------------------------------------------
-POST test/type1/1/_update
+POST test/_doc/1/_update
 {
     "script" : {
         "source": "ctx._source.counter += params.count",
@@ -255,7 +280,7 @@ value:
 
 [source,js]
 --------------------------------------------------
-POST test/type1/1/_update
+POST test/_doc/1/_update
 {
     "doc" : {
         "name" : "new_name"
@@ -307,22 +332,20 @@ By default the updated source is not returned.
 See <<search-request-source-filtering, `source filtering`>> for details.
 
 
-`version` & `version_type`::
+`version`::
 
 The update API uses the Elasticsearch's versioning support internally to make
 sure the document doesn't change during the update. You can use the `version`
 parameter to specify that the document should only be updated if its version
-matches the one specified. By setting version type to `force` you can force
-the new version of the document after update (use with care! with `force`
-there is no guarantee the document didn't change).
+matches the one specified.
 
 [NOTE]
-.The update API does not support external versioning
+.The update API does not support versioning other than internal
 =====================================================
 
-External versioning (version types `external` & `external_gte`) is not
-supported by the update API as it would result in Elasticsearch version
-numbers being out of sync with the external system.  Use the
+External (version types `external` & `external_gte`) or forced (version type `force`)
+versioning is not supported by the update API as it would result in Elasticsearch 
+version numbers being out of sync with the external system.  Use the
 <<docs-index_,`index` API>> instead.
 
 =====================================================

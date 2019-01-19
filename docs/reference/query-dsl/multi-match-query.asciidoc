@@ -58,6 +58,15 @@ GET /_search
 
 <1> The `subject` field is three times as important as the `message` field.
 
+If no `fields` are provided, the `multi_match` query defaults to the `index.query.default_field`
+index settings, which in turn defaults to `*`. `*` extracts all fields in the mapping that
+are eligible to term queries and filters the metadata fields. All extracted fields are then
+combined to build a query.
+
+WARNING: There is a limit on the number of fields that can be queried
+at once. It is defined by the `indices.query.bool.max_clause_count` <<search-settings>>
+which defaults to 1024.
+
 [[multi-match-types]]
 [float]
 ==== Types of `multi_match` query:
@@ -76,8 +85,8 @@ parameter, which can be set to:
                     were one big field. Looks for each word in *any*
                     field. See <<type-cross-fields>>.
 
-`phrase`::          Runs a `match_phrase` query on each field and combines
-                    the `_score` from each field.  See <<type-phrase>>.
+`phrase`::          Runs a `match_phrase` query on each field and uses the  `_score` 
+                    from the best field.  See <<type-phrase>>.
 
 `phrase_prefix`::   Runs a `match_phrase_prefix` query on each field and
                     combines the `_score` from each field.  See <<type-phrase>>.

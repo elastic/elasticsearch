@@ -76,7 +76,7 @@ GET /_search
         "common": {
             "body": {
                 "query": "this is bonsai cool",
-                    "cutoff_frequency": 0.001
+                "cutoff_frequency": 0.001
             }
         }
     }
@@ -100,8 +100,8 @@ GET /_search
         "common": {
             "body": {
                 "query": "nelly the elephant as a cartoon",
-                    "cutoff_frequency": 0.001,
-                    "low_freq_operator": "and"
+                "cutoff_frequency": 0.001,
+                "low_freq_operator": "and"
             }
         }
     }
@@ -184,8 +184,6 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
-minimum_should_match
-
 A different
 <<query-dsl-minimum-should-match,`minimum_should_match`>>
 can be applied for low and high frequency terms with the additional
@@ -200,11 +198,11 @@ GET /_search
         "common": {
             "body": {
                 "query": "nelly the elephant not as a cartoon",
-                    "cutoff_frequency": 0.001,
-                    "minimum_should_match": {
-                        "low_freq" : 2,
-                        "high_freq" : 3
-                    }
+                "cutoff_frequency": 0.001,
+                "minimum_should_match": {
+                    "low_freq" : 2,
+                    "high_freq" : 3
+                }
             }
         }
     }
@@ -261,11 +259,11 @@ GET /_search
         "common": {
             "body": {
                 "query": "how not to be",
-                    "cutoff_frequency": 0.001,
-                    "minimum_should_match": {
-                        "low_freq" : 2,
-                        "high_freq" : 3
-                    }
+                "cutoff_frequency": 0.001,
+                "minimum_should_match": {
+                    "low_freq" : 2,
+                    "high_freq" : 3
+                }
             }
         }
     }

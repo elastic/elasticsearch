@@ -20,7 +20,7 @@ settings.
 
 [source,js]
 --------------------------------------------------
-PUT /index
+PUT /index?include_type_name=true
 {
     "settings" : {
         "index" : {
@@ -44,7 +44,7 @@ Here we configure the DFRSimilarity so it can be referenced as
 
 [source,js]
 --------------------------------------------------
-PUT /index/_mapping/book
+PUT /index/_mapping
 {
   "properties" : {
     "title" : { "type" : "text", "similarity" : "my_similarity" }
@@ -83,36 +83,38 @@ This similarity has the following options:
 Type name: `BM25`
 
 [float]
-[[classic-similarity]]
-==== Classic similarity
-
-The classic similarity that is based on the TF/IDF model. This
-similarity has the following option:
-
-`discount_overlaps`::
-    Determines whether overlap tokens (Tokens with
-    0 position increment) are ignored when computing norm. By default this
-    is true, meaning overlap tokens do not count when computing norms.
-
-Type name: `classic`
-
-[float]
-[[drf]]
+[[dfr]]
 ==== DFR similarity
 
 Similarity that implements the
-http://lucene.apache.org/core/5_2_1/core/org/apache/lucene/search/similarities/DFRSimilarity.html[divergence
+{lucene-core-javadoc}/org/apache/lucene/search/similarities/DFRSimilarity.html[divergence
 from randomness] framework. This similarity has the following options:
 
 [horizontal]
 `basic_model`::
-    Possible values: `be`, `d`, `g`, `if`, `in`, `ine` and `p`.
+    Possible values: {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelG.html[`be`],
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelD.html[`d`],
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelG.html[`g`],
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelIF.html[`if`],
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelIn.html[`in`],
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelIne.html[`ine`] and
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelP.html[`p`].
+
+`be`, `d` and `p` should be avoided in practice as they might return scores that
+are equal to 0 or infinite with terms that do not meet the expected random
+distribution.
 
 `after_effect`::
-    Possible values: `no`, `b` and `l`.
+    Possible values: {lucene-core-javadoc}/org/apache/lucene/search/similarities/AfterEffect.NoAfterEffect.html[`no`],
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/AfterEffectB.html[`b`] and
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/AfterEffectL.html[`l`].
 
 `normalization`::
-    Possible values: `no`, `h1`, `h2`, `h3` and `z`.
+    Possible values: {lucene-core-javadoc}/org/apache/lucene/search/similarities/Normalization.NoNormalization.html[`no`],
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/NormalizationH1.html[`h1`],
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/NormalizationH2.html[`h2`],
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/NormalizationH1.html[`h3`] and
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/NormalizationZ.html[`z`].
 
 All options but the first option need a normalization value.
 
@@ -127,7 +129,14 @@ model.
 This similarity has the following options:
 
 [horizontal]
-`independence_measure`:: Possible values `standardized`, `saturated`, `chisquared`.
+`independence_measure`:: Possible values
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/IndependenceStandardized.html[`standardized`],
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/IndependenceSaturated.html[`saturated`],
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/IndependenceChiSquared.html[`chisquared`].
+
+When using this similarity, it is highly recommended to remove stop words to get
+good relevance. Also beware that terms whose frequency is less than the expected
+frequency will get a score equal to 0.
 
 Type name: `DFI`
 
@@ -135,15 +144,19 @@ Type name: `DFI`
 [[ib]]
 ==== IB similarity.
 
-http://lucene.apache.org/core/5_2_1/core/org/apache/lucene/search/similarities/IBSimilarity.html[Information
+{lucene-core-javadoc}/org/apache/lucene/search/similarities/IBSimilarity.html[Information
 based model] . The algorithm is based on the concept that the information content in any symbolic 'distribution'
 sequence is primarily determined by the repetitive usage of its basic elements.
 For written texts this challenge would correspond to comparing the writing styles of different authors.
 This similarity has the following options:
 
 [horizontal]
-`distribution`::  Possible values: `ll` and `spl`.
-`lambda`::        Possible values: `df` and `ttf`.
+`distribution`::  Possible values:
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/DistributionLL.html[`ll`] and
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/DistributionSPL.html[`spl`].
+`lambda`::        Possible values:
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/LambdaDF.html[`df`] and
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/LambdaTTF.html[`ttf`].
 `normalization`:: Same as in `DFR` similarity.
 
 Type name: `IB`
@@ -152,11 +165,15 @@ Type name: `IB`
 [[lm_dirichlet]]
 ==== LM Dirichlet similarity.
 
-http://lucene.apache.org/core/5_2_1/core/org/apache/lucene/search/similarities/LMDirichletSimilarity.html[LM
+{lucene-core-javadoc}/org/apache/lucene/search/similarities/LMDirichletSimilarity.html[LM
 Dirichlet similarity] . This similarity has the following options:
 
 [horizontal]
 `mu`::  Default to `2000`.
+
+The scoring formula in the paper assigns negative scores to terms that have
+fewer occurrences than predicted by the language model, which is illegal to
+Lucene, so such terms get a score of 0.
 
 Type name: `LMDirichlet`
 
@@ -164,7 +181,7 @@ Type name: `LMDirichlet`
 [[lm_jelinek_mercer]]
 ==== LM Jelinek Mercer similarity.
 
-http://lucene.apache.org/core/5_2_1/core/org/apache/lucene/search/similarities/LMJelinekMercerSimilarity.html[LM
+{lucene-core-javadoc}/core/org/apache/lucene/search/similarities/LMJelinekMercerSimilarity.html[LM
 Jelinek Mercer similarity] . The algorithm attempts to capture important patterns in the text, while leaving out noise. This similarity has the following options:
 
 [horizontal]
@@ -183,7 +200,7 @@ TF-IDF:
 
 [source,js]
 --------------------------------------------------
-PUT /index
+PUT /index?include_type_name=true
 {
   "settings": {
     "number_of_shards": 1, 
@@ -197,7 +214,7 @@ PUT /index
     }
   },
   "mappings": {
-    "doc": {
+    "_doc": {
       "properties": {
         "field": {
           "type": "text",
@@ -208,12 +225,12 @@ PUT /index
   }
 }
 
-PUT /index/doc/1
+PUT /index/_doc/1
 {
   "field": "foo bar foo"
 }
 
-PUT /index/doc/2
+PUT /index/_doc/2
 {
   "field": "bar baz"
 }
@@ -246,14 +263,17 @@ Which yields:
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total": {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 1.9508477,
     "hits": [
       {
         "_shard": "[index][0]",
         "_node": "OzrdjxNtQGaqs4DmioFw9A",
         "_index": "index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 1.9508477,
         "_source": {
@@ -278,27 +298,27 @@ Which yields:
                   "details": []
                 },
                 {
-                  "value": 2.0,
+                  "value": 2,
                   "description": "field.docCount",
                   "details": []
                 },
                 {
-                  "value": 4.0,
+                  "value": 4,
                   "description": "field.sumDocFreq",
                   "details": []
                 },
                 {
-                  "value": 5.0,
+                  "value": 5,
                   "description": "field.sumTotalTermFreq",
                   "details": []
                 },
                 {
-                  "value": 1.0,
+                  "value": 1,
                   "description": "term.docFreq",
                   "details": []
                 },
                 {
-                  "value": 2.0,
+                  "value": 2,
                   "description": "term.totalTermFreq",
                   "details": []
                 },
@@ -308,7 +328,7 @@ Which yields:
                   "details": []
                 },
                 {
-                  "value": 3.0,
+                  "value": 3,
                   "description": "doc.length",
                   "details": []
                 }
@@ -324,7 +344,18 @@ Which yields:
 // TESTRESPONSE[s/"took": 12/"took" : $body.took/]
 // TESTRESPONSE[s/OzrdjxNtQGaqs4DmioFw9A/$body.hits.hits.0._node/]
 
-You might have noticed that a significant part of the script depends on
+WARNING: While scripted similarities provide a lot of flexibility, there is
+a set of rules that they need to satisfy. Failing to do so could make
+Elasticsearch silently return wrong top hits or fail with internal errors at
+search time:
+
+ - Returned scores must be positive.
+ - All other variables remaining equal, scores must not decrease when
+   `doc.freq` increases.
+ - All other variables remaining equal, scores must not increase when
+   `doc.length` increases.
+
+You might have noticed that a significant part of the above script depends on
 statistics that are the same for every document. It is possible to make the
 above slightly more efficient by providing an `weight_script` which will
 compute the document-independent part of the score and will be available
@@ -338,7 +369,7 @@ more efficient:
 
 [source,js]
 --------------------------------------------------
-PUT /index
+PUT /index?include_type_name=true
 {
   "settings": {
     "number_of_shards": 1, 
@@ -355,7 +386,7 @@ PUT /index
     }
   },
   "mappings": {
-    "doc": {
+    "_doc": {
       "properties": {
         "field": {
           "type": "text",
@@ -372,12 +403,12 @@ PUT /index
 
 [source,js]
 --------------------------------------------------
-PUT /index/doc/1
+PUT /index/_doc/1
 {
   "field": "foo bar foo"
 }
 
-PUT /index/doc/2
+PUT /index/_doc/2
 {
   "field": "bar baz"
 }
@@ -409,14 +440,17 @@ GET /index/_search?explain=true
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total": {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 1.9508477,
     "hits": [
       {
         "_shard": "[index][0]",
         "_node": "OzrdjxNtQGaqs4DmioFw9A",
         "_index": "index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 1.9508477,
         "_source": {
@@ -441,27 +475,27 @@ GET /index/_search?explain=true
                   "details": []
                 },
                 {
-                  "value": 2.0,
+                  "value": 2,
                   "description": "field.docCount",
                   "details": []
                 },
                 {
-                  "value": 4.0,
+                  "value": 4,
                   "description": "field.sumDocFreq",
                   "details": []
                 },
                 {
-                  "value": 5.0,
+                  "value": 5,
                   "description": "field.sumTotalTermFreq",
                   "details": []
                 },
                 {
-                  "value": 1.0,
+                  "value": 1,
                   "description": "term.docFreq",
                   "details": []
                 },
                 {
-                  "value": 2.0,
+                  "value": 2,
                   "description": "term.totalTermFreq",
                   "details": []
                 },
@@ -471,7 +505,7 @@ GET /index/_search?explain=true
                   "details": []
                 },
                 {
-                  "value": 3.0,
+                  "value": 3,
                   "description": "doc.length",
                   "details": []
                 }
@@ -489,7 +523,6 @@ GET /index/_search?explain=true
 
 ////////////////////
 
-
 Type name: `scripted`
 
 [float]
@@ -504,13 +537,13 @@ it is <<indices-create-index,created>>:
 
 [source,js]
 --------------------------------------------------
-PUT /index
+PUT /index?include_type_name=true
 {
   "settings": {
     "index": {
       "similarity": {
         "default": {
-          "type": "classic"
+          "type": "boolean"
         }
       }
     }
@@ -532,7 +565,7 @@ PUT /index/_settings
   "index": {
     "similarity": {
       "default": {
-        "type": "classic"
+        "type": "boolean"
       }
     }
   }

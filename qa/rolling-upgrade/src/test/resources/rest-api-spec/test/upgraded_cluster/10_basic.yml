@@ -1,54 +1,9 @@
 ---
-"Index data and search on the upgraded cluster":
- - do:
-     cluster.health:
-        wait_for_status: green
-        wait_for_nodes: 2
-        # wait for long enough that we give delayed unassigned shards to stop being delayed
-        timeout: 70s
-        level: shards
-
- - do:
-     search:
-       index: test_index
-
- - match: { hits.total: 10 } # no new indexed data, so expect the original 10 documents from the old and mixed clusters
-
- - do:
-     search:
-       index: index_with_replicas
-
- - match: { hits.total: 5 } # just check we recovered fine
-
- - do:
-     bulk:
-        refresh: true
-        body:
-          - '{"index": {"_index": "test_index", "_type": "doc"}}'
-          - '{"f1": "v1_upgraded", "f2": 10}'
-          - '{"index": {"_index": "test_index", "_type": "doc"}}'
-          - '{"f1": "v2_upgraded", "f2": 11}'
-          - '{"index": {"_index": "test_index", "_type": "doc"}}'
-          - '{"f1": "v3_upgraded", "f2": 12}'
-          - '{"index": {"_index": "test_index", "_type": "doc"}}'
-          - '{"f1": "v4_upgraded", "f2": 13}'
-          - '{"index": {"_index": "test_index", "_type": "doc"}}'
-          - '{"f1": "v5_upgraded", "f2": 14}'
-
- - do:
-     indices.refresh:
-        index: test_index
-
- - do:
-     search:
-        index: test_index
-
- - match: { hits.total: 15 } # 10 docs from previous clusters plus 5 new docs
-
----
 "Verify that we can still find things with the template":
   - do:
       search_template:
+        rest_total_hits_as_int: true
+        index: test_search_template
         body:
           id: test_search_template
           params:
@@ -66,3 +21,107 @@
       ingest.get_pipeline:
         id: "my_pipeline"
   - match: { my_pipeline.description: "_description" }
+
+---
+"Index percolator query and use the percolate query in upgraded cluster":
+  - do:
+      index:
+        index: queries
+        type: doc
+        id: q4
+        refresh: true
+        body:
+          query:
+            bool:
+              minimum_should_match: 2
+              should:
+                - term:
+                    field1: value
+                - term:
+                    field2: value
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: queries
+        body:
+          query:
+            percolate:
+              field: query
+              document:
+                field1: value
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: q1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: queries
+        body:
+          sort: _id
+          query:
+            percolate:
+              field: query
+              document:
+                field1: value
+                field2: value
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._id: q1 }
+  - match: { hits.hits.1._id: q2 }
+  - match: { hits.hits.2._id: q4 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: queries
+        body:
+          query:
+            percolate:
+              field: query
+              document:
+                field2: value
+                field3: value
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: q3 }
+
+---
+"Find a task result record from the old cluster":
+  - skip:
+      features: headers
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: .tasks
+        body:
+          query:
+            match_all: {}
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: '/.+:\d+/' }
+  - set: {hits.hits.0._id: task_id}
+
+  - do:
+      tasks.get:
+        task_id: $task_id
+
+  - is_false: node_failures
+  - is_true: task
+
+  - do:
+      headers: { "X-Opaque-Id": "Reindexing Again" }
+      reindex:
+        wait_for_completion: false
+        body:
+          source:
+            index: reindexed_index_copy
+            size: 1
+          dest:
+            index: reindexed_index_another_copy
+  - match: { task: '/.+:\d+/' }
+  - set: { task: task_id }
+
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $task_id
+  - match: { task.headers.X-Opaque-Id: "Reindexing Again" }

@@ -19,17 +19,21 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class JsonProcessorTests extends ESTestCase {
@@ -44,25 +48,93 @@ public class JsonProcessorTests extends ESTestCase {
 
         Map<String, Object> randomJsonMap = RandomDocumentPicks.randomSource(random());
         XContentBuilder builder = JsonXContent.contentBuilder().map(randomJsonMap);
-        String randomJson = XContentHelper.convertToJson(builder.bytes(), false);
+        String randomJson = XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON);
         document.put(randomField, randomJson);
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         jsonProcessor.execute(ingestDocument);
         Map<String, Object> jsonified = ingestDocument.getFieldValue(randomTargetField, Map.class);
-        assertIngestDocument(ingestDocument.getFieldValue(randomTargetField, Object.class), jsonified);
+        assertEquals(ingestDocument.getFieldValue(randomTargetField, Object.class), jsonified);
     }
 
-    public void testInvalidJson() {
+    public void testInvalidValue() {
         JsonProcessor jsonProcessor = new JsonProcessor("tag", "field", "target_field", false);
         Map<String, Object> document = new HashMap<>();
-        document.put("field", "invalid json");
+        document.put("field", "blah blah");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         Exception exception = expectThrows(IllegalArgumentException.class, () -> jsonProcessor.execute(ingestDocument));
-        assertThat(exception.getCause().getCause().getMessage(), equalTo("Unrecognized token"
-                + " 'invalid': was expecting ('true', 'false' or 'null')\n"
-                + " at [Source: invalid json; line: 1, column: 8]"));
+        assertThat(exception.getCause().getMessage(), containsString("Unrecognized token 'blah': " +
+            "was expecting ('true', 'false' or 'null')"));
+    }
+
+    public void testByteArray() {
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", "field", "target_field", false);
+        Map<String, Object> document = new HashMap<>();
+        document.put("field", new byte[] { 0, 1 });
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> jsonProcessor.execute(ingestDocument));
+        assertThat(exception.getCause().getMessage(), containsString("Unrecognized token 'B': was expecting ('true', 'false' or 'null')"));
+    }
+
+    public void testNull() throws Exception {
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", "field", "target_field", false);
+        Map<String, Object> document = new HashMap<>();
+        document.put("field", null);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        jsonProcessor.execute(ingestDocument);
+        assertNull(ingestDocument.getFieldValue("target_field", Object.class));
+    }
+
+    public void testBoolean() throws Exception {
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", "field", "target_field", false);
+        Map<String, Object> document = new HashMap<>();
+        boolean value = true;
+        document.put("field", value);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        jsonProcessor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("target_field", Object.class), equalTo(value));
+    }
+
+    public void testInteger() throws Exception {
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", "field", "target_field", false);
+        Map<String, Object> document = new HashMap<>();
+        int value = 3;
+        document.put("field", value);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        jsonProcessor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("target_field", Object.class), equalTo(value));
+    }
+
+    public void testDouble() throws Exception {
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", "field", "target_field", false);
+        Map<String, Object> document = new HashMap<>();
+        double value = 3.0;
+        document.put("field", value);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        jsonProcessor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("target_field", Object.class), equalTo(value));
+    }
+
+    public void testString() throws Exception {
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", "field", "target_field", false);
+        Map<String, Object> document = new HashMap<>();
+        String value = "hello world";
+        document.put("field", "\"" + value + "\"");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        jsonProcessor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("target_field", Object.class), equalTo(value));
+    }
+
+    public void testArray() throws Exception {
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", "field", "target_field", false);
+        Map<String, Object> document = new HashMap<>();
+        List<Boolean> value = Arrays.asList(true, true, false);
+        document.put("field", value.toString());
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        jsonProcessor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("target_field", Object.class), equalTo(value));
     }
 
     public void testFieldMissing() {
@@ -74,7 +146,6 @@ public class JsonProcessorTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo("field [field] not present as part of path [field]"));
     }
 
-    @SuppressWarnings("unchecked")
     public void testAddToRoot() throws Exception {
         String processorTag = randomAlphaOfLength(3);
         String randomTargetField = randomAlphaOfLength(2);
@@ -88,12 +159,18 @@ public class JsonProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         jsonProcessor.execute(ingestDocument);
 
-        Map<String, Object> expected = new HashMap<>();
-        expected.put("a", 1);
-        expected.put("b", 2);
-        expected.put("c", "see");
-        IngestDocument expectedIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), expected);
+        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+        assertEquals(1, sourceAndMetadata.get("a"));
+        assertEquals(2, sourceAndMetadata.get("b"));
+        assertEquals("see", sourceAndMetadata.get("c"));
+    }
 
-        assertIngestDocument(ingestDocument, expectedIngestDocument);
+    public void testAddBoolToRoot() {
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", "field", "target_field", true);
+        Map<String, Object> document = new HashMap<>();
+        document.put("field", true);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> jsonProcessor.execute(ingestDocument));
+        assertThat(exception.getMessage(), containsString("cannot add non-map fields to root of document"));
     }
 }

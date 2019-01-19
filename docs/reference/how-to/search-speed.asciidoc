@@ -6,7 +6,7 @@
 
 Elasticsearch heavily relies on the filesystem cache in order to make search
 fast. In general, you should make sure that at least half the available memory
-goes to the filesystem cache so that elasticsearch can keep hot regions of the
+goes to the filesystem cache so that Elasticsearch can keep hot regions of the
 index in physical memory.
 
 [float]
@@ -36,6 +36,44 @@ queries hundreds of times slower. So if the same questions can be answered witho
 joins by denormalizing documents, significant speedups can be expected.
 
 [float]
+=== Search as few fields as possible
+
+The more fields a <<query-dsl-query-string-query,`query_string`>> or
+<<query-dsl-multi-match-query,`multi_match`>> query targets, the slower it is.
+A common technique to improve search speed over multiple fields is to copy
+their values into a single field at index time, and then use this field at
+search time. This can be automated with the <<copy-to,`copy-to`>> directive of
+mappings without having to change the source of documents. Here is an example
+of an index containing movies that optimizes queries that search over both the
+name and the plot of the movie by indexing both values into the `name_and_plot`
+field.
+
+[source,js]
+--------------------------------------------------
+PUT movies?include_type_name=true
+{
+  "mappings": {
+    "_doc": {
+      "properties": {
+        "name_and_plot": {
+          "type": "text"
+        },
+        "name": {
+          "type": "text",
+          "copy_to": "name_and_plot"
+        },
+        "plot": {
+          "type": "text",
+          "copy_to": "name_and_plot"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+[float]
 === Pre-index data
 
 You should leverage patterns in your queries to optimize the way data is indexed.
@@ -49,7 +87,7 @@ For instance, if documents look like:
 
 [source,js]
 --------------------------------------------------
-PUT index/type/1
+PUT index/_doc/1
 {
   "designation": "spoon",
   "price": 13
@@ -85,10 +123,10 @@ should be mapped as a <<keyword,`keyword`>>:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "price_range": {
           "type": "keyword"
@@ -98,7 +136,7 @@ PUT index
   }
 }
 
-PUT index/type/1
+PUT index/_doc/1
 {
   "designation": "spoon",
   "price": 13,
@@ -127,12 +165,15 @@ GET index/_search
 // TEST[continued]
 
 [float]
-=== Mappings
+=== Consider mapping identifiers as `keyword`
 
 The fact that some data is numeric does not mean it should always be mapped as a
-<<number,numeric field>>. Typically, fields storing identifiers such as an `ISBN`
-or any number identifying a record from another database, might benefit from
-being mapped as <<keyword,`keyword`>> rather than `integer` or `long`.
+<<number,numeric field>>. The way that Elasticsearch indexes numbers optimizes
+for `range` queries while `keyword` fields are better at `term` queries. Typically, 
+fields storing identifiers such as an `ISBN` or any number identifying a record 
+from another database are rarely used in `range` queries or aggregations. This is
+why they might benefit from being mapped as <<keyword,`keyword`>> rather than as 
+`integer` or `long`.
 
 [float]
 === Avoid scripts
@@ -152,7 +193,7 @@ For instance the below query:
 
 [source,js]
 --------------------------------------------------
-PUT index/type/1
+PUT index/_doc/1
 {
   "my_date": "2016-05-11T16:30:55.328Z"
 }
@@ -275,16 +316,16 @@ merging to the background merge process.
 Global ordinals are a data-structure that is used in order to run
 <<search-aggregations-bucket-terms-aggregation,`terms`>> aggregations on
 <<keyword,`keyword`>> fields. They are loaded lazily in memory because
-elasticsearch does not know which fields will be used in `terms` aggregations
-and which fields won't. You can tell elasticsearch to load global ordinals
+Elasticsearch does not know which fields will be used in `terms` aggregations
+and which fields won't. You can tell Elasticsearch to load global ordinals
 eagerly at refresh-time by configuring mappings as described below:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "foo": {
           "type": "keyword",
@@ -300,7 +341,7 @@ PUT index
 [float]
 === Warm up the filesystem cache
 
-If the machine running elasticsearch is restarted, the filesystem cache will be
+If the machine running Elasticsearch is restarted, the filesystem cache will be
 empty, so it will take some time before the operating system loads hot regions
 of the index into memory so that search operations are fast. You can explicitly
 tell the operating system which files should be loaded into memory eagerly
@@ -310,15 +351,6 @@ setting.
 WARNING: Loading data into the filesystem cache eagerly on too many indices or
 too many files will make search _slower_ if the filesystem cache is not large
 enough to hold all the data. Use with caution.
-
-[float]
-=== Map identifiers as `keyword`
-
-When you have numeric identifiers in your documents, it is tempting to map them
-as numbers, which is consistent with their json type. However, the way that
-Elasticsearch indexes numbers optimizes for `range` queries while `keyword`
-fields are better at `term` queries. Since identifiers are never used in `range`
-queries, they should be mapped as a `keyword`.
 
 [float]
 === Use index sorting to speed up conjunctions
@@ -368,3 +400,28 @@ So what is the right number of replicas? If you have a cluster that has
 be able to cope with `max_failures` node failures at once at most, then the
 right number of replicas for you is
 `max(max_failures, ceil(num_nodes / num_primaries) - 1)`.
+
+[float]
+=== Turn on adaptive replica selection
+
+When multiple copies of data are present, elasticsearch can use a set of
+criteria called <<search-adaptive-replica,adaptive replica selection>> to select
+the best copy of the data based on response time, service time, and queue size
+of the node containing each copy of the shard. This can improve query throughput
+and reduce latency for search-heavy applications.
+
+=== Tune your queries with the Profile API
+
+You can also analyse how expensive each component of your queries and 
+aggregations are using the {ref}/search-profile.html[Profile API]. This might 
+allow you to tune your queries to be less expensive, resulting in a positive 
+performance result and reduced load. Also note that Profile API payloads can be 
+easily visualised for better readability in the 
+{kibana-ref}/xpack-profiler.html[Search Profiler], which is a Kibana dev tools 
+UI available in all X-Pack licenses, including the free X-Pack Basic license.
+
+Some caveats to the Profile API are that:
+
+ - the Profile API as a debugging tool adds significant overhead to search execution and can also have a very verbose output
+ - given the added overhead, the resulting took times are not reliable indicators of actual took time, but can be used comparatively between clauses for relative timing differences
+ - the Profile API is best for exploring possible reasons behind the most costly clauses of a query but isn't intended for accurately measuring absolute timings of each clause 

@@ -1,14 +1,17 @@
 [[analysis-normalizers]]
 == Normalizers
 
-beta[]
-
 Normalizers are similar to analyzers except that they may only emit a single
 token. As a consequence, they do not have a tokenizer and only accept a subset
 of the available char filters and token filters. Only the filters that work on
 a per-character basis are allowed. For instance a lowercasing filter would be
 allowed, but not a stemming filter, which needs to look at the keyword as a
-whole.
+whole. The current list of filters that can be used in a normalizer is
+following: `arabic_normalization`, `asciifolding`, `bengali_normalization`,
+`cjk_width`, `decimal_digit`, `elision`, `german_normalization`,
+`hindi_normalization`, `indic_normalization`, `lowercase`,
+`persian_normalization`, `scandinavian_folding`, `serbian_normalization`,
+`sorani_normalization`, `uppercase`.
 
 [float]
 === Custom normalizers
@@ -43,12 +46,10 @@ PUT index
     }
   },
   "mappings": {
-    "type": {
-      "properties": {
-        "foo": {
-          "type": "keyword",
-          "normalizer": "my_normalizer"
-        }
+    "properties": {
+      "foo": {
+        "type": "keyword",
+        "normalizer": "my_normalizer"
       }
     }
   }

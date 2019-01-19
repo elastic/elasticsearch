@@ -17,8 +17,6 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-
 subprojects {
   // fixtures is just intermediate parent project
   if (name == 'fixtures') return
@@ -28,18 +26,10 @@ subprojects {
   apply plugin: 'nebula.maven-base-publish'
   apply plugin: 'nebula.maven-scm'
 
-
-  // the main files are actually test files, so use the appropriate forbidden api sigs
-  forbiddenApisMain {
-    signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt'),
-                      PrecommitTasks.getResource('/forbidden/es-signatures.txt'),
-                      PrecommitTasks.getResource('/forbidden/es-test-signatures.txt')]
-  }
-
   // TODO: should we have licenses for our test deps?
   dependencyLicenses.enabled = false
+  dependenciesInfo.enabled = false
 
   // TODO: why is the test framework pulled in...
-  forbiddenApisMain.enabled = false
   jarHell.enabled = false
 }

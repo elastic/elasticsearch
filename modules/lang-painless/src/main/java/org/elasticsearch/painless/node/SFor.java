@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -77,7 +76,7 @@ public final class SFor extends AStatement {
         locals = Locals.newLocalScope(locals);
 
         if (initializer != null) {
-            if (initializer instanceof AStatement) {
+            if (initializer instanceof SDeclBlock) {
                 initializer.analyze(locals);
             } else if (initializer instanceof AExpression) {
                 AExpression initializer = (AExpression)this.initializer;
@@ -88,13 +87,16 @@ public final class SFor extends AStatement {
                 if (!initializer.statement) {
                     throw createError(new IllegalArgumentException("Not a statement."));
                 }
+
+                initializer.expected = initializer.actual;
+                this.initializer = initializer.cast(locals);
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
         if (condition != null) {
-            condition.expected = Definition.BOOLEAN_TYPE;
+            condition.expected = boolean.class;
             condition.analyze(locals);
             condition = condition.cast(locals);
 
@@ -120,6 +122,9 @@ public final class SFor extends AStatement {
             if (!afterthought.statement) {
                 throw createError(new IllegalArgumentException("Not a statement."));
             }
+
+            afterthought.expected = afterthought.actual;
+            afterthought = afterthought.cast(locals);
         }
 
         if (block != null) {
@@ -161,7 +166,7 @@ public final class SFor extends AStatement {
             AExpression initializer = (AExpression)this.initializer;
 
             initializer.write(writer, globals);
-            writer.writePop(initializer.expected.type.getSize());
+            writer.writePop(MethodWriter.getType(initializer.expected).getSize());
         }
 
         writer.mark(start);
@@ -198,6 +203,7 @@ public final class SFor extends AStatement {
         if (afterthought != null) {
             writer.mark(begin);
             afterthought.write(writer, globals);
+            writer.writePop(MethodWriter.getType(afterthought.expected).getSize());
         }
 
         if (afterthought != null || !allEscape) {

@@ -37,20 +37,25 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.index.similarity.ScriptedSimilarity;
+import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SimilarityScript;
 import org.elasticsearch.script.SimilarityWeightScript;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class SimilarityScriptTests extends ScriptTestCase {
 
     @Override
-    protected Collection<ScriptContext<?>> scriptContexts() {
-        return Arrays.asList(SimilarityScript.CONTEXT, SimilarityWeightScript.CONTEXT);
+    protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
+        Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
+        contexts.put(SimilarityScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(SimilarityWeightScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        return contexts;
     }
 
     public void testBasics() throws IOException {
@@ -84,7 +89,7 @@ public class SimilarityScriptTests extends ScriptTestCase {
                 .add(new TermQuery(new Term("match", "yes")), Occur.FILTER)
                 .build(), 3.2f);
         TopDocs topDocs = searcher.search(query, 1);
-        assertEquals(1, topDocs.totalHits);
+        assertEquals(1, topDocs.totalHits.value);
         assertEquals((float) (3.2 * 2 / 3), topDocs.scoreDocs[0].score, 0);
         w.close();
         dir.close();
@@ -123,7 +128,7 @@ public class SimilarityScriptTests extends ScriptTestCase {
                 .add(new TermQuery(new Term("match", "yes")), Occur.FILTER)
                 .build(), 3.2f);
         TopDocs topDocs = searcher.search(query, 1);
-        assertEquals(1, topDocs.totalHits);
+        assertEquals(1, topDocs.totalHits.value);
         assertEquals((float) (3.2 * 2 / 3), topDocs.scoreDocs[0].score, 0);
         w.close();
         dir.close();

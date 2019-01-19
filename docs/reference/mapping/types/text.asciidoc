@@ -17,10 +17,10 @@ Below is an example of a mapping for a text field:
 
 [source,js]
 --------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "full_name": {
           "type":  "text"
@@ -89,6 +89,20 @@ The following parameters are accepted by `text` fields:
     What information should be stored in the index, for search and highlighting purposes.
     Defaults to `positions`.
 
+<<index-prefixes,`index_prefixes`>>::
+
+    If enabled, term prefixes of between 2 and 5 characters are indexed into a
+    separate field.  This allows prefix searches to run more efficiently, at
+    the expense of a larger index.
+
+<<index-phrases,`index_phrases`>>::
+
+    If enabled, two-term word combinations ('shingles') are indexed into a separate
+    field.  This allows exact phrase queries (no slop) to run more efficiently, at the expense
+    of a larger index.  Note that this works best when stopwords are not removed,
+    as phrases containing stopwords will not use the subsidiary field and will fall
+    back to a standard phrase query.  Accepts `true` or `false` (default).
+
 <<norms,`norms`>>::
 
     Whether field-length should be taken into account when scoring queries.
@@ -127,4 +141,3 @@ The following parameters are accepted by `text` fields:
 
     Whether term vectors should be stored for an <<mapping-index,`analyzed`>>
     field. Defaults to `no`.
-

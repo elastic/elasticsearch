@@ -62,7 +62,11 @@ of `indices`, `os`, `process`, `jvm`, `transport`, `http`,
   Statistics about the discovery
 
 `ingest`::
-    Statistics about ingest preprocessing
+  Statistics about ingest preprocessing
+
+`adaptive_selection`::
+  Statistics about <<search-adaptive-replica,adaptive replica selection>>. See
+  <<adaptive-selection-stats,adaptive selection statistics>>.
 
 [source,js]
 --------------------------------------------------
@@ -275,7 +279,7 @@ the operating system:
     `os.cgroup.memory.limit_in_bytes`.
 
 NOTE: For the cgroup stats to be visible, cgroups must be compiled into
-the kernal, the `cpu` and `cpuacct` cgroup subsystems must be
+the kernel, the `cpu` and `cpuacct` cgroup subsystems must be
 configured and stats must be readable from `/sys/fs/cgroup/cpu`
 and `/sys/fs/cgroup/cpuacct`.
 
@@ -342,7 +346,6 @@ Supported metrics are:
 * `search`
 * `segments`
 * `store`
-* `suggest`
 * `translog`
 * `warmer`
 
@@ -370,15 +373,43 @@ GET /_nodes/stats/indices?groups=foo,bar
 The `ingest` flag can be set to retrieve statistics that concern ingest:
 
 `ingest.total.count`::
-    The total number of document ingested during the lifetime of this node
+  The total number of document ingested during the lifetime of this node
 
 `ingest.total.time_in_millis`::
-    The total time spent on ingest preprocessing documents during the lifetime of this node
+  The total time spent on ingest preprocessing documents during the lifetime of this node
 
 `ingest.total.current`::
-    The total number of documents currently being ingested.
+  The total number of documents currently being ingested.
 
 `ingest.total.failed`::
-    The total number ingest preprocessing operations failed during the lifetime of this node
+  The total number ingest preprocessing operations failed during the lifetime of this node
 
 On top of these overall ingest statistics, these statistics are also provided on a per pipeline basis.
+
+[float]
+[[adaptive-selection-stats]]
+=== Adaptive selection statistics
+
+The `adaptive_selection` flag can be set to retrieve statistics that concern
+<<search-adaptive-replica,adaptive replica selection>>. These statistics are
+keyed by node. For each node:
+
+`adaptive_selection.outgoing_searches`::
+  The number of outstanding search requests from the node these stats are for to
+  the keyed node.
+
+`avg_queue_size`::
+  The exponentially weighted moving average queue size of search requests on the
+  keyed node.
+
+`avg_service_time_ns`::
+  The exponentially weighted moving average service time of search requests on
+  the keyed node.
+
+`avg_response_time_ns`::
+  The exponentially weighted moving average response time of search requests on
+  the keyed node.
+
+`rank`::
+  The rank of this node; used for shard selection when routing search requests.
+

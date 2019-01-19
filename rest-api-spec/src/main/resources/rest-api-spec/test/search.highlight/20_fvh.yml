@@ -25,11 +25,9 @@ setup:
 
 ---
 "Highlight query":
-  - skip:
-      version: " - 5.5.99"
-      reason:  bug fixed in 5.6
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
          highlight:
           type: fvh

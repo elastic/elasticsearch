@@ -13,12 +13,12 @@ For example:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/groups/1
+PUT my_index/_doc/1
 {
     "names": [ "John Abraham", "Lincoln Smith"]
 }
 
-GET my_index/groups/_search
+GET my_index/_search
 {
     "query": {
         "match_phrase": {
@@ -29,7 +29,7 @@ GET my_index/groups/_search
     }
 }
 
-GET my_index/groups/_search
+GET my_index/_search
 {
     "query": {
         "match_phrase": {
@@ -51,10 +51,10 @@ The `position_increment_gap` can be specified in the mapping.  For instance:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
-    "groups": {
+    "_doc": {
       "properties": {
         "names": {
           "type": "text",
@@ -65,12 +65,12 @@ PUT my_index
   }
 }
 
-PUT my_index/groups/1
+PUT my_index/_doc/1
 {
     "names": [ "John Abraham", "Lincoln Smith"]
 }
 
-GET my_index/groups/_search
+GET my_index/_search
 {
     "query": {
         "match_phrase": {

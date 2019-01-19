@@ -1,0 +1,80 @@
+--
+:api: clear-cache
+:request: ClearIndicesCacheRequest
+:response: ClearIndicesCacheResponse
+--
+
+[id="{upid}-{api}"]
+=== Clear Cache API
+
+[id="{upid}-{api}-request"]
+==== Clear Cache Request
+
+A +{request}+ can be applied to one or more indices, or even on
+`_all` the indices:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Clears the cache of one index
+<2> Clears the cache of multiple indices
+<3> Clears the cache of all the indices
+
+==== Optional arguments
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
+--------------------------------------------------
+<1> Setting `IndicesOptions` controls how unavailable indices are resolved and
+how wildcard expressions are expanded
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-query]
+--------------------------------------------------
+<1> Set the `query` flag to `true`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-fielddata]
+--------------------------------------------------
+<1> Set the `fielddata` flag to `true`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-request]
+--------------------------------------------------
+<1> Set the `request` flag to `true`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-fields]
+--------------------------------------------------
+<1> Set the `fields` parameter
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Clear Cache Response
+
+The returned +{response}+ allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Total number of shards hit by the clear cache request
+<2> Number of shards where the clear cache has succeeded
+<3> Number of shards where the clear cache has failed
+<4> A list of failures if the operation failed on one or more shards
+
+By default, if the indices were not found, an `ElasticsearchException` will be thrown:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-notfound]
+--------------------------------------------------
+<1> Do something if the indices to be cleared were not found

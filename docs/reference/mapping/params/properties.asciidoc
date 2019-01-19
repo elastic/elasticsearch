@@ -15,10 +15,10 @@ field, and a `nested` field:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
-    "my_type": { <1>
+    "_doc": { <1>
       "properties": {
         "manager": { <2>
           "properties": {
@@ -38,7 +38,7 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1 <4>
+PUT my_index/_doc/1 <4>
 {
   "region": "US",
   "manager": {
@@ -58,7 +58,7 @@ PUT my_index/my_type/1 <4>
 }
 --------------------------------------------------
 // CONSOLE
-<1> Properties under the `my_type` mapping type.
+<1> Properties under the `_doc` mapping type.
 <2> Properties under the `manager` object field.
 <3> Properties under the `employees` nested field.
 <4> An example document which corresponds to the above mapping.
@@ -78,7 +78,7 @@ GET my_index/_search
 {
   "query": {
     "match": {
-      "manager.name": "Alice White" <1>
+      "manager.name": "Alice White" 
     }
   },
   "aggs": {
@@ -89,7 +89,7 @@ GET my_index/_search
       "aggs": {
         "Employee Ages": {
           "histogram": {
-            "field": "employees.age", <2>
+            "field": "employees.age", 
             "interval": 5
           }
         }

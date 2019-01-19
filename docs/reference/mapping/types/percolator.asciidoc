@@ -15,10 +15,10 @@ If the following mapping configures the `percolator` field type for the
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
     "mappings": {
-        "doc": {
+        "_doc": {
             "properties": {
                 "query": {
                     "type": "percolator"
@@ -38,7 +38,7 @@ Then you can index a query:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/doc/match_value
+PUT my_index/_doc/match_value
 {
     "query" : {
         "match" : {
@@ -55,72 +55,8 @@ PUT my_index/doc/match_value
 Fields referred to in a percolator query must *already* exist in the mapping
 associated with the index used for percolation. In order to make sure these fields exist,
 add or update a mapping via the <<indices-create-index,create index>> or <<indices-put-mapping,put mapping>> APIs.
-Fields referred in a percolator query may exist in any type of the index containing the `percolator` field type.
 
 =====================================
-
-[float]
-==== Influencing query extraction
-
-As part of indexing the percolator query, the percolator field mapper extracts the query terms and numeric ranges from the provided
-query and indexes that alongside the query in separate internal fields. The `percolate` query uses these internal fields
-to build a candidate query from the document being percolated in order to reduce the number of document that need to be verified.
-
-In case a percolator query contains a `bool` query with must or filter clauses, then the percolator field mapper only has to
-extract ranges or terms from a single clause. The percolator field mapper will prefer longer terms over shorter terms, because
-longer terms in general match with less documents. For the same reason it prefers smaller ranges over bigger ranges.
-
-In general this behaviour works well. However sometimes there are fields in a bool query that shouldn't be taken into account
-when selecting the best must or filter clause, or fields are known to be more selective than other fields.
-
-For example a status like field may in fact not work well, because each status matches with many percolator queries and
-then the candidate query the `percolate` query generates may not be able to filter out that many percolator queries.
-
-The percolator field mapping allows to configure `boost_fields` in order to indicate to the percolator what fields are
-important or not important when selecting the best must or filter clause in a `bool` query:
-
-[source,js]
---------------------------------------------------
-PUT another_index
-{
-    "mappings": {
-        "doc": {
-            "properties": {
-                "query": {
-                    "type": "percolator",
-                    "boost_fields": {
-                        "status_field": 0, <1>
-                        "price_field": 2 <2>
-                    }
-                },
-                "status_field": {
-                    "type": "keyword"
-                },
-                "price_field": {
-                    "type": "long"
-                },
-                "field": {
-                    "type": "text"
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-<1> A boost of zero hints to the percolator that if there are other clauses in a conjunction query then these should be
-    preferred over this one.
-
-<2> Any boost higher than 1 overrides the default behaviour when it comes to selecting the best clause. The clause
-    that has the field with the highest boost will be selected from a conjunction query for extraction.
-
-The steps the percolator field mapper takes when selecting a clause from a conjunction query:
-
-* If there are clauses that have boosted fields then the clause with highest boost field is selected.
-* If there are range based clauses and term based clauses then term based clauses are picked over range based clauses
-* From all term based clauses the clause with longest term is picked.
-* In the case when there are only range based clauses then the range clause with smallest range is picked over clauses with wider ranges.
 
 [float]
 ==== Reindexing your percolator queries
@@ -133,10 +69,10 @@ Lets take a look at the following index with a percolator field type:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
-    "doc" : {
+    "_doc" : {
       "properties": {
         "query" : {
           "type" : "percolator"
@@ -161,7 +97,7 @@ POST _aliases
   ]
 }
 
-PUT queries/doc/1?refresh
+PUT queries/_doc/1?refresh
 {
   "query" : {
     "match" : {
@@ -181,10 +117,10 @@ to read your queries you need to reindex your queries into a new index on the cu
 
 [source,js]
 --------------------------------------------------
-PUT new_index
+PUT new_index?include_type_name=true
 {
   "mappings": {
-    "doc" : {
+    "_doc" : {
       "properties": {
         "query" : {
           "type" : "percolator"
@@ -257,20 +193,23 @@ now returns matches from the new index:
   "took": 3,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 0.2876821,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.13076457,
     "hits": [
       {
         "_index": "new_index", <1>
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
-        "_score": 0.2876821,
+        "_score": 0.13076457,
         "_source": {
           "query": {
             "match": {
@@ -330,7 +269,7 @@ with these settings and mapping:
 
 [source,js]
 --------------------------------------------------
-PUT /test_index
+PUT /test_index?include_type_name=true
 {
   "settings": {
     "analysis": {
@@ -343,7 +282,7 @@ PUT /test_index
     }
   },
   "mappings": {
-    "doc" : {
+    "_doc" : {
       "properties": {
         "query" : {
           "type": "percolator"
@@ -404,7 +343,7 @@ All the tokens in the returned order need to replace the query text in the perco
 
 [source,js]
 --------------------------------------------------
-PUT /test_index/doc/1?refresh
+PUT /test_index/_doc/1?refresh
 {
   "query" : {
     "match" : {
@@ -452,20 +391,23 @@ This results in a response like this:
   "took": 6,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 0.2876821,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.13076457,
     "hits": [
       {
         "_index": "test_index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
-        "_score": 0.2876821,
+        "_score": 0.13076457,
         "_source": {
           "query": {
             "match": {
@@ -485,6 +427,286 @@ This results in a response like this:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 6,/"took": "$body.took",/]
+
+[float]
+==== Optimizing wildcard queries.
+
+Wildcard queries are  more expensive than other queries for the percolator,
+especially if the wildcard expressions are large.
+
+In the case of `wildcard` queries with prefix wildcard expressions or just the `prefix` query,
+the `edge_ngram` token filter can be used to replace these queries with regular `term`
+query on a field where the `edge_ngram` token filter is configured.
+
+Creating an index with custom analysis settings:
+
+[source,js]
+--------------------------------------------------
+PUT my_queries1?include_type_name=true
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "wildcard_prefix": { <1>
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "wildcard_edge_ngram"
+          ]
+        }
+      },
+      "filter": {
+        "wildcard_edge_ngram": { <2>
+          "type": "edge_ngram",
+          "min_gram": 1,
+          "max_gram": 32
+        }
+      }
+    }
+  },
+  "mappings": {
+    "_doc": {
+      "properties": {
+        "query": {
+          "type": "percolator"
+        },
+        "my_field": {
+          "type": "text",
+          "fields": {
+            "prefix": { <3>
+              "type": "text",
+              "analyzer": "wildcard_prefix",
+              "search_analyzer": "standard"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+<1> The analyzer that generates the prefix tokens to be used at index time only.
+<2> Increase the `min_gram` and decrease `max_gram` settings based on your prefix search needs.
+<3> This multifield should be used to do the prefix search
+    with a `term` or `match` query instead of a `prefix` or `wildcard` query.
+
+
+Then instead of indexing the following query:
+
+[source,js]
+--------------------------------------------------
+{
+  "query": {
+    "wildcard": {
+      "my_field": "abc*"
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+this query below should be indexed:
+
+[source,js]
+--------------------------------------------------
+PUT /my_queries1/_doc/1?refresh
+{
+  "query": {
+    "term": {
+      "my_field.prefix": "abc"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+This way can handle the second query more efficiently than the first query.
+
+The following search request will match with the previously indexed
+percolator query:
+
+[source,js]
+--------------------------------------------------
+GET /my_queries1/_search
+{
+  "query": {
+    "percolate": {
+      "field": "query",
+      "document": {
+        "my_field": "abcd"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 6,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.18864399,
+    "hits": [
+      {
+        "_index": "my_queries1",
+        "_type": "_doc",
+        "_id": "1",
+        "_score": 0.18864399,
+        "_source": {
+          "query": {
+            "term": {
+              "my_field.prefix": "abc"
+            }
+          }
+        },
+        "fields": {
+          "_percolator_document_slot": [
+            0
+          ]
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 6,/"took": "$body.took",/]
+
+The same technique can also be used to speed up suffix
+wildcard searches. By using the `reverse` token filter
+before the `edge_ngram` token filter.
+
+[source,js]
+--------------------------------------------------
+PUT my_queries2?include_type_name=true
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "wildcard_suffix": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "reverse",
+            "wildcard_edge_ngram"
+          ]
+        },
+        "wildcard_suffix_search_time": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "reverse"
+          ]
+        }
+      },
+      "filter": {
+        "wildcard_edge_ngram": {
+          "type": "edge_ngram",
+          "min_gram": 1,
+          "max_gram": 32
+        }
+      }
+    }
+  },
+  "mappings": {
+    "_doc": {
+      "properties": {
+        "query": {
+          "type": "percolator"
+        },
+        "my_field": {
+          "type": "text",
+          "fields": {
+            "suffix": {
+              "type": "text",
+              "analyzer": "wildcard_suffix",
+              "search_analyzer": "wildcard_suffix_search_time" <1>
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+<1> A custom analyzer is needed at search time too, because otherwise
+    the query terms are not being reversed and would otherwise not match
+    with the reserved suffix tokens.
+
+Then instead of indexing the following query:
+
+[source,js]
+--------------------------------------------------
+{
+  "query": {
+    "wildcard": {
+      "my_field": "*xyz"
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+the following query below should be indexed:
+
+[source,js]
+--------------------------------------------------
+PUT /my_queries2/_doc/2?refresh
+{
+  "query": {
+    "match": { <1>
+      "my_field.suffix": "xyz"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+<1> The `match` query should be used instead of the `term` query,
+    because text analysis needs to reverse the query terms.
+
+The following search request will match with the previously indexed
+percolator query:
+
+[source,js]
+--------------------------------------------------
+GET /my_queries2/_search
+{
+  "query": {
+    "percolate": {
+      "field": "query",
+      "document": {
+        "my_field": "wxyz"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 [float]
 ==== Dedicated Percolator Index

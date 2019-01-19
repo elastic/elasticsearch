@@ -16,12 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-import org.elasticsearch.gradle.precommit.PrecommitTasks;
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask;
 
 dependencies {
   compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
+  compile "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}"
+  compile "org.elasticsearch:elasticsearch-nio:${version}"
   compile "org.elasticsearch:elasticsearch:${version}"
+  compile "org.elasticsearch:elasticsearch-cli:${version}"
   compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   compile "junit:junit:${versions.junit}"
   compile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
@@ -38,14 +40,14 @@ compileTestJava.options.compilerArgs << '-Xlint:-rawtypes'
 
 // the main files are actually test files, so use the appropriate forbidden api sigs
 forbiddenApisMain {
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/all-signatures.txt'),
-                    PrecommitTasks.getResource('/forbidden/test-signatures.txt')]
+  replaceSignatureFiles 'jdk-signatures', 'es-all-signatures', 'es-test-signatures'
 }
 
 // TODO: should we have licenses for our test deps?
 dependencyLicenses.enabled = false
+dependenciesInfo.enabled = false
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
   // classes are missing
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',
@@ -59,15 +61,21 @@ thirdPartyAudit.excludes = [
   'org.apache.tools.ant.types.FileSet',
   'org.easymock.EasyMock',
   'org.easymock.IArgumentMatcher',
-  'org.jmock.core.Constraint',
-]
+  'org.jmock.core.Constraint'
+)
 
 task namingConventionsMain(type: org.elasticsearch.gradle.precommit.NamingConventionsTask) {
   checkForTestsInMain = true
+  javaHome = project.compilerJavaHome
 }
 precommit.dependsOn namingConventionsMain
 
-test.configure {
-  systemProperty 'tests.gradle_index_compat_versions', indexCompatVersions.join(',')
-  systemProperty 'tests.gradle_wire_compat_versions', wireCompatVersions.join(',')
+unitTest {
+  systemProperty 'tests.gradle_index_compat_versions', bwcVersions.indexCompatible.join(',')
+  systemProperty 'tests.gradle_wire_compat_versions', bwcVersions.wireCompatible.join(',')
+  systemProperty 'tests.gradle_unreleased_versions', bwcVersions.unreleased.join(',')
+}
+
+task integTest(type: RandomizedTestingTask) {
+  include "**/*IT.class"
 }

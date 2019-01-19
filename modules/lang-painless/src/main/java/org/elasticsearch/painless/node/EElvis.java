@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -54,7 +53,7 @@ public class EElvis extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-        if (expected != null && expected.clazz.isPrimitive()) {
+        if (expected != null && expected.isPrimitive()) {
             throw createError(new IllegalArgumentException("Elvis operator cannot return primitives"));
         }
         lhs.expected = expected;
@@ -73,7 +72,7 @@ public class EElvis extends AExpression {
         if (lhs.constant != null) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a constant."));
         }
-        if (lhs.actual.clazz.isPrimitive()) {
+        if (lhs.actual.isPrimitive()) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a primitive."));
         }
         if (rhs.isNull) {
@@ -81,7 +80,7 @@ public class EElvis extends AExpression {
         }
 
         if (expected == null) {
-            final Type promote = AnalyzerCaster.promoteConditional(lhs.actual, rhs.actual, lhs.constant, rhs.constant);
+            Class<?> promote = AnalyzerCaster.promoteConditional(lhs.actual, rhs.actual, lhs.constant, rhs.constant);
 
             lhs.expected = promote;
             rhs.expected = promote;

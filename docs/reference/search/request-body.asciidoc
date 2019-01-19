@@ -7,7 +7,7 @@ example:
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/_search
+GET /twitter/_search
 {
     "query" : {
         "term" : { "user" : "kimchy" }
@@ -31,12 +31,15 @@ And here is a sample response:
         "failed" : 0
     },
     "hits":{
-        "total" : 1,
+        "total" : {
+            "value": 1,
+            "relation": "eq"
+        },
         "max_score": 1.3862944,
         "hits" : [
             {
                 "_index" : "twitter",
-                "_type" : "tweet",
+                "_type" : "_doc",
                 "_id" : "0",
                 "_score": 1.3862944,
                 "_source" : {
@@ -60,7 +63,9 @@ And here is a sample response:
 
     A search timeout, bounding the search request to be executed within the
     specified time value and bail with the hits accumulated up to that point
-    when expired. Defaults to no timeout. See <<time-units>>.
+    when expired. Search requests are canceled after the timeout is reached using
+    the <<global-search-cancellation>> mechanism.
+    Defaults to no timeout. See <<time-units>>.
 
 `from`::
 
@@ -86,6 +91,13 @@ And here is a sample response:
     aggregations and suggestions (no top hits returned).
     See <<shard-request-cache>>.
 
+`allow_partial_search_results`::
+
+    Set to `false` to return an overall failure if the request would produce partial 
+    results. Defaults to true, which will allow partial results in the case of timeouts
+    or partial failures. This default can be controlled using the cluster-level setting
+    `search.default_allow_partial_results`.
+
 `terminate_after`::
 
     The maximum number of documents to collect for each shard,
@@ -103,9 +115,9 @@ And here is a sample response:
 
 
 
-Out of the above, the `search_type` and the `request_cache` must be passed as
-query-string parameters. The rest of the search request should be passed
-within the body itself. The body content can also be passed as a REST
+Out of the above, the `search_type`, `request_cache` and the `allow_partial_search_results` 
+settings must be passed as query-string parameters. The rest of the search request should 
+be passed within the body itself. The body content can also be passed as a REST
 parameter named `source`.
 
 Both HTTP GET and HTTP POST can be used to execute search with body. Since not
@@ -113,6 +125,12 @@ all clients support GET with body, POST is allowed as well.
 
 [float]
 === Fast check for any matching docs
+
+NOTE: `terminate_after` is always applied **after** the `post_filter` and stops
+       the query as well as the aggregation executions when enough hits have been
+       collected on the shard. Though the doc count on aggregations may not reflect
+       the `hits.total` in the response since aggregations are applied **before** the
+       post filtering.
 
 In case we only want to know if there are any documents matching a
 specific query, we can set the `size` to `0` to indicate that we are not
@@ -122,7 +140,7 @@ matching document was found (per shard).
 
 [source,js]
 --------------------------------------------------
-GET /_search?q=message:elasticsearch&size=0&terminate_after=1
+GET /_search?q=message:number&size=0&terminate_after=1
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -147,8 +165,11 @@ be set to `true` in the response.
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 0.0,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": null,
     "hits": []
   }
 }
@@ -167,6 +188,8 @@ include::request/query.asciidoc[]
 include::request/from-size.asciidoc[]
 
 include::request/sort.asciidoc[]
+
+include::request/track-total-hits.asciidoc[]
 
 include::request/source-filtering.asciidoc[]
 

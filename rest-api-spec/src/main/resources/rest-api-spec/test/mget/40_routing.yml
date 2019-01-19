@@ -1,5 +1,8 @@
 ---
 "Routing":
+ - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
 
  - do:
      indices.create:
@@ -8,6 +11,7 @@
          settings:
            index:
              number_of_shards: 5
+             number_of_routing_shards: 5
              number_of_replicas: 0
 
  - do:
@@ -17,7 +21,7 @@
  - do:
       index:
           index:   test_1
-          type:    test
+          type:    _doc
           id:      1
           routing: 5
           body:    { foo: bar }
@@ -25,7 +29,6 @@
  - do:
       mget:
           index:   test_1
-          type:    test
           stored_fields:  [_routing]
           body:
             docs:
@@ -38,6 +41,6 @@
 
  - is_true:   docs.2.found
  - match:   { docs.2._index:   test_1 }
- - match:   { docs.2._type:    test   }
+ - match:   { docs.2._type:    _doc   }
  - match:   { docs.2._id:      "1"    }
  - match:   { docs.2._routing: "5"    }

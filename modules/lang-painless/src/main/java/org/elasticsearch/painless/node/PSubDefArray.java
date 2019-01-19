@@ -20,12 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.def;
+import org.objectweb.asm.Type;
 
 import java.util.Objects;
 import java.util.Set;
@@ -53,7 +53,7 @@ final class PSubDefArray extends AStoreable {
         index.expected = index.actual;
         index = index.cast(locals);
 
-        actual = expected == null || explicit ? Definition.DEF_TYPE : expected;
+        actual = expected == null || explicit ? def.class : expected;
     }
 
     @Override
@@ -73,7 +73,7 @@ final class PSubDefArray extends AStoreable {
     }
 
     @Override
-    void updateActual(Type actual) {
+    void updateActual(Class<?> actual) {
         this.actual = actual;
     }
 
@@ -82,8 +82,8 @@ final class PSubDefArray extends AStoreable {
         // Current stack:                                                                    def
         writer.dup();                                                                     // def, def
         index.write(writer, globals);                                                     // def, def, unnormalized_index
-        org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(
-                index.actual.type, Definition.DEF_TYPE.type, index.actual.type);
+        Type methodType = Type.getMethodType(
+                MethodWriter.getType(index.actual), Type.getType(Object.class), MethodWriter.getType(index.actual));
         writer.invokeDefCall("normalizeIndex", methodType, DefBootstrap.INDEX_NORMALIZE); // def, normalized_index
     }
 
@@ -91,8 +91,8 @@ final class PSubDefArray extends AStoreable {
     void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        org.objectweb.asm.Type methodType =
-            org.objectweb.asm.Type.getMethodType(actual.type, Definition.DEF_TYPE.type, index.actual.type);
+        Type methodType =
+            Type.getMethodType(MethodWriter.getType(actual), Type.getType(Object.class), MethodWriter.getType(index.actual));
         writer.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
     }
 
@@ -100,8 +100,9 @@ final class PSubDefArray extends AStoreable {
     void store(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        org.objectweb.asm.Type methodType =
-            org.objectweb.asm.Type.getMethodType(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, index.actual.type, actual.type);
+        Type methodType =
+            Type.getMethodType(
+                Type.getType(void.class), Type.getType(Object.class), MethodWriter.getType(index.actual), MethodWriter.getType(actual));
         writer.invokeDefCall("arrayStore", methodType, DefBootstrap.ARRAY_STORE);
     }
 

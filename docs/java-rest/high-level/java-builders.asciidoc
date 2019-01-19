@@ -10,7 +10,7 @@ The query builders are used to create the query to execute within a search reque
 is a query builder for every type of query supported by the Query DSL. Each query builder
 implements the `QueryBuilder` interface and allows to set the specific options for a given
 type of query. Once created, the `QueryBuilder` object can be set as the query parameter of
-`SearchSourceBuilder`. The <<java-rest-high-document-search-request-building-queries, Search Request>>
+`SearchSourceBuilder`. The <<java-rest-high-search-request-building-queries, Search Request>>
 page shows an example of how to build a full search request using `SearchSourceBuilder` and
 `QueryBuilder` objects. The <<java-rest-high-query-builders, Building Search Queries>> page
 gives a list of all available search queries with their corresponding `QueryBuilder` objects
@@ -24,9 +24,9 @@ aggregation (or pipeline aggregation) supported by Elasticsearch. All builders e
 `AggregationBuilder` class (or `PipelineAggregationBuilder`class). Once created, `AggregationBuilder`
 objects can be set as the aggregation parameter of `SearchSourceBuilder`. There is a example
 of how `AggregationBuilder` objects are used with `SearchSourceBuilder` objects to define the aggregations
-to compute with a search query in <<java-rest-high-document-search-request-building-aggs, Search Request>> page.
+to compute with a search query in <<java-rest-high-search-request-building-aggs, Search Request>> page.
 The <<java-rest-high-aggregation-builders, Building Aggregations>> page gives a list of all available
 aggregations with their corresponding `AggregationBuilder` objects and `AggregationBuilders` helper methods.
 
-include::builders/queries.asciidoc[]
-include::builders/aggs.asciidoc[]
+include::query-builders.asciidoc[]
+include::aggs-builders.asciidoc[]

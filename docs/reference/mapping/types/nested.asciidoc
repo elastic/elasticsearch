@@ -2,8 +2,8 @@
 === Nested datatype
 
 The `nested` type is a specialised version of the <<object,`object`>> datatype
-that allows arrays of objects to be indexed and queried independently of each
-other.
+that allows arrays of objects to be indexed in a way that they can be queried 
+independently of each other.
 
 ==== How arrays of objects are flattened
 
@@ -14,7 +14,7 @@ following document:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "group" : "fans",
   "user" : [ <1>
@@ -75,10 +75,10 @@ queried independently of the others, with the <<query-dsl-nested-query,`nested` 
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "user": {
           "type": "nested" <1>
@@ -88,7 +88,7 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "group" : "fans",
   "user" : [
@@ -184,7 +184,7 @@ The following parameters are accepted by `nested` fields:
 
 Because nested documents are indexed as separate documents, they can only be
 accessed  within the scope of the `nested` query, the
-`nested`/`reverse_nested`, or <<nested-inner-hits,nested inner hits>>.
+`nested`/`reverse_nested` aggregations, or <<nested-inner-hits,nested inner hits>>.
 
 For instance, if a string field within a nested document has
 <<index-options,`index_options`>> set to `offsets` to allow use of the postings
@@ -201,3 +201,13 @@ Indexing a document with 100 nested fields actually indexes 101 documents as eac
 document is indexed as a separate document. To safeguard against ill-defined mappings
 the number of nested fields that can be defined per index has been limited to 50. See
 <<mapping-limit-settings>>.
+
+
+==== Limiting the number of `nested` json objects
+Indexing a document with an array of 100 objects within a nested field, will actually
+create 101 documents, as each nested object will be indexed as a separate document.
+To prevent out of memory errors when a single document contains too many nested json
+objects, the number of nested json objects that a single document may contain across all fields
+has been limited to 10000. See <<mapping-limit-settings>>.
+
+

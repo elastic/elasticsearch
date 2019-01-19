@@ -7,7 +7,7 @@ containing the new field.  For instance:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/my_type/1 <1>
+PUT my_index/_doc/1 <1>
 {
   "username": "johnsmith",
   "name": {
@@ -18,7 +18,7 @@ PUT my_index/my_type/1 <1>
 
 GET my_index/_mapping <2>
 
-PUT my_index/my_type/2 <3>
+PUT my_index/_doc/2 <3>
 {
   "username": "marywhite",
   "email": "mary@white.com",
@@ -58,10 +58,10 @@ object or from the mapping type.  For instance:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "dynamic": false, <1>
       "properties": {
         "user": { <2>

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.pl.PolishStemTokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
@@ -59,7 +60,7 @@ public class AnalysisPolishFactoryTests extends AnalysisFactoryTestCase {
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        Environment environment = new Environment(settings);
+        Environment environment = TestEnvironment.newEnvironment(settings);
         IndexMetaData metaData = IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE).settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(metaData, Settings.EMPTY);
         testThreadSafety(new PolishStemTokenFilterFactory(indexSettings, environment, "stempelpolishstem", settings));

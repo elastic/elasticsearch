@@ -1,27 +1,31 @@
-:version:               7.0.0-alpha1
+:version:               7.0.0-alpha2
 :major-version:         7.x
-:lucene_version:        7.1.0-SNAPSHOT
-:lucene_version_path:   7_1_0
+:lucene_version:        8.0.0
+:lucene_version_path:   8_0_0
 :branch:                master
 :jdk:                   1.8.0_131
+:jdk_major:             8
+:build_flavor:          default
 
 //////////
 release-state can be: released | prerelease | unreleased
 //////////
 
-:release-state:   unreleased
+:release-state:   prerelease
 
 :issue:           https://github.com/elastic/elasticsearch/issues/
+:ml-issue:        https://github.com/elastic/ml-cpp/issues/
 :pull:            https://github.com/elastic/elasticsearch/pull/
-
-:docker-image:    docker.elastic.co/elasticsearch/elasticsearch:{version}
+:ml-pull:         https://github.com/elastic/ml-cpp/pull/
+:docker-repo:     docker.elastic.co/elasticsearch/elasticsearch
+:docker-image:    {docker-repo}:{version}
 :plugin_url:      https://artifacts.elastic.co/downloads/elasticsearch-plugins
 
 ///////
 Javadoc roots used to generate links from Painless's API reference
 ///////
 :java8-javadoc: https://docs.oracle.com/javase/8/docs/api
-:java9-javadoc: http://download.java.net/java/jigsaw/docs/api
+:java9-javadoc: https://docs.oracle.com/javase/9/docs/api
 :joda-time-javadoc: http://www.joda.org/joda-time/apidocs
 :lucene-core-javadoc: http://lucene.apache.org/core/{lucene_version_path}/core
 
@@ -35,6 +39,7 @@ ifeval::["{release-state}"=="unreleased"]
 :parent-join-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/parent-join-client/{version}-SNAPSHOT
 :percolator-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/percolator-client/{version}-SNAPSHOT
 :matrixstats-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/aggs-matrix-stats-client/{version}-SNAPSHOT
+:rank-eval-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/rank-eval-client/{version}-SNAPSHOT
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
@@ -47,7 +52,13 @@ ifeval::["{release-state}"!="unreleased"]
 :parent-join-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/parent-join-client/{version}
 :percolator-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/percolator-client/{version}
 :matrixstats-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/aggs-matrix-stats-client/{version}
+:rank-eval-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/rank-eval-client/{version}
 endif::[]
+
+:javadoc-client: {rest-high-level-client-javadoc}/org/elasticsearch/client
+:javadoc-xpack: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack
+:javadoc-license: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack/license
+:javadoc-watcher: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack/watcher
 
 ///////
 Shared attribute values are pulled from elastic/docs

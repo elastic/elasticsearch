@@ -8,7 +8,7 @@ to support a list of stop words:
 
 [source,js]
 --------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "analysis": {
@@ -21,7 +21,7 @@ PUT my_index
     }
   },
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "my_text": {
           "type":     "text",

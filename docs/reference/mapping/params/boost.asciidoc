@@ -6,10 +6,10 @@ Individual fields can be _boosted_ automatically -- count more towards the relev
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "title": {
           "type": "text",

@@ -12,21 +12,19 @@ Hidden setup snippet to build an index with fielddata so our results are real:
 PUT test
 {
   "mappings": {
-    "test": {
-      "properties": {
-        "body": {
-          "type": "text",
-          "fielddata":true
-        },
-        "soul": {
-          "type": "text",
-          "fielddata":true
-        }
+    "properties": {
+      "body": {
+        "type": "text",
+        "fielddata":true
+      },
+      "soul": {
+        "type": "text",
+        "fielddata":true
       }
     }
   }
 }
-POST test/test?refresh
+POST test/_doc?refresh
 {
   "body": "some words so there is a little field data",
   "soul": "some more words"

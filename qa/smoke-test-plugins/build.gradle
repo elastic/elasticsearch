@@ -23,9 +23,9 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 ext.pluginsCount = 0
-project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
+project(':plugins').getChildProjects().each { pluginName, pluginProject ->
   integTestCluster {
-    plugin subproj.path
+    plugin pluginProject.path
   }
   pluginsCount += 1
 }

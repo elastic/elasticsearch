@@ -9,7 +9,7 @@ content indexed in two different ways:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "settings": {
     "analysis": {
@@ -24,7 +24,7 @@ PUT index
     }
   },
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "body": {
           "type": "text",
@@ -41,12 +41,12 @@ PUT index
   }
 }
 
-PUT index/type/1
+PUT index/_doc/1
 {
   "body": "Ski resort"
 }
 
-PUT index/type/2
+PUT index/_doc/2
 {
   "body": "A pair of skis"
 }
@@ -78,31 +78,34 @@ GET index/_search
   "took": 2,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
   "hits": {
-    "total": 2,
-    "max_score": 0.2876821,
+    "total" : {
+        "value": 2,
+        "relation": "eq"
+    },
+    "max_score": 0.18232156,
     "hits": [
       {
         "_index": "index",
-        "_type": "type",
-        "_id": "2",
-        "_score": 0.2876821,
+        "_type": "_doc",
+        "_id": "1",
+        "_score": 0.18232156,
         "_source": {
-          "body": "A pair of skis"
+          "body": "Ski resort"
         }
       },
       {
         "_index": "index",
-        "_type": "type",
-        "_id": "1",
-        "_score": 0.2876821,
+        "_type": "_doc",
+        "_id": "2",
+        "_score": 0.18232156,
         "_source": {
-          "body": "Ski resort"
+          "body": "A pair of skis"
         }
       }
     ]
@@ -136,20 +139,23 @@ GET index/_search
   "took": 1,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 0.2876821,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.8025915,
     "hits": [
       {
         "_index": "index",
-        "_type": "type",
+        "_type": "_doc",
         "_id": "1",
-        "_score": 0.2876821,
+        "_score": 0.8025915,
         "_source": {
           "body": "Ski resort"
         }
@@ -193,20 +199,23 @@ GET index/_search
   "took": 2,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 0.2876821,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.8025915,
     "hits": [
       {
         "_index": "index",
-        "_type": "type",
+        "_type": "_doc",
         "_id": "1",
-        "_score": 0.2876821,
+        "_score": 0.8025915,
         "_source": {
           "body": "Ski resort"
         }

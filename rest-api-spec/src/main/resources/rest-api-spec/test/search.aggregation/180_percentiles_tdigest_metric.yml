@@ -53,6 +53,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:
@@ -62,30 +63,28 @@ setup:
               percentiles:
                 field: double_field
 
-
-  - match: { hits.total: 4 }
+  - match:  { hits.total: 4 }
   - length: { hits.hits: 4 }
-  - match:
-      aggregations.percentiles_int.values:
-        1.0: 2.5
-        5.0: 8.500000000000002
-        25.0: 38.5
-        50.0: 76.0
-        75.0: 113.5
-        95.0: 143.49999999999997
-        99.0: 149.5
-  - match:
-      aggregations.percentiles_double.values:
-        1.0: 2.5
-        5.0: 8.500000000000002
-        25.0: 38.5
-        50.0: 76.0
-        75.0: 113.5
-        95.0: 143.49999999999997
-        99.0: 149.5
+
+  - match:  { aggregations.percentiles_int.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_int.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_int.values.25\.0: 26.0 }
+  - match:  { aggregations.percentiles_int.values.50\.0: 76.0 }
+  - match:  { aggregations.percentiles_int.values.75\.0: 126.0 }
+  - match:  { aggregations.percentiles_int.values.95\.0: 151.0 }
+  - match:  { aggregations.percentiles_int.values.99\.0: 151.0 }
+
+  - match:  { aggregations.percentiles_double.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_double.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_double.values.25\.0: 26.0 }
+  - match:  { aggregations.percentiles_double.values.50\.0: 76.0 }
+  - match:  { aggregations.percentiles_double.values.75\.0: 126.0 }
+  - match:  { aggregations.percentiles_double.values.95\.0: 151.0 }
+  - match:  { aggregations.percentiles_double.values.99\.0: 151.0 }
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:
@@ -102,30 +101,30 @@ setup:
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
-  - match:
-      aggregations.percentiles_int.values:
-        1.0: 2.5
-        5.0: 8.500000000000002
-        25.0: 38.5
-        50.0: 76.0
-        75.0: 113.5
-        95.0: 143.49999999999997
-        99.0: 149.5
-  - match:
-      aggregations.percentiles_double.values:
-        1.0: 2.5
-        5.0: 8.500000000000002
-        25.0: 38.5
-        50.0: 76.0
-        75.0: 113.5
-        95.0: 143.49999999999997
-        99.0: 149.5
+
+  - match:  { aggregations.percentiles_int.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_int.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_int.values.25\.0: 26.0 }
+  - match:  { aggregations.percentiles_int.values.50\.0: 76.0 }
+  - match:  { aggregations.percentiles_int.values.75\.0: 126.0 }
+  - match:  { aggregations.percentiles_int.values.95\.0: 151.0 }
+  - match:  { aggregations.percentiles_int.values.99\.0: 151.0 }
+
+  - match:  { aggregations.percentiles_double.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_double.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_double.values.25\.0: 26.0 }
+  - match:  { aggregations.percentiles_double.values.50\.0: 76.0 }
+  - match:  { aggregations.percentiles_double.values.75\.0: 126.0 }
+  - match:  { aggregations.percentiles_double.values.95\.0: 151.0 }
+  - match:  { aggregations.percentiles_double.values.99\.0: 151.0 }
+
 
 ---
 "Only aggs test":
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -138,30 +137,31 @@ setup:
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 0 }
-  - match:
-      aggregations.percentiles_int.values:
-        1.0: 2.5
-        5.0: 8.500000000000002
-        25.0: 38.5
-        50.0: 76.0
-        75.0: 113.5
-        95.0: 143.49999999999997
-        99.0: 149.5
-  - match:
-      aggregations.percentiles_double.values:
-        1.0: 2.5
-        5.0: 8.500000000000002
-        25.0: 38.5
-        50.0: 76.0
-        75.0: 113.5
-        95.0: 143.49999999999997
-        99.0: 149.5
+
+  - match:  { aggregations.percentiles_int.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_int.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_int.values.25\.0: 26.0 }
+  - match:  { aggregations.percentiles_int.values.50\.0: 76.0 }
+  - match:  { aggregations.percentiles_int.values.75\.0: 126.0 }
+  - match:  { aggregations.percentiles_int.values.95\.0: 151.0 }
+  - match:  { aggregations.percentiles_int.values.99\.0: 151.0 }
+
+  - match:  { aggregations.percentiles_double.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_double.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_double.values.25\.0: 26.0 }
+  - match:  { aggregations.percentiles_double.values.50\.0: 76.0 }
+  - match:  { aggregations.percentiles_double.values.75\.0: 126.0 }
+  - match:  { aggregations.percentiles_double.values.95\.0: 151.0 }
+  - match:  { aggregations.percentiles_double.values.99\.0: 151.0 }
+
+
 
 ---
 "Filtered test":
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             constant_score:
@@ -179,30 +179,29 @@ setup:
 
   - match: { hits.total: 3 }
   - length: { hits.hits: 3 }
-  - match:
-        aggregations.percentiles_int.values:
-            1.0: 52.0
-            5.0: 56.0
-            25.0: 76.0
-            50.0: 101.0
-            75.0: 126.0
-            95.0: 146.0
-            99.0: 150.0
-  - match:
-          aggregations.percentiles_double.values:
-            1.0: 52.0
-            5.0: 56.0
-            25.0: 76.0
-            50.0: 101.0
-            75.0: 126.0
-            95.0: 146.0
-            99.0: 150.0
+
+  - match:  { aggregations.percentiles_int.values.1\.0: 51.0 }
+  - match:  { aggregations.percentiles_int.values.5\.0: 51.0 }
+  - match:  { aggregations.percentiles_int.values.25\.0: 63.5 }
+  - match:  { aggregations.percentiles_int.values.50\.0: 101.0 }
+  - match:  { aggregations.percentiles_int.values.75\.0: 138.5 }
+  - match:  { aggregations.percentiles_int.values.95\.0: 151.0 }
+  - match:  { aggregations.percentiles_int.values.99\.0: 151.0 }
+
+  - match:  { aggregations.percentiles_double.values.1\.0: 51.0 }
+  - match:  { aggregations.percentiles_double.values.5\.0: 51.0 }
+  - match:  { aggregations.percentiles_double.values.25\.0: 63.5 }
+  - match:  { aggregations.percentiles_double.values.50\.0: 101.0 }
+  - match:  { aggregations.percentiles_double.values.75\.0: 138.5 }
+  - match:  { aggregations.percentiles_double.values.95\.0: 151.0 }
+  - match:  { aggregations.percentiles_double.values.99\.0: 151.0 }
 
 ---
 "Missing field with missing param":
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_missing:
@@ -212,21 +211,21 @@ setup:
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
-  - match:
-      aggregations.percentiles_missing.values:
-        1.0: 1.0
-        5.0: 1.0
-        25.0: 1.0
-        50.0: 1.0
-        75.0: 1.0
-        95.0: 1.0
-        99.0: 1.0
+
+  - match:  { aggregations.percentiles_missing.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_missing.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_missing.values.25\.0: 1.0 }
+  - match:  { aggregations.percentiles_missing.values.50\.0: 1.0 }
+  - match:  { aggregations.percentiles_missing.values.75\.0: 1.0 }
+  - match:  { aggregations.percentiles_missing.values.95\.0: 1.0 }
+  - match:  { aggregations.percentiles_missing.values.99\.0: 1.0 }
 
 ---
 "Missing field without missing param":
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_missing:
@@ -242,6 +241,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:
@@ -253,15 +253,15 @@ setup:
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
   - match: { aggregations.percentiles_int.meta.foo: "bar" }
-  - match:
-      aggregations.percentiles_int.values:
-        1.0: 2.5
-        5.0: 8.500000000000002
-        25.0: 38.5
-        50.0: 76.0
-        75.0: 113.5
-        95.0: 143.49999999999997
-        99.0: 149.5
+
+
+  - match:  { aggregations.percentiles_int.values.1\.0: 1.0 }
+  - match:  { aggregations.percentiles_int.values.5\.0: 1.0 }
+  - match:  { aggregations.percentiles_int.values.25\.0: 26.0 }
+  - match:  { aggregations.percentiles_int.values.50\.0: 76.0 }
+  - match:  { aggregations.percentiles_int.values.75\.0: 126.0 }
+  - match:  { aggregations.percentiles_int.values.95\.0: 151.0 }
+  - match:  { aggregations.percentiles_int.values.99\.0: 151.0 }
 
 ---
 "Invalid params test":
@@ -269,6 +269,7 @@ setup:
   - do:
       catch: /\[compression\] must be greater than or equal to 0. Found \[-1.0\] in \[percentiles_int\]/
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:
@@ -280,6 +281,7 @@ setup:
   - do:
       catch: /\[percents\] must not be empty/
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:
@@ -290,6 +292,7 @@ setup:
   - do:
       catch: bad_request
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:
@@ -300,6 +303,7 @@ setup:
   - do:
       catch: bad_request
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:
@@ -310,6 +314,7 @@ setup:
   - do:
       catch: bad_request
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_string:
@@ -321,6 +326,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:
@@ -335,22 +341,21 @@ setup:
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
-  - match:
-      aggregations.percentiles_int.values:
-        5.0: 8.500000000000002
-        25.0: 38.5
-        50.0: 76.0
-  - match:
-      aggregations.percentiles_double.values:
-        5.0: 8.500000000000002
-        25.0: 38.5
-        50.0: 76.0
+
+  - match: { aggregations.percentiles_int.values.5\.0: 1.0 }
+  - match: { aggregations.percentiles_int.values.25\.0: 26.0 }
+  - match: { aggregations.percentiles_int.values.50\.0: 76.0 }
+
+  - match: { aggregations.percentiles_double.values.5\.0: 1.0 }
+  - match: { aggregations.percentiles_double.values.25\.0: 26.0 }
+  - match: { aggregations.percentiles_double.values.50\.0: 76.0 }
 
 ---
 "Non-keyed test":
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:
@@ -362,14 +367,13 @@ setup:
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
-  - match:
-      aggregations.percentiles_int.values:
-        - key: 5.0
-          value: 8.500000000000002
-        - key: 25.0
-          value: 38.5
-        - key: 50.0
-          value: 76.0
+
+  - match:  { aggregations.percentiles_int.values.0.key:  5.0 }
+  - match:  { aggregations.percentiles_int.values.0.value:  1.0 }
+  - match:  { aggregations.percentiles_int.values.1.key:  25.0 }
+  - match:  { aggregations.percentiles_int.values.1.value:  26.0 }
+  - match:  { aggregations.percentiles_int.values.2.key:  50.0 }
+  - match:  { aggregations.percentiles_int.values.2.value:  76.0 }
 
 
 

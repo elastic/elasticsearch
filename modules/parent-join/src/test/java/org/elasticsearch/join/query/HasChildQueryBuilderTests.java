@@ -33,6 +33,7 @@ import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -73,7 +74,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQueryBuilder> {
 
-    private static final String TYPE = "doc";
+    private static final String TYPE = "_doc";
     private static final String PARENT_DOC = "parent";
     private static final String CHILD_DOC = "child";
 
@@ -87,17 +88,17 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     @Override
-    protected Settings indexSettings() {
+    protected Settings createTestIndexSettings() {
         return Settings.builder()
-            .put(super.indexSettings())
+            .put(super.createTestIndexSettings())
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
     }
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        similarity = randomFrom("classic", "BM25");
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("doc").startObject("properties")
+        similarity = randomFrom("boolean", "BM25");
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
             .startObject("join_field")
                 .field("type", "join")
                 .startObject("relations")
@@ -132,7 +133,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             .endObject().endObject().endObject();
 
         mapperService.merge(TYPE,
-            new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+            new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     /**
@@ -157,8 +158,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             hqb.innerHit(new InnerHitBuilder()
                     .setName(randomAlphaOfLengthBetween(1, 10))
                     .setSize(randomIntBetween(0, 100))
-                    .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC))
-                    .setIgnoreUnmapped(hqb.ignoreUnmapped()));
+                    .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC)));
         }
         return hqb;
     }
@@ -196,10 +196,6 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     public void testSerializationBWC() throws IOException {
         for (Version version : VersionUtils.allReleasedVersions()) {
             HasChildQueryBuilder testQuery = createTestQueryBuilder();
-            if (version.before(Version.V_5_2_0) && testQuery.innerHit() != null) {
-                // ignore unmapped for inner_hits has been added on 5.2
-                testQuery.innerHit().setIgnoreUnmapped(false);
-            }
             assertSerialization(testQuery, version);
         }
     }
@@ -336,21 +332,25 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             hasChildQuery(CHILD_DOC, new TermQueryBuilder("custom_string", "value"), ScoreMode.None);
         HasChildQueryBuilder.LateParsingQuery query = (HasChildQueryBuilder.LateParsingQuery) hasChildQueryBuilder.toQuery(shardContext);
         Similarity expected = SimilarityService.BUILT_IN.get(similarity)
-            .create(similarity, Settings.EMPTY,
-                    Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(), null)
-            .get();
+            .apply(Settings.EMPTY, Version.CURRENT, null);
         assertThat(((PerFieldSimilarityWrapper) query.getSimilarity()).get("custom_string"), instanceOf(expected.getClass()));
     }
 
     public void testIgnoreUnmapped() throws IOException {
         final HasChildQueryBuilder queryBuilder = new HasChildQueryBuilder("unmapped", new MatchAllQueryBuilder(), ScoreMode.None);
+        queryBuilder.innerHit(new InnerHitBuilder());
+        assertFalse(queryBuilder.innerHit().isIgnoreUnmapped());
         queryBuilder.ignoreUnmapped(true);
+        assertTrue(queryBuilder.innerHit().isIgnoreUnmapped());
         Query query = queryBuilder.toQuery(createShardContext());
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
         final HasChildQueryBuilder failingQueryBuilder = new HasChildQueryBuilder("unmapped", new MatchAllQueryBuilder(), ScoreMode.None);
+        failingQueryBuilder.innerHit(new InnerHitBuilder());
+        assertFalse(failingQueryBuilder.innerHit().isIgnoreUnmapped());
         failingQueryBuilder.ignoreUnmapped(false);
+        assertFalse(failingQueryBuilder.innerHit().isIgnoreUnmapped());
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("[" + HasChildQueryBuilder.NAME +
             "] join field [join_field] doesn't hold [unmapped] as a child"));

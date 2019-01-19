@@ -55,10 +55,10 @@ enabled for aggregations, as follows:
 
 [source,js]
 ---------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "my_field": { <1>
           "type": "text",
@@ -84,7 +84,7 @@ You can enable fielddata on an existing `text` field using the
 
 [source,js]
 -----------------------------------
-PUT my_index/_mapping/my_type
+PUT my_index/_mapping
 {
   "properties": {
     "my_field": { <1>
@@ -99,11 +99,6 @@ PUT my_index/_mapping/my_type
 
 <1> The mapping that you specify for `my_field` should consist of the existing
     mapping for that field, plus the `fielddata` parameter.
-
-TIP: The `fielddata.*` parameter must have the same settings for fields of the
-same name in the same index.  Its value can be updated on existing fields
-using the <<indices-put-mapping,PUT mapping API>>.
-
 
 [[field-data-filtering]]
 ==== `fielddata_frequency_filter`
@@ -123,10 +118,10 @@ number of docs that the segment should contain with `min_segment_size`:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "tag": {
           "type": "text",

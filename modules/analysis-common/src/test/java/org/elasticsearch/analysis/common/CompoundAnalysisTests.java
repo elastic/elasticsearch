@@ -26,6 +26,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.MyFilterTokenFilterFactory;
@@ -87,7 +88,7 @@ public class CompoundAnalysisTests extends ESTestCase {
 
     private AnalysisModule createAnalysisModule(Settings settings) throws IOException {
         CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin();
-        return new AnalysisModule(new Environment(settings), Arrays.asList(commonAnalysisPlugin, new AnalysisPlugin() {
+        return new AnalysisModule(TestEnvironment.newEnvironment(settings), Arrays.asList(commonAnalysisPlugin, new AnalysisPlugin() {
             @Override
             public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
                 return singletonMap("myfilter", MyFilterTokenFilterFactory::new);

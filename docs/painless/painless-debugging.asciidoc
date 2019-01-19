@@ -5,7 +5,7 @@
 
 Painless doesn't have a
 https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop[REPL]
-and while it'd be nice for it to have one one day, it wouldn't tell you the
+and while it'd be nice for it to have one day, it wouldn't tell you the
 whole story around debugging painless scripts embedded in Elasticsearch because
 the data that the scripts have access to or "context" is so important. For now
 the best way to debug embedded scripts is by throwing exceptions at choice
@@ -48,7 +48,7 @@ Which shows that the class of `doc.first` is
       "java_class": "org.elasticsearch.index.fielddata.ScriptDocValues$Longs",
       ...
    },
-   "status": 500
+   "status": 400
 }
 ---------------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"script_stack": $body.error.script_stack, "script": $body.error.script, "lang": $body.error.lang, "caused_by": $body.error.caused_by, "root_cause": $body.error.root_cause, "reason": $body.error.reason/]
@@ -78,7 +78,7 @@ The response looks like:
     "caused_by": {
       "type": "script_exception",
       "to_string": "{gp=[26, 82, 1], last=gaudreau, assists=[17, 46, 0], first=johnny, goals=[9, 27, 1]}",
-      "painless_class": "LinkedHashMap",
+      "painless_class": "java.util.LinkedHashMap",
       "java_class": "java.util.LinkedHashMap",
       ...
     }

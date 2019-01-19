@@ -40,6 +40,10 @@ NOTE:	Bucketing aggregations can have sub-aggregations (bucketing or metric). Th
 		aggregations (one can nest an aggregation under a "parent" aggregation, which is itself a sub-aggregation of
 		another higher-level aggregation).
 
+NOTE:   Aggregations operate on the `double` representation of
+        the data. As a consequence, the result may be approximate when running on longs
+        whose absolute value is greater than `2^53`.
+
 [float]
 == Structuring Aggregations
 

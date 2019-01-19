@@ -22,7 +22,6 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.TestTemplateService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -32,7 +31,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.mockito.Mockito.mock;
 
 public class AppendProcessorFactoryTests extends ESTestCase {
 
@@ -97,11 +95,11 @@ public class AppendProcessorFactoryTests extends ESTestCase {
     public void testInvalidMustacheTemplate() throws Exception {
         AppendProcessor.Factory factory = new AppendProcessor.Factory(TestTemplateService.instance(true));
         Map<String, Object> config = new HashMap<>();
-        config.put("field", "field1");
+        config.put("field", "{{field1}}");
         config.put("value", "value1");
         String processorTag = randomAlphaOfLength(10);
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, config));
         assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
-        assertThat(exception.getHeader("processor_tag").get(0), equalTo(processorTag));
+        assertThat(exception.getMetadata("es.processor_tag").get(0), equalTo(processorTag));
     }
 }

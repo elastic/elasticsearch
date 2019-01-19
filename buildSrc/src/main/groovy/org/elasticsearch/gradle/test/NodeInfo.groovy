@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.gradle.test
 
 import com.sun.jna.Native
@@ -29,10 +30,15 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 
+import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
+
 /**
  * A container for the files and configuration associated with a single node in a test cluster.
  */
 class NodeInfo {
+    /** Gradle project this node is part of */
+    Project project
+
     /** common configuration for all nodes, including this one */
     ClusterConfiguration config
 
@@ -81,6 +87,9 @@ class NodeInfo {
     /** directory to install plugins from */
     File pluginsTmpDir
 
+    /** Major version of java this node runs with, or {@code null} if using the runtime java version */
+    Integer javaVersion
+
     /** environment variables to start the node with */
     Map<String, String> env
 
@@ -100,12 +109,13 @@ class NodeInfo {
     ByteArrayOutputStream buffer = new ByteArrayOutputStream()
 
     /** the version of elasticsearch that this node runs */
-    String nodeVersion
+    Version nodeVersion
 
     /** Holds node configuration for part of a test cluster. */
     NodeInfo(ClusterConfiguration config, int nodeNum, Project project, String prefix, String nodeVersion, File sharedDir) {
         this.config = config
         this.nodeNum = nodeNum
+        this.project = project
         this.sharedDir = sharedDir
         if (config.clusterName != null) {
             clusterName = config.clusterName
@@ -114,7 +124,7 @@ class NodeInfo {
         }
         baseDir = new File(project.buildDir, "cluster/${prefix} node${nodeNum}")
         pidFile = new File(baseDir, 'es.pid')
-        this.nodeVersion = nodeVersion
+        this.nodeVersion = Version.fromString(nodeVersion)
         homeDir = homeDir(baseDir, config.distribution, nodeVersion)
         pathConf = pathConf(baseDir, config.distribution, nodeVersion)
         if (config.dataDir != null) {
@@ -162,14 +172,18 @@ class NodeInfo {
             args.add("${esScript}")
         }
 
-        env = ['JAVA_HOME': project.javaHome]
-        args.addAll("-E", "node.portsfile=true")
-        String collectedSystemProperties = config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
-        String esJavaOpts = config.jvmArgs.isEmpty() ? collectedSystemProperties : collectedSystemProperties + " " + config.jvmArgs
-        if (Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))) {
-            esJavaOpts += " -ea -esa"
+
+        if (this.nodeVersion.before("6.2.0")) {
+            javaVersion = 8
+        } else if (this.nodeVersion.onOrAfter("6.2.0") && this.nodeVersion.before("6.3.0")) {
+            javaVersion = 9
+        } else if (this.nodeVersion.onOrAfter("6.3.0") && this.nodeVersion.before("6.5.0")) {
+            javaVersion = 10
         }
-        env.put('ES_JAVA_OPTS', esJavaOpts)
+
+        args.addAll("-E", "node.portsfile=true")
+        env = [:]
+        env.putAll(config.environmentVariables)
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
             if (property.key.startsWith('tests.es.')) {
                 args.add("-E")
@@ -229,6 +243,11 @@ class NodeInfo {
         return Native.toString(shortPath).substring(4)
     }
 
+    /** Return the java home used by this node. */
+    String getJavaHome() {
+        return javaVersion == null ? project.runtimeJavaHome : project.javaVersions.get(javaVersion)
+    }
+
     /** Returns debug string for the command that started this node. */
     String getCommandString() {
         String esCommandString = "\nNode ${nodeNum} configuration:\n"
@@ -236,6 +255,7 @@ class NodeInfo {
         esCommandString += "|  cwd: ${cwd}\n"
         esCommandString += "|  command: ${executable} ${args.join(' ')}\n"
         esCommandString += '|  environment:\n'
+        esCommandString += "|    JAVA_HOME: ${javaHome}\n"
         env.each { k, v -> esCommandString += "|    ${k}: ${v}\n" }
         if (config.daemonize) {
             esCommandString += "|\n|  [${wrapperScript.name}]\n"
@@ -287,6 +307,8 @@ class NodeInfo {
             case 'integ-test-zip':
             case 'zip':
             case 'tar':
+            case 'oss-zip':
+            case 'oss-tar':
                 path = "elasticsearch-${nodeVersion}"
                 break
             case 'rpm':
@@ -303,13 +325,15 @@ class NodeInfo {
         switch (distro) {
             case 'integ-test-zip':
             case 'zip':
+            case 'oss-zip':
             case 'tar':
+            case 'oss-tar':
                 return new File(homeDir(baseDir, distro, nodeVersion), 'config')
             case 'rpm':
             case 'deb':
                 return new File(baseDir, "${distro}-extracted/etc/elasticsearch")
             default:
-                throw new InvalidUserDataException("Unkown distribution: ${distro}")
+                throw new InvalidUserDataException("Unknown distribution: ${distro}")
         }
     }
 }

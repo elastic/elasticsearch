@@ -6,10 +6,10 @@ https://en.wikipedia.org/wiki/IPv6[IPv6] addresses.
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "ip_addr": {
           "type": "ip"
@@ -19,7 +19,7 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "ip_addr": "192.168.1.1"
 }
@@ -35,6 +35,8 @@ GET my_index/_search
 --------------------------------------------------
 // CONSOLE
 // TESTSETUP
+
+NOTE: You can also store ip ranges in a single field using an <<range,ip_range datatype>>.
 
 [[ip-params]]
 ==== Parameters for `ip` fields

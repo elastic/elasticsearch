@@ -7,10 +7,10 @@ document:
 
 [source,js]
 --------------------------------------------------
-PUT /my_locations
+PUT /my_locations?include_type_name=true
 {
     "mappings": {
-        "location": {
+        "_doc": {
             "properties": {
                 "pin": {
                     "properties": {
@@ -24,7 +24,7 @@ PUT /my_locations
     }
 }
 
-PUT /my_locations/location/1
+PUT /my_locations/_doc/1
 {
     "pin" : {
         "location" : {
@@ -43,7 +43,7 @@ filter:
 
 [source,js]
 --------------------------------------------------
-GET /my_locations/location/_search
+GET /my_locations/_search
 {
     "query": {
         "bool" : {
@@ -76,7 +76,7 @@ representations of the geo point, the filter can accept it as well:
 
 [source,js]
 --------------------------------------------------
-GET /my_locations/location/_search
+GET /my_locations/_search
 {
     "query": {
         "bool" : {
@@ -106,7 +106,7 @@ conform with http://geojson.org/[GeoJSON].
 
 [source,js]
 --------------------------------------------------
-GET /my_locations/location/_search
+GET /my_locations/_search
 {
     "query": {
         "bool" : {
@@ -133,7 +133,7 @@ Format in `lat,lon`.
 
 [source,js]
 --------------------------------------------------
-GET /my_locations/location/_search
+GET /my_locations/_search
 {
     "query": {
         "bool" : {
@@ -157,7 +157,7 @@ GET /my_locations/location/_search
 
 [source,js]
 --------------------------------------------------
-GET /my_locations/location/_search
+GET /my_locations/_search
 {
     "query": {
         "bool" : {

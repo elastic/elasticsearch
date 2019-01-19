@@ -6,7 +6,7 @@ filters through a single unified interface. For example:
 
 [source,js]
 --------------------------------------------------
-PUT /my_index?include_type_name=true
+PUT /my_index
 {
     "settings": {
         "analysis" : {

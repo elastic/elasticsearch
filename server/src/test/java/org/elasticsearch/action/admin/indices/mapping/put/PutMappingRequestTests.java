@@ -38,13 +38,8 @@ import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 public class PutMappingRequestTests extends ESTestCase {
 
     public void testValidation() {
-        PutMappingRequest r = new PutMappingRequest("myindex");
+        PutMappingRequest r = new PutMappingRequest("myindex").type("");
         ActionRequestValidationException ex = r.validate();
-        assertNotNull("type validation should fail", ex);
-        assertTrue(ex.getMessage().contains("type is missing"));
-
-        r.type("");
-        ex = r.validate();
         assertNotNull("type validation should fail", ex);
         assertTrue(ex.getMessage().contains("type is empty"));
 

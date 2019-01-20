@@ -205,7 +205,9 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertEquals(0, snapshotInfo.failedShards());
     }
 
-    // ./gradlew :server:unitTest -Dtests.seed=3A3A65C12B895D9F -Dtests.class=org.elasticsearch.snapshots.SnapshotsServiceTests -Dtests.method="testSnapshotWithDataNodeDisconnects" -Dtests.security.manager=true -Dtests.locale=es-PY -Dtests.timezone=Africa/Mbabane -Dcompiler.java=11 -Druntime.java=8
+    // ./gradlew :server:unitTest -Dtests.seed=3A3A65C12B895D9F -Dtests.class=org.elasticsearch.snapshots.SnapshotsServiceTests \
+    //  -Dtests.method="testSnapshotWithDataNodeDisconnects" -Dtests.security.manager=true -Dtests.locale=es-PY \
+    //  -Dtests.timezone=Africa/Mbabane -Dcompiler.java=11 -Druntime.java=8
     public void testSnapshotWithDataNodeDisconnects() {
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
@@ -230,7 +232,8 @@ public class SnapshotsServiceTests extends ESTestCase {
                         assertNoFailureListener(
                             () -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
                                 .execute(assertNoFailureListener(() -> {
-                                    deterministicTaskQueue.scheduleNow(() -> testClusterNodes.disconnectNode(testClusterNodes.randomDataNode()));
+                                    deterministicTaskQueue.scheduleNow(
+                                        () -> testClusterNodes.disconnectNode(testClusterNodes.randomDataNode()));
                                     deterministicTaskQueue.scheduleAt(
                                         deterministicTaskQueue.getCurrentTimeMillis() + 20L,
                                         () -> testClusterNodes.clearNetworkDisruptions());
@@ -490,18 +493,19 @@ public class SnapshotsServiceTests extends ESTestCase {
                     public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
                         boolean forceExecution, TransportRequestHandler<T> actualHandler) {
                         if (action.startsWith("internal:index/shard/recovery")) {
-                            return (request, channel, task) -> deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + 20L, new AbstractRunnable() {
+                            return (request, channel, task) -> deterministicTaskQueue.scheduleAt(
+                                deterministicTaskQueue.getCurrentTimeMillis() + 20L,
+                                new AbstractRunnable() {
+                                    @Override
+                                    protected void doRun() throws Exception {
+                                        channel.sendResponse(new TransportException("Recovery not implemented yet"));
+                                    }
 
-                                @Override
-                                protected void doRun() throws Exception {
-                                    channel.sendResponse(new TransportException("Recovery not implemented yet"));
-                                }
-
-                                @Override
-                                public void onFailure(final Exception e) {
-                                    throw new AssertionError(e);
-                                }
-                            });
+                                    @Override
+                                    public void onFailure(final Exception e) {
+                                        throw new AssertionError(e);
+                                    }
+                                });
                         } else {
                             return actualHandler;
                         }

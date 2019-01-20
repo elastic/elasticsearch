@@ -150,6 +150,29 @@ public class NodeDeprecationChecks {
         return null;
     }
 
+    static DeprecationIssue watcherNotificationsSecureSettingsCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
+        List<String> nodesFound = nodeInfos.stream().filter(nodeInfo ->
+                        (false == nodeInfo.getSettings().getByPrefix("xpack.notification.email.account.")
+                            .filter(s -> s.endsWith(".smtp.password")).isEmpty())
+                        || (false == nodeInfo.getSettings().getByPrefix("xpack.notification.hipchat.account.")
+                                .filter(s -> s.endsWith(".auth_token")).isEmpty())
+                        || (false == nodeInfo.getSettings().getByPrefix("xpack.notification.jira.account.")
+                                .filter(s -> s.endsWith(".url") || s.endsWith(".user") || s.endsWith(".password")).isEmpty())
+                        || (false == nodeInfo.getSettings().getByPrefix("xpack.notification.pagerduty.account.")
+                                .filter(s -> s.endsWith(".service_api_key")).isEmpty())
+                        || (false == nodeInfo.getSettings().getByPrefix("xpack.notification.slack.account.").filter(s -> s.endsWith(".url"))
+                                .isEmpty()))
+                .map(nodeInfo -> nodeInfo.getNode().getName()).collect(Collectors.toList());
+        if (nodesFound.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                    "Watcher notification accounts' authentication settings must be defined securely",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                        "#watcher-notifications-account-settings",
+                    "nodes which have insecure notification account settings are: " + nodesFound);
+        }
+        return null;
+    }
+
     static DeprecationIssue azureRepositoryChanges(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
         List<String> nodesFound = nodeInfos.stream()
             .filter(nodeInfo ->

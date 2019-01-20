@@ -105,6 +105,44 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertSettingsAndIssue("thread_pool.bulk.queue_size", Integer.toString(randomIntBetween(1, 20000)), expected);
     }
 
+    public void testWatcherNotificationsSecureSettings() {
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Watcher notification accounts' authentication settings must be defined securely",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html"
+                        + "#watcher-notifications-account-settings",
+                "nodes which have insecure notification account settings are: [node_check]");
+        assertSettingsAndIssue("xpack.notification.email.account." + randomAlphaOfLength(4) + ".smtp.password", randomAlphaOfLength(4),
+                expected);
+        expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Watcher notification accounts' authentication settings must be defined securely",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html"
+                        + "#watcher-notifications-account-settings",
+                "nodes which have insecure notification account settings are: [node_check]");
+        assertSettingsAndIssue("xpack.notification.hipchat.account." + randomAlphaOfLength(4) + ".auth_token", randomAlphaOfLength(4),
+                expected);
+        expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Watcher notification accounts' authentication settings must be defined securely",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html"
+                        + "#watcher-notifications-account-settings",
+                "nodes which have insecure notification account settings are: [node_check]");
+        assertSettingsAndIssue("xpack.notification.jira.account." + randomAlphaOfLength(4) + ".url", randomAlphaOfLength(4), expected);
+        assertSettingsAndIssue("xpack.notification.jira.account." + randomAlphaOfLength(4) + ".user", randomAlphaOfLength(4), expected);
+        assertSettingsAndIssue("xpack.notification.jira.account." + randomAlphaOfLength(4) + ".password", randomAlphaOfLength(4), expected);
+        expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Watcher notification accounts' authentication settings must be defined securely",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html"
+                        + "#watcher-notifications-account-settings",
+                "nodes which have insecure notification account settings are: [node_check]");
+        assertSettingsAndIssue("xpack.notification.pagerduty.account." + randomAlphaOfLength(4) + ".service_api_key",
+                randomAlphaOfLength(4), expected);
+        expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Watcher notification accounts' authentication settings must be defined securely",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html"
+                        + "#watcher-notifications-account-settings",
+                "nodes which have insecure notification account settings are: [node_check]");
+        assertSettingsAndIssue("xpack.notification.slack.account." + randomAlphaOfLength(4) + ".url", randomAlphaOfLength(4), expected);
+    }
+
     public void testTribeNodeCheck() {
         String tribeSetting = "tribe." + randomAlphaOfLengthBetween(1, 20) + ".cluster.name";
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,

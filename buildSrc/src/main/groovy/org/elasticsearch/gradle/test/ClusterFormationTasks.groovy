@@ -171,6 +171,15 @@ class ClusterFormationTasks {
 
     /** Adds a dependency on the given distribution */
     static void configureDistributionDependency(Project project, String distro, Configuration configuration, String elasticsearchVersion) {
+        // TEMP HACK
+        // The oss docs CI build overrides the distro on the command line. This hack handles backcompat until CI is updated.
+        if (distro.equals('oss-zip')) {
+            distro = 'oss'
+        }
+        // END TEMP HACK
+        if (['integ-test-zip', 'oss', 'default'].contains(distro) == false) {
+            throw new GradleException("Unknown distribution: ${distro} in project ${project.path}")
+        }
         String subgroup = distro == 'integ-test-zip' ? distro : 'zip'
         String artifactName = 'elasticsearch'
         if (distro.equals('oss') && Version.fromString(elasticsearchVersion).onOrAfter('6.3.0')) {

@@ -12,7 +12,7 @@ allprojects {
 
 testClusters {
     myTestCluster {
-        distribution = 'ZIP'
+        distribution = 'default'
         version = System.getProperty("test.version_under_test")
     }
 }

@@ -27,67 +27,62 @@
  import org.gradle.api.tasks.OutputFile;
  import org.gradle.api.tasks.TaskAction;
 
- import java.io.*;
- import java.nio.charset.StandardCharsets;
- import java.util.Arrays;
+ import java.io.File;
+ import java.io.IOException;
+ import java.nio.charset.Charset;
+ import java.nio.file.Files;
  import java.util.LinkedHashSet;
- import java.util.Scanner;
 
 /**
  * Concatenates a list of files into one and removes duplicate lines.
  */
 public class ConcatFilesTask extends DefaultTask {
 
-    /** List of files to concatenate */
-    @InputFiles
-    public FileTree files;
-
-    /** line to add at the top of the target file */
-    @Input
-    @Optional
-    public String headerLine;
-
-    @OutputFile
-    public File target;
-
     public ConcatFilesTask() {
-        final String description = "Concat a list of files into one.";
+        setDescription("Concat a list of files into one.");
     }
 
+    /** List of files to concatenate */
+    private FileTree files;
+
+    /** line to add at the top of the target file */
+    private String headerLine;
+
+    private File target;
+
+    public void setFiles(FileTree files) {
+        this.files = files;
+    }
+
+    @InputFiles
+    public FileTree getFiles() { return files; }
+
+    public void setHeaderLine(String headerLine) {
+        this.headerLine = headerLine;
+    }
+
+    @Input
+    @Optional
+    public String getHeaderLine() { return headerLine; }
+
     @TaskAction
-    public void concatFiles() {
-        final StringBuilder output = new StringBuilder();
-
-        if (!headerLine.equals("")) {
-            output.append(headerLine).append('\n');
+    public void concatFiles() throws IOException {
+        final String encoding = "UTF-8";
+        if (getHeaderLine() != null) {
+            Files.write(target.toPath(), (getHeaderLine() + '\n').getBytes(encoding));
         }
 
-        final StringBuilder sb = new StringBuilder();
-        for (File f: files) {
-            try{
-                Scanner scanner = new Scanner(f, "UTF-8" );
-                String text = scanner.useDelimiter("\\A").next();
-                scanner.close();
-                sb.append(text);
-            } catch (FileNotFoundException e) {
-                e.printStackTrace();
-            }
+        // To remove duplicate lines
+        LinkedHashSet<String> uniqueLines = new LinkedHashSet<>();
+        for (File f : getFiles()) {
+            uniqueLines.addAll(Files.readAllLines(f.toPath(), Charset.forName(encoding)));
         }
+        Files.write(target.toPath(), uniqueLines, Charset.forName(encoding));
+    }
 
-        // Remove duplicate lines
-        LinkedHashSet<String> uniqueLines = new LinkedHashSet<>(Arrays.asList(sb.toString().split("\n")));
-        try {
-            OutputStreamWriter osw = new OutputStreamWriter(new FileOutputStream(target), StandardCharsets.UTF_8);
-            for (String s : uniqueLines) {
-                osw.write(s);
-                osw.write("\n");
-            }
-            osw.flush();
-            osw.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
+    @OutputFile
+    public File getTarget() {
+        return target;
     }
 
 }

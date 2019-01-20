@@ -205,7 +205,6 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertEquals(0, snapshotInfo.failedShards());
     }
 
-    // -Dtests.seed=1BA5E8C381FEDE95
     public void testSnapshotWithNodeDisconnects() {
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
@@ -230,11 +229,20 @@ public class SnapshotsServiceTests extends ESTestCase {
                         assertNoFailureListener(
                             () -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
                                 .execute(assertNoFailureListener(() -> {
-                                    deterministicTaskQueue.scheduleNow(
-                                        () -> testClusterNodes.disconnectNode(testClusterNodes.randomNode()));
-                                    deterministicTaskQueue.scheduleAt(
-                                        deterministicTaskQueue.getCurrentTimeMillis() + 20L,
-                                        () -> testClusterNodes.clearNetworkDisruptions());
+                                    if (randomBoolean()) {
+                                        deterministicTaskQueue.scheduleNow(
+                                            () -> testClusterNodes.disconnectNode(testClusterNodes.randomDataNode()));
+                                    }
+                                    final boolean stoppedMasterNode = randomBoolean();
+                                    if (stoppedMasterNode) {
+                                        deterministicTaskQueue.scheduleNow(
+                                            () -> testClusterNodes.disconnectNode(testClusterNodes.randomMasterNode()));
+                                    }
+                                    if (stoppedMasterNode || randomBoolean()) {
+                                        deterministicTaskQueue.scheduleAt(
+                                            deterministicTaskQueue.getCurrentTimeMillis() + 20L,
+                                            () -> testClusterNodes.clearNetworkDisruptions());
+                                    }
                                     createdSnapshot.set(true);
                                 }))))));
 
@@ -285,10 +293,10 @@ public class SnapshotsServiceTests extends ESTestCase {
     private void runUntil(Supplier<Boolean> fulfilled, long timeout) {
         final long start = deterministicTaskQueue.getCurrentTimeMillis();
         while (timeout > deterministicTaskQueue.getCurrentTimeMillis() - start) {
-            deterministicTaskQueue.runAllRunnableTasks();
             if (fulfilled.get()) {
                 return;
             }
+            deterministicTaskQueue.runAllRunnableTasks();
             deterministicTaskQueue.advanceTime();
         }
         fail("Condition wasn't fulfilled.");
@@ -372,10 +380,19 @@ public class SnapshotsServiceTests extends ESTestCase {
                     Collections.singleton(role), Version.CURRENT), this::getDisruption);
         }
 
-        public TestClusterNode randomNode() {
+        public TestClusterNode randomMasterNode() {
             // Select from sorted list of data-nodes here to not have deterministic behaviour
             return randomFrom(
-                testClusterNodes.nodes.values().stream().sorted(Comparator.comparing(n -> n.node.getName())).collect(Collectors.toList())
+                testClusterNodes.nodes.values().stream().filter(n -> n.node.isMasterNode())
+                    .sorted(Comparator.comparing(n -> n.node.getName())).collect(Collectors.toList())
+            );
+        }
+
+        public TestClusterNode randomDataNode() {
+            // Select from sorted list of data-nodes here to not have deterministic behaviour
+            return randomFrom(
+                testClusterNodes.nodes.values().stream().filter(n -> n.node.isDataNode())
+                    .sorted(Comparator.comparing(n -> n.node.getName())).collect(Collectors.toList())
             );
         }
 
@@ -651,10 +668,17 @@ public class SnapshotsServiceTests extends ESTestCase {
                     @Override
                     public void connectToNodes(DiscoveryNodes discoveryNodes) {
                         // override this method as it does blocking calls
+                        boolean callSuper = true;
                         for (final DiscoveryNode node : discoveryNodes) {
-                            transportService.connectToNode(node);
+                            try {
+                                transportService.connectToNode(node);
+                            } catch (Exception e) {
+                                callSuper = false;
+                            }
                         }
-                        super.connectToNodes(discoveryNodes);
+                        if (callSuper) {
+                            super.connectToNodes(discoveryNodes);
+                        }
                     }
                 });
             clusterService.getClusterApplierService().start();

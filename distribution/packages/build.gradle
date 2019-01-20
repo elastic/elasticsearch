@@ -72,7 +72,7 @@ void addProcessFilesTask(String type, boolean oss) {
       MavenFilteringHack.filter(it, expansionsForDistribution(type, oss))
     }
 
-    into('config') {
+    into('etc/elasticsearch') {
       with configFiles(type, oss)
     }
     MavenFilteringHack.filter(it, expansionsForDistribution(type, oss))
@@ -173,19 +173,20 @@ Closure commonPackageConfig(String type, boolean oss) {
       configurationFile '/etc/elasticsearch/users'
       configurationFile '/etc/elasticsearch/users_roles'
     }
-    into('/etc/elasticsearch') {
-      dirMode 0750
+    into('/etc') {
+      dirMode 02750
       fileMode 0660
       permissionGroup 'elasticsearch'
       includeEmptyDirs true
       createDirectoryEntry true
       fileType CONFIG | NOREPLACE
-      from "${packagingFiles}/config"
+      from "${packagingFiles}/etc"
     }
     String envFile = expansionsForDistribution(type, false)['path.env']
     configurationFile envFile
     into(new File(envFile).getParent()) {
       fileType CONFIG | NOREPLACE
+      permissionGroup 'elasticsearch'
       fileMode 0660
       from "${packagingFiles}/env/elasticsearch"
     }
@@ -230,8 +231,8 @@ Closure commonPackageConfig(String type, boolean oss) {
       }
     }
     copyEmptyDir('/var/run/elasticsearch', 'elasticsearch', 'elasticsearch', 0755)
-    copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 0750)
-    copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', 0750)
+    copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
+    copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
     copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', 0755)
 
     // the oss package conflicts with the default distribution and vice versa

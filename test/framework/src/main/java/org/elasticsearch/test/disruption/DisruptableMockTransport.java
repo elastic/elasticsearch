@@ -72,7 +72,6 @@ public abstract class DisruptableMockTransport extends MockTransport {
         if (action.equals(HANDSHAKE_ACTION_NAME)) {
             runnable.run();
         } else {
-
             execute(runnable);
         }
     }

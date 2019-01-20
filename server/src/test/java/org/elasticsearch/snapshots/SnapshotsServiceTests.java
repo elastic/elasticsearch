@@ -19,7 +19,6 @@
 
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -72,6 +71,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
@@ -101,6 +101,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
@@ -127,20 +131,12 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
 public class SnapshotsServiceTests extends ESTestCase {
-
-    private static final NetworkDisruption.DisruptedLinks NO_DISRUPTION = new NetworkDisruption.DisruptedLinks() {
-        @Override
-        public boolean disrupt(final String node1, final String node2) {
-            return false;
-        }
-    };
 
     private DeterministicTaskQueue deterministicTaskQueue;
 
@@ -209,7 +205,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertEquals(0, snapshotInfo.failedShards());
     }
 
-    @Repeat(iterations = 1000)
+    // ./gradlew :server:unitTest -Dtests.seed=3A3A65C12B895D9F -Dtests.class=org.elasticsearch.snapshots.SnapshotsServiceTests -Dtests.method="testSnapshotWithDataNodeDisconnects" -Dtests.security.manager=true -Dtests.locale=es-PY -Dtests.timezone=Africa/Mbabane -Dcompiler.java=11 -Druntime.java=8
     public void testSnapshotWithDataNodeDisconnects() {
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
@@ -230,12 +226,14 @@ public class SnapshotsServiceTests extends ESTestCase {
                         new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL).settings(
                             Settings.builder()
                                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
-                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)),
+                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 10))),
                         assertNoFailureListener(
                             () -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
                                 .execute(assertNoFailureListener(() -> {
                                     deterministicTaskQueue.scheduleNow(() -> testClusterNodes.disconnectNode(testClusterNodes.randomDataNode()));
-                                    deterministicTaskQueue.scheduleNow(() -> testClusterNodes.clearNetworkDisruptions());
+                                    deterministicTaskQueue.scheduleAt(
+                                        deterministicTaskQueue.getCurrentTimeMillis() + 20L,
+                                        () -> testClusterNodes.clearNetworkDisruptions());
                                     createdSnapshot.set(true);
                                 }))))));
 
@@ -245,7 +243,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             }
             final SnapshotsInProgress snapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
             return snapshotsInProgress.entries().isEmpty();
-        }, TimeUnit.MINUTES.toMillis(5L));
+        }, TimeUnit.MINUTES.toMillis(20L));
 
         assertTrue(createdSnapshot.get());
         SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
@@ -487,7 +485,28 @@ public class SnapshotsServiceTests extends ESTestCase {
             };
             transportService = mockTransport.createTransportService(
                 settings, deterministicTaskQueue.getThreadPool(runnable -> CoordinatorTests.onNodeLog(node, runnable)),
-                NOOP_TRANSPORT_INTERCEPTOR,
+                new TransportInterceptor() {
+                    @Override
+                    public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
+                        boolean forceExecution, TransportRequestHandler<T> actualHandler) {
+                        if (action.startsWith("internal:index/shard/recovery")) {
+                            return (request, channel, task) -> deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + 20L, new AbstractRunnable() {
+
+                                @Override
+                                protected void doRun() throws Exception {
+                                    channel.sendResponse(new TransportException("Recovery not implemented yet"));
+                                }
+
+                                @Override
+                                public void onFailure(final Exception e) {
+                                    throw new AssertionError(e);
+                                }
+                            });
+                        } else {
+                            return actualHandler;
+                        }
+                    }
+                },
                 a -> node, null, emptySet()
             );
             final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();

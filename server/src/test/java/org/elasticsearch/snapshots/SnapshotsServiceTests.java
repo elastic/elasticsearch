@@ -205,10 +205,8 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertEquals(0, snapshotInfo.failedShards());
     }
 
-    // ./gradlew :server:unitTest -Dtests.seed=3A3A65C12B895D9F -Dtests.class=org.elasticsearch.snapshots.SnapshotsServiceTests \
-    //  -Dtests.method="testSnapshotWithDataNodeDisconnects" -Dtests.security.manager=true -Dtests.locale=es-PY \
-    //  -Dtests.timezone=Africa/Mbabane -Dcompiler.java=11 -Druntime.java=8
-    public void testSnapshotWithDataNodeDisconnects() {
+    // -Dtests.seed=1BA5E8C381FEDE95
+    public void testSnapshotWithNodeDisconnects() {
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
         String repoName = "repo";
@@ -228,12 +226,12 @@ public class SnapshotsServiceTests extends ESTestCase {
                         new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL).settings(
                             Settings.builder()
                                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
-                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 10))),
+                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)),
                         assertNoFailureListener(
                             () -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
                                 .execute(assertNoFailureListener(() -> {
                                     deterministicTaskQueue.scheduleNow(
-                                        () -> testClusterNodes.disconnectNode(testClusterNodes.randomDataNode()));
+                                        () -> testClusterNodes.disconnectNode(testClusterNodes.randomNode()));
                                     deterministicTaskQueue.scheduleAt(
                                         deterministicTaskQueue.getCurrentTimeMillis() + 20L,
                                         () -> testClusterNodes.clearNetworkDisruptions());
@@ -374,11 +372,10 @@ public class SnapshotsServiceTests extends ESTestCase {
                     Collections.singleton(role), Version.CURRENT), this::getDisruption);
         }
 
-        public TestClusterNode randomDataNode() {
+        public TestClusterNode randomNode() {
             // Select from sorted list of data-nodes here to not have deterministic behaviour
             return randomFrom(
-                testClusterNodes.nodes.values().stream().filter(n -> n.node.isDataNode())
-                    .sorted(Comparator.comparing(n -> n.node.getName())).collect(Collectors.toList())
+                testClusterNodes.nodes.values().stream().sorted(Comparator.comparing(n -> n.node.getName())).collect(Collectors.toList())
             );
         }
 

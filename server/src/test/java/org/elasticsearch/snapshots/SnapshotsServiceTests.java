@@ -19,6 +19,7 @@
 
 package org.elasticsearch.snapshots;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -98,6 +99,7 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -153,15 +155,7 @@ public class SnapshotsServiceTests extends ESTestCase {
 
     @After
     public void stopServices() {
-        testClusterNodes.nodes.values().forEach(
-            n -> {
-                n.indicesService.close();
-                n.clusterService.close();
-                n.indicesClusterStateService.close();
-                n.nodeEnv.close();
-                n.coordinator.close();
-            }
-        );
+        testClusterNodes.nodes.values().forEach(TestClusterNode::stop);
     }
 
     public void testSuccessfulSnapshot() {
@@ -205,6 +199,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertEquals(0, snapshotInfo.failedShards());
     }
 
+    @Repeat(iterations = 1000)
     public void testSnapshotWithNodeDisconnects() {
         final int masterNodes = randomFrom(1, 3, 5);
         final int dataNodes = randomIntBetween(2, 10);
@@ -232,7 +227,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                             () -> {
                                 for (int i = 0; i < randomIntBetween(0, dataNodes); ++i) {
                                     deterministicTaskQueue.scheduleNow(
-                                        () -> testClusterNodes.disconnectNode(testClusterNodes.randomDataNode()));
+                                        () -> testClusterNodes.randomDataNode().ifPresent(n -> testClusterNodes.disconnectNode(n)));
                                 }
                                 if (randomBoolean()) {
                                     deterministicTaskQueue.scheduleNow(() -> testClusterNodes.clearNetworkDisruptions());
@@ -241,12 +236,24 @@ public class SnapshotsServiceTests extends ESTestCase {
                                     .execute(assertNoFailureListener(() -> {
                                         for (int i = 0; i < randomIntBetween(0, dataNodes); ++i) {
                                             deterministicTaskQueue.scheduleNow(
-                                                () -> testClusterNodes.disconnectNode(testClusterNodes.randomDataNode()));
+                                                () -> {
+                                                    if (randomBoolean()) {
+                                                        testClusterNodes.randomDataNode().ifPresent(n -> testClusterNodes.disconnectNode(n));
+                                                    } else {
+                                                        testClusterNodes.randomDataNode().ifPresent(TestClusterNode::restart);
+                                                    }
+                                                });
                                         }
                                         final boolean disconnectedMaster = randomBoolean();
                                         if (disconnectedMaster) {
                                             deterministicTaskQueue.scheduleNow(
-                                                () -> testClusterNodes.disconnectNode(testClusterNodes.randomMasterNode()));
+                                                () -> {
+                                                    if (randomBoolean()) {
+                                                        testClusterNodes.disconnectNode(testClusterNodes.randomMasterNode());
+                                                    } else {
+                                                        testClusterNodes.randomDataNode().ifPresent(TestClusterNode::restart);
+                                                    }
+                                                });
                                         }
                                         if (disconnectedMaster || randomBoolean()) {
                                             deterministicTaskQueue.scheduleAt(
@@ -403,12 +410,11 @@ public class SnapshotsServiceTests extends ESTestCase {
             );
         }
 
-        public TestClusterNode randomDataNode() {
+        public Optional<TestClusterNode> randomDataNode() {
             // Select from sorted list of data-nodes here to not have deterministic behaviour
-            return randomFrom(
-                testClusterNodes.nodes.values().stream().filter(n -> n.node.isDataNode())
-                    .sorted(Comparator.comparing(n -> n.node.getName())).collect(Collectors.toList())
-            );
+            final List<TestClusterNode> dataNodes = testClusterNodes.nodes.values().stream().filter(n -> n.node.isDataNode())
+                .sorted(Comparator.comparing(n -> n.node.getName())).collect(Collectors.toList());
+            return dataNodes.isEmpty() ? Optional.empty() : Optional.ofNullable(randomFrom(dataNodes));
         }
 
         public void disconnectNode(TestClusterNode node) {
@@ -488,9 +494,12 @@ public class SnapshotsServiceTests extends ESTestCase {
 
         private final ThreadPool threadPool;
 
+        private final Supplier<NetworkDisruption.DisruptedLinks> disruption;
+
         private Coordinator coordinator;
 
         TestClusterNode(DiscoveryNode node, Supplier<NetworkDisruption.DisruptedLinks> disruption) throws IOException {
+            this.disruption = disruption;
             this.node = node;
             final Environment environment = createEnvironment(node.getName());
             masterService = new FakeThreadPoolMasterService(node.getName(), "test", deterministicTaskQueue::scheduleNow);
@@ -665,13 +674,42 @@ public class SnapshotsServiceTests extends ESTestCase {
             client.initialize(actions, () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
         }
 
+        public void restart() {
+            testClusterNodes.disconnectNode(this);
+            final ClusterState oldState = this.clusterService.state();
+            stop();
+            testClusterNodes.nodes.remove(node.getName());
+            deterministicTaskQueue.scheduleAt(randomFrom(0L, deterministicTaskQueue.getCurrentTimeMillis()), () -> {
+                try {
+                    final TestClusterNode restartedNode =
+                        new TestClusterNode(
+                            new DiscoveryNode(node.getName(), node.getId(), buildNewFakeTransportAddress(), emptyMap(),
+                                node.getRoles(), Version.CURRENT), disruption);
+                    testClusterNodes.nodes.put(node.getName(), restartedNode);
+                    restartedNode.start(oldState);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+        }
+
+        public void stop() {
+            indicesService.close();
+            clusterService.close();
+            indicesClusterStateService.close();
+            if (coordinator != null) {
+                coordinator.close();
+            }
+            nodeEnv.close();
+        }
+
         public void start(ClusterState initialState) {
             transportService.start();
             transportService.acceptIncomingRequests();
             snapshotsService.start();
             snapshotShardsService.start();
             final CoordinationState.PersistedState persistedState =
-                new InMemoryPersistedState(0L, stateForNode(initialState, node));
+                new InMemoryPersistedState(initialState.term(), stateForNode(initialState, node));
             coordinator = new Coordinator(node.getName(), clusterService.getSettings(),
                 clusterService.getClusterSettings(), transportService, namedWriteableRegistry,
                 allocationService, masterService, () -> persistedState,

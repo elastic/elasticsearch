@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
 import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 /**
@@ -254,7 +255,8 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     builder.endObject();
 
                     ImmutableOpenMap<String, MappingMetaData> indexMappings = mappings.get(index);
-                    boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, false);
+                    boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
+                        DEFAULT_INCLUDE_TYPE_NAME_POLICY);
                     if (includeTypeName) {
                         builder.startObject("mappings");
                         if (indexMappings != null) {

@@ -50,3 +50,5 @@ include::docs/termvectors.asciidoc[]
 include::docs/multi-termvectors.asciidoc[]
 
 include::docs/refresh.asciidoc[]
+
+include::docs/concurrency-control.asciidoc[]

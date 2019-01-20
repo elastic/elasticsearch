@@ -1,7 +1,7 @@
 setup:
   - skip:
       version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+      reason: include_type_name defaults to true before 7.0
   - do:
       indices.create:
         include_type_name: false
@@ -20,7 +20,6 @@ setup:
 "put one mapping per index":
   - do:
       indices.put_mapping:
-        include_type_name: false
         index: test_index1
         body:
           properties:
@@ -29,7 +28,6 @@ setup:
               analyzer: whitespace
   - do:
       indices.put_mapping:
-        include_type_name: false
         index: test_index2
         body:
           properties:
@@ -39,8 +37,7 @@ setup:
 
 
   - do:
-      indices.get_mapping:
-        include_type_name: false
+      indices.get_mapping: {}
 
   - match: {test_index1.mappings.properties.text.type:     text}
   - match: {test_index1.mappings.properties.text.analyzer: whitespace}
@@ -55,7 +52,6 @@ setup:
 
   - do:
       indices.put_mapping:
-        include_type_name: false
         index: _all
         body:
           properties:
@@ -64,8 +60,7 @@ setup:
               analyzer: whitespace
 
   - do:
-      indices.get_mapping:
-        include_type_name: false
+      indices.get_mapping: {}
 
   - match: {test_index1.mappings.properties.text.type:     text}
   - match: {test_index1.mappings.properties.text.analyzer: whitespace}
@@ -80,7 +75,6 @@ setup:
 "put mapping in * index":
   - do:
       indices.put_mapping:
-        include_type_name: false
         index: "*"
         body:
           properties:
@@ -89,8 +83,7 @@ setup:
               analyzer: whitespace
 
   - do:
-      indices.get_mapping:
-        include_type_name: false
+      indices.get_mapping: {}
 
   - match: {test_index1.mappings.properties.text.type:     text}
   - match: {test_index1.mappings.properties.text.analyzer: whitespace}
@@ -105,7 +98,6 @@ setup:
 "put mapping in prefix* index":
   - do:
       indices.put_mapping:
-        include_type_name: false
         index: "test_index*"
         body:
           properties:
@@ -114,8 +106,7 @@ setup:
               analyzer: whitespace
 
   - do:
-      indices.get_mapping:
-        include_type_name: false
+      indices.get_mapping: {}
 
   - match: {test_index1.mappings.properties.text.type:     text}
   - match: {test_index1.mappings.properties.text.analyzer: whitespace}
@@ -129,7 +120,6 @@ setup:
 "put mapping in list of indices":
   - do:
       indices.put_mapping:
-        include_type_name: false
         index: [test_index1, test_index2]
         body:
           properties:
@@ -138,8 +128,7 @@ setup:
               analyzer: whitespace
 
   - do:
-      indices.get_mapping:
-        include_type_name: false
+      indices.get_mapping: {}
 
   - match: {test_index1.mappings.properties.text.type:     text}
   - match: {test_index1.mappings.properties.text.analyzer: whitespace}
@@ -154,7 +143,6 @@ setup:
 
   - do:
       indices.put_mapping:
-        include_type_name: false
         index: test_index1
         body:
             dynamic: false
@@ -165,7 +153,6 @@ setup:
 
   - do:
       indices.put_mapping:
-        include_type_name: false
         index: test_index1
         body:
           dynamic: false
@@ -175,8 +162,7 @@ setup:
               type:     text
 
   - do:
-      indices.get_mapping:
-        include_type_name: false
+      indices.get_mapping: {}
 
   - match: {test_index1.mappings.properties.text.type:     text}
  

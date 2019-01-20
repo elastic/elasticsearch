@@ -17,7 +17,7 @@
       },
       "params": {
         "include_type_name": {
-          "type" : "string",
+          "type" : "boolean",
           "description" : "Whether a type should be expected in the body of the mappings."
         },
         "timeout": {

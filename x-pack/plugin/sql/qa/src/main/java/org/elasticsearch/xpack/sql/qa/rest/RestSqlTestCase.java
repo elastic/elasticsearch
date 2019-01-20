@@ -57,7 +57,6 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         column.put("name", name);
         column.put("type", type);
         if ("jdbc".equals(mode)) {
-            column.put("jdbc_type", jdbcType.getVendorTypeNumber());
             column.put("display_size", size);
         }
         return unmodifiableMap(column);
@@ -75,7 +74,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     public void testNextPage() throws IOException {
-        Request request = new Request("POST", "/test/test/_bulk");
+        Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
         String mode = randomMode();
         StringBuilder bulk = new StringBuilder();
@@ -141,7 +140,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     public void testScoreWithFieldNamedScore() throws IOException {
-        Request request = new Request("POST", "/test/test/_bulk");
+        Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
         String mode = randomMode();
         StringBuilder bulk = new StringBuilder();
@@ -719,7 +718,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     protected void index(String... docs) throws IOException {
-        Request request = new Request("POST", "/test/_doc/_bulk");
+        Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (String doc : docs) {

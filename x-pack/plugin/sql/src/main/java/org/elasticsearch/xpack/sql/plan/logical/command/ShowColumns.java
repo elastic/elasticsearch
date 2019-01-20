@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.KeywordEsField;
@@ -80,7 +80,8 @@ public class ShowColumns extends Command {
             DataType dt = field.getDataType();
             String name = e.getKey();
             if (dt != null) {
-                rows.add(asList(prefix != null ? prefix + "." + name : name, dt.sqlName(), dt.name()));
+                // show only fields that exist in ES
+                rows.add(asList(prefix != null ? prefix + "." + name : name, dt.sqlName(), dt.esType));
                 if (field.getProperties().isEmpty() == false) {
                     String newPrefix = prefix != null ? prefix + "." + name : name;
                     fillInRows(field.getProperties(), newPrefix, rows);

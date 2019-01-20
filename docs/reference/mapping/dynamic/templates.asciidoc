@@ -69,7 +69,7 @@ could use the following template:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -125,7 +125,7 @@ fields:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -181,7 +181,7 @@ top-level `full_name` field, except for the `middle` field:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -222,7 +222,7 @@ field, and disables <<doc-values,`doc_values`>> for all non-string fields:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -276,7 +276,7 @@ you will have to search on the exact same value that was indexed.
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -306,7 +306,7 @@ before 5.0):
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -334,7 +334,7 @@ disable the storage of these scoring factors in the index and save some space.
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -375,7 +375,7 @@ maybe gain some indexing speed:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {

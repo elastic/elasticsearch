@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,9 +17,12 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.StringJoiner;
 
 /**
  * Extractor for ES fields. Works for both 'normal' fields but also nested ones (which require hitName to be set).
@@ -124,7 +128,7 @@ public class FieldHitExtractor implements HitExtractor {
         if (values instanceof Map) {
             throw new SqlIllegalArgumentException("Objects (returned by [{}]) are not supported", fieldName);
         }
-        if (dataType == DataType.DATE) {
+        if (dataType == DataType.DATETIME) {
             if (values instanceof String) {
                 return DateUtils.of(Long.parseLong(values.toString()));
             }
@@ -141,17 +145,49 @@ public class FieldHitExtractor implements HitExtractor {
 
     @SuppressWarnings("unchecked")
     Object extractFromSource(Map<String, Object> map) {
-        Object value = map;
-        boolean first = true;
-        // each node is a key inside the map
-        for (String node : path) {
-            if (value == null) {
-                return null;
-            } else if (first || value instanceof Map) {
-                first = false;
-                value = ((Map<String, Object>) value).get(node);
-            } else {
-                throw new SqlIllegalArgumentException("Cannot extract value [{}] from source", fieldName);
+        Object value = null;
+
+        // Used to avoid recursive method calls
+        // Holds the sub-maps in the document hierarchy that are pending to be inspected.
+        // along with the current index of the `path`.
+        Deque<Tuple<Integer, Map<String, Object>>> queue = new ArrayDeque<>();
+        queue.add(new Tuple<>(-1, map));
+
+        while (!queue.isEmpty()) {
+            Tuple<Integer, Map<String, Object>> tuple = queue.removeLast();
+            int idx = tuple.v1();
+            Map<String, Object> subMap = tuple.v2();
+
+            // Find all possible entries by examining all combinations under the current level ("idx") of the "path"
+            // e.g.: If the path == "a.b.c.d" and the idx == 0, we need to check the current subMap against the keys:
+            //       "b", "b.c" and "b.c.d"
+            StringJoiner sj = new StringJoiner(".");
+            for (int i = idx + 1; i < path.length; i++) {
+                sj.add(path[i]);
+                Object node = subMap.get(sj.toString());
+                if (node instanceof Map) {
+                    if (i < path.length - 1) {
+                        // Add the sub-map to the queue along with the current path index
+                        queue.add(new Tuple<>(i, (Map<String, Object>) node));
+                    } else {
+                        // We exhausted the path and got a map
+                        // If it is an object - it will be handled in the value extractor
+                        value = node;
+                    }
+                } else if (node != null) {
+                    if (i < path.length - 1) {
+                        // If we reach a concrete value without exhausting the full path, something is wrong with the mapping
+                        // e.g.: map is {"a" : { "b" : "value }} and we are looking for a path: "a.b.c.d"
+                        throw new SqlIllegalArgumentException("Cannot extract value [{}] from source", fieldName);
+                    }
+                    if (value != null) {
+                        // A value has already been found so this means that there are more than one
+                        // values in the document for the same path but different hierarchy.
+                        // e.g.: {"a" : {"b" : {"c" : "value"}}}, {"a.b" : {"c" : "value"}}, ...
+                        throw new SqlIllegalArgumentException("Multiple values (returned by [{}]) are not supported", fieldName);
+                    }
+                    value = node;
+                }
             }
         }
         return unwrapMultiValue(value);

@@ -157,14 +157,14 @@ public class JobResultsProvider {
      */
     public void checkForLeftOverDocuments(Job job, ActionListener<Boolean> listener) {
 
-        SearchRequestBuilder stateDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
+        SearchRequestBuilder stateDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
                 .setQuery(QueryBuilders.idsQuery().addIds(CategorizerState.documentId(job.getId(), 1),
                         CategorizerState.v54DocumentId(job.getId(), 1)))
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen());
+                .setIndicesOptions(IndicesOptions.strictExpand());
 
-        SearchRequestBuilder quantilesDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
+        SearchRequestBuilder quantilesDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
                 .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId()), Quantiles.v54DocumentId(job.getId())))
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen());
+                .setIndicesOptions(IndicesOptions.strictExpand());
 
         String resultsIndexName = job.getResultsIndexName();
         SearchRequestBuilder resultDocSearch = client.prepareSearch(resultsIndexName)
@@ -396,7 +396,7 @@ public class JobResultsProvider {
 
         AutodetectParams.Builder paramsBuilder = new AutodetectParams.Builder(job.getId());
         String resultsIndex = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        String stateIndex = AnomalyDetectorsIndex.jobStateIndexName();
+        String stateIndex = AnomalyDetectorsIndex.jobStateIndexPattern();
 
         MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
                 .add(createLatestDataCountsSearch(resultsIndex, jobId))

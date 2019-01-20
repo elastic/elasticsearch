@@ -44,17 +44,17 @@ public class Replace extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = Expressions.typeMustBeString(source, functionName(), ParamOrdinal.FIRST);
+        TypeResolution sourceResolution = Expressions.typeMustBeString(source, sourceText(), ParamOrdinal.FIRST);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
 
-        TypeResolution patternResolution = Expressions.typeMustBeString(pattern, functionName(), ParamOrdinal.SECOND);
+        TypeResolution patternResolution = Expressions.typeMustBeString(pattern, sourceText(), ParamOrdinal.SECOND);
         if (patternResolution.unresolved()) {
             return patternResolution;
         }
 
-        return Expressions.typeMustBeString(replacement, functionName(), ParamOrdinal.THIRD);
+        return Expressions.typeMustBeString(replacement, sourceText(), ParamOrdinal.THIRD);
     }
 
     @Override

@@ -72,6 +72,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -125,7 +126,7 @@ public class RefreshListenersTests extends ESTestCase {
             indexSettings, null, store, newMergePolicy(), iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger),
             eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
             TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), Collections.emptyList(), null,
-            new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED, Collections::emptySet,
+            new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED, Collections::emptyList,
                 () -> primaryTerm, EngineTestCase.tombstoneDocSupplier());
         engine = new InternalEngine(config);
         engine.initializeMaxSeqNoOfUpdatesOrDeletes();
@@ -264,7 +265,6 @@ public class RefreshListenersTests extends ESTestCase {
      * adding listeners. This can catch the situation where a refresh happens right as the listener is being added such that the listener
      * misses the refresh and has to catch the next one. If the listener wasn't able to properly catch the next one then this would fail.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37261")
     public void testConcurrentRefresh() throws Exception {
         AtomicBoolean run = new AtomicBoolean(true);
         Thread refresher = new Thread(() -> {
@@ -281,7 +281,7 @@ public class RefreshListenersTests extends ESTestCase {
                 if (immediate) {
                     assertNotNull(listener.forcedRefresh.get());
                 } else {
-                    assertBusy(() -> assertNotNull(listener.forcedRefresh.get()));
+                    assertBusy(() -> assertNotNull(listener.forcedRefresh.get()), 1, TimeUnit.MINUTES);
                 }
                 assertFalse(listener.forcedRefresh.get());
                 listener.assertNoError();
@@ -316,7 +316,7 @@ public class RefreshListenersTests extends ESTestCase {
 
                         DummyRefreshListener listener = new DummyRefreshListener();
                         listeners.addOrNotify(index.getTranslogLocation(), listener);
-                        assertBusy(() -> assertNotNull("listener never called", listener.forcedRefresh.get()));
+                        assertBusy(() -> assertNotNull("listener never called", listener.forcedRefresh.get()), 1, TimeUnit.MINUTES);
                         if (threadCount < maxListeners) {
                             assertFalse(listener.forcedRefresh.get());
                         }

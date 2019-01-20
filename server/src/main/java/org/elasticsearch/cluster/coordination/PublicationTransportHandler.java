@@ -389,7 +389,13 @@ public class PublicationTransportHandler {
             in.setVersion(request.version());
             // If true we received full cluster state - otherwise diffs
             if (in.readBoolean()) {
-                final ClusterState incomingState = ClusterState.readFrom(in, transportService.getLocalNode());
+                final ClusterState incomingState;
+                try {
+                    incomingState = ClusterState.readFrom(in, transportService.getLocalNode());
+                } catch (Exception e){
+                    logger.warn("unexpected error while deserializing an incoming cluster state", e);
+                    throw e;
+                }
                 fullClusterStateReceivedCount.incrementAndGet();
                 logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(),
                     request.bytes().length());
@@ -400,10 +406,20 @@ public class PublicationTransportHandler {
                 final ClusterState lastSeen = lastSeenClusterState.get();
                 if (lastSeen == null) {
                     logger.debug("received diff for but don't have any local cluster state - requesting full state");
+                    incompatibleClusterStateDiffReceivedCount.incrementAndGet();
                     throw new IncompatibleClusterStateVersionException("have no local cluster state");
                 } else {
-                    Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeen.nodes().getLocalNode());
-                    final ClusterState incomingState = diff.apply(lastSeen); // might throw IncompatibleClusterStateVersionException
+                    final ClusterState incomingState;
+                    try {
+                        Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeen.nodes().getLocalNode());
+                        incomingState = diff.apply(lastSeen); // might throw IncompatibleClusterStateVersionException
+                    } catch (IncompatibleClusterStateVersionException e) {
+                        incompatibleClusterStateDiffReceivedCount.incrementAndGet();
+                        throw e;
+                    } catch (Exception e){
+                        logger.warn("unexpected error while deserializing an incoming cluster state", e);
+                        throw e;
+                    }
                     compatibleClusterStateDiffReceivedCount.incrementAndGet();
                     logger.debug("received diff cluster state version [{}] with uuid [{}], diff size [{}]",
                         incomingState.version(), incomingState.stateUUID(), request.bytes().length());
@@ -412,12 +428,6 @@ public class PublicationTransportHandler {
                     return response;
                 }
             }
-        } catch (IncompatibleClusterStateVersionException e) {
-            incompatibleClusterStateDiffReceivedCount.incrementAndGet();
-            throw e;
-        } catch (Exception e) {
-            logger.warn("unexpected error while deserializing an incoming cluster state", e);
-            throw e;
         } finally {
             IOUtils.close(in);
         }

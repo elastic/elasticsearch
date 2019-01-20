@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.AndAggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.AvgAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.CardinalityAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.ExtendedStatsAgg;
+import org.elasticsearch.xpack.sql.querydsl.agg.FilterExistsAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByKey;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByNumericHistogram;
@@ -135,7 +136,7 @@ final class QueryTranslator {
             new MatrixStatsAggs(),
             new PercentilesAggs(),
             new PercentileRanksAggs(),
-            new DistinctCounts(),
+            new CountAggs(),
             new DateTimes()
             );
 
@@ -274,7 +275,7 @@ final class QueryTranslator {
                             Expression field = h.field();
 
                             // date histogram
-                            if (h.dataType() == DataType.DATE) {
+                            if (h.dataType() == DataType.DATETIME) {
                                 long intervalAsMillis = Intervals.inMillis(h.interval());
                                 // TODO: set timezone
                                 if (field instanceof FieldAttribute) {
@@ -778,15 +779,16 @@ final class QueryTranslator {
     //
     // Agg translators
     //
-
-    static class DistinctCounts extends SingleValueAggTranslator<Count> {
+    
+    static class CountAggs extends SingleValueAggTranslator<Count> {
 
         @Override
         protected LeafAgg toAgg(String id, Count c) {
-            if (!c.distinct()) {
-                return null;
+            if (c.distinct()) {
+                return new CardinalityAgg(id, field(c));
+            } else {
+                return new FilterExistsAgg(id, field(c));
             }
-            return new CardinalityAgg(id, field(c));
         }
     }
 

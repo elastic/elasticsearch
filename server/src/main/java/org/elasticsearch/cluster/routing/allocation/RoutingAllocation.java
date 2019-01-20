@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
@@ -39,7 +38,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import org.elasticsearch.snapshots.SnapshotsService.SnapshotsInProgressUpdater;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
@@ -78,10 +76,10 @@ public class RoutingAllocation {
     private final IndexMetaDataUpdater indexMetaDataUpdater = new IndexMetaDataUpdater();
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
     private final RestoreInProgressUpdater restoreInProgressUpdater = new RestoreInProgressUpdater();
-    private final SnapshotsInProgressUpdater snapshotsInProgressUpdater = new SnapshotsInProgressUpdater();
     private final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
-        nodesChangedObserver, indexMetaDataUpdater, restoreInProgressUpdater, snapshotsInProgressUpdater
+        nodesChangedObserver, indexMetaDataUpdater, restoreInProgressUpdater
     );
+
 
     /**
      * Creates a new {@link RoutingAllocation}
@@ -251,14 +249,6 @@ public class RoutingAllocation {
      */
     public RestoreInProgress updateRestoreInfoWithRoutingChanges(RestoreInProgress restoreInProgress) {
         return restoreInProgressUpdater.applyChanges(restoreInProgress);
-    }
-
-    /**
-     * Returns updated {@link SnapshotsInProgress} based on the changes that were made to the routing nodes
-     */
-    public SnapshotsInProgress updateSnapshotsWithRoutingChanges(SnapshotsInProgress snapshotsInProgress,
-        RoutingTable newRoutingTable) {
-        return snapshotsInProgressUpdater.applyChanges(snapshotsInProgress, newRoutingTable);
     }
 
     /**

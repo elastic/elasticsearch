@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.index.shard.ShardId;
-
 /**
  * Records changes made to {@link RoutingNodes} during an allocation round.
  */
@@ -212,52 +210,5 @@ public interface RoutingChangesObserver {
                 routingChangesObserver.initializedReplicaReinitialized(oldReplica, reinitializedReplica);
             }
         }
-    }
-
-    abstract class AbstractChangedShardObserver extends AbstractRoutingChangesObserver {
-
-        @Override
-        public void shardInitialized(ShardRouting unassignedShard, ShardRouting initializedShard) {
-            onChanged(unassignedShard.shardId());
-        }
-
-        @Override
-        public void shardStarted(ShardRouting initializingShard, ShardRouting startedShard) {
-            onChanged(initializingShard.shardId());
-        }
-        @Override
-        public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard) {
-            onChanged(startedShard.shardId());
-        }
-        @Override
-        public void unassignedInfoUpdated(ShardRouting unassignedShard, UnassignedInfo newUnassignedInfo) {
-            onChanged(unassignedShard.shardId());
-        }
-        @Override
-        public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {
-            onChanged(failedShard.shardId());
-        }
-        @Override
-        public void relocationCompleted(ShardRouting removedRelocationSource) {
-            onChanged(removedRelocationSource.shardId());
-        }
-        @Override
-        public void relocationSourceRemoved(ShardRouting removedReplicaRelocationSource) {
-            onChanged(removedReplicaRelocationSource.shardId());
-        }
-        @Override
-        public void startedPrimaryReinitialized(ShardRouting startedPrimaryShard, ShardRouting initializedShard) {
-            onChanged(startedPrimaryShard.shardId());
-        }
-        @Override
-        public void replicaPromoted(ShardRouting replicaShard) {
-            onChanged(replicaShard.shardId());
-        }
-        @Override
-        public void initializedReplicaReinitialized(ShardRouting oldReplica, ShardRouting reinitializedReplica) {
-            onChanged(oldReplica.shardId());
-        }
-
-        protected abstract void onChanged(ShardId shardId);
     }
 }

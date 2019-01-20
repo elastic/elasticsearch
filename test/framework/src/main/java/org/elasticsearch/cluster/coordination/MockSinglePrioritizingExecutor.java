@@ -53,11 +53,6 @@ public class MockSinglePrioritizingExecutor extends PrioritizedEsThreadPoolExecu
         throw new KillWorkerError();
     }
 
-    @Override
-    public boolean awaitTermination(long timeout, TimeUnit unit) {
-        return true;
-    }
-
     private static final class KillWorkerError extends Error {
     }
 }

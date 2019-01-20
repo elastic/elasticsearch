@@ -384,10 +384,15 @@ public class SnapshotsServiceTests extends ESTestCase {
 
         public void disconnectNode(TestClusterNode node) {
             disruptedLinks.disconnect(node.node.getName());
+            testClusterNodes.nodes.values().forEach(n -> n.transportService.getConnectionManager().disconnectFromNode(node.node));
         }
 
         public void clearNetworkDisruptions() {
             disruptedLinks.clear();
+            disruptedLinks.disconnected.forEach(nodeName -> {
+                final DiscoveryNode node = testClusterNodes.nodes.get(nodeName).node;
+                testClusterNodes.nodes.values().forEach(n -> n.transportService.getConnectionManager().openConnection(node, null));
+            });
         }
 
         private NetworkDisruption.DisruptedLinks getDisruption() {

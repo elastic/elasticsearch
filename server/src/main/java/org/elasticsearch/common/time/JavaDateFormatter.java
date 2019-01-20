@@ -29,6 +29,7 @@ import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -51,13 +52,12 @@ class JavaDateFormatter implements DateFormatter {
     private final DateTimeFormatter parser;
     private final DateTimeFormatter roundupParser;
 
-    JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter... parsers) {
-        this(format, printer, null, parsers);
+    JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter roundupParser, List<DateTimeFormatter> parsers) {
+        this(format, printer, roundupParser, parsers.toArray(new DateTimeFormatter[0]));
     }
 
-    static JavaDateFormatter withRoundupParser(String format, DateTimeFormatter printer, DateTimeFormatter roundupParser,
-                                               DateTimeFormatter... parsers) {
-        return new JavaDateFormatter(format, printer, roundupParser, parsers);
+    JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter... parsers) {
+        this(format, printer, null, parsers);
     }
 
     private JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter roundupParser, DateTimeFormatter... parsers) {
@@ -93,18 +93,13 @@ class JavaDateFormatter implements DateFormatter {
             this.roundupParser = roundupParser;
         } else {
             DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
+            builder.append(this.parser);
             if ("epoch_millis".equals(format)) {
-                builder.append(parser);
                 builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L);
             } else if ("epoch_second".equals(format)) {
-                builder.append(parser);
                 builder.parseDefaulting(ChronoField.NANO_OF_SECOND, 999_999_999L);
             } else {
-                parsers = parsers.length > 0 ? parsers : new DateTimeFormatter[]{parser};
-                for (DateTimeFormatter parser : parsers) {
-                    builder.append(parser);
-                    ROUND_UP_BASE_FIELDS.forEach(builder::parseDefaulting);
-                }
+                ROUND_UP_BASE_FIELDS.forEach(builder::parseDefaulting);
             }
             DateTimeFormatter roundupFormatter = builder.toFormatter(parser.getLocale());
             if (printer.getZone() != null) {

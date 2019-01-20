@@ -188,11 +188,15 @@ class ClusterFormationTasks {
         } else if (distro.contains('zip')) {
             packaging = 'zip'
         }
+        String group = "downloads.${packaging}"
+        if (distro.equals("integ-test-zip")) {
+            group = "org.elasticsearch.distribution.integ-test-zip"
+        }
         String artifactName = 'elasticsearch'
         if (distro.contains('oss')) {
             artifactName += '-oss'
         }
-        project.dependencies.add(configuration.name, "downloads.${packaging}:${artifactName}:${elasticsearchVersion}@${packaging}")
+        project.dependencies.add(configuration.name, "${group}:${artifactName}:${elasticsearchVersion}@${packaging}")
     }
 
     /** Adds a dependency on a different version of the given plugin, which will be retrieved using gradle's dependency resolution */

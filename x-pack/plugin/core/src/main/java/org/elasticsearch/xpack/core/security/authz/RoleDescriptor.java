@@ -691,7 +691,7 @@ public class RoleDescriptor implements ToXContentObject {
         public String toString() {
             StringBuilder sb = new StringBuilder("IndicesPrivileges[");
             sb.append("indices=[").append(Strings.arrayToCommaDelimitedString(indices));
-            sb.append("], allowsRestrictedIndices=[").append(allowRestrictedIndices);
+            sb.append("], allowRestrictedIndices=[").append(allowRestrictedIndices);
             sb.append("], privileges=[").append(Strings.arrayToCommaDelimitedString(privileges));
             sb.append("], ");
             if (grantedFields != null || deniedFields != null) {

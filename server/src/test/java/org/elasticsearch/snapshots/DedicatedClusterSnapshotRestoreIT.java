@@ -661,8 +661,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
                 .build();
 
-        internalCluster().startNode(nodeSettings);
-        internalCluster().startNode(nodeSettings);
+        internalCluster().startNodes(2, nodeSettings);
         cluster().wipeIndices("_all");
 
         logger.info("--> create repository");

@@ -439,7 +439,7 @@ public class MlConfigMigrator {
 
         logger.debug("taking a snapshot of ml_metadata");
         String documentId = "ml-config";
-        IndexRequestBuilder indexRequest = client.prepareIndex(AnomalyDetectorsIndex.jobStateIndexName(),
+        IndexRequestBuilder indexRequest = client.prepareIndex(AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
                 ElasticsearchMappings.DOC_TYPE, documentId)
                 .setOpType(DocWriteRequest.OpType.CREATE);
 
@@ -456,8 +456,10 @@ public class MlConfigMigrator {
             return;
         }
 
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest.request(),
-                ActionListener.<IndexResponse>wrap(
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterService.state(), ActionListener.wrap(
+            r -> {
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest.request(),
+                    ActionListener.<IndexResponse>wrap(
                         indexResponse -> {
                             listener.onResponse(indexResponse.getResult() == DocWriteResponse.Result.CREATED);
                         },
@@ -469,8 +471,11 @@ public class MlConfigMigrator {
                                 listener.onFailure(e);
                             }
                         }),
-                client::index
-        );
+                    client::index
+                );
+            },
+            listener::onFailure
+        ));
     }
 
     private void createConfigIndex(ActionListener<Boolean> listener) {

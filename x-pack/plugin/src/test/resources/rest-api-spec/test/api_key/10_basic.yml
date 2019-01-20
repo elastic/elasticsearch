@@ -118,7 +118,7 @@ teardown:
       security.invalidate_api_key:
         body:  >
             {
-              "api_key_id": "${api_key_id}"
+              "id": "${api_key_id}"
             }
   - length: { "invalidated_api_keys" : 1 }
   - match: { "invalidated_api_keys.0" : "${api_key_id}" }

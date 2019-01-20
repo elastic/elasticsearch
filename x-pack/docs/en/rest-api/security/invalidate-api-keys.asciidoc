@@ -21,12 +21,12 @@ using this API.
 The following parameters can be specified in the body of a DELETE request and
 pertain to invalidating api keys:
 
-`api_key_id` (optional)::
-(string) An API key id. This parameter cannot be used any of `api_key_name`, `realm_name` or
+`id` (optional)::
+(string) An API key id. This parameter cannot be used with any of `name`, `realm_name` or
          `username` are used.
 
-`api_key_name` (optional)::
-(string) An API key name. This parameter cannot be used any of `api_key_id`, `realm_name` or
+`name` (optional)::
+(string) An API key name. This parameter cannot be used with any of `id`, `realm_name` or
                           `username` are used.
 
 `realm_name` (optional)::
@@ -45,7 +45,7 @@ The following example invalidates the API key identified by specified `api_key_i
 --------------------------------------------------
 DELETE /_security/api_key
 {
-  "api_key_id" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ=="
+  "id" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ=="
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -56,7 +56,7 @@ whereas the following example invalidates the API key identified by specified `a
 --------------------------------------------------
 DELETE /_security/api_key
 {
-  "api_key_name" : "movUJjPGRRC0PQ7+NW0eag"
+  "name" : "movUJjPGRRC0PQ7+NW0eag"
 }
 --------------------------------------------------
 // NOTCONSOLE

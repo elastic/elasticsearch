@@ -37,8 +37,8 @@ public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("realm_name"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("username"));
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("api_key_id"));
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("api_key_name"));
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("id"));
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("name"));
     }
 
     public RestInvalidateApiKeyAction(Settings settings, RestController controller, XPackLicenseState licenseState) {

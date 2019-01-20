@@ -206,7 +206,9 @@ public class SnapshotsServiceTests extends ESTestCase {
     }
 
     public void testSnapshotWithNodeDisconnects() {
-        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+        final int masterNodes = randomFrom(1, 3, 5);
+        final int dataNodes = randomIntBetween(2, 10);
+        setupTestCluster(masterNodes, dataNodes);
 
         String repoName = "repo";
         String snapshotName = "snapshot";
@@ -225,33 +227,46 @@ public class SnapshotsServiceTests extends ESTestCase {
                         new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL).settings(
                             Settings.builder()
                                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
-                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)),
+                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)),
                         assertNoFailureListener(
-                            () -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
-                                .execute(assertNoFailureListener(() -> {
-                                    if (randomBoolean()) {
-                                        deterministicTaskQueue.scheduleNow(
-                                            () -> testClusterNodes.disconnectNode(testClusterNodes.randomDataNode()));
-                                    }
-                                    final boolean stoppedMasterNode = randomBoolean();
-                                    if (stoppedMasterNode) {
-                                        deterministicTaskQueue.scheduleNow(
-                                            () -> testClusterNodes.disconnectNode(testClusterNodes.randomMasterNode()));
-                                    }
-                                    if (stoppedMasterNode || randomBoolean()) {
-                                        deterministicTaskQueue.scheduleAt(
-                                            deterministicTaskQueue.getCurrentTimeMillis() + 20L,
-                                            () -> testClusterNodes.clearNetworkDisruptions());
-                                    }
-                                    createdSnapshot.set(true);
-                                }))))));
+                            () -> {
+                                for (int i = 0; i < randomIntBetween(0, dataNodes); ++i) {
+                                    deterministicTaskQueue.scheduleNow(
+                                        () -> testClusterNodes.disconnectNode(testClusterNodes.randomDataNode()));
+                                }
+                                if (randomBoolean()) {
+                                    deterministicTaskQueue.scheduleNow(() -> testClusterNodes.clearNetworkDisruptions());
+                                }
+                                masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                                    .execute(assertNoFailureListener(() -> {
+                                        for (int i = 0; i < randomIntBetween(0, dataNodes); ++i) {
+                                            deterministicTaskQueue.scheduleNow(
+                                                () -> testClusterNodes.disconnectNode(testClusterNodes.randomDataNode()));
+                                        }
+                                        final boolean disconnectedMaster = randomBoolean();
+                                        if (disconnectedMaster) {
+                                            deterministicTaskQueue.scheduleNow(
+                                                () -> testClusterNodes.disconnectNode(testClusterNodes.randomMasterNode()));
+                                        }
+                                        if (disconnectedMaster || randomBoolean()) {
+                                            deterministicTaskQueue.scheduleAt(
+                                                deterministicTaskQueue.getCurrentTimeMillis()
+                                                    + randomLongBetween(0L, TimeUnit.MINUTES.toMillis(10L)),
+                                                () -> testClusterNodes.clearNetworkDisruptions());
+                                        }
+                                        if (randomBoolean()) {
+                                            deterministicTaskQueue.scheduleNow(() -> testClusterNodes.clearNetworkDisruptions());
+                                        }
+                                        createdSnapshot.set(true);
+                                    }));
+                            }))));
 
         runUntil(() -> {
             if (createdSnapshot.get() == false) {
                 return false;
             }
             final SnapshotsInProgress snapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
-            return snapshotsInProgress.entries().isEmpty();
+            return snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty();
         }, TimeUnit.MINUTES.toMillis(20L));
 
         assertTrue(createdSnapshot.get());
@@ -397,6 +412,9 @@ public class SnapshotsServiceTests extends ESTestCase {
         }
 
         public void disconnectNode(TestClusterNode node) {
+            if (disruptedLinks.disconnected.contains(node.node.getName())) {
+                return;
+            }
             disruptedLinks.disconnect(node.node.getName());
             testClusterNodes.nodes.values().forEach(n -> n.transportService.getConnectionManager().disconnectFromNode(node.node));
         }

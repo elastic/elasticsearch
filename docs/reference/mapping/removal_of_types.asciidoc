@@ -112,7 +112,7 @@ have looked something like this:
 
 [source,js]
 ----
-PUT twitter
+PUT twitter?include_type_name=true
 {
   "mappings": {
     "user": {
@@ -161,7 +161,7 @@ You could achieve the same thing by adding a custom `type` field as follows:
 
 [source,js]
 ----
-PUT twitter
+PUT twitter?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -299,7 +299,7 @@ This first example splits our `twitter` index into a `tweets` index and a
 
 [source,js]
 ----
-PUT users
+PUT users?include_type_name=true
 {
   "settings": {
     "index.mapping.single_type": true
@@ -321,7 +321,7 @@ PUT users
   }
 }
 
-PUT tweets
+PUT tweets?include_type_name=true
 {
   "settings": {
     "index.mapping.single_type": true
@@ -376,7 +376,7 @@ documents of different types which have conflicting IDs:
 
 [source,js]
 ----
-PUT new_twitter
+PUT new_twitter?include_type_name=true
 {
   "mappings": {
     "_doc": {

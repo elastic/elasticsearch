@@ -97,8 +97,15 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
             } else if (forecastRequestStats.getStatus() == ForecastRequestStats.ForecastRequestStatus.FAILED) {
                 List<String> messages = forecastRequestStats.getMessages();
                 if (messages.size() > 0) {
+                    String message = messages.get(0);
+
+                    // special case: if forecast failed due to insufficient disk space, log the setting
+                    if (message.contains("disk space is insufficient")) {
+                        message += " Minimum disk space required: [" + processManager.getMinLocalStorageAvailable() + "]";
+                    }
+
                     listener.onFailure(ExceptionsHelper.badRequestException("Cannot run forecast: "
-                            + messages.get(0)));
+                            + message));
                 } else {
                     // paranoia case, it should not be possible to have an empty message list
                     listener.onFailure(

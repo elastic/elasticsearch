@@ -18,7 +18,7 @@ endif::server[]
 +{ssl-prefix}.ssl.supported_protocols+::
 Supported protocols with versions. Valid protocols: `SSLv2Hello`,
 `SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`. Defaults to `TLSv1.2`, `TLSv1.1`,
-`TLSv1`. Defaults to the value of `xpack.ssl.supported_protocols`.
+`TLSv1`.
 
 ifdef::server[]
 +{ssl-prefix}.ssl.client_authentication+::
@@ -27,7 +27,7 @@ from client connections. Valid values are `required`, `optional`, and `none`.
 `required` forces a client to present a certificate, while `optional`
 requests a client certificate but the client is not required to present one.
 ifndef::client-auth-default[]
-Defaults to the value of `xpack.ssl.client_authentication`.
+Defaults to `none``.
 endif::client-auth-default[]
 ifdef::client-auth-default[]
 Defaults to +{client-auth-default}+.
@@ -37,15 +37,12 @@ endif::server[]
 ifdef::verifies[]
 +{ssl-prefix}.ssl.verification_mode+::
 Controls the verification of certificates. Valid values are `none`,
-`certificate`, and `full`.
-See <<ssl-tls-settings, `xpack.ssl.verification_mode`>> for a description of these values.
-Defaults to the value of `xpack.ssl.verification_mode`.
+`certificate`, and `full`. Defaults to `full`.
 endif::verifies[]
 
 +{ssl-prefix}.ssl.cipher_suites+::
 Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
-Java Cryptography Architecture documentation]. Defaults to the value of
-`xpack.ssl.cipher_suites`.
+Java Cryptography Architecture documentation]. Defaults to ``.
 
 
 ===== {component} TLS/SSL Key and Trusted Certificate Settings
@@ -165,3 +162,13 @@ Set this to `PKCS11` to indicate that the PKCS#11 token should be used as a keys
 
 +{ssl-prefix}.truststore.type+::
 Set this to `PKCS11` to indicate that the PKCS#11 token should be used as a truststore.
+
+[NOTE]
+When configuring the PKCS#11 token that your JVM is configured to use as
+a keystore or a truststore for Elasticsearch, the PIN for the token can be
+configured by setting the appropriate value to `ssl.truststore.password`
+or `ssl.truststore.secure_password` in the context that you are configuring.
+Since there can only be one PKCS#11 token configured, only one keystore and
+truststore will be usable for configuration in {es}. This in turn means
+that only one certificate can be used for TLS both in the transport and the
+http layer.

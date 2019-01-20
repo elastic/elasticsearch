@@ -72,9 +72,6 @@ public class NetworkModuleTests extends ESTestCase {
     }
 
     static class FakeHttpTransport extends AbstractLifecycleComponent implements HttpServerTransport {
-        FakeHttpTransport() {
-            super(null);
-        }
         @Override
         protected void doStart() {}
         @Override

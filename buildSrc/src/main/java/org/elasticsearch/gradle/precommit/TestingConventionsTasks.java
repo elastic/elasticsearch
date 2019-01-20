@@ -310,18 +310,18 @@ public class TestingConventionsTasks extends DefaultTask {
 
             Class<?> junitTest = loadClassWithoutInitializing("org.junit.Assert", classLoader);
             if (junitTest.isAssignableFrom(clazz)) {
-                getLogger().info("{} is a test because it extends {}", clazz.getName(), junitTest.getName());
+                getLogger().debug("{} is a test because it extends {}", clazz.getName(), junitTest.getName());
                 return true;
             }
 
             Class<?> junitAnnotation = loadClassWithoutInitializing("org.junit.Test", classLoader);
             for (Method method : clazz.getMethods()) {
                 if (matchesTestMethodNamingConvention(method)) {
-                    getLogger().info("{} is a test because it has method named '{}'", clazz.getName(), method.getName());
+                    getLogger().debug("{} is a test because it has method named '{}'", clazz.getName(), method.getName());
                     return true;
                 }
                 if (isAnnotated(method, junitAnnotation)) {
-                    getLogger().info("{} is a test because it has method '{}' annotated with '{}'",
+                    getLogger().debug("{} is a test because it has method '{}' annotated with '{}'",
                         clazz.getName(), method.getName(), junitAnnotation.getName());
                     return true;
                 }
@@ -340,7 +340,7 @@ public class TestingConventionsTasks extends DefaultTask {
         if (naming.stream()
             .map(TestingConventionRule::getSuffix)
             .anyMatch(suffix -> clazz.getName().endsWith(suffix))) {
-            getLogger().info("{} is a test because it matches the naming convention", clazz.getName());
+            getLogger().debug("{} is a test because it matches the naming convention", clazz.getName());
             return true;
         }
         return false;

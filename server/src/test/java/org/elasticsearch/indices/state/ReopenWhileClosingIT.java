@@ -58,6 +58,11 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
         return singletonList(MockTransportService.TestPlugin.class);
     }
 
+    @Override
+    protected int minimumNumberOfShards() {
+        return 2;
+    }
+
     public void testReopenDuringClose() throws Exception {
         final String indexName = "test";
         createIndexWithDocs(indexName);

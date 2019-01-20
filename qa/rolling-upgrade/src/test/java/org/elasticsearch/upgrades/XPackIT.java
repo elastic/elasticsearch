@@ -21,6 +21,7 @@ package org.elasticsearch.upgrades;
 import org.apache.http.util.EntityUtils;
 import org.junit.Before;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 
 import java.io.IOException;
 
@@ -59,6 +60,7 @@ public class XPackIT extends AbstractRollingTestCase {
             + "{\"index\":{}}\n"
             + "{\"f\": \"2\"}\n");
         bulk.addParameter("refresh", "true");
+        bulk.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         client().performRequest(bulk);
 
         Request sql = new Request("POST", "/_sql");

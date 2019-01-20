@@ -22,7 +22,6 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -66,11 +65,6 @@ public class QuorumGatewayIT extends ESIntegTestCase {
         }
         logger.info("--> restart all nodes");
         internalCluster().fullRestart(new RestartCallback() {
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                return null;
-            }
-
             @Override
             public void doAfterNodes(int numNodes, final Client activeClient) throws Exception {
                 if (numNodes == 1) {

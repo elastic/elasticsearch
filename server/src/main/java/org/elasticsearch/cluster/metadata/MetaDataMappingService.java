@@ -276,8 +276,9 @@ public class MetaDataMappingService {
                 }
                 if (mappingType == null) {
                     mappingType = newMapper.type();
-                } else if (mappingType.equals(newMapper.type()) == false) {
-                    throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition");
+                } else if (mappingType.equals(newMapper.type()) == false
+                        && mapperService.resolveDocumentType(mappingType).equals(newMapper.type()) == false) {
+                    throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition.");
                 }
             }
             assert mappingType != null;
@@ -295,16 +296,12 @@ public class MetaDataMappingService {
                 // we use the exact same indexService and metadata we used to validate above here to actually apply the update
                 final Index index = indexMetaData.getIndex();
                 final MapperService mapperService = indexMapperServices.get(index);
-                String typeForUpdate = mappingType; // the type to use to apply the mapping update
-                if (MapperService.SINGLE_MAPPING_NAME.equals(typeForUpdate)) {
-                    // If the user gave _doc as a special type value or if (s)he is using the new typeless APIs,
-                    // then we apply the mapping update to the existing type. This allows to move to typeless
-                    // APIs with indices whose type name is different from `_doc`.
-                    DocumentMapper mapper = mapperService.documentMapper();
-                    if (mapper != null) {
-                        typeForUpdate = mapper.type();
-                    }
-                }
+
+                // If the user gave _doc as a special type value or if they are using the new typeless APIs,
+                // then we apply the mapping update to the existing type. This allows to move to typeless
+                // APIs with indices whose type name is different from `_doc`.
+                String typeForUpdate = mapperService.resolveDocumentType(mappingType); // the type to use to apply the mapping update
+
                 CompressedXContent existingSource = null;
                 DocumentMapper existingMapper = mapperService.documentMapper(typeForUpdate);
                 if (existingMapper != null) {

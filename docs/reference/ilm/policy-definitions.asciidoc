@@ -1,10 +1,7 @@
-beta[]
 [role="xpack"]
 [testenv="basic"]
 [[ilm-policy-definition]]
 == Policy phases and actions
-
-beta[]
 
 There are four stages in the index lifecycle, in the order
 they are executed.
@@ -25,8 +22,6 @@ each phase for an index. For example, one policy may define only the hot
 phase and the delete phase, while another may define all four phases.
 
 === Timing
-
-beta[]
 
 Indices enter phases based on a phase's `min_age` parameter.
 The index will not enter the phase until the index's age is older than that
@@ -76,8 +71,6 @@ and transition into the next phase.
 
 === Phase Execution
 
-beta[]
-
 The current phase definition, of an index's policy being executed, is stored
 in the index's metadata. The phase and its actions are compiled into a series
 of discrete steps that are executed sequentially. Since some {ilm-init} actions
@@ -89,19 +82,24 @@ executing.
 
 === Actions
 
-beta[]
-
 The below list shows the actions which are available in each phase.
 
 * Hot
+  - <<ilm-set-priority-action,Set Priority>>
   - <<ilm-rollover-action,Rollover>>
+  - <<ilm-unfollow-action,Unfollow>>
 * Warm
+  - <<ilm-set-priority-action,Set Priority>>
   - <<ilm-allocate-action,Allocate>>
   - <<ilm-readonly-action,Read-Only>>
   - <<ilm-forcemerge-action,Force Merge>>
   - <<ilm-shrink-action,Shrink>>
+  - <<ilm-unfollow-action,Unfollow>>
 * Cold
+  - <<ilm-set-priority-action,Set Priority>>
   - <<ilm-allocate-action,Allocate>>
+  - <<ilm-freeze-action,Freeze>>
+  - <<ilm-unfollow-action,Unfollow>>
 * Delete
   - <<ilm-delete-action,Delete>>
 
@@ -533,6 +531,48 @@ The above example illustrates a policy which attempts to delete an
 index one day after the index has been rolled over. It does not
 delete the index one day after it has been created.
 
+[[ilm-set-priority-action]]
+==== Set Priority
+
+Phases allowed: hot, warm, cold.
+
+This action sets the <<recovery-prioritization, index priority>> on the index as
+soon as the policy enters the hot, warm, or cold phase. Indices with a higher
+priority will be recovered before indices with lower priorities following a node
+restart. Generally, indexes in the hot phase should have the highest value and
+indexes in the cold phase should have the lowest values. For example:
+100 for the hot phase, 50 for the warm phase, and 0 for the cold phase.
+Indicies that don't set this value have an implicit default priority of 1.
+
+[[ilm-set-priority-options]]
+.Set Priority Options
+[options="header"]
+|======
+| Name         | Required  | Default     | Description
+| `priority`   | yes       | -           | The priority for the index. Must be 0 or greater.
+                                           The value may also be set to null to remove the priority.
+
+|======
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "actions": {
+          "set_priority" : {
+            "priority": 50
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
 [[ilm-shrink-action]]
 ==== Shrink
 
@@ -579,10 +619,45 @@ PUT _ilm/policy/my_policy
 --------------------------------------------------
 // CONSOLE
 
+[[ilm-unfollow-action]]
+==== Unfollow
+
+This action turns a {ref}/ccr-apis.html[ccr] follower index
+into a regular index. This can be desired when moving follower
+indices into the next phase. Also certain actions like shrink
+and rollover can then be performed safely on follower indices.
+
+If the unfollow action encounters a follower index then
+the following operations will be performed on it:
+
+* Pauses indexing following for the follower index.
+* Closes the follower index.
+* Unfollows the follower index.
+* Opens the follower index (which is at this point is a regular index).
+
+The unfollow action does not have any options and
+if it encounters a non follower index, then the
+unfollow action leaves that index untouched and
+lets the next action operate on this index.
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "unfollow" : {}
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
 
 === Full Policy
-
-beta[]
 
 With all of these actions, we can support complex management strategies for our
 indices. This policy will define an index that will start in the hot phase,

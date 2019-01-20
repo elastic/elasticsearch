@@ -56,6 +56,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
@@ -69,12 +71,14 @@ import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -117,6 +121,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final LeaderChecker leaderChecker;
     private final FollowersChecker followersChecker;
     private final ClusterApplier clusterApplier;
+    private final Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators;
     @Nullable
     private Releasable electionScheduler;
     @Nullable
@@ -139,13 +144,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     public Coordinator(String nodeName, Settings settings, ClusterSettings clusterSettings, TransportService transportService,
                        NamedWriteableRegistry namedWriteableRegistry, AllocationService allocationService, MasterService masterService,
                        Supplier<CoordinationState.PersistedState> persistedStateSupplier, UnicastHostsProvider unicastHostsProvider,
-                       ClusterApplier clusterApplier, Random random) {
-        super(settings);
+                       ClusterApplier clusterApplier, Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, Random random) {
         this.settings = settings;
         this.transportService = transportService;
         this.masterService = masterService;
+        this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService,
-            this::getCurrentTerm, this::handleJoinRequest, this::joinLeaderInTerm);
+            this::getCurrentTerm, this::handleJoinRequest, this::joinLeaderInTerm, this.onJoinValidators);
         this.persistedStateSupplier = persistedStateSupplier;
         this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
         this.lastKnownLeader = Optional.empty();
@@ -176,7 +181,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private ClusterFormationState getClusterFormationState() {
         return new ClusterFormationState(settings, getStateForMasterService(), peerFinder.getLastResolvedAddresses(),
-            StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false).collect(Collectors.toList()));
+            StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false).collect(Collectors.toList()), getCurrentTerm());
     }
 
     private Runnable getOnLeaderFailure() {
@@ -277,6 +282,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     + lastKnownLeader + ", rejecting");
             }
 
+            if (publishRequest.getAcceptedState().term() > coordinationState.get().getLastAcceptedState().term()) {
+                // only do join validation if we have not accepted state from this master yet
+                onJoinValidators.forEach(a -> a.accept(getLocalNode(), publishRequest.getAcceptedState()));
+            }
+
             ensureTermAtLeast(sourceNode, publishRequest.getAcceptedState().term());
             final PublishResponse publishResponse = coordinationState.get().handlePublishRequest(publishRequest);
 
@@ -299,7 +309,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private static Optional<Join> joinWithDestination(Optional<Join> lastJoin, DiscoveryNode leader, long term) {
         if (lastJoin.isPresent()
-            && lastJoin.get().getTargetNode().getId().equals(leader.getId())
+            && lastJoin.get().targetMatches(leader)
             && lastJoin.get().getTerm() == term) {
             return lastJoin;
         }
@@ -389,6 +399,41 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         logger.trace("handleJoinRequest: as {}, handling {}", mode, joinRequest);
         transportService.connectToNode(joinRequest.getSourceNode());
 
+        final ClusterState stateForJoinValidation = getStateForMasterService();
+
+        if (stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {
+            onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
+            if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
+                // we do this in a couple of places including the cluster update thread. This one here is really just best effort
+                // to ensure we fail as fast as possible.
+                JoinTaskExecutor.ensureMajorVersionBarrier(joinRequest.getSourceNode().getVersion(),
+                    stateForJoinValidation.getNodes().getMinNodeVersion());
+            }
+
+            // validate the join on the joining node, will throw a failure if it fails the validation
+            joinHelper.sendValidateJoinRequest(joinRequest.getSourceNode(), stateForJoinValidation, new ActionListener<Empty>() {
+                @Override
+                public void onResponse(Empty empty) {
+                    try {
+                        processJoinRequest(joinRequest, joinCallback);
+                    } catch (Exception e) {
+                        joinCallback.onFailure(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("failed to validate incoming join request from node [{}]",
+                        joinRequest.getSourceNode()), e);
+                    joinCallback.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
+                }
+            });
+        } else {
+            processJoinRequest(joinRequest, joinCallback);
+        }
+    }
+
+    private void processJoinRequest(JoinRequest joinRequest, JoinHelper.JoinCallback joinCallback) {
         final Optional<Join> optionalJoin = joinRequest.getOptionalJoin();
         synchronized (mutex) {
             final CoordinationState coordState = coordinationState.get();
@@ -514,7 +559,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     // visible for testing
-    public DiscoveryNode getLocalNode() {
+    DiscoveryNode getLocalNode() {
         return transportService.getLocalNode();
     }
 
@@ -872,12 +917,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     return;
                 }
 
-                // there is no equals on cluster state, so we just serialize it to XContent and compare JSON representation
-                assert clusterChangedEvent.previousState() == coordinationState.get().getLastAcceptedState() ||
-                    Strings.toString(clusterChangedEvent.previousState()).equals(
-                        Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState())))
-                    : Strings.toString(clusterChangedEvent.previousState()) + " vs "
-                    + Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState()));
+                assert assertPreviousStateConsistency(clusterChangedEvent);
 
                 final ClusterState clusterState = clusterChangedEvent.state();
 
@@ -915,6 +955,22 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             logger.debug(() -> new ParameterizedMessage("[{}] publishing failed", clusterChangedEvent.source()), e);
             publishListener.onFailure(new FailedToCommitClusterStateException("publishing failed", e));
         }
+    }
+
+    // there is no equals on cluster state, so we just serialize it to XContent and compare Maps
+    // deserialized from the resulting JSON
+    private boolean assertPreviousStateConsistency(ClusterChangedEvent event) {
+        assert event.previousState() == coordinationState.get().getLastAcceptedState() ||
+            XContentHelper.convertToMap(
+                JsonXContent.jsonXContent, Strings.toString(event.previousState()), false
+            ).equals(
+                XContentHelper.convertToMap(
+                    JsonXContent.jsonXContent,
+                    Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState())),
+                    false))
+            : Strings.toString(event.previousState()) + " vs "
+            + Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState()));
+        return true;
     }
 
     private <T> ActionListener<T> wrapWithMutex(ActionListener<T> listener) {

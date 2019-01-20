@@ -36,6 +36,7 @@ import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetUsersRequest;
+import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
@@ -434,5 +435,15 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals("/_security/api_key", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(createApiKeyRequest, request.getEntity());
+    }
+
+    public void testInvalidateApiKey() throws IOException {
+        String realmName = randomAlphaOfLength(5);
+        String userName = randomAlphaOfLength(7);
+        final InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmAndUserName(realmName, userName);
+        final Request request = SecurityRequestConverters.invalidateApiKey(invalidateApiKeyRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_security/api_key", request.getEndpoint());
+        assertToXContentBody(invalidateApiKeyRequest, request.getEntity());
     }
  }

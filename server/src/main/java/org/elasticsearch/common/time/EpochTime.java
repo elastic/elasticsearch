@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.time;
 
-import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.ResolverStyle;
@@ -33,7 +32,6 @@ import java.time.temporal.TemporalUnit;
 import java.time.temporal.ValueRange;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * This class provides {@link DateTimeFormatter}s capable of parsing epoch seconds and milliseconds.
@@ -105,7 +103,7 @@ class EpochTime {
         }
     };
 
-    private static final EpochField NANOS_OF_MILLI = new EpochField(ChronoUnit.NANOS, ChronoUnit.MILLIS, ValueRange.of(0, 999_999)) {
+    static final EpochField NANOS_OF_MILLI = new EpochField(ChronoUnit.NANOS, ChronoUnit.MILLIS, ValueRange.of(0, 999_999)) {
         @Override
         public boolean isSupportedBy(TemporalAccessor temporal) {
             return temporal.isSupported(ChronoField.NANO_OF_SECOND) && temporal.getLong(ChronoField.NANO_OF_SECOND) % 1_000_000 != 0;
@@ -115,15 +113,6 @@ class EpochTime {
             return temporal.getLong(ChronoField.NANO_OF_SECOND);
         }
     };
-
-    public static TemporalAccessor from(TemporalAccessor accessor) {
-        Objects.requireNonNull(accessor, "temporal");
-        if (accessor.isSupported(MILLIS)) {
-            return Instant.ofEpochMilli(accessor.getLong(MILLIS));
-        }
-
-        return accessor;
-    }
 
     // this supports seconds without any fraction
     private static final DateTimeFormatter SECONDS_FORMATTER1 = new DateTimeFormatterBuilder()

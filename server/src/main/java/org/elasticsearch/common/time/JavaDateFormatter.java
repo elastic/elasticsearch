@@ -21,11 +21,9 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
 
-import java.text.ParsePosition;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
-import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
@@ -45,14 +43,24 @@ class JavaDateFormatter implements DateFormatter {
         ROUND_UP_BASE_FIELDS.put(ChronoField.HOUR_OF_DAY, 23L);
         ROUND_UP_BASE_FIELDS.put(ChronoField.MINUTE_OF_HOUR, 59L);
         ROUND_UP_BASE_FIELDS.put(ChronoField.SECOND_OF_MINUTE, 59L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.MILLI_OF_SECOND, 999L);
+        ROUND_UP_BASE_FIELDS.put(ChronoField.NANO_OF_SECOND, 999_999_999L);
     }
 
     private final String format;
     private final DateTimeFormatter printer;
     private final DateTimeFormatter parser;
+    private final DateTimeFormatter roundupParser;
 
     JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter... parsers) {
+        this(format, printer, null, parsers);
+    }
+
+    static JavaDateFormatter withRoundupParser(String format, DateTimeFormatter printer, DateTimeFormatter roundupParser,
+                                               DateTimeFormatter... parsers) {
+        return new JavaDateFormatter(format, printer, roundupParser, parsers);
+    }
+
+    private JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter roundupParser, DateTimeFormatter... parsers) {
         if (printer == null) {
             throw new IllegalArgumentException("printer may not be null");
         }
@@ -77,6 +85,37 @@ class JavaDateFormatter implements DateFormatter {
         }
         this.format = format;
         this.printer = printer;
+
+        if (format.contains("||")) {
+            if (roundupParser == null) {
+                throw new IllegalArgumentException("roundup parser for merged fields must be set in ctor");
+            }
+            this.roundupParser = roundupParser;
+        } else {
+            DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
+            if ("epoch_millis".equals(format)) {
+                builder.append(parser);
+                builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L);
+            } else if ("epoch_second".equals(format)) {
+                builder.append(parser);
+                builder.parseDefaulting(ChronoField.NANO_OF_SECOND, 999_999_999L);
+            } else {
+                parsers = parsers.length > 0 ? parsers : new DateTimeFormatter[]{parser};
+                for (DateTimeFormatter parser : parsers) {
+                    builder.append(parser);
+                    ROUND_UP_BASE_FIELDS.forEach(builder::parseDefaulting);
+                }
+            }
+            DateTimeFormatter roundupFormatter = builder.toFormatter(parser.getLocale());
+            if (printer.getZone() != null) {
+                roundupFormatter = roundupFormatter.withZone(printer.getZone());
+            }
+            this.roundupParser = roundupFormatter;
+        }
+    }
+
+    DateTimeFormatter getRoundupParser() {
+        return roundupParser;
     }
 
     DateTimeFormatter getParser() {
@@ -102,7 +141,8 @@ class JavaDateFormatter implements DateFormatter {
             return this;
         }
 
-        return new JavaDateFormatter(format, printer.withZone(zoneId), parser.withZone(zoneId));
+        return new JavaDateFormatter(format, printer.withZone(zoneId), roundupParser.withZone(zoneId),
+            new DateTimeFormatter[]{parser.withZone(zoneId)});
     }
 
     @Override
@@ -112,7 +152,8 @@ class JavaDateFormatter implements DateFormatter {
             return this;
         }
 
-        return new JavaDateFormatter(format, printer.withLocale(locale), parser.withLocale(locale));
+        return new JavaDateFormatter(format, printer.withLocale(locale), roundupParser.withLocale(locale),
+            new DateTimeFormatter[]{parser.withLocale(locale)});
     }
 
     @Override
@@ -123,55 +164,6 @@ class JavaDateFormatter implements DateFormatter {
     @Override
     public String pattern() {
         return format;
-    }
-
-    // visible for testing
-    static DateFormatter roundUpFormatter(JavaDateFormatter formatter) {
-        // the epoch formatters do not properly deal with the parseDefaulting mechanism of java time, so we need to do some special
-        // handling formatters that contain our self written parsers
-
-        // this formatter needs some special treatment once nanoseconds are supported, as we have to add 999_999 nanoseconds then
-        if ("epoch_millis".equals(formatter.format)) {
-            return formatter;
-        }
-
-        final DateTimeFormatterBuilder parseDefaultingBuilder = new DateTimeFormatterBuilder().append(formatter.parser);
-        ROUND_UP_BASE_FIELDS.forEach(parseDefaultingBuilder::parseDefaulting);
-
-        final DateFormatter roundUpFormatter;
-        if (formatter.format.contains("epoch_millis")) {
-            roundUpFormatter = new JavaDateFormatter(formatter.format, parseDefaultingBuilder.toFormatter(formatter.locale())) {
-                @Override
-                public TemporalAccessor parse(String input) {
-                    try {
-                        return super.parse(input);
-                    } catch (DateTimeParseException e) {
-                        TemporalAccessor accessor = getParser().parseUnresolved(input, new ParsePosition(0));
-                        return EpochTime.from(accessor);
-                    }
-                }
-            };
-        } else if (formatter.format.contains("epoch_second")) {
-            roundUpFormatter = new JavaDateFormatter(formatter.format, parseDefaultingBuilder.toFormatter(formatter.locale())) {
-                @Override
-                public TemporalAccessor parse(String input) {
-                    try {
-                        return super.parse(input);
-                    } catch (DateTimeParseException e) {
-                        TemporalAccessor accessor = getParser().parseUnresolved(input, new ParsePosition(0));
-                        return EpochTime.from(accessor);
-                    }
-                }
-            };
-        } else {
-            roundUpFormatter = new JavaDateFormatter(formatter.format, parseDefaultingBuilder.toFormatter(Locale.ROOT));
-        }
-
-        if (formatter.zone() != null) {
-            return roundUpFormatter.withLocale(formatter.locale()).withZone(formatter.zone());
-        } else {
-            return roundUpFormatter.withLocale(formatter.locale());
-        }
     }
 
     @Override
@@ -186,7 +178,7 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public DateMathParser toDateMathParser() {
-        return new JavaDateMathParser(this, roundUpFormatter(this));
+        return new JavaDateMathParser(parser, roundupParser);
     }
 
     @Override

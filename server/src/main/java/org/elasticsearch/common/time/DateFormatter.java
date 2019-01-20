@@ -133,9 +133,11 @@ public interface DateFormatter {
             return Joda.forPattern(input);
         }
 
+        input = input.substring(1);
+
         // force java 8 date format
         List<DateFormatter> formatters = new ArrayList<>();
-        for (String pattern : Strings.delimitedListToStringArray(input.substring(1), "||")) {
+        for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
             if (Strings.hasLength(pattern) == false) {
                 throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
             }
@@ -146,6 +148,6 @@ public interface DateFormatter {
             return formatters.get(0);
         }
 
-        return DateFormatters.merge(input.substring(1), formatters);
+        return DateFormatters.merge(input, formatters);
     }
 }

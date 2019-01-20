@@ -176,6 +176,9 @@ class ClusterFormationTasks {
         if (distro.equals('oss-zip')) {
             distro = 'oss'
         }
+        if (distro.equals('zip')) {
+            distro = 'default'
+        }
         // END TEMP HACK
         if (['integ-test-zip', 'oss', 'default'].contains(distro) == false) {
             throw new GradleException("Unknown distribution: ${distro} in project ${project.path}")

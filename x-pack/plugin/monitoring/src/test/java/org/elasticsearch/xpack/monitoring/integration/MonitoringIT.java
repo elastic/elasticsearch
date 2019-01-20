@@ -260,7 +260,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                                      final MonitoredSystem expectedSystem,
                                      final String expectedType,
                                      final TimeValue interval) {
-        assertEquals(document.toString(),4, document.size());
+        assertEquals(document.toString(),6, document.size());
 
         final String index = (String) document.get("_index");
         assertThat(index, containsString(".monitoring-" + expectedSystem.getSystem() + "-" + TEMPLATE_VERSION + "-"));

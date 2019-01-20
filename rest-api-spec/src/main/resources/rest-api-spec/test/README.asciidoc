@@ -284,6 +284,8 @@ The stash should be reset at the beginning of each test file.
 
 For some tests, it is necessary to extract a value and transform it from the previous `response`, in
 order to reuse it in a subsequent `do` and other tests.
+Currently, it only has support for `base64EncodeCredentials`, for unknown transformations it will not
+do anything and stash the value as is.
 For instance, when testing you may want to base64 encode username and password for
 `Basic` authorization header:
 

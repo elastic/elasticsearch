@@ -313,7 +313,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             shutdownLock.unlock();
         }
 
-        // We have new shards to start
+        // We have new shards to starts
         if (newSnapshots.isEmpty() == false) {
             Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
             for (final Map.Entry<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> entry : newSnapshots.entrySet()) {

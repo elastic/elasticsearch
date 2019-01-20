@@ -280,6 +280,29 @@ example above), but the same goes for actual values:
 
 The stash should be reset at the beginning of each test file.
 
+=== `transform_and_set`
+
+For some tests, it is necessary to extract a value and transform it from the previous `response`, in
+order to reuse it in a subsequent `do` and other tests.
+For instance, when testing you may want to base64 encode username and password for
+`Basic` authorization header:
+
+....
+    - do:
+        index:
+            index: test
+            type:  test
+    - transform_and_set:  { login_creds: "#base64EncodeCredentials(user,password)" }   # stash the base64 encoded credentials of `response.user` and `response.password` as `login_creds`
+    - do:
+        headers:
+            Authorization: Basic ${login_creds} # replace `$loginc_creds` with the stashed value
+        get:
+            index: test
+            type:  test
+....
+
+Stashed values can be used as described in the `set` section
+
 === `is_true`
 
 The specified key exists and has a true value (ie not `0`, `false`, `undefined`, `null`

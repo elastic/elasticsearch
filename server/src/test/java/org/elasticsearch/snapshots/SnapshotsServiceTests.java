@@ -470,6 +470,9 @@ public class SnapshotsServiceTests extends ESTestCase {
             mockTransport = new DisruptableMockTransport(node, logger) {
                 @Override
                 protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {
+                    if (node.getName().equals(destination.getName())) {
+                        return ConnectionStatus.CONNECTED;
+                    }
                     return disruption.get().disrupt(node.getName(), destination.getName())
                         ? ConnectionStatus.DISCONNECTED : ConnectionStatus.CONNECTED;
                 }
@@ -498,7 +501,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                                 new AbstractRunnable() {
                                     @Override
                                     protected void doRun() throws Exception {
-                                        channel.sendResponse(new TransportException("Recovery not implemented yet"));
+                                        channel.sendResponse(new TransportException(new IOException("failed to recover shard")));
                                     }
 
                                     @Override

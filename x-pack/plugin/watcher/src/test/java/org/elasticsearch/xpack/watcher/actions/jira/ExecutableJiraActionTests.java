@@ -26,9 +26,11 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.mockito.ArgumentCaptor;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
@@ -308,4 +310,21 @@ public class ExecutableJiraActionTests extends ESTestCase {
             return textTemplate.getTemplate().toUpperCase(Locale.ROOT);
         }
     }
+
+    public void testMerge() {
+        Map<String, Object> writeableMap = new HashMap<>();
+        Map<String, Object> map = new HashMap<>();
+        map.put("foo", "bar");
+        Map<String, Object> componentMap = new HashMap<>();
+        componentMap.put("name", "value");
+        List<Map<String, Object>> list = new ArrayList<>();
+        list.add(componentMap);
+        map.put("components", list);
+        Map<String, Object> result = ExecutableJiraAction.merge(writeableMap, map, s -> s.toUpperCase(Locale.ROOT));
+        assertThat(result, hasEntry("FOO", "BAR"));
+        assertThat(result.get("COMPONENTS"), instanceOf(List.class));
+        List<Map<String, Object>> components = (List<Map<String, Object>>) result.get("COMPONENTS");
+        assertThat(components.get(0), hasEntry("NAME", "VALUE"));
+    }
+
 }

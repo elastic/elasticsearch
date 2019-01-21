@@ -177,6 +177,10 @@ subprojects {
         setting 'logger.org.elasticsearch.xpack.ml.action', 'DEBUG'
       }
 
+      if (version.onOrAfter('6.6.0')) {
+        setting 'ccr.auto_follow.wait_for_metadata_timeout', '1s'
+      }
+
       // Old versions of the code contain an invalid assertion that trips
       // during tests.  Versions 5.6.9 and 6.2.4 have been fixed by removing
       // the assertion, but this is impossible for released versions.

@@ -24,8 +24,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
@@ -50,10 +48,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -287,7 +283,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                     String clusterAlias = entry.getKey();
                     List<String> originalIndices = entry.getValue();
                     originalIndicesMap.put(clusterAlias,
-                        new OriginalIndices(originalIndices.toArray(new String[originalIndices.size()]), indicesOptions));
+                        new OriginalIndices(originalIndices.toArray(new String[0]), indicesOptions));
                 }
             }
         } else {
@@ -311,69 +307,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return remoteClusters.keySet();
     }
 
-    public void collectSearchShards(IndicesOptions indicesOptions, String preference, String routing,
-                                    Map<String, OriginalIndices> remoteIndicesByCluster,
-                                    ActionListener<Map<String, ClusterSearchShardsResponse>> listener) {
-        final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
-        final Map<String, ClusterSearchShardsResponse> searchShardsResponses = new ConcurrentHashMap<>();
-        final AtomicReference<RemoteTransportException> transportException = new AtomicReference<>();
-        for (Map.Entry<String, OriginalIndices> entry : remoteIndicesByCluster.entrySet()) {
-            final String clusterName = entry.getKey();
-            RemoteClusterConnection remoteClusterConnection = remoteClusters.get(clusterName);
-            if (remoteClusterConnection == null) {
-                throw new IllegalArgumentException("no such remote cluster: " + clusterName);
-            }
-            final String[] indices = entry.getValue().indices();
-            ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices)
-                    .indicesOptions(indicesOptions).local(true).preference(preference)
-                    .routing(routing);
-            remoteClusterConnection.fetchSearchShards(searchShardsRequest,
-                    new ActionListener<ClusterSearchShardsResponse>() {
-                        @Override
-                        public void onResponse(ClusterSearchShardsResponse clusterSearchShardsResponse) {
-                            searchShardsResponses.put(clusterName, clusterSearchShardsResponse);
-                            if (responsesCountDown.countDown()) {
-                                RemoteTransportException exception = transportException.get();
-                                if (exception == null) {
-                                    listener.onResponse(searchShardsResponses);
-                                } else {
-                                    listener.onFailure(transportException.get());
-                                }
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            RemoteTransportException exception =
-                                    new RemoteTransportException("error while communicating with remote cluster [" + clusterName + "]", e);
-                            if (transportException.compareAndSet(null, exception) == false) {
-                                exception = transportException.accumulateAndGet(exception, (previous, current) -> {
-                                    current.addSuppressed(previous);
-                                    return current;
-                                });
-                            }
-                            if (responsesCountDown.countDown()) {
-                                listener.onFailure(exception);
-                            }
-                        }
-                    });
-        }
-    }
-
     /**
      * Returns a connection to the given node on the given remote cluster
      * @throws IllegalArgumentException if the remote cluster is unknown
      */
     public Transport.Connection getConnection(DiscoveryNode node, String cluster) {
         return getRemoteClusterConnection(cluster).getConnection(node);
-    }
-
-    /**
-     * Ensures that the given cluster alias is connected. If the cluster is connected this operation
-     * will invoke the listener immediately.
-     */
-    void ensureConnected(String clusterAlias, ActionListener<Void> listener) {
-        getRemoteClusterConnection(clusterAlias).ensureConnected(listener);
     }
 
     public Transport.Connection getConnection(String cluster) {
@@ -399,7 +338,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         clusterSettings.addAffixUpdateConsumer(SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -> {});
     }
 
-    synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
+    private synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
         RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
         if (remote != null) {
             remote.updateSkipUnavailable(skipUnavailable);
@@ -510,5 +449,4 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     Collection<RemoteClusterConnection> getConnections() {
         return remoteClusters.values();
     }
-
 }

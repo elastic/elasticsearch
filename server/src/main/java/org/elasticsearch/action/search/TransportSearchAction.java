@@ -22,10 +22,12 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -39,6 +41,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
@@ -48,8 +51,10 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.CCSActionListener;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
@@ -60,8 +65,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -195,17 +203,22 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 executeSearch((SearchTask)task, timeProvider, searchRequest, localIndices, Collections.emptyList(),
                     (clusterName, nodeId) -> null, clusterState, Collections.emptyMap(), listener, SearchResponse.Clusters.EMPTY);
             } else {
-                remoteClusterService.collectSearchShards(searchRequest.indicesOptions(), searchRequest.preference(),
-                    searchRequest.routing(), remoteClusterIndices, ActionListener.wrap((searchShardsResponses) -> {
-                        List<SearchShardIterator> remoteShardIterators = new ArrayList<>();
-                        Map<String, AliasFilter> remoteAliasFilters = new HashMap<>();
-                        BiFunction<String, String, DiscoveryNode> clusterNodeLookup = processRemoteShards(searchShardsResponses,
-                            remoteClusterIndices, remoteShardIterators, remoteAliasFilters);
-                        SearchResponse.Clusters clusters = buildClusters(localIndices, remoteClusterIndices, searchShardsResponses);
-                        executeSearch((SearchTask) task, timeProvider, searchRequest, localIndices,
-                            remoteShardIterators, clusterNodeLookup, clusterState, remoteAliasFilters, listener,
-                            clusters);
-                    }, listener::onFailure));
+                AtomicInteger skippedClusters = new AtomicInteger(0);
+                collectSearchShards(searchRequest.indicesOptions(), searchRequest.preference(), searchRequest.routing(), skippedClusters,
+                    remoteClusterIndices, remoteClusterService, threadPool,
+                    ActionListener.wrap(
+                        searchShardsResponses -> {
+                            List<SearchShardIterator> remoteShardIterators = new ArrayList<>();
+                            Map<String, AliasFilter> remoteAliasFilters = new HashMap<>();
+                            BiFunction<String, String, DiscoveryNode> clusterNodeLookup = processRemoteShards(
+                                searchShardsResponses, remoteClusterIndices, remoteShardIterators, remoteAliasFilters);
+                            int total = remoteClusterIndices.size() + (localIndices == null ? 0 : 1);
+                            int successful = searchShardsResponses.size();
+                            executeSearch((SearchTask) task, timeProvider, searchRequest, localIndices,
+                                remoteShardIterators, clusterNodeLookup, clusterState, remoteAliasFilters, listener,
+                                new SearchResponse.Clusters(total, successful, skippedClusters.get()));
+                        },
+                        listener::onFailure));
             }
         }, listener::onFailure);
         if (searchRequest.source() == null) {
@@ -216,18 +229,59 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
-    static SearchResponse.Clusters buildClusters(OriginalIndices localIndices, Map<String, OriginalIndices> remoteIndices,
-                                                 Map<String, ClusterSearchShardsResponse> searchShardsResponses) {
-        int localClusters = localIndices == null ? 0 : 1;
-        int totalClusters = remoteIndices.size() + localClusters;
-        int successfulClusters = localClusters;
-        for (ClusterSearchShardsResponse searchShardsResponse : searchShardsResponses.values()) {
-            if (searchShardsResponse != ClusterSearchShardsResponse.EMPTY) {
-                successfulClusters++;
-            }
+    static void collectSearchShards(IndicesOptions indicesOptions, String preference, String routing, AtomicInteger skippedClusters,
+                                    Map<String, OriginalIndices> remoteIndicesByCluster, RemoteClusterService remoteClusterService,
+                                    ThreadPool threadPool, ActionListener<Map<String, ClusterSearchShardsResponse>> listener) {
+        final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
+        final Map<String, ClusterSearchShardsResponse> searchShardsResponses = new ConcurrentHashMap<>();
+        final AtomicReference<RemoteTransportException> transportException = new AtomicReference<>();
+        for (Map.Entry<String, OriginalIndices> entry : remoteIndicesByCluster.entrySet()) {
+            final String clusterAlias = entry.getKey();
+            Client clusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
+            final String[] indices = entry.getValue().indices();
+            ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices)
+                .indicesOptions(indicesOptions).local(true).preference(preference).routing(routing);
+            clusterClient.admin().cluster().searchShards(searchShardsRequest, new CCSActionListener<ClusterSearchShardsResponse>() {
+                    @Override
+                    public void onSkippedFailure(Exception e) {
+                        skippedClusters.incrementAndGet();
+                        maybeFinish();
+                    }
+
+                    @Override
+                    public void onResponse(ClusterSearchShardsResponse response) {
+                        searchShardsResponses.put(clusterAlias, response);
+                        maybeFinish();
+                    }
+
+                    private void maybeFinish() {
+                        if (responsesCountDown.countDown()) {
+                            RemoteTransportException exception = transportException.get();
+                            if (exception == null) {
+                                listener.onResponse(searchShardsResponses);
+                            } else {
+                                listener.onFailure(transportException.get());
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        RemoteTransportException exception =
+                            new RemoteTransportException("error while communicating with remote cluster [" + clusterAlias + "]", e);
+                        if (transportException.compareAndSet(null, exception) == false) {
+                            exception = transportException.accumulateAndGet(exception, (previous, current) -> {
+                                current.addSuppressed(previous);
+                                return current;
+                            });
+                        }
+                        if (responsesCountDown.countDown()) {
+                            listener.onFailure(exception);
+                        }
+                    }
+                }
+            );
         }
-        int skippedClusters = totalClusters - successfulClusters;
-        return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters);
     }
 
     static BiFunction<String, String, DiscoveryNode> processRemoteShards(Map<String, ClusterSearchShardsResponse> searchShardsResponses,

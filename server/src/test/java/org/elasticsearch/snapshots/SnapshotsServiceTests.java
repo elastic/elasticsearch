@@ -19,7 +19,6 @@
 
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -346,7 +345,8 @@ public class SnapshotsServiceTests extends ESTestCase {
     // -Dtests.seed=92C2A9BD03C14003 ... 35 runs
     // -ea  -Dtests.seed=92C2A9BD03C14003:AE482EC68DB8B206
     // 262C019B8568F4DF:6C6B6D998E1745E6
-    @Repeat(iterations = 100)
+    // ./gradlew null -Dtests.seed=C5E2A2FA6692D387 -Dtests.class=org.elasticsearch.snapshots.SnapshotsServiceTests -Dtests.method="testSnapshotPrimaryRelocations [seed=[C5E2A2FA6692D387:3EB447C9FE5056A]]" -Dtests.locale=vun-TZ -Dtests.timezone=Etc/GMT+10
+    // ./gradlew :server:unitTest -Dtests.seed=1163EDA5C788BA47 -Dtests.class=org.elasticsearch.snapshots.SnapshotsServiceTests -Dtests.method="testSnapshotPrimaryRelocations" -Dtests.security.manager=true -Dtests.locale=yo -Dtests.timezone=Etc/GMT-1 -Dcompiler.java=11 -Druntime.java=11
     public void testSnapshotPrimaryRelocations() {
         final int masterNodeCount = randomFrom(1, 3, 5);
         setupTestCluster(masterNodeCount, randomIntBetween(2, 10));

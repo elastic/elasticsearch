@@ -103,6 +103,7 @@ setup:
                 users:
                   top_hits:
                     sort: "users.last.keyword"
+                    seq_no_primary_term: true
 
   - match: { hits.total: 2 }
   - length: { aggregations.groups.buckets.0.users.hits.hits: 2 }

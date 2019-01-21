@@ -68,6 +68,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         PARSER.declareInt(InnerHitBuilder::setSize, SearchSourceBuilder.SIZE_FIELD);
         PARSER.declareBoolean(InnerHitBuilder::setExplain, SearchSourceBuilder.EXPLAIN_FIELD);
         PARSER.declareBoolean(InnerHitBuilder::setVersion, SearchSourceBuilder.VERSION_FIELD);
+        PARSER.declareBoolean(InnerHitBuilder::setSeqNoAndPrimaryTerm, SearchSourceBuilder.SEQ_NO_PRIMARY_TERM_FIELD);
         PARSER.declareBoolean(InnerHitBuilder::setTrackScores, SearchSourceBuilder.TRACK_SCORES_FIELD);
         PARSER.declareStringArray(InnerHitBuilder::setStoredFieldNames, SearchSourceBuilder.STORED_FIELDS_FIELD);
         PARSER.declareObjectArray(InnerHitBuilder::setDocValueFields,
@@ -124,6 +125,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
     private int size = 3;
     private boolean explain;
     private boolean version;
+    private boolean seqNoAndPrimaryTerm;
     private boolean trackScores;
 
     private StoredFieldsContext storedFieldsContext;
@@ -154,6 +156,11 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         size = in.readVInt();
         explain = in.readBoolean();
         version = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)){
+            seqNoAndPrimaryTerm = in.readBoolean();
+        } else {
+            seqNoAndPrimaryTerm = false;
+        }
         trackScores = in.readBoolean();
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
         if (in.getVersion().before(Version.V_6_4_0)) {
@@ -198,6 +205,9 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         out.writeVInt(size);
         out.writeBoolean(explain);
         out.writeBoolean(version);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeBoolean(seqNoAndPrimaryTerm);
+        }
         out.writeBoolean(trackScores);
         out.writeOptionalWriteable(storedFieldsContext);
         if (out.getVersion().before(Version.V_6_4_0)) {
@@ -295,6 +305,15 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
 
     public InnerHitBuilder setVersion(boolean version) {
         this.version = version;
+        return this;
+    }
+
+    public boolean isSeqNoAndPrimaryTerm() {
+        return seqNoAndPrimaryTerm;
+    }
+
+    public InnerHitBuilder setSeqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
+        this.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
         return this;
     }
 
@@ -435,6 +454,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         builder.field(SearchSourceBuilder.FROM_FIELD.getPreferredName(), from);
         builder.field(SearchSourceBuilder.SIZE_FIELD.getPreferredName(), size);
         builder.field(SearchSourceBuilder.VERSION_FIELD.getPreferredName(), version);
+        builder.field(SearchSourceBuilder.SEQ_NO_PRIMARY_TERM_FIELD.getPreferredName(), seqNoAndPrimaryTerm);
         builder.field(SearchSourceBuilder.EXPLAIN_FIELD.getPreferredName(), explain);
         builder.field(SearchSourceBuilder.TRACK_SCORES_FIELD.getPreferredName(), trackScores);
         if (fetchSourceContext != null) {
@@ -493,6 +513,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
                 Objects.equals(size, that.size) &&
                 Objects.equals(explain, that.explain) &&
                 Objects.equals(version, that.version) &&
+                Objects.equals(seqNoAndPrimaryTerm, that.seqNoAndPrimaryTerm) &&
                 Objects.equals(trackScores, that.trackScores) &&
                 Objects.equals(storedFieldsContext, that.storedFieldsContext) &&
                 Objects.equals(docValueFields, that.docValueFields) &&

@@ -44,6 +44,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregatorFactor
     private final int size;
     private final boolean explain;
     private final boolean version;
+    private final boolean seqNoAndPrimaryTerm;
     private final boolean trackScores;
     private final Optional<SortAndFormats> sort;
     private final HighlightBuilder highlightBuilder;
@@ -52,10 +53,9 @@ class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregatorFactor
     private final List<ScriptFieldsContext.ScriptField> scriptFields;
     private final FetchSourceContext fetchSourceContext;
 
-    TopHitsAggregatorFactory(String name, int from, int size, boolean explain, boolean version, boolean trackScores,
-                 Optional<SortAndFormats> sort, HighlightBuilder highlightBuilder, StoredFieldsContext storedFieldsContext,
-                 List<FieldAndFormat> docValueFields, List<ScriptFieldsContext.ScriptField> scriptFields,
-                 FetchSourceContext fetchSourceContext,
+    TopHitsAggregatorFactory(String name, int from, int size, boolean explain, boolean version, boolean seqNoAndPrimaryTerm,
+            boolean trackScores, Optional<SortAndFormats> sort, HighlightBuilder highlightBuilder, StoredFieldsContext storedFieldsContext,
+            List<FieldAndFormat> docValueFields, List<ScriptFieldsContext.ScriptField> scriptFields, FetchSourceContext fetchSourceContext,
             SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactories, Map<String, Object> metaData)
             throws IOException {
         super(name, context, parent, subFactories, metaData);
@@ -63,6 +63,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregatorFactor
         this.size = size;
         this.explain = explain;
         this.version = version;
+        this.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
         this.trackScores = trackScores;
         this.sort = sort;
         this.highlightBuilder = highlightBuilder;
@@ -79,6 +80,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregatorFactor
         subSearchContext.parsedQuery(context.parsedQuery());
         subSearchContext.explain(explain);
         subSearchContext.version(version);
+        subSearchContext.seqNoAndPrimaryTerm(seqNoAndPrimaryTerm);
         subSearchContext.trackScores(trackScores);
         subSearchContext.from(from);
         subSearchContext.size(size);

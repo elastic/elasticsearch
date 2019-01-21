@@ -34,6 +34,10 @@ import java.util.Comparator;
 public final class SeqNoPrimaryTermFetchSubPhase implements FetchSubPhase {
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
+        if (context.seqNoAndPrimaryTerm() == false ||
+            (context.storedFieldsContext() != null && context.storedFieldsContext().fetchFields() == false)) {
+            return;
+        }
 
         hits = hits.clone(); // don't modify the incoming hits
         Arrays.sort(hits, Comparator.comparingInt(SearchHit::docId));

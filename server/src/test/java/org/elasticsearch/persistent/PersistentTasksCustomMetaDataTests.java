@@ -39,7 +39,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -55,7 +54,6 @@ import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTask
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -325,7 +323,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
 
     public void testDisassociateDeadNodes_givenAssignedPersistentTask() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-                .add(new DiscoveryNode("node1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
+                .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
                 .localNodeId("node1")
                 .masterNodeId("node1")
                 .build();
@@ -349,7 +347,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
 
     public void testDisassociateDeadNodes() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-                .add(new DiscoveryNode("node1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
+                .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
                 .localNodeId("node1")
                 .masterNodeId("node1")
                 .build();

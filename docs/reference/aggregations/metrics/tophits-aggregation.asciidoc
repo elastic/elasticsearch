@@ -243,15 +243,13 @@ Let's see how it works with a real sample. Considering the following mapping:
 PUT /sales
 {
     "mappings": {
-        "_doc" : {
-            "properties" : {
-                "tags" : { "type" : "keyword" },
-                "comments" : { <1>
-                    "type" : "nested",
-                    "properties" : {
-                        "username" : { "type" : "keyword" },
-                        "comment" : { "type" : "text" }
-                    }
+        "properties" : {
+            "tags" : { "type" : "keyword" },
+            "comments" : { <1>
+                "type" : "nested",
+                "properties" : {
+                    "username" : { "type" : "keyword" },
+                    "comment" : { "type" : "text" }
                 }
             }
         }

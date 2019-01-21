@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-put-follow]]
-=== Create Follower API
+=== Create follower API
 ++++
-<titleabbrev>Create Follower</titleabbrev>
+<titleabbrev>Create follower</titleabbrev>
 ++++
 
 beta[]

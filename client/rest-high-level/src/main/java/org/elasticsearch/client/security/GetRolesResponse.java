@@ -20,13 +20,16 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.security.user.privileges.Role;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -36,24 +39,37 @@ import java.util.Objects;
 public final class GetRolesResponse {
 
     private final List<Role> roles;
+    private final Map<String, Map<String, Object>> transientMetadataMap;
 
-    public GetRolesResponse(List<Role> roles) {
+    GetRolesResponse(List<Role> roles, Map<String, Map<String, Object>> transientMetadataMap) {
         this.roles = Collections.unmodifiableList(roles);
+        this.transientMetadataMap = Collections.unmodifiableMap(transientMetadataMap);
     }
 
     public List<Role> getRoles() {
         return roles;
     }
 
+    public Map<String, Map<String, Object>> getTransientMetadataMap() {
+        return transientMetadataMap;
+    }
+
+    public Map<String, Object> getTransientMetadata(String roleName) {
+        return transientMetadataMap.get(roleName);
+    }
+
     public static GetRolesResponse fromXContent(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
         final List<Role> roles = new ArrayList<>();
+        final Map<String, Map<String, Object>> transientMetadata = new HashMap<>();
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-            roles.add(Role.PARSER.parse(parser, parser.currentName()));
+            final Tuple<Role, Map<String, Object>> roleAndTransientMetadata = Role.PARSER.parse(parser, parser.currentName());
+            roles.add(roleAndTransientMetadata.v1());
+            transientMetadata.put(roleAndTransientMetadata.v1().getName(), roleAndTransientMetadata.v2());
         }
-        return new GetRolesResponse(roles);
+        return new GetRolesResponse(roles, transientMetadata);
     }
 
     @Override
@@ -61,11 +77,12 @@ public final class GetRolesResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetRolesResponse response = (GetRolesResponse) o;
-        return Objects.equals(roles, response.roles);
+        return Objects.equals(roles, response.roles)
+                && Objects.equals(transientMetadataMap, response.transientMetadataMap);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(roles);
+        return Objects.hash(roles, transientMetadataMap);
     }
 }

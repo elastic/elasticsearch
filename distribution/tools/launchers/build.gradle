@@ -38,6 +38,15 @@ namingConventions {
     skipIntegTestInDisguise = true
 }
 
+testingConventions {
+    naming.clear()
+    naming {
+      Tests {
+        baseClass 'org.elasticsearch.tools.launchers.LaunchersTestCase'
+      }
+    }
+}
+
 javadoc.enabled = false
 loggerUsageCheck.enabled = false
 jarHell.enabled = false

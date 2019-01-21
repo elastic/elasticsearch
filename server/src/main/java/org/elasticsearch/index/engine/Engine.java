@@ -72,7 +72,6 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -106,11 +105,15 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+
 public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
+    public static final String RETENTION_LEASES = "retention_leases";
     public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
 
     protected final ShardId shardId;
@@ -147,7 +150,7 @@ public abstract class Engine implements Closeable {
      * 1. A primary initializes this marker once using the max_seq_no from its history, then advances when processing an update or delete.
      * 2. A replica never advances this marker by itself but only inherits from its primary (via advanceMaxSeqNoOfUpdatesOrDeletes).
      */
-    private final AtomicLong maxSeqNoOfUpdatesOrDeletes = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
+    private final AtomicLong maxSeqNoOfUpdatesOrDeletes = new AtomicLong(UNASSIGNED_SEQ_NO);
 
     protected Engine(EngineConfig engineConfig) {
         Objects.requireNonNull(engineConfig.getStore(), "Store must be provided to the engine");
@@ -425,8 +428,8 @@ public abstract class Engine implements Closeable {
         protected Result(Operation.TYPE operationType, Mapping requiredMappingUpdate) {
             this.operationType = operationType;
             this.version = Versions.NOT_FOUND;
-            this.seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            this.term = 0L;
+            this.seqNo = UNASSIGNED_SEQ_NO;
+            this.term = UNASSIGNED_PRIMARY_TERM;
             this.failure = null;
             this.requiredMappingUpdate = requiredMappingUpdate;
             this.resultType = Type.MAPPING_UPDATE_REQUIRED;
@@ -522,7 +525,7 @@ public abstract class Engine implements Closeable {
          * use in case of the index operation failed before getting to internal engine
          **/
         public IndexResult(Exception failure, long version, long term) {
-            this(failure, version, term, SequenceNumbers.UNASSIGNED_SEQ_NO);
+            this(failure, version, term, UNASSIGNED_SEQ_NO);
         }
 
         public IndexResult(Exception failure, long version, long term, long seqNo) {
@@ -554,7 +557,7 @@ public abstract class Engine implements Closeable {
          * use in case of the delete operation failed before getting to internal engine
          **/
         public DeleteResult(Exception failure, long version, long term) {
-            this(failure, version, term, SequenceNumbers.UNASSIGNED_SEQ_NO, false);
+            this(failure, version, term, UNASSIGNED_SEQ_NO, false);
         }
 
         public DeleteResult(Exception failure, long version, long term, long seqNo, boolean found) {
@@ -606,7 +609,7 @@ public abstract class Engine implements Closeable {
         final Searcher searcher = searcherFactory.apply("get", scope);
         final DocIdAndVersion docIdAndVersion;
         try {
-            docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.reader(), get.uid());
+            docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.reader(), get.uid(), true);
         } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
             //TODO: A better exception goes here
@@ -722,7 +725,8 @@ public abstract class Engine implements Closeable {
     public abstract Closeable acquireRetentionLockForPeerRecovery();
 
     /**
-     * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive)
+     * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive).
+     * This feature requires soft-deletes enabled. If soft-deletes are disabled, this method will throw an {@link IllegalStateException}.
      */
     public abstract Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
                                                          long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException;
@@ -1344,14 +1348,23 @@ public abstract class Engine implements Closeable {
         private final ParsedDocument doc;
         private final long autoGeneratedIdTimestamp;
         private final boolean isRetry;
+        private final long ifSeqNo;
+        private final long ifPrimaryTerm;
 
         public Index(Term uid, ParsedDocument doc, long seqNo, long primaryTerm, long version, VersionType versionType, Origin origin,
-                     long startTime, long autoGeneratedIdTimestamp, boolean isRetry) {
+                     long startTime, long autoGeneratedIdTimestamp, boolean isRetry, long ifSeqNo, long ifPrimaryTerm) {
             super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
             assert (origin == Origin.PRIMARY) == (versionType != null) : "invalid version_type=" + versionType + " for origin=" + origin;
+            assert ifPrimaryTerm >= 0 : "ifPrimaryTerm [" + ifPrimaryTerm + "] must be non negative";
+            assert ifSeqNo == UNASSIGNED_SEQ_NO || ifSeqNo >=0 :
+                "ifSeqNo [" + ifSeqNo + "] must be non negative or unset";
+            assert (origin == Origin.PRIMARY) || (ifSeqNo == UNASSIGNED_SEQ_NO && ifPrimaryTerm == UNASSIGNED_PRIMARY_TERM) :
+                "cas operations are only allowed if origin is primary. get [" + origin + "]";
             this.doc = doc;
             this.isRetry = isRetry;
             this.autoGeneratedIdTimestamp = autoGeneratedIdTimestamp;
+            this.ifSeqNo = ifSeqNo;
+            this.ifPrimaryTerm = ifPrimaryTerm;
         }
 
         public Index(Term uid, long primaryTerm, ParsedDocument doc) {
@@ -1359,8 +1372,8 @@ public abstract class Engine implements Closeable {
         } // TEST ONLY
 
         Index(Term uid, long primaryTerm, ParsedDocument doc, long version) {
-            this(uid, doc, SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm, version, VersionType.INTERNAL,
-                Origin.PRIMARY, System.nanoTime(), -1, false);
+            this(uid, doc, UNASSIGNED_SEQ_NO, primaryTerm, version, VersionType.INTERNAL,
+                Origin.PRIMARY, System.nanoTime(), -1, false, UNASSIGNED_SEQ_NO, 0);
         } // TEST ONLY
 
         public ParsedDocument parsedDoc() {
@@ -1416,29 +1429,45 @@ public abstract class Engine implements Closeable {
             return isRetry;
         }
 
+        public long getIfSeqNo() {
+            return ifSeqNo;
+        }
+
+        public long getIfPrimaryTerm() {
+            return ifPrimaryTerm;
+        }
     }
 
     public static class Delete extends Operation {
 
         private final String type;
         private final String id;
+        private final long ifSeqNo;
+        private final long ifPrimaryTerm;
 
         public Delete(String type, String id, Term uid, long seqNo, long primaryTerm, long version, VersionType versionType,
-                      Origin origin, long startTime) {
+                      Origin origin, long startTime, long ifSeqNo, long ifPrimaryTerm) {
             super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
             assert (origin == Origin.PRIMARY) == (versionType != null) : "invalid version_type=" + versionType + " for origin=" + origin;
+            assert ifPrimaryTerm >= 0 : "ifPrimaryTerm [" + ifPrimaryTerm + "] must be non negative";
+            assert ifSeqNo == UNASSIGNED_SEQ_NO || ifSeqNo >=0 :
+                "ifSeqNo [" + ifSeqNo + "] must be non negative or unset";
+            assert (origin == Origin.PRIMARY) || (ifSeqNo == UNASSIGNED_SEQ_NO && ifPrimaryTerm == UNASSIGNED_PRIMARY_TERM) :
+                "cas operations are only allowed if origin is primary. get [" + origin + "]";
             this.type = Objects.requireNonNull(type);
             this.id = Objects.requireNonNull(id);
+            this.ifSeqNo = ifSeqNo;
+            this.ifPrimaryTerm = ifPrimaryTerm;
         }
 
         public Delete(String type, String id, Term uid, long primaryTerm) {
-            this(type, id, uid, SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm, Versions.MATCH_ANY, VersionType.INTERNAL,
-                Origin.PRIMARY, System.nanoTime());
+            this(type, id, uid, UNASSIGNED_SEQ_NO, primaryTerm, Versions.MATCH_ANY, VersionType.INTERNAL,
+                Origin.PRIMARY, System.nanoTime(), UNASSIGNED_SEQ_NO, 0);
         }
 
         public Delete(Delete template, VersionType versionType) {
             this(template.type(), template.id(), template.uid(), template.seqNo(), template.primaryTerm(), template.version(),
-                    versionType, template.origin(), template.startTime());
+                    versionType, template.origin(), template.startTime(), UNASSIGNED_SEQ_NO, 0);
         }
 
         @Override
@@ -1461,6 +1490,13 @@ public abstract class Engine implements Closeable {
             return (uid().field().length() + uid().text().length()) * 2 + 20;
         }
 
+        public long getIfSeqNo() {
+            return ifSeqNo;
+        }
+
+        public long getIfPrimaryTerm() {
+            return ifPrimaryTerm;
+        }
     }
 
     public static class NoOp extends Operation {

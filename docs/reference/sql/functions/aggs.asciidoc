@@ -3,6 +3,8 @@
 [[sql-functions-aggs]]
 === Aggregate Functions
 
+beta[]
+
 Functions for computing a _single_ result from a set of input values.
 {es-sql} supports aggregate functions only alongside <<sql-syntax-group-by,grouping>> (implicit or explicit).
 
@@ -11,158 +13,348 @@ Functions for computing a _single_ result from a set of input values.
 [[sql-functions-aggs-avg]]
 ===== `AVG`
 
-*Input*: Numeric, *Output*: `double`
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+AVG(numeric_field<1>)
+--------------------------------------------------
 
-https://en.wikipedia.org/wiki/Arithmetic_mean[Average] (arithmetic mean) of input values.
+*Input*:
 
+<1> numeric field
 
-["source","sql",subs="attributes,callouts,macros"]
-----
+*Output*: `double` numeric value
+
+.Description:
+
+Returns the https://en.wikipedia.org/wiki/Arithmetic_mean[Average] (arithmetic mean) of input values.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[aggAvg]
-----
+--------------------------------------------------
 
 [[sql-functions-aggs-count]]
 ===== `COUNT`
 
-*Input*: Any, *Output*: `bigint`
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+COUNT(expression<1>)
+--------------------------------------------------
 
-Total number (count) of input values.
+*Input*:
 
-["source","sql",subs="attributes,callouts,macros"]
-----
+<1> a field name, wildcard (`*`) or any numeric value
+
+*Output*: numeric value
+
+.Description:
+
+Returns the total number (count) of input values.
+
+In case of `COUNT(*)` or `COUNT(<literal>)`, _all_ values are considered (including `null` or missing ones).
+
+In case of `COUNT(<field_name>)` `null` values are not considered.
+
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[aggCountStar]
-----
+--------------------------------------------------
+
+
+[[sql-functions-aggs-count-all]]
+===== `COUNT(ALL)`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+COUNT(ALL field_name<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> a field name
+
+*Output*: numeric value
+
+.Description:
+
+Returns the total number (count) of all _non-null_ input values. `COUNT(<field_name>)` and `COUNT(ALL <field_name>)` are equivalent.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[aggCountAll]
+--------------------------------------------------
+
 
 [[sql-functions-aggs-count-distinct]]
 ===== `COUNT(DISTINCT)`
 
-*Input*: Any, *Output*: `bigint`
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+COUNT(DISTINCT field_name<1>)
+--------------------------------------------------
 
-Total number of _distinct_ values in input values.
+*Input*:
 
-["source","sql",subs="attributes,callouts,macros"]
-----
+<1> a field name
+
+*Output*: numeric value
+
+.Description:
+
+Returns the total number of _distinct non-null_ values in input values.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[aggCountDistinct]
-----
+--------------------------------------------------
 
 [[sql-functions-aggs-max]]
 ===== `MAX`
 
-*Input*: Numeric, *Output*: Same as input
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+MAX(field_name<1>)
+--------------------------------------------------
 
-Maximum value across input values.
+*Input*:
 
-["source","sql",subs="attributes,callouts,macros"]
-----
+<1> a numeric field
+
+*Output*: same type as the input
+
+.Description:
+
+Returns the maximum value across input values in the field `field_name`.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[aggMax]
-----
+--------------------------------------------------
 
 [[sql-functions-aggs-min]]
 ===== `MIN`
 
-*Input*: Numeric, *Output*: Same as input
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+MIN(field_name<1>)
+--------------------------------------------------
 
-Minimum value across input values.
+*Input*:
 
-["source","sql",subs="attributes,callouts,macros"]
-----
+<1> a numeric field
+
+*Output*: same type as the input
+
+.Description:
+
+Returns the minimum value across input values in the field `field_name`.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[aggMin]
-----
+--------------------------------------------------
 
 [[sql-functions-aggs-sum]]
 ===== `SUM`
 
-*Input*: Numeric, *Output*: `bigint` for integer input, `double` for floating points
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+SUM(field_name<1>)
+--------------------------------------------------
 
-Sum of input values.
+*Input*:
 
-["source","sql",subs="attributes,callouts,macros"]
-----
+<1> a numeric field
+
+*Output*: `bigint` for integer input, `double` for floating points
+
+.Description:
+
+Returns the sum of input values in the field `field_name`.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[aggSum]
-----
+--------------------------------------------------
 
 ==== Statistics
 
 [[sql-functions-aggs-kurtosis]]
 ===== `KURTOSIS`
 
-*Input*: Numeric, *Output*: `double`
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+KURTOSIS(field_name<1>)
+--------------------------------------------------
 
-https://en.wikipedia.org/wiki/Kurtosis[Quantify] the shape of the distribution of input values.
+*Input*:
 
-["source","sql",subs="attributes,callouts,macros"]
-----
+<1> a numeric field
+
+*Output*: `double` numeric value
+
+.Description:
+
+https://en.wikipedia.org/wiki/Kurtosis[Quantify] the shape of the distribution of input values in the field `field_name`.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[aggKurtosis]
-----
+--------------------------------------------------
 
 [[sql-functions-aggs-percentile]]
 ===== `PERCENTILE`
 
-*Input*: Numeric, *Output*: `double`
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+PERCENTILE(field_name<1>, numeric_exp<2>)
+--------------------------------------------------
 
-The nth https://en.wikipedia.org/wiki/Percentile[percentile] of input values.
+*Input*:
 
-["source","sql",subs="attributes,callouts,macros"]
-----
+<1> a numeric field
+<2> a numeric expression (must be a constant and not based on a field)
+
+*Output*: `double` numeric value
+
+.Description:
+
+Returns the nth https://en.wikipedia.org/wiki/Percentile[percentile] (represented by `numeric_exp` parameter)
+of input values in the field `field_name`.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[aggPercentile]
-----
+--------------------------------------------------
 
 [[sql-functions-aggs-percentile-rank]]
 ===== `PERCENTILE_RANK`
 
-*Input*: Numeric, *Output*: `double`
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+PERCENTILE_RANK(field_name<1>, numeric_exp<2>)
+--------------------------------------------------
 
-The https://en.wikipedia.org/wiki/Percentile_rank[percentile rank] of input values of input values.
+*Input*:
 
-["source","sql",subs="attributes,callouts,macros"]
-----
+<1> a numeric field
+<2> a numeric expression (must be a constant and not based on a field)
+
+*Output*: `double` numeric value
+
+.Description:
+
+Returns the nth https://en.wikipedia.org/wiki/Percentile_rank[percentile rank] (represented by `numeric_exp` parameter)
+of input values in the field `field_name`.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[aggPercentileRank]
-----
+--------------------------------------------------
 
 [[sql-functions-aggs-skewness]]
 ===== `SKEWNESS`
 
-*Input*: Numeric, *Output*: `double`
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+SKEWNESS(field_name<1>)
+--------------------------------------------------
 
-https://en.wikipedia.org/wiki/Skewness[Quantify] the asymmetric distribution of input values.
+*Input*:
 
-["source","sql",subs="attributes,callouts,macros"]
-----
+<1> a numeric field
+
+*Output*: `double` numeric value
+
+.Description:
+
+https://en.wikipedia.org/wiki/Skewness[Quantify] the asymmetric distribution of input values in the field `field_name`.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[aggSkewness]
-----
+--------------------------------------------------
 
 [[sql-functions-aggs-stddev-pop]]
 ===== `STDDEV_POP`
 
-*Input*: Numeric, *Output*: `double`
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+STDDEV_POP(field_name<1>)
+--------------------------------------------------
 
-https://en.wikipedia.org/wiki/Standard_deviations[Population standard deviation] of input values.
+*Input*:
 
-["source","sql",subs="attributes,callouts,macros"]
-----
+<1> a numeric field
+
+*Output*: `double` numeric value
+
+.Description:
+
+Returns the https://en.wikipedia.org/wiki/Standard_deviations[population standard deviation] of input values in the field `field_name`.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[aggStddevPop]
-----
+--------------------------------------------------
 
 [[sql-functions-aggs-sum-squares]]
 ===== `SUM_OF_SQUARES`
 
-*Input*: Numeric, *Output*: `double`
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+SUM_OF_SQUARES(field_name<1>)
+--------------------------------------------------
 
-https://en.wikipedia.org/wiki/Total_sum_of_squares[Sum of squares] of input values.
+*Input*:
 
-["source","sql",subs="attributes,callouts,macros"]
-----
+<1> a numeric field
+
+*Output*: `double` numeric value
+
+.Description:
+
+Returns the https://en.wikipedia.org/wiki/Total_sum_of_squares[sum of squares] of input values in the field `field_name`.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[aggSumOfSquares]
-----
+--------------------------------------------------
 
 [[sql-functions-aggs-var-pop]]
 ===== `VAR_POP`
 
-*Input*: Numeric, *Output*: `double`
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+VAR_POP(field_name<1>)
+--------------------------------------------------
 
-https://en.wikipedia.org/wiki/Variance[Population] variance of input values.
+*Input*:
 
-["source","sql",subs="attributes,callouts,macros"]
-----
+<1> a numeric field
+
+*Output*: `double` numeric value
+
+.Description:
+
+Returns the https://en.wikipedia.org/wiki/Variance[population variance] of input values in the field `field_name`.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[aggVarPop]
-----
+--------------------------------------------------

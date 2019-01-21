@@ -26,6 +26,8 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
@@ -88,6 +90,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             final int id = idStart + i;
             Request indexDoc = new Request("PUT", index + "/test/" + id);
             indexDoc.setJsonEntity("{\"test\": \"test_" + randomAsciiOfLength(2) + "\"}");
+            indexDoc.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
             client().performRequest(indexDoc);
         }
         return numDocs;
@@ -272,4 +275,35 @@ public class RecoveryIT extends AbstractRollingTestCase {
         ensureGreen(index);
     }
 
+    public void testRecoveryWithSoftDeletes() throws Exception {
+        final String index = "recover_with_soft_deletes";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            Settings.Builder settings = Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                // if the node with the replica is the first to be restarted, while a replica is still recovering
+                // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
+                // before timing out
+                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
+            if (getNodeId(v -> v.onOrAfter(Version.V_6_5_0)) != null && randomBoolean()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+            }
+            createIndex(index, settings.build());
+            int numDocs = randomInt(10);
+            indexDocs(index, 0, numDocs);
+            if (randomBoolean()) {
+                client().performRequest(new Request("POST", "/" + index + "/_flush"));
+            }
+            for (int i = 0; i < numDocs; i++) {
+                if (randomBoolean()) {
+                    indexDocs(index, i, 1); // update
+                } else if (randomBoolean()) {
+                    client().performRequest(new Request("DELETE", index + "/test/" + i));
+                }
+            }
+        }
+        ensureGreen(index);
+    }
 }

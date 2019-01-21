@@ -300,7 +300,9 @@ public class TermVectorsUnitTests extends ESTestCase {
         data = createParser(JsonXContent.jsonXContent, new BytesArray(bytes));
         request = new MultiTermVectorsRequest();
         request.add(new TermVectorsRequest(), data);
+
         checkParsedParameters(request);
+        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     void checkParsedParameters(MultiTermVectorsRequest request) {
@@ -330,7 +332,9 @@ public class TermVectorsUnitTests extends ESTestCase {
         XContentParser data = createParser(JsonXContent.jsonXContent, bytes);
         MultiTermVectorsRequest request = new MultiTermVectorsRequest();
         request.add(new TermVectorsRequest(), data);
+
         checkParsedFilterParameters(request);
+        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     void checkParsedFilterParameters(MultiTermVectorsRequest multiRequest) {

@@ -6,31 +6,29 @@
 package org.elasticsearch.xpack.sql.expression.predicate.regex;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class Like extends RegexMatch {
 
-    public Like(Location location, Expression left, LikePattern right) {
-        super(location, left, right);
+    private final LikePattern pattern;
+
+    public Like(Source source, Expression left, LikePattern pattern) {
+        super(source, left, pattern.asJavaRegex());
+        this.pattern = pattern;
+    }
+
+    public LikePattern pattern() {
+        return pattern;
     }
 
     @Override
     protected NodeInfo<Like> info() {
-        return NodeInfo.create(this, Like::new, left(), pattern());
-    }
-
-    public LikePattern pattern() {
-        return (LikePattern) right();
+        return NodeInfo.create(this, Like::new, field(), pattern);
     }
 
     @Override
-    protected Like replaceChildren(Expression newLeft, Expression newRight) {
-        return new Like(location(), newLeft, (LikePattern) newRight);
-    }
-
-    @Override
-    protected String asString(Expression pattern) {
-        return ((LikePattern) pattern).asJavaRegex();
+    protected Like replaceChild(Expression newLeft) {
+        return new Like(source(), newLeft, pattern);
     }
 }

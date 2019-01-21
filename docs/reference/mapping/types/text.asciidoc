@@ -17,7 +17,7 @@ Below is an example of a mapping for a text field:
 
 [source,js]
 --------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {

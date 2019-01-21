@@ -7,11 +7,13 @@ package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -20,14 +22,18 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 
 public class XContentObjectTransformerTests extends ESTestCase {
 
@@ -102,6 +108,26 @@ public class XContentObjectTransformerTests extends ESTestCase {
         assertXContentAreEqual(queryBuilder, queryBuilderTransformer.toMap(queryBuilder));
         assertXContentAreEqual(queryBuilderTransformer.fromMap(queryBuilderTransformer.toMap(queryBuilder)),
             queryBuilderTransformer.toMap(queryBuilder));
+    }
+
+    public void testDeprecationWarnings() throws IOException {
+        XContentObjectTransformer<QueryBuilder> queryBuilderTransformer = new XContentObjectTransformer<>(NamedXContentRegistry.EMPTY,
+            (p)-> {
+            p.getDeprecationHandler().usedDeprecatedField("oldField", "newField");
+            p.getDeprecationHandler().usedDeprecatedName("oldName", "modernName");
+            return new BoolQueryBuilder();
+            });
+        List<String> deprecations = new ArrayList<>();
+        queryBuilderTransformer.fromMap(Collections.singletonMap("bool", "match"), deprecations);
+
+        assertThat(deprecations, hasSize(2));
+        assertThat(deprecations, hasItem("Deprecated field [oldField] used, replaced by [newField]"));
+        assertThat(deprecations, hasItem("Deprecated field [oldName] used, expected [modernName] instead"));
+    }
+
+    @Override
+    protected boolean enableWarningsCheck() {
+        return false;
     }
 
     private void assertXContentAreEqual(ToXContentObject object, Map<String, Object> map) throws IOException {

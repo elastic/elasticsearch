@@ -592,4 +592,11 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
     }
+
+    public void testTypeField() throws IOException {
+        RangeQueryBuilder builder = QueryBuilders.rangeQuery("_type")
+            .from("value1");
+        builder.doToQuery(createShardContext());
+        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
+    }
 }

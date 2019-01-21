@@ -65,7 +65,7 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
         clusterService = getInstanceFromNode(ClusterService.class);
         indicesService = getInstanceFromNode(IndicesService.class);
         CapturingTransport capturingTransport = new CapturingTransport();
-        transportService = capturingTransport.createCapturingTransportService(clusterService.getSettings(), threadPool,
+        transportService = capturingTransport.createTransportService(clusterService.getSettings(), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> clusterService.localNode(), null, emptySet());
         transportService.start();

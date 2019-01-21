@@ -311,7 +311,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             shutdownExecutorService();
         });
         // When the Daemon is not used, or runs into issues, rely on a shutdown hook
-        // When the daemon is used, but does not work correctly and eventually dies off (e.x. due to non interruptable
+        // When the daemon is used, but does not work correctly and eventually dies off (e.x. due to non interruptible
         // thread in the build) process will be stopped eventually when the daemon dies.
         Runtime.getRuntime().addShutdownHook(new Thread(TestClustersPlugin::shutDownAllClusters));
     }

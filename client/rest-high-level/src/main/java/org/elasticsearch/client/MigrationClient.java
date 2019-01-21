@@ -19,6 +19,8 @@
 
 package org.elasticsearch.client;
 
+import org.elasticsearch.client.migration.DeprecationInfoRequest;
+import org.elasticsearch.client.migration.DeprecationInfoResponse;
 import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.client.migration.IndexUpgradeInfoResponse;
 import org.elasticsearch.action.ActionListener;
@@ -71,5 +73,29 @@ public final class MigrationClient {
     public void upgradeAsync(IndexUpgradeRequest request, RequestOptions options, ActionListener<BulkByScrollResponse> listener)  {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, MigrationRequestConverters::migrate, options,
             BulkByScrollResponse::fromXContent, listener, Collections.emptySet());
+    }
+
+    /**
+     * Get deprecation info for one or more indices
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public DeprecationInfoResponse getDeprecationInfo(DeprecationInfoRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, MigrationRequestConverters::getDeprecationInfo, options,
+            DeprecationInfoResponse::fromXContent, Collections.emptySet());
+    }
+
+    /**
+     * Asynchronously get deprecation info for one or more indices
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getDeprecationInfoAsync(DeprecationInfoRequest request, RequestOptions options,
+                                        ActionListener<DeprecationInfoResponse> listener)  {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, MigrationRequestConverters::getDeprecationInfo, options,
+            DeprecationInfoResponse::fromXContent, listener, Collections.emptySet());
     }
 }

@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.rest;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -23,18 +25,26 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 public class RestFindFileStructureAction extends BaseRestHandler {
 
     private static final TimeValue DEFAULT_TIMEOUT = new TimeValue(25, TimeUnit.SECONDS);
 
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(RestFindFileStructureAction.class));
+
     public RestFindFileStructureAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "find_file_structure", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            POST, MachineLearning.BASE_PATH + "find_file_structure", this,
+            POST, MachineLearning.PRE_V7_BASE_PATH + "find_file_structure", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_ml_find_file_structure_action";
+        return "ml_find_file_structure_action";
     }
 
     @Override

@@ -65,7 +65,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -135,12 +134,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         // remove entries from cache that don't exist in the routing table anymore (either closed or deleted indices)
         // - removing shard data of deleted indices is handled by IndicesClusterStateService
         // - closed indices don't need to be removed from the cache but we do it anyway for code simplicity
-        for (Iterator<ShardId> it = folderNotFoundCache.iterator(); it.hasNext(); ) {
-            ShardId shardId = it.next();
-            if (routingTable.hasIndex(shardId.getIndex()) == false) {
-                it.remove();
-            }
-        }
+        folderNotFoundCache.removeIf(shardId -> !routingTable.hasIndex(shardId.getIndex()));
         // remove entries from cache which are allocated to this node
         final String localNodeId = event.state().nodes().getLocalNodeId();
         RoutingNode localRoutingNode = event.state().getRoutingNodes().node(localNodeId);

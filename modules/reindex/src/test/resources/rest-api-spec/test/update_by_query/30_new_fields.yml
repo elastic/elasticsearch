@@ -12,15 +12,15 @@
   - do:
       index:
         index:   test
-        type:    place
+        type:    _doc
         id:      1
         refresh: true
         body:    { "name": "bob! house" }
 
   - do:
       indices.put_mapping:
+        include_type_name: false
         index: test
-        type:  place
         body:
           properties:
             name:

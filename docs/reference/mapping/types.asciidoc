@@ -47,6 +47,11 @@ string::        <<text,`text`>> and <<keyword,`keyword`>>
 
 <<feature-vector>>:: Record numeric feature vectors to boost hits at query time.
 
+<<dense-vector>>::   Record dense vectors of float values.
+
+<<sparse-vector>>::   Record sparse vectors of float values.
+
+
 [float]
 === Multi-fields
 
@@ -98,3 +103,7 @@ include::types/parent-join.asciidoc[]
 include::types/feature.asciidoc[]
 
 include::types/feature-vector.asciidoc[]
+
+include::types/dense-vector.asciidoc[]
+
+include::types/sparse-vector.asciidoc[]

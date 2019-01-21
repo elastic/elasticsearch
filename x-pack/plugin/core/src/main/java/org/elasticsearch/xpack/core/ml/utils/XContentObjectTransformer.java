@@ -22,7 +22,9 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -46,7 +48,8 @@ public class XContentObjectTransformer<T extends ToXContentObject> {
     public static XContentObjectTransformer<AggregatorFactories.Builder> aggregatorTransformer() {
         return new XContentObjectTransformer<>(searchRegistry, (p) -> {
             // Serializing a map creates an object, need to skip the start object for the aggregation parser
-            assert(XContentParser.Token.START_OBJECT.equals(p.nextToken()));
+            XContentParser.Token token = p.nextToken();
+            assert(XContentParser.Token.START_OBJECT.equals(token));
             return AggregatorFactories.parseAggregators(p);
         });
     }
@@ -60,7 +63,27 @@ public class XContentObjectTransformer<T extends ToXContentObject> {
         this.registry = registry;
     }
 
+    /**
+     * Parses the map into the type T with the previously supplied parserFunction
+     * All deprecation warnings are ignored
+     * @param stringObjectMap The Map to parse into the Object
+     * @return parsed object T
+     * @throws IOException When there is an unforeseen parsing issue
+     */
     public T fromMap(Map<String, Object> stringObjectMap) throws IOException {
+        return fromMap(stringObjectMap, new ArrayList<>());
+    }
+
+    /**
+     * Parses the map into the type T with the previously supplied parserFunction
+     * All deprecation warnings are added to the passed deprecationWarnings list.
+     *
+     * @param stringObjectMap The Map to parse into the Object
+     * @param deprecationWarnings The list to which to add all deprecation warnings
+     * @return parsed object T
+     * @throws IOException When there is an unforeseen parsing issue
+     */
+    public T fromMap(Map<String, Object> stringObjectMap, List<String> deprecationWarnings) throws IOException {
         if (stringObjectMap == null) {
             return null;
         }
@@ -71,8 +94,9 @@ public class XContentObjectTransformer<T extends ToXContentObject> {
                 .createParser(registry,
                     deprecationLogger,
                     BytesReference.bytes(xContentBuilder).streamInput())) {
-            //TODO do something with the accumulated deprecation warnings
-            return parserFunction.apply(parser);
+            T retVal = parserFunction.apply(parser);
+            deprecationWarnings.addAll(deprecationLogger.getDeprecations());
+            return retVal;
         }
     }
 

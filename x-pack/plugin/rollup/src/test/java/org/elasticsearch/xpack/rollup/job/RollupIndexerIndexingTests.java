@@ -29,8 +29,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.rounding.Rounding;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -449,7 +449,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     }
 
     private static long asLong(String dateTime) {
-        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(dateTime).getMillis();
+        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseJoda(dateTime).getMillis();
     }
 
     /**
@@ -488,7 +488,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     private Map<String, MappedFieldType> createFieldTypes(RollupJobConfig job) {
         Map<String, MappedFieldType> fieldTypes = new HashMap<>();
         MappedFieldType fieldType = new DateFieldMapper.Builder(job.getGroupConfig().getDateHistogram().getField())
-                .dateTimeFormatter(Joda.forPattern(randomFrom("basic_date", "date_optional_time", "epoch_second")))
+                .dateTimeFormatter(DateFormatter.forPattern(randomFrom("basic_date", "date_optional_time", "epoch_second")))
                 .build(new Mapper.BuilderContext(settings.getSettings(), new ContentPath(0)))
                 .fieldType();
         fieldTypes.put(fieldType.name(), fieldType);
@@ -601,7 +601,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             RangeQueryBuilder range = (RangeQueryBuilder) request.source().query();
             final DateTimeZone timeZone = range.timeZone() != null ? DateTimeZone.forID(range.timeZone()) : null;
             Query query = timestampField.rangeQuery(range.from(), range.to(), range.includeLower(), range.includeUpper(),
-                    null, timeZone, Joda.forPattern(range.format()).toDateMathParser(), queryShardContext);
+                    null, timeZone, DateFormatter.forPattern(range.format()).toDateMathParser(), queryShardContext);
 
             // extract composite agg
             assertThat(request.source().aggregations().getAggregatorFactories().size(), equalTo(1));

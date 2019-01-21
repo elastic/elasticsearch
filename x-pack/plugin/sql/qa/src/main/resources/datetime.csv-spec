@@ -54,10 +54,10 @@ d:i                  | l:s
 ;
 
 //
-// Date (in H2 these start at 0 instead of 1...)
+// DateTime
 //
-dateTimeDayOfWeek
-SELECT DAY_OF_WEEK(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY DAY_OF_WEEK(birth_date);
+dateTimeIsoDayOfWeek
+SELECT ISO_DAY_OF_WEEK(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY ISO_DAY_OF_WEEK(birth_date);
 
 d:i                  | l:s
 1                    | Preusig
@@ -86,9 +86,129 @@ d:i                  | l:s
 110                  | Peac
 ;
 
+weekOfYear
+SELECT WEEK(birth_date) week, birth_date FROM test_emp ORDER BY WEEK(birth_date) DESC, birth_date DESC LIMIT 15;
+
+    week:i     |     birth_date:ts
+---------------+------------------------
+52             |1962-12-29T00:00:00.000Z
+52             |1959-12-25T00:00:00.000Z
+52             |1952-12-24T00:00:00.000Z
+51             |1960-12-17T00:00:00.000Z
+50             |1956-12-13T00:00:00.000Z
+49             |1959-12-03T00:00:00.000Z
+49             |1957-12-03T00:00:00.000Z
+48             |1963-11-26T00:00:00.000Z
+48             |1962-11-26T00:00:00.000Z
+47             |1962-11-19T00:00:00.000Z
+46             |1956-11-14T00:00:00.000Z
+46             |1952-11-13T00:00:00.000Z
+45             |1962-11-07T00:00:00.000Z
+45             |1953-11-07T00:00:00.000Z
+44             |1961-11-02T00:00:00.000Z
+;
+
+weekOfYearWithFilter
+SELECT WEEK(birth_date) week, birth_date FROM test_emp WHERE WEEK(birth_date) > 50 OR WEEK(birth_date) < 4 ORDER BY WEEK(birth_date) DESC, birth_date DESC;
+
+    week:i     |     birth_date:ts
+---------------+------------------------
+52             |1962-12-29T00:00:00.000Z
+52             |1959-12-25T00:00:00.000Z
+52             |1952-12-24T00:00:00.000Z
+51             |1960-12-17T00:00:00.000Z
+2              |1965-01-03T00:00:00.000Z
+2              |1953-01-07T00:00:00.000Z
+;
+
 //
 // Aggregate
 //
+
+castedDateTimeWithGroupBy1
+SELECT CONVERT(birth_date, DOUBLE) AS date FROM test_emp GROUP BY date ORDER BY date LIMIT 10;
+
+    date:d      
+---------------
+null           
+-5.631552E8    
+-5.586624E8    
+-5.56416E8     
+-5.539104E8    
+-5.517504E8    
+-5.492448E8    
+-5.406912E8    
+-5.371488E8    
+-5.359392E8    
+;
+
+castedDateTimeWithGroupBy2
+SELECT CAST(hire_date AS INTEGER) AS date FROM test_emp GROUP BY date ORDER BY date LIMIT 10;
+
+    date:i      
+---------------
+477532800      
+478051200      
+484790400      
+489715200      
+495763200      
+498096000      
+498614400      
+501206400      
+501292800      
+501379200      
+;
+
+dateTimeAggByIsoDayOfWeekWithFilter
+SELECT IDOW(birth_date) day, DAY_NAME(birth_date) name, COUNT(*) c FROM test_emp WHERE IDOW(birth_date) < 6 GROUP BY day, name ORDER BY day desc;
+
+    day:i      |   name:s      |     c:l       
+---------------+---------------+---------------
+5              |Friday         |12             
+4              |Thursday       |15             
+3              |Wednesday      |14             
+2              |Tuesday        |18             
+1              |Monday         |8              
+;
+
+dateTimeAggByIsoDayOfWeek
+SELECT IDOW(birth_date) day, DAY_NAME(birth_date) name, COUNT(*) c FROM test_emp GROUP BY day, name ORDER BY day desc;
+
+    day:i      |   name:s      |     c:l       
+---------------+---------------+---------------
+7              |Sunday         |10
+6              |Saturday       |13
+5              |Friday         |12
+4              |Thursday       |15
+3              |Wednesday      |14
+2              |Tuesday        |18
+1              |Monday         |8
+null           |null           |10
+;
+
+dateTimeAggByIsoWeekOfYear
+SELECT IW(birth_date) iso_week, WEEK(birth_date) week FROM test_emp WHERE IW(birth_date) < 20 GROUP BY iso_week, week ORDER BY iso_week;
+
+ iso_week:i    |    week:i      
+---------------+---------------
+1              |2              
+3              |4              
+4              |4              
+4              |5              
+6              |7              
+7              |7              
+8              |8              
+8              |9              
+9              |9              
+10             |11             
+12             |12             
+14             |14             
+14             |15             
+15             |16             
+16             |16             
+16             |17             
+18             |18             
+;
 
 dateTimeAggByYear
 SELECT YEAR(birth_date) AS d, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY YEAR(birth_date) ORDER BY YEAR(birth_date) LIMIT 13;
@@ -166,112 +286,98 @@ d:i                  | c:l                  | s:i
 null                 |10                    |100445 
 ;
 
-constantYear
-// tag::year
-SELECT YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS year;
+weekOfYearGroupBy
+SELECT WEEK(birth_date) week, COUNT(*) c FROM test_emp WHERE MOD(WEEK(birth_date), 4) = 0 GROUP BY week ORDER BY WEEK(birth_date);
 
-     year
----------------
-2018
-// end::year
+    week:i     |     c:l       
+---------------+---------------
+4              |3              
+8              |2              
+12             |1              
+16             |3              
+20             |1              
+24             |2              
+28             |3              
+32             |1              
+36             |3              
+40             |4              
+44             |2              
+48             |2              
+52             |3              
 ;
 
-constantMonthOfYear
-// tag::monthOfYear
-SELECT MONTH_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS month;
+currentTimestampKeywordWithDivision
+SELECT YEAR(CURRENT_TIMESTAMP) / 1000 AS result;
 
-     month
+    result     
+---------------
+2    
+;
+
+currentTimestampFunctionNoArgsWithDivision
+SELECT YEAR(CURRENT_TIMESTAMP()) / 1000 AS result;
+
+    result     
+---------------
+2    
+;
+
+currentTimestampFunctionPrecisionWithDivision
+SELECT YEAR(CURRENT_TIMESTAMP(2)) / 1000 AS result;
+
+    result     
+---------------
+2    
+;
+
+nowWithDivision
+SELECT YEAR(NOW()) / 1000 AS result;
+
+    result     
 ---------------
 2
-// end::monthOfYear
 ;
 
-constantWeekOfYear
-// tag::weekOfYear
-SELECT WEEK_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS week;
+nowIntervalSubstraction
+SELECT YEAR(NOW() - INTERVAL 2 YEARS) / 1000 AS result;
 
-     week
+    result     
 ---------------
-8
-// end::weekOfYear
+2
 ;
 
-constantDayOfYear
-// tag::dayOfYear
-SELECT DAY_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
 
-      day
+currentTimestampFilter
+SELECT first_name FROM test_emp WHERE hire_date > NOW() - INTERVAL 100 YEARS ORDER BY first_name ASC LIMIT 10; 
+
+  first_name   
 ---------------
-50
-// end::dayOfYear
+Alejandro      
+Amabile        
+Anneke         
+Anoosh         
+Arumugam       
+Basil          
+Berhard        
+Berni          
+Bezalel        
+Bojan      
 ;
 
-extractDayOfYear
-// tag::extractDayOfYear
-SELECT EXTRACT(DAY_OF_YEAR FROM CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+currentTimestampFilterScript
+SELECT first_name FROM test_emp WHERE YEAR(hire_date) - YEAR(NOW()) / 1000 > 10 ORDER BY first_name ASC LIMIT 10;
 
-      day
+  first_name   
 ---------------
-50
-// end::extractDayOfYear
-;
+Alejandro      
+Amabile        
+Anneke         
+Anoosh         
+Arumugam       
+Basil          
+Berhard        
+Berni          
+Bezalel        
+Bojan  
 
-constantDayOfMonth
-// tag::dayOfMonth
-SELECT DAY_OF_MONTH(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
-
-      day
----------------
-19
-// end::dayOfMonth
-;
-
-constantDayOfWeek
-// tag::dayOfWeek
-SELECT DAY_OF_WEEK(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
-
-      day
----------------
-1
-// end::dayOfWeek
-;
-
-constantHourOfDay
-// tag::hourOfDay
-SELECT HOUR_OF_DAY(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS hour;
-
-     hour
----------------
-10
-// end::hourOfDay
-;
-
-constantMinuteOfDay
-// tag::minuteOfDay
-SELECT MINUTE_OF_DAY(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS minute;
-
-    minute
----------------
-623
-// end::minuteOfDay
-;
-
-constantMinuteOfHour
-// tag::minuteOfHour
-SELECT MINUTE_OF_HOUR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS minute;
-
-    minute
----------------
-23
-// end::minuteOfHour
-;
-
-constantSecondOfMinute
-// tag::secondOfMinute
-SELECT SECOND_OF_MINUTE(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS second;
-
-    second
----------------
-27
-// end::secondOfMinute
 ;

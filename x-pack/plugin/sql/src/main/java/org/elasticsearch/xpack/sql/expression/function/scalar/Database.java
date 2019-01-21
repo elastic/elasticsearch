@@ -7,35 +7,23 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.type.DataType;
 
-import java.util.Objects;
+public class Database extends ConfigurationFunction {
 
-public class Database extends BaseSystemFunction {
-
-    public Database(Location location, Configuration configuration) {
-        super(location, configuration);
+    public Database(Source source, Configuration configuration) {
+        super(source, configuration, DataType.KEYWORD);
     }
 
-    @Override
-    protected NodeInfo<Database> info() {
-        return NodeInfo.create(this, Database::new, configuration());
-    }
-    
     @Override
     public Object fold() {
         return configuration().clusterName();
     }
-
+    
     @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), configuration().clusterName());
+    protected NodeInfo<Database> info() {
+        return NodeInfo.create(this, Database::new, configuration());
     }
-
-    @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(configuration().clusterName(), ((Database) obj).configuration().clusterName());
-    }
-
 }

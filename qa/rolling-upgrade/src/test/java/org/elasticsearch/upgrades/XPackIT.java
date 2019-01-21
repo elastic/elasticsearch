@@ -21,6 +21,7 @@ package org.elasticsearch.upgrades;
 import org.apache.http.util.EntityUtils;
 import org.junit.Before;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 
 import java.io.IOException;
 
@@ -59,6 +60,7 @@ public class XPackIT extends AbstractRollingTestCase {
             + "{\"index\":{}}\n"
             + "{\"f\": \"2\"}\n");
         bulk.addParameter("refresh", "true");
+        bulk.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         client().performRequest(bulk);
 
         Request sql = new Request("POST", "/_sql");
@@ -83,10 +85,10 @@ public class XPackIT extends AbstractRollingTestCase {
         client().performRequest(startTrial);
 
         String noJobs = EntityUtils.toString(
-            client().performRequest(new Request("GET", "/_xpack/ml/anomaly_detectors")).getEntity());
+            client().performRequest(new Request("GET", "/_ml/anomaly_detectors")).getEntity());
         assertEquals("{\"count\":0,\"jobs\":[]}", noJobs);
 
-        Request createJob = new Request("PUT", "/_xpack/ml/anomaly_detectors/test_job");
+        Request createJob = new Request("PUT", "/_ml/anomaly_detectors/test_job");
         createJob.setJsonEntity(
                   "{\n"
                 + "  \"analysis_config\" : {\n"

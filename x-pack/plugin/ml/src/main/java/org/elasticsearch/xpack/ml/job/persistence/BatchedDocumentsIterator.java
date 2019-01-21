@@ -98,6 +98,7 @@ public abstract class BatchedDocumentsIterator<T>  {
                 .size(BATCH_SIZE)
                 .query(getQuery())
                 .fetchSource(shouldFetchSource())
+                .trackTotalHits(true)
                 .sort(SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC)));
 
         SearchResponse searchResponse = client.search(searchRequest).actionGet();

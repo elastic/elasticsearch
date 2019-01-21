@@ -26,8 +26,6 @@ import org.apache.tools.ant.filters.FixCrLfFilter
 import java.nio.file.Files
 import java.nio.file.Path
 
-Collection distributions = project('archives').subprojects + project('packages').subprojects
-
 /*****************************************************************************
  *                  Third party dependencies report                          *
  *****************************************************************************/

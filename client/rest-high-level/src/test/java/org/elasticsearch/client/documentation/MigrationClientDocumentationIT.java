@@ -26,6 +26,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.migration.DeprecationInfoRequest;
+import org.elasticsearch.client.migration.DeprecationInfoResponse;
 import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.client.migration.IndexUpgradeInfoResponse;
 import org.elasticsearch.client.migration.IndexUpgradeRequest;
@@ -36,6 +38,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -154,5 +158,60 @@ public class MigrationClientDocumentationIT extends ESRestHighLevelClientTestCas
         String taskId = response.getTask();
         // end::upgrade-task-api
         assertThat(taskId, not(isEmptyOrNullString()));
+    }
+
+    public void testGetDeprecationInfo() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+        createIndex("test", Settings.EMPTY);
+
+        //tag::get-deprecation-info-request
+        List<String> indices = new ArrayList<>();
+        indices.add("test");
+        DeprecationInfoRequest deprecationInfoRequest = new DeprecationInfoRequest(indices); // <1>
+        //end::get-deprecation-info-request
+
+        // tag::get-deprecation-info-execute
+        DeprecationInfoResponse deprecationInfoResponse =
+            client.migration().getDeprecationInfo(deprecationInfoRequest, RequestOptions.DEFAULT);
+        // end::get-deprecation-info-execute
+
+        // tag::get-deprecation-info-response
+        List<DeprecationInfoResponse.DeprecationIssue> clusterIssues =
+            deprecationInfoResponse.getClusterSettingsIssues(); // <1>
+        List<DeprecationInfoResponse.DeprecationIssue> nodeIssues =
+            deprecationInfoResponse.getNodeSettingsIssues(); // <2>
+        Map<String, List<DeprecationInfoResponse.DeprecationIssue>> indexIssues =
+            deprecationInfoResponse.getIndexSettingsIssues(); // <3>
+        // end::get-deprecation-info-response
+
+        // tag::get-deprecation-info-execute-listener
+        ActionListener<DeprecationInfoResponse> listener =
+            new ActionListener<DeprecationInfoResponse>() {
+                @Override
+                public void onResponse(DeprecationInfoResponse deprecationInfoResponse1) { // <1>
+                    List<DeprecationInfoResponse.DeprecationIssue> clusterIssues =
+                        deprecationInfoResponse.getClusterSettingsIssues();
+                    List<DeprecationInfoResponse.DeprecationIssue> nodeIssues =
+                        deprecationInfoResponse.getNodeSettingsIssues();
+                    Map<String, List<DeprecationInfoResponse.DeprecationIssue>> indexIssues =
+                        deprecationInfoResponse.getIndexSettingsIssues();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::get-deprecation-info-execute-listener
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::get-deprecation-info-execute-async
+        client.migration().getDeprecationInfoAsync(deprecationInfoRequest,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::get-deprecation-info-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 }

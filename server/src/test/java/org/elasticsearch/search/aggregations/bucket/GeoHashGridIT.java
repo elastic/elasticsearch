@@ -150,7 +150,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
                             .field("location")
                             .precision(precision)
                     )
-                    .execute().actionGet();
+                    .get();
 
             assertSearchResponse(response);
 
@@ -181,7 +181,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
                             .field("location")
                             .precision(precision)
                     )
-                    .execute().actionGet();
+                    .get();
 
             assertSearchResponse(response);
 
@@ -211,7 +211,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
                                                     .precision(precision)
                                     )
                     )
-                    .execute().actionGet();
+                    .get();
 
             assertSearchResponse(response);
 
@@ -238,7 +238,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
                             .field("location")
                             .precision(precision)
                     )
-                    .execute().actionGet();
+                    .get();
 
             assertSearchResponse(response);
 
@@ -255,7 +255,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
                             .field("location")
                             .precision(precision)
                     )
-                    .execute().actionGet();
+                    .get();
 
             assertSearchResponse(response);
 
@@ -281,7 +281,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
                             .shardSize(100)
                             .precision(precision)
                     )
-                    .execute().actionGet();
+                    .get();
 
             assertSearchResponse(response);
 
@@ -309,8 +309,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         final int shardSize = 10000;
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> client().prepareSearch("idx")
-                        .addAggregation(geohashGrid("geohashgrid").field("location").size(size).shardSize(shardSize)).execute()
-                        .actionGet());
+                        .addAggregation(geohashGrid("geohashgrid").field("location").size(size).shardSize(shardSize)).get());
         assertThat(exception.getMessage(), containsString("[size] must be greater than 0. Found [0] in [geohashgrid]"));
     }
 
@@ -320,7 +319,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> client().prepareSearch("idx")
                         .addAggregation(geohashGrid("geohashgrid").field("location").size(size).shardSize(shardSize))
-                        .execute().actionGet());
+                        .get());
         assertThat(exception.getMessage(), containsString("[shardSize] must be greater than 0. Found [0] in [geohashgrid]"));
     }
 

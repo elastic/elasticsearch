@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.xpack.sql.proto.StringUtils;
+
 import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
@@ -45,8 +47,6 @@ import static java.util.Calendar.YEAR;
 final class TypeConverter {
 
     private TypeConverter() {}
-
-    private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000;
 
     /**
      * Converts millisecond after epoc to date
@@ -118,10 +118,11 @@ final class TypeConverter {
             return (T) convert(val, columnType, typeString);
         }
 
-        // converting a Long to a Timestamp shouldn't be possible according to the spec,
-        // it feels a little brittle to check this scenario here and I don't particularly like it
-        // TODO: can we do any better or should we go over the spec and allow getLong(date) to be valid?
-        if (!(type == Long.class && columnType == EsType.DATE) && type.isInstance(val)) {
+        // if the value type is the same as the target, no conversion is needed
+        // make sure though to check the internal type against the desired one
+        // since otherwise the internal object format can leak out
+        // (for example dates when longs are requested or intervals for strings)
+        if (type.isInstance(val) && TypeUtils.classOf(columnType) == type) {
             try {
                 return type.cast(val);
             } catch (ClassCastException cce) {
@@ -212,8 +213,8 @@ final class TypeConverter {
                 return doubleValue(v); // Double might be represented as string for infinity and NaN values
             case FLOAT:
                 return floatValue(v); // Float might be represented as string for infinity and NaN values
-            case DATE:
-                return new Timestamp(((Number) v).longValue());
+            case DATETIME:
+                return JdbcDateUtils.asDateTimeField(v, JdbcDateUtils::asTimestamp, Timestamp::new);
             case INTERVAL_YEAR:
             case INTERVAL_MONTH:
             case INTERVAL_YEAR_TO_MONTH:
@@ -268,7 +269,7 @@ final class TypeConverter {
     }
 
     private static String asString(Object nativeValue) {
-        return nativeValue == null ? null : String.valueOf(nativeValue);
+        return nativeValue == null ? null : StringUtils.toString(nativeValue);
     }
 
     private static <T> T failConversion(Object value, EsType columnType, String typeString, Class<T> target) throws SQLException {
@@ -466,22 +467,22 @@ final class TypeConverter {
     }
 
     private static Date asDate(Object val, EsType columnType, String typeString) throws SQLException {
-        if (columnType == EsType.DATE) {
-            return new Date(utcMillisRemoveTime(((Number) val).longValue()));
+        if (columnType == EsType.DATETIME) {
+            return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asDate, Date::new);
         }
         return failConversion(val, columnType, typeString, Date.class);
     }
 
     private static Time asTime(Object val, EsType columnType, String typeString) throws SQLException {
-        if (columnType == EsType.DATE) {
-            return new Time(utcMillisRemoveDate(((Number) val).longValue()));
+        if (columnType == EsType.DATETIME) {
+            return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asTime, Time::new);
         }
         return failConversion(val, columnType, typeString, Time.class);
     }
 
     private static Timestamp asTimestamp(Object val, EsType columnType, String typeString) throws SQLException {
-        if (columnType == EsType.DATE) {
-            return new Timestamp(((Number) val).longValue());
+        if (columnType == EsType.DATETIME) {
+            return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asTimestamp, Timestamp::new);
         }
         return failConversion(val, columnType, typeString, Timestamp.class);
     }
@@ -508,14 +509,6 @@ final class TypeConverter {
 
     private static OffsetDateTime asOffsetDateTime(Object val, EsType columnType, String typeString) throws SQLException {
         throw new SQLFeatureNotSupportedException();
-    }
-
-    private static long utcMillisRemoveTime(long l) {
-        return l - (l % DAY_IN_MILLIS);
-    }
-
-    private static long utcMillisRemoveDate(long l) {
-        return l % DAY_IN_MILLIS;
     }
 
     private static byte safeToByte(long x) throws SQLException {

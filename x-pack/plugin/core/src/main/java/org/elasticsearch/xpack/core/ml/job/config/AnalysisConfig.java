@@ -53,15 +53,15 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
      * Serialisation names
      */
     public static final ParseField ANALYSIS_CONFIG = new ParseField("analysis_config");
-    private static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
-    private static final ParseField CATEGORIZATION_FIELD_NAME = new ParseField("categorization_field_name");
-    static final ParseField CATEGORIZATION_FILTERS = new ParseField("categorization_filters");
-    private static final ParseField CATEGORIZATION_ANALYZER = CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER;
-    private static final ParseField LATENCY = new ParseField("latency");
-    private static final ParseField SUMMARY_COUNT_FIELD_NAME = new ParseField("summary_count_field_name");
-    private static final ParseField DETECTORS = new ParseField("detectors");
-    private static final ParseField INFLUENCERS = new ParseField("influencers");
-    private static final ParseField MULTIVARIATE_BY_FIELDS = new ParseField("multivariate_by_fields");
+    public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
+    public static final ParseField CATEGORIZATION_FIELD_NAME = new ParseField("categorization_field_name");
+    public static final ParseField CATEGORIZATION_FILTERS = new ParseField("categorization_filters");
+    public static final ParseField CATEGORIZATION_ANALYZER = CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER;
+    public static final ParseField LATENCY = new ParseField("latency");
+    public static final ParseField SUMMARY_COUNT_FIELD_NAME = new ParseField("summary_count_field_name");
+    public static final ParseField DETECTORS = new ParseField("detectors");
+    public static final ParseField INFLUENCERS = new ParseField("influencers");
+    public static final ParseField MULTIVARIATE_BY_FIELDS = new ParseField("multivariate_by_fields");
 
     public static final String ML_CATEGORY_FIELD = "mlcategory";
     public static final Set<String> AUTO_CREATED_FIELDS = new HashSet<>(Collections.singletonList(ML_CATEGORY_FIELD));
@@ -136,30 +136,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         detectors = Collections.unmodifiableList(in.readList(Detector::new));
         influencers = Collections.unmodifiableList(in.readList(StreamInput::readString));
 
-        // BWC for result_finalization_window and overlapping_buckets
-        // TODO Remove in 7.0.0
-        if (in.getVersion().before(Version.V_6_6_0)) {
-            in.readOptionalBoolean();
-            in.readOptionalLong();
-        }
         multivariateByFields = in.readOptionalBoolean();
-
-        // BWC for removed multiple_bucket_spans
-        // TODO Remove in 7.0.0
-        if (in.getVersion().before(Version.V_6_5_0)) {
-            if (in.readBoolean()) {
-                final int arraySize = in.readVInt();
-                for (int i = 0; i < arraySize; i++) {
-                    in.readTimeValue();
-                }
-            }
-        }
-
-        // BWC for removed per-partition normalization
-        // TODO Remove in 7.0.0
-        if (in.getVersion().before(Version.V_6_5_0)) {
-            in.readBoolean();
-        }
     }
 
     @Override
@@ -180,25 +157,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         out.writeList(detectors);
         out.writeStringList(influencers);
 
-        // BWC for result_finalization_window and overlapping_buckets
-        // TODO Remove in 7.0.0
-        if (out.getVersion().before(Version.V_6_6_0)) {
-            out.writeOptionalBoolean(null);
-            out.writeOptionalLong(null);
-        }
         out.writeOptionalBoolean(multivariateByFields);
-
-        // BWC for removed multiple_bucket_spans
-        // TODO Remove in 7.0.0
-        if (out.getVersion().before(Version.V_6_5_0)) {
-            out.writeBoolean(false);
-        }
-
-        // BWC for removed per-partition normalization
-        // TODO Remove in 7.0.0
-        if (out.getVersion().before(Version.V_6_5_0)) {
-            out.writeBoolean(false);
-        }
     }
 
     /**

@@ -52,13 +52,13 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
 
     @Before
     public void indexDocuments() throws IOException {
-        Request berlin = new Request("PUT", "/index/doc/berlin");
+        Request berlin = new Request("PUT", "/index/_doc/berlin");
         berlin.setJsonEntity("{\"text\":\"berlin\"}");
         client().performRequest(berlin);
         for (int i = 0; i < 6; i++) {
             // add another index to test basic multi index support
             String index = i == 0 ? "index2" : "index";
-            Request amsterdam = new Request("PUT", "/" + index + "/doc/amsterdam" + i);
+            Request amsterdam = new Request("PUT", "/" + index + "/_doc/amsterdam" + i);
             amsterdam.setJsonEntity("{\"text\":\"amsterdam\"}");
             client().performRequest(amsterdam);
         }

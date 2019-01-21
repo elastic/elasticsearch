@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.Mode;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,6 +26,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.hasSize;
+import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
 
 public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<SqlQueryResponse> {
 
@@ -34,18 +36,17 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
 
     @Override
     protected SqlQueryResponse createTestInstance() {
-        return createRandomInstance(randomStringCursor());
+        return createRandomInstance(randomStringCursor(), randomFrom(Mode.values()));
     }
 
-    public static SqlQueryResponse createRandomInstance(String cursor) {
+    public static SqlQueryResponse createRandomInstance(String cursor, Mode mode) {
         int columnCount = between(1, 10);
 
         List<ColumnInfo> columns = null;
         if (randomBoolean()) {
             columns = new ArrayList<>(columnCount);
             for (int i = 0; i < columnCount; i++) {
-                columns.add(new ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
-                        randomInt(), randomInt(25)));
+                columns.add(new ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), randomInt(25)));
             }
         }
 
@@ -69,7 +70,7 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
                 rows.add(row);
             }
         }
-        return new SqlQueryResponse(cursor, columns, rows);
+        return new SqlQueryResponse(cursor, mode, columns, rows);
     }
 
     @Override
@@ -94,7 +95,6 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
                 assertEquals(columnInfo.name(), columnMap.get("name"));
                 assertEquals(columnInfo.esType(), columnMap.get("type"));
                 assertEquals(columnInfo.displaySize(), columnMap.get("display_size"));
-                assertEquals(columnInfo.jdbcType(), columnMap.get("jdbc_type"));
             }
         } else {
             assertNull(rootMap.get("columns"));
@@ -108,7 +108,7 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
         }
 
         if (testInstance.cursor().equals("") == false) {
-            assertEquals(rootMap.get(SqlQueryRequest.CURSOR.getPreferredName()), testInstance.cursor());
+            assertEquals(rootMap.get(CURSOR.getPreferredName()), testInstance.cursor());
         }
     }
 
@@ -116,6 +116,6 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
     protected SqlQueryResponse doParseInstance(XContentParser parser) {
         org.elasticsearch.xpack.sql.proto.SqlQueryResponse response =
             org.elasticsearch.xpack.sql.proto.SqlQueryResponse.fromXContent(parser);
-        return new SqlQueryResponse(response.cursor(), response.columns(), response.rows());
+        return new SqlQueryResponse(response.cursor(), Mode.JDBC, response.columns(), response.rows());
     }
 }

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -20,8 +20,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class Round extends BinaryNumericFunction {
     
-    public Round(Location location, Expression left, Expression right) {
-        super(location, left, right == null ? Literal.of(left.location(), 0) : right, BinaryMathOperation.ROUND);
+    public Round(Source source, Expression left, Expression right) {
+        super(source, left, right == null ? Literal.of(left.source(), 0) : right, BinaryMathOperation.ROUND);
     }
 
     @Override
@@ -31,7 +31,7 @@ public class Round extends BinaryNumericFunction {
 
     @Override
     protected Round replaceChildren(Expression newLeft, Expression newRight) {
-        return new Round(location(), newLeft, newRight);
+        return new Round(source(), newLeft, newRight);
     }
     
     @Override

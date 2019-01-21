@@ -57,6 +57,7 @@ import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
@@ -154,7 +155,6 @@ import javax.net.ssl.SNIHostName;
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.Charset;
@@ -238,7 +238,6 @@ public class Node implements Closeable {
     private final Logger logger;
     private final Injector injector;
     private final Settings settings;
-    private final Settings originalSettings;
     private final Environment environment;
     private final NodeEnvironment nodeEnvironment;
     private final PluginsService pluginsService;
@@ -265,7 +264,6 @@ public class Node implements Closeable {
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
         boolean success = false;
         try {
-            originalSettings = environment.settings();
             Settings tmpSettings = Settings.builder().put(environment.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
 
@@ -302,7 +300,8 @@ public class Node implements Closeable {
                     environment.configFile(), Arrays.toString(environment.dataFiles()), environment.logsFile(), environment.pluginsFile());
             }
 
-            this.pluginsService = new PluginsService(tmpSettings, environment.configFile(), environment.modulesFile(), environment.pluginsFile(), classpathPlugins);
+            this.pluginsService = new PluginsService(tmpSettings, environment.configFile(), environment.modulesFile(),
+                environment.pluginsFile(), classpathPlugins);
             this.settings = pluginsService.updatedSettings();
             localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
 
@@ -376,7 +375,7 @@ public class Node implements Closeable {
 
             PageCacheRecycler pageCacheRecycler = createPageCacheRecycler(settings);
             BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
-            resourcesToClose.add(bigArrays);
+            resourcesToClose.add(pageCacheRecycler);
             modules.add(settingsModule);
             List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
                 NetworkModule.getNamedWriteables().stream(),
@@ -461,8 +460,6 @@ public class Node implements Closeable {
             final MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(customMetaDataUpgraders, indexTemplateMetaDataUpgraders);
             final MetaDataIndexUpgradeService metaDataIndexUpgradeService = new MetaDataIndexUpgradeService(settings, xContentRegistry,
                 indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings(), indexMetaDataUpgraders);
-            final GatewayMetaState gatewayMetaState = new GatewayMetaState(settings, nodeEnvironment, metaStateService,
-                metaDataIndexUpgradeService, metaDataUpgrader);
             new TemplateUpgradeService(client, clusterService, threadPool, indexTemplateMetaDataUpgraders);
             final Transport transport = networkModule.getTransportSupplier().get();
             Set<String> taskHeaders = Stream.concat(
@@ -471,6 +468,8 @@ public class Node implements Closeable {
             ).collect(Collectors.toSet());
             final TransportService transportService = newTransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings(), taskHeaders);
+            final GatewayMetaState gatewayMetaState = new GatewayMetaState(settings, nodeEnvironment, metaStateService,
+                    metaDataIndexUpgradeService, metaDataUpgrader, transportService, clusterService, indicesService);
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
             final SearchTransportService searchTransportService =  new SearchTransportService(transportService,
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
@@ -483,7 +482,7 @@ public class Node implements Closeable {
             final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, threadPool, transportService, namedWriteableRegistry,
                 networkService, clusterService.getMasterService(), clusterService.getClusterApplierService(),
                 clusterService.getClusterSettings(), pluginsService.filterPlugins(DiscoveryPlugin.class),
-                clusterModule.getAllocationService(), environment.configFile());
+                clusterModule.getAllocationService(), environment.configFile(), gatewayMetaState);
             this.nodeService = new NodeService(settings, threadPool, monitorService, discoveryModule.getDiscovery(),
                 transportService, indicesService, pluginsService, circuitBreakerService, scriptModule.getScriptService(),
                 httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter(), responseCollectorService,
@@ -501,7 +500,8 @@ public class Node implements Closeable {
 
             final PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(tasksExecutors);
             final PersistentTasksClusterService persistentTasksClusterService =
-                new PersistentTasksClusterService(settings, registry, clusterService);
+                new PersistentTasksClusterService(settings, registry, clusterService, threadPool);
+            resourcesToClose.add(persistentTasksClusterService);
             final PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
 
             modules.add(b -> {
@@ -517,6 +517,7 @@ public class Node implements Closeable {
                     b.bind(ResourceWatcherService.class).toInstance(resourceWatcherService);
                     b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
                     b.bind(BigArrays.class).toInstance(bigArrays);
+                    b.bind(PageCacheRecycler.class).toInstance(pageCacheRecycler);
                     b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
                     b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                     b.bind(IngestService.class).toInstance(ingestService);
@@ -594,13 +595,6 @@ public class Node implements Closeable {
     }
 
     /**
-     * The original settings that were used to create the node
-     */
-    public Settings originalSettings() {
-        return originalSettings;
-    }
-
-    /**
      * The settings that are used by this node. Contains original settings as well as additional settings provided by plugins.
      */
     public Settings settings() {
@@ -668,23 +662,17 @@ public class Node implements Closeable {
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
             : "transportService has a different local node than the factory provided";
         final MetaData onDiskMetadata;
-        try {
-            // we load the global state here (the persistent part of the cluster state stored on disk) to
-            // pass it to the bootstrap checks to allow plugins to enforce certain preconditions based on the recovered state.
-            if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
-                onDiskMetadata = injector.getInstance(GatewayMetaState.class).loadMetaState();
-            } else {
-                onDiskMetadata = MetaData.EMPTY_META_DATA;
-            }
-            assert onDiskMetadata != null : "metadata is null but shouldn't"; // this is never null
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        // we load the global state here (the persistent part of the cluster state stored on disk) to
+        // pass it to the bootstrap checks to allow plugins to enforce certain preconditions based on the recovered state.
+        if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
+            onDiskMetadata = injector.getInstance(GatewayMetaState.class).getMetaData();
+        } else {
+            onDiskMetadata = MetaData.EMPTY_META_DATA;
         }
-        validateNodeBeforeAcceptingRequests(new BootstrapContext(settings, onDiskMetadata), transportService.boundAddress(), pluginsService
-            .filterPlugins(Plugin
-            .class)
-            .stream()
-            .flatMap(p -> p.getBootstrapChecks().stream()).collect(Collectors.toList()));
+        assert onDiskMetadata != null : "metadata is null but shouldn't"; // this is never null
+        validateNodeBeforeAcceptingRequests(new BootstrapContext(environment, onDiskMetadata), transportService.boundAddress(),
+            pluginsService.filterPlugins(Plugin.class).stream()
+                .flatMap(p -> p.getBootstrapChecks().stream()).collect(Collectors.toList()));
 
         clusterService.addStateApplier(transportService.getTaskManager());
         // start after transport service so the local disco is known
@@ -778,8 +766,9 @@ public class Node implements Closeable {
     }
 
     // During concurrent close() calls we want to make sure that all of them return after the node has completed it's shutdown cycle.
-    // If not, the hook that is added in Bootstrap#setup() will be useless: close() might not be executed, in case another (for example api) call
-    // to close() has already set some lifecycles to stopped. In this case the process will be terminated even if the first call to close() has not finished yet.
+    // If not, the hook that is added in Bootstrap#setup() will be useless:
+    // close() might not be executed, in case another (for example api) call to close() has already set some lifecycles to stopped.
+    // In this case the process will be terminated even if the first call to close() has not finished yet.
     @Override
     public synchronized void close() throws IOException {
         if (lifecycle.started()) {
@@ -850,7 +839,7 @@ public class Node implements Closeable {
 
 
         toClose.add(injector.getInstance(NodeEnvironment.class));
-        toClose.add(injector.getInstance(BigArrays.class));
+        toClose.add(injector.getInstance(PageCacheRecycler.class));
 
         if (logger.isTraceEnabled()) {
             logger.trace("Close times for each service:\n{}", stopWatch.prettyPrint());
@@ -933,7 +922,7 @@ public class Node implements Closeable {
      * This method can be overwritten by subclasses to change their {@link BigArrays} implementation for instance for testing
      */
     BigArrays createBigArrays(PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService) {
-        return new BigArrays(pageCacheRecycler, circuitBreakerService);
+        return new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
     }
 
     /**

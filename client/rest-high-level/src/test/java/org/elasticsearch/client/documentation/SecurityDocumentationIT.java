@@ -19,17 +19,13 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.entity.NStringEntity;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
-import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.ChangePasswordRequest;
@@ -58,12 +54,19 @@ import org.elasticsearch.client.security.GetRoleMappingsResponse;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetRolesResponse;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
+import org.elasticsearch.client.security.GetUserPrivilegesResponse;
+import org.elasticsearch.client.security.GetUsersRequest;
+import org.elasticsearch.client.security.GetUsersResponse;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
+import org.elasticsearch.client.security.PutPrivilegesRequest;
+import org.elasticsearch.client.security.PutPrivilegesResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleMappingResponse;
+import org.elasticsearch.client.security.PutRoleRequest;
+import org.elasticsearch.client.security.PutRoleResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
@@ -72,21 +75,21 @@ import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpress
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.client.security.user.User;
-import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.ApplicationPrivilege;
+import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.client.security.user.privileges.Role;
+import org.elasticsearch.client.security.user.privileges.UserIndicesPrivileges;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.RestStatus;
 import org.hamcrest.Matchers;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
+
 import java.io.IOException;
-import java.security.SecureRandom;
-import java.util.Base64;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -96,10 +99,9 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -109,6 +111,98 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
+
+    public void testGetUsers() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+        String[] usernames = new String[] {"user1", "user2", "user3"};
+        addUser(client, usernames[0], randomAlphaOfLengthBetween(6, 10));
+        addUser(client, usernames[1], randomAlphaOfLengthBetween(6, 10));
+        addUser(client, usernames[2], randomAlphaOfLengthBetween(6, 10));
+        {
+            //tag::get-users-request
+            GetUsersRequest request = new GetUsersRequest(usernames[0]);
+            //end::get-users-request
+            //tag::get-users-execute
+            GetUsersResponse response = client.security().getUsers(request, RequestOptions.DEFAULT);
+            //end::get-users-execute
+            //tag::get-users-response
+            List<User> users = new ArrayList<>(1);
+            users.addAll(response.getUsers());
+            //end::get-users-response
+
+            assertNotNull(response);
+            assertThat(users.size(), equalTo(1));
+            assertThat(users.get(0).getUsername(), is(usernames[0]));
+        }
+
+        {
+            //tag::get-users-list-request
+            GetUsersRequest request = new GetUsersRequest(usernames);
+            GetUsersResponse response = client.security().getUsers(request, RequestOptions.DEFAULT);
+            //end::get-users-list-request
+
+            List<User> users = new ArrayList<>(3);
+            users.addAll(response.getUsers());
+            assertNotNull(response);
+            assertThat(users.size(), equalTo(3));
+            assertThat(users.get(0).getUsername(), equalTo(usernames[0]));
+            assertThat(users.get(1).getUsername(), equalTo(usernames[1]));
+            assertThat(users.get(2).getUsername(), equalTo(usernames[2]));
+            assertThat(users.size(), equalTo(3));
+        }
+
+        {
+            //tag::get-users-all-request
+            GetUsersRequest request = new GetUsersRequest();
+            GetUsersResponse response = client.security().getUsers(request, RequestOptions.DEFAULT);
+            //end::get-users-all-request
+
+            List<User> users = new ArrayList<>(3);
+            users.addAll(response.getUsers());
+            assertNotNull(response);
+            // 9 users are expected to be returned
+            // test_users (3): user1, user2, user3
+            // system_users (6): elastic, beats_system, apm_system, logstash_system, kibana, remote_monitoring_user
+            assertThat(users.size(), equalTo(9));
+        }
+
+        {
+            GetUsersRequest request = new GetUsersRequest(usernames[0]);
+            ActionListener<GetUsersResponse> listener;
+
+            //tag::get-users-execute-listener
+            listener = new ActionListener<GetUsersResponse>() {
+                @Override
+                public void onResponse(GetUsersResponse getRolesResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::get-users-execute-listener
+
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<GetUsersResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            //tag::get-users-execute-async
+            client.security().getUsersAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            //end::get-users-execute-async
+
+            final GetUsersResponse response = future.get(30, TimeUnit.SECONDS);
+            List<User> users = new ArrayList<>(1);
+            users.addAll(response.getUsers());
+            assertNotNull(response);
+            assertThat(users.size(), equalTo(1));
+            assertThat(users.get(0).getUsername(), equalTo(usernames[0]));
+        }
+    }
+
 
     public void testPutUser() throws Exception {
         RestHighLevelClient client = highLevelClient();
@@ -132,7 +226,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             byte[] salt = new byte[32];
-            SecureRandom.getInstanceStrong().nextBytes(salt);
+            // no need for secure random in a test; it could block and would not be reproducible anyway
+            random().nextBytes(salt);
             char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
             User user = new User("example2", Collections.singletonList("superuser"));
 
@@ -647,8 +742,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             HasPrivilegesRequest request = new HasPrivilegesRequest(
                 Sets.newHashSet("monitor", "manage"),
                 Sets.newHashSet(
-                    IndicesPrivileges.builder().indices("logstash-2018-10-05").privileges("read", "write").build(),
-                    IndicesPrivileges.builder().indices("logstash-2018-*").privileges("read").build()
+                    IndicesPrivileges.builder().indices("logstash-2018-10-05").privileges("read", "write")
+                        .allowRestrictedIndices(false).build(),
+                    IndicesPrivileges.builder().indices("logstash-2018-*").privileges("read")
+                        .allowRestrictedIndices(true).build()
                 ),
                 null
             );
@@ -696,6 +793,66 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::has-privileges-execute-async
             client.security().hasPrivilegesAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::has-privileges-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetUserPrivileges() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::get-user-privileges-execute
+            GetUserPrivilegesResponse response = client.security().getUserPrivileges(RequestOptions.DEFAULT);
+            //end::get-user-privileges-execute
+
+            assertNotNull(response);
+            //tag::get-user-privileges-response
+            final Set<String> cluster = response.getClusterPrivileges();
+            final Set<UserIndicesPrivileges> index = response.getIndicesPrivileges();
+            final Set<ApplicationResourcePrivileges> application = response.getApplicationPrivileges();
+            final Set<String> runAs = response.getRunAsPrivilege();
+            //end::get-user-privileges-response
+
+            assertNotNull(cluster);
+            assertThat(cluster, contains("all"));
+
+            assertNotNull(index);
+            assertThat(index.size(), is(1));
+            final UserIndicesPrivileges indexPrivilege = index.iterator().next();
+            assertThat(indexPrivilege.getIndices(), contains("*"));
+            assertThat(indexPrivilege.getPrivileges(), contains("all"));
+            assertThat(indexPrivilege.getFieldSecurity().size(), is(0));
+            assertThat(indexPrivilege.getQueries().size(), is(0));
+
+            assertNotNull(application);
+            assertThat(application.size(), is(1));
+
+            assertNotNull(runAs);
+            assertThat(runAs, contains("*"));
+        }
+
+        {
+            //tag::get-user-privileges-execute-listener
+            ActionListener<GetUserPrivilegesResponse> listener = new ActionListener<GetUserPrivilegesResponse>() {
+                @Override
+                public void onResponse(GetUserPrivilegesResponse getUserPrivilegesResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::get-user-privileges-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-user-privileges-execute-async
+            client.security().getUserPrivilegesAsync(RequestOptions.DEFAULT, listener); // <1>
+            // end::get-user-privileges-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -1023,18 +1180,69 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    // TODO: move all calls to high-level REST client once APIs for adding new role exist
-    private void addRole(String roleName) throws IOException {
-        Request addRoleRequest = new Request(HttpPost.METHOD_NAME, "/_xpack/security/role/" + roleName);
-        try (XContentBuilder builder = jsonBuilder()) {
-            builder.startObject();
-            {
-                builder.array("cluster", "all");
-            }
-            builder.endObject();
-            addRoleRequest.setEntity(new NStringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON));
+    public void testPutRole() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::put-role-request
+            final Role role = Role.builder()
+                .name("testPutRole")
+                .clusterPrivileges(randomSubsetOf(1, Role.ClusterPrivilegeName.ALL_ARRAY))
+                .build();
+            final PutRoleRequest request = new PutRoleRequest(role, RefreshPolicy.NONE);
+            // end::put-role-request
+            // tag::put-role-execute
+            final PutRoleResponse response = client.security().putRole(request, RequestOptions.DEFAULT);
+            // end::put-role-execute
+            // tag::put-role-response
+            boolean isCreated = response.isCreated(); // <1>
+            // end::put-role-response
+            assertTrue(isCreated);
         }
-        client().performRequest(addRoleRequest);
+
+        {
+            final Role role = Role.builder()
+                .name("testPutRole")
+                .clusterPrivileges(randomSubsetOf(1, Role.ClusterPrivilegeName.ALL_ARRAY))
+                .build();
+            final PutRoleRequest request = new PutRoleRequest(role, RefreshPolicy.NONE);
+            // tag::put-role-execute-listener
+            ActionListener<PutRoleResponse> listener = new ActionListener<PutRoleResponse>() {
+                @Override
+                public void onResponse(PutRoleResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::put-role-execute-listener
+
+            // Avoid unused variable warning
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<PutRoleResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            // tag::put-role-execute-async
+            client.security().putRoleAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::put-role-execute-async
+
+            assertNotNull(future.get(30, TimeUnit.SECONDS));
+            assertThat(future.get().isCreated(), is(false)); // false because it has already been created by the sync variant
+        }
+    }
+
+    private void addRole(String roleName) throws IOException {
+        final Role role = Role.builder()
+            .name(roleName)
+            .clusterPrivileges("all")
+            .build();
+        final PutRoleRequest request = new PutRoleRequest(role, RefreshPolicy.IMMEDIATE);
+        highLevelClient().security().putRole(request, RequestOptions.DEFAULT);
     }
 
     public void testCreateToken() throws Exception {
@@ -1118,19 +1326,52 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         String accessToken;
         String refreshToken;
         {
-            // Setup user
+            // Setup users
             final char[] password = "password".toCharArray();
-            User invalidate_token_user = new User("invalidate_token", Collections.singletonList("kibana_user"));
-            PutUserRequest putUserRequest = new PutUserRequest(invalidate_token_user, password, true, RefreshPolicy.IMMEDIATE);
+            User user = new User("user", Collections.singletonList("kibana_user"));
+            PutUserRequest putUserRequest = new PutUserRequest(user, password, true, RefreshPolicy.IMMEDIATE);
             PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
             assertTrue(putUserResponse.isCreated());
 
+            User this_user = new User("this_user", Collections.singletonList("kibana_user"));
+            PutUserRequest putThisUserRequest = new PutUserRequest(this_user, password, true, RefreshPolicy.IMMEDIATE);
+            PutUserResponse putThisUserResponse = client.security().putUser(putThisUserRequest, RequestOptions.DEFAULT);
+            assertTrue(putThisUserResponse.isCreated());
+
+            User that_user = new User("that_user", Collections.singletonList("kibana_user"));
+            PutUserRequest putThatUserRequest = new PutUserRequest(that_user, password, true, RefreshPolicy.IMMEDIATE);
+            PutUserResponse putThatUserResponse = client.security().putUser(putThatUserRequest, RequestOptions.DEFAULT);
+            assertTrue(putThatUserResponse.isCreated());
+
+            User other_user = new User("other_user", Collections.singletonList("kibana_user"));
+            PutUserRequest putOtherUserRequest = new PutUserRequest(other_user, password, true, RefreshPolicy.IMMEDIATE);
+            PutUserResponse putOtherUserResponse = client.security().putUser(putOtherUserRequest, RequestOptions.DEFAULT);
+            assertTrue(putOtherUserResponse.isCreated());
+
+            User extra_user = new User("extra_user", Collections.singletonList("kibana_user"));
+            PutUserRequest putExtraUserRequest = new PutUserRequest(extra_user, password, true, RefreshPolicy.IMMEDIATE);
+            PutUserResponse putExtraUserResponse = client.security().putUser(putExtraUserRequest, RequestOptions.DEFAULT);
+            assertTrue(putExtraUserResponse.isCreated());
+
             // Create tokens
-            final CreateTokenRequest createTokenRequest = CreateTokenRequest.passwordGrant("invalidate_token", password);
+            final CreateTokenRequest createTokenRequest = CreateTokenRequest.passwordGrant("user", password);
             final CreateTokenResponse tokenResponse = client.security().createToken(createTokenRequest, RequestOptions.DEFAULT);
             accessToken = tokenResponse.getAccessToken();
             refreshToken = tokenResponse.getRefreshToken();
+            final CreateTokenRequest createThisTokenRequest = CreateTokenRequest.passwordGrant("this_user", password);
+            final CreateTokenResponse thisTokenResponse = client.security().createToken(createThisTokenRequest, RequestOptions.DEFAULT);
+            assertNotNull(thisTokenResponse);
+            final CreateTokenRequest createThatTokenRequest = CreateTokenRequest.passwordGrant("that_user", password);
+            final CreateTokenResponse thatTokenResponse = client.security().createToken(createThatTokenRequest, RequestOptions.DEFAULT);
+            assertNotNull(thatTokenResponse);
+            final CreateTokenRequest createOtherTokenRequest = CreateTokenRequest.passwordGrant("other_user", password);
+            final CreateTokenResponse otherTokenResponse = client.security().createToken(createOtherTokenRequest, RequestOptions.DEFAULT);
+            assertNotNull(otherTokenResponse);
+            final CreateTokenRequest createExtraTokenRequest = CreateTokenRequest.passwordGrant("extra_user", password);
+            final CreateTokenResponse extraTokenResponse = client.security().createToken(createExtraTokenRequest, RequestOptions.DEFAULT);
+            assertNotNull(extraTokenResponse);
         }
+
         {
             // tag::invalidate-access-token-request
             InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.accessToken(accessToken);
@@ -1142,15 +1383,54 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::invalidate-token-execute
 
             // tag::invalidate-token-response
-            boolean isCreated = invalidateTokenResponse.isCreated();
+            final List<ElasticsearchException> errors = invalidateTokenResponse.getErrors();
+            final int invalidatedTokens = invalidateTokenResponse.getInvalidatedTokens();
+            final int previouslyInvalidatedTokens = invalidateTokenResponse.getPreviouslyInvalidatedTokens();
             // end::invalidate-token-response
-            assertTrue(isCreated);
+            assertTrue(errors.isEmpty());
+            assertThat(invalidatedTokens, equalTo(1));
+            assertThat(previouslyInvalidatedTokens, equalTo(0));
         }
 
         {
             // tag::invalidate-refresh-token-request
             InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.refreshToken(refreshToken);
             // end::invalidate-refresh-token-request
+            InvalidateTokenResponse invalidateTokenResponse =
+                client.security().invalidateToken(invalidateTokenRequest, RequestOptions.DEFAULT);
+            assertTrue(invalidateTokenResponse.getErrors().isEmpty());
+            assertThat(invalidateTokenResponse.getInvalidatedTokens(), equalTo(1));
+            assertThat(invalidateTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        }
+
+        {
+            // tag::invalidate-user-tokens-request
+            InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.userTokens("other_user");
+            // end::invalidate-user-tokens-request
+            InvalidateTokenResponse invalidateTokenResponse =
+                client.security().invalidateToken(invalidateTokenRequest, RequestOptions.DEFAULT);
+            assertTrue(invalidateTokenResponse.getErrors().isEmpty());
+            // We have one refresh and one access token for that user
+            assertThat(invalidateTokenResponse.getInvalidatedTokens(), equalTo(2));
+            assertThat(invalidateTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        }
+
+        {
+            // tag::invalidate-user-realm-tokens-request
+            InvalidateTokenRequest invalidateTokenRequest = new InvalidateTokenRequest(null, null, "default_native", "extra_user");
+            // end::invalidate-user-realm-tokens-request
+            InvalidateTokenResponse invalidateTokenResponse =
+                client.security().invalidateToken(invalidateTokenRequest, RequestOptions.DEFAULT);
+            assertTrue(invalidateTokenResponse.getErrors().isEmpty());
+            // We have one refresh and one access token for that user in this realm
+            assertThat(invalidateTokenResponse.getInvalidatedTokens(), equalTo(2));
+            assertThat(invalidateTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        }
+
+        {
+            // tag::invalidate-realm-tokens-request
+            InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.realmTokens("default_native");
+            // end::invalidate-realm-tokens-request
 
             ActionListener<InvalidateTokenResponse> listener;
             //tag::invalidate-token-execute-listener
@@ -1180,8 +1460,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             final InvalidateTokenResponse response = future.get(30, TimeUnit.SECONDS);
             assertNotNull(response);
-            assertTrue(response.isCreated());// technically, this should be false, but the API is broken
-            // See https://github.com/elastic/elasticsearch/issues/35115
+            assertTrue(response.getErrors().isEmpty());
+            //We still have 4 tokens ( 2 access_tokens and 2 refresh_tokens ) for the default_native realm
+            assertThat(response.getInvalidatedTokens(), equalTo(4));
+            assertThat(response.getPreviouslyInvalidatedTokens(), equalTo(0));
         }
     }
 
@@ -1205,36 +1487,23 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             new ApplicationPrivilege("testapp2", "all", Arrays.asList("action:login", "data:write/*", "manage:*"), null);
 
         {
-            //TODO Replace this with a call to PutPrivileges once it is implemented
-            final Request createPrivilegeRequest = new Request("POST", "/_xpack/security/privilege");
-            createPrivilegeRequest.setJsonEntity("{" +
-                "  \"testapp\": {" +
-                "    \"read\": {" +
-                "      \"actions\": [ \"action:login\", \"data:read/*\" ]" +
-                "    }," +
-                "    \"write\": {" +
-                "      \"actions\": [ \"action:login\", \"data:write/*\" ]," +
-                "      \"metadata\": { \"key1\": \"value1\" }" +
-                "    }," +
-                "    \"all\": {" +
-                "      \"actions\": [ \"action:login\", \"data:write/*\" , \"manage:*\"]" +
-                "    }" +
-                "  }," +
-                "  \"testapp2\": {" +
-                "    \"read\": {" +
-                "      \"actions\": [ \"action:login\", \"data:read/*\" ]," +
-                "      \"metadata\": { \"key2\": \"value2\" }" +
-                "    }," +
-                "    \"write\": {" +
-                "      \"actions\": [ \"action:login\", \"data:write/*\" ]" +
-                "    }," +
-                "    \"all\": {" +
-                "      \"actions\": [ \"action:login\", \"data:write/*\" , \"manage:*\"]" +
-                "    }" +
-                "  }" +
-                "}");
-            final Response createPrivilegeResponse = client.getLowLevelClient().performRequest(createPrivilegeRequest);
-            assertEquals(RestStatus.OK.getStatus(), createPrivilegeResponse.getStatusLine().getStatusCode());
+            List<ApplicationPrivilege> applicationPrivileges = new ArrayList<>();
+            applicationPrivileges.add(readTestappPrivilege);
+            applicationPrivileges.add(writeTestappPrivilege);
+            applicationPrivileges.add(allTestappPrivilege);
+            applicationPrivileges.add(readTestapp2Privilege);
+            applicationPrivileges.add(writeTestapp2Privilege);
+            applicationPrivileges.add(allTestapp2Privilege);
+            PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(applicationPrivileges, RefreshPolicy.IMMEDIATE);
+            PutPrivilegesResponse putPrivilegesResponse = client.security().putPrivileges(putPrivilegesRequest, RequestOptions.DEFAULT);
+
+            assertNotNull(putPrivilegesResponse);
+            assertThat(putPrivilegesResponse.wasCreated("testapp", "write"), is(true));
+            assertThat(putPrivilegesResponse.wasCreated("testapp", "read"), is(true));
+            assertThat(putPrivilegesResponse.wasCreated("testapp", "all"), is(true));
+            assertThat(putPrivilegesResponse.wasCreated("testapp2", "all"), is(true));
+            assertThat(putPrivilegesResponse.wasCreated("testapp2", "write"), is(true));
+            assertThat(putPrivilegesResponse.wasCreated("testapp2", "read"), is(true));
         }
 
         {
@@ -1327,26 +1596,105 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testPutPrivileges() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::put-privileges-request
+            final List<ApplicationPrivilege> privileges = new ArrayList<>();
+            privileges.add(ApplicationPrivilege.builder()
+                .application("app01")
+                .privilege("all")
+                .actions(Sets.newHashSet("action:login"))
+                .metadata(Collections.singletonMap("k1", "v1"))
+                .build());
+            privileges.add(ApplicationPrivilege.builder()
+                .application("app01")
+                .privilege("write")
+                .actions(Sets.newHashSet("action:write"))
+                .build());
+            final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, RefreshPolicy.IMMEDIATE);
+            // end::put-privileges-request
+
+            // tag::put-privileges-execute
+            final PutPrivilegesResponse putPrivilegesResponse = client.security().putPrivileges(putPrivilegesRequest,
+                RequestOptions.DEFAULT);
+            // end::put-privileges-execute
+
+            final String applicationName = "app01";
+            final String privilegeName = "all";
+            // tag::put-privileges-response
+            final boolean status = putPrivilegesResponse.wasCreated(applicationName, privilegeName); // <1>
+            // end::put-privileges-response
+            assertThat(status, is(true));
+        }
+
+        {
+            final List<ApplicationPrivilege> privileges = new ArrayList<>();
+            privileges.add(ApplicationPrivilege.builder()
+                .application("app01")
+                .privilege("all")
+                .actions(Sets.newHashSet("action:login"))
+                .metadata(Collections.singletonMap("k1", "v1"))
+                .build());
+            final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, RefreshPolicy.IMMEDIATE);
+
+            // tag::put-privileges-execute-listener
+            ActionListener<PutPrivilegesResponse> listener = new ActionListener<PutPrivilegesResponse>() {
+                @Override
+                public void onResponse(PutPrivilegesResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::put-privileges-execute-listener
+
+            // Avoid unused variable warning
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<PutPrivilegesResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            //tag::put-privileges-execute-async
+            client.security().putPrivilegesAsync(putPrivilegesRequest, RequestOptions.DEFAULT, listener); // <1>
+            //end::put-privileges-execute-async
+
+            assertNotNull(future.get(30, TimeUnit.SECONDS));
+            assertThat(future.get().wasCreated("app01", "all"), is(false));
+        }
+    }
+
     public void testDeletePrivilege() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
-            final Request createPrivilegeRequest = new Request("POST", "/_xpack/security/privilege");
-            createPrivilegeRequest.setJsonEntity("{" +
-                "  \"testapp\": {" +
-                "    \"read\": {" +
-                "      \"actions\": [ \"action:login\", \"data:read/*\" ]" +
-                "    }," +
-                "    \"write\": {" +
-                "      \"actions\": [ \"action:login\", \"data:write/*\" ]" +
-                "    }," +
-                "    \"all\": {" +
-                "      \"actions\": [ \"action:login\", \"data:write/*\" ]" +
-                "    }" +
-                "  }" +
-                "}");
+            List<ApplicationPrivilege> applicationPrivileges = new ArrayList<>();
+            applicationPrivileges.add(ApplicationPrivilege.builder()
+                .application("testapp")
+                .privilege("read")
+                .actions("action:login", "data:read/*")
+                .build());
+            applicationPrivileges.add(ApplicationPrivilege.builder()
+                .application("testapp")
+                .privilege("write")
+                .actions("action:login", "data:write/*")
+                .build());
+            applicationPrivileges.add(ApplicationPrivilege.builder()
+                .application("testapp")
+                .privilege("all")
+                .actions("action:login", "data:write/*")
+                .build());
+            PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(applicationPrivileges, RefreshPolicy.IMMEDIATE);
+            PutPrivilegesResponse putPrivilegesResponse = client.security().putPrivileges(putPrivilegesRequest, RequestOptions.DEFAULT);
 
-            final Response createPrivilegeResponse = client.getLowLevelClient().performRequest(createPrivilegeRequest);
-            assertEquals(RestStatus.OK.getStatus(), createPrivilegeResponse.getStatusLine().getStatusCode());
+            assertNotNull(putPrivilegesResponse);
+            assertThat(putPrivilegesResponse.wasCreated("testapp", "write"), is(true));
+            assertThat(putPrivilegesResponse.wasCreated("testapp", "read"), is(true));
+            assertThat(putPrivilegesResponse.wasCreated("testapp", "all"), is(true));
         }
         {
             // tag::delete-privileges-request
@@ -1400,5 +1748,5 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
-}
 
+}

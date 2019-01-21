@@ -39,7 +39,7 @@ GET /_search
 ==== Accessing the score of a document within a script
 
 Within a script, you can
-<<modules-scripting-fields#scripting-score, access>>
+{ref}/modules-scripting-fields.html#scripting-score[access] 
 the `_score` variable which represents the current relevance score of a
 document.
 
@@ -132,8 +132,8 @@ these unique values need to be loaded into memory.
 
 [[decay-functions]]
 ===== Decay functions for numeric fields
-You can read more about decay functions
-<<query-dsl-function-score-query#function-decay, here>>.
+You can read more about decay functions 
+{ref}/query-dsl-function-score-query.html#function-decay[here].
 
 * `double decayNumericLinear(double origin, double scale, double offset, double decay, double docValue)`
 * `double decayNumericExp(double origin, double scale, double offset, double decay, double docValue)`

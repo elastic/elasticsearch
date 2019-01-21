@@ -220,6 +220,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37567")
     public void testListenerFailures() throws InterruptedException {
         int iters = iterations(10, 100);
         for (int i = 0; i <iters; i++) {
@@ -392,14 +393,13 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     assertEquals(1, clientService.connectionManager().size());
 
                     establishedConnections.clear();
-                    handler.blockRequest();
+                    handler.failToRespond();
                     Thread thread = new Thread(transportClientNodesService::doSample);
                     thread.start();
 
                     assertBusy(() ->  assertTrue(establishedConnections.size() >= 1));
                     assertFalse("Temporary ping connection must be opened", establishedConnections.get(0).isClosed());
 
-                    handler.releaseRequest();
                     thread.join();
 
                     assertTrue(establishedConnections.get(0).isClosed());
@@ -411,8 +411,8 @@ public class TransportClientNodesServiceTests extends ESTestCase {
     }
 
     class MockHandler implements TransportRequestHandler<ClusterStateRequest> {
-        private final AtomicBoolean block = new AtomicBoolean(false);
-        private final CountDownLatch release = new CountDownLatch(1);
+
+        private final AtomicBoolean failToRespond = new AtomicBoolean(false);
         private final MockTransportService transportService;
 
         MockHandler(MockTransportService transportService) {
@@ -421,22 +421,19 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
         @Override
         public void messageReceived(ClusterStateRequest request, TransportChannel channel, Task task) throws Exception {
-            if (block.get()) {
-                release.await();
+            if (failToRespond.get()) {
                 return;
             }
+
             DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(transportService.getLocalDiscoNode()).build();
             ClusterState build = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
             channel.sendResponse(new ClusterStateResponse(ClusterName.DEFAULT, build, 0L, false));
         }
 
-        void blockRequest() {
-            if (block.compareAndSet(false, true) == false) {
-                throw new AssertionError("Request handler is already marked as blocking");
+        void failToRespond() {
+            if (failToRespond.compareAndSet(false, true) == false) {
+                throw new AssertionError("Request handler is already marked as failToRespond");
             }
-        }
-        void releaseRequest() {
-            release.countDown();
         }
     }
 

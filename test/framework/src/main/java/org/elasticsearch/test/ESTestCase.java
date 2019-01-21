@@ -951,10 +951,10 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Returns a random subset of values (including a potential empty list)
+     * Returns a random subset of values (including a potential empty list, or the full original list)
      */
     public static <T> List<T> randomSubsetOf(Collection<T> collection) {
-        return randomSubsetOf(randomInt(Math.max(collection.size() - 1, 0)), collection);
+        return randomSubsetOf(randomInt(collection.size()), collection);
     }
 
     /**
@@ -989,6 +989,17 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static String randomGeohash(int minPrecision, int maxPrecision) {
         return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
+    }
+
+    private static boolean useZen2;
+
+    @BeforeClass
+    public static void setUseZen2() {
+        useZen2 = true;
+    }
+
+    protected static boolean getUseZen2() {
+        return useZen2;
     }
 
     public static String getTestTransportType() {
@@ -1140,7 +1151,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 Streamable.newWriteableReader(supplier), version);
     }
 
-    private static <T> T copyInstance(T original, NamedWriteableRegistry namedWriteableRegistry, Writeable.Writer<T> writer,
+    protected static <T> T copyInstance(T original, NamedWriteableRegistry namedWriteableRegistry, Writeable.Writer<T> writer,
                                       Writeable.Reader<T> reader, Version version) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(version);
@@ -1407,5 +1418,4 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static boolean inFipsJvm() {
         return Security.getProviders()[0].getName().toLowerCase(Locale.ROOT).contains("fips");
     }
-
 }

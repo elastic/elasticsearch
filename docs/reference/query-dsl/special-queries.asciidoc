@@ -14,6 +14,10 @@ or collection of documents.
 This query allows a script to act as a filter.  Also see the
 <<query-dsl-function-score-query,`function_score` query>>.
 
+<<query-dsl-script-score-query,`script_score` query>>::
+
+A query that allows to modify the score of a sub-query with a script.
+
 <<query-dsl-percolate-query,`percolate` query>>::
 
 This query finds queries that are stored as documents that match with
@@ -31,6 +35,8 @@ A query that accepts other queries as json or yaml string.
 include::mlt-query.asciidoc[]
 
 include::script-query.asciidoc[]
+
+include::script-score-query.asciidoc[]
 
 include::percolate-query.asciidoc[]
 

@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -24,19 +26,26 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 public class RestStartDatafeedAction extends BaseRestHandler {
 
     private static final String DEFAULT_START = "0";
 
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(RestStartDatafeedAction.class));
+
     public RestStartDatafeedAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST,
-                MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_start", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            POST, MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_start", this,
+            POST, MachineLearning.PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_start", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_ml_start_datafeed_action";
+        return "ml_start_datafeed_action";
     }
 
     @Override

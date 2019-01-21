@@ -1,0 +1,41 @@
+--
+:api: templates-exist
+:request: IndexTemplatesExistRequest
+:response: Boolean
+--
+
+[id="{upid}-{api}"]
+=== Templates Exist API
+
+[id="{upid}-{api}-request"]
+==== Templates Exist Request
+
+The Templates Exist API uses +{request}+ as its request object. One or more
+index template names can be provided at construction.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> A single index template name
+<2> Multiple index template names
+<3> An index template name using wildcard
+
+==== Optional arguments
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-optionals]
+--------------------------------------------------
+<1> If `true`, reads templates from the node's local cluster state. Otherwise
+reads from the cluster state of the elected master node
+<2> Timeout to connect to the master node as a `TimeValue`
+<3> Timeout to connect to the master node as a `String`
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The response is a +{response}+ value, `true` if any of the request's template
+names match existing templates and `false` otherwise

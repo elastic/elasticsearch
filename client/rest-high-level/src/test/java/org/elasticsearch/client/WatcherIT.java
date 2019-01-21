@@ -151,7 +151,7 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
         assertEquals(AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION, actionStatus.ackStatus().state());
 
         // TODO: use the high-level REST client here once it supports 'execute watch'.
-        Request executeWatchRequest = new Request("POST", "_xpack/watcher/watch/" + watchId + "/_execute");
+        Request executeWatchRequest = new Request("POST", "_watcher/watch/" + watchId + "/_execute");
         executeWatchRequest.setJsonEntity("{ \"record_execution\": true }");
         Response executeResponse = client().performRequest(executeWatchRequest);
         assertEquals(RestStatus.OK.getStatus(), executeResponse.getStatusLine().getStatusCode());

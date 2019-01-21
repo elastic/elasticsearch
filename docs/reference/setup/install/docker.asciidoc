@@ -142,12 +142,12 @@ endif::[]
 Instructions for installing it can be found on the
 https://docs.docker.com/compose/install/#install-using-pip[Docker Compose webpage].
 
-The node `elasticsearch` listens on `localhost:9200` while `elasticsearch2`
-talks to `elasticsearch` over a Docker network.
+The node `es01` listens on `localhost:9200` while `es02`
+talks to `es01` over a Docker network.
 
 This example also uses
 https://docs.docker.com/engine/tutorials/dockervolumes[Docker named volumes],
-called `esdata1` and `esdata2` which will be created if not already present.
+called `esdata01` and `esdata02` which will be created if not already present.
 
 [[docker-prod-cluster-composefile]]
 `docker-compose.yml`:
@@ -163,10 +163,12 @@ ifeval::["{release-state}"!="unreleased"]
 --------------------------------------------
 version: '2.2'
 services:
-  elasticsearch:
+  es01:
     image: {docker-image}
-    container_name: elasticsearch
+    container_name: es01
     environment:
+      - node.name=es01
+      - cluster.initial_master_nodes=es01,es02
       - cluster.name=docker-cluster
       - bootstrap.memory_lock=true
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
@@ -175,32 +177,34 @@ services:
         soft: -1
         hard: -1
     volumes:
-      - esdata1:/usr/share/elasticsearch/data
+      - esdata01:/usr/share/elasticsearch/data
     ports:
       - 9200:9200
     networks:
       - esnet
-  elasticsearch2:
+  es02:
     image: {docker-image}
-    container_name: elasticsearch2
+    container_name: es02
     environment:
+      - node.name=es02
+      - discovery.zen.ping.unicast.hosts=es01
+      - cluster.initial_master_nodes=es01,es02
       - cluster.name=docker-cluster
       - bootstrap.memory_lock=true
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-      - "discovery.zen.ping.unicast.hosts=elasticsearch"
     ulimits:
       memlock:
         soft: -1
         hard: -1
     volumes:
-      - esdata2:/usr/share/elasticsearch/data
+      - esdata02:/usr/share/elasticsearch/data
     networks:
       - esnet
 
 volumes:
-  esdata1:
+  esdata01:
     driver: local
-  esdata2:
+  esdata02:
     driver: local
 
 networks:
@@ -334,7 +338,7 @@ needed, adjust them in the Daemon, or override them per container, for example
 using `docker run`:
 +
 --
-  --ulimit nofile=65536:65536
+  --ulimit nofile=65535:65535
 
 NOTE: One way of checking the Docker daemon defaults for the aforementioned
 ulimits is by running:

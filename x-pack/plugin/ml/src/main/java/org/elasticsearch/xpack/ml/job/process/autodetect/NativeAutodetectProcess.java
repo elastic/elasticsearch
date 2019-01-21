@@ -117,4 +117,17 @@ class NativeAutodetectProcess extends AbstractNativeProcess implements Autodetec
     private AutodetectControlMsgWriter newMessageWriter() {
         return new AutodetectControlMsgWriter(recordWriter(), numberOfFields());
     }
+
+    @Override
+    public void consumeAndCloseOutputStream() {
+        try {
+            byte[] buff = new byte[512];
+            while (processOutStream().read(buff) >= 0) {
+                // Do nothing
+            }
+            processOutStream().close();
+        } catch (IOException e) {
+            throw new RuntimeException("Error closing result parser input stream", e);
+        }
+    }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -279,6 +280,73 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         deleteResponse = client().prepareDelete("test", "type", "1").setVersion(3).execute().actionGet();
         assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
         assertThat(deleteResponse.getVersion(), equalTo(4L));
+    }
+
+    public void testCompareAndSet() {
+        createIndex("test");
+        ensureGreen();
+
+        IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
+        assertThat(indexResponse.getSeqNo(), equalTo(0L));
+        assertThat(indexResponse.getPrimaryTerm(), equalTo(1L));
+
+        indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").setVersion(1).execute().actionGet();
+        assertThat(indexResponse.getSeqNo(), equalTo(1L));
+        assertThat(indexResponse.getPrimaryTerm(), equalTo(1L));
+
+        assertThrows(
+            client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setIfSeqNo(10).setIfPrimaryTerm(1).execute(),
+            VersionConflictEngineException.class);
+
+        assertThrows(
+            client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setIfSeqNo(10).setIfPrimaryTerm(2).execute(),
+            VersionConflictEngineException.class);
+
+        assertThrows(
+            client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setIfSeqNo(1).setIfPrimaryTerm(2).execute(),
+            VersionConflictEngineException.class);
+
+
+        assertThrows(client().prepareDelete("test", "type", "1").setIfSeqNo(10).setIfPrimaryTerm(1), VersionConflictEngineException.class);
+        assertThrows(client().prepareDelete("test", "type", "1").setIfSeqNo(10).setIfPrimaryTerm(2), VersionConflictEngineException.class);
+        assertThrows(client().prepareDelete("test", "type", "1").setIfSeqNo(1).setIfPrimaryTerm(2), VersionConflictEngineException.class);
+
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        for (int i = 0; i < 10; i++) {
+            final GetResponse response = client().prepareGet("test", "type", "1").get();
+            assertThat(response.getSeqNo(), equalTo(1L));
+            assertThat(response.getPrimaryTerm(), equalTo(1L));
+        }
+
+        // search with versioning
+        for (int i = 0; i < 10; i++) {
+            // TODO: ADD SEQ NO!
+            SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setVersion(true).execute().actionGet();
+            assertThat(searchResponse.getHits().getAt(0).getVersion(), equalTo(2L));
+        }
+
+        // search without versioning
+        for (int i = 0; i < 10; i++) {
+            SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).execute().actionGet();
+            assertThat(searchResponse.getHits().getAt(0).getVersion(), equalTo(Versions.NOT_FOUND));
+        }
+
+        DeleteResponse deleteResponse = client().prepareDelete("test", "type", "1").setIfSeqNo(1).setIfPrimaryTerm(1).get();
+        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+        assertThat(deleteResponse.getSeqNo(), equalTo(2L));
+        assertThat(deleteResponse.getPrimaryTerm(), equalTo(1L));
+
+        assertThrows(client().prepareDelete("test", "type", "1").setIfSeqNo(1).setIfPrimaryTerm(1), VersionConflictEngineException.class);
+        assertThrows(client().prepareDelete("test", "type", "1").setIfSeqNo(3).setIfPrimaryTerm(12), VersionConflictEngineException.class);
+        assertThrows(client().prepareDelete("test", "type", "1").setIfSeqNo(1).setIfPrimaryTerm(2), VersionConflictEngineException.class);
+
+
+        // This is intricate - the object was deleted but a delete transaction was with the right version. We add another one
+        // and thus the transaction is increased.
+        deleteResponse = client().prepareDelete("test", "type", "1").setIfSeqNo(2).setIfPrimaryTerm(1).get();
+        assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
+        assertThat(deleteResponse.getSeqNo(), equalTo(3L));
+        assertThat(deleteResponse.getPrimaryTerm(), equalTo(1L));
     }
 
     public void testSimpleVersioningWithFlush() throws Exception {

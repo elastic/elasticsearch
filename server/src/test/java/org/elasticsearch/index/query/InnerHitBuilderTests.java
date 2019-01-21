@@ -46,6 +46,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -279,4 +280,12 @@ public class InnerHitBuilderTests extends ESTestCase {
         return ESTestCase.copyWriteable(original, namedWriteableRegistry, InnerHitBuilder::new);
     }
 
+    public void testSetDocValueFormat() {
+        InnerHitBuilder innerHit = new InnerHitBuilder();
+        innerHit.addDocValueField("foo");
+        innerHit.addDocValueField("@timestamp", "epoch_millis");
+        assertEquals(
+                Arrays.asList(new FieldAndFormat("foo", null), new FieldAndFormat("@timestamp", "epoch_millis")),
+                innerHit.getDocValueFields());
+    }
 }

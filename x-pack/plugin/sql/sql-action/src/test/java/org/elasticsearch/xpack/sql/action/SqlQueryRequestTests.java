@@ -27,18 +27,16 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilter;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilterOrNull;
-import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
-import static org.elasticsearch.xpack.sql.proto.RequestInfo.CANVAS;
+import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
 
 public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRequest> {
 
     public RequestInfo requestInfo;
-    public String clientId;
 
     @Before
     public void setup() {
-        clientId = randomFrom(CLI, CANVAS, randomAlphaOfLengthBetween(10, 20));
-        requestInfo = new RequestInfo(randomFrom(Mode.values()), clientId);
+        requestInfo = new RequestInfo(randomFrom(Mode.values()),
+                randomFrom(randomFrom(CLIENT_IDS), randomAlphaOfLengthBetween(10, 20)));
     }
 
     @Override
@@ -56,13 +54,13 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
     @Override
     protected SqlQueryRequest createTestInstance() {
         return new SqlQueryRequest(randomAlphaOfLength(10), randomParameters(), SqlTestUtils.randomFilterOrNull(random()),
-                randomTimeZone(), between(1, Integer.MAX_VALUE),
+                randomZone(), between(1, Integer.MAX_VALUE),
                 randomTV(), randomTV(), randomAlphaOfLength(10), requestInfo
         );
     }
     
     private RequestInfo randomRequestInfo() {
-        return new RequestInfo(randomFrom(Mode.values()), randomFrom(CLI, CANVAS, clientId));
+        return new RequestInfo(randomFrom(Mode.values()), randomFrom(randomFrom(CLIENT_IDS), requestInfo.clientId()));
     }
 
     public List<SqlTypedParamValue> randomParameters() {
@@ -96,7 +94,7 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
 
     @Override
     protected SqlQueryRequest doParseInstance(XContentParser parser) {
-        return SqlQueryRequest.fromXContent(parser, requestInfo);
+        return SqlQueryRequest.fromXContent(parser);
     }
 
     @Override
@@ -106,7 +104,7 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
                 request -> request.requestInfo(randomValueOtherThan(request.requestInfo(), this::randomRequestInfo)),
                 request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
                 request -> request.params(randomValueOtherThan(request.params(), this::randomParameters)),
-                request -> request.timeZone(randomValueOtherThan(request.timeZone(), ESTestCase::randomTimeZone)),
+                request -> request.zoneId(randomValueOtherThan(request.zoneId(), ESTestCase::randomZone)),
                 request -> request.fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
                 request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), this::randomTV)),
                 request -> request.filter(randomValueOtherThan(request.filter(),
@@ -114,7 +112,7 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
                 request -> request.cursor(randomValueOtherThan(request.cursor(), SqlQueryResponseTests::randomStringCursor))
         );
         SqlQueryRequest newRequest = new SqlQueryRequest(instance.query(), instance.params(), instance.filter(),
-                instance.timeZone(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(), instance.cursor(),
+                instance.zoneId(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(), instance.cursor(),
                 instance.requestInfo());
         mutator.accept(newRequest);
         return newRequest;
@@ -122,7 +120,7 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
 
     public void testTimeZoneNullException() {
         final SqlQueryRequest sqlQueryRequest = createTestInstance();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> sqlQueryRequest.timeZone(null));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> sqlQueryRequest.zoneId(null));
         assertEquals("time zone may not be null.", e.getMessage());
     }
 }

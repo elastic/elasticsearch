@@ -87,7 +87,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                           NamedXContentRegistry xContentRegistry, Dispatcher dispatcher) {
-        super(settings);
         this.settings = settings;
         this.networkService = networkService;
         this.bigArrays = bigArrays;
@@ -98,11 +97,11 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         // we can't make the network.bind_host a fallback since we already fall back to http.host hence the extra conditional here
         List<String> httpBindHost = SETTING_HTTP_BIND_HOST.get(settings);
-        this.bindHosts = (httpBindHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING.get(settings) : httpBindHost)
+        this.bindHosts = (httpBindHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(settings) : httpBindHost)
             .toArray(Strings.EMPTY_ARRAY);
         // we can't make the network.publish_host a fallback since we already fall back to http.host hence the extra conditional here
         List<String> httpPublishHost = SETTING_HTTP_PUBLISH_HOST.get(settings);
-        this.publishHosts = (httpPublishHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings) : httpPublishHost)
+        this.publishHosts = (httpPublishHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings) : httpPublishHost)
             .toArray(Strings.EMPTY_ARRAY);
 
         this.port = SETTING_HTTP_PORT.get(settings);

@@ -34,7 +34,7 @@ public class MlRestTestStateCleaner {
 
     @SuppressWarnings("unchecked")
     private void deleteAllDatafeeds() throws IOException {
-        final Request datafeedsRequest = new Request("GET", "/_xpack/ml/datafeeds");
+        final Request datafeedsRequest = new Request("GET", "/_ml/datafeeds");
         datafeedsRequest.addParameter("filter_path", "datafeeds");
         final Response datafeedsResponse = adminClient.performRequest(datafeedsRequest);
         final List<Map<String, Object>> datafeeds =
@@ -44,11 +44,11 @@ public class MlRestTestStateCleaner {
         }
 
         try {
-            adminClient.performRequest(new Request("POST", "/_xpack/ml/datafeeds/_all/_stop"));
+            adminClient.performRequest(new Request("POST", "/_ml/datafeeds/_all/_stop"));
         } catch (Exception e1) {
             logger.warn("failed to stop all datafeeds. Forcing stop", e1);
             try {
-                adminClient.performRequest(new Request("POST", "/_xpack/ml/datafeeds/_all/_stop?force=true"));
+                adminClient.performRequest(new Request("POST", "/_ml/datafeeds/_all/_stop?force=true"));
             } catch (Exception e2) {
                 logger.warn("Force-closing all data feeds failed", e2);
             }
@@ -58,12 +58,12 @@ public class MlRestTestStateCleaner {
 
         for (Map<String, Object> datafeed : datafeeds) {
             String datafeedId = (String) datafeed.get("datafeed_id");
-            adminClient.performRequest(new Request("DELETE", "/_xpack/ml/datafeeds/" + datafeedId));
+            adminClient.performRequest(new Request("DELETE", "/_ml/datafeeds/" + datafeedId));
         }
     }
 
     private void deleteAllJobs() throws IOException {
-        final Request jobsRequest = new Request("GET", "/_xpack/ml/anomaly_detectors");
+        final Request jobsRequest = new Request("GET", "/_ml/anomaly_detectors");
         jobsRequest.addParameter("filter_path", "jobs");
         final Response response = adminClient.performRequest(jobsRequest);
         @SuppressWarnings("unchecked")
@@ -74,11 +74,11 @@ public class MlRestTestStateCleaner {
         }
 
         try {
-            adminClient.performRequest(new Request("POST", "/_xpack/ml/anomaly_detectors/_all/_close"));
+            adminClient.performRequest(new Request("POST", "/_ml/anomaly_detectors/_all/_close"));
         } catch (Exception e1) {
             logger.warn("failed to close all jobs. Forcing closed", e1);
             try {
-                adminClient.performRequest(new Request("POST", "/_xpack/ml/anomaly_detectors/_all/_close?force=true"));
+                adminClient.performRequest(new Request("POST", "/_ml/anomaly_detectors/_all/_close?force=true"));
             } catch (Exception e2) {
                 logger.warn("Force-closing all jobs failed", e2);
             }
@@ -88,7 +88,7 @@ public class MlRestTestStateCleaner {
 
         for (Map<String, Object> jobConfig : jobConfigs) {
             String jobId = (String) jobConfig.get("job_id");
-            adminClient.performRequest(new Request("DELETE", "/_xpack/ml/anomaly_detectors/" + jobId));
+            adminClient.performRequest(new Request("DELETE", "/_ml/anomaly_detectors/" + jobId));
         }
     }
 }

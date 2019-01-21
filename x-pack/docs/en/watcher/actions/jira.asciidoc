@@ -21,7 +21,6 @@ The following snippet shows a simple jira action definition:
     "jira" : {
       "account" : "integration-account", <1>
       "fields" : {
-        "issue" : {
           "project" : {
             "key": "PROJ" <2>
           },
@@ -34,7 +33,6 @@ The following snippet shows a simple jira action definition:
           "priority" : {
             "name" : "High" <7>
           }
-        }
       }
     }
   }

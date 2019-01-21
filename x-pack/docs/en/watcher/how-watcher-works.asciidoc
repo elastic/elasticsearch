@@ -48,7 +48,7 @@ looks for log error events:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/log_errors
+PUT _watcher/watch/log_errors
 {
   "metadata" : { <1>
     "color" : "red"

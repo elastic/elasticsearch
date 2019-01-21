@@ -37,4 +37,4 @@ dependencies {
 }
 
 // no tests...yet?
-test.enabled = false
+unitTest.enabled = false

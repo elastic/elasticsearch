@@ -1,5 +1,5 @@
 [[disk-allocator]]
-=== Disk-based Shard Allocation
+=== Disk-based shard allocation
 
 Elasticsearch considers the available disk space on a node before deciding
 whether to allocate new shards to that node or to actively relocate shards away

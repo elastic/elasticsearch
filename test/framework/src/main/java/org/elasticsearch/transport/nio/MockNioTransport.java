@@ -31,7 +31,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
@@ -69,16 +68,14 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 public class MockNioTransport extends TcpTransport {
     private static final Logger logger = LogManager.getLogger(MockNioTransport.class);
 
-    private final PageCacheRecycler pageCacheRecycler;
     private final ConcurrentMap<String, MockTcpChannelFactory> profileToChannelFactory = newConcurrentMap();
     private volatile NioGroup nioGroup;
     private volatile MockTcpChannelFactory clientChannelFactory;
 
-    MockNioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
-                     PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
-                     CircuitBreakerService circuitBreakerService) {
-        super("mock-nio", settings, version, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
-        this.pageCacheRecycler = pageCacheRecycler;
+    public MockNioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
+                            PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
+                            CircuitBreakerService circuitBreakerService) {
+        super("mock-nio", settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
     }
 
     @Override

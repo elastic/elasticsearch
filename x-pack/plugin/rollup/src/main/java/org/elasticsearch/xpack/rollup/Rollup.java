@@ -80,8 +80,6 @@ import static java.util.Collections.emptyList;
 
 public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
-    public static final String BASE_PATH = "/_xpack/rollup/";
-
     // Introduced in ES version 6.3
     public static final int ROLLUP_VERSION_V1 = 1;
     // Introduced in ES Version 6.4

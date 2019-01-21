@@ -18,14 +18,15 @@
  */
 package org.elasticsearch.gradle.precommit;
 
+import groovy.lang.Closure;
 import org.elasticsearch.gradle.tool.Boilerplate;
 import org.gradle.api.DefaultTask;
+import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Task;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputFile;
-import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.api.tasks.util.PatternFilterable;
@@ -45,6 +46,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -54,26 +56,74 @@ import java.util.stream.Stream;
 
 public class TestingConventionsTasks extends DefaultTask {
 
-    private static final String TEST_CLASS_SUFIX = "Tests";
-    private static final String INTEG_TEST_CLASS_SUFIX = "IT";
     private static final String TEST_METHOD_PREFIX = "test";
 
-    /**
-     * Are there tests to execute ? Accounts for @Ignore and @AwaitsFix
-     */
-    private Boolean activeTestsExists;
-
     private Map<String, File> testClassNames;
+
+    private final NamedDomainObjectContainer<TestingConventionRule> naming;
 
     public TestingConventionsTasks() {
         setDescription("Tests various testing conventions");
         // Run only after everything is compiled
         Boilerplate.getJavaSourceSets(getProject()).all(sourceSet -> dependsOn(sourceSet.getClassesTaskName()));
+        naming = getProject().container(TestingConventionRule.class);
+    }
+
+    @Input
+    public Map<String, Set<File>> classFilesPerEnabledTask(FileTree testClassFiles) {
+        Map<String, Set<File>> collector = new HashMap<>();
+
+        // RandomizedTestingTask
+        collector.putAll(
+            getProject().getTasks().withType(getRandomizedTestingTask()).stream()
+                .filter(Task::getEnabled)
+                .collect(Collectors.toMap(
+                    Task::getPath,
+                    task -> testClassFiles.matching(getRandomizedTestingPatternSet(task)).getFiles()
+                    )
+                )
+        );
+
+        // Gradle Test
+        collector.putAll(
+            getProject().getTasks().withType(Test.class).stream()
+                .filter(Task::getEnabled)
+                .collect(Collectors.toMap(
+                    Task::getPath,
+                    task -> task.getCandidateClassFiles().getFiles()
+                ))
+        );
+        return Collections.unmodifiableMap(collector);
+    }
+
+    @Input
+    public Map<String, File> getTestClassNames() {
+        if (testClassNames == null) {
+            testClassNames = Boilerplate.getJavaSourceSets(getProject()).getByName("test").getOutput().getClassesDirs()
+                .getFiles().stream()
+                .filter(File::exists)
+                .flatMap(testRoot -> walkPathAndLoadClasses(testRoot).entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        }
+        return testClassNames;
+    }
+
+    @Input
+    public NamedDomainObjectContainer<TestingConventionRule> getNaming() {
+        return naming;
+    }
+
+    @OutputFile
+    public File getSuccessMarker() {
+        return new File(getProject().getBuildDir(), "markers/" + getName());
+    }
+
+    public void naming(Closure<TestingConventionRule> action) {
+        naming.configure(action);
     }
 
     @TaskAction
     public void doCheck() throws IOException {
-        activeTestsExists = false;
         final String problems;
 
         try (URLClassLoader isolatedClassLoader = new URLClassLoader(
@@ -81,111 +131,131 @@ public class TestingConventionsTasks extends DefaultTask {
         )) {
             Predicate<Class<?>> isStaticClass = clazz -> Modifier.isStatic(clazz.getModifiers());
             Predicate<Class<?>> isPublicClass = clazz -> Modifier.isPublic(clazz.getModifiers());
-            Predicate<Class<?>> implementsNamingConvention = clazz ->
-                clazz.getName().endsWith(TEST_CLASS_SUFIX) ||
-                    clazz.getName().endsWith(INTEG_TEST_CLASS_SUFIX);
+            Predicate<Class<?>> isAbstractClass = clazz -> Modifier.isAbstract(clazz.getModifiers());
 
-            Map<File, ? extends Class<?>> classes = getTestClassNames().entrySet().stream()
+            final Map<File, ? extends Class<?>> classes = getTestClassNames().entrySet().stream()
                 .collect(Collectors.toMap(
                     Map.Entry::getValue,
                     entry -> loadClassWithoutInitializing(entry.getKey(), isolatedClassLoader))
                 );
 
-            FileTree allTestClassFiles = getProject().files(
+            final FileTree allTestClassFiles = getProject().files(
                 classes.values().stream()
                     .filter(isStaticClass.negate())
                     .filter(isPublicClass)
-                    .filter(implementsNamingConvention)
+                    .filter((Predicate<Class<?>>) this::implementsNamingConvention)
                     .map(clazz -> testClassNames.get(clazz.getName()))
                     .collect(Collectors.toList())
             ).getAsFileTree();
 
-            final Map<String, Set<File>> classFilesPerRandomizedTestingTask = classFilesPerRandomizedTestingTask(allTestClassFiles);
-            final Map<String, Set<File>> classFilesPerGradleTestTask = classFilesPerGradleTestTask();
+            final Map<String, Set<File>> classFilesPerTask = classFilesPerEnabledTask(allTestClassFiles);
+
+            final Map<String, Set<Class<?>>> testClassesPerTask = classFilesPerTask.entrySet().stream()
+                .collect(
+                    Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> entry.getValue().stream()
+                            .map(classes::get)
+                            .filter(this::implementsNamingConvention)
+                            .collect(Collectors.toSet())
+                    )
+                );
+
+            final Map<String, Set<Class<?>>> suffixToBaseClass;
+            if (classes.isEmpty()) {
+                // Don't load base classes if we don't have any tests.
+                // This allows defaults to be configured for projects that don't have any tests
+                //
+                suffixToBaseClass = Collections.emptyMap();
+            } else {
+                suffixToBaseClass = naming.stream()
+                    .collect(
+                        Collectors.toMap(
+                            TestingConventionRule::getSuffix,
+                            rule -> rule.getBaseClasses().stream()
+                                .map(each -> loadClassWithoutInitializing(each, isolatedClassLoader))
+                                .collect(Collectors.toSet())
+                        ));
+            }
 
             problems = collectProblems(
                 checkNoneExists(
                     "Test classes implemented by inner classes will not run",
                     classes.values().stream()
                         .filter(isStaticClass)
-                        .filter(implementsNamingConvention.or(this::seemsLikeATest))
+                        .filter(isPublicClass)
+                        .filter(((Predicate<Class<?>>) this::implementsNamingConvention).or(this::seemsLikeATest))
                 ),
                 checkNoneExists(
                     "Seem like test classes but don't match naming convention",
                     classes.values().stream()
                         .filter(isStaticClass.negate())
                         .filter(isPublicClass)
-                        .filter(this::seemsLikeATest)
-                        .filter(implementsNamingConvention.negate())
+                        .filter(isAbstractClass.negate())
+                        .filter(this::seemsLikeATest) // TODO when base classes are set, check for classes that extend them
+                        .filter(((Predicate<Class<?>>) this::implementsNamingConvention).negate())
+                ),
+                // TODO: check for non public classes that seem like tests
+                // TODO: check for abstract classes that implement the naming conventions
+                // No empty enabled tasks
+                collectProblems(
+                    testClassesPerTask.entrySet().stream()
+                        .map(entry ->
+                            checkAtLeastOneExists(
+                                "test class included in task " + entry.getKey(),
+                                entry.getValue().stream()
+                            )
+                        )
+                        .sorted()
+                        .collect(Collectors.joining("\n"))
                 ),
                 checkNoneExists(
                     "Test classes are not included in any enabled task (" +
-                        Stream.concat(
-                            classFilesPerRandomizedTestingTask.keySet().stream(),
-                            classFilesPerGradleTestTask.keySet().stream()
-                        ).collect(Collectors.joining(",")) + ")",
+                        classFilesPerTask.keySet().stream()
+                            .collect(Collectors.joining(",")) + ")",
                     allTestClassFiles.getFiles().stream()
                         .filter(testFile ->
-                            classFilesPerRandomizedTestingTask.values().stream()
-                                .anyMatch(fileSet -> fileSet.contains(testFile)) == false &&
-                                classFilesPerGradleTestTask.values().stream()
-                                    .anyMatch(fileSet -> fileSet.contains(testFile)) == false
+                            classFilesPerTask.values().stream()
+                                .anyMatch(fileSet -> fileSet.contains(testFile)) == false
                         )
                         .map(classes::get)
+                ),
+                collectProblems(
+                    suffixToBaseClass.entrySet().stream()
+                        .filter(entry -> entry.getValue().isEmpty() == false)
+                        .map(entry -> {
+                            return checkNoneExists(
+                                "Tests classes with suffix `" + entry.getKey() + "` should extend " +
+                                    entry.getValue().stream().map(Class::getName).collect(Collectors.joining(" or ")) +
+                                    " but the following classes do not",
+                                classes.values().stream()
+                                    .filter(clazz -> clazz.getName().endsWith(entry.getKey()))
+                                    .filter(clazz -> entry.getValue().stream()
+                                        .anyMatch(test -> test.isAssignableFrom(clazz)) == false)
+                            );
+                        }).sorted()
+                        .collect(Collectors.joining("\n"))
                 )
+                // TODO: check that the testing tasks are included in the right task based on the name ( from the rule )
+                // TODO: check to make sure that the main source set doesn't have classes that match
+                //         the naming convention (just the names, don't load classes)
             );
         }
 
         if (problems.isEmpty()) {
-            getLogger().error(problems);
-            throw new IllegalStateException("Testing conventions are not honored");
-        } else {
             getSuccessMarker().getParentFile().mkdirs();
             Files.write(getSuccessMarker().toPath(), new byte[]{}, StandardOpenOption.CREATE);
+        } else {
+            getLogger().error(problems);
+            throw new IllegalStateException("Testing conventions are not honored");
         }
     }
-
 
     private String collectProblems(String... problems) {
         return Stream.of(problems)
             .map(String::trim)
-            .filter(String::isEmpty)
-            .map(each -> each + "\n")
-            .collect(Collectors.joining());
-    }
-
-
-    @Input
-    public Map<String, Set<File>> classFilesPerRandomizedTestingTask(FileTree testClassFiles) {
-        return
-            Stream.concat(
-                getProject().getTasks().withType(getRandomizedTestingTask()).stream(),
-                // Look at sub-projects too. As sometimes tests are implemented in parent but ran in sub-projects against
-                // different configurations
-                getProject().getSubprojects().stream().flatMap(subproject ->
-                    subproject.getTasks().withType(getRandomizedTestingTask()).stream()
-                )
-            )
-            .filter(Task::getEnabled)
-            .collect(Collectors.toMap(
-                Task::getPath,
-                task -> testClassFiles.matching(getRandomizedTestingPatternSet(task)).getFiles()
-            ));
-    }
-
-    @Input
-    public Map<String, Set<File>> classFilesPerGradleTestTask() {
-        return Stream.concat(
-            getProject().getTasks().withType(Test.class).stream(),
-            getProject().getSubprojects().stream().flatMap(subproject ->
-                subproject.getTasks().withType(Test.class).stream()
-            )
-        )
-            .filter(Task::getEnabled)
-            .collect(Collectors.toMap(
-                Task::getPath,
-                task -> task.getCandidateClassFiles().getFiles()
-            ));
+            .filter(s -> s.isEmpty() == false)
+            .collect(Collectors.joining("\n"));
     }
 
     @SuppressWarnings("unchecked")
@@ -214,76 +284,77 @@ public class TestingConventionsTasks extends DefaultTask {
         }
     }
 
-    @Input
-    @SkipWhenEmpty
-    public Map<String, File> getTestClassNames() {
-        if (testClassNames == null) {
-            testClassNames = Boilerplate.getJavaSourceSets(getProject()).getByName("test").getOutput().getClassesDirs()
-                .getFiles().stream()
-                .filter(File::exists)
-                .flatMap(testRoot -> walkPathAndLoadClasses(testRoot).entrySet().stream())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        }
-        return testClassNames;
-    }
-
-    @OutputFile
-    public File getSuccessMarker() {
-        return new File(getProject().getBuildDir(), "markers/" + getName());
-    }
-
     private String checkNoneExists(String message, Stream<? extends Class<?>> stream) {
         String problem = stream
             .map(each -> "  * " + each.getName())
+            .sorted()
             .collect(Collectors.joining("\n"));
         if (problem.isEmpty() == false) {
             return message + ":\n" + problem;
-        } else{
+        } else {
             return "";
+        }
+    }
+
+    private String checkAtLeastOneExists(String message, Stream<? extends Class<?>> stream) {
+        if (stream.findAny().isPresent()) {
+            return "";
+        } else {
+            return "Expected at least one " + message + ", but found none.";
         }
     }
 
     private boolean seemsLikeATest(Class<?> clazz) {
         try {
             ClassLoader classLoader = clazz.getClassLoader();
-            Class<?> junitTest;
-            try {
-                junitTest = classLoader.loadClass("junit.framework.Test");
-            } catch (ClassNotFoundException e) {
-                throw new IllegalStateException("Could not load junit.framework.Test. It's expected that this class is " +
-                    "available on the tests classpath");
-            }
+
+            Class<?> junitTest = loadClassWithoutInitializing("org.junit.Assert", classLoader);
             if (junitTest.isAssignableFrom(clazz)) {
-                getLogger().info("{} is a test because it extends junit.framework.Test", clazz.getName());
+                getLogger().debug("{} is a test because it extends {}", clazz.getName(), junitTest.getName());
                 return true;
             }
+
+            Class<?> junitAnnotation = loadClassWithoutInitializing("org.junit.Test", classLoader);
             for (Method method : clazz.getMethods()) {
-                if (matchesTestMethodNamingConvention(clazz, method)) return true;
-                if (isAnnotated(clazz, method, junitTest)) return true;
+                if (matchesTestMethodNamingConvention(method)) {
+                    getLogger().debug("{} is a test because it has method named '{}'", clazz.getName(), method.getName());
+                    return true;
+                }
+                if (isAnnotated(method, junitAnnotation)) {
+                    getLogger().debug("{} is a test because it has method '{}' annotated with '{}'",
+                        clazz.getName(), method.getName(), junitAnnotation.getName());
+                    return true;
+                }
             }
+
             return false;
         } catch (NoClassDefFoundError e) {
-            throw new IllegalStateException("Failed to inspect class " + clazz.getName(), e);
+            // Include the message to get more info to get more a more useful message when running Gradle without -s
+            throw new IllegalStateException(
+                "Failed to inspect class " + clazz.getName() + ". Missing class? " + e.getMessage(),
+                e);
         }
     }
 
-    private boolean matchesTestMethodNamingConvention(Class<?> clazz, Method method) {
-        if (method.getName().startsWith(TEST_METHOD_PREFIX) &&
-            Modifier.isStatic(method.getModifiers()) == false &&
-            method.getReturnType().equals(Void.class)
-        ) {
-            getLogger().info("{} is a test because it has method: {}", clazz.getName(), method.getName());
+    private boolean implementsNamingConvention(Class<?> clazz) {
+        if (naming.stream()
+            .map(TestingConventionRule::getSuffix)
+            .anyMatch(suffix -> clazz.getName().endsWith(suffix))) {
+            getLogger().debug("{} is a test because it matches the naming convention", clazz.getName());
             return true;
         }
         return false;
     }
 
-    private boolean isAnnotated(Class<?> clazz, Method method, Class<?> annotation) {
+    private boolean matchesTestMethodNamingConvention(Method method) {
+        return method.getName().startsWith(TEST_METHOD_PREFIX) &&
+            Modifier.isStatic(method.getModifiers()) == false
+            ;
+    }
+
+    private boolean isAnnotated(Method method, Class<?> annotation) {
         for (Annotation presentAnnotation : method.getAnnotations()) {
             if (annotation.isAssignableFrom(presentAnnotation.getClass())) {
-                getLogger().info("{} is a test because {} is annotated with junit.framework.Test",
-                    clazz.getName(), method.getName()
-                );
                 return true;
             }
         }
@@ -291,9 +362,13 @@ public class TestingConventionsTasks extends DefaultTask {
     }
 
     private FileCollection getTestsClassPath() {
-        // This is doesn't need to be annotated with @Classpath because we only really care about the test source set
+        // Loading the classes depends on the classpath, so we could make this an input annotated with @Classpath.
+        // The reason we don't is that test classes are already inputs and while the dependencies are needed to load
+        // the classes these don't influence the checks done by this task.
+        // A side effect is that we could mark as up-to-date with missing dependencies, but these will be found when
+        // running the tests.
         return getProject().files(
-            getProject().getConfigurations().getByName("testCompile").resolve(),
+            getProject().getConfigurations().getByName("testRuntime").resolve(),
             Boilerplate.getJavaSourceSets(getProject())
                 .stream()
                 .flatMap(sourceSet -> sourceSet.getOutput().getClassesDirs().getFiles().stream())
@@ -349,14 +424,14 @@ public class TestingConventionsTasks extends DefaultTask {
 
     private Class<?> loadClassWithoutInitializing(String name, ClassLoader isolatedClassLoader) {
         try {
-            return Class.forName(name,
+            return Class.forName(
+                name,
                 // Don't initialize the class to save time. Not needed for this test and this doesn't share a VM with any other tests.
                 false,
                 isolatedClassLoader
             );
         } catch (ClassNotFoundException e) {
-            // Will not get here as the exception will be loaded by isolatedClassLoader
-            throw new RuntimeException("Failed to load class " + name, e);
+            throw new RuntimeException("Failed to load class " + name + ". Incorrect test runtime classpath?", e);
         }
     }
 

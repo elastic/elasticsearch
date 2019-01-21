@@ -1,3 +1,5 @@
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask
+
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
@@ -17,6 +19,15 @@ archivesBaseName = 'x-pack-sql'
 
 // All integration tests live in qa modules
 integTest.enabled = false
+
+task internalClusterTest(type: RandomizedTestingTask,
+        group: JavaBasePlugin.VERIFICATION_GROUP,
+        dependsOn: unitTest.dependsOn) {
+    include '**/*IT.class'
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+}
+check.dependsOn internalClusterTest
+internalClusterTest.mustRunAfter test
 
 dependencies {
     // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here

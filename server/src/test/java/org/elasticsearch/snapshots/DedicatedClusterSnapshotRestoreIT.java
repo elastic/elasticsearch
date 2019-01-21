@@ -53,6 +53,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -60,7 +61,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
@@ -92,11 +92,13 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
@@ -160,26 +162,53 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockRepository.Plugin.class, TestCustomMetaDataPlugin.class);
+        return Arrays.asList(MockRepository.Plugin.class, TestCustomMetaDataPlugin.class, BrokenSettingPlugin.class);
     }
 
-    public void testRestorePersistentSettings() throws Exception {
+    public static class BrokenSettingPlugin extends Plugin {
+        private static boolean breakSetting = false;
+        private static final IllegalArgumentException EXCEPTION =  new IllegalArgumentException("this setting goes boom");
+
+        static void breakSetting(boolean breakSetting) {
+            BrokenSettingPlugin.breakSetting = breakSetting;
+        }
+
+        static final Setting<String> BROKEN_SETTING = new Setting<>("setting.broken", "default", s->s,
+                s-> {
+                    if ((s.equals("default") == false && breakSetting)) {
+                        throw EXCEPTION;
+                    }
+                },
+                Setting.Property.NodeScope, Setting.Property.Dynamic);
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Collections.singletonList(BROKEN_SETTING);
+        }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37485")
+    public void testExceptionWhenRestoringPersistentSettings() {
         logger.info("--> start 2 nodes");
-        internalCluster().startNode();
+        internalCluster().startNodes(2);
+
         Client client = client();
-        String secondNode = internalCluster().startNode();
-        logger.info("--> wait for the second node to join the cluster");
-        assertThat(client.admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut(), equalTo(false));
+        Consumer<String> setSettingValue = value -> {
+            client.admin().cluster().prepareUpdateSettings().setPersistentSettings(
+                    Settings.builder()
+                            .put(BrokenSettingPlugin.BROKEN_SETTING.getKey(), value))
+                    .execute().actionGet();
+        };
+
+        Consumer<String> assertSettingValue = value -> {
+            assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
+                            .getMetaData().persistentSettings().get(BrokenSettingPlugin.BROKEN_SETTING.getKey()),
+                    equalTo(value));
+        };
 
         logger.info("--> set test persistent setting");
-        client.admin().cluster().prepareUpdateSettings().setPersistentSettings(
-                Settings.builder()
-                        .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2))
-                .execute().actionGet();
-
-        assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
-                .getMetaData().persistentSettings().getAsInt(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), -1),
-            equalTo(2));
+        setSettingValue.accept("new value");
+        assertSettingValue.accept("new value");
 
         logger.info("--> create repository");
         AcknowledgedResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
@@ -195,32 +224,21 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 .getSnapshots().get(0).state(),
             equalTo(SnapshotState.SUCCESS));
 
-        logger.info("--> clean the test persistent setting");
-        client.admin().cluster().prepareUpdateSettings().setPersistentSettings(
-                Settings.builder()
-                        .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 1))
-                .execute().actionGet();
-        assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
-                .getMetaData().persistentSettings().getAsInt(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), -1),
-            equalTo(1));
-
-        stopNode(secondNode);
-        assertThat(client.admin().cluster().prepareHealth().setWaitForNodes("1").get().isTimedOut(), equalTo(false));
+        logger.info("--> change the test persistent setting and break it");
+        setSettingValue.accept("new value 2");
+        assertSettingValue.accept("new value 2");
+        BrokenSettingPlugin.breakSetting(true);
 
         logger.info("--> restore snapshot");
         try {
             client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setRestoreGlobalState(true)
                 .setWaitForCompletion(true).execute().actionGet();
-            fail("can't restore minimum master nodes");
+
         } catch (IllegalArgumentException ex) {
-            assertEquals("illegal value can't update [discovery.zen.minimum_master_nodes] from [1] to [2]", ex.getMessage());
-            assertEquals("cannot set discovery.zen.minimum_master_nodes to more than the current master nodes count [1]",
-                ex.getCause().getMessage());
+            assertEquals(BrokenSettingPlugin.EXCEPTION.getMessage(), ex.getMessage());
         }
-        logger.info("--> ensure that zen discovery minimum master nodes wasn't restored");
-        assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
-                .getMetaData().persistentSettings().getAsInt(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), -1),
-            not(equalTo(2)));
+
+        assertSettingValue.accept("new value 2");
     }
 
     public void testRestoreCustomMetadata() throws Exception {
@@ -359,7 +377,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> start 2 nodes");
         Client client = client();
 
-        assertAcked(prepareCreate("test-idx", 2, Settings.builder().put("number_of_shards", 2).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate("test-idx", 2, Settings.builder().put("number_of_shards", 2)
+                                                                   .put("number_of_replicas", 0)));
         ensureGreen();
 
         logger.info("--> indexing some data");
@@ -384,7 +403,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         String blockedNode = blockNodeWithIndex("test-repo", "test-idx");
 
         logger.info("--> snapshot");
-        client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
+        client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+                                .setWaitForCompletion(false)
+                                .setIndices("test-idx")
+                                .get();
 
         logger.info("--> waiting for block to kick in");
         waitForBlock(blockedNode, "test-repo", TimeValue.timeValueSeconds(60));
@@ -407,7 +429,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         nodes.add(internalCluster().startNode());
         Client client = client();
 
-        assertAcked(prepareCreate("test-idx", 2, Settings.builder().put("number_of_shards", 2).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate("test-idx", 2, Settings.builder().put("number_of_shards", 2)
+                                                                   .put("number_of_replicas", 0)));
         ensureGreen();
 
         logger.info("--> indexing some data");
@@ -435,7 +458,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         int numberOfFilesBeforeSnapshot = numberOfFiles(repo);
         logger.info("--> snapshot");
-        client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
+        client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+                                .setWaitForCompletion(false)
+                                .setIndices("test-idx")
+                                .get();
 
         logger.info("--> waiting for block to kick in");
         waitForBlock(blockedNode, "test-repo", TimeValue.timeValueSeconds(60));
@@ -501,7 +527,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         ensureGreen("test-idx-all");
 
         logger.info("--> create an index that will be closed");
-        assertAcked(prepareCreate("test-idx-closed", 1, Settings.builder().put("number_of_shards", 4).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate("test-idx-closed", 1, Settings.builder().put("number_of_shards", 4)
+                                                                          .put("number_of_replicas", 0)));
         ensureGreen("test-idx-closed");
 
         logger.info("--> indexing some data into test-idx-all");
@@ -527,7 +554,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> start snapshot with default settings and closed index - should be blocked");
         assertBlocked(client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
                 .setIndices("test-idx-all", "test-idx-none", "test-idx-some", "test-idx-closed")
-                .setWaitForCompletion(true), MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
+                .setWaitForCompletion(true), MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID);
 
 
         logger.info("--> start snapshot with default settings without a closed index - should fail");
@@ -586,7 +613,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 equalTo(SnapshotState.PARTIAL));
         }
 
-        assertAcked(client().admin().indices().prepareClose("test-idx-some", "test-idx-all").execute().actionGet());
+        assertAcked(client().admin().indices().prepareClose("test-idx-some", "test-idx-all"));
 
         logger.info("--> restore incomplete snapshot - should fail");
         assertThrows(client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-2").setRestoreGlobalState(false)
@@ -634,8 +661,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
                 .build();
 
-        internalCluster().startNode(nodeSettings);
-        internalCluster().startNode(nodeSettings);
+        internalCluster().startNodes(2, nodeSettings);
         cluster().wipeIndices("_all");
 
         logger.info("--> create repository");
@@ -1153,7 +1179,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(anotherStats.getTotalSize(), is(snapshot1FileSize));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36283")
     public void testDataNodeRestartWithBusyMasterDuringSnapshot() throws Exception {
         logger.info("-->  starting a master node and two data nodes");
         internalCluster().startMasterOnlyNode();
@@ -1163,7 +1188,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             .setType("mock").setSettings(Settings.builder()
                 .put("location", randomRepoPath())
                 .put("compress", randomBoolean())
-                .put("max_snapshot_bytes_per_sec", "1000b")
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
         assertAcked(prepareCreate("test-idx", 0, Settings.builder()
             .put("number_of_shards", 5).put("number_of_replicas", 0)));
@@ -1179,10 +1203,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         flushAndRefresh();
         final String dataNode = blockNodeWithIndex("test-repo", "test-idx");
         logger.info("-->  snapshot");
-        client(internalCluster().getMasterName()).admin().cluster()
-            .prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
         ServiceDisruptionScheme disruption = new BusyMasterServiceDisruption(random(), Priority.HIGH);
         setDisruptionScheme(disruption);
+        client(internalCluster().getMasterName()).admin().cluster()
+            .prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
         disruption.startDisrupting();
         logger.info("-->  restarting data node, which should cause primary shards to be failed");
         internalCluster().restartNode(dataNode, InternalTestCluster.EMPTY_CALLBACK);
@@ -1195,7 +1219,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
             SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
             assertTrue(snapshotInfo.state().toString(), snapshotInfo.state().completed());
-        }, 30, TimeUnit.SECONDS);
+        }, 60L, TimeUnit.SECONDS);
     }
 
     private long calculateTotalFilesSize(List<Path> files) {

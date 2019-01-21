@@ -75,6 +75,15 @@ public class PainlessCast {
         return new PainlessCast(originalType, targetType, explicitCast, null, null, null, boxTargetType);
     }
 
+    /** Create a cast where the original type is unboxed, cast to a target type, and the target type is boxed. */
+    public static PainlessCast unboxOriginalTypeToBoxTargetType(boolean explicitCast, Class<?> unboxOriginalType, Class<?> boxTargetType) {
+
+        Objects.requireNonNull(unboxOriginalType);
+        Objects.requireNonNull(boxTargetType);
+
+        return new PainlessCast(null, null, explicitCast, unboxOriginalType, null, null, boxTargetType);
+    }
+
     public final Class<?> originalType;
     public final Class<?> targetType;
     public final boolean explicitCast;

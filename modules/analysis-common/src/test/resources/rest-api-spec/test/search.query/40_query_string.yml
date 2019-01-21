@@ -43,7 +43,6 @@
   - do:
       explain:
         index:  test
-        type:   test
         id:     1
         q: field:bars
         analyzer: snowball

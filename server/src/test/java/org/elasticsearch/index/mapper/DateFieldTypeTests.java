@@ -31,8 +31,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -61,13 +61,13 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         addModifier(new Modifier("format", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((DateFieldType) ft).setDateTimeFormatter(Joda.forPattern("basic_week_date", Locale.ROOT));
+                ((DateFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("basic_week_date"));
             }
         });
         addModifier(new Modifier("locale", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((DateFieldType) ft).setDateTimeFormatter(Joda.forPattern("date_optional_time", Locale.CANADA));
+                ((DateFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("date_optional_time").withLocale(Locale.CANADA));
             }
         });
         nowInMillis = randomNonNegativeLong();
@@ -110,8 +110,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     public void testIsFieldWithinQuery() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
-        long instant1 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-12").getMillis();
-        long instant2 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-04-03").getMillis();
+        long instant1 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseJoda("2015-10-12").getMillis();
+        long instant2 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseJoda("2016-04-03").getMillis();
         Document doc = new Document();
         LongPoint field = new LongPoint("my_date", instant1);
         doc.add(field);
@@ -138,25 +138,25 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     public void testValueFormat() {
         MappedFieldType ft = createDefaultFieldType();
-        long instant = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-12T14:10:55").getMillis();
+        long instant = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseJoda("2015-10-12T14:10:55").getMillis();
         assertEquals("2015-10-12T14:10:55.000Z",
                 ft.docValueFormat(null, DateTimeZone.UTC).format(instant));
         assertEquals("2015-10-12T15:10:55.000+01:00",
                 ft.docValueFormat(null, DateTimeZone.forOffsetHours(1)).format(instant));
         assertEquals("2015",
-                createDefaultFieldType().docValueFormat("YYYY", DateTimeZone.UTC).format(instant));
+                createDefaultFieldType().docValueFormat("yyyy", DateTimeZone.UTC).format(instant));
         assertEquals(instant,
                 ft.docValueFormat(null, DateTimeZone.UTC).parseLong("2015-10-12T14:10:55", false, null));
         assertEquals(instant + 999,
                 ft.docValueFormat(null, DateTimeZone.UTC).parseLong("2015-10-12T14:10:55", true, null));
-        assertEquals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-13").getMillis() - 1,
+        assertEquals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseJoda("2015-10-13").getMillis() - 1,
                 ft.docValueFormat(null, DateTimeZone.UTC).parseLong("2015-10-12||/d", true, null));
     }
 
     public void testValueForSearch() {
         MappedFieldType ft = createDefaultFieldType();
         String date = "2015-10-12T12:09:55.000Z";
-        long instant = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date).getMillis();
+        long instant = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseJoda(date).getMillis();
         assertEquals(date, ft.valueForDisplay(instant));
     }
 
@@ -170,7 +170,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         String date = "2015-10-12T14:10:55";
-        long instant = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date).getMillis();
+        long instant = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseJoda(date).getMillis();
         ft.setIndexOptions(IndexOptions.DOCS);
         Query expected = new IndexOrDocValuesQuery(
                 LongPoint.newRangeQuery("field", instant, instant + 999),
@@ -193,8 +193,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         ft.setName("field");
         String date1 = "2015-10-12T14:10:55";
         String date2 = "2016-04-28T11:33:52";
-        long instant1 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date1).getMillis();
-        long instant2 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date2).getMillis() + 999;
+        long instant1 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseJoda(date1).getMillis();
+        long instant2 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseJoda(date2).getMillis() + 999;
         ft.setIndexOptions(IndexOptions.DOCS);
         Query expected = new IndexOrDocValuesQuery(
                 LongPoint.newRangeQuery("field", instant1, instant2),

@@ -1,13 +1,16 @@
 [role="xpack"]
 [[watcher-api-delete-watch]]
-=== Delete Watch API
+=== Delete watch API
+++++
+<titleabbrev>Delete watch</titleabbrev>
+++++
 
-The DELETE watch API removes a watch from {watcher}.
+The delete watch API removes a watch from {watcher}.
 
 [float]
 ==== Request
 
-`DELETE _xpack/watcher/watch/<watch_id>`
+`DELETE _watcher/watch/<watch_id>`
 
 [float]
 ==== Description
@@ -20,8 +23,9 @@ related to this watch from the watch history.
 
 IMPORTANT:  Deleting a watch must be done via this API only. Do not delete the
             watch directly from the `.watches` index using the Elasticsearch
-            DELETE Document API. When {security} is enabled, make sure no `write`
-            privileges are granted to anyone over the `.watches` index.
+            DELETE Document API. When {es} {security-features} are enabled, make
+            sure no `write` privileges are granted to anyone over the `.watches`
+            index.
 
 [float]
 ==== Path Parameters
@@ -42,7 +46,7 @@ The following example deletes a watch with the `my-watch` id:
 
 [source,js]
 --------------------------------------------------
-DELETE _xpack/watcher/watch/my_watch
+DELETE _watcher/watch/my_watch
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:my_active_watch]

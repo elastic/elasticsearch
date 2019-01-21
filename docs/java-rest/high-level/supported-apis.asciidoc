@@ -120,6 +120,11 @@ Alias Management::
 * <<{upid}-exists-alias>>
 * <<{upid}-get-alias>>
 
+Template Management::
+* <<{upid}-get-templates>>
+* <<{upid}-templates-exist>>
+* <<{upid}-put-template>>
+
 include::indices/analyze.asciidoc[]
 include::indices/create_index.asciidoc[]
 include::indices/delete_index.asciidoc[]
@@ -145,9 +150,11 @@ include::indices/get_settings.asciidoc[]
 include::indices/put_template.asciidoc[]
 include::indices/validate_query.asciidoc[]
 include::indices/get_templates.asciidoc[]
+include::indices/templates_exist.asciidoc[]
 include::indices/get_index.asciidoc[]
 include::indices/freeze_index.asciidoc[]
 include::indices/unfreeze_index.asciidoc[]
+include::indices/delete_template.asciidoc[]
 
 == Cluster APIs
 
@@ -334,13 +341,18 @@ include::ml/delete-expired-data.asciidoc[]
 
 == Migration APIs
 
+:upid: {mainid}-migration
+:doc-tests-file: {doc-tests}/MigrationClientDocumentationIT.java
+
 The Java High Level REST Client supports the following Migration APIs:
 
 * <<java-rest-high-migration-get-assistance>>
-* <<java-rest-high-migration-upgrade>>
+* <<{upid}-upgrade>>
+* <<{upid}-get-deprecation-info>>
 
 include::migration/get-assistance.asciidoc[]
 include::migration/upgrade.asciidoc[]
+include::migration/get-deprecation-info.asciidoc[]
 
 == Rollup APIs
 
@@ -354,6 +366,7 @@ The Java High Level REST Client supports the following Rollup APIs:
 * <<{upid}-rollup-stop-job>>
 * <<{upid}-rollup-delete-job>>
 * <<java-rest-high-x-pack-rollup-get-job>>
+* <<{upid}-search>>
 * <<{upid}-x-pack-rollup-get-rollup-caps>>
 * <<{upid}-x-pack-rollup-get-rollup-index-caps>>
 
@@ -362,6 +375,7 @@ include::rollup/start_job.asciidoc[]
 include::rollup/stop_job.asciidoc[]
 include::rollup/delete_job.asciidoc[]
 include::rollup/get_job.asciidoc[]
+include::rollup/search.asciidoc[]
 include::rollup/get_rollup_caps.asciidoc[]
 include::rollup/get_rollup_index_caps.asciidoc[]
 
@@ -373,16 +387,19 @@ include::rollup/get_rollup_index_caps.asciidoc[]
 The Java High Level REST Client supports the following Security APIs:
 
 * <<java-rest-high-security-put-user>>
+* <<{upid}-get-users>>
 * <<{upid}-delete-user>>
 * <<java-rest-high-security-enable-user>>
 * <<java-rest-high-security-disable-user>>
 * <<java-rest-high-security-change-password>>
+* <<{upid}-put-role>>
 * <<{upid}-get-roles>>
 * <<java-rest-high-security-delete-role>>
 * <<{upid}-clear-roles-cache>>
 * <<{upid}-clear-realm-cache>>
 * <<{upid}-authenticate>>
 * <<{upid}-has-privileges>>
+* <<{upid}-get-user-privileges>>
 * <<java-rest-high-security-get-certificates>>
 * <<java-rest-high-security-put-role-mapping>>
 * <<java-rest-high-security-get-role-mappings>>
@@ -390,13 +407,16 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-create-token>>
 * <<{upid}-invalidate-token>>
 * <<{upid}-get-privileges>>
+* <<{upid}-put-privileges>>
 * <<{upid}-delete-privileges>>
 
 include::security/put-user.asciidoc[]
+include::security/get-users.asciidoc[]
 include::security/delete-user.asciidoc[]
 include::security/enable-user.asciidoc[]
 include::security/disable-user.asciidoc[]
 include::security/change-password.asciidoc[]
+include::security/put-role.asciidoc[]
 include::security/get-roles.asciidoc[]
 include::security/delete-role.asciidoc[]
 include::security/delete-privileges.asciidoc[]
@@ -405,12 +425,14 @@ include::security/clear-roles-cache.asciidoc[]
 include::security/clear-realm-cache.asciidoc[]
 include::security/authenticate.asciidoc[]
 include::security/has-privileges.asciidoc[]
+include::security/get-user-privileges.asciidoc[]
 include::security/get-certificates.asciidoc[]
 include::security/put-role-mapping.asciidoc[]
 include::security/get-role-mappings.asciidoc[]
 include::security/delete-role-mapping.asciidoc[]
 include::security/create-token.asciidoc[]
 include::security/invalidate-token.asciidoc[]
+include::security/put-privileges.asciidoc[]
 
 == Watcher APIs
 
@@ -476,6 +498,7 @@ The Java High Level REST Client supports the following CCR APIs:
 * <<{upid}-ccr-delete-auto-follow-pattern>>
 * <<{upid}-ccr-get-auto-follow-pattern>>
 * <<{upid}-ccr-get-stats>>
+* <<{upid}-ccr-get-follow-stats>>
 
 include::ccr/put_follow.asciidoc[]
 include::ccr/pause_follow.asciidoc[]
@@ -485,6 +508,7 @@ include::ccr/put_auto_follow_pattern.asciidoc[]
 include::ccr/delete_auto_follow_pattern.asciidoc[]
 include::ccr/get_auto_follow_pattern.asciidoc[]
 include::ccr/get_stats.asciidoc[]
+include::ccr/get_follow_stats.asciidoc[]
 
 == Index Lifecycle Management APIs
 

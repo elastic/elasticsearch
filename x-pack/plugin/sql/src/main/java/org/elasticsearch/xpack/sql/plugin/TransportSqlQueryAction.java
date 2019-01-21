@@ -71,7 +71,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                                  String username, String clusterName) {
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)
-        Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(), request.requestTimeout(), request.pageTimeout(),
+        Configuration cfg = new Configuration(request.zoneId(), request.fetchSize(), request.requestTimeout(), request.pageTimeout(),
                 request.filter(), request.mode(), username, clusterName);
 
         // mode() shouldn't be null
@@ -88,7 +88,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         } else {
             planExecutor.metrics().paging(metric);
             planExecutor.nextPage(cfg, Cursors.decodeFromString(request.cursor()),
-                    ActionListener.wrap(rowSet -> listener.onResponse(createResponse(rowSet, null)),
+                    ActionListener.wrap(rowSet -> listener.onResponse(createResponse(request.mode(), rowSet, null)),
                             e -> {
                                 planExecutor.metrics().failed(metric);
                                 listener.onFailure(e);
@@ -100,17 +100,16 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         List<ColumnInfo> columns = new ArrayList<>(rowSet.columnCount());
         for (Schema.Entry entry : rowSet.schema()) {
             if (Mode.isDriver(request.mode())) {
-                columns.add(new ColumnInfo("", entry.name(), entry.type().esType, entry.type().sqlType.getVendorTypeNumber(),
-                        entry.type().displaySize));
+                columns.add(new ColumnInfo("", entry.name(), entry.type().esType, entry.type().displaySize));
             } else {
                 columns.add(new ColumnInfo("", entry.name(), entry.type().esType));
             }
         }
         columns = unmodifiableList(columns);
-        return createResponse(rowSet, columns);
+        return createResponse(request.mode(), rowSet, columns);
     }
 
-    static SqlQueryResponse createResponse(RowSet rowSet, List<ColumnInfo> columns) {
+    static SqlQueryResponse createResponse(Mode mode, RowSet rowSet, List<ColumnInfo> columns) {
         List<List<Object>> rows = new ArrayList<>();
         rowSet.forEachRow(rowView -> {
             List<Object> row = new ArrayList<>(rowView.columnCount());
@@ -120,6 +119,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
 
         return new SqlQueryResponse(
                 Cursors.encodeToString(Version.CURRENT, rowSet.nextPageCursor()),
+                mode,
                 columns,
                 rows);
     }

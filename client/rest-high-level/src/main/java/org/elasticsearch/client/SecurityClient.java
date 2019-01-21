@@ -48,12 +48,20 @@ import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetRolesResponse;
 import org.elasticsearch.client.security.GetSslCertificatesRequest;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
+import org.elasticsearch.client.security.GetUserPrivilegesRequest;
+import org.elasticsearch.client.security.GetUserPrivilegesResponse;
+import org.elasticsearch.client.security.GetUsersRequest;
+import org.elasticsearch.client.security.GetUsersResponse;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
+import org.elasticsearch.client.security.PutPrivilegesRequest;
+import org.elasticsearch.client.security.PutPrivilegesResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleMappingResponse;
+import org.elasticsearch.client.security.PutRoleRequest;
+import org.elasticsearch.client.security.PutRoleResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 
@@ -73,6 +81,33 @@ public final class SecurityClient {
 
     SecurityClient(RestHighLevelClient restHighLevelClient) {
         this.restHighLevelClient = restHighLevelClient;
+    }
+
+    /**
+     * Get a user, or list of users, in the native realm synchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-user.html">
+     * the docs</a> for more information.
+     * @param request the request with the user's name
+     * @param options the request options (e.g., headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the get users call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetUsersResponse getUsers(GetUsersRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::getUsers, options,
+            GetUsersResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Get a user, or list of users, in the native realm asynchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-user.html">
+     * the docs</a> for more information.
+     * @param request the request with the user's name
+     * @param options the request options (e.g., headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getUsersAsync(GetUsersRequest request, RequestOptions options, ActionListener<GetUsersResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::getUsers, options,
+            GetUsersResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -308,6 +343,25 @@ public final class SecurityClient {
     }
 
     /**
+     * Retrieve the set of effective privileges held by the current user.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public GetUserPrivilegesResponse getUserPrivileges(RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(GetUserPrivilegesRequest.INSTANCE, GetUserPrivilegesRequest::getRequest,
+            options, GetUserPrivilegesResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously retrieve the set of effective privileges held by the current user.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getUserPrivilegesAsync(RequestOptions options, ActionListener<GetUserPrivilegesResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(GetUserPrivilegesRequest.INSTANCE, GetUserPrivilegesRequest::getRequest,
+            options, GetUserPrivilegesResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Clears the cache in one or more realms.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-cache.html">
      * the docs</a> for more.
@@ -459,12 +513,41 @@ public final class SecurityClient {
      *
      * @param request the request with the roles to get
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the delete role call
+     * @return the response from the get roles call
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetRolesResponse getRoles(final GetRolesRequest request, final RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::getRoles, options,
             GetRolesResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously creates or updates a role in the native roles store.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-role.html">
+     * the docs</a> for more.
+     *
+     * @param request  the request containing the role to create or update
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void putRoleAsync(PutRoleRequest request, RequestOptions options, ActionListener<PutRoleResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::putRole, options,
+                PutRoleResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Create or update a role in the native roles store.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-role.html">
+     * the docs</a> for more.
+     *
+     * @param request the request containing the role to create or update
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the put role call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public PutRoleResponse putRole(final PutRoleRequest request, final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::putRole, options,
+            PutRoleResponse::fromXContent, emptySet());
     }
 
     /**
@@ -604,6 +687,38 @@ public final class SecurityClient {
     }
 
     /**
+     * Create or update application privileges.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-privileges.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to create or update application privileges
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the create or update application privileges call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public PutPrivilegesResponse putPrivileges(final PutPrivilegesRequest request, final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::putPrivileges, options,
+                PutPrivilegesResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously create or update application privileges.<br>
+     * See <a href=
+     * "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-privileges.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to create or update application privileges
+     * @param options the request options (e.g. headers), use
+     * {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void putPrivilegesAsync(final PutPrivilegesRequest request, final RequestOptions options,
+            final ActionListener<PutPrivilegesResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::putPrivileges, options,
+                PutPrivilegesResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Removes application privilege(s)
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-privilege.html">
      * the docs</a> for more.
@@ -632,5 +747,4 @@ public final class SecurityClient {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::deletePrivileges, options,
             DeletePrivilegesResponse::fromXContent, listener, singleton(404));
     }
-
 }

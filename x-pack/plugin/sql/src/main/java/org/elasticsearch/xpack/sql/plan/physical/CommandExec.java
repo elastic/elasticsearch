@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.List;
@@ -20,8 +20,8 @@ public class CommandExec extends LeafExec {
 
     private final Command command;
 
-    public CommandExec(Location location, Command command) {
-        super(location);
+    public CommandExec(Source source, Command command) {
+        super(source);
         this.command = command;
     }
 

@@ -19,16 +19,6 @@
 
 package org.elasticsearch.search;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.OriginalIndices;
@@ -60,6 +50,16 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -311,10 +311,17 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
     }
 
     /**
-     * An array of the sort values used.
+     * An array of the (formatted) sort values used.
      */
     public Object[] getSortValues() {
-        return sortValues.sortValues();
+        return sortValues.getFormattedSortValues();
+    }
+
+    /**
+     * An array of the (raw) sort values used.
+     */
+    public Object[] getRawSortValues() {
+        return sortValues.getRawSortValues();
     }
 
     /**

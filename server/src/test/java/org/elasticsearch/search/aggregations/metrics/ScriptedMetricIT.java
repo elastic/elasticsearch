@@ -277,7 +277,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         // "1". then each test will have
         // to check that this bucket exists with the appropriate sub
         // aggregations.
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();
+        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").get();
         builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(
@@ -507,7 +507,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                                 .mapScript(mapScript)
                                 .combineScript(combineScript)
                                 .reduceScript(reduceScript))
-                .execute().actionGet();
+                .get();
         assertSearchResponse(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
 
@@ -851,7 +851,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                                 .mapScript(mapScript)
                                 .combineScript(combineScript)
                                 .reduceScript(reduceScript))
-                .execute().actionGet();
+                .get();
         assertSearchResponse(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
 

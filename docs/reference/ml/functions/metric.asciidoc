@@ -6,7 +6,7 @@ The metric functions include functions such as mean, min and max. These values
 are calculated for each bucket. Field values that cannot be converted to
 double precision floating point numbers are ignored.
 
-The {xpackml} features include the following metric functions:
+The {ml-features} include the following metric functions:
 
 * <<ml-metric-min,`min`>>
 * <<ml-metric-max,`max`>>

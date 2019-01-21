@@ -33,7 +33,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -206,12 +205,7 @@ public class ElectMasterService {
             return null;
         }
         // clean non master nodes
-        for (Iterator<DiscoveryNode> it = possibleNodes.iterator(); it.hasNext(); ) {
-            DiscoveryNode node = it.next();
-            if (!node.isMasterNode()) {
-                it.remove();
-            }
-        }
+        possibleNodes.removeIf(node -> !node.isMasterNode());
         CollectionUtil.introSort(possibleNodes, ElectMasterService::compareNodes);
         return possibleNodes;
     }

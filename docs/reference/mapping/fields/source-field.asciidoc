@@ -13,7 +13,7 @@ within the index. For this reason, it can be disabled as follows:
 
 [source,js]
 --------------------------------------------------
-PUT tweets
+PUT tweets?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -85,7 +85,7 @@ as follows:
 
 [source,js]
 --------------------------------------------------
-PUT logs
+PUT logs?include_type_name=true
 {
   "mappings": {
     "_doc": {

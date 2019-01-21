@@ -120,7 +120,7 @@ public class GceUnicastHostsProvider implements UnicastHostsProvider {
         String ipAddress = null;
         try {
             InetAddress inetAddress = networkService.resolvePublishHostAddresses(
-                NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY));
+                NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY));
             if (inetAddress != null) {
                 ipAddress = NetworkAddress.format(inetAddress);
             }

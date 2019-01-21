@@ -54,11 +54,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -70,6 +72,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -111,7 +114,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
             for (int second = 0; second < 60; second = second + 10) {
                 final int value = randomIntBetween(0, 100);
 
-                final IndexRequest indexRequest = new IndexRequest("docs", "doc");
+                final IndexRequest indexRequest = new IndexRequest("docs");
                 indexRequest.source(jsonBuilder()
                     .startObject()
                     .field("value", value)
@@ -244,6 +247,33 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testSearch() throws Exception {
+        testPutStartAndGetRollupJob();
+        SearchRequest search = new SearchRequest(rollupIndex);
+        search.source(new SearchSourceBuilder()
+                .size(0)
+                .aggregation(new AvgAggregationBuilder("avg").field("value")));
+        SearchResponse response = highLevelClient().rollup().search(search, RequestOptions.DEFAULT);
+        assertEquals(0, response.getFailedShards());
+        assertEquals(0, response.getHits().getTotalHits().value);
+        NumericMetricsAggregation.SingleValue avg = response.getAggregations().get("avg");
+        assertThat(avg.value(), closeTo(sum / numDocs, 0.00000001));
+    }
+
+    public void testSearchWithType() throws Exception {
+        SearchRequest search = new SearchRequest(rollupIndex);
+        search.types("a", "b", "c");
+        search.source(new SearchSourceBuilder()
+                .size(0)
+                .aggregation(new AvgAggregationBuilder("avg").field("value")));
+        try {
+            highLevelClient().rollup().search(search, RequestOptions.DEFAULT);
+            fail("types are not allowed but didn't fail");
+        } catch (ValidationException e) {
+            assertEquals("Validation Failed: 1: types are not allowed in rollup search;", e.getMessage());
+        }
+    }
+
     public void testGetMissingRollupJob() throws Exception {
         GetRollupJobRequest getRollupJobRequest = new GetRollupJobRequest("missing");
         RollupClient rollupClient = highLevelClient().rollup();
@@ -263,7 +293,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
             for (int second = 0; second < 60; second = second + 10) {
                 final int value = randomIntBetween(0, 100);
 
-                final IndexRequest indexRequest = new IndexRequest("docs", "doc");
+                final IndexRequest indexRequest = new IndexRequest("docs");
                 indexRequest.source(jsonBuilder()
                     .startObject()
                     .field("value", value)
@@ -375,7 +405,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
             for (int second = 0; second < 60; second = second + 10) {
                 final int value = randomIntBetween(0, 100);
 
-                final IndexRequest indexRequest = new IndexRequest("docs", "doc");
+                final IndexRequest indexRequest = new IndexRequest("docs");
                 indexRequest.source(jsonBuilder()
                     .startObject()
                     .field("value", value)

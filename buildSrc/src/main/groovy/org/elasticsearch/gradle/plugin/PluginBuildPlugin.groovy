@@ -78,6 +78,19 @@ public class PluginBuildPlugin extends BuildPlugin {
                 skipIntegTestInDisguise = true
             }
         }
+        project.testingConventions {
+            naming.clear()
+            naming {
+                Tests {
+                    baseClass 'org.apache.lucene.util.LuceneTestCase'
+                }
+                IT {
+                    baseClass 'org.elasticsearch.test.ESIntegTestCase'
+                    baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+                    baseClass 'org.elasticsearch.test.ESSingleNodeTestCase'
+                }
+            }
+        }
         createIntegTestTask(project)
         createBundleTask(project)
         project.configurations.getByName('default').extendsFrom(project.configurations.getByName('runtime'))
@@ -101,7 +114,7 @@ public class PluginBuildPlugin extends BuildPlugin {
                 generatePOMTask.ext.pomFileName = "${project.archivesBaseName}-client-${project.versions.elasticsearch}.pom"
             }
         } else {
-            project.plugins.withType(MavenPublishPlugin).whenPluginAdded {
+            if (project.plugins.hasPlugin(MavenPublishPlugin)) {
                 project.publishing.publications.nebula(MavenPublication).artifactId(
                         project.pluginProperties.extension.name
                 )
@@ -129,6 +142,7 @@ public class PluginBuildPlugin extends BuildPlugin {
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
         integTest.mustRunAfter(project.precommit, project.test)
         project.integTestCluster.distribution = System.getProperty('tests.distribution', 'integ-test-zip')
+        project.check.dependsOn(integTest)
     }
 
     /**

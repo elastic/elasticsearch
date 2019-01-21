@@ -1,0 +1,40 @@
+[float]
+[[breaking_70_discovery_changes]]
+=== Discovery changes
+
+[float]
+==== Cluster bootstrapping is required if discovery is configured
+
+The first time a cluster is started, `cluster.initial_master_nodes` must be set
+to perform cluster bootstrapping. It should contain the names of the
+master-eligible nodes in the initial cluster and be defined on every
+master-eligible node in the cluster. See <<discovery-settings,the discovery
+settings summary>> for an example, and the
+<<modules-discovery-bootstrap-cluster,cluster bootstrapping reference
+documentation>> describes this setting in more detail.
+
+The `discovery.zen.minimum_master_nodes` setting is required during a rolling
+upgrade from 6.x, but can be removed in all other circumstances.
+
+[float]
+==== Removing master-eligible nodes sometimes requires voting exclusions
+
+If you wish to remove half or more of the master-eligible nodes from a cluster,
+you must first exclude the affected nodes from the voting configuration using
+the <<modules-discovery-adding-removing-nodes,voting config exclusions API>>.
+If you remove fewer than half of the master-eligible nodes at the same time,
+voting exclusions are not required.  If you remove only master-ineligible nodes
+such as data-only nodes or coordinating-only nodes, voting exclusions are not
+required. Likewise, if you add nodes to the cluster, voting exclusions are not
+required.
+
+[float]
+==== Discovery configuration is required in production
+
+Production deployments of Elasticsearch now require at least one of the
+following settings to be specified in the `elasticsearch.yml` configuration
+file:
+
+- `discovery.zen.ping.unicast.hosts`
+- `discovery.zen.hosts_provider`
+- `cluster.initial_master_nodes`

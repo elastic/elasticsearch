@@ -38,24 +38,7 @@ public class AutodetectResultsParser {
             }
             return new AutodetectResultIterator(in, parser);
         } catch (IOException e) {
-            consumeAndCloseStream(in);
             throw new ElasticsearchParseException(e.getMessage(), e);
-        }
-    }
-
-    static void consumeAndCloseStream(InputStream in) {
-        try {
-            // read anything left in the stream before
-            // closing the stream otherwise if the process
-            // tries to write more after the close it gets
-            // a SIGPIPE
-            byte[] buff = new byte[512];
-            while (in.read(buff) >= 0) {
-                // Do nothing
-            }
-            in.close();
-        } catch (IOException e) {
-            throw new RuntimeException("Error closing result parser input stream", e);
         }
     }
 
@@ -79,15 +62,12 @@ public class AutodetectResultsParser {
                 token = parser.nextToken();
             } catch (IOException e) {
                 logger.debug("io error while parsing", e);
-                consumeAndCloseStream(in);
                 return false;
             }
             if (token == XContentParser.Token.END_ARRAY) {
-                consumeAndCloseStream(in);
                 return false;
             } else if (token != XContentParser.Token.START_OBJECT) {
                 logger.error("Expecting Json Field name token after the Start Object token");
-                consumeAndCloseStream(in);
                 throw new ElasticsearchParseException("unexpected token [" + token + "]");
             }
             return true;

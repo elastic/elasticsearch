@@ -27,7 +27,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
@@ -123,19 +122,6 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
             ", nodeId='" + nodeId + '\'' +
             ", status=" + status +
             '}';
-    }
-
-    /**
-     * Serializes snapshot failure information into JSON
-     *
-     * @param snapshotShardFailure snapshot failure information
-     * @param builder              XContent builder
-     * @param params               additional parameters
-     */
-    public static void toXContent(SnapshotShardFailure snapshotShardFailure, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject();
-        snapshotShardFailure.toXContent(builder, params);
-        builder.endObject();
     }
 
     static final ConstructingObjectParser<SnapshotShardFailure, Void> SNAPSHOT_SHARD_FAILURE_PARSER =

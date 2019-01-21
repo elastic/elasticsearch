@@ -1,16 +1,16 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-revert-snapshot]]
-=== Revert Model Snapshots API
+=== Revert model snapshots API
 ++++
-<titleabbrev>Revert Model Snapshots</titleabbrev>
+<titleabbrev>Revert model snapshots</titleabbrev>
 ++++
 
 Reverts to a specific snapshot.
 
 ==== Request
 
-`POST _xpack/ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_revert`
+`POST _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_revert`
 
 
 ==== Description
@@ -61,7 +61,7 @@ The following example reverts to the `1491856080` snapshot for the
 [source,js]
 --------------------------------------------------
 POST
-_xpack/ml/anomaly_detectors/it_ops_new_kpi/model_snapshots/1491856080/_revert
+_ml/anomaly_detectors/it_ops_new_kpi/model_snapshots/1491856080/_revert
 {
   "delete_intervening_results": true
 }

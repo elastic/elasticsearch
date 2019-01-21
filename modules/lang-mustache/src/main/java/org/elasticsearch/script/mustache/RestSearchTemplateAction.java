@@ -43,7 +43,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     private static final Set<String> RESPONSE_PARAMS;
 
     static {
-        final Set<String> responseParams = new HashSet<>(Arrays.asList(TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HIT_AS_INT_PARAM));
+        final Set<String> responseParams = new HashSet<>(Arrays.asList(TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM));
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
 
@@ -54,6 +54,8 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_search/template", this);
         controller.registerHandler(GET, "/{index}/_search/template", this);
         controller.registerHandler(POST, "/{index}/_search/template", this);
+
+        // Deprecated typed endpoints.
         controller.registerHandler(GET, "/{index}/{type}/_search/template", this);
         controller.registerHandler(POST, "/{index}/{type}/_search/template", this);
     }
@@ -75,6 +77,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             searchTemplateRequest = SearchTemplateRequest.fromXContent(parser);
         }
         searchTemplateRequest.setRequest(searchRequest);
+        RestSearchAction.checkRestTotalHits(request, searchRequest);
 
         return channel -> client.execute(SearchTemplateAction.INSTANCE, searchTemplateRequest, new RestStatusToXContentListener<>(channel));
     }

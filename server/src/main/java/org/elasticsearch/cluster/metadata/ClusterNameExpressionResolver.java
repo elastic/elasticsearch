@@ -77,11 +77,7 @@ public final class ClusterNameExpressionResolver {
         }
 
         private static Set<String> matches(Set<String> remoteClusters, String expression) {
-            if (expression.indexOf("*") == expression.length() - 1) {
-                return otherWildcard(remoteClusters, expression);
-            } else {
-                return otherWildcard(remoteClusters, expression);
-            }
+            return otherWildcard(remoteClusters, expression);
         }
 
         private static Set<String> otherWildcard(Set<String> remoteClusters, String expression) {

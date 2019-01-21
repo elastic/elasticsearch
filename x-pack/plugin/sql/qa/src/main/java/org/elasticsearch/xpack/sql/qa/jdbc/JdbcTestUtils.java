@@ -8,10 +8,14 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.sql.action.CliFormatter;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,6 +24,8 @@ public abstract class JdbcTestUtils {
     public static final String SQL_TRACE = "org.elasticsearch.xpack.sql:TRACE";
 
     public static final String JDBC_TIMEZONE = "timezone";
+    
+    public static ZoneId UTC = ZoneId.of("Z");
 
     public static void logResultSetMetadata(ResultSet rs, Logger logger) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
@@ -111,7 +117,7 @@ public abstract class JdbcTestUtils {
 
         for (int i = 1; i <= columns; i++) {
             cols.add(new ColumnInfo(metaData.getTableName(i), metaData.getColumnName(i), metaData.getColumnTypeName(i),
-                    metaData.getColumnType(i), metaData.getColumnDisplaySize(i)));
+                    metaData.getColumnDisplaySize(i)));
         }
 
 
@@ -127,5 +133,9 @@ public abstract class JdbcTestUtils {
 
         CliFormatter formatter = new CliFormatter(cols, data);
         logger.info("\n" + formatter.formatWithHeader(cols, data));
+    }
+    
+    public static String of(long millis) {
+        return StringUtils.toString(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC));
     }
 }

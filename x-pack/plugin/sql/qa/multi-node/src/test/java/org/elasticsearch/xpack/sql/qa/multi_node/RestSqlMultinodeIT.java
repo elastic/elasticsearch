@@ -26,6 +26,7 @@ import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
+import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.randomMode;
 
 /**
@@ -82,7 +83,7 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
     }
 
     private void createTestData(int documents) throws UnsupportedCharsetException, IOException {
-        Request request = new Request("PUT", "/test/test/_bulk");
+        Request request = new Request("PUT", "/test/_bulk");
         request.addParameter("refresh", "true");
 
         StringBuilder bulk = new StringBuilder();
@@ -107,14 +108,11 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
     private void assertCount(RestClient client, int count) throws IOException {
         Map<String, Object> expected = new HashMap<>();
         String mode = randomMode();
-        expected.put("columns", singletonList(columnInfo(mode, "COUNT(1)", "long", JDBCType.BIGINT, 20)));
+        expected.put("columns", singletonList(columnInfo(mode, "COUNT(*)", "long", JDBCType.BIGINT, 20)));
         expected.put("rows", singletonList(singletonList(count)));
 
         Request request = new Request("POST", "/_sql");
-        if (false == mode.isEmpty()) {
-            request.addParameter("mode", mode);
-        }
-        request.setJsonEntity("{\"query\": \"SELECT COUNT(*) FROM test\"}");
+        request.setJsonEntity("{\"query\": \"SELECT COUNT(*) FROM test\"" + mode(mode) + "}");
         Map<String, Object> actual = responseToMap(client.performRequest(request));
 
         if (false == expected.equals(actual)) {

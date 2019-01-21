@@ -135,10 +135,10 @@ Plugins can create a kind of tasks called persistent tasks. Those tasks are
 usually long-live tasks and are stored in the cluster state, allowing the
 tasks to be revived after a full cluster restart.
 
-Every time a persistent task is created, the master nodes takes care of
+Every time a persistent task is created, the master node takes care of
 assigning the task to a node of the cluster, and the assigned node will then
 pick up the task and execute it locally. The process of assigning persistent
-tasks to nodes is controlled by the following property, which can be updated
+tasks to nodes is controlled by the following properties, which can be updated
 dynamically:
 
 `cluster.persistent_tasks.allocation.enable`::
@@ -153,3 +153,13 @@ This setting does not affect the persistent tasks that are already being execute
 Only newly created persistent tasks, or tasks that must be reassigned (after a node
 left the cluster, for example), are impacted by this setting.
 --
+
+`cluster.persistent_tasks.allocation.recheck_interval`::
+
+     The master node will automatically check whether persistent tasks need to
+     be assigned when the cluster state changes significantly. However, there
+     may be other factors, such as memory usage, that affect whether persistent
+     tasks can be assigned to nodes but do not cause the cluster state to change.
+     This setting controls how often assignment checks are performed to react to
+     these factors. The default is 30 seconds. The minimum permitted value is 10
+     seconds.

@@ -87,6 +87,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+
 /**
  * Base class for requests that should be executed on a primary copy followed by replica copies.
  * Subclasses can resolve the target shard and provide implementation for primary and replica operations.
@@ -1123,6 +1125,19 @@ public abstract class TransportReplicationAction<
             return globalCheckpoint;
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ReplicaResponse that = (ReplicaResponse) o;
+            return localCheckpoint == that.localCheckpoint &&
+                globalCheckpoint == that.globalCheckpoint;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(localCheckpoint, globalCheckpoint);
+        }
     }
 
     /**
@@ -1235,7 +1250,7 @@ public abstract class TransportReplicationAction<
             request = requestSupplier.get();
             // null now, but will be populated by reading from the streams
             targetAllocationID = null;
-            primaryTerm = 0L;
+            primaryTerm = UNASSIGNED_PRIMARY_TERM;
         }
 
         public ConcreteShardRequest(R request, String targetAllocationID, long primaryTerm) {

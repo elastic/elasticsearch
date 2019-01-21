@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.Score;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
@@ -167,7 +169,7 @@ public final class Verifier {
                                 if (!ua.customMessage()) {
                                     boolean useQualifier = ua.qualifier() != null;
                                     List<String> potentialMatches = new ArrayList<>();
-                                    for (Attribute a : p.intputSet()) {
+                                    for (Attribute a : p.inputSet()) {
                                         String nameCandidate = useQualifier ? a.qualifiedName() : a.name();
                                         // add only primitives (object types would only result in another error)
                                         if ((a.dataType() != DataType.UNSUPPORTED) && a.dataType().isPrimitive()) {
@@ -223,12 +225,14 @@ public final class Verifier {
                 validateInExpression(p, localFailures);
                 validateConditional(p, localFailures);
 
+                checkFilterOnAggs(p, localFailures);
+                checkFilterOnGrouping(p, localFailures);
+
                 if (!groupingFailures.contains(p)) {
                     checkGroupBy(p, localFailures, resolvedFunctions, groupingFailures);
                 }
 
                 checkForScoreInsideFunctions(p, localFailures);
-
                 checkNestedUsedInGroupByOrHaving(p, localFailures);
 
                 // everything checks out
@@ -370,7 +374,7 @@ public final class Verifier {
                 if (!missing.isEmpty()) {
                     String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
                     localFailures.add(
-                            fail(condition, "Cannot filter HAVING on non-aggregate" + plural + " %s; consider using WHERE instead",
+                            fail(condition, "Cannot use HAVING filter on non-aggregate" + plural + " %s; use WHERE instead",
                             Expressions.names(missing.keySet())));
                     groupingFailures.add(a);
                     return false;
@@ -418,7 +422,7 @@ public final class Verifier {
             return true;
         }
         // skip aggs (allowed to refer to non-group columns)
-        if (Functions.isAggregate(e)) {
+        if (Functions.isAggregate(e) || Functions.isGrouping(e)) {
             return true;
         }
 
@@ -447,6 +451,21 @@ public final class Verifier {
                 }
             }));
 
+            a.groupings().forEach(e -> {
+                if (Functions.isGrouping(e) == false) {
+                    e.collectFirstChildren(c -> {
+                        if (Functions.isGrouping(c)) {
+                            localFailures.add(fail(c,
+                                    "Cannot combine [%s] grouping function inside GROUP BY, found [%s];"
+                                            + " consider moving the expression inside the histogram",
+                                    Expressions.name(c), Expressions.name(e)));
+                            return true;
+                        }
+                        return false;
+                    });
+                }
+            });
+
             if (!localFailures.isEmpty()) {
                 return false;
             }
@@ -462,7 +481,7 @@ public final class Verifier {
 
             Map<Expression, Node<?>> missing = new LinkedHashMap<>();
             a.aggregates().forEach(ne ->
-            ne.collectFirstChildren(c -> checkGroupMatch(c, ne, a.groupings(), missing, functions)));
+                ne.collectFirstChildren(c -> checkGroupMatch(c, ne, a.groupings(), missing, functions)));
 
             if (!missing.isEmpty()) {
                 String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
@@ -478,6 +497,13 @@ public final class Verifier {
 
     private static boolean checkGroupMatch(Expression e, Node<?> source, List<Expression> groupings,
             Map<Expression, Node<?>> missing, Map<String, Function> functions) {
+
+        // 1:1 match
+        if (Expressions.match(groupings, e::semanticEquals)) {
+            return true;
+        }
+
+
         // resolve FunctionAttribute to backing functions
         if (e instanceof FunctionAttribute) {
             FunctionAttribute fa = (FunctionAttribute) e;
@@ -521,17 +547,47 @@ public final class Verifier {
         if (Functions.isAggregate(e)) {
             return true;
         }
+        
         // left without leaves which have to match; if not there's a failure
-
+        // make sure to match directly on the expression and not on the tree
+        // (since otherwise exp might match the function argument which would be incorrect)
         final Expression exp = e;
         if (e.children().isEmpty()) {
-            if (!Expressions.anyMatch(groupings, c -> exp.semanticEquals(exp instanceof Attribute ? Expressions.attribute(c) : c))) {
-                missing.put(e, source);
+            if (Expressions.match(groupings, c -> exp.semanticEquals(exp instanceof Attribute ? Expressions.attribute(c) : c)) == false) {
+                missing.put(exp, source);
             }
             return true;
         }
         return false;
     }
+
+    private static void checkFilterOnAggs(LogicalPlan p, Set<Failure> localFailures) {
+        if (p instanceof Filter) {
+            Filter filter = (Filter) p;
+            if ((filter.child() instanceof Aggregate) == false) {
+                filter.condition().forEachDown(e -> {
+                    if (Functions.isAggregate(e) || e instanceof AggregateFunctionAttribute) {
+                        localFailures.add(
+                                fail(e, "Cannot use WHERE filtering on aggregate function [%s], use HAVING instead", Expressions.name(e)));
+                    }
+                }, Expression.class);
+            }
+        }
+    }
+
+
+    private static void checkFilterOnGrouping(LogicalPlan p, Set<Failure> localFailures) {
+        if (p instanceof Filter) {
+            Filter filter = (Filter) p;
+            filter.condition().forEachDown(e -> {
+                if (Functions.isGrouping(e) || e instanceof GroupingFunctionAttribute) {
+                    localFailures
+                            .add(fail(e, "Cannot filter on grouping function [%s], use its argument instead", Expressions.name(e)));
+                }
+            }, Expression.class);
+        }
+    }
+
 
     private static void checkForScoreInsideFunctions(LogicalPlan p, Set<Failure> localFailures) {
         // Make sure that SCORE is only used in "top level" functions
@@ -580,7 +636,7 @@ public final class Verifier {
                     for (Expression value : in.list()) {
                         if (areTypesCompatible(dt, value.dataType()) == false) {
                             localFailures.add(fail(value, "expected data type [%s], value provided is of type [%s]",
-                                dt, value.dataType()));
+                                dt.esType, value.dataType().esType));
                             return;
                         }
                     }
@@ -601,7 +657,7 @@ public final class Verifier {
                         } else {
                             if (areTypesCompatible(dt, child.dataType()) == false) {
                                 localFailures.add(fail(child, "expected data type [%s], value provided is of type [%s]",
-                                    dt, child.dataType()));
+                                    dt.esType, child.dataType().esType));
                                 return;
                             }
                         }

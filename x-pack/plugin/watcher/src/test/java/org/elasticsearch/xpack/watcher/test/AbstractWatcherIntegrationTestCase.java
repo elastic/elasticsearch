@@ -340,7 +340,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 assertThat("could not find executed watch record for watch " + watchName, searchResponse.getHits().getTotalHits().value,
                         greaterThanOrEqualTo(minimumExpectedWatchActionsWithActionPerformed));
                 if (assertConditionMet) {
-                    assertThat((Integer) XContentMapValues.extractValue("result.input.payload.hits.total.value",
+                    assertThat((Integer) XContentMapValues.extractValue("result.input.payload.hits.total",
                             searchResponse.getHits().getAt(0).getSourceAsMap()), greaterThanOrEqualTo(1));
                 }
             });

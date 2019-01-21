@@ -25,8 +25,8 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -70,6 +70,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -164,7 +165,9 @@ final class RequestConverters {
                         metadata.field("_index", action.index());
                     }
                     if (Strings.hasLength(action.type())) {
-                        metadata.field("_type", action.type());
+                        if (MapperService.SINGLE_MAPPING_NAME.equals(action.type()) == false) {
+                            metadata.field("_type", action.type());
+                        }
                     }
                     if (Strings.hasLength(action.id())) {
                         metadata.field("_id", action.id());
@@ -238,7 +241,7 @@ final class RequestConverters {
                 content.write(separator);
             }
         }
-        request.setEntity(new ByteArrayEntity(content.toByteArray(), 0, content.size(), requestContentType));
+        request.setEntity(new NByteArrayEntity(content.toByteArray(), 0, content.size(), requestContentType));
         return request;
     }
 
@@ -267,8 +270,14 @@ final class RequestConverters {
     }
 
     static Request sourceExists(GetRequest getRequest) {
-        Request request = new Request(HttpHead.METHOD_NAME, endpoint(getRequest.index(), getRequest.type(), getRequest.id(), "_source"));
-
+        String optionalType = getRequest.type();
+        String endpoint;
+        if (optionalType.equals(MapperService.SINGLE_MAPPING_NAME)) {
+            endpoint = endpoint(getRequest.index(), "_source", getRequest.id());
+        } else {
+            endpoint = endpoint(getRequest.index(), optionalType, getRequest.id(), "_source");
+        }
+        Request request = new Request(HttpHead.METHOD_NAME, endpoint);
         Params parameters = new Params(request);
         parameters.withPreference(getRequest.preference());
         parameters.withRouting(getRequest.routing());
@@ -292,8 +301,16 @@ final class RequestConverters {
 
     static Request index(IndexRequest indexRequest) {
         String method = Strings.hasLength(indexRequest.id()) ? HttpPut.METHOD_NAME : HttpPost.METHOD_NAME;
-        boolean isCreate = (indexRequest.opType() == DocWriteRequest.OpType.CREATE);
-        String endpoint = endpoint(indexRequest.index(), indexRequest.type(), indexRequest.id(), isCreate ? "_create" : null);
+
+        String endpoint;
+        if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
+            endpoint = indexRequest.type().equals(MapperService.SINGLE_MAPPING_NAME)
+                ? endpoint(indexRequest.index(), "_create", indexRequest.id())
+                : endpoint(indexRequest.index(), indexRequest.type(), indexRequest.id(), "_create");
+        } else {
+            endpoint = endpoint(indexRequest.index(), indexRequest.type(), indexRequest.id());
+        }
+
         Request request = new Request(method, endpoint);
 
         Params parameters = new Params(request);
@@ -307,7 +324,7 @@ final class RequestConverters {
 
         BytesRef source = indexRequest.source().toBytesRef();
         ContentType contentType = createContentType(indexRequest.getContentType());
-        request.setEntity(new ByteArrayEntity(source.bytes, source.offset, source.length, contentType));
+        request.setEntity(new NByteArrayEntity(source.bytes, source.offset, source.length, contentType));
         return request;
     }
 
@@ -316,7 +333,9 @@ final class RequestConverters {
     }
 
     static Request update(UpdateRequest updateRequest) throws IOException {
-        String endpoint = endpoint(updateRequest.index(), updateRequest.type(), updateRequest.id(), "_update");
+        String endpoint = updateRequest.type().equals(MapperService.SINGLE_MAPPING_NAME)
+            ? endpoint(updateRequest.index(), "_update", updateRequest.id())
+            : endpoint(updateRequest.index(), updateRequest.type(), updateRequest.id(), "_update");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
         Params parameters = new Params(request);
@@ -354,8 +373,15 @@ final class RequestConverters {
         return request;
     }
 
-    static Request search(SearchRequest searchRequest) throws IOException {
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint(searchRequest.indices(), searchRequest.types(), "_search"));
+    /**
+     * Convert a {@linkplain SearchRequest} into a {@linkplain Request}.
+     * @param searchRequest the request to convert
+     * @param searchEndpoint the name of the search endpoint. {@literal _search}
+     *    for standard searches and {@literal _rollup_search} for rollup
+     *    searches.
+     */
+    static Request search(SearchRequest searchRequest, String searchEndpoint) throws IOException {
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint(searchRequest.indices(), searchRequest.types(), searchEndpoint));
 
         Params params = new Params(request);
         addSearchRequestParams(params, searchRequest);
@@ -407,7 +433,7 @@ final class RequestConverters {
 
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, xContent);
-        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
+        request.setEntity(new NByteArrayEntity(source, createContentType(xContent.type())));
         return request;
     }
 
@@ -440,7 +466,7 @@ final class RequestConverters {
 
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, xContent);
-        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
+        request.setEntity(new NByteArrayEntity(source, createContentType(xContent.type())));
         return request;
     }
 
@@ -455,8 +481,10 @@ final class RequestConverters {
     }
 
     static Request explain(ExplainRequest explainRequest) throws IOException {
-        Request request = new Request(HttpGet.METHOD_NAME,
-            endpoint(explainRequest.index(), explainRequest.type(), explainRequest.id(), "_explain"));
+        String endpoint = explainRequest.type().equals(MapperService.SINGLE_MAPPING_NAME)
+            ? endpoint(explainRequest.index(), "_explain", explainRequest.id())
+            : endpoint(explainRequest.index(), explainRequest.type(), explainRequest.id(), "_explain");
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         Params params = new Params(request);
         params.withStoredFields(explainRequest.storedFields());
@@ -615,8 +643,18 @@ final class RequestConverters {
     }
 
     static Request termVectors(TermVectorsRequest tvrequest) throws IOException {
-        String endpoint = new EndpointBuilder().addPathPart(
-            tvrequest.getIndex(), tvrequest.getType(), tvrequest.getId()).addPathPartAsIs("_termvectors").build();
+        String endpoint;
+        if (tvrequest.getType() != null) {
+            endpoint = new EndpointBuilder().addPathPart(tvrequest.getIndex(), tvrequest.getType(), tvrequest.getId())
+                .addPathPartAsIs("_termvectors")
+                .build();
+        } else {
+            endpoint = new EndpointBuilder().addPathPart(tvrequest.getIndex())
+                .addPathPartAsIs("_termvectors")
+                .addPathPart(tvrequest.getId())
+                .build();
+        }
+
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         Params params = new Params(request);
         params.withRouting(tvrequest.getRouting());
@@ -658,7 +696,7 @@ final class RequestConverters {
     static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType, ToXContent.Params toXContentParams)
         throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, toXContentParams, false).toBytesRef();
-        return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
+        return new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
 
     static String endpoint(String index, String type, String id) {

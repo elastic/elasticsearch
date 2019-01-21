@@ -30,16 +30,16 @@ import java.util.function.Consumer;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.mockito.Mockito.mock;
 
-public class NioGroupTests extends ESTestCase {
+public class NioSelectorGroupTests extends ESTestCase {
 
-    private NioGroup nioGroup;
+    private NioSelectorGroup nioGroup;
 
     @Override
     @SuppressWarnings("unchecked")
     public void setUp() throws Exception {
         super.setUp();
-        nioGroup = new NioGroup(daemonThreadFactory(Settings.EMPTY, "acceptor"), 1, daemonThreadFactory(Settings.EMPTY, "selector"), 1,
-            (s) -> new EventHandler(mock(Consumer.class), s));
+        nioGroup = new NioSelectorGroup(daemonThreadFactory(Settings.EMPTY, "acceptor"), 1,
+            daemonThreadFactory(Settings.EMPTY, "selector"), 1, (s) -> new EventHandler(mock(Consumer.class), s));
     }
 
     @Override
@@ -74,7 +74,7 @@ public class NioGroupTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testExceptionAtStartIsHandled() throws IOException {
         RuntimeException ex = new RuntimeException();
-        CheckedRunnable<IOException> ctor = () -> new NioGroup(r -> {throw ex;}, 1,
+        CheckedRunnable<IOException> ctor = () -> new NioSelectorGroup(r -> {throw ex;}, 1,
             daemonThreadFactory(Settings.EMPTY, "selector"),
             1, (s) -> new EventHandler(mock(Consumer.class), s));
         RuntimeException runtimeException = expectThrows(RuntimeException.class, ctor::run);

@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.transport.nio;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.NioIntegTestCase;
 import org.elasticsearch.Version;
@@ -54,6 +56,7 @@ import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
 public class NioTransportIT extends NioIntegTestCase {
+
     // static so we can use it in anonymous classes
     private static String channelProfileName = null;
 
@@ -86,6 +89,8 @@ public class NioTransportIT extends NioIntegTestCase {
 
     public static final class ExceptionThrowingNioTransport extends NioTransport {
 
+        private static final Logger logger = LogManager.getLogger(ExceptionThrowingNioTransport.class);
+
         public static class TestPlugin extends Plugin implements NetworkPlugin {
 
             @Override
@@ -103,7 +108,8 @@ public class NioTransportIT extends NioIntegTestCase {
         ExceptionThrowingNioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService,
                                       PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                                       CircuitBreakerService circuitBreakerService) {
-            super(settings, Version.CURRENT, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService);
+            super(settings, Version.CURRENT, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService,
+                new NioGroupFactory(settings, logger));
         }
 
         @Override

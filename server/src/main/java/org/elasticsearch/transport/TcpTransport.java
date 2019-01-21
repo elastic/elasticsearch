@@ -660,16 +660,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         logger.error(new ParameterizedMessage("exception from server channel caught on transport layer [channel={}]", channel), e);
     }
 
-    /**
-     * Exception handler for exceptions that are not associated with a specific channel.
-     *
-     * @param exception the exception
-     */
-    protected void onNonChannelException(Exception exception) {
-        logger.warn(new ParameterizedMessage("exception caught on transport layer [thread={}]", Thread.currentThread().getName()),
-            exception);
-    }
-
     protected void serverAcceptedChannel(TcpChannel channel) {
         boolean addedOnThisCall = acceptedChannels.add(channel);
         assert addedOnThisCall : "Channel should only be added to accepted channel set once";

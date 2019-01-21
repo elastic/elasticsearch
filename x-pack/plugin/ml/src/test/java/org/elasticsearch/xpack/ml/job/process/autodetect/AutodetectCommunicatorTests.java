@@ -189,8 +189,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
     public void testKill() throws IOException, TimeoutException {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         AutoDetectResultProcessor resultProcessor = mock(AutoDetectResultProcessor.class);
-        AutodetectProcessManager.AutodetectWorkerExecutorService executorService =
-                mock(AutodetectProcessManager.AutodetectWorkerExecutorService.class);
+        ExecutorService executorService = mock(ExecutorService.class);
 
         AtomicBoolean finishCalled = new AtomicBoolean(false);
         AutodetectCommunicator communicator = createAutodetectCommunicator(executorService, process, resultProcessor,
@@ -232,10 +231,9 @@ public class AutodetectCommunicatorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private AutodetectCommunicator createAutodetectCommunicator(AutodetectProcessManager.AutodetectWorkerExecutorService executorService,
-                                                                AutodetectProcess autodetectProcess,
+    private AutodetectCommunicator createAutodetectCommunicator(ExecutorService executorService, AutodetectProcess autodetectProcess,
                                                                 AutoDetectResultProcessor autoDetectResultProcessor,
-                                                                Consumer<Exception> finishHandler) {
+                                                                Consumer<Exception> finishHandler) throws IOException {
         DataCountsReporter dataCountsReporter = mock(DataCountsReporter.class);
         doAnswer(invocation -> {
             ((ActionListener<Boolean>) invocation.getArguments()[0]).onResponse(true);
@@ -249,8 +247,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private AutodetectCommunicator createAutodetectCommunicator(AutodetectProcess autodetectProcess,
                                                                 AutoDetectResultProcessor autoDetectResultProcessor) throws IOException {
-        AutodetectProcessManager.AutodetectWorkerExecutorService executorService =
-                mock(AutodetectProcessManager.AutodetectWorkerExecutorService.class);
+        ExecutorService executorService = mock(ExecutorService.class);
         when(executorService.submit(any(Callable.class))).thenReturn(mock(Future.class));
         doAnswer(invocationOnMock -> {
             Callable<Void> runnable = (Callable<Void>) invocationOnMock.getArguments()[0];

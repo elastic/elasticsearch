@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -71,9 +73,11 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -123,6 +127,8 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private Quantiles quantiles = new Quantiles("foo", new Date(), "state");
     private Set<MlFilter> filters = new HashSet<>();
 
+    private ThreadPool threadPool;
+
     @Before
     public void setup() throws Exception {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
@@ -156,7 +162,15 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             handler.accept(buildAutodetectParams());
             return null;
         }).when(jobResultsProvider).getAutodetectParams(any(), any(), any());
+
+        threadPool = new TestThreadPool("AutodetectProcessManagerTests");
     }
+
+    @After
+    public void stopThreadPool() throws InterruptedException {
+        terminate(threadPool);
+    }
+
 
     public void testMaxOpenJobsSetting_givenDefault() {
         int maxOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(Settings.EMPTY);
@@ -232,8 +246,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         ThreadPool.Cancellable cancellable = mock(ThreadPool.Cancellable.class);
         when(threadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(cancellable);
-        AutodetectProcessManager.AutodetectWorkerExecutorService executorService =
-                mock(AutodetectProcessManager.AutodetectWorkerExecutorService.class);
+        ExecutorService executorService = mock(ExecutorService.class);
         Future<?> future = mock(Future.class);
         when(executorService.submit(any(Callable.class))).thenReturn(future);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.newDirectExecutorService());
@@ -686,6 +699,66 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
+    }
+    
+    public void testAutodetectWorkerExecutorService_SubmitAfterShutdown() {
+        AutodetectProcessManager manager = createNonSpyManager("foo");
+
+        AutodetectProcessManager.AutodetectWorkerExecutorService executor =
+                manager.new AutodetectWorkerExecutorService(new ThreadContext(Settings.EMPTY));
+
+        threadPool.generic().execute(() -> executor.start());
+        executor.shutdown();
+        expectThrows(EsRejectedExecutionException.class, () -> executor.execute(() -> {}));
+    }
+
+    public void testAutodetectWorkerExecutorService_TasksNotExecutedCallHandlerOnShutdown()
+            throws InterruptedException, ExecutionException {
+        AutodetectProcessManager manager = createNonSpyManager("foo");
+
+        AutodetectProcessManager.AutodetectWorkerExecutorService executor =
+                manager.new AutodetectWorkerExecutorService(new ThreadContext(Settings.EMPTY));
+
+        CountDownLatch latch = new CountDownLatch(1);
+
+        Future<?> executorFinished = threadPool.generic().submit(() -> executor.start());
+
+        // run a task that will block while the others are queued up
+        executor.execute(() -> {
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+            }
+        });
+
+        AtomicBoolean runnableShouldNotBeCalled = new AtomicBoolean(false);
+        executor.execute(() -> runnableShouldNotBeCalled.set(true));
+
+        AtomicInteger onFailureCallCount = new AtomicInteger();
+        AtomicInteger doRunCallCount = new AtomicInteger();
+        for (int i=0; i<2; i++) {
+            executor.execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    onFailureCallCount.incrementAndGet();
+                }
+
+                @Override
+                protected void doRun() {
+                    doRunCallCount.incrementAndGet();
+                }
+            });
+        }
+
+        // now shutdown
+        executor.shutdown();
+        latch.countDown();
+        executorFinished.get();
+
+        assertFalse(runnableShouldNotBeCalled.get());
+        // the AbstractRunnables should have had their callbacks called
+        assertEquals(2, onFailureCallCount.get());
+        assertEquals(0, doRunCallCount.get());
     }
 
     private AutodetectProcessManager createNonSpyManager(String jobId) {

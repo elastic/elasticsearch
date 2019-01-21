@@ -548,10 +548,10 @@ public class AutodetectProcessManager {
                 onProcessCrash(jobTask));
         AutoDetectResultProcessor processor = new AutoDetectResultProcessor(
                 client, auditor, jobId, renormalizer, jobResultsPersister, autodetectParams.modelSizeStats());
-        AutodetectWorkerExecutorService autodetectWorkerExecutor;
+        ExecutorService autodetectWorkerExecutor;
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             autodetectWorkerExecutor = createAutodetectExecutorService(autoDetectExecutorService);
-            autoDetectExecutorService.execute(() -> processor.process(process));
+            autoDetectExecutorService.submit(() -> processor.process(process));
         } catch (EsRejectedExecutionException e) {
             // If submitting the operation to read the results from the process fails we need to close
             // the process too, so that other submitted operations to threadpool are stopped.
@@ -762,7 +762,7 @@ public class AutodetectProcessManager {
         }
     }
 
-    AutodetectWorkerExecutorService createAutodetectExecutorService(ExecutorService executorService) {
+    ExecutorService createAutodetectExecutorService(ExecutorService executorService) {
         AutodetectWorkerExecutorService autoDetectWorkerExecutor = new AutodetectWorkerExecutorService(threadPool.getThreadContext());
         executorService.submit(autoDetectWorkerExecutor::start);
         return autoDetectWorkerExecutor;
@@ -781,7 +781,7 @@ public class AutodetectProcessManager {
 
         private final ThreadContext contextHolder;
         private final CountDownLatch awaitTermination = new CountDownLatch(1);
-        private final BlockingQueue<AbstractRunnable> queue = new LinkedBlockingQueue<>(100);
+        private final BlockingQueue<Runnable> queue = new LinkedBlockingQueue<>(100);
 
         private volatile boolean running = true;
 
@@ -817,17 +817,16 @@ public class AutodetectProcessManager {
 
         @Override
         public void execute(Runnable command) {
-            throw new UnsupportedOperationException("use the overload execute(AbstractRunnable) method");
-        }
-
-        public void execute(AbstractRunnable command) {
             if (isShutdown()) {
                 EsRejectedExecutionException rejected = new EsRejectedExecutionException("autodetect worker service has shutdown", true);
-                command.onRejection(rejected);
-                return;
+                if (command instanceof AbstractRunnable) {
+                    ((AbstractRunnable) command).onRejection(rejected);
+                } else {
+                    throw rejected;
+                }
             }
 
-            boolean added = queue.offer((AbstractRunnable)contextHolder.preserveContext(command));
+            boolean added = queue.offer(contextHolder.preserveContext(command));
             if (added == false) {
                 throw new ElasticsearchStatusException("Unable to submit operation", RestStatus.TOO_MANY_REQUESTS);
             }
@@ -847,12 +846,17 @@ public class AutodetectProcessManager {
                     }
                 }
 
-                List<AbstractRunnable> unrun = new ArrayList<>();
-                queue.drainTo(unrun);
+                // if shutdown with tasks pending notify the handlers
+                if (queue.isEmpty() == false) {
+                    List<Runnable> notExecuted = new ArrayList<>();
+                    queue.drainTo(notExecuted);
 
-                for (AbstractRunnable runnable : unrun) {
-                    runnable.onRejection(
-                            new EsRejectedExecutionException("unable to process as autodetect worker service has shutdown", true));
+                    for (Runnable runnable : notExecuted) {
+                        if (runnable instanceof AbstractRunnable) {
+                            ((AbstractRunnable) runnable).onRejection(
+                                    new EsRejectedExecutionException("unable to process as autodetect worker service has shutdown", true));
+                        }
+                    }
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

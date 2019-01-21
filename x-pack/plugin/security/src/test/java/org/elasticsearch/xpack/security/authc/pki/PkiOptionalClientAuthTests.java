@@ -52,6 +52,9 @@ public class PkiOptionalClientAuthTests extends SecuritySingleNodeTestCase {
                 .put(super.nodeSettings())
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.OPTIONAL)
+                .put("xpack.security.http.ssl.keystore.path",
+                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
+                .put("xpack.security.http.ssl.keystore.password", "testnode")
                 .put("xpack.security.authc.realms.file.file.order", "0")
                 .put("xpack.security.authc.realms.pki.pki1.order", "1")
                 .put("xpack.security.authc.realms.pki.pki1.truststore.path",
@@ -59,10 +62,15 @@ public class PkiOptionalClientAuthTests extends SecuritySingleNodeTestCase {
                 .put("xpack.security.authc.realms.pki.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
                 .put("transport.profiles.want_client_auth.port", randomClientPortRange)
                 .put("transport.profiles.want_client_auth.bind_host", "localhost")
+                .put("transport.profiles.want_client_auth.xpack.security.ssl.keystore.path",
+                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
+                .put("transport.profiles.want_client_auth.xpack.security.ssl.keystore.password", "testnode")
                 .put("transport.profiles.want_client_auth.xpack.security.ssl.client_authentication", SSLClientAuth.OPTIONAL);
 
-        SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
-                secureSettings.setString("xpack.security.authc.realms.pki.pki1.truststore.secure_password", "truststore-testnode-only"));
+        SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
+            secureSettings.setString("xpack.security.authc.realms.pki.pki1.truststore.secure_password", "truststore-testnode-only");
+            secureSettings.setString("xpack.security.http.ssl.keystore.secure_password", "testnode");
+        });
         return builder.build();
 
     }

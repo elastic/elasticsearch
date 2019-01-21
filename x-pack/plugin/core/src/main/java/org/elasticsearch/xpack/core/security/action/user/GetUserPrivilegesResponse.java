@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -86,8 +87,8 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         super.writeTo(out);
         out.writeCollection(cluster, StreamOutput::writeString);
         out.writeCollection(conditionalCluster, ConditionalClusterPrivileges.WRITER);
-        out.writeCollection(index, (o, p) -> p.writeTo(o));
-        out.writeCollection(application, (o, p) -> p.writeTo(o));
+        out.writeCollection(index);
+        out.writeCollection(application);
         out.writeCollection(runAs, StreamOutput::writeString);
     }
 
@@ -121,14 +122,17 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         private final Set<String> privileges;
         private final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity;
         private final Set<BytesReference> queries;
+        private final boolean allowRestrictedIndices;
 
         public Indices(Collection<String> indices, Collection<String> privileges,
-                       Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity, Set<BytesReference> queries) {
+                Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity, Set<BytesReference> queries,
+                boolean allowRestrictedIndices) {
             // The use of TreeSet is to provide a consistent order that can be relied upon in tests
             this.indices = Collections.unmodifiableSet(new TreeSet<>(Objects.requireNonNull(indices)));
             this.privileges = Collections.unmodifiableSet(new TreeSet<>(Objects.requireNonNull(privileges)));
             this.fieldSecurity = Collections.unmodifiableSet(Objects.requireNonNull(fieldSecurity));
             this.queries = Collections.unmodifiableSet(Objects.requireNonNull(queries));
+            this.allowRestrictedIndices = allowRestrictedIndices;
         }
 
         public Indices(StreamInput in) throws IOException {
@@ -141,6 +145,11 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
                 return new FieldPermissionsDefinition.FieldGrantExcludeGroup(grant, exclude);
             }));
             queries = Collections.unmodifiableSet(in.readSet(StreamInput::readBytesReference));
+            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+                this.allowRestrictedIndices = in.readBoolean();
+            } else {
+                this.allowRestrictedIndices = false;
+            }
         }
 
         public Set<String> getIndices() {
@@ -159,11 +168,16 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
             return queries;
         }
 
+        public boolean allowRestrictedIndices() {
+            return allowRestrictedIndices;
+        }
+
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder(getClass().getSimpleName())
                 .append("[")
                 .append("indices=[").append(Strings.collectionToCommaDelimitedString(indices))
+                .append("], allow_restricted_indices=[").append(allowRestrictedIndices)
                 .append("], privileges=[").append(Strings.collectionToCommaDelimitedString(privileges))
                 .append("]");
             if (fieldSecurity.isEmpty() == false) {
@@ -188,12 +202,13 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
             return this.indices.equals(that.indices)
                 && this.privileges.equals(that.privileges)
                 && this.fieldSecurity.equals(that.fieldSecurity)
-                && this.queries.equals(that.queries);
+                && this.queries.equals(that.queries)
+                && this.allowRestrictedIndices == that.allowRestrictedIndices;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indices, privileges, fieldSecurity, queries);
+            return Objects.hash(indices, privileges, fieldSecurity, queries, allowRestrictedIndices);
         }
 
         @Override
@@ -222,6 +237,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
                 }
                 builder.endArray();
             }
+            builder.field(RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
             return builder.endObject();
         }
 
@@ -238,6 +254,9 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
                 output.writeOptionalStringArray(fields.getExcludedFields());
             });
             out.writeCollection(queries, StreamOutput::writeBytesReference);
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+                out.writeBoolean(allowRestrictedIndices);
+            }
         }
     }
 }

@@ -125,7 +125,7 @@ First, we create an index that stores term vectors, payloads etc. :
 
 [source,js]
 --------------------------------------------------
-PUT /twitter/
+PUT /twitter?include_type_name=true
 { "mappings": {
     "_doc": {
       "properties": {

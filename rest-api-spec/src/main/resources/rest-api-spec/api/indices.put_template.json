@@ -13,6 +13,10 @@
         }
       },
       "params": {
+        "include_type_name": {
+          "type" : "boolean",
+          "description" : "Whether a type should be returned in the body of the mappings."
+        },
         "order": {
           "type" : "number",
           "description" : "The order for this template when merging multiple matching ones (higher numbers are merged later, overriding the lower numbers)"

@@ -25,11 +25,9 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             String mapping = "";
             if (randomBoolean()) { // randomly do source filtering on indexing
                 mapping =
-                    "\"_doc\": {" +
-                    "  \"_source\": {" +
-                    "    \"includes\": [\"field\"]," +
-                    "    \"excludes\": [\"filtered_field\"]" +
-                    "   }"+
+                    "\"_source\": {" +
+                    "  \"includes\": [\"field\"]," +
+                    "  \"excludes\": [\"filtered_field\"]" +
                     "}";
             }
             Settings indexSettings = Settings.builder()

@@ -24,7 +24,7 @@ which indexes the field values for fast completions.
 
 [source,js]
 --------------------------------------------------
-PUT music
+PUT music?include_type_name=true
 {
     "mappings": {
         "_doc" : {

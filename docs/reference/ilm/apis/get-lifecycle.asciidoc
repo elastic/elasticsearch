@@ -6,8 +6,6 @@
 <titleabbrev>Get policy</titleabbrev>
 ++++
 
-beta[]
-
 Retrieves a lifecycle policy.
 
 ==== Request

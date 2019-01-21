@@ -11,7 +11,7 @@ Besides the <<built-in-date-formats,built-in formats>>, your own
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {

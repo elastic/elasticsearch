@@ -19,6 +19,7 @@
 
 package org.elasticsearch.snapshots;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -29,7 +30,6 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryActi
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
@@ -48,6 +48,7 @@ import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterModule;
@@ -152,6 +153,7 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
@@ -341,6 +343,8 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertEquals(0, snapshotInfo.failedShards());
     }
 
+    // -Dtests.seed=92C2A9BD03C14003 ... 35 runs
+    @Repeat(iterations = 1000)
     public void testSnapshotPrimaryRelocations() {
         final int masterNodeCount = randomFrom(1, 3, 5);
         setupTestCluster(masterNodeCount, randomIntBetween(2, 10));
@@ -380,35 +384,36 @@ public class SnapshotsServiceTests extends ESTestCase {
                                                     final ShardRouting shardRouting = resp.getState().routingTable().shardRoutingTable(shardToRelocate.shardId()).primaryShard();
                                                     if (shardRouting.unassigned()
                                                         && shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.NODE_LEFT) {
+                                                        if (masterNodeCount > 1) {
+                                                            deterministicTaskQueue.scheduleNow(()->{
+                                                                masterNode.stop();
+                                                                testClusterNodes.nodes.remove(masterNode.node.getName());
+                                                            });
+                                                        }
+                                                        testClusterNodes.randomDataNode().get().client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                                                            .execute(ActionListener.wrap(() -> {
+                                                                testClusterNodes.randomDataNode().get().client.admin().cluster().deleteSnapshot(
+                                                                    new DeleteSnapshotRequest(repoName, snapshotName), new ActionListener<AcknowledgedResponse>() {
+                                                                        @Override
+                                                                        public void onResponse(final AcknowledgedResponse acknowledgedResponse) {
+
+                                                                        }
+
+                                                                        @Override
+                                                                        public void onFailure(final Exception e) {
+
+                                                                        }
+                                                                    });
+                                                                createdSnapshot.set(true);
+                                                            }));
                                                         deterministicTaskQueue.scheduleNow(() -> masterAdminClient.cluster().reroute(
                                                             new ClusterRerouteRequest().add(
                                                                 new AllocateEmptyPrimaryAllocationCommand(
                                                                     index, shardRouting.shardId().id(), otherNode.node.getName(), true
                                                                 )
                                                             ),
-                                                            new ActionListener<ClusterRerouteResponse>() {
-                                                                @Override
-                                                                public void onResponse(final ClusterRerouteResponse clusterRerouteResponse) {
-                                                                    testClusterNodes.randomMasterNode().client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
-                                                                        .execute(assertNoFailureListener(() -> {
-                                                                            createdSnapshot.set(true);
-                                                                            deterministicTaskQueue.scheduleNow(() -> testClusterNodes.disconnectNode(masterNode));
-                                                                            deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + 200L,
-                                                                                () -> testClusterNodes.clearNetworkDisruptions());
-                                                                        }));
-                                                                }
-
-                                                                @Override
-                                                                public void onFailure(final Exception e) {
-                                                                    testClusterNodes.randomMasterNode().client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
-                                                                        .execute(assertNoFailureListener(() -> {
-                                                                            createdSnapshot.set(true);
-                                                                            deterministicTaskQueue.scheduleNow(() -> testClusterNodes.disconnectNode(masterNode));
-                                                                            deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + 200L,
-                                                                                () -> testClusterNodes.clearNetworkDisruptions());
-                                                                        }));
-                                                                }
-                                                            }));
+                                                            ActionListener.wrap(() -> {
+                                                            })));
                                                     } else {
                                                         deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(0, 100L), this);
                                                     }
@@ -416,8 +421,10 @@ public class SnapshotsServiceTests extends ESTestCase {
                                             ));
                                         }
                                     };
-                                    currentPrimaryNode.stop();
-                                    testClusterNodes.nodes.remove(currentPrimaryNode.node.getName());
+                                    deterministicTaskQueue.scheduleNow(() -> {
+                                        currentPrimaryNode.stop();
+                                        testClusterNodes.nodes.remove(currentPrimaryNode.node.getName());
+                                    });
                                     deterministicTaskQueue.scheduleNow(maybeForceAllocate);
                                 }
                             ))))));
@@ -438,7 +445,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertThat(finalSnapshotsInProgress.entries(), empty());
         final Repository repository = masterNode.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
-        assertThat(snapshotIds, hasSize(1));
+        assertThat(snapshotIds, either(hasSize(1)).or(hasSize(0)));
     }
 
     private void scheduleClearDisruptionNow() {
@@ -621,8 +628,8 @@ public class SnapshotsServiceTests extends ESTestCase {
             if (disruptedLinks.disconnected.contains(node.node.getName())) {
                 return;
             }
-            disruptedLinks.disconnect(node.node.getName());
             testClusterNodes.nodes.values().forEach(n -> n.transportService.getConnectionManager().disconnectFromNode(node.node));
+            disruptedLinks.disconnect(node.node.getName());
         }
 
         public void clearNetworkDisruptions() {
@@ -722,6 +729,10 @@ public class SnapshotsServiceTests extends ESTestCase {
                 protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {
                     if (node.getName().equals(destination.getName())) {
                         return ConnectionStatus.CONNECTED;
+                    }
+                    if (testClusterNodes.nodes.containsKey(node.getName()) == false
+                        || testClusterNodes.nodes.containsKey(destination.getName()) == false) {
+                        return ConnectionStatus.DISCONNECTED;
                     }
                     return disruption.get().disrupt(node.getName(), destination.getName())
                         ? ConnectionStatus.DISCONNECTED : ConnectionStatus.CONNECTED;

@@ -677,7 +677,7 @@ public class MlConfigMigrator {
                 logger.info("failed to index ml configuration [" + itemResponse.getFailure().getId() + "], " +
                         itemResponse.getFailure().getMessage());
             } else {
-                logger.info("ml configuration [" + itemResponse.getId() + "] indexed");
+                logger.debug("ml configuration [" + itemResponse.getId() + "] indexed");
             }
         }
         return failedDocumentIds;

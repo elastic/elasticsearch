@@ -179,7 +179,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final PrimaryReplicaSyncer primaryReplicaSyncer,
             final Consumer<ShardId> globalCheckpointSyncer,
             final BiConsumer<ShardId, Collection<RetentionLease>> retentionLeaseSyncer) {
-        super(settings);
         this.settings = settings;
         this.buildInIndexListener =
                 Arrays.asList(

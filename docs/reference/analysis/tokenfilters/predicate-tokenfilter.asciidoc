@@ -17,7 +17,7 @@ You can set it up like:
 
 [source,js]
 --------------------------------------------------
-PUT /condition_example?include_type_name=true
+PUT /condition_example
 {
     "settings" : {
         "analysis" : {

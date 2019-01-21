@@ -145,7 +145,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                        NamedWriteableRegistry namedWriteableRegistry, AllocationService allocationService, MasterService masterService,
                        Supplier<CoordinationState.PersistedState> persistedStateSupplier, UnicastHostsProvider unicastHostsProvider,
                        ClusterApplier clusterApplier, Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, Random random) {
-        super(settings);
         this.settings = settings;
         this.transportService = transportService;
         this.masterService = masterService;
@@ -182,7 +181,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private ClusterFormationState getClusterFormationState() {
         return new ClusterFormationState(settings, getStateForMasterService(), peerFinder.getLastResolvedAddresses(),
-            StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false).collect(Collectors.toList()));
+            StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false).collect(Collectors.toList()), getCurrentTerm());
     }
 
     private Runnable getOnLeaderFailure() {

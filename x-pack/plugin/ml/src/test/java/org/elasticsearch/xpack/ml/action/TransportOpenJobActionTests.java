@@ -9,8 +9,10 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -23,6 +25,8 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -52,6 +56,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
@@ -59,9 +64,11 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
@@ -577,6 +584,21 @@ public class TransportOpenJobActionTests extends ESTestCase {
         assertThat(OpenJobAction.JobTaskMatcher.match(jobTask2, "ml-2"), is(true));
     }
 
+    public void testGetAssignment_GivenJobThatRequiresMigration() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(
+                Arrays.asList(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
+                        MachineLearning.MAX_LAZY_ML_NODES)
+        ));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        TransportOpenJobAction.OpenJobPersistentTasksExecutor executor = new TransportOpenJobAction.OpenJobPersistentTasksExecutor(
+                Settings.EMPTY, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class));
+
+        OpenJobAction.JobParams params = new OpenJobAction.JobParams("missing_job_field");
+        assertEquals(TransportOpenJobAction.AWAITING_MIGRATION, executor.getAssignment(params, mock(ClusterState.class)));
+    }
+
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder) {
         addJobTask(jobId, nodeId, jobState, builder, false);
     }
@@ -593,7 +615,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
     private void addIndices(MetaData.Builder metaData, RoutingTable.Builder routingTable) {
         List<String> indices = new ArrayList<>();
-        indices.add(AnomalyDetectorsIndex.jobStateIndexName());
+        indices.add(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
         indices.add(MlMetaIndex.INDEX_NAME);
         indices.add(AuditorField.NOTIFICATIONS_INDEX);
         indices.add(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
@@ -604,6 +626,9 @@ public class TransportOpenJobActionTests extends ESTestCase {
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             );
+            if (indexName.equals(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)) {
+                indexMetaData.putAlias(new AliasMetaData.Builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()));
+            }
             metaData.put(indexMetaData);
             Index index = new Index(indexName, "_uuid");
             ShardId shardId = new ShardId(index, 0);

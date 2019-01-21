@@ -55,28 +55,19 @@ public class GatewayAllocator {
         asyncFetchStore = ConcurrentCollections.newConcurrentMap();
 
     @Inject
-    public GatewayAllocator(ClusterService clusterService, RoutingService routingService,
-                            TransportNodesListGatewayStartedShards startedAction, TransportNodesListShardStoreMetaData storeAction) {
+    public GatewayAllocator(RoutingService routingService,
+                            TransportNodesListGatewayStartedShards startedAction,
+                            TransportNodesListShardStoreMetaData storeAction) {
         this.routingService = routingService;
         this.primaryShardAllocator = new InternalPrimaryShardAllocator(startedAction);
         this.replicaShardAllocator = new InternalReplicaShardAllocator(storeAction);
-        clusterService.addStateApplier(event -> {
-            boolean cleanCache = false;
-            DiscoveryNode localNode = event.state().nodes().getLocalNode();
-            if (localNode != null) {
-                if (localNode.isMasterNode() && event.localNodeMaster() == false) {
-                    cleanCache = true;
-                }
-            } else {
-                cleanCache = true;
-            }
-            if (cleanCache) {
-                Releasables.close(asyncFetchStarted.values());
-                asyncFetchStarted.clear();
-                Releasables.close(asyncFetchStore.values());
-                asyncFetchStore.clear();
-            }
-        });
+    }
+
+    public void cleanCaches() {
+        Releasables.close(asyncFetchStarted.values());
+        asyncFetchStarted.clear();
+        Releasables.close(asyncFetchStore.values());
+        asyncFetchStore.clear();
     }
 
     // for tests

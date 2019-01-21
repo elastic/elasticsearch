@@ -75,7 +75,7 @@ public class EarlyTerminatingCollector extends FilterCollector {
                     }
                 }
                 super.collect(doc);
-            };
+            }
         };
     }
 }

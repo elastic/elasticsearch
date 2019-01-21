@@ -271,7 +271,9 @@ public class TaskBatcherTests extends TaskExecutorTests {
                 public void onFailure(String source, Exception e) {
                     fail(ExceptionsHelper.detailedMessage(e));
                 }
-            })) ;
+            })) {
+                // empty while body
+            }
         }
 
         TestExecutor<Integer> executor = taskList -> {

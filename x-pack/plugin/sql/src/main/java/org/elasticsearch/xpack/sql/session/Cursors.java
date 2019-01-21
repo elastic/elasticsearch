@@ -35,7 +35,7 @@ public final class Cursors {
 
     private static final NamedWriteableRegistry WRITEABLE_REGISTRY = new NamedWriteableRegistry(getNamedWriteables());
 
-    private Cursors() {};
+    private Cursors() {}
 
     /**
      * The {@link NamedWriteable}s required to deserialize {@link Cursor}s.

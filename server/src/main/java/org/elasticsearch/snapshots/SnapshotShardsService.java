@@ -72,7 +72,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -276,7 +275,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : entry.shards()) {
                             final IndexShardSnapshotStatus snapshotStatus = snapshotShards.get(shard.key);
                             if (snapshotStatus != null) {
-                                final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.abortIfNotCompleted("snapshot has been aborted");
+                                final IndexShardSnapshotStatus.Copy lastSnapshotStatus =
+                                    snapshotStatus.abortIfNotCompleted("snapshot has been aborted");
                                 final Stage stage = lastSnapshotStatus.getStage();
                                 if (stage == Stage.FINALIZE) {
                                     logger.debug("[{}] trying to cancel snapshot on shard [{}] that is finalizing, " +

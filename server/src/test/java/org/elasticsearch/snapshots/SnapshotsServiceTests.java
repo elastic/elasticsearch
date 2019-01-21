@@ -32,12 +32,12 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -47,7 +47,6 @@ import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterModule;
@@ -342,11 +341,6 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertEquals(0, snapshotInfo.failedShards());
     }
 
-    // -Dtests.seed=92C2A9BD03C14003 ... 35 runs
-    // -ea  -Dtests.seed=92C2A9BD03C14003:AE482EC68DB8B206
-    // 262C019B8568F4DF:6C6B6D998E1745E6
-    // ./gradlew null -Dtests.seed=C5E2A2FA6692D387 -Dtests.class=org.elasticsearch.snapshots.SnapshotsServiceTests -Dtests.method="testSnapshotPrimaryRelocations [seed=[C5E2A2FA6692D387:3EB447C9FE5056A]]" -Dtests.locale=vun-TZ -Dtests.timezone=Etc/GMT+10
-    // ./gradlew :server:unitTest -Dtests.seed=1163EDA5C788BA47 -Dtests.class=org.elasticsearch.snapshots.SnapshotsServiceTests -Dtests.method="testSnapshotPrimaryRelocations" -Dtests.security.manager=true -Dtests.locale=yo -Dtests.timezone=Etc/GMT-1 -Dcompiler.java=11 -Druntime.java=11
     public void testSnapshotPrimaryRelocations() {
         final int masterNodeCount = randomFrom(1, 3, 5);
         setupTestCluster(masterNodeCount, randomIntBetween(2, 10));
@@ -373,7 +367,8 @@ public class SnapshotsServiceTests extends ESTestCase {
                         assertNoFailureListener(
                             () -> masterAdminClient.cluster().state(new ClusterStateRequest(), assertNoFailureListener(
                                 clusterStateResponse -> {
-                                    final ShardRouting shardToRelocate = clusterStateResponse.getState().routingTable().allShards(index).get(0);
+                                    final ShardRouting shardToRelocate =
+                                        clusterStateResponse.getState().routingTable().allShards(index).get(0);
                                     final TestClusterNode currentPrimaryNode =
                                         testClusterNodes.nodeById(shardToRelocate.currentNodeId());
                                     final TestClusterNode otherNode = testClusterNodes.randomDataNode(currentPrimaryNode.node.getName())
@@ -383,29 +378,22 @@ public class SnapshotsServiceTests extends ESTestCase {
                                         public void run() {
                                             masterAdminClient.cluster().state(new ClusterStateRequest(), assertNoFailureListener(
                                                 resp -> {
-                                                    final ShardRouting shardRouting = resp.getState().routingTable().shardRoutingTable(shardToRelocate.shardId()).primaryShard();
+                                                    final ShardRouting shardRouting = resp.getState().routingTable()
+                                                        .shardRoutingTable(shardToRelocate.shardId()).primaryShard();
                                                     if (shardRouting.unassigned()
                                                         && shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.NODE_LEFT) {
                                                         if (masterNodeCount > 1) {
-                                                            deterministicTaskQueue.scheduleNow(()->{
+                                                            deterministicTaskQueue.scheduleNow(() -> {
                                                                 masterNode.stop();
                                                                 testClusterNodes.nodes.remove(masterNode.node.getName());
                                                             });
                                                         }
-                                                        testClusterNodes.randomDataNode().get().client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                                                        testClusterNodes.randomDataNode().get().client.admin().cluster()
+                                                            .prepareCreateSnapshot(repoName, snapshotName)
                                                             .execute(ActionListener.wrap(() -> {
-                                                                testClusterNodes.randomDataNode().get().client.admin().cluster().deleteSnapshot(
-                                                                    new DeleteSnapshotRequest(repoName, snapshotName), new ActionListener<AcknowledgedResponse>() {
-                                                                        @Override
-                                                                        public void onResponse(final AcknowledgedResponse acknowledgedResponse) {
-
-                                                                        }
-
-                                                                        @Override
-                                                                        public void onFailure(final Exception e) {
-
-                                                                        }
-                                                                    });
+                                                                testClusterNodes.randomDataNode().get().client.admin()
+                                                                    .cluster().deleteSnapshot(
+                                                                    new DeleteSnapshotRequest(repoName, snapshotName), noopListener());
                                                                 createdSnapshot.set(true);
                                                             }));
                                                         deterministicTaskQueue.scheduleNow(() -> masterAdminClient.cluster().reroute(
@@ -413,11 +401,12 @@ public class SnapshotsServiceTests extends ESTestCase {
                                                                 new AllocateEmptyPrimaryAllocationCommand(
                                                                     index, shardRouting.shardId().id(), otherNode.node.getName(), true
                                                                 )
-                                                            ),
-                                                            ActionListener.wrap(() -> {
-                                                            })));
+                                                            ), noopListener()));
                                                     } else {
-                                                        deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(0, 100L), this);
+                                                        deterministicTaskQueue.scheduleAt(
+                                                            deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(0, 100L),
+                                                            this
+                                                        );
                                                     }
                                                 }
                                             ));
@@ -432,22 +421,38 @@ public class SnapshotsServiceTests extends ESTestCase {
                             ))))));
 
         runUntil(() -> {
-            final SnapshotsInProgress snapshotsInProgress = testClusterNodes.randomMasterNode().clusterService.state().custom(SnapshotsInProgress.TYPE);
+            final SnapshotsInProgress snapshotsInProgress =
+                testClusterNodes.randomMasterNode().clusterService.state().custom(SnapshotsInProgress.TYPE);
             return (snapshotsInProgress == null || snapshotsInProgress.entries().isEmpty()) && createdSnapshot.get();
         }, TimeUnit.MINUTES.toMillis(20L));
 
         testClusterNodes.clearNetworkDisruptions();
         runUntil(() -> {
-            final List<Long> versions = testClusterNodes.nodes.values().stream().map(n -> n.clusterService.state().version()).distinct().collect(Collectors.toList());
+            final List<Long> versions = testClusterNodes.nodes.values().stream()
+                .map(n -> n.clusterService.state().version()).distinct().collect(Collectors.toList());
             return versions.size() == 1L;
         }, TimeUnit.MINUTES.toMillis(20L));
 
         assertTrue(createdSnapshot.get());
-        SnapshotsInProgress finalSnapshotsInProgress = testClusterNodes.randomDataNode().orElseThrow(() -> new AssertionError("No data nodes running")).clusterService.state().custom(SnapshotsInProgress.TYPE);
+        SnapshotsInProgress finalSnapshotsInProgress = testClusterNodes.randomDataNode()
+            .orElseThrow(() -> new AssertionError("No data nodes running"))
+            .clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertThat(finalSnapshotsInProgress.entries(), empty());
         final Repository repository = masterNode.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
         assertThat(snapshotIds, either(hasSize(1)).or(hasSize(0)));
+    }
+
+    private static <T> ActionListener<T> noopListener() {
+        return new ActionListener<T>() {
+            @Override
+            public void onResponse(final T t) {
+            }
+
+            @Override
+            public void onFailure(final Exception e) {
+            }
+        };
     }
 
     private void scheduleClearDisruptionNow() {
@@ -758,6 +763,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                     @Override
                     public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
                         boolean forceExecution, TransportRequestHandler<T> actualHandler) {
+                        // TODO: Remove this hack once recoveries are async and can be used in these tests
                         if (action.startsWith("internal:index/shard/recovery")) {
                             return (request, channel, task) -> deterministicTaskQueue.scheduleAt(
                                 deterministicTaskQueue.getCurrentTimeMillis() + 20L,

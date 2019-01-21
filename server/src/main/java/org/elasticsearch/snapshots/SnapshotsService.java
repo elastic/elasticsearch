@@ -1197,7 +1197,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     if (state == State.INIT) {
                         // snapshot is still initializing, mark it as aborted
                         shards = snapshotEntry.shards();
-
+                        if (shards.isEmpty()) {
+                            // No shards in this snapshot, we delete it right away since the SnapshotShardsService
+                            // has no work to do.
+                            endSnapshot(snapshotEntry);
+                        }
                     } else if (state == State.STARTED) {
                         // snapshot is started - mark every non completed shard as aborted
                         final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder = ImmutableOpenMap.builder();

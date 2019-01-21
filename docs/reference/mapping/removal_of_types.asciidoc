@@ -157,22 +157,24 @@ GET twitter/tweet/_search
 ----
 // NOTCONSOLE
 
+Note the use of the `include_type_name=true` url parameter on index creation.
+This is necessary as the use of types is deprecated in 7.0. In this example
+it is solely used to force the legacy behaviour. 
+
 You could achieve the same thing by adding a custom `type` field as follows:
 
 [source,js]
 ----
-PUT twitter?include_type_name=true
+PUT twitter
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "type": { "type": "keyword" }, <1>
-        "name": { "type": "text" },
-        "user_name": { "type": "keyword" },
-        "email": { "type": "keyword" },
-        "content": { "type": "text" },
-        "tweeted_at": { "type": "date" }
-      }
+    "properties": {
+      "type": { "type": "keyword" }, <1>
+      "name": { "type": "text" },
+      "user_name": { "type": "keyword" },
+      "email": { "type": "keyword" },
+      "content": { "type": "text" },
+      "tweeted_at": { "type": "date" }
     }
   }
 }
@@ -299,7 +301,7 @@ This first example splits our `twitter` index into a `tweets` index and a
 
 [source,js]
 ----
-PUT users?include_type_name=true
+PUT users
 {
   "settings": {
     "index.mapping.single_type": true
@@ -321,7 +323,7 @@ PUT users?include_type_name=true
   }
 }
 
-PUT tweets?include_type_name=true
+PUT tweets
 {
   "settings": {
     "index.mapping.single_type": true
@@ -376,7 +378,7 @@ documents of different types which have conflicting IDs:
 
 [source,js]
 ----
-PUT new_twitter?include_type_name=true
+PUT new_twitter
 {
   "mappings": {
     "_doc": {
@@ -429,8 +431,11 @@ POST _reindex
 
 Index creation, mappings and document APIs support the `include_type_name`
 option. When set to `false`, this option enables the behavior that will become
-default in 8.0 when types are removed. See some examples of interactions with
-Elasticsearch with this option turned off:
+default in 8.0 when types are removed. Since the default for `include_type_name` 
+is `false` starting with 7.0, you can omit using it after 7.0, but you can use
+it in case you want to temporarily force the legacy behaviour.
+
+See some examples of interactions with Elasticsearch with this option turned off:
 
 [float]
 ==== Index creation

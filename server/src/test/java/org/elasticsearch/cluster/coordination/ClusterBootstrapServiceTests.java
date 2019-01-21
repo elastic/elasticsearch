@@ -164,6 +164,20 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         deterministicTaskQueue.runAllTasks();
     }
 
+
+    public void testThrowsExceptionOnDuplicates() {
+        final IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, () -> {
+            new ClusterBootstrapService(builder().putList(
+                INITIAL_MASTER_NODES_SETTING.getKey(), "duplicate-requirement", "duplicate-requirement").build(),
+                transportService, random(), Collections::emptyList, () -> false, vc -> {
+                throw new AssertionError("should not be called");
+            });
+        });
+
+        assertThat(illegalArgumentException.getMessage(), containsString(INITIAL_MASTER_NODES_SETTING.getKey()));
+        assertThat(illegalArgumentException.getMessage(), containsString("duplicate-requirement"));
+    }
+
     public void testBootstrapsOnDiscoveryOfAllRequiredNodes() {
         final AtomicBoolean bootstrapped = new AtomicBoolean();
 

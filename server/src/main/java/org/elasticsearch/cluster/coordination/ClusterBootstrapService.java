@@ -34,6 +34,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -61,7 +62,7 @@ public class ClusterBootstrapService {
     static final String BOOTSTRAP_PLACEHOLDER_PREFIX = "{bootstrap-placeholder}";
 
     private static final Logger logger = LogManager.getLogger(ClusterBootstrapService.class);
-    private final List<String> initialMasterNodes;
+    private final Set<String> initialMasterNodes;
     @Nullable // null if discoveryIsConfigured()
     private final TimeValue unconfiguredBootstrapTimeout;
     private final TransportService transportService;
@@ -74,7 +75,13 @@ public class ClusterBootstrapService {
     public ClusterBootstrapService(Settings settings, TransportService transportService, Random random,
                                    Supplier<Iterable<DiscoveryNode>> discoveredNodesSupplier, BooleanSupplier isBootstrappedSupplier,
                                    Consumer<VotingConfiguration> votingConfigurationConsumer) {
-        initialMasterNodes = INITIAL_MASTER_NODES_SETTING.get(settings);
+        final List<String> initialMasterNodesList = INITIAL_MASTER_NODES_SETTING.get(settings);
+        this.initialMasterNodes = new LinkedHashSet<>(initialMasterNodesList);
+        if (this.initialMasterNodes.size() != initialMasterNodesList.size()) {
+            throw new IllegalArgumentException(
+                "setting [" + INITIAL_MASTER_NODES_SETTING.getKey() + "] contains duplicates: " + initialMasterNodesList);
+        }
+
         unconfiguredBootstrapTimeout = discoveryIsConfigured(settings) ? null : UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
         this.random = random;

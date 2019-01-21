@@ -75,6 +75,8 @@ teardown:
 
 ---
 "Test invalidate api key":
+  - skip:
+      features: transform_and_set
 
   - do:
       headers:

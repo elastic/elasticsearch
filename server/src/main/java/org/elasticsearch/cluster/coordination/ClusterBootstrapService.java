@@ -110,6 +110,9 @@ public class ClusterBootstrapService {
 
             final Set<DiscoveryNode> nodesMatchingRequirements = requirementMatchingResult.v1();
             final List<String> unsatisfiedRequirements = requirementMatchingResult.v2();
+            logger.trace("nodesMatchingRequirements={}, unsatisfiedRequirements={}, bootstrapRequirements={}",
+                nodesMatchingRequirements, unsatisfiedRequirements, bootstrapRequirements);
+
             if (nodesMatchingRequirements.size() * 2 > bootstrapRequirements.size()) {
                 startBootstrap(nodesMatchingRequirements, unsatisfiedRequirements);
             }

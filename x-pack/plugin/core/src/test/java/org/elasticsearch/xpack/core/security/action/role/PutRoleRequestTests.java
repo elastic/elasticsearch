@@ -60,7 +60,7 @@ public class PutRoleRequestTests extends ESTestCase {
 
         final BytesStreamOutput out = new BytesStreamOutput();
         if (randomBoolean()) {
-            final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, Version.CURRENT);
+            final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_7_0, Version.CURRENT);
             logger.info("Serializing with version {}", version);
             out.setVersion(version);
         }
@@ -73,6 +73,30 @@ public class PutRoleRequestTests extends ESTestCase {
         copy.readFrom(in);
 
         assertThat(copy.roleDescriptor(), equalTo(original.roleDescriptor()));
+    }
+
+    public void testSerializationBetweenV63AndV70() throws IOException {
+        final PutRoleRequest original = buildRandomRequest();
+
+        final BytesStreamOutput out = new BytesStreamOutput();
+        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_3_2, Version.V_6_7_0);
+        out.setVersion(version);
+        original.writeTo(out);
+
+        final PutRoleRequest copy = new PutRoleRequest();
+        final StreamInput in = out.bytes().streamInput();
+        in.setVersion(version);
+        copy.readFrom(in);
+
+        assertThat(copy.name(), equalTo(original.name()));
+        assertThat(copy.cluster(), equalTo(original.cluster()));
+        assertIndicesSerializedRestricted(copy.indices(), original.indices());
+        assertThat(copy.runAs(), equalTo(original.runAs()));
+        assertThat(copy.metadata(), equalTo(original.metadata()));
+        assertThat(copy.getRefreshPolicy(), equalTo(original.getRefreshPolicy()));
+
+        assertThat(copy.applicationPrivileges(), equalTo(original.applicationPrivileges()));
+        assertThat(copy.conditionalClusterPrivileges(), equalTo(original.conditionalClusterPrivileges()));
     }
 
     public void testSerializationV63AndBefore() throws IOException {

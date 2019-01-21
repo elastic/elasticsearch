@@ -271,17 +271,15 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         getFollowerCluster().startDataOnlyNode(nodeAttributes);
         followerClient().execute(PutFollowAction.INSTANCE, putFollow("leader-index", "follower-index")).get();
         ensureFollowerGreen("follower-index");
-
         // Make sure at least one read-request which requires mapping sync is completed.
         assertBusy(() -> {
             CcrClient ccrClient = new CcrClient(followerClient());
             FollowStatsAction.StatsResponses responses = ccrClient.followStats(new FollowStatsAction.StatsRequest()).actionGet();
             long bytesRead = responses.getStatsResponses().stream().mapToLong(r -> r.status().bytesRead()).sum();
             assertThat(bytesRead, Matchers.greaterThan(0L));
-        });
+        }, 60, TimeUnit.SECONDS);
         latch.countDown();
         assertIndexFullyReplicatedToFollower("leader-index", "follower-index");
         pauseFollow("follower-index");
-        ensureNoCcrTasks();
     }
 }

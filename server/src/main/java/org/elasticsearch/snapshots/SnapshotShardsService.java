@@ -72,6 +72,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -272,12 +273,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     // Abort all running shards for this snapshot
                     Map<ShardId, IndexShardSnapshotStatus> snapshotShards = shardSnapshots.get(entry.snapshot());
                     if (snapshotShards != null) {
-                        final String failure = "snapshot has been aborted";
                         for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : entry.shards()) {
-
                             final IndexShardSnapshotStatus snapshotStatus = snapshotShards.get(shard.key);
                             if (snapshotStatus != null) {
-                                final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.abortIfNotCompleted(failure);
+                                final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.abortIfNotCompleted("snapshot has been aborted");
                                 final Stage stage = lastSnapshotStatus.getStage();
                                 if (stage == Stage.FINALIZE) {
                                     logger.debug("[{}] trying to cancel snapshot on shard [{}] that is finalizing, " +
@@ -292,6 +291,19 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                                     logger.debug("[{}] trying to cancel snapshot on the shard [{}] that has already failed, " +
                                         "updating status on the master", entry.snapshot(), shard.key);
                                     notifyFailedSnapshotShard(entry.snapshot(), shard.key, localNodeId, lastSnapshotStatus.getFailure());
+                                }
+                            }
+                        }
+                    } else {
+                        final ImmutableOpenMap<ShardId, ShardSnapshotStatus> clusterStateShards = entry.shards();
+                        if (clusterStateShards.isEmpty()) {
+
+                        } else {
+                            for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> curr : clusterStateShards) {
+                                if (curr.value.state() == State.ABORTED) {
+                                    // due to CS batching we might have missed the INIT state and straight went into ABORTED
+                                    // notify master that abort has completed by moving to FAILED
+                                    notifyFailedSnapshotShard(entry.snapshot(), curr.key, localNodeId, curr.value.reason());
                                 }
                             }
                         }

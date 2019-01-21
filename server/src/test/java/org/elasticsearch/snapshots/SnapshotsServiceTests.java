@@ -344,6 +344,8 @@ public class SnapshotsServiceTests extends ESTestCase {
     }
 
     // -Dtests.seed=92C2A9BD03C14003 ... 35 runs
+    // -ea  -Dtests.seed=92C2A9BD03C14003:AE482EC68DB8B206
+    // 262C019B8568F4DF:6C6B6D998E1745E6
     @Repeat(iterations = 1000)
     public void testSnapshotPrimaryRelocations() {
         final int masterNodeCount = randomFrom(1, 3, 5);

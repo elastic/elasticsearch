@@ -709,10 +709,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 return false;
             }
 
-            if (mode != Mode.CANDIDATE) {
-                throw new CoordinationStateRejectedException("Cannot set initial configuration in mode " + mode);
-            }
-
             final List<DiscoveryNode> knownNodes = new ArrayList<>();
             knownNodes.add(getLocalNode());
             peerFinder.getFoundPeers().forEach(knownNodes::add);

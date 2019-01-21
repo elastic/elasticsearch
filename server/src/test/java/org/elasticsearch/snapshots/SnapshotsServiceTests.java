@@ -238,7 +238,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                         assertNoFailureListener(
                             () -> {
                                 for (int i = 0; i < randomIntBetween(0, dataNodes); ++i) {
-                                    deterministicTaskQueue.scheduleNow(this::disconnectRandomDataNode);
+                                    scheduleNow(this::disconnectRandomDataNode);
                                 }
                                 if (randomBoolean()) {
                                     scheduleClearDisruptionNow();
@@ -246,11 +246,11 @@ public class SnapshotsServiceTests extends ESTestCase {
                                 masterAdminClient.cluster().prepareCreateSnapshot(repoName, snapshotName)
                                     .execute(assertNoFailureListener(() -> {
                                         for (int i = 0; i < randomIntBetween(0, dataNodes); ++i) {
-                                            deterministicTaskQueue.scheduleNow(this::disconnectOrRestartDataNode);
+                                            scheduleNow(this::disconnectOrRestartDataNode);
                                         }
                                         final boolean disconnectedMaster = randomBoolean();
                                         if (disconnectedMaster) {
-                                            deterministicTaskQueue.scheduleNow(this::disconnectOrRestartMasterNode);
+                                            scheduleNow(this::disconnectOrRestartMasterNode);
                                         }
                                         if (disconnectedMaster || randomBoolean()) {
                                             deterministicTaskQueue.scheduleAt(
@@ -362,7 +362,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                                                     if (shardRouting.unassigned()
                                                         && shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.NODE_LEFT) {
                                                         if (masterNodeCount > 1) {
-                                                            deterministicTaskQueue.scheduleNow(
+                                                            scheduleNow(
                                                                 () -> testClusterNodes.stopNode(masterNode));
                                                         }
                                                         testClusterNodes.randomDataNodeSafe().client.admin().cluster()
@@ -373,7 +373,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                                                                         new DeleteSnapshotRequest(repoName, snapshotName), noopListener());
                                                                 createdSnapshot.set(true);
                                                             }));
-                                                        deterministicTaskQueue.scheduleNow(
+                                                        scheduleNow(
                                                             () -> masterAdminClient.cluster().reroute(
                                                                 new ClusterRerouteRequest().add(
                                                                     new AllocateEmptyPrimaryAllocationCommand(
@@ -389,8 +389,8 @@ public class SnapshotsServiceTests extends ESTestCase {
                                             ));
                                         }
                                     };
-                                    deterministicTaskQueue.scheduleNow(() -> testClusterNodes.stopNode(currentPrimaryNode));
-                                    deterministicTaskQueue.scheduleNow(maybeForceAllocate);
+                                    scheduleNow(() -> testClusterNodes.stopNode(currentPrimaryNode));
+                                    scheduleNow(maybeForceAllocate);
                                 }
                             ))))));
 
@@ -408,8 +408,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         }, TimeUnit.MINUTES.toMillis(20L));
 
         assertTrue(createdSnapshot.get());
-        SnapshotsInProgress finalSnapshotsInProgress = testClusterNodes.randomDataNode()
-            .orElseThrow(() -> new AssertionError("No data nodes running"))
+        final SnapshotsInProgress finalSnapshotsInProgress = testClusterNodes.randomDataNodeSafe()
             .clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertThat(finalSnapshotsInProgress.entries(), empty());
         final Repository repository = masterNode.repositoriesService.repository(repoName);
@@ -418,7 +417,7 @@ public class SnapshotsServiceTests extends ESTestCase {
     }
 
     private void scheduleClearDisruptionNow() {
-        deterministicTaskQueue.scheduleNow(() -> testClusterNodes.clearNetworkDisruptions());
+        scheduleNow(() -> testClusterNodes.clearNetworkDisruptions());
     }
 
     private void disconnectOrRestartDataNode() {
@@ -484,6 +483,10 @@ public class SnapshotsServiceTests extends ESTestCase {
     private void setupTestCluster(int masterNodes, int dataNodes) {
         testClusterNodes = new TestClusterNodes(masterNodes, dataNodes);
         startCluster();
+    }
+
+    private void scheduleNow(Runnable runnable) {
+        deterministicTaskQueue.scheduleNow(runnable);
     }
 
     private static Settings defaultIndexSettings(int shards) {
@@ -730,13 +733,6 @@ public class SnapshotsServiceTests extends ESTestCase {
             mockTransport = new DisruptableMockTransport(node, logger) {
                 @Override
                 protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {
-                    if (node.getName().equals(destination.getName())) {
-                        return ConnectionStatus.CONNECTED;
-                    }
-                    if (testClusterNodes.nodes.containsKey(node.getName()) == false
-                        || testClusterNodes.nodes.containsKey(destination.getName()) == false) {
-                        return ConnectionStatus.DISCONNECTED;
-                    }
                     return disruption.get().disrupt(node.getName(), destination.getName())
                         ? ConnectionStatus.DISCONNECTED : ConnectionStatus.CONNECTED;
                 }
@@ -750,7 +746,7 @@ public class SnapshotsServiceTests extends ESTestCase {
 
                 @Override
                 protected void execute(Runnable runnable) {
-                    deterministicTaskQueue.scheduleNow(CoordinatorTests.onNodeLog(getLocalNode(), runnable));
+                    scheduleNow(CoordinatorTests.onNodeLog(getLocalNode(), runnable));
                 }
             };
             transportService = mockTransport.createTransportService(
@@ -835,15 +831,14 @@ public class SnapshotsServiceTests extends ESTestCase {
             final ShardStateAction shardStateAction = new ShardStateAction(
                 clusterService, transportService, allocationService,
                 new RoutingService(clusterService, allocationService),
-                deterministicTaskQueue.getThreadPool()
+                threadPool
             );
             indicesClusterStateService = new IndicesClusterStateService(
                 settings,
                 indicesService,
                 clusterService,
                 threadPool,
-                new PeerRecoveryTargetService(
-                    deterministicTaskQueue.getThreadPool(), transportService, recoverySettings, clusterService),
+                new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService),
                 shardStateAction,
                 new NodeMappingRefreshAction(transportService, new MetaDataMappingService(clusterService, indicesService)),
                 repositoriesService,
@@ -981,12 +976,19 @@ public class SnapshotsServiceTests extends ESTestCase {
         }
     }
 
-    private static final class DisconnectedNodes extends NetworkDisruption.DisruptedLinks {
+    private final class DisconnectedNodes extends NetworkDisruption.DisruptedLinks {
 
         private final Set<String> disconnected = new HashSet<>();
 
         @Override
         public boolean disrupt(String node1, String node2) {
+            if (node1.equals(node2)) {
+                return false;
+            }
+            if (testClusterNodes.nodes.containsKey(node1) == false
+                || testClusterNodes.nodes.containsKey(node2) == false) {
+                return true;
+            }
             return disconnected.contains(node1) || disconnected.contains(node2);
         }
 

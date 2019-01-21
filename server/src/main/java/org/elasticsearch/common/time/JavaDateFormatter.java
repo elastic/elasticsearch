@@ -29,10 +29,10 @@ import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 class JavaDateFormatter implements DateFormatter {
 
@@ -52,15 +52,19 @@ class JavaDateFormatter implements DateFormatter {
     private final DateTimeFormatter parser;
     private final DateTimeFormatter roundupParser;
 
-    JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter roundupParser, List<DateTimeFormatter> parsers) {
-        this(format, printer, roundupParser, parsers.toArray(new DateTimeFormatter[0]));
+    private JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter roundupParser, DateTimeFormatter parser) {
+        this.format = format;
+        this.printer = printer;
+        this.roundupParser = roundupParser;
+        this.parser = parser;
     }
 
     JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter... parsers) {
-        this(format, printer, null, parsers);
+        this(format, printer, builder -> ROUND_UP_BASE_FIELDS.forEach(builder::parseDefaulting), parsers);
     }
 
-    private JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter roundupParser, DateTimeFormatter... parsers) {
+    JavaDateFormatter(String format, DateTimeFormatter printer, Consumer<DateTimeFormatterBuilder> roundupParserConsumer,
+                              DateTimeFormatter... parsers) {
         if (printer == null) {
             throw new IllegalArgumentException("printer may not be null");
         }
@@ -86,27 +90,14 @@ class JavaDateFormatter implements DateFormatter {
         this.format = format;
         this.printer = printer;
 
-        if (format.contains("||")) {
-            if (roundupParser == null) {
-                throw new IllegalArgumentException("roundup parser for merged fields must be set in ctor");
-            }
-            this.roundupParser = roundupParser;
-        } else {
-            DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
-            builder.append(this.parser);
-            if ("epoch_millis".equals(format)) {
-                builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L);
-            } else if ("epoch_second".equals(format)) {
-                builder.parseDefaulting(ChronoField.NANO_OF_SECOND, 999_999_999L);
-            } else {
-                ROUND_UP_BASE_FIELDS.forEach(builder::parseDefaulting);
-            }
-            DateTimeFormatter roundupFormatter = builder.toFormatter(parser.getLocale());
-            if (printer.getZone() != null) {
-                roundupFormatter = roundupFormatter.withZone(printer.getZone());
-            }
-            this.roundupParser = roundupFormatter;
+        DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
+        builder.append(this.parser);
+        roundupParserConsumer.accept(builder);
+        DateTimeFormatter roundupFormatter = builder.toFormatter(parser.getLocale());
+        if (printer.getZone() != null) {
+            roundupFormatter = roundupFormatter.withZone(printer.getZone());
         }
+        this.roundupParser = roundupFormatter;
     }
 
     DateTimeFormatter getRoundupParser() {
@@ -136,8 +127,7 @@ class JavaDateFormatter implements DateFormatter {
             return this;
         }
 
-        return new JavaDateFormatter(format, printer.withZone(zoneId), roundupParser.withZone(zoneId),
-            new DateTimeFormatter[]{parser.withZone(zoneId)});
+        return new JavaDateFormatter(format, printer.withZone(zoneId), roundupParser.withZone(zoneId), parser.withZone(zoneId));
     }
 
     @Override
@@ -147,8 +137,7 @@ class JavaDateFormatter implements DateFormatter {
             return this;
         }
 
-        return new JavaDateFormatter(format, printer.withLocale(locale), roundupParser.withLocale(locale),
-            new DateTimeFormatter[]{parser.withLocale(locale)});
+        return new JavaDateFormatter(format, printer.withLocale(locale), roundupParser.withLocale(locale), parser.withLocale(locale));
     }
 
     @Override

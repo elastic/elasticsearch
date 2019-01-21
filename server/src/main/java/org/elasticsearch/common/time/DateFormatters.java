@@ -1465,7 +1465,8 @@ public class DateFormatters {
         }
         DateTimeFormatter roundUpParser = roundupBuilder.toFormatter(Locale.ROOT);
 
-        return new JavaDateFormatter(pattern, printer, roundUpParser, dateTimeFormatters);
+        return new JavaDateFormatter(pattern, printer, builder -> builder.append(roundUpParser),
+            dateTimeFormatters.toArray(new DateTimeFormatter[0]));
     }
 
     private static final ZonedDateTime EPOCH_ZONED_DATE_TIME = Instant.EPOCH.atZone(ZoneOffset.UTC);

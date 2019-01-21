@@ -184,6 +184,14 @@ public class DateFormattersTests extends ESTestCase {
         assertRoundupFormatter("8uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_second", "1234567890", 1234567890999L);
     }
 
+    private void assertRoundupFormatter(String format, String input, long expectedMilliSeconds) {
+        JavaDateFormatter dateFormatter = (JavaDateFormatter) DateFormatter.forPattern(format);
+        dateFormatter.parse(input);
+        DateTimeFormatter roundUpFormatter = dateFormatter.getRoundupParser();
+        long millis = DateFormatters.toZonedDateTime(roundUpFormatter.parse(input)).toInstant().toEpochMilli();
+        assertThat(millis, is(expectedMilliSeconds));
+    }
+
     public void testRoundupFormatterZone() {
         ZoneId zoneId = randomZone();
         String format = randomFrom("8epoch_second", "8epoch_millis", "8strict_date_optional_time", "8uuuu-MM-dd'T'HH:mm:ss.SSS",
@@ -202,13 +210,5 @@ public class DateFormattersTests extends ESTestCase {
         DateTimeFormatter roundupParser = formatter.getRoundupParser();
         assertThat(roundupParser.getLocale(), is(locale));
         assertThat(formatter.locale(), is(locale));
-    }
-
-    private void assertRoundupFormatter(String format, String input, long expectedMilliSeconds) {
-        JavaDateFormatter dateFormatter = (JavaDateFormatter) DateFormatter.forPattern(format);
-        dateFormatter.parse(input);
-        DateTimeFormatter roundUpFormatter = dateFormatter.getRoundupParser();
-        long millis = DateFormatters.toZonedDateTime(roundUpFormatter.parse(input)).toInstant().toEpochMilli();
-        assertThat(millis, is(expectedMilliSeconds));
     }
 }

@@ -152,6 +152,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         MetaData.Builder mdBuilder = MetaData.builder();
         mdBuilder.clusterUUID(currentState.metaData().clusterUUID());
         mdBuilder.coordinationMetaData(currentState.coordinationMetaData());
+        mdBuilder.version(currentState.metaData().version());
 
         if (request.metaData()) {
             if (request.indices().length > 0) {

@@ -749,8 +749,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             HasPrivilegesRequest request = new HasPrivilegesRequest(
                 Sets.newHashSet("monitor", "manage"),
                 Sets.newHashSet(
-                    IndicesPrivileges.builder().indices("logstash-2018-10-05").privileges("read", "write").build(),
-                    IndicesPrivileges.builder().indices("logstash-2018-*").privileges("read").build()
+                    IndicesPrivileges.builder().indices("logstash-2018-10-05").privileges("read", "write")
+                        .allowRestrictedIndices(false).build(),
+                    IndicesPrivileges.builder().indices("logstash-2018-*").privileges("read")
+                        .allowRestrictedIndices(true).build()
                 ),
                 null
             );

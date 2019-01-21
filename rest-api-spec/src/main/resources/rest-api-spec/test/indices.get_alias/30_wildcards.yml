@@ -27,10 +27,9 @@ setup:
 ---
 "Get aliases wildcard and simple exclusion":
   - skip:
-      features: node_selector
+      version: " - 6.99.99"
+      reason: Exclusions in the alias expression are not handled
   - do:
-      node_selector:
-        version: "6.99.99 - "
       indices.get_alias:
         name: test_blias_2,test_alias*,-test_alias_1
 
@@ -43,10 +42,9 @@ setup:
 ---
 "Get aliases and wildcard exclusion":
   - skip:
-      features: node_selector
+      version: " - 6.99.99"
+      reason: Exclusions in the alias expression are not handled
   - do:
-      node_selector:
-        version: "6.99.99 - "
       indices.get_alias:
         name: test_alias_1,test_blias_1,-test_alias*
 
@@ -57,8 +55,6 @@ setup:
   - is_false: test_index.aliases.test
 
   - do:
-      node_selector:
-        version: "6.99.99 - "
       indices.get_alias:
         name: test_blias_2,tes*,-test_alias*
 
@@ -71,10 +67,9 @@ setup:
 ---
 "Non-existent exclusion alias before wildcard returns 404":
   - skip:
-      features: node_selector
+      version: " - 6.99.99"
+      reason: Exclusions in the alias expression are not handled
   - do:
-      node_selector:
-        version: "6.99.99 - "
       catch: missing
       indices.get_alias:
         name: -test_alias_1,test_alias*,-test_alias_2
@@ -88,8 +83,6 @@ setup:
   - is_false: test_index.aliases.test
 
   - do:
-      node_selector:
-        version: "6.99.99 - "
       catch: missing
       indices.get_alias:
         name: -test_alias_1,-non-existing,test_alias*,-test
@@ -105,10 +98,9 @@ setup:
 ---
 "Missing exclusions does not fire 404":
   - skip:
-      features: node_selector
+      version: " - 6.99.99"
+      reason: Exclusions in the alias expression are not handled
   - do:
-      node_selector:
-        version: "6.99.99 - "
       indices.get_alias:
         name: test_alias*,-non-existent,test_blias*,-test
 
@@ -121,10 +113,9 @@ setup:
 ---
 "Exclusion of non wildcarded aliases":
   - skip:
-      features: node_selector
+      version: " - 6.99.99"
+      reason: Exclusions in the alias expression are not handled
   - do:
-      node_selector:
-        version: "6.99.99 - "
       indices.get_alias:
         name: test_alias_1,test_blias_2,-test_alias*,-test_blias_2
 
@@ -133,10 +124,9 @@ setup:
 ---
 "Wildcard exclusions does not trigger 404":
   - skip:
-      features: node_selector
+      version: " - 6.99.99"
+      reason: Exclusions in the alias expression are not handled
   - do:
-      node_selector:
-        version: "6.99.99 - "
       catch: missing
       indices.get_alias:
         name: -non-existent,-non-existent*,-another

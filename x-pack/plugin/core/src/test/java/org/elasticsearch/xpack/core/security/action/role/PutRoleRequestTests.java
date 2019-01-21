@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
 
@@ -89,13 +90,25 @@ public class PutRoleRequestTests extends ESTestCase {
 
         assertThat(copy.name(), equalTo(original.name()));
         assertThat(copy.cluster(), equalTo(original.cluster()));
-        assertThat(copy.indices(), equalTo(original.indices()));
+        assertIndicesSerializedRestricted(copy.indices(), original.indices());
         assertThat(copy.runAs(), equalTo(original.runAs()));
         assertThat(copy.metadata(), equalTo(original.metadata()));
         assertThat(copy.getRefreshPolicy(), equalTo(original.getRefreshPolicy()));
 
         assertThat(copy.applicationPrivileges(), iterableWithSize(0));
         assertThat(copy.conditionalClusterPrivileges(), arrayWithSize(0));
+    }
+
+    private void assertIndicesSerializedRestricted(RoleDescriptor.IndicesPrivileges[] copy, RoleDescriptor.IndicesPrivileges[] original) {
+        assertThat(copy.length, equalTo(original.length));
+        for (int i = 0; i < copy.length; i++) {
+            assertThat(copy[i].allowRestrictedIndices(), equalTo(false));
+            assertThat(copy[i].getIndices(), equalTo(original[i].getIndices()));
+            assertThat(copy[i].getPrivileges(), equalTo(original[i].getPrivileges()));
+            assertThat(copy[i].getDeniedFields(), equalTo(original[i].getDeniedFields()));
+            assertThat(copy[i].getGrantedFields(), equalTo(original[i].getGrantedFields()));
+            assertThat(copy[i].getQuery(), equalTo(original[i].getQuery()));
+        }
     }
 
     private void assertSuccessfulValidation(PutRoleRequest request) {
@@ -135,7 +148,8 @@ public class PutRoleRequestTests extends ESTestCase {
                 randomSubsetOf(randomIntBetween(1, 2), "read", "write", "index", "all").toArray(Strings.EMPTY_ARRAY),
                 generateRandomStringArray(randomIntBetween(1, 3), randomIntBetween(3, 8), true),
                 generateRandomStringArray(randomIntBetween(1, 3), randomIntBetween(3, 8), true),
-                null
+                null,
+                randomBoolean()
             );
         }
 

@@ -439,12 +439,15 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private void handleFailure(Exception e, AtomicInteger retryCounter, Runnable task) {
         assert e != null;
-        if (shouldRetry(params.getRemoteCluster(), e) && isStopped() == false) {
-            int currentRetry = retryCounter.incrementAndGet();
-            LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying [{}]",
-                params.getFollowShardId(), currentRetry), e);
-            long delay = computeDelay(currentRetry, params.getReadPollTimeout().getMillis());
-            scheduler.accept(TimeValue.timeValueMillis(delay), task);
+        if (shouldRetry(params.getRemoteCluster(), e)) {
+            if (isStopped() == false) {
+                // Only retry is the shard follow task is not stopped.
+                int currentRetry = retryCounter.incrementAndGet();
+                LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying [{}]",
+                    params.getFollowShardId(), currentRetry), e);
+                long delay = computeDelay(currentRetry, params.getReadPollTimeout().getMillis());
+                scheduler.accept(TimeValue.timeValueMillis(delay), task);
+            }
         } else {
             fatalException = ExceptionsHelper.convertToElastic(e);
             LOGGER.warn("shard follow task encounter non-retryable error", e);

@@ -41,7 +41,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.Is.is;
 
@@ -318,6 +320,35 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(status.readExceptions().values().iterator().next().v2(), sameInstance(exception));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
         assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));
+    }
+
+    public void testFatalExceptionNotSetWhenStoppingWhileFetchingOps() {
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
+        startTask(task, 63, -1);
+
+        readFailures.add(new ShardNotFoundException(new ShardId("leader_index", "", 0)));
+
+        mappingVersions.add(1L);
+        leaderGlobalCheckpoints.add(63L);
+        maxSeqNos.add(63L);
+        responseSizes.add(64);
+        simulateResponse.set(true);
+        beforeSendShardChangesRequest = status -> {
+            // Cancel just before attempting to fetch operations:
+            task.onCancelled();
+        };
+        task.coordinateReads();
+
+        assertThat(task.isStopped(), is(true));
+        ShardFollowNodeTaskStatus status = task.getStatus();
+        assertThat(status.getFatalException(), nullValue());
+        assertThat(status.failedReadRequests(), equalTo(1L));
+        assertThat(status.successfulReadRequests(), equalTo(0L));
+        assertThat(status.readExceptions().size(), equalTo(1));
     }
 
     public void testEmptyShardChangesResponseShouldClearFetchException() {

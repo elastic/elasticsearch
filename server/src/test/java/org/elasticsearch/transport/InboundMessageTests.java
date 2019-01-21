@@ -62,7 +62,8 @@ public class InboundMessageTests extends ESTestCase {
         threadContext.putHeader("header", "header_value2");
 
         InboundMessage.Reader reader = new InboundMessage.Reader(version, registry, threadContext);
-        InboundMessage.Request inboundMessage = (InboundMessage.Request) reader.deserialize(reference.slice(6, reference.length() - 6));
+        BytesReference sliced = reference.slice(6, reference.length() - 6);
+        InboundMessage.RequestMessage inboundMessage = (InboundMessage.RequestMessage) reader.deserialize(sliced);
         // Check that deserialize does not overwrite current thread context.
         assertEquals("header_value2", threadContext.getHeader("header"));
         inboundMessage.getStoredContext().restore();
@@ -100,7 +101,8 @@ public class InboundMessageTests extends ESTestCase {
         threadContext.putHeader("header", "header_value2");
 
         InboundMessage.Reader reader = new InboundMessage.Reader(version, registry, threadContext);
-        InboundMessage.Response inboundMessage = (InboundMessage.Response) reader.deserialize(reference.slice(6, reference.length() - 6));
+        BytesReference sliced = reference.slice(6, reference.length() - 6);
+        InboundMessage.ResponseMessage inboundMessage = (InboundMessage.ResponseMessage) reader.deserialize(sliced);
         // Check that deserialize does not overwrite current thread context.
         assertEquals("header_value2", threadContext.getHeader("header"));
         inboundMessage.getStoredContext().restore();
@@ -135,7 +137,8 @@ public class InboundMessageTests extends ESTestCase {
         threadContext.putHeader("header", "header_value2");
 
         InboundMessage.Reader reader = new InboundMessage.Reader(version, registry, threadContext);
-        InboundMessage.Response inboundMessage = (InboundMessage.Response) reader.deserialize(reference.slice(6, reference.length() - 6));
+        BytesReference sliced = reference.slice(6, reference.length() - 6);
+        InboundMessage.ResponseMessage inboundMessage = (InboundMessage.ResponseMessage) reader.deserialize(sliced);
         // Check that deserialize does not overwrite current thread context.
         assertEquals("header_value2", threadContext.getHeader("header"));
         inboundMessage.getStoredContext().restore();

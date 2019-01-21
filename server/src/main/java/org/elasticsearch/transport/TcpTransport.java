@@ -928,7 +928,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             message.getStoredContext().restore();
             threadContext.putTransient("_remote_address", remoteAddress);
             if (message.isRequest()) {
-                handleRequest(channel, (InboundMessage.Request) message, reference.length());
+                handleRequest(channel, (InboundMessage.RequestMessage) message, reference.length());
             } else {
                 final TransportResponseHandler<?> handler;
                 long requestId = message.getRequestId();
@@ -1014,7 +1014,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         });
     }
 
-    protected void handleRequest(TcpChannel channel, InboundMessage.Request message, int messageLengthBytes) throws IOException {
+    protected void handleRequest(TcpChannel channel, InboundMessage.RequestMessage message, int messageLengthBytes) throws IOException {
         final Set<String> features = message.getFeatures();
         final String profileName = channel.getProfile();
         final String action = message.getActionName();

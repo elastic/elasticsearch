@@ -21,6 +21,10 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
+/**
+ * Represents a transport message sent over the network. Subclasses implement serialization and
+ * deserialization.
+ */
 public abstract class NetworkMessage {
 
     protected final Version version;

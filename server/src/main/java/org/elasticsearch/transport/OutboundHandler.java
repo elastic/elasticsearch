@@ -28,6 +28,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.util.BigArrays;
@@ -35,9 +36,8 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 
-class OutboundHandler {
+final class OutboundHandler {
 
     private static final Logger logger = LogManager.getLogger(OutboundHandler.class);
 
@@ -141,7 +141,7 @@ class OutboundHandler {
                 messageSize = message.length();
                 transportLogger.logOutboundMessage(channel, message);
                 return message;
-            } catch (IOException | RuntimeException e) {
+            } catch (Exception e) {
                 onFailure(e);
                 throw e;
             }
@@ -151,24 +151,17 @@ class OutboundHandler {
         protected void innerOnResponse(Void v) {
             assert messageSize != -1 : "If onResponse is being called, the message should have been serialized";
             transmittedBytesMetric.inc(messageSize);
-            closeAndCallback(null, () -> listener.onResponse(v));
+            closeAndCallback(() -> listener.onResponse(v));
         }
 
         @Override
         protected void innerOnFailure(Exception e) {
             logger.warn(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
-            closeAndCallback(e, () -> listener.onFailure(e));
+            closeAndCallback(() -> listener.onFailure(e));
         }
 
-        private void closeAndCallback(final Exception e, Runnable runnable) {
-            try {
-                IOUtils.close(optionalReleasable, runnable::run);
-            } catch (final IOException inner) {
-                if (e != null) {
-                    inner.addSuppressed(e);
-                }
-                throw new UncheckedIOException(inner);
-            }
+        private void closeAndCallback(Runnable runnable) {
+            Releasables.close(optionalReleasable, runnable::run);
         }
     }
 }

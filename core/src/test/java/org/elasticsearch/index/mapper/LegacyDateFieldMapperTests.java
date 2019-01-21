@@ -316,7 +316,7 @@ public class LegacyDateFieldMapperTests extends ESSingleNodeTestCase {
                     .bytes());
         } catch (MapperParsingException e) {
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), is("failed to parse [field2]"));
+            assertThat(e.getMessage(), is("failed to parse [field2] of document with id '1'"));
         }
 
         // Verify that the default is false
@@ -328,7 +328,7 @@ public class LegacyDateFieldMapperTests extends ESSingleNodeTestCase {
                     .bytes());
         } catch (MapperParsingException e) {
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), is("failed to parse [field3]"));
+            assertThat(e.getMessage(), is("failed to parse [field3] of document with id '1'"));
         }
 
         // Unless the global ignore_malformed option is set to true
@@ -353,7 +353,7 @@ public class LegacyDateFieldMapperTests extends ESSingleNodeTestCase {
                     .bytes());
         } catch (MapperParsingException e) {
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), is("failed to parse [field2]"));
+            assertThat(e.getMessage(), is("failed to parse [field2] of document with id '1'"));
         }
     }
 

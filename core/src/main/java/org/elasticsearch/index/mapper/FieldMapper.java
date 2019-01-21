@@ -292,10 +292,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         && indexCreatedVersion.before(Version.V_5_0_0_alpha1)) {
                     ((Field)(field)).setBoost(fieldType().boost());
                 }
-                context.doc().add(field);
+                context.doc().add(field); 
             }
         } catch (Exception e) {
-            throw new MapperParsingException("failed to parse [" + fieldType().name() + "]", e);
+            throw new MapperParsingException("failed to parse [" + fieldType().name() + "] of document with id '"
+                    + context.sourceToParse().id() + "'", e);
         }
         multiFields.parse(this, context);
         return null;

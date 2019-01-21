@@ -26,9 +26,12 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.WriteResponse;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
+import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -49,7 +52,7 @@ import java.util.Collection;
 import java.util.Objects;
 
 public class RetentionLeaseSyncAction extends
-        TransportReplicationAction<RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Request, ReplicationResponse> {
+        TransportWriteAction<RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Response> {
 
     public static String ACTION_NAME = "indices:admin/seq_no/retention_lease_sync";
 
@@ -104,23 +107,23 @@ public class RetentionLeaseSyncAction extends
     }
 
     @Override
-    protected PrimaryResult<Request, ReplicationResponse> shardOperationOnPrimary(
+    protected WritePrimaryResult<Request, Response> shardOperationOnPrimary(
             final Request request,
             final IndexShard primary) throws Exception {
         Objects.requireNonNull(request);
         Objects.requireNonNull(primary);
-        return new PrimaryResult<>(request, new ReplicationResponse());
+        return new WritePrimaryResult<>(request, new Response(), null, null, primary, logger);
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(final Request request, final IndexShard replica) throws Exception {
+    protected WriteReplicaResult<Request> shardOperationOnReplica(final Request request, final IndexShard replica) throws Exception {
         Objects.requireNonNull(request);
         Objects.requireNonNull(replica);
         replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
-        return new ReplicaResult();
+        return new WriteReplicaResult<>(request, null, null, replica, logger);
     }
 
-    public static final class Request extends ReplicationRequest<Request> {
+    public static final class Request extends ReplicatedWriteRequest<Request> {
 
         private Collection<RetentionLease> retentionLeases;
 
@@ -162,9 +165,18 @@ public class RetentionLeaseSyncAction extends
 
     }
 
+    public static final class Response extends ReplicationResponse implements WriteResponse {
+
+        @Override
+        public void setForcedRefresh(final boolean forcedRefresh) {
+            // ignore
+        }
+
+    }
+
     @Override
-    protected ReplicationResponse newResponseInstance() {
-        return new ReplicationResponse();
+    protected Response newResponseInstance() {
+        return new Response();
     }
 
 }

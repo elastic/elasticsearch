@@ -22,8 +22,10 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
+import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -114,7 +116,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         final RetentionLeaseSyncAction.Request request =
                 new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
 
-        final TransportReplicationAction.PrimaryResult<RetentionLeaseSyncAction.Request, ReplicationResponse> result =
+        final TransportWriteAction.WritePrimaryResult<RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Response> result =
                 action.shardOperationOnPrimary(request, indexShard);
         // we should forward the request containing the current retention leases to the replica
         assertThat(result.replicaRequest(), sameInstance(request));
@@ -150,7 +152,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         final RetentionLeaseSyncAction.Request request =
                 new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
 
-        final TransportReplicationAction.ReplicaResult result = action.shardOperationOnReplica(request, indexShard);
+        final TransportWriteAction.WriteReplicaResult result = action.shardOperationOnReplica(request, indexShard);
         // the retention leases on the shard should be updated
         verify(indexShard).updateRetentionLeasesOnReplica(retentionLeases);
         // the result should indicate success
@@ -189,12 +191,12 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 new IndexNameExpressionResolver()) {
 
             @Override
-            protected void doExecute(final Task task, final Request request, final ActionListener<ReplicationResponse> listener) {
+            protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
                 assertTrue(threadPool.getThreadContext().isSystemContext());
                 assertThat(request.shardId(), sameInstance(indexShard.shardId()));
                 assertThat(request.getRetentionLeases(), sameInstance(retentionLeases));
                 if (randomBoolean()) {
-                    listener.onResponse(new ReplicationResponse());
+                    listener.onResponse(new Response());
                 } else {
                     final Exception e = randomFrom(
                             new AlreadyClosedException("closed"),

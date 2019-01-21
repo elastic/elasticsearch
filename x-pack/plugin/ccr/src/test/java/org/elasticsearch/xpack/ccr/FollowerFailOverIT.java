@@ -247,6 +247,8 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         ShardId shardId = clusterService.state().routingTable().index("leader-index").shard(0).shardId();
         IndicesService indicesService = leaderCluster.getInstance(IndicesService.class, dataNode);
         IndexShard indexShard = indicesService.getShardOrNull(shardId);
+        // Block the ClusterService from exposing the cluster state with the mapping change. This makes the ClusterService
+        // have an older mapping version than the actual mapping version that IndexService will use to index "doc1".
         final CountDownLatch latch = new CountDownLatch(1);
         clusterService.addLowPriorityApplier(event -> {
             IndexMetaData imd = event.state().metaData().index("leader-index");
@@ -269,6 +271,8 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         getFollowerCluster().startDataOnlyNode(nodeAttributes);
         followerClient().execute(PutFollowAction.INSTANCE, putFollow("leader-index", "follower-index")).get();
         ensureFollowerGreen("follower-index");
+
+        // Make sure at least one read-request which requires mapping sync is completed.
         assertBusy(() -> {
             CcrClient ccrClient = new CcrClient(followerClient());
             FollowStatsAction.StatsResponses responses = ccrClient.followStats(new FollowStatsAction.StatsRequest()).actionGet();

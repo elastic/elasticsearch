@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -33,7 +34,7 @@ import org.elasticsearch.xpack.dataframe.action.PutDataFrameTransformAction.Resp
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.persistence.DataframeIndex;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransform;
-import org.elasticsearch.xpack.dataframe.transforms.pivot.Validator;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 public class TransportPutDataFrameTransformAction
         extends TransportMasterNodeAction<PutDataFrameTransformAction.Request, PutDataFrameTransformAction.Response> {
@@ -86,12 +87,13 @@ public class TransportPutDataFrameTransformAction
             return;
         }
 
-        // create the transform, note the non-state creating steps are done first, so we minimize the chance to end up with orphaned state
-        // transform validation
-        Validator transformValidator = new Validator(request.getConfig(), client);
-        transformValidator.validate(ActionListener.wrap(validationResult -> {
+        // create the transform, for now we only have pivot and no support for custom queries
+        Pivot pivot = new Pivot(request.getConfig().getSource(), new MatchAllQueryBuilder(), request.getConfig().getPivotConfig());
+
+        // the non-state creating steps are done first, so we minimize the chance to end up with orphaned state transform validation
+        pivot.validate(client, ActionListener.wrap(validationResult -> {
             // deduce target mappings
-            transformValidator.deduceMappings(ActionListener.wrap(mappings -> {
+            pivot.deduceMappings(client, ActionListener.wrap(mappings -> {
                 // create the destination index
                 DataframeIndex.createDestinationIndex(client, request.getConfig(), mappings, ActionListener.wrap(createIndexResult -> {
                     DataFrameTransform transform = createDataFrameTransform(transformId, threadPool);

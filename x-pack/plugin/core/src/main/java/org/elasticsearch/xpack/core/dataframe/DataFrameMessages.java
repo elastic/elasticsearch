@@ -33,6 +33,8 @@ public class DataFrameMessages {
             "Failed to parse transform configuration for data frame transform [{0}]";
     public static final String DATA_FRAME_TRANSFORM_CONFIGURATION_NO_TRANSFORM =
             "Data frame transform configuration must have 1 transform";
+    public static final String DATA_FRAME_TRANSFORM_PIVOT_FAILED_TO_CREATE_COMPOSITE_AGGREGATION =
+            "Failed to create composite aggregation from pivot transform";
 
     private DataFrameMessages() {
     }

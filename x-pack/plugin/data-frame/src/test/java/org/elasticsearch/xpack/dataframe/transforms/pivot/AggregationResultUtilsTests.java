@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.transforms;
+package org.elasticsearch.xpack.dataframe.transforms.pivot;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ContextParser;
@@ -44,8 +44,6 @@ import org.elasticsearch.search.aggregations.pipeline.ParsedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.dataframe.transforms.pivot.GroupConfig;
-import org.elasticsearch.xpack.dataframe.transforms.pivot.TermsGroupSource;
 
 import java.io.IOException;
 import java.util.Collection;

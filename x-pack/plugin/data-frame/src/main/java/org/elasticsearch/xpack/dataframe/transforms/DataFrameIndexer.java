@@ -11,27 +11,18 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
-import org.elasticsearch.xpack.dataframe.transforms.pivot.GroupConfig;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
@@ -45,6 +36,8 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     private static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
     private static final Logger logger = LogManager.getLogger(DataFrameIndexer.class);
 
+    private Pivot pivot;
+
     public DataFrameIndexer(Executor executor, AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition) {
         super(executor, initialState, initialPosition, new DataFrameIndexerTransformStats());
     }
@@ -53,6 +46,8 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     @Override
     protected void onStartJob(long now) {
+        QueryBuilder queryBuilder = new MatchAllQueryBuilder();
+        this.pivot = new Pivot(getConfig().getSource(), queryBuilder, getConfig().getPivotConfig());
     }
 
     @Override
@@ -73,11 +68,8 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     private Stream<IndexRequest> processBucketsToIndexRequests(CompositeAggregation agg) {
         final DataFrameTransformConfig transformConfig = getConfig();
         String indexName = transformConfig.getDestination();
-        Iterable<GroupConfig> sources = transformConfig.getPivotConfig().getGroups();
-        Collection<AggregationBuilder> aggregationBuilders = transformConfig.getPivotConfig().getAggregationConfig()
-                .getAggregatorFactories();
 
-        return AggregationResultUtils.extractCompositeAggregationResults(agg, sources, aggregationBuilders, getStats()).map(document -> {
+        return this.pivot.extractResults(agg, getStats()).map(document -> {
             XContentBuilder builder;
             try {
                 builder = jsonBuilder();
@@ -93,41 +85,6 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     @Override
     protected SearchRequest buildSearchRequest() {
-        final Map<String, Object> position = getPosition();
-        final DataFrameTransformConfig transformConfig = getConfig();
-
-        QueryBuilder queryBuilder = new MatchAllQueryBuilder();
-        SearchRequest searchRequest = new SearchRequest(transformConfig.getSource());
-
-        CompositeAggregationBuilder compositeAggregation;
-
-        try (XContentBuilder builder = jsonBuilder()) {
-            // write configuration for composite aggs into builder
-            transformConfig.getPivotConfig().toCompositeAggXContent(builder, ToXContentObject.EMPTY_PARAMS);
-            XContentParser parser = builder.generator().contentType().xContent()
-            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
-
-            compositeAggregation = CompositeAggregationBuilder.parse(COMPOSITE_AGGREGATION_NAME, parser);
-        } catch (IOException e1) {
-            throw new RuntimeException(e1);
-        }
-
-        compositeAggregation.size(1000);
-
-        if (position != null) {
-            compositeAggregation.aggregateAfter(position);
-        }
-
-        for (AggregationBuilder agg : transformConfig.getPivotConfig().getAggregationConfig().getAggregatorFactories()) {
-            compositeAggregation.subAggregation(agg);
-        }
-
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.aggregation(compositeAggregation);
-        sourceBuilder.size(0);
-        sourceBuilder.query(queryBuilder);
-        searchRequest.source(sourceBuilder);
-
-        return searchRequest;
+        return pivot.buildSearchRequest(getPosition());
     }
 }

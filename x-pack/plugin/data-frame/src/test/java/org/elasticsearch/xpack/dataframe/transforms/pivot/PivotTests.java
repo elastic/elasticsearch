@@ -22,17 +22,12 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.dataframe.transforms.pivot.AggregationConfig;
-import org.elasticsearch.xpack.dataframe.transforms.pivot.GroupConfig;
-import org.elasticsearch.xpack.dataframe.transforms.pivot.PivotConfig;
-import org.elasticsearch.xpack.dataframe.transforms.pivot.TermsGroupSource;
-import org.elasticsearch.xpack.dataframe.transforms.pivot.Validator;
 import org.junit.After;
 import org.junit.Before;
 
@@ -48,7 +43,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.dataframe.transforms.pivot.SingleGroupSource.Type.TERMS;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TransformValidatorTests extends ESTestCase {
+public class PivotTests extends ESTestCase {
 
     private NamedXContentRegistry namedXContentRegistry;
     private Client client;
@@ -81,42 +76,32 @@ public class TransformValidatorTests extends ESTestCase {
     }
 
     public void testValidateExistingIndex() throws Exception {
-        PivotConfig pivotConfig = getValidPivotConfig();
+        Pivot pivot = new Pivot("existing_source_index", new MatchAllQueryBuilder(), getValidPivotConfig());
 
-        DataFrameTransformConfig config = new DataFrameTransformConfig(getTestName(), "existing_source_index", "non_existing_dest",
-                pivotConfig);
-
-        assertValidTransform(client, config);
+        assertValidTransform(client, pivot);
     }
 
     public void testValidateNonExistingIndex() throws Exception {
-        PivotConfig pivotConfig = getValidPivotConfig();
+        Pivot pivot = new Pivot("non_existing_source_index", new MatchAllQueryBuilder(), getValidPivotConfig());
 
-        DataFrameTransformConfig config = new DataFrameTransformConfig(getTestName(), "non_existing_source_index",
-                "non_existing_dest", pivotConfig);
-
-        assertInvalidTransform(client, config);
+        assertInvalidTransform(client, pivot);
     }
 
     public void testSearchFailure() throws Exception {
-        PivotConfig pivotConfig = getValidPivotConfig();
-
         // test a failure during the search operation, transform creation fails if
         // search has failures although they might just be temporary
-        DataFrameTransformConfig config = new DataFrameTransformConfig(getTestName(), "existing_source_index_with_failing_shards",
-                "non_existing_dest", pivotConfig);
+        Pivot pivot = new Pivot("existing_source_index_with_failing_shards", new MatchAllQueryBuilder(), getValidPivotConfig());
 
-        assertInvalidTransform(client, config);
+        assertInvalidTransform(client, pivot);
     }
 
     public void testValidateAllSupportedAggregations() throws Exception {
         for (String agg : supportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
-            DataFrameTransformConfig config = new DataFrameTransformConfig(getTestName(), "existing_source", "non_existing_dest",
-                    getValidPivotConfig(aggregationConfig));
+            Pivot pivot = new Pivot("existing_source", new MatchAllQueryBuilder(), getValidPivotConfig(aggregationConfig));
 
-            assertValidTransform(client, config);
+            assertValidTransform(client, pivot);
         }
     }
 
@@ -124,10 +109,9 @@ public class TransformValidatorTests extends ESTestCase {
         for (String agg : unsupportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
-            DataFrameTransformConfig config = new DataFrameTransformConfig(getTestName(), "existing_source", "non_existing_dest",
-                    getValidPivotConfig(aggregationConfig));
+            Pivot pivot = new Pivot("existing_source", new MatchAllQueryBuilder(), getValidPivotConfig(aggregationConfig));
 
-            assertInvalidTransform(client, config);
+            assertInvalidTransform(client, pivot);
         }
     }
 
@@ -205,20 +189,18 @@ public class TransformValidatorTests extends ESTestCase {
         return AggregationConfig.fromXContent(parser);
     }
 
-    private static void assertValidTransform(Client client, DataFrameTransformConfig config) throws Exception {
-        validate(client, config, true);
+    private static void assertValidTransform(Client client, Pivot pivot) throws Exception {
+        validate(client, pivot, true);
     }
 
-    private static void assertInvalidTransform(Client client, DataFrameTransformConfig config) throws Exception {
-        validate(client, config, false);
+    private static void assertInvalidTransform(Client client, Pivot pivot) throws Exception {
+        validate(client, pivot, false);
     }
 
-    private static void validate(Client client, DataFrameTransformConfig config, boolean expectValid) throws Exception {
-        Validator validator = new Validator(config, client);
-
+    private static void validate(Client client, Pivot pivot, boolean expectValid) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        validator.validate(ActionListener.wrap(validity -> {
+        pivot.validate(client, ActionListener.wrap(validity -> {
             assertEquals(expectValid, validity);
             latch.countDown();
         }, e -> {

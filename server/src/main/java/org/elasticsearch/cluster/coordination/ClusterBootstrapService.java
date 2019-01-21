@@ -62,7 +62,7 @@ public class ClusterBootstrapService {
     static final String BOOTSTRAP_PLACEHOLDER_PREFIX = "{bootstrap-placeholder}";
 
     private static final Logger logger = LogManager.getLogger(ClusterBootstrapService.class);
-    private final Set<String> initialMasterNodes;
+    private final Set<String> bootstrapRequirements;
     @Nullable // null if discoveryIsConfigured()
     private final TimeValue unconfiguredBootstrapTimeout;
     private final TransportService transportService;
@@ -75,11 +75,12 @@ public class ClusterBootstrapService {
     public ClusterBootstrapService(Settings settings, TransportService transportService, Random random,
                                    Supplier<Iterable<DiscoveryNode>> discoveredNodesSupplier, BooleanSupplier isBootstrappedSupplier,
                                    Consumer<VotingConfiguration> votingConfigurationConsumer) {
-        final List<String> initialMasterNodesList = INITIAL_MASTER_NODES_SETTING.get(settings);
-        this.initialMasterNodes = new LinkedHashSet<>(initialMasterNodesList);
-        if (this.initialMasterNodes.size() != initialMasterNodesList.size()) {
+
+        final List<String> initialMasterNodes = INITIAL_MASTER_NODES_SETTING.get(settings);
+        bootstrapRequirements = new LinkedHashSet<>(initialMasterNodes);
+        if (bootstrapRequirements.size() != initialMasterNodes.size()) {
             throw new IllegalArgumentException(
-                "setting [" + INITIAL_MASTER_NODES_SETTING.getKey() + "] contains duplicates: " + initialMasterNodesList);
+                "setting [" + INITIAL_MASTER_NODES_SETTING.getKey() + "] contains duplicates: " + initialMasterNodes);
         }
 
         unconfiguredBootstrapTimeout = discoveryIsConfigured(settings) ? null : UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.get(settings);
@@ -97,7 +98,7 @@ public class ClusterBootstrapService {
 
     void onFoundPeersUpdated() {
         final Set<DiscoveryNode> nodes = getDiscoveredNodes();
-        if (transportService.getLocalNode().isMasterNode() && initialMasterNodes.isEmpty() == false
+        if (transportService.getLocalNode().isMasterNode() && bootstrapRequirements.isEmpty() == false
             && isBootstrappedSupplier.getAsBoolean() == false && nodes.stream().noneMatch(Coordinator::isZen1Node)) {
 
             final Set<DiscoveryNode> nodesMatchingRequirements;
@@ -109,8 +110,8 @@ public class ClusterBootstrapService {
                 return;
             }
 
-            if (nodesMatchingRequirements.size() * 2 > initialMasterNodes.size()) {
-                startBootstrap(nodesMatchingRequirements, initialMasterNodes.size() - nodesMatchingRequirements.size());
+            if (nodesMatchingRequirements.size() * 2 > bootstrapRequirements.size()) {
+                startBootstrap(nodesMatchingRequirements, bootstrapRequirements.size() - nodesMatchingRequirements.size());
             }
         }
     }
@@ -198,18 +199,18 @@ public class ClusterBootstrapService {
 
     private Set<DiscoveryNode> getNodesMatchingRequirements(Set<DiscoveryNode> nodes) {
         final Set<DiscoveryNode> selectedNodes = new HashSet<>();
-        for (final String requirement : initialMasterNodes) {
+        for (final String bootstrapRequirement : bootstrapRequirements) {
             final Set<DiscoveryNode> matchingNodes
-                = nodes.stream().filter(n -> matchesRequirement(n, requirement)).collect(Collectors.toSet());
+                = nodes.stream().filter(n -> matchesRequirement(n, bootstrapRequirement)).collect(Collectors.toSet());
 
             if (matchingNodes.size() > 1) {
-                throw new IllegalStateException("requirement [" + requirement + "] matches multiple nodes: " + matchingNodes);
+                throw new IllegalStateException("requirement [" + bootstrapRequirement + "] matches multiple nodes: " + matchingNodes);
             }
 
             for (final DiscoveryNode matchingNode : matchingNodes) {
                 if (selectedNodes.add(matchingNode) == false) {
                     throw new IllegalStateException("node [" + matchingNode + "] matches multiple requirements: " +
-                        initialMasterNodes.stream().filter(r -> matchesRequirement(matchingNode, r)).collect(Collectors.toList()));
+                        bootstrapRequirements.stream().filter(r -> matchesRequirement(matchingNode, r)).collect(Collectors.toList()));
                 }
             }
         }

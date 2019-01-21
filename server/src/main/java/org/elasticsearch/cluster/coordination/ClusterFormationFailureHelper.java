@@ -42,7 +42,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 
 public class ClusterFormationFailureHelper {
@@ -193,7 +192,7 @@ public class ClusterFormationFailureHelper {
             final int requiredNodes = nodeIds.size() / 2 + 1;
 
             final Set<String> realNodeIds = new HashSet<>(nodeIds);
-            realNodeIds.removeIf(s -> s.startsWith(BOOTSTRAP_PLACEHOLDER_PREFIX));
+            realNodeIds.removeIf(ClusterBootstrapService::isBootstrapPlaceholder);
             assert requiredNodes <= realNodeIds.size() : nodeIds;
 
             if (nodeIds.size() == 1) {

@@ -156,6 +156,10 @@ public class ClusterBootstrapService {
         }
     }
 
+    public static boolean isBootstrapPlaceholder(String nodeId) {
+        return nodeId.startsWith(BOOTSTRAP_PLACEHOLDER_PREFIX);
+    }
+
     private void doBootstrap(VotingConfiguration votingConfiguration) {
         assert transportService.getLocalNode().isMasterNode();
 

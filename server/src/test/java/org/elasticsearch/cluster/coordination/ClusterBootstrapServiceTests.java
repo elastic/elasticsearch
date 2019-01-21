@@ -226,7 +226,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             assertThat(vc.getNodeIds(), hasItem(otherNode1.getId()));
             assertThat(vc.getNodeIds(), hasItem(otherNode2.getId()));
             final List<String> placeholders
-                = vc.getNodeIds().stream().filter(s -> s.startsWith(BOOTSTRAP_PLACEHOLDER_PREFIX)).collect(Collectors.toList());
+                = vc.getNodeIds().stream().filter(ClusterBootstrapService::isBootstrapPlaceholder).collect(Collectors.toList());
             assertThat(placeholders.size(), equalTo(2));
             assertNotEquals(placeholders.get(0), placeholders.get(1));
             assertTrue(vc.hasQuorum(Stream.of(localNode, otherNode1, otherNode2).map(DiscoveryNode::getId).collect(Collectors.toList())));

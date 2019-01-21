@@ -44,7 +44,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
             = new DeprecationLogger(LogManager.getLogger(LeafDocLookup.class));
     static final String TYPES_DEPRECATION_KEY = "type-field-doc-lookup";
     static final String TYPES_DEPRECATION_MESSAGE =
-            "[types removal] Looking up doc types in scripts is deprecated.";
+            "[types removal] Looking up doc types [_type] in scripts is deprecated.";
 
     private final Map<String, ScriptDocValues<?>> localCacheFieldData = new HashMap<>(4);
 

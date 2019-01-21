@@ -67,8 +67,6 @@ Machine Learning::
 
 Machine Learning::
 * Create the {ml} annotations index {pull}36731[#36731] (issue: {issue}33376[#33376])
-* Split in batches and migrate all jobs and datafeeds {pull}36716[#36716]
-(issue: {issue}32905[#32905])
 * Add cluster setting to enable/disable config migration {pull}36700[#36700]
 (issue: {issue}32905[#32905])
 * Enable the use of endpoints starting with `_ml` instead of `_xpack/ml`
@@ -92,6 +90,5 @@ created a forecast for a large job and temporary storage was not cleaned up.
 (issues: {issue}36810[#36810], {issue}37227[#37227])
 * Stop datafeeds when their jobs are stale {pull}37227[#37227]
 (issue: {issue}36810[#36810])
-* Fix x-pack usage regression caused by index migration {pull}36936[#36936]
 * Order get job stats API response by job id {pull}36841[#36841]
 (issue: {issue}36683[#36683])

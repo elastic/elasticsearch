@@ -310,7 +310,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    public synchronized IndexShard createShard(ShardRouting routing, Consumer<ShardId> globalCheckpointSyncer) throws IOException {
+    public synchronized IndexShard createShard(ShardRouting routing,
+                                               Consumer<ShardId> globalCheckpointSyncer) throws IOException {
+        return createShard(routing, globalCheckpointSyncer, new HashMap<NodeEnvironment.NodePath, Long>(0));
+    }
+    public synchronized IndexShard createShard(ShardRouting routing,
+                                               Consumer<ShardId> globalCheckpointSyncer,
+                                               Map<NodeEnvironment.NodePath, Long> pathToShardCount)
+        throws IOException {
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
          * be able to serialize the execution via the cluster state in the future. for now we just
@@ -347,14 +354,20 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 // that's being relocated/replicated we know how large it will become once it's done copying:
                 // Count up how many shards are currently on each data path:
                 Map<Path, Integer> dataPathToShardCount = new HashMap<>();
-                for (IndexShard shard : this) {
-                    Path dataPath = shard.shardPath().getRootStatePath();
-                    Integer curCount = dataPathToShardCount.get(dataPath);
-                    if (curCount == null) {
-                        curCount = 0;
-                    }
-                    dataPathToShardCount.put(dataPath, curCount + 1);
+
+                //use Global dataPathToShardCount as Path Select Consideration
+                for (Map.Entry<NodeEnvironment.NodePath, Long> entry : pathToShardCount.entrySet()) {
+                    dataPathToShardCount.put(entry.getKey().path, entry.getValue().intValue());
                 }
+//                for (IndexShard shard : this) {
+//                    Path dataPath = shard.shardPath().getRootStatePath();
+//                    Integer curCount = dataPathToShardCount.get(dataPath);
+//                    if (curCount == null) {
+//                        curCount = 0;
+//                    }
+//                    dataPathToShardCount.put(dataPath, curCount + 1);
+//                }
+
                 path = ShardPath.selectNewPathForShard(nodeEnv, shardId, this.indexSettings,
                     routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
                         ? getAvgShardSizeInBytes() : routing.getExpectedShardSize(),

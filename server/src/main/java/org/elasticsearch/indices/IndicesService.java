@@ -594,8 +594,19 @@ public class IndicesService extends AbstractLifecycleComponent
             final Consumer<IndexShard.ShardFailure> onShardFailure,
             final Consumer<ShardId> globalCheckpointSyncer) throws IOException {
         ensureChangesAllowed();
+        //we select a shard path prefer to think about other indices's shard in multi path,
+        //this can make assign shard more balance in one node.
+        Map<NodeEnvironment.NodePath, Long> dataPathToShardCount = new HashMap<NodeEnvironment.NodePath, Long>();
+        for(IndexService indexService : this) {
+            Map<NodeEnvironment.NodePath, Long> pathToShard = nodeEnv.shardCountPerPath(indexService.index());
+            pathToShard.forEach(
+                (k, v) ->dataPathToShardCount.merge(k, v, (v1, v2) -> Long.valueOf(v1 + v2))
+            );
+        }
+
         IndexService indexService = indexService(shardRouting.index());
-        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer);
+
+        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, dataPathToShardCount);
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService,
             (type, mapping) -> {

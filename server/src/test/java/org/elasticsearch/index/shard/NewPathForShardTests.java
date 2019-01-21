@@ -222,7 +222,91 @@ public class NewPathForShardTests extends ESTestCase {
 
         nodeEnv.close();
     }
+    public void testSelectNewPathForShardInMultiIndexEvenly() throws Exception {
+        Path path = PathUtils.get(createTempDir().toString());
 
+        // Use 2 data paths:
+        String[] paths = new String[] {path.resolve("a").toString(),
+            path.resolve("b").toString()};
+
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), path)
+            .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
+        NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+
+        // Make sure all our mocking above actually worked:
+        NodePath[] nodePaths = nodeEnv.nodePaths();
+        assertEquals(2, nodePaths.length);
+
+        assertEquals("mocka", nodePaths[0].fileStore.name());
+        assertEquals("mockb", nodePaths[1].fileStore.name());
+
+        // Path a has lots of free space, but b has little, so new shard should go to a:
+        aFileStore.usableSpace = 100000;
+        bFileStore.usableSpace = 10000;
+
+        ShardId shardId = new ShardId("index", "uid1", 0);
+        ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
+        createFakeShard(result);
+        // First shard should go to a
+        assertThat(result.getDataPath().toString(), containsString(aPathPart));
+
+        shardId = new ShardId("index", "uid1", 1);
+        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
+        createFakeShard(result);
+        // Second shard should go to b
+        assertThat(result.getDataPath().toString(), containsString(bPathPart));
+
+        Map<Path,Integer> dataPathToShardCount = new HashMap<>();
+        dataPathToShardCount.put(nodePaths[0].path, 1);
+        dataPathToShardCount.put(nodePaths[1].path, 1);
+        shardId = new ShardId("index2", "uid2", 0);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index2",
+            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3).build());
+        ShardPath result1 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100, dataPathToShardCount);
+        createFakeShard(result1);
+
+        dataPathToShardCount.put(NodeEnvironment.shardStatePathToDataPath(result1.getDataPath()),
+            dataPathToShardCount.get(NodeEnvironment.shardStatePathToDataPath(result1.getDataPath()))+ 1);
+        shardId = new ShardId("index2", "uid2", 1);
+        ShardPath result2 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100, dataPathToShardCount);
+        createFakeShard(result2);
+        dataPathToShardCount.put(NodeEnvironment.shardStatePathToDataPath(result2.getDataPath()),
+            dataPathToShardCount.get(NodeEnvironment.shardStatePathToDataPath(result2.getDataPath())) + 1);
+        shardId = new ShardId("index2", "uid2", 2);
+        ShardPath result3 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100, dataPathToShardCount);
+        createFakeShard(result3);
+        dataPathToShardCount.put(NodeEnvironment.shardStatePathToDataPath(result3.getDataPath()),
+            dataPathToShardCount.get(NodeEnvironment.shardStatePathToDataPath(result3.getDataPath())) + 1);
+
+        // 2 shards go to 'a' and 1 to 'b'
+        assertThat(result1.getDataPath().toString(), containsString(aPathPart));
+        assertThat(result2.getDataPath().toString(), containsString(bPathPart));
+        assertThat(result3.getDataPath().toString(), containsString(aPathPart));
+
+        //Another Index Settings
+        shardId = new ShardId("index3", "uid3", 0);
+        IndexSettings idxSettings2 = IndexSettingsModule.newIndexSettings("index3",
+            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2).build());
+
+        //We manually modify bPath Shard Number As a larger value
+        dataPathToShardCount.put(NodeEnvironment.shardStatePathToDataPath(result2.getDataPath()),
+            dataPathToShardCount.get(NodeEnvironment.shardStatePathToDataPath(result2.getDataPath())) + 12);
+
+        ShardPath result4 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings2, 100, dataPathToShardCount);
+        createFakeShard(result4);
+
+        //Because there is a lot of shard in aPath, another index shard prefer to aPath
+        assertThat(result4.getDataPath().toString(), containsString(aPathPart));
+
+        shardId = new ShardId("index3", "uid3", 1);
+        ShardPath result5 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings2, 100, dataPathToShardCount);
+        createFakeShard(result5);
+        //In the same index, we prefer to allocate in different path
+        assertThat(result5.getDataPath().toString(), containsString(bPathPart));
+
+        nodeEnv.close();
+    }
     public void testSelectNewPathForShardEvenly() throws Exception {
         Path path = PathUtils.get(createTempDir().toString());
 

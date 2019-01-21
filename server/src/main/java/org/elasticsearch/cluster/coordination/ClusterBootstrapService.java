@@ -47,6 +47,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
 import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 
@@ -76,7 +77,7 @@ public class ClusterBootstrapService {
                                    Consumer<VotingConfiguration> votingConfigurationConsumer) {
 
         final List<String> initialMasterNodes = INITIAL_MASTER_NODES_SETTING.get(settings);
-        bootstrapRequirements = new LinkedHashSet<>(initialMasterNodes);
+        bootstrapRequirements = unmodifiableSet(new LinkedHashSet<>(initialMasterNodes));
         if (bootstrapRequirements.size() != initialMasterNodes.size()) {
             throw new IllegalArgumentException(
                 "setting [" + INITIAL_MASTER_NODES_SETTING.getKey() + "] contains duplicates: " + initialMasterNodes);

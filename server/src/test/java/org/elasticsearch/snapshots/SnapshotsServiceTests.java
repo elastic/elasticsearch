@@ -190,10 +190,8 @@ public class SnapshotsServiceTests extends ESTestCase {
             .execute(
                 assertNoFailureListener(
                     () -> masterNode.client.admin().indices().create(
-                        new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL).settings(
-                            Settings.builder()
-                                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
-                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)),
+                        new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL)
+                            .settings(defaultIndexSettings(shards)),
                         assertNoFailureListener(
                             () -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
                                 .execute(assertNoFailureListener(() -> createdSnapshot.set(true)))))));
@@ -235,10 +233,8 @@ public class SnapshotsServiceTests extends ESTestCase {
                 assertNoFailureListener(
                     () -> masterNode.client.admin().indices().create(
 
-                        new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL).settings(
-                            Settings.builder()
-                                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
-                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)),
+                        new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL)
+                            .settings(defaultIndexSettings(shards)),
                         assertNoFailureListener(
                             () -> {
                                 for (int i = 0; i < randomIntBetween(0, dataNodes); ++i) {
@@ -254,14 +250,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                                         }
                                         final boolean disconnectedMaster = randomBoolean();
                                         if (disconnectedMaster) {
-                                            deterministicTaskQueue.scheduleNow(
-                                                () -> {
-                                                    if (randomBoolean()) {
-                                                        testClusterNodes.disconnectNode(testClusterNodes.randomMasterNode());
-                                                    } else {
-                                                        testClusterNodes.randomDataNode().ifPresent(TestClusterNode::restart);
-                                                    }
-                                                });
+                                            deterministicTaskQueue.scheduleNow(this::disconnectOrRestartMasterNode);
                                         }
                                         if (disconnectedMaster || randomBoolean()) {
                                             deterministicTaskQueue.scheduleAt(
@@ -305,10 +294,8 @@ public class SnapshotsServiceTests extends ESTestCase {
             .execute(
                 assertNoFailureListener(
                     () -> masterNode.client.admin().indices().create(
-                        new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL).settings(
-                            Settings.builder()
-                                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
-                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)),
+                        new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL)
+                            .settings(defaultIndexSettings(shards)),
                         assertNoFailureListener(
                             () -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
                                 .execute(assertNoFailureListener(
@@ -354,10 +341,8 @@ public class SnapshotsServiceTests extends ESTestCase {
             .execute(
                 assertNoFailureListener(
                     () -> masterAdminClient.indices().create(
-                        new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL).settings(
-                            Settings.builder()
-                                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
-                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)),
+                        new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL)
+                            .settings(defaultIndexSettings(shards)),
                         assertNoFailureListener(
                             () -> masterAdminClient.cluster().state(new ClusterStateRequest(), assertNoFailureListener(
                                 clusterStateResponse -> {
@@ -365,8 +350,8 @@ public class SnapshotsServiceTests extends ESTestCase {
                                         clusterStateResponse.getState().routingTable().allShards(index).get(0);
                                     final TestClusterNode currentPrimaryNode =
                                         testClusterNodes.nodeById(shardToRelocate.currentNodeId());
-                                    final TestClusterNode otherNode = testClusterNodes.randomDataNode(currentPrimaryNode.node.getName())
-                                        .orElseThrow(() -> new AssertionError("Could not find another data node."));
+                                    final TestClusterNode otherNode =
+                                        testClusterNodes.randomDataNodeSafe(currentPrimaryNode.node.getName());
                                     final Runnable maybeForceAllocate = new Runnable() {
                                         @Override
                                         public void run() {
@@ -377,18 +362,15 @@ public class SnapshotsServiceTests extends ESTestCase {
                                                     if (shardRouting.unassigned()
                                                         && shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.NODE_LEFT) {
                                                         if (masterNodeCount > 1) {
-                                                            deterministicTaskQueue.scheduleNow(() -> {
-                                                                masterNode.stop();
-                                                                testClusterNodes.nodes.remove(masterNode.node.getName());
-                                                            });
+                                                            deterministicTaskQueue.scheduleNow(
+                                                                () -> testClusterNodes.stopNode(masterNode));
                                                         }
-                                                        testClusterNodes.randomDataNode().get().client.admin().cluster()
+                                                        testClusterNodes.randomDataNodeSafe().client.admin().cluster()
                                                             .prepareCreateSnapshot(repoName, snapshotName)
                                                             .execute(ActionListener.wrap(() -> {
-                                                                testClusterNodes.randomDataNode().orElseThrow(
-                                                                    () -> new AssertionError("Expected at least one active data node")
-                                                                ).client.admin().cluster().deleteSnapshot(
-                                                                    new DeleteSnapshotRequest(repoName, snapshotName), noopListener());
+                                                                testClusterNodes.randomDataNodeSafe().client.admin().cluster()
+                                                                    .deleteSnapshot(
+                                                                        new DeleteSnapshotRequest(repoName, snapshotName), noopListener());
                                                                 createdSnapshot.set(true);
                                                             }));
                                                         deterministicTaskQueue.scheduleNow(
@@ -407,10 +389,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                                             ));
                                         }
                                     };
-                                    deterministicTaskQueue.scheduleNow(() -> {
-                                        currentPrimaryNode.stop();
-                                        testClusterNodes.nodes.remove(currentPrimaryNode.node.getName());
-                                    });
+                                    deterministicTaskQueue.scheduleNow(() -> testClusterNodes.stopNode(currentPrimaryNode));
                                     deterministicTaskQueue.scheduleNow(maybeForceAllocate);
                                 }
                             ))))));
@@ -447,6 +426,14 @@ public class SnapshotsServiceTests extends ESTestCase {
             disconnectRandomDataNode();
         } else {
             testClusterNodes.randomDataNode().ifPresent(TestClusterNode::restart);
+        }
+    }
+
+    private void disconnectOrRestartMasterNode() {
+        if (randomBoolean()) {
+            testClusterNodes.disconnectNode(testClusterNodes.randomMasterNode());
+        } else {
+            testClusterNodes.randomMasterNode().restart();
         }
     }
 
@@ -497,6 +484,13 @@ public class SnapshotsServiceTests extends ESTestCase {
     private void setupTestCluster(int masterNodes, int dataNodes) {
         testClusterNodes = new TestClusterNodes(masterNodes, dataNodes);
         startCluster();
+    }
+
+    private static Settings defaultIndexSettings(int shards) {
+        // TODO: randomize replica count settings once recovery operations aren't blocking anymore
+        return Settings.builder()
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0).build();
     }
 
     private static <T> ActionListener<T> assertNoFailureListener(Consumer<T> consumer) {
@@ -609,6 +603,15 @@ public class SnapshotsServiceTests extends ESTestCase {
                 testClusterNodes.nodes.values().stream().filter(n -> n.node.isMasterNode())
                     .sorted(Comparator.comparing(n -> n.node.getName())).collect(Collectors.toList())
             );
+        }
+
+        public void stopNode(TestClusterNode node) {
+            node.stop();
+            nodes.remove(node.node.getName());
+        }
+
+        public TestClusterNode randomDataNodeSafe(String... excludedNames) {
+            return randomDataNode(excludedNames).orElseThrow(() -> new AssertionError("Could not find another data node."));
         }
 
         public Optional<TestClusterNode> randomDataNode(String... excludedNames) {

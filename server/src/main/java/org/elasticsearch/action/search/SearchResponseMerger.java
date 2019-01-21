@@ -257,6 +257,8 @@ final class SearchResponseMerger {
                 FieldDocAndSearchHit fieldDocAndSearchHit = (FieldDocAndSearchHit) scoreDoc;
                 //When hits come from the indices with same names on multiple clusters and same shard identifier, we rely on such indices
                 //to have a different uuid across multiple clusters. That's how they will get a different shardIndex.
+                //In case the same remote cluster is registered twice using different aliases, a search across such clusters that are the
+                //same and hold the same documents will make an assertion in lucene fail (see TopDocs#tieBreakLessThan line 86).
                 ShardId shardId = fieldDocAndSearchHit.searchHit.getShard().getShardId();
                 fieldDocAndSearchHit.shardIndex = shards.get(shardId);
             }

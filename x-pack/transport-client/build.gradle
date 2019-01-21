@@ -29,6 +29,15 @@ namingConventions {
     skipIntegTestInDisguise = true
 }
 
+testingConventions {
+    naming.clear()
+    naming {
+        Tests {
+            baseClass 'com.carrotsearch.randomizedtesting.RandomizedTest'
+        }
+    }
+}
+
 publishing {
     publications {
         nebula(MavenPublication) {

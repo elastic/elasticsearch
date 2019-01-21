@@ -89,6 +89,16 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     }
 
     @Override
+    int hashCode(int slot) {
+        return Long.hashCode(values.get(slot));
+    }
+
+    @Override
+    int hashCodeCurrent() {
+        return Long.hashCode(currentValue);
+    }
+
+    @Override
     void setAfter(Comparable value) {
         if (missingBucket && value == null) {
             afterValue = null;

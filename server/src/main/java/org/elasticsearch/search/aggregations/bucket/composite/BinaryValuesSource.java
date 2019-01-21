@@ -114,6 +114,24 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
         return compareValues(currentValue, afterValue);
     }
 
+    @Override
+    int hashCode(int slot) {
+        if (missingBucket && values.get(slot) == null) {
+            return 0;
+        } else {
+            return values.get(slot).hashCode();
+        }
+    }
+
+    @Override
+    int hashCodeCurrent() {
+        if (missingBucket && currentValue == null) {
+            return 0;
+        } else {
+            return currentValue.hashCode();
+        }
+    }
+
     int compareValues(BytesRef v1, BytesRef v2) {
         return v1.compareTo(v2) * reverseMul;
     }

@@ -29,8 +29,7 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.NodeDisconnectedException;
-import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -419,12 +418,15 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private void handleFailure(Exception e, AtomicInteger retryCounter, Runnable task) {
         assert e != null;
-        if (shouldRetry(params.getRemoteCluster(), e) && isStopped() == false) {
-            int currentRetry = retryCounter.incrementAndGet();
-            LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying [{}]",
-                params.getFollowShardId(), currentRetry), e);
-            long delay = computeDelay(currentRetry, params.getReadPollTimeout().getMillis());
-            scheduler.accept(TimeValue.timeValueMillis(delay), task);
+        if (shouldRetry(params.getRemoteCluster(), e)) {
+            if (isStopped() == false) {
+                // Only retry is the shard follow task is not stopped.
+                int currentRetry = retryCounter.incrementAndGet();
+                LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying [{}]",
+                    params.getFollowShardId(), currentRetry), e);
+                long delay = computeDelay(currentRetry, params.getReadPollTimeout().getMillis());
+                scheduler.accept(TimeValue.timeValueMillis(delay), task);
+            }
         } else {
             fatalException = ExceptionsHelper.convertToElastic(e);
             LOGGER.warn("shard follow task encounter non-retryable error", e);
@@ -448,7 +450,10 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             return true;
         }
 
+        // This is thrown when using a Client and its remote cluster alias went MIA
         String noSuchRemoteClusterMessage = "no such remote cluster: " + remoteCluster;
+        // This is thrown when creating a Client and the remote cluster does not exist:
+        String unknownClusterMessage = "unknown cluster alias [" + remoteCluster + "]";
         final Throwable actual = ExceptionsHelper.unwrapCause(e);
         return actual instanceof ShardNotFoundException ||
             actual instanceof IllegalIndexShardStateException ||
@@ -458,11 +463,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             actual instanceof ElasticsearchSecurityException || // If user does not have sufficient privileges
             actual instanceof ClusterBlockException || // If leader index is closed or no elected master
             actual instanceof IndexClosedException || // If follow index is closed
-            actual instanceof NodeDisconnectedException ||
-            actual instanceof NodeNotConnectedException ||
+            actual instanceof ConnectTransportException ||
             actual instanceof NodeClosedException ||
             (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed")) ||
-            (actual instanceof IllegalArgumentException && noSuchRemoteClusterMessage.equals(actual.getMessage()));
+            (actual instanceof IllegalArgumentException && (noSuchRemoteClusterMessage.equals(actual.getMessage()) ||
+                unknownClusterMessage.equals(actual.getMessage())));
     }
 
     // These methods are protected for testing purposes:

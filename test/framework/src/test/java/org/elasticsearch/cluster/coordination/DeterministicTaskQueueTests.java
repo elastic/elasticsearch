@@ -422,7 +422,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertThat(strings, contains("periodic-0", "periodic-1", "periodic-2"));
     }
 
-    private static DeterministicTaskQueue newTaskQueue() {
+    static DeterministicTaskQueue newTaskQueue() {
         return newTaskQueue(random());
     }
 

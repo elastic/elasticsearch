@@ -35,8 +35,6 @@ import java.util.List;
  */
 public class GetDiscoveredNodesRequest extends ActionRequest {
 
-    private int waitForNodes = 1;
-
     @Nullable // if the request should wait indefinitely
     private TimeValue timeout = TimeValue.timeValueSeconds(30);
 
@@ -47,33 +45,8 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
 
     public GetDiscoveredNodesRequest(StreamInput in) throws IOException {
         super(in);
-        waitForNodes = in.readInt();
         timeout = in.readOptionalTimeValue();
         requiredNodes = in.readList(StreamInput::readString);
-    }
-
-    /**
-     * Sometimes it is useful only to receive a successful response after discovering a certain number of master-eligible nodes. This
-     * parameter controls this behaviour.
-     *
-     * @param waitForNodes the minimum number of nodes to have discovered before this request will receive a successful response. Must
-     *                     be at least 1, because we always discover the local node.
-     */
-    public void setWaitForNodes(int waitForNodes) {
-        if (waitForNodes < 1) {
-            throw new IllegalArgumentException("always finds at least one node, waiting for [" + waitForNodes + "] is not allowed");
-        }
-        this.waitForNodes = waitForNodes;
-    }
-
-    /**
-     * Sometimes it is useful only to receive a successful response after discovering a certain number of master-eligible nodes. This
-     * parameter controls this behaviour.
-     *
-     * @return the minimum number of nodes to have discovered before this request will receive a successful response.
-     */
-    public int getWaitForNodes() {
-        return waitForNodes;
     }
 
     /**
@@ -133,7 +106,6 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeInt(waitForNodes);
         out.writeOptionalTimeValue(timeout);
         out.writeStringList(requiredNodes);
     }
@@ -141,8 +113,7 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
     @Override
     public String toString() {
         return "GetDiscoveredNodesRequest{" +
-            "waitForNodes=" + waitForNodes +
-            ", timeout=" + timeout +
+            "timeout=" + timeout +
             ", requiredNodes=" + requiredNodes + "}";
     }
 }

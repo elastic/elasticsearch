@@ -48,11 +48,6 @@ public class FakeRestRequest extends RestRequest {
         super(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel);
     }
 
-    @Override
-    public boolean hasContent() {
-        return content() != null;
-    }
-
     private static class FakeHttpRequest implements HttpRequest {
 
         private final Method method;
@@ -166,7 +161,7 @@ public class FakeRestRequest extends RestRequest {
 
         private Map<String, String> params = new HashMap<>();
 
-        private BytesReference content;
+        private BytesReference content = BytesArray.EMPTY;
 
         private String path = "/";
 

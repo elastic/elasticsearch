@@ -160,14 +160,6 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         }
     }
 
-    private void maybeFork(final Thread thread, final Runnable runnable) {
-        if (thread == Thread.currentThread()) {
-            fork(runnable);
-        } else {
-            runnable.run();
-        }
-    }
-
     private void fork(final Runnable runnable) {
         executor.execute(new AbstractRunnable() {
             @Override
@@ -232,10 +224,18 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     }
 
     private void executeNext(PendingExecutions pendingExecutions, Thread originalThread) {
+        executeNext(pendingExecutions == null ? null : pendingExecutions::finishAndRunNext, originalThread);
+    }
+
+    protected void executeNext(Runnable runnable, Thread originalThread) {
         if (throttleConcurrentRequests) {
-            maybeFork(originalThread, pendingExecutions::finishAndRunNext);
+            if (originalThread == Thread.currentThread()) {
+                fork(runnable);
+            } else {
+                runnable.run();
+            }
         } else {
-            assert pendingExecutions == null;
+            assert runnable == null;
         }
     }
 
@@ -256,28 +256,26 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
             Runnable r = () -> {
                 final Thread thread = Thread.currentThread();
                 try {
-                    executePhaseOnShard(shardIt, shard, new SearchActionListener<FirstResult>(
-                        shardIt.newSearchShardTarget(shard.currentNodeId()), shardIndex) {
-                        @Override
-                        public void innerOnResponse(FirstResult result) {
-                            try {
-                                onShardResult(result, shardIt);
-                            } finally {
-                                executeNext(pendingExecutions, thread);
+                    executePhaseOnShard(shardIt, shard,
+                        new SearchActionListener<FirstResult>(shardIt.newSearchShardTarget(shard.currentNodeId()), shardIndex) {
+                            @Override
+                            public void innerOnResponse(FirstResult result) {
+                                try {
+                                    onShardResult(result, shardIt);
+                                } finally {
+                                    executeNext(pendingExecutions, thread);
+                                }
                             }
-                        }
 
-                        @Override
-                        public void onFailure(Exception t) {
-                            try {
-                                onShardFailure(shardIndex, shard, shard.currentNodeId(), shardIt, t);
-                            } finally {
-                                executeNext(pendingExecutions, thread);
+                            @Override
+                            public void onFailure(Exception t) {
+                                try {
+                                    onShardFailure(shardIndex, shard, shard.currentNodeId(), shardIt, t);
+                                } finally {
+                                    executeNext(pendingExecutions, thread);
+                                }
                             }
-                        }
-                    });
-
-
+                        });
                 } catch (final Exception e) {
                     try {
                         /*

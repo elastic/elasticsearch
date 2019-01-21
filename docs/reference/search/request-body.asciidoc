@@ -189,6 +189,8 @@ include::request/from-size.asciidoc[]
 
 include::request/sort.asciidoc[]
 
+include::request/track-total-hits.asciidoc[]
+
 include::request/source-filtering.asciidoc[]
 
 include::request/stored-fields.asciidoc[]

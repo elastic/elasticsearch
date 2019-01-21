@@ -12,7 +12,7 @@ filter on, you can safely disable indexing on this field in your
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -35,7 +35,7 @@ to not write norms to the index:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -58,7 +58,7 @@ Elasticsearch to not index positions:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -81,7 +81,7 @@ and scoring will assume that terms appear only once in every document.
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -115,7 +115,7 @@ fields as `keyword`:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
     "_doc": {

@@ -42,6 +42,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -60,6 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -139,7 +141,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * to moving backwards due to NTP and other such complexities, etc.). There are also issues with
      * using a relative clock for reporting real time. Thus, we simply separate these two uses.
      */
-    static class SearchTimeProvider {
+    static final class SearchTimeProvider {
 
         private final long absoluteStartMillis;
         private final long relativeStartNanos;
@@ -169,21 +171,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return absoluteStartMillis;
         }
 
-        long getRelativeStartNanos() {
-            return relativeStartNanos;
-        }
-
-        long getRelativeCurrentNanos() {
-            return relativeCurrentNanosProvider.getAsLong();
+        long buildTookInMillis() {
+            return TimeUnit.NANOSECONDS.toMillis(relativeCurrentNanosProvider.getAsLong() - relativeStartNanos);
         }
     }
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        final long absoluteStartMillis = System.currentTimeMillis();
         final long relativeStartNanos = System.nanoTime();
         final SearchTimeProvider timeProvider =
-                new SearchTimeProvider(absoluteStartMillis, relativeStartNanos, System::nanoTime);
+            new SearchTimeProvider(searchRequest.getOrCreateAbsoluteStartMillis(), relativeStartNanos, System::nanoTime);
         ActionListener<SearchSourceBuilder> rewriteListener = ActionListener.wrap(source -> {
             if (source != searchRequest.source()) {
                 // only set it if it changed - we don't allow null values to be set but it might be already null be we want to catch
@@ -353,16 +350,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                                               BiFunction<String, DiscoveryNode, Transport.Connection> nodeToConnection) {
         return (clusterAlias, nodeId) -> {
             final DiscoveryNode discoveryNode;
+            final boolean remoteCluster;
             if (clusterAlias == null || requestClusterAlias != null) {
                 assert requestClusterAlias == null || requestClusterAlias.equals(clusterAlias);
                 discoveryNode = localNodes.apply(nodeId);
+                remoteCluster = false;
             } else {
                 discoveryNode = remoteNodes.apply(clusterAlias, nodeId);
+                remoteCluster = true;
             }
             if (discoveryNode == null) {
                 throw new IllegalStateException("no node found for id: " + nodeId);
             }
-            return nodeToConnection.apply(clusterAlias, discoveryNode);
+            return nodeToConnection.apply(remoteCluster ? clusterAlias : null, discoveryNode);
         };
     }
 
@@ -411,14 +411,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 };
             }, clusters);
         } else {
-            AbstractSearchAsyncAction searchAsyncAction;
+            AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction;
             switch (searchRequest.searchType()) {
                 case DFS_QUERY_THEN_FETCH:
                     searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
                         aliasFilter, concreteIndexBoosts, indexRoutings, searchPhaseController, executor, searchRequest, listener,
                         shardIterators, timeProvider, clusterStateVersion, task, clusters);
                     break;
-                case QUERY_AND_FETCH:
                 case QUERY_THEN_FETCH:
                     searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
                         aliasFilter, concreteIndexBoosts, indexRoutings, searchPhaseController, executor, searchRequest, listener,

@@ -24,7 +24,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.ml.CloseJobRequest;
@@ -462,7 +462,7 @@ final class MLRequestConverters {
         BytesReference content = postDataRequest.getContent();
         if (content != null) {
             BytesRef source = postDataRequest.getContent().toBytesRef();
-            HttpEntity byteEntity = new ByteArrayEntity(source.bytes,
+            HttpEntity byteEntity = new NByteArrayEntity(source.bytes,
                 source.offset,
                 source.length,
                 createContentType(postDataRequest.getXContentType()));
@@ -686,7 +686,7 @@ final class MLRequestConverters {
 
         BytesReference sample = findFileStructureRequest.getSample();
         BytesRef source = sample.toBytesRef();
-        HttpEntity byteEntity = new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(XContentType.JSON));
+        HttpEntity byteEntity = new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(XContentType.JSON));
         request.setEntity(byteEntity);
         return request;
     }

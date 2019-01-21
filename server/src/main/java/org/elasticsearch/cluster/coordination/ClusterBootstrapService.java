@@ -54,11 +54,6 @@ public class ClusterBootstrapService {
 
     private static final Logger logger = LogManager.getLogger(ClusterBootstrapService.class);
 
-    // The number of master-eligible nodes which, if discovered, can be used to bootstrap the cluster. This setting is unsafe in the event
-    // that more master nodes are started than expected.
-    public static final Setting<Integer> INITIAL_MASTER_NODE_COUNT_SETTING =
-        Setting.intSetting("cluster.unsafe_initial_master_node_count", 0, 0, Property.NodeScope);
-
     public static final Setting<List<String>> INITIAL_MASTER_NODES_SETTING =
         Setting.listSetting("cluster.initial_master_nodes", Collections.emptyList(), Function.identity(), Property.NodeScope);
 
@@ -66,7 +61,6 @@ public class ClusterBootstrapService {
         Setting.timeSetting("discovery.unconfigured_bootstrap_timeout",
             TimeValue.timeValueSeconds(3), TimeValue.timeValueMillis(1), Property.NodeScope);
 
-    private final int initialMasterNodeCount;
     private final List<String> initialMasterNodes;
     @Nullable
     private final TimeValue unconfiguredBootstrapTimeout;
@@ -74,15 +68,14 @@ public class ClusterBootstrapService {
     private volatile boolean running;
 
     public ClusterBootstrapService(Settings settings, TransportService transportService) {
-        initialMasterNodeCount = INITIAL_MASTER_NODE_COUNT_SETTING.get(settings);
         initialMasterNodes = INITIAL_MASTER_NODES_SETTING.get(settings);
         unconfiguredBootstrapTimeout = discoveryIsConfigured(settings) ? null : UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
     }
 
     public static boolean discoveryIsConfigured(Settings settings) {
-        return Stream.of(DISCOVERY_HOSTS_PROVIDER_SETTING, DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
-            INITIAL_MASTER_NODE_COUNT_SETTING, INITIAL_MASTER_NODES_SETTING).anyMatch(s -> s.exists(settings));
+        return Stream.of(DISCOVERY_HOSTS_PROVIDER_SETTING, DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING, INITIAL_MASTER_NODES_SETTING)
+            .anyMatch(s -> s.exists(settings));
     }
 
     public void start() {
@@ -144,17 +137,14 @@ public class ClusterBootstrapService {
                 });
 
             }
-        } else if (initialMasterNodeCount > 0 || initialMasterNodes.isEmpty() == false) {
-            logger.debug("unsafely waiting for discovery of [{}] master-eligible nodes", initialMasterNodeCount);
+        } else if (initialMasterNodes.isEmpty() == false) {
+            logger.debug("waiting for discovery of master-eligible nodes matching {}", initialMasterNodes);
 
             final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                 threadContext.markAsSystemContext();
 
                 final GetDiscoveredNodesRequest request = new GetDiscoveredNodesRequest();
-                if (initialMasterNodeCount > 0) {
-                    request.setWaitForNodes(initialMasterNodeCount);
-                }
                 request.setRequiredNodes(initialMasterNodes);
                 request.setTimeout(null);
                 logger.trace("sending {}", request);
@@ -162,7 +152,6 @@ public class ClusterBootstrapService {
                     new TransportResponseHandler<GetDiscoveredNodesResponse>() {
                         @Override
                         public void handleResponse(GetDiscoveredNodesResponse response) {
-                            assert response.getNodes().size() >= initialMasterNodeCount;
                             assert response.getNodes().stream().allMatch(DiscoveryNode::isMasterNode);
                             logger.debug("discovered {}, starting to bootstrap", response.getNodes());
                             awaitBootstrap(response.getBootstrapConfiguration());

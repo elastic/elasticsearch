@@ -75,8 +75,8 @@ import static java.util.Collections.unmodifiableMap;
 public class QueryShardContext extends QueryRewriteContext {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(QueryShardContext.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using the _type field " +
-        "in queries is deprecated, prefer to filter on a field instead.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using the _type field " +
+        "in queries and aggregations is deprecated, prefer to use a field instead.";
 
     private final ScriptService scriptService;
     private final IndexSettings indexSettings;
@@ -88,7 +88,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private final IndexReader reader;
     private final String clusterAlias;
     private String[] types = Strings.EMPTY_ARRAY;
-    private boolean cachable = true;
+    private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
     private final Index fullyQualifiedIndex;
 
@@ -333,7 +333,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * class says a request can be cached.
      */
     protected final void failIfFrozen() {
-        this.cachable = false;
+        this.cacheable = false;
         if (frozen.get() == Boolean.TRUE) {
             throw new IllegalArgumentException("features that prevent cachability are disabled on this context");
         } else {
@@ -354,10 +354,10 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     /**
-     * Returns <code>true</code> iff the result of the processed search request is cachable. Otherwise <code>false</code>
+     * Returns <code>true</code> iff the result of the processed search request is cacheable. Otherwise <code>false</code>
      */
-    public final boolean isCachable() {
-        return cachable;
+    public final boolean isCacheable() {
+        return cacheable;
     }
 
     /**

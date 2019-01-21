@@ -77,7 +77,7 @@ tasks.unitTest.enabled = false
 tasks.dependencyLicenses.enabled = false
 tasks.dependenciesInfo.enabled = false
 
-tasks.thirdPartyAudit.excludes = [
+tasks.thirdPartyAudit.ignoreMissingClasses (
         // commons-logging optional dependencies
         'org.apache.avalon.framework.logger.Logger',
         'org.apache.log.Hierarchy',
@@ -89,4 +89,4 @@ tasks.thirdPartyAudit.excludes = [
         // commons-logging provided dependencies
         'javax.servlet.ServletContextEvent',
         'javax.servlet.ServletContextListener'
-]
+)

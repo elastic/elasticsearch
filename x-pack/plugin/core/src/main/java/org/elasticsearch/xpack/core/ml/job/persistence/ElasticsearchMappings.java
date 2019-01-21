@@ -325,9 +325,6 @@ public class ElasticsearchMappings {
         .startObject(DatafeedConfig.INDICES.getPreferredName())
             .field(TYPE, KEYWORD)
         .endObject()
-        .startObject(DatafeedConfig.TYPES.getPreferredName())
-            .field(TYPE, KEYWORD)
-        .endObject()
         .startObject(DatafeedConfig.QUERY.getPreferredName())
             .field(ENABLED, false)
         .endObject()
@@ -898,6 +895,8 @@ public class ElasticsearchMappings {
 
         builder.startObject(ModelSnapshot.QUANTILES.getPreferredName())
             .field(ENABLED, false)
+        .endObject().startObject(ModelSnapshot.MIN_VERSION.getPreferredName())
+            .field(TYPE, KEYWORD)
         .endObject()
         .startObject(ModelSnapshot.LATEST_RECORD_TIME.getPreferredName())
             .field(TYPE, DATE)

@@ -94,7 +94,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testSetInitialState() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         assertTrue(state1.getLastAcceptedConfiguration().hasQuorum(Collections.singleton(node1.getId())));
         assertTrue(state1.getLastCommittedConfiguration().hasQuorum(Collections.singleton(node1.getId())));
         cs1.setInitialState(state1);
@@ -103,7 +103,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testSetInitialStateWhenAlreadySet() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         assertTrue(state1.getLastAcceptedConfiguration().hasQuorum(Collections.singleton(node1.getId())));
         assertTrue(state1.getLastCommittedConfiguration().hasQuorum(Collections.singleton(node1.getId())));
         cs1.setInitialState(state1);
@@ -129,7 +129,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testStartJoinAfterBootstrap() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         assertTrue(state1.getLastAcceptedConfiguration().hasQuorum(Collections.singleton(node1.getId())));
         assertTrue(state1.getLastCommittedConfiguration().hasQuorum(Collections.singleton(node1.getId())));
         cs1.setInitialState(state1);
@@ -157,7 +157,7 @@ public class CoordinationStateTests extends ESTestCase {
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
         assertThat(expectThrows(CoordinationStateRejectedException.class, () -> cs1.handleJoin(v1)).getMessage(),
-            containsString("initial configuration not set"));
+            containsString("this node has not received its initial configuration yet"));
     }
 
     public void testJoinWithNoStartJoinAfterReboot() {
@@ -178,7 +178,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testJoinWithBadCurrentTerm() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
 
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node2, randomLongBetween(1, 5));
@@ -191,7 +191,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testJoinWithHigherAcceptedTerm() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
 
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node2, randomLongBetween(1, 5));
@@ -209,7 +209,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testJoinWithSameAcceptedTermButHigherVersion() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
 
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node2, randomLongBetween(1, 5));
@@ -227,7 +227,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testJoinWithLowerLastAcceptedTermWinsElection() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
 
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node2, randomLongBetween(1, 5));
@@ -248,7 +248,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testJoinWithSameLastAcceptedTermButLowerOrSameVersionWinsElection() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
 
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node2, randomLongBetween(1, 5));
@@ -269,7 +269,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testJoinDoesNotWinElection() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
 
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node2, randomLongBetween(1, 5));
@@ -289,7 +289,7 @@ public class CoordinationStateTests extends ESTestCase {
     public void testJoinDoesNotWinElectionWhenOnlyCommittedConfigQuorum() {
         VotingConfiguration configNode1 = new VotingConfiguration(Collections.singleton(node1.getId()));
         VotingConfiguration configNode2 = new VotingConfiguration(Collections.singleton(node2.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, configNode1, configNode2, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, configNode1, configNode2, 42L);
         cs1.setInitialState(state1);
 
         StartJoinRequest startJoinRequest = new StartJoinRequest(node1, randomLongBetween(1, 5));
@@ -303,7 +303,7 @@ public class CoordinationStateTests extends ESTestCase {
     public void testJoinDoesNotWinElectionWhenOnlyLastAcceptedConfigQuorum() {
         VotingConfiguration configNode1 = new VotingConfiguration(Collections.singleton(node1.getId()));
         VotingConfiguration configNode2 = new VotingConfiguration(Collections.singleton(node2.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, configNode2, configNode1, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, configNode2, configNode1, 42L);
         cs1.setInitialState(state1);
 
         StartJoinRequest startJoinRequest = new StartJoinRequest(node1, randomLongBetween(1, 5));
@@ -316,7 +316,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testHandleClientValue() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -339,7 +339,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testHandleClientValueWhenElectionNotWon() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         if (randomBoolean()) {
             cs1.setInitialState(state1);
         }
@@ -349,7 +349,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testHandleClientValueDuringOngoingPublication() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -366,7 +366,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testHandleClientValueWithBadTerm() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(3, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -383,21 +383,21 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testHandleClientValueWithOldVersion() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
         assertTrue(cs1.handleJoin(v1));
         assertTrue(cs1.electionWon());
 
-        ClusterState state2 = clusterState(startJoinRequest1.getTerm(), 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state2 = clusterState(startJoinRequest1.getTerm(), 0L, node1, initialConfig, initialConfig, 42L);
         assertThat(expectThrows(CoordinationStateRejectedException.class, () -> cs1.handleClientValue(state2)).getMessage(),
             containsString("lower or equal to last published version"));
     }
 
     public void testHandleClientValueWithDifferentReconfigurationWhileAlreadyReconfiguring() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -418,7 +418,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testHandleClientValueWithSameReconfigurationWhileAlreadyReconfiguring() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -438,7 +438,7 @@ public class CoordinationStateTests extends ESTestCase {
     public void testHandleClientValueWithIllegalCommittedConfigurationChange() {
         assumeTrue("test only works with assertions enabled", Assertions.ENABLED);
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -455,7 +455,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testHandleClientValueWithConfigurationChangeButNoJoinQuorum() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -470,7 +470,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testHandlePublishRequest() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -491,7 +491,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testHandlePublishRequestWithBadTerm() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -511,7 +511,7 @@ public class CoordinationStateTests extends ESTestCase {
     // scenario when handling a publish request from a master that we already received a newer state from
     public void testHandlePublishRequestWithSameTermButOlderOrSameVersion() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -544,7 +544,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testHandlePublishResponseWithCommit() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -562,7 +562,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testHandlePublishResponseWhenSteppedDownAsLeader() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -581,7 +581,7 @@ public class CoordinationStateTests extends ESTestCase {
     public void testHandlePublishResponseWithoutPublishConfigQuorum() {
         VotingConfiguration configNode1 = new VotingConfiguration(Collections.singleton(node1.getId()));
         VotingConfiguration configNode2 = new VotingConfiguration(Collections.singleton(node2.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, configNode1, configNode1, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, configNode1, configNode1, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -599,7 +599,7 @@ public class CoordinationStateTests extends ESTestCase {
     public void testHandlePublishResponseWithoutCommitedConfigQuorum() {
         VotingConfiguration configNode1 = new VotingConfiguration(Collections.singleton(node1.getId()));
         VotingConfiguration configNode2 = new VotingConfiguration(Collections.singleton(node2.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, configNode1, configNode1, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, configNode1, configNode1, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -616,7 +616,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testHandlePublishResponseWithoutCommit() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -631,7 +631,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testHandlePublishResponseWithBadTerm() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -650,7 +650,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testHandlePublishResponseWithVersionMismatch() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -665,7 +665,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testHandleCommit() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -687,7 +687,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testHandleCommitWithBadCurrentTerm() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -707,7 +707,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testHandleCommitWithBadLastAcceptedTerm() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -720,7 +720,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testHandleCommitWithBadVersion() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
-        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
@@ -830,7 +830,7 @@ public class CoordinationStateTests extends ESTestCase {
         }
 
         void setInitialState(VotingConfiguration initialConfig, long initialValue) {
-            final ClusterState.Builder builder = ClusterState.builder(state.getLastAcceptedState()).incrementVersion();
+            final ClusterState.Builder builder = ClusterState.builder(state.getLastAcceptedState());
             builder.metaData(MetaData.builder()
                     .coordinationMetaData(CoordinationMetaData.builder()
                         .lastAcceptedConfiguration(initialConfig)

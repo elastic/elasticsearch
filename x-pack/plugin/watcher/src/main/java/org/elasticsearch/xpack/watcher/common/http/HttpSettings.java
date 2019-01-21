@@ -13,7 +13,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Handles the configuration and parsing of settings for the <code>xpack.http.</code> prefix
@@ -34,8 +36,10 @@ public class HttpSettings {
     private static final String SSL_KEY_PREFIX = "xpack.http.ssl.";
 
     static final Setting<String> PROXY_HOST = Setting.simpleString(PROXY_HOST_KEY, Property.NodeScope);
-    static final Setting<String> PROXY_SCHEME = Setting.simpleString(PROXY_SCHEME_KEY, (v, s) -> Scheme.parse(v), Property.NodeScope);
+    static final Setting<String> PROXY_SCHEME = Setting.simpleString(PROXY_SCHEME_KEY, Scheme::parse, Property.NodeScope);
     static final Setting<Integer> PROXY_PORT = Setting.intSetting(PROXY_PORT_KEY, 0, 0, 0xFFFF, Property.NodeScope);
+    static final Setting<List<String>> HOSTS_WHITELIST = Setting.listSetting("xpack.http.whitelist", Collections.singletonList("*"),
+        Function.identity(), Property.NodeScope, Property.Dynamic);
 
     static final Setting<ByteSizeValue> MAX_HTTP_RESPONSE_SIZE = Setting.byteSizeSetting("xpack.http.max_response_size",
             new ByteSizeValue(10, ByteSizeUnit.MB),   // default
@@ -54,6 +58,7 @@ public class HttpSettings {
         settings.add(PROXY_PORT);
         settings.add(PROXY_SCHEME);
         settings.add(MAX_HTTP_RESPONSE_SIZE);
+        settings.add(HOSTS_WHITELIST);
         return settings;
     }
 

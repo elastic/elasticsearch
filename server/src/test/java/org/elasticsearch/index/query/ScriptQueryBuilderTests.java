@@ -117,7 +117,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
     }
 
     @Override
-    protected boolean isCachable(ScriptQueryBuilder queryBuilder) {
+    protected boolean isCacheable(ScriptQueryBuilder queryBuilder) {
         return false;
     }
 }

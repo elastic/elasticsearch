@@ -199,7 +199,6 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         builder.setQueryDelay(TimeValue.timeValueSeconds(1));
         builder.setFrequency(TimeValue.timeValueSeconds(1));
         builder.setIndices(indices);
-        builder.setTypes(Collections.singletonList("type"));
         return builder;
     }
 

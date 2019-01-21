@@ -39,6 +39,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -157,7 +158,13 @@ public class RandomSearchRequestGenerator {
             builder.terminateAfter(randomIntBetween(1, 100000));
         }
         if (randomBoolean()) {
-            builder.trackTotalHits(randomBoolean());
+            if (randomBoolean()) {
+                builder.trackTotalHits(randomBoolean());
+            } else {
+                builder.trackTotalHitsUpTo(
+                    randomIntBetween(SearchContext.TRACK_TOTAL_HITS_DISABLED, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO)
+                );
+            }
         }
 
         switch(randomInt(2)) {

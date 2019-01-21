@@ -35,7 +35,7 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings settings = super.nodeSettings(nodeOrdinal);
         Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(settings.filter(k -> k.startsWith("xpack.ssl.") == false), false);
+        settingsBuilder.put(settings.filter(k -> k.startsWith("xpack.security.transport.ssl.") == false), false);
         Path keyPath;
         Path certPath;
         Path nodeCertPath;
@@ -58,14 +58,15 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
         }
 
         SecuritySettingsSource.addSecureSettings(settingsBuilder, secureSettings -> {
-            secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode-no-subjaltname");
+            secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode-no-subjaltname");
         });
-        return settingsBuilder.put("xpack.ssl.key", keyPath.toAbsolutePath())
-            .put("xpack.ssl.certificate", certPath.toAbsolutePath())
-            .putList("xpack.ssl.certificate_authorities", Arrays.asList(certPath.toString(), nodeCertPath.toString()))
-                // disable hostname verification as this test uses certs without a valid SAN or DNS in the CN
-                .put("xpack.ssl.verification_mode", "certificate")
-                .build();
+        return settingsBuilder.put("xpack.security.transport.ssl.key", keyPath.toAbsolutePath())
+            .put("xpack.security.transport.ssl.certificate", certPath.toAbsolutePath())
+            .putList("xpack.security.transport.ssl.certificate_authorities",
+                     Arrays.asList(certPath.toString(), nodeCertPath.toString()))
+            // disable hostname verification as this test uses certs without a valid SAN or DNS in the CN
+            .put("xpack.security.transport.ssl.verification_mode", "certificate")
+            .build();
     }
 
     @Override
@@ -89,13 +90,13 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
         Settings settings = super.transportClientSettings();
         // remove all ssl settings
         Settings.Builder builder = Settings.builder();
-        builder.put(settings.filter( k -> k.startsWith("xpack.ssl.") == false), false);
+        builder.put(settings.filter(k -> k.startsWith("xpack.security.transport.ssl.") == false), false);
 
-        builder.put("xpack.ssl.verification_mode", "certificate")
-            .put("xpack.ssl.key", keyPath.toAbsolutePath())
-            .put("xpack.ssl.key_passphrase", "testnode-no-subjaltname")
-            .put("xpack.ssl.certificate", certPath.toAbsolutePath())
-            .putList("xpack.ssl.certificate_authorities", Arrays.asList(certPath.toString(), nodeCertPath.toString()));
+        builder.put("xpack.security.transport.ssl.verification_mode", "certificate")
+            .put("xpack.security.transport.ssl.key", keyPath.toAbsolutePath())
+            .put("xpack.security.transport.ssl.key_passphrase", "testnode-no-subjaltname")
+            .put("xpack.security.transport.ssl.certificate", certPath.toAbsolutePath())
+            .putList("xpack.security.transport.ssl.certificate_authorities", Arrays.asList(certPath.toString(), nodeCertPath.toString()));
         return builder.build();
     }
 
@@ -105,7 +106,7 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
         InetSocketAddress inetSocketAddress = transportAddress.address();
 
         Settings settings = Settings.builder().put(transportClientSettings())
-                .put("xpack.ssl.verification_mode", "full")
+                .put("xpack.security.transport.ssl.verification_mode", "full")
                 .build();
 
         try (TransportClient client = new TestXPackTransportClient(settings, LocalStateSecurity.class)) {

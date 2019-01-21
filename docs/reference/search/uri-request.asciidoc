@@ -101,10 +101,12 @@ is important).
 |`track_scores` |When sorting, set to `true` in order to still track
 scores and return them as part of each hit.
 
-|`track_total_hits` |Set to `false` in order to disable the tracking
+|`track_total_hits` |Defaults to true. Set to `false` in order to disable the tracking
 of the total number of hits that match the query.
-(see <<index-modules-index-sorting,_Index Sorting_>> for more details).
-Defaults to true.
+It also accepts an integer which in this case represents the number of
+hits to count accurately.
+(See the <<search-request-track-total-hits, request body>> documentation
+for more details).
 
 |`timeout` |A search timeout, bounding the search request to be executed
 within the specified time value and bail with the hits accumulated up to

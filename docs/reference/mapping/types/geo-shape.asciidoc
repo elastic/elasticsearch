@@ -121,7 +121,7 @@ near perfect spatial resolution (down to 1e-7 decimal degree precision) since al
 spatial relations are computed using an encoded vector representation of the
 original shape instead of a raster-grid representation as used by the
 <<prefix-trees>> indexing approach. Performance of the tessellator primarily
-depends on the number of vertices that define the polygon/multi-polyogn. While
+depends on the number of vertices that define the polygon/multi-polygon. While
 this is the default indexing technique prefix trees can still be used by setting
 the `tree` or `strategy` parameters according to the appropriate
 <<geo-shape-mapping-options>>. Note that these parameters are now deprecated
@@ -201,11 +201,9 @@ the cell right next to it -- even though the shape is very close to the point.
 PUT /example
 {
     "mappings": {
-        "doc": {
-            "properties": {
-                "location": {
-                    "type": "geo_shape"
-                }
+        "properties": {
+            "location": {
+                "type": "geo_shape"
             }
         }
     }
@@ -289,7 +287,7 @@ API. The following is an example of a point in GeoJSON.
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "point",
@@ -303,7 +301,7 @@ The following is an example of a point in WKT:
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : "POINT (-77.03653 38.897676)"
 }
@@ -320,7 +318,7 @@ following is an example of a LineString in GeoJSON.
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "linestring",
@@ -334,7 +332,7 @@ The following is an example of a LineString in WKT:
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : "LINESTRING (-77.03653 38.897676, -77.009051 38.889939)"
 }
@@ -353,7 +351,7 @@ closed). The following is an example of a Polygon in GeoJSON.
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "polygon",
@@ -369,7 +367,7 @@ The following is an example of a Polygon in WKT:
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0))"
 }
@@ -382,7 +380,7 @@ of a polygon with a hole:
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "polygon",
@@ -399,7 +397,7 @@ The following is an example of a Polygon with a hole in WKT:
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0), (100.2 0.2, 100.8 0.2, 100.8 0.8, 100.2 0.8, 100.2 0.2))"
 }
@@ -427,7 +425,7 @@ crosses the dateline.
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "polygon",
@@ -447,7 +445,7 @@ overriding the orientation on a document:
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "polygon",
@@ -467,7 +465,7 @@ The following is an example of a list of geojson points:
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "multipoint",
@@ -483,7 +481,7 @@ The following is an example of a list of WKT points:
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : "MULTIPOINT (102.0 2.0, 103.0 2.0)"
 }
@@ -497,7 +495,7 @@ The following is an example of a list of geojson linestrings:
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "multilinestring",
@@ -515,7 +513,7 @@ The following is an example of a list of WKT linestrings:
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : "MULTILINESTRING ((102.0 2.0, 103.0 2.0, 103.0 3.0, 102.0 3.0), (100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0), (100.2 0.2, 100.8 0.2, 100.8 0.8, 100.2 0.8))"
 }
@@ -529,7 +527,7 @@ The following is an example of a list of geojson polygons (second polygon contai
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "multipolygon",
@@ -547,7 +545,7 @@ The following is an example of a list of WKT polygons (second polygon contains a
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : "MULTIPOLYGON (((102.0 2.0, 103.0 2.0, 103.0 3.0, 102.0 3.0, 102.0 2.0)), ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0), (100.2 0.2, 100.8 0.2, 100.8 0.8, 100.2 0.8, 100.2 0.2)))"
 }
@@ -561,7 +559,7 @@ The following is an example of a collection of geojson geometry objects:
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type": "geometrycollection",
@@ -584,7 +582,7 @@ The following is an example of a collection of WKT geometry objects:
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : "GEOMETRYCOLLECTION (POINT (100.0 0.0), LINESTRING (101.0 0.0, 102.0 1.0))"
 }
@@ -601,7 +599,7 @@ bounding rectangle in the format [[minLon, maxLat],[maxLon, minLat]]:
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "envelope",
@@ -617,7 +615,7 @@ The following is an example of an envelope using the WKT BBOX format:
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : "BBOX (100.0, 102.0, 2.0, 0.0)"
 }
@@ -635,7 +633,7 @@ a `POLYGON`.
 
 [source,js]
 --------------------------------------------------
-POST /example/doc
+POST /example/_doc
 {
     "location" : {
         "type" : "circle",

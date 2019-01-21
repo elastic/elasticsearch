@@ -516,8 +516,7 @@
         body:  >
           {
             "job_id":"jobs-crud-datafeed-job",
-            "indexes":["index-foo"],
-            "types":["type-bar"]
+            "indexes":["index-foo"]
           }
   - match: { datafeed_id: "jobs-crud-test-datafeed-1" }
 

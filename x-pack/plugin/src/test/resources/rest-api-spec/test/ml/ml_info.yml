@@ -1,3 +1,11 @@
+teardown:
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            xpack.ml.max_model_memory_limit: null
+
 ---
 "Test ml info":
   - do:

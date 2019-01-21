@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.Combinations;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.tree.AbstractNodeTestCase;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -21,7 +21,7 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.sql.expression.Expressions.pipe;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomIntLiteral;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
-import static org.elasticsearch.xpack.sql.tree.LocationTests.randomLocation;
+import static org.elasticsearch.xpack.sql.tree.SourceTests.randomSource;
 
 public class SubstringFunctionPipeTests
     extends AbstractNodeTestCase<SubstringFunctionPipe, Pipe> {
@@ -36,7 +36,7 @@ public class SubstringFunctionPipeTests
     }
     
     public static SubstringFunctionPipe randomSubstringFunctionPipe() {
-        return (SubstringFunctionPipe) (new Substring(randomLocation(),
+        return (SubstringFunctionPipe) (new Substring(randomSource(),
                             randomStringLiteral(),
                             randomIntLiteral(),
                             randomIntLiteral())
@@ -45,28 +45,28 @@ public class SubstringFunctionPipeTests
 
     @Override
     public void testTransform() {
-        // test transforming only the properties (location, expression),
+        // test transforming only the properties (source, expression),
         // skipping the children (the two parameters of the binary function) which are tested separately
         SubstringFunctionPipe b1 = randomInstance();
         Expression newExpression = randomValueOtherThan(b1.expression(), () -> randomSubstringFunctionExpression());
         SubstringFunctionPipe newB = new SubstringFunctionPipe(
-                b1.location(),
-                newExpression,
                 b1.source(),
+                newExpression,
+                b1.src(),
                 b1.start(),
                 b1.length());
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
         
         SubstringFunctionPipe b2 = randomInstance();
-        Location newLoc = randomValueOtherThan(b2.location(), () -> randomLocation());
+        Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new SubstringFunctionPipe(
                 newLoc,
                 b2.expression(),
-                b2.source(),
+                b2.src(),
                 b2.start(),
                 b2.length());
         assertEquals(newB,
-                b2.transformPropertiesOnly(v -> Objects.equals(v, b2.location()) ? newLoc : v, Location.class));
+                b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
     }
 
     @Override
@@ -76,21 +76,21 @@ public class SubstringFunctionPipeTests
         Pipe newStart = pipe(((Expression) randomValueOtherThan(b.start(), () -> randomIntLiteral())));
         Pipe newLength = pipe(((Expression) randomValueOtherThan(b.length(), () -> randomIntLiteral())));
         SubstringFunctionPipe newB =
-                new SubstringFunctionPipe(b.location(), b.expression(), b.source(), b.start(), b.length());
+                new SubstringFunctionPipe(b.source(), b.expression(), b.src(), b.start(), b.length());
         SubstringFunctionPipe transformed = null;
         
         // generate all the combinations of possible children modifications and test all of them
         for(int i = 1; i < 4; i++) {
             for(BitSet comb : new Combinations(3, i)) {
                 transformed = (SubstringFunctionPipe) newB.replaceChildren(
-                        comb.get(0) ? newSource : b.source(),
+                        comb.get(0) ? newSource : b.src(),
                         comb.get(1) ? newStart : b.start(),
                         comb.get(2) ? newLength : b.length());
-                assertEquals(transformed.source(), comb.get(0) ? newSource : b.source());
+                assertEquals(transformed.src(), comb.get(0) ? newSource : b.src());
                 assertEquals(transformed.start(), comb.get(1) ? newStart : b.start());
                 assertEquals(transformed.length(), comb.get(2) ? newLength : b.length());
                 assertEquals(transformed.expression(), b.expression());
-                assertEquals(transformed.location(), b.location());
+                assertEquals(transformed.source(), b.source());
             }
         }
     }
@@ -102,10 +102,10 @@ public class SubstringFunctionPipeTests
         for(int i = 1; i < 4; i++) {
             for(BitSet comb : new Combinations(3, i)) {
                 randoms.add(f -> new SubstringFunctionPipe(
-                        f.location(),
+                        f.source(),
                         f.expression(),
-                        comb.get(0) ? pipe(((Expression) randomValueOtherThan(f.source(),
-                                () -> randomStringLiteral()))) : f.source(),
+                        comb.get(0) ? pipe(((Expression) randomValueOtherThan(f.src(),
+                                () -> randomStringLiteral()))) : f.src(),
                         comb.get(1) ? pipe(((Expression) randomValueOtherThan(f.start(),
                                 () -> randomIntLiteral()))) : f.start(),
                         comb.get(2) ? pipe(((Expression) randomValueOtherThan(f.length(),
@@ -118,9 +118,9 @@ public class SubstringFunctionPipeTests
 
     @Override
     protected SubstringFunctionPipe copy(SubstringFunctionPipe instance) {
-        return new SubstringFunctionPipe(instance.location(),
+        return new SubstringFunctionPipe(instance.source(),
                 instance.expression(),
-                instance.source(),
+                instance.src(),
                 instance.start(),
                 instance.length());
     }

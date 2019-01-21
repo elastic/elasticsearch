@@ -169,7 +169,7 @@ public final class Verifier {
                                 if (!ua.customMessage()) {
                                     boolean useQualifier = ua.qualifier() != null;
                                     List<String> potentialMatches = new ArrayList<>();
-                                    for (Attribute a : p.intputSet()) {
+                                    for (Attribute a : p.inputSet()) {
                                         String nameCandidate = useQualifier ? a.qualifiedName() : a.name();
                                         // add only primitives (object types would only result in another error)
                                         if ((a.dataType() != DataType.UNSUPPORTED) && a.dataType().isPrimitive()) {
@@ -636,7 +636,7 @@ public final class Verifier {
                     for (Expression value : in.list()) {
                         if (areTypesCompatible(dt, value.dataType()) == false) {
                             localFailures.add(fail(value, "expected data type [%s], value provided is of type [%s]",
-                                dt, value.dataType()));
+                                dt.esType, value.dataType().esType));
                             return;
                         }
                     }
@@ -657,7 +657,7 @@ public final class Verifier {
                         } else {
                             if (areTypesCompatible(dt, child.dataType()) == false) {
                                 localFailures.add(fail(child, "expected data type [%s], value provided is of type [%s]",
-                                    dt, child.dataType()));
+                                    dt.esType, child.dataType().esType));
                                 return;
                             }
                         }

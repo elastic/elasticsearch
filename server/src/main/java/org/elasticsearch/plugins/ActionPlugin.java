@@ -22,6 +22,8 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.MappingRequestOriginValidator;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
@@ -178,5 +180,13 @@ public interface ActionPlugin {
         public int hashCode() {
             return Objects.hash(action, transportAction, supportTransportActions);
         }
+    }
+
+    /**
+     * Returns a collection of validators that are used by {@link TransportPutMappingAction.RequestOriginValidators} to validate
+     * the origin of a {@link org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest} before the executing it.
+     */
+    default Collection<MappingRequestOriginValidator> mappingRequestOriginValidators() {
+        return Collections.emptyList();
     }
 }

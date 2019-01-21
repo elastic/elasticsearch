@@ -361,6 +361,7 @@ public class ActionModule extends AbstractModule {
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
     private final RestController restController;
+    private final TransportPutMappingAction.RequestOriginValidators mappingRequestOriginValidators;
 
     public ActionModule(boolean transportClient, Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
                         IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
@@ -392,6 +393,10 @@ public class ActionModule extends AbstractModule {
                 restWrapper = newRestWrapper;
             }
         }
+        mappingRequestOriginValidators = new TransportPutMappingAction.RequestOriginValidators(
+            actionPlugins.stream().flatMap(p -> p.mappingRequestOriginValidators().stream()).collect(Collectors.toList())
+        );
+
         if (transportClient) {
             restController = null;
         } else {
@@ -684,6 +689,7 @@ public class ActionModule extends AbstractModule {
     protected void configure() {
         bind(ActionFilters.class).toInstance(actionFilters);
         bind(DestructiveOperations.class).toInstance(destructiveOperations);
+        bind(TransportPutMappingAction.RequestOriginValidators.class).toInstance(mappingRequestOriginValidators);
 
         if (false == transportClient) {
             // Supporting classes only used when not a transport client

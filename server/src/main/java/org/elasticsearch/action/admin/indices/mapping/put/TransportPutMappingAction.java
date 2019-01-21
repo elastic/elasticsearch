@@ -37,20 +37,25 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collection;
+
 /**
  * Put mapping action.
  */
 public class TransportPutMappingAction extends TransportMasterNodeAction<PutMappingRequest, AcknowledgedResponse> {
 
     private final MetaDataMappingService metaDataMappingService;
+    private final RequestOriginValidators requestOriginValidators;
 
     @Inject
     public TransportPutMappingAction(TransportService transportService, ClusterService clusterService,
                                      ThreadPool threadPool, MetaDataMappingService metaDataMappingService,
-                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                     RequestOriginValidators requestOriginValidators) {
         super(PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
             PutMappingRequest::new);
         this.metaDataMappingService = metaDataMappingService;
+        this.requestOriginValidators = requestOriginValidators;
     }
 
     @Override
@@ -82,6 +87,13 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
             final Index[] concreteIndices = request.getConcreteIndex() == null ?
                 indexNameExpressionResolver.concreteIndices(state, request)
                 : new Index[] {request.getConcreteIndex()};
+            if (request.origin() != null) {
+                final Exception validationException = requestOriginValidators.validateRequestOrigin(request, state, concreteIndices);
+                if (validationException != null) {
+                    listener.onFailure(validationException);
+                    return;
+                }
+            }
             PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest()
                     .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                     .indices(concreteIndices).type(request.type())
@@ -105,6 +117,28 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
             logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}], type [{}]",
                 request.indices(), request.type()), ex);
             throw ex;
+        }
+    }
+
+
+    public static class RequestOriginValidators {
+        private final Collection<MappingRequestOriginValidator> validators;
+
+        public RequestOriginValidators(Collection<MappingRequestOriginValidator> validators) {
+            this.validators = validators;
+        }
+
+        private Exception validateRequestOrigin(PutMappingRequest request, ClusterState state, Index[] indices) {
+            Exception firstException = null;
+            for (MappingRequestOriginValidator validator : validators) {
+                final Exception e = validator.validateRequestOrigin(request, state, indices);
+                if (firstException == null) {
+                    firstException = e;
+                } else {
+                    firstException.addSuppressed(e);
+                }
+            }
+            return firstException;
         }
     }
 }

@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -207,6 +208,24 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             .get("index2").get("doc");
         assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetaData.sourceAsMap()), equalTo("long"));
         assertThat(XContentMapValues.extractValue("properties.k", mappingMetaData.sourceAsMap()), nullValue());
+    }
+
+    public void testDoNotAllowPutMappingToFollower() throws Exception {
+        final String leaderIndexSettings = getIndexSettings(between(1, 2), between(0, 1),
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate("index-1").setSource(leaderIndexSettings, XContentType.JSON));
+        final PutFollowAction.Request followRequest = putFollow("index-1", "index-2");
+        followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+        PutMappingRequest putMappingRequest = new PutMappingRequest("index-2").type("doc").source("new_field", "type=keyword");
+        assertThat(expectThrows(IllegalStateException.class,
+            () -> followerClient().admin().indices().putMapping(putMappingRequest).actionGet()).getMessage(),
+            equalTo("can't put mapping to the following indices [index-2]; " +
+                "the mapping of the following indices are self-replicated from its leader indices"));
+        pauseFollow("index-2");
+        followerClient().admin().indices().close(new CloseIndexRequest("index-2")).actionGet();
+        assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request("index-2")).actionGet());
+        followerClient().admin().indices().open(new OpenIndexRequest("index-2")).actionGet();
+        assertAcked(followerClient().admin().indices().putMapping(putMappingRequest).actionGet());
     }
 
     public void testFollowIndex_backlog() throws Exception {

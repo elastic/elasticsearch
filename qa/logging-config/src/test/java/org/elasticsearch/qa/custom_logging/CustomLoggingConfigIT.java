@@ -40,9 +40,8 @@ import java.util.stream.Stream;
  * The intention is to confirm that users can still run their Elasticsearch instances with previous configurations.
  */
 public class CustomLoggingConfigIT extends ESRestTestCase {
-
     private static final Pattern NODE_STARTED = Pattern.compile(
-        ".*node-0 \"cluster.uuid\": \"\\w*\", \"node.id\": \"\\w*\" \\w* started.*");
+        ".*node-0 \"cluster.uuid\": \"\\w*\", \"node.id\": \"\\w*\".*started.*");
 
     public void testSuccessfulStartupWithCustomConfig()  {
         Stream<String> stringStream = openReader(getLogFile());

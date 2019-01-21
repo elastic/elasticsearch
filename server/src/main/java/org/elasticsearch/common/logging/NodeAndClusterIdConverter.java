@@ -51,11 +51,11 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
     /**
      * Updates only once the clusterID and nodeId
      *
-     * @param clusterUUID a clusterId received from cluster state update
      * @param nodeId      a nodeId received from cluster state update
+     * @param clusterUUID a clusterId received from cluster state update
      * @return true if the update was for the first time (successful) or false if for another calls (does not updates)
      */
-    public static boolean setOnce(String clusterUUID, String nodeId) {
+    public static boolean setOnce(String nodeId, String clusterUUID) {
         return nodeAndClusterId.compareAndSet(null, formatIds(clusterUUID, nodeId));
     }
 

@@ -133,9 +133,9 @@ public interface DateFormatter {
             return Joda.forPattern(input);
         }
 
+        // dates starting with 8 will not be using joda but java time formatters
         input = input.substring(1);
 
-        // force java 8 date format
         List<DateFormatter> formatters = new ArrayList<>();
         for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
             if (Strings.hasLength(pattern) == false) {

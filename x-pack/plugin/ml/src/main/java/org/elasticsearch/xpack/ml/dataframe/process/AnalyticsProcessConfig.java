@@ -3,12 +3,12 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.analytics.process;
+package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ml.analytics.DataFrameAnalysis;
+import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalysis;
 
 import java.io.IOException;
 import java.util.Objects;

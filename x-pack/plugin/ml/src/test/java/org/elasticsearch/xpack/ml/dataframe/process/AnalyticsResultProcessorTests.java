@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.analytics.process;
+package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -16,7 +16,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.analytics.DataFrameDataExtractor;
+import org.elasticsearch.xpack.ml.dataframe.DataFrameDataExtractor;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.analytics.process;
+package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,9 +15,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.analytics.DataFrameAnalysis;
-import org.elasticsearch.xpack.ml.analytics.DataFrameDataExtractor;
-import org.elasticsearch.xpack.ml.analytics.DataFrameDataExtractorFactory;
+import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalysis;
+import org.elasticsearch.xpack.ml.dataframe.DataFrameDataExtractor;
+import org.elasticsearch.xpack.ml.dataframe.DataFrameDataExtractorFactory;
 
 import java.io.IOException;
 import java.util.List;

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.analytics.process;
+package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.process.writer.LengthEncodedWriter;

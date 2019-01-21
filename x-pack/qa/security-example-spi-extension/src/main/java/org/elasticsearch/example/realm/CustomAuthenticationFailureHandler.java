@@ -12,7 +12,13 @@ import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 
+import java.util.Collections;
+
 public class CustomAuthenticationFailureHandler extends DefaultAuthenticationFailureHandler {
+
+    public CustomAuthenticationFailureHandler() {
+        super(Collections.emptyMap());
+    }
 
     @Override
     public ElasticsearchSecurityException failedAuthentication(RestRequest request, AuthenticationToken token,

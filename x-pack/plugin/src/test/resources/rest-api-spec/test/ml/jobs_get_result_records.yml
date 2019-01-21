@@ -1,8 +1,10 @@
 setup:
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-get-result-records
         body:  >
           {
@@ -59,7 +61,7 @@ setup:
 ---
 "Test result records api":
   - do:
-      xpack.ml.get_records:
+      ml.get_records:
         job_id: "jobs-get-result-records"
 
   - match: { count: 2 }
@@ -73,7 +75,7 @@ setup:
 ---
 "Test get records with paging":
   - do:
-      xpack.ml.get_records:
+      ml.get_records:
         job_id: "jobs-get-result-records"
         from: 1
         size: 1
@@ -87,7 +89,7 @@ setup:
 ---
 "Test get records with paging in body":
   - do:
-      xpack.ml.get_records:
+      ml.get_records:
         job_id: "jobs-get-result-records"
         body:  >
           {
@@ -106,7 +108,7 @@ setup:
 ---
 "Test get records given exclude_interim is false":
   - do:
-      xpack.ml.get_records:
+      ml.get_records:
         job_id: "jobs-get-result-records"
         exclude_interim: false
 
@@ -115,7 +117,7 @@ setup:
 ---
 "Test get records given exclude_interim is true":
   - do:
-      xpack.ml.get_records:
+      ml.get_records:
         job_id: "jobs-get-result-records"
         exclude_interim: true
 
@@ -126,7 +128,7 @@ setup:
 ---
 "Test result records api with time range":
   - do:
-      xpack.ml.get_records:
+      ml.get_records:
         job_id: "jobs-get-result-records"
         start: "2016-05-01T00:00:00Z"
         end: "2016-06-01T01:00:00Z"
@@ -140,5 +142,5 @@ setup:
 "Test with unknown job id":
   - do:
       catch: missing
-      xpack.ml.get_records:
+      ml.get_records:
         job_id: "non-existent-job"

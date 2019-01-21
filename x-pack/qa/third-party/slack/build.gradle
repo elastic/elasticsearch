@@ -1,6 +1,3 @@
-import org.elasticsearch.gradle.test.NodeInfo
-import org.elasticsearch.gradle.LoggedExec
-
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -22,4 +19,5 @@ integTestCluster {
 
 if (!slackUrl) {
   integTest.enabled = false
+  testingConventions.enabled = false
 }

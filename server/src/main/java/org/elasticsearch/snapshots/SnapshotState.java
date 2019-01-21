@@ -45,11 +45,11 @@ public enum SnapshotState {
      */
     INCOMPATIBLE((byte) 4, true, false);
 
-    private byte value;
+    private final byte value;
 
-    private boolean completed;
+    private final boolean completed;
 
-    private boolean restorable;
+    private final boolean restorable;
 
     SnapshotState(byte value, boolean completed, boolean restorable) {
         this.value = value;

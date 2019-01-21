@@ -23,11 +23,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
@@ -35,17 +35,18 @@ import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TermsShardMinDocCountIT extends ESIntegTestCase {
     private static final String index = "someindex";
     private static final String type = "testtype";
-    public String randomExecutionHint() {
+
+    private static String randomExecutionHint() {
         return randomBoolean() ? null : randomFrom(SignificantTermsAggregatorFactory.ExecutionMode.values()).toString();
     }
 
@@ -74,10 +75,10 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch(index)
                 .addAggregation(
                         (filter("inclass", QueryBuilders.termQuery("class", true)))
-                                .subAggregation(significantTerms("mySignificantTerms").field("text").minDocCount(2).size(2).executionHint(randomExecutionHint()))
+                                .subAggregation(significantTerms("mySignificantTerms").field("text").minDocCount(2).size(2).shardSize(2)
+                                        .executionHint(randomExecutionHint()))
                 )
-                .execute()
-                .actionGet();
+                .get();
         assertSearchResponse(response);
         InternalFilter filteredBucket = response.getAggregations().get("inclass");
         SignificantTerms sigterms = filteredBucket.getAggregations().get("mySignificantTerms");
@@ -87,15 +88,14 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         response = client().prepareSearch(index)
                 .addAggregation(
                         (filter("inclass", QueryBuilders.termQuery("class", true)))
-                                .subAggregation(significantTerms("mySignificantTerms").field("text").minDocCount(2).shardMinDocCount(2).size(2).executionHint(randomExecutionHint()))
+                                .subAggregation(significantTerms("mySignificantTerms").field("text").minDocCount(2).shardSize(2)
+                                        .shardMinDocCount(2).size(2).executionHint(randomExecutionHint()))
                 )
-                .execute()
-                .actionGet();
+                .get();
         assertSearchResponse(response);
         filteredBucket = response.getAggregations().get("inclass");
         sigterms = filteredBucket.getAggregations().get("mySignificantTerms");
         assertThat(sigterms.getBuckets().size(), equalTo(2));
-
     }
 
     private void addTermsDocs(String term, int numInClass, int numNotInClass, List<IndexRequestBuilder> builders) {
@@ -132,32 +132,30 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         // first, check that indeed when not setting the shardMinDocCount parameter 0 terms are returned
         SearchResponse response = client().prepareSearch(index)
                 .addAggregation(
-                        terms("myTerms").field("text").minDocCount(2).size(2).executionHint(randomExecutionHint()).order(BucketOrder.key(true))
+                        terms("myTerms").field("text").minDocCount(2).size(2).shardSize(2).executionHint(randomExecutionHint())
+                            .order(BucketOrder.key(true))
                 )
-                .execute()
-                .actionGet();
+                .get();
         assertSearchResponse(response);
         Terms sigterms = response.getAggregations().get("myTerms");
         assertThat(sigterms.getBuckets().size(), equalTo(0));
 
-
         response = client().prepareSearch(index)
                 .addAggregation(
-                        terms("myTerms").field("text").minDocCount(2).shardMinDocCount(2).size(2).executionHint(randomExecutionHint()).order(BucketOrder.key(true))
+                        terms("myTerms").field("text").minDocCount(2).shardMinDocCount(2).size(2).shardSize(2)
+                            .executionHint(randomExecutionHint()).order(BucketOrder.key(true))
                 )
-                .execute()
-                .actionGet();
+                .get();
         assertSearchResponse(response);
         sigterms = response.getAggregations().get("myTerms");
         assertThat(sigterms.getBuckets().size(), equalTo(2));
 
     }
 
-    private void addTermsDocs(String term, int numDocs, List<IndexRequestBuilder> builders) {
+    private static void addTermsDocs(String term, int numDocs, List<IndexRequestBuilder> builders) {
         String sourceClass = "{\"text\": \"" + term + "\"}";
         for (int i = 0; i < numDocs; i++) {
             builders.add(client().prepareIndex(index, type).setSource(sourceClass, XContentType.JSON));
         }
-
     }
 }

@@ -91,7 +91,8 @@ final class ExpandSearchPhase extends SearchPhase {
                     SearchSourceBuilder sourceBuilder = buildExpandSearchSourceBuilder(innerHitBuilder, innerCollapseBuilder)
                         .query(groupQuery)
                         .postFilter(searchRequest.source().postFilter());
-                    SearchRequest groupRequest = buildExpandSearchRequest(searchRequest, sourceBuilder);
+                    SearchRequest groupRequest = new SearchRequest(searchRequest);
+                    groupRequest.source(sourceBuilder);
                     multiRequest.add(groupRequest);
                 }
             }
@@ -118,22 +119,6 @@ final class ExpandSearchPhase extends SearchPhase {
         } else {
             context.executeNextPhase(this, nextPhaseFactory.apply(searchResponse));
         }
-    }
-
-    private SearchRequest buildExpandSearchRequest(SearchRequest orig, SearchSourceBuilder sourceBuilder) {
-        SearchRequest groupRequest = new SearchRequest(orig.indices())
-            .types(orig.types())
-            .source(sourceBuilder)
-            .indicesOptions(orig.indicesOptions())
-            .requestCache(orig.requestCache())
-            .preference(orig.preference())
-            .routing(orig.routing())
-            .searchType(orig.searchType());
-        if (orig.allowPartialSearchResults() != null){
-            groupRequest.allowPartialSearchResults(orig.allowPartialSearchResults());
-        }
-        groupRequest.setMaxConcurrentShardRequests(orig.getMaxConcurrentShardRequests());
-        return groupRequest;
     }
 
     private SearchSourceBuilder buildExpandSearchSourceBuilder(InnerHitBuilder options, CollapseBuilder innerCollapseBuilder) {

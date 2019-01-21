@@ -21,7 +21,7 @@ messages by using count or rare functions. For example:
 //Obtained from it_ops_new_app_logs.sh
 [source,js]
 ----------------------------------
-PUT _xpack/ml/anomaly_detectors/it_ops_new_logs
+PUT _ml/anomaly_detectors/it_ops_new_logs
 {
   "description" : "IT Ops Application Logs",
   "analysis_config" : {
@@ -91,7 +91,7 @@ categorization field values are interpreted. For example:
 
 [source,js]
 ----------------------------------
-PUT _xpack/ml/anomaly_detectors/it_ops_new_logs2
+PUT _ml/anomaly_detectors/it_ops_new_logs2
 {
   "description" : "IT Ops Application Logs",
   "analysis_config" : {
@@ -153,7 +153,7 @@ equivalent to the following analyzer, which is defined using only built-in {es}
 
 [source,js]
 ----------------------------------
-PUT _xpack/ml/anomaly_detectors/it_ops_new_logs3
+PUT _ml/anomaly_detectors/it_ops_new_logs3
 {
   "description" : "IT Ops Application Logs",
   "analysis_config" : {

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapSessionFactorySettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.LdapUserSearchSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -56,43 +57,44 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
     private final UserRoleMapper roleMapper;
     private final ThreadPool threadPool;
     private final TimeValue executionTimeout;
+
     private DelegatedAuthorizationSupport delegatedRealms;
 
-    public LdapRealm(String type, RealmConfig config, SSLService sslService,
+    public LdapRealm(RealmConfig config, SSLService sslService,
                      ResourceWatcherService watcherService,
                      NativeRoleMappingStore nativeRoleMappingStore, ThreadPool threadPool)
             throws LDAPException {
-        this(type, config, sessionFactory(config, sslService, threadPool, type),
-                new CompositeRoleMapper(type, config, watcherService, nativeRoleMappingStore),
+        this(config, sessionFactory(config, sslService, threadPool),
+                new CompositeRoleMapper(config, watcherService, nativeRoleMappingStore),
                 threadPool);
     }
 
     // pkg private for testing
-    LdapRealm(String type, RealmConfig config, SessionFactory sessionFactory,
+    LdapRealm(RealmConfig config, SessionFactory sessionFactory,
               UserRoleMapper roleMapper, ThreadPool threadPool) {
-        super(type, config, threadPool);
+        super(config, threadPool);
         this.sessionFactory = sessionFactory;
         this.roleMapper = roleMapper;
         this.threadPool = threadPool;
-        this.executionTimeout = LdapRealmSettings.EXECUTION_TIMEOUT.get(config.settings());
+        this.executionTimeout = config.getSetting(LdapRealmSettings.EXECUTION_TIMEOUT);
         roleMapper.refreshRealmOnChange(this);
     }
 
-    static SessionFactory sessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool, String type)
+    static SessionFactory sessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool)
             throws LDAPException {
 
         final SessionFactory sessionFactory;
-        if (LdapRealmSettings.AD_TYPE.equals(type)) {
+        if (LdapRealmSettings.AD_TYPE.equals(config.type())) {
             sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
         } else {
-            assert LdapRealmSettings.LDAP_TYPE.equals(type) : "type [" + type + "] is unknown. expected one of ["
+            assert LdapRealmSettings.LDAP_TYPE.equals(config.type()) : "type [" + config.type() + "] is unknown. expected one of ["
                     + LdapRealmSettings.AD_TYPE + ", " + LdapRealmSettings.LDAP_TYPE + "]";
             final boolean hasSearchSettings = LdapUserSearchSessionFactory.hasUserSearchSettings(config);
-            final boolean hasTemplates = LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING.exists(config.settings());
+            final boolean hasTemplates = config.hasSetting(LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING);
             if (hasSearchSettings == false) {
                 if (hasTemplates == false) {
                     throw new IllegalArgumentException("settings were not found for either user search [" +
-                            RealmSettings.getFullSettingKey(config, LdapUserSearchSessionFactory.SEARCH_PREFIX) +
+                            RealmSettings.getFullSettingKey(config, LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN) +
                             "] or user template [" +
                             RealmSettings.getFullSettingKey(config, LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING) +
                             "] modes of operation. " +
@@ -102,7 +104,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                 sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
             } else if (hasTemplates) {
                 throw new IllegalArgumentException("settings were found for both user search [" +
-                        RealmSettings.getFullSettingKey(config, LdapUserSearchSessionFactory.SEARCH_PREFIX) +
+                        RealmSettings.getFullSettingKey(config, LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN) +
                         "] and user template [" +
                         RealmSettings.getFullSettingKey(config, LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING) +
                         "] modes of operation. " +
@@ -175,7 +177,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         super.usageStats(ActionListener.wrap(usage -> {
             usage.put("size", getCacheSize());
-            usage.put("load_balance_type", LdapLoadBalancing.resolve(config.settings()).toString());
+            usage.put("load_balance_type", LdapLoadBalancing.resolve(config).toString());
             usage.put("ssl", sessionFactory.isSslUsed());
             usage.put("user_search", LdapUserSearchSessionFactory.hasUserSearchSettings(config));
             listener.onResponse(usage);

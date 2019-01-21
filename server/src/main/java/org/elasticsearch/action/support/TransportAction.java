@@ -25,7 +25,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
@@ -38,8 +37,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     private final ActionFilter[] filters;
     protected final TaskManager taskManager;
 
-    protected TransportAction(Settings settings, String actionName, ActionFilters actionFilters, TaskManager taskManager) {
-        super(settings);
+    protected TransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
         this.actionName = actionName;
         this.filters = actionFilters.filters();
         this.taskManager = taskManager;

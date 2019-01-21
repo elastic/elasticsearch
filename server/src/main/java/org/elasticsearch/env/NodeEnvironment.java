@@ -82,6 +82,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 
 import static java.util.Collections.unmodifiableSet;
 
@@ -191,7 +192,7 @@ public final class NodeEnvironment  implements Closeable {
                         final Environment environment,
                         final CheckedFunction<Path, Boolean, IOException> pathFunction) throws IOException {
             this.nodeId = nodeId;
-            nodePaths = new NodePath[environment.dataWithClusterFiles().length];
+            nodePaths = new NodePath[environment.dataFiles().length];
             locks = new Lock[nodePaths.length];
             try {
                 final Path[] dataPaths = environment.dataFiles();
@@ -284,7 +285,7 @@ public final class NodeEnvironment  implements Closeable {
                     Locale.ROOT,
                     "failed to obtain node locks, tried [%s] with lock id%s;" +
                         " maybe these locations are not writable or multiple nodes were started without increasing [%s] (was [%d])?",
-                    Arrays.toString(environment.dataWithClusterFiles()),
+                    Arrays.toString(environment.dataFiles()),
                     maxLocalStorageNodes == 1 ? " [0]" : "s [0--" + (maxLocalStorageNodes - 1) + "]",
                     MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
                     maxLocalStorageNodes);
@@ -304,6 +305,10 @@ public final class NodeEnvironment  implements Closeable {
 
             applySegmentInfosTrace(settings);
             assertCanWrite();
+
+            if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
+                ensureAtomicMoveSupported(nodePaths);
+            }
             success = true;
         } finally {
             if (success == false) {
@@ -389,7 +394,7 @@ public final class NodeEnvironment  implements Closeable {
             metaData = new NodeMetaData(generateNodeId(settings));
         }
         // we write again to make sure all paths have the latest state file
-        NodeMetaData.FORMAT.write(metaData, paths);
+        NodeMetaData.FORMAT.writeAndCleanup(metaData, paths);
         return metaData;
     }
 
@@ -818,13 +823,21 @@ public final class NodeEnvironment  implements Closeable {
      * Returns all folder names in ${data.paths}/nodes/{node.id}/indices folder
      */
     public Set<String> availableIndexFolders() throws IOException {
+        return availableIndexFolders(p -> false);
+    }
+
+    /**
+     * Returns folder names in ${data.paths}/nodes/{node.id}/indices folder that don't match the given predicate.
+     * @param excludeIndexPathIdsPredicate folder names to exclude
+     */
+    public Set<String> availableIndexFolders(Predicate<String> excludeIndexPathIdsPredicate) throws IOException {
         if (nodePaths == null || locks == null) {
             throw new IllegalStateException("node is not configured to store local location");
         }
         assertEnvIsLocked();
         Set<String> indexFolders = new HashSet<>();
         for (NodePath nodePath : nodePaths) {
-            indexFolders.addAll(availableIndexFoldersForPath(nodePath));
+            indexFolders.addAll(availableIndexFoldersForPath(nodePath, excludeIndexPathIdsPredicate));
         }
         return indexFolders;
 
@@ -838,6 +851,19 @@ public final class NodeEnvironment  implements Closeable {
      * @throws IOException if an I/O exception occurs traversing the filesystem
      */
     public Set<String> availableIndexFoldersForPath(final NodePath nodePath) throws IOException {
+        return availableIndexFoldersForPath(nodePath, p -> false);
+    }
+
+    /**
+     * Return directory names in the nodes/{node.id}/indices directory for the given node path that don't match the given predicate.
+     *
+     * @param nodePath the path
+     * @param excludeIndexPathIdsPredicate folder names to exclude
+     * @return all directories that could be indices for the given node path.
+     * @throws IOException if an I/O exception occurs traversing the filesystem
+     */
+    public Set<String> availableIndexFoldersForPath(final NodePath nodePath, Predicate<String> excludeIndexPathIdsPredicate)
+        throws IOException {
         if (nodePaths == null || locks == null) {
             throw new IllegalStateException("node is not configured to store local location");
         }
@@ -847,8 +873,9 @@ public final class NodeEnvironment  implements Closeable {
         if (Files.isDirectory(indicesLocation)) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(indicesLocation)) {
                 for (Path index : stream) {
-                    if (Files.isDirectory(index)) {
-                        indexFolders.add(index.getFileName().toString());
+                    final String fileName = index.getFileName().toString();
+                    if (excludeIndexPathIdsPredicate.test(fileName) == false && Files.isDirectory(index)) {
+                        indexFolders.add(fileName);
                     }
                 }
             }
@@ -980,8 +1007,7 @@ public final class NodeEnvironment  implements Closeable {
      * not supported by the filesystem. This test is executed on each of the data directories.
      * This method cleans up all files even in the case of an error.
      */
-    public void ensureAtomicMoveSupported() throws IOException {
-        final NodePath[] nodePaths = nodePaths();
+    private static void ensureAtomicMoveSupported(final NodePath[] nodePaths) throws IOException {
         for (NodePath nodePath : nodePaths) {
             assert Files.isDirectory(nodePath.path) : nodePath.path + " is not a directory";
             final Path src = nodePath.path.resolve(TEMP_FILE_NAME + ".tmp");

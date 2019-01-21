@@ -60,8 +60,6 @@ public class AnalysisConfig implements ToXContentObject {
     public static final ParseField SUMMARY_COUNT_FIELD_NAME = new ParseField("summary_count_field_name");
     public static final ParseField DETECTORS = new ParseField("detectors");
     public static final ParseField INFLUENCERS = new ParseField("influencers");
-    public static final ParseField OVERLAPPING_BUCKETS = new ParseField("overlapping_buckets");
-    public static final ParseField RESULT_FINALIZATION_WINDOW = new ParseField("result_finalization_window");
     public static final ParseField MULTIVARIATE_BY_FIELDS = new ParseField("multivariate_by_fields");
 
     @SuppressWarnings("unchecked")
@@ -84,8 +82,6 @@ public class AnalysisConfig implements ToXContentObject {
             builder.setLatency(TimeValue.parseTimeValue(val, LATENCY.getPreferredName())), LATENCY);
         PARSER.declareString(Builder::setSummaryCountFieldName, SUMMARY_COUNT_FIELD_NAME);
         PARSER.declareStringArray(Builder::setInfluencers, INFLUENCERS);
-        PARSER.declareBoolean(Builder::setOverlappingBuckets, OVERLAPPING_BUCKETS);
-        PARSER.declareLong(Builder::setResultFinalizationWindow, RESULT_FINALIZATION_WINDOW);
         PARSER.declareBoolean(Builder::setMultivariateByFields, MULTIVARIATE_BY_FIELDS);
     }
 
@@ -100,14 +96,11 @@ public class AnalysisConfig implements ToXContentObject {
     private final String summaryCountFieldName;
     private final List<Detector> detectors;
     private final List<String> influencers;
-    private final Boolean overlappingBuckets;
-    private final Long resultFinalizationWindow;
     private final Boolean multivariateByFields;
 
     private AnalysisConfig(TimeValue bucketSpan, String categorizationFieldName, List<String> categorizationFilters,
                            CategorizationAnalyzerConfig categorizationAnalyzerConfig, TimeValue latency, String summaryCountFieldName,
-                           List<Detector> detectors, List<String> influencers, Boolean overlappingBuckets, Long resultFinalizationWindow,
-                           Boolean multivariateByFields) {
+                           List<Detector> detectors, List<String> influencers, Boolean multivariateByFields) {
         this.detectors = Collections.unmodifiableList(detectors);
         this.bucketSpan = bucketSpan;
         this.latency = latency;
@@ -116,8 +109,6 @@ public class AnalysisConfig implements ToXContentObject {
         this.categorizationFilters = categorizationFilters == null ? null : Collections.unmodifiableList(categorizationFilters);
         this.summaryCountFieldName = summaryCountFieldName;
         this.influencers = Collections.unmodifiableList(influencers);
-        this.overlappingBuckets = overlappingBuckets;
-        this.resultFinalizationWindow = resultFinalizationWindow;
         this.multivariateByFields = multivariateByFields;
     }
 
@@ -175,14 +166,6 @@ public class AnalysisConfig implements ToXContentObject {
      */
     public List<String> getInfluencers() {
         return influencers;
-    }
-
-    public Boolean getOverlappingBuckets() {
-        return overlappingBuckets;
-    }
-
-    public Long getResultFinalizationWindow() {
-        return resultFinalizationWindow;
     }
 
     public Boolean getMultivariateByFields() {
@@ -255,12 +238,6 @@ public class AnalysisConfig implements ToXContentObject {
         }
         builder.endArray();
         builder.field(INFLUENCERS.getPreferredName(), influencers);
-        if (overlappingBuckets != null) {
-            builder.field(OVERLAPPING_BUCKETS.getPreferredName(), overlappingBuckets);
-        }
-        if (resultFinalizationWindow != null) {
-            builder.field(RESULT_FINALIZATION_WINDOW.getPreferredName(), resultFinalizationWindow);
-        }
         if (multivariateByFields != null) {
             builder.field(MULTIVARIATE_BY_FIELDS.getPreferredName(), multivariateByFields);
         }
@@ -287,8 +264,6 @@ public class AnalysisConfig implements ToXContentObject {
             Objects.equals(summaryCountFieldName, that.summaryCountFieldName) &&
             Objects.equals(detectors, that.detectors) &&
             Objects.equals(influencers, that.influencers) &&
-            Objects.equals(overlappingBuckets, that.overlappingBuckets) &&
-            Objects.equals(resultFinalizationWindow, that.resultFinalizationWindow) &&
             Objects.equals(multivariateByFields, that.multivariateByFields);
     }
 
@@ -296,8 +271,7 @@ public class AnalysisConfig implements ToXContentObject {
     public int hashCode() {
         return Objects.hash(
             bucketSpan, categorizationFieldName, categorizationFilters, categorizationAnalyzerConfig, latency,
-            summaryCountFieldName, detectors, influencers, overlappingBuckets, resultFinalizationWindow,
-            multivariateByFields);
+            summaryCountFieldName, detectors, influencers, multivariateByFields);
     }
 
     public static Builder builder(List<Detector> detectors) {
@@ -314,8 +288,6 @@ public class AnalysisConfig implements ToXContentObject {
         private CategorizationAnalyzerConfig categorizationAnalyzerConfig;
         private String summaryCountFieldName;
         private List<String> influencers = new ArrayList<>();
-        private Boolean overlappingBuckets;
-        private Long resultFinalizationWindow;
         private Boolean multivariateByFields;
 
         public Builder(List<Detector> detectors) {
@@ -332,8 +304,6 @@ public class AnalysisConfig implements ToXContentObject {
             this.categorizationAnalyzerConfig = analysisConfig.categorizationAnalyzerConfig;
             this.summaryCountFieldName = analysisConfig.summaryCountFieldName;
             this.influencers = new ArrayList<>(analysisConfig.influencers);
-            this.overlappingBuckets = analysisConfig.overlappingBuckets;
-            this.resultFinalizationWindow = analysisConfig.resultFinalizationWindow;
             this.multivariateByFields = analysisConfig.multivariateByFields;
         }
 
@@ -391,16 +361,6 @@ public class AnalysisConfig implements ToXContentObject {
             return this;
         }
 
-        public Builder setOverlappingBuckets(Boolean overlappingBuckets) {
-            this.overlappingBuckets = overlappingBuckets;
-            return this;
-        }
-
-        public Builder setResultFinalizationWindow(Long resultFinalizationWindow) {
-            this.resultFinalizationWindow = resultFinalizationWindow;
-            return this;
-        }
-
         public Builder setMultivariateByFields(Boolean multivariateByFields) {
             this.multivariateByFields = multivariateByFields;
             return this;
@@ -409,8 +369,7 @@ public class AnalysisConfig implements ToXContentObject {
         public AnalysisConfig build() {
 
             return new AnalysisConfig(bucketSpan, categorizationFieldName, categorizationFilters, categorizationAnalyzerConfig,
-                latency, summaryCountFieldName, detectors, influencers, overlappingBuckets,
-                resultFinalizationWindow, multivariateByFields);
+                latency, summaryCountFieldName, detectors, influencers, multivariateByFields);
         }
     }
 }

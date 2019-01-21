@@ -13,15 +13,15 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 
-import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.l;
+import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 
 public class ConcatProcessorTests extends AbstractWireSerializingTestCase<ConcatFunctionProcessor> {
     
     @Override
     protected ConcatFunctionProcessor createTestInstance() {
         return new ConcatFunctionProcessor(
-                new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)), 
+                new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
                 new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)));
     }
 
@@ -43,7 +43,7 @@ public class ConcatProcessorTests extends AbstractWireSerializingTestCase<Concat
     public void testConcatFunctionWithEdgeCases() {
         assertEquals("foo", new Concat(EMPTY, l("foo"), l(null)).makePipe().asProcessor().process(null));
         assertEquals("bar", new Concat(EMPTY, l(null), l("bar")).makePipe().asProcessor().process(null));
-        assertNull(new Concat(EMPTY, l(null), l(null)).makePipe().asProcessor().process(null));
+        assertEquals("", new Concat(EMPTY, l(null), l(null)).makePipe().asProcessor().process(null));
     }
     
     public void testConcatFunctionInputsValidation() {

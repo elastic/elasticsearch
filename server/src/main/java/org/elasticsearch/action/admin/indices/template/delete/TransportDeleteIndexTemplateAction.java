@@ -30,22 +30,23 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 /**
  * Delete index action.
  */
-public class TransportDeleteIndexTemplateAction extends TransportMasterNodeAction<DeleteIndexTemplateRequest, AcknowledgedResponse> {
+public class TransportDeleteIndexTemplateAction
+        extends TransportMasterNodeAction<DeleteIndexTemplateRequest, AcknowledgedResponse> {
 
     private final MetaDataIndexTemplateService indexTemplateService;
 
     @Inject
-    public TransportDeleteIndexTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportDeleteIndexTemplateAction(TransportService transportService, ClusterService clusterService,
                                               ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, DeleteIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeleteIndexTemplateRequest::new);
+        super(DeleteIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            indexNameExpressionResolver, DeleteIndexTemplateRequest::new);
         this.indexTemplateService = indexTemplateService;
     }
 
@@ -66,18 +67,23 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeActio
     }
 
     @Override
-    protected void masterOperation(final DeleteIndexTemplateRequest request, final ClusterState state, final ActionListener<AcknowledgedResponse> listener) {
-        indexTemplateService.removeTemplates(new MetaDataIndexTemplateService.RemoveRequest(request.name()).masterTimeout(request.masterNodeTimeout()), new MetaDataIndexTemplateService.RemoveListener() {
-            @Override
-            public void onResponse(MetaDataIndexTemplateService.RemoveResponse response) {
-                listener.onResponse(new AcknowledgedResponse(response.acknowledged()));
-            }
+    protected void masterOperation(final DeleteIndexTemplateRequest request, final ClusterState state,
+                                   final ActionListener<AcknowledgedResponse> listener) {
+        indexTemplateService.removeTemplates(
+            new MetaDataIndexTemplateService
+                .RemoveRequest(request.name())
+                .masterTimeout(request.masterNodeTimeout()),
+            new MetaDataIndexTemplateService.RemoveListener() {
+                @Override
+                public void onResponse(MetaDataIndexTemplateService.RemoveResponse response) {
+                    listener.onResponse(new AcknowledgedResponse(response.acknowledged()));
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.debug(() -> new ParameterizedMessage("failed to delete templates [{}]", request.name()), e);
-                listener.onFailure(e);
-            }
-        });
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug(() -> new ParameterizedMessage("failed to delete templates [{}]", request.name()), e);
+                    listener.onFailure(e);
+                }
+            });
     }
 }

@@ -28,7 +28,7 @@ public class CustomRealm extends Realm {
     static final String[] ROLES = new String[] { "superuser" };
 
     public CustomRealm(RealmConfig config) {
-        super(TYPE, config);
+        super(config);
     }
 
     @Override

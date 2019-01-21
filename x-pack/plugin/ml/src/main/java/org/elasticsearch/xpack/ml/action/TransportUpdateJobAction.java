@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
@@ -26,10 +25,10 @@ public class TransportUpdateJobAction extends TransportMasterNodeAction<UpdateJo
     private final JobManager jobManager;
 
     @Inject
-    public TransportUpdateJobAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportUpdateJobAction(TransportService transportService, ClusterService clusterService,
                                     ThreadPool threadPool, ActionFilters actionFilters,
                                     IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager) {
-        super(settings, UpdateJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(UpdateJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, UpdateJobAction.Request::new);
         this.jobManager = jobManager;
     }

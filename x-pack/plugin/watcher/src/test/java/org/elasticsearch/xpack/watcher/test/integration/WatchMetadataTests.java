@@ -9,7 +9,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
@@ -52,7 +52,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0/5 * * * * ? *")))
                         .input(noneInput())
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
+                        .condition(new CompareCondition("ctx.payload.hits.total.value", CompareCondition.Op.EQ, 1L))
                         .metadata(metadata))
                         .get();
 
@@ -62,7 +62,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
         SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*")
                 .setQuery(termQuery("metadata.foo", "bar"))
                 .get();
-        assertThat(searchResponse.getHits().getTotalHits(), greaterThan(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
     }
 
     public void testWatchMetadataAvailableAtExecution() throws Exception {

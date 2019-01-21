@@ -189,7 +189,7 @@ public class IndexAuditIT extends ESIntegTestCase {
             client().admin().indices().prepareRefresh(".security_audit_log*").get();
             logger.info("refreshed audit indices");
             return client().prepareSearch(".security_audit_log*").setQuery(query)
-                .get().getHits().getTotalHits() > 0;
+                .get().getHits().getTotalHits().value > 0;
         }, 60L, TimeUnit.SECONDS);
     }
 

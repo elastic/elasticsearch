@@ -1,0 +1,206 @@
+[role="xpack"]
+[testenv="gold"]
+[[configuring-metricbeat]]
+=== Collecting {es} monitoring data with {metricbeat}
+++++
+<titleabbrev>Collecting monitoring data with {metricbeat}</titleabbrev>
+++++
+
+beta[]
+
+In 6.5 and later, you can use {metricbeat} to collect data about {es} 
+and ship it to the monitoring cluster, rather than routing it through exporters 
+as described in <<collecting-monitoring-data>>. 
+
+image::monitoring/images/metricbeat.png[Example monitoring architecture]
+
+To learn about monitoring in general, see 
+{stack-ov}/xpack-monitoring.html[Monitoring the {stack}]. 
+
+. Enable the collection of monitoring data. Set 
+`xpack.monitoring.collection.enabled` to `true` on each node in the production 
+cluster. By default, it is is disabled (`false`). 
++ 
+--
+NOTE: You can specify this setting in either the `elasticsearch.yml` on each 
+node or across the cluster as a dynamic cluster setting. If {es} 
+{security-features} are enabled, you must have `monitor` cluster privileges to 
+view the cluster settings and `manage` cluster privileges to change them.
+
+For example, you can use the following APIs to review and change this setting:
+
+[source,js]
+----------------------------------
+GET _cluster/settings
+
+PUT _cluster/settings
+{
+  "persistent": {
+    "xpack.monitoring.collection.enabled": true
+  }
+}
+----------------------------------
+// CONSOLE 
+
+For more information, see <<monitoring-settings>> and <<cluster-update-settings>>.
+--
+
+. Disable the default collection of {es} monitoring metrics. Set 
+`xpack.monitoring.elasticsearch.collection.enabled` to `false` on each node in 
+the production cluster.
++ 
+--
+NOTE: You can specify this setting in either the `elasticsearch.yml` on each 
+node or across the cluster as a dynamic cluster setting. If {es} 
+{security-features} are enabled, you must have `monitor` cluster privileges to 
+view the cluster settings and `manage` cluster privileges to change them.
+
+For example, you can use the following API to change this setting:
+
+[source,js]
+----------------------------------
+PUT _cluster/settings
+{
+  "persistent": {
+    "xpack.monitoring.elasticsearch.collection.enabled": false
+  }
+}
+----------------------------------
+// CONSOLE
+
+Leave `xpack.monitoring.enabled` set to its default value (`true`). 
+--
+
+. On each {es} node in the production cluster:
+
+.. {metricbeat-ref}/metricbeat-installation.html[Install {metricbeat}].
+
+.. Enable the {es} module in {metricbeat}. +
++
+--
+For example, to enable the default configuration in the `modules.d` directory, 
+run the following command:
+
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------------
+metricbeat modules enable elasticsearch
+----------------------------------------------------------------------
+
+For more information, see 
+{metricbeat-ref}/configuration-metricbeat.html[Specify which modules to run] and 
+{metricbeat-ref}/metricbeat-module-elasticsearch.html[{es} module]. 
+--
+
+.. Configure the {es} module in {metricbeat}. +
++
+--
+You must specify the following settings in the `modules.d/elasticsearch.yml` file:
+
+[source,yaml]
+----------------------------------
+- module: elasticsearch
+  metricsets:
+    - ccr
+    - cluster_stats
+    - index
+    - index_recovery
+    - index_summary
+    - ml_job
+    - node_stats
+    - shard
+  period: 10s
+  hosts: ["http://localhost:9200"] <1>
+  xpack.enabled: true <2>
+----------------------------------
+<1> This setting identifies the host and port number that are used to access {es}.
+<2> This setting ensures that {kib} can read this monitoring data successfully. 
+That is to say, it's stored in the same location and format as monitoring data 
+that is sent by <<es-monitoring-exporters,exporters>>. 
+--
+
+.. If Elastic {security-features} are enabled, you must also provide a user ID 
+and password so that {metricbeat} can collect metrics successfully. 
+
+... Create a user on the production cluster that has the 
+{stack-ov}/built-in-roles.html[`remote_monitoring_collector` built-in role]. 
+Alternatively, use the {stack-ov}/built-in-users.html[`remote_monitoring_user` built-in user].
+
+... Add the `username` and `password` settings to the {es} module configuration 
+file.
++
+--
+For example, add the following settings in the `modules.d/elasticsearch.yml` file:
+
+[source,yaml]
+----------------------------------
+- module: elasticsearch
+  ...
+  username: remote_monitoring_user
+  password: YOUR_PASSWORD
+----------------------------------
+--
+
+.. If you configured {es} to use <<configuring-tls,encrypted communications>>, 
+you must access it via HTTPS. For example, use a `hosts` setting like 
+`https://localhost:9200` in the `modules.d/elasticsearch.yml` file.
+
+.. Identify where to send the monitoring data. +
++
+--
+TIP: In production environments, we strongly recommend using a separate cluster 
+(referred to as the _monitoring cluster_) to store the data. Using a separate 
+monitoring cluster prevents production cluster outages from impacting your 
+ability to access your monitoring data. It also prevents monitoring activities 
+from impacting the performance of your production cluster.
+
+For example, specify the {es} output information in the {metricbeat} 
+configuration file (`metricbeat.yml`):
+
+[source,yaml]
+----------------------------------
+output.elasticsearch:
+  hosts: ["http://es-mon-1:9200", "http://es-mon2:9200"] <1>
+----------------------------------
+<1> In this example, the data is stored on a monitoring cluster with nodes 
+`es-mon-1` and `es-mon-2`. 
+
+IMPORTANT: The {es} {monitor-features} use ingest pipelines, therefore the
+cluster that stores the monitoring data must have at least one 
+<<ingest,ingest node>>. 
+
+For more information about these configuration options, see 
+{metricbeat-ref}/elasticsearch-output.html[Configure the {es} output].
+--
+
+.. If {es} {security-features} are enabled on the monitoring cluster, you 
+must provide a valid user ID and password so that {metricbeat} can send metrics 
+successfully. 
+
+... Create a user on the monitoring cluster that has the 
+{stack-ov}/built-in-roles.html[`remote_monitoring_agent` built-in role]. 
+Alternatively, use the 
+{stack-ov}/built-in-users.html[`remote_monitoring_user` built-in user].
+
+... Add the `username` and `password` settings to the {es} output information in 
+the {metricbeat} configuration file (`metricbeat.yml`):
++
+--
+[source,yaml]
+----------------------------------
+output.elasticsearch:
+  ...
+  username: remote_monitoring_user
+  password: YOUR_PASSWORD
+----------------------------------
+--
+
+.. If you configured the monitoring cluster to use 
+<<configuring-tls,encrypted communications>>, you must access it via 
+HTTPS. For example, use a `hosts` setting like `https://es-mon-1:9200` in the 
+`metricbeat.yml` file. 
+
+. <<starting-elasticsearch,Start {es}>>.
+
+. {metricbeat-ref}/metricbeat-starting.html[Start {metricbeat}]. 
+
+. {kibana-ref}/monitoring-data.html[View the monitoring data in {kib}]. 

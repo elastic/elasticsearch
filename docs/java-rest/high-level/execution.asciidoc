@@ -18,6 +18,15 @@ for the +{response}+ to be returned before continuing with code execution:
 include-tagged::{doc-tests-file}[{api}-execute]
 --------------------------------------------------
 
+Synchronous calls may throw an `IOException` in case of either failing to
+parse the REST response in the high-level REST client, the request times out
+or similar cases where there is no response coming back from the server.
+
+In cases where the server returns a `4xx` or `5xx` error code, the high-level
+client tries to parse the response body error details instead and then throws
+a generic `ElasticsearchException` and adds the original `ResponseException` as a
+suppressed exception to it.
+
 [id="{upid}-{api}-async"]
 ==== Asynchronous Execution
 
@@ -36,9 +45,10 @@ the execution completes
 The asynchronous method does not block and returns immediately. Once it is
 completed the `ActionListener` is called back using the `onResponse` method
 if the execution successfully completed or using the `onFailure` method if
-it failed.
+it failed. Failure scenarios and expected exceptions are the same as in the
+synchronous execution case.
 
-A typical listener for +{response}+ looks like:
+A typical listener for +{api}+ looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

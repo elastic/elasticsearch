@@ -3,12 +3,14 @@
 [[sql-translate]]
 == SQL Translate API
 
+beta[]
+
 The SQL Translate API accepts SQL in a JSON document and translates it
 into native Elasticsearch queries. For example:
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/sql/translate
+POST /_sql/translate
 {
     "query": "SELECT * FROM library ORDER BY page_count DESC",
     "fetch_size": 10
@@ -43,7 +45,9 @@ Which returns:
     "sort" : [
         {
             "page_count" : {
-                "order" : "desc"
+                "order" : "desc",
+                "missing" : "_first",
+                "unmapped_type" : "short"
             }
         }
     ]

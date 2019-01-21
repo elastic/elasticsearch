@@ -139,3 +139,26 @@ GET _search
 // CONSOLE
 <1> This date will be converted to `2014-12-31T23:00:00 UTC`.
 <2> `now` is not affected by the `time_zone` parameter (dates must be stored as UTC).
+
+[[querying-range-fields]]
+==== Querying range fields
+
+`range` queries can be used on fields of type <<range,`range`>>, allowing to
+match a range specified in the query with a range field value in the document.
+The `relation` parameter controls how these two ranges are matched:
+
+[horizontal]
+`WITHIN`::
+
+    Matches documents who's range field is entirely within the query's range.
+
+`CONTAINS`::
+
+    Matches documents who's range field entirely contains the query's range.
+
+`INTERSECTS`::
+
+    Matches documents who's range field intersects the query's range.
+    This is the default value when querying range fields.
+
+For examples, see <<range,`range`>> mapping type.

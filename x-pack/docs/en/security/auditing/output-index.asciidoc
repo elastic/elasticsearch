@@ -38,9 +38,9 @@ xpack.security.audit.index.settings:
 
 These settings apply to the local audit indices, as well as to the
 <<forwarding-audit-logfiles, remote audit indices>>, but only if the remote cluster
-does *not* have {security} installed, or the {es} versions are different.
-If the remote cluster has {security} installed, and the versions coincide, the
-settings for the audit indices there will take precedence,
+does *not* have {security-features} enabled or the {es} versions are different.
+If the remote cluster has {security-features} enabled and the versions coincide,
+the settings for the audit indices there will take precedence,
 even if they are unspecified (i.e. left to defaults).
 
 NOTE: Audit events are batched for indexing so there is a lag before

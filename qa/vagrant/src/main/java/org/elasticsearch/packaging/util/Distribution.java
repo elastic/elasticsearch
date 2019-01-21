@@ -43,6 +43,14 @@ public enum Distribution {
         return flavor.name + "-" + version + packaging.extension;
     }
 
+    public boolean isDefault() {
+        return flavor.equals(Flavor.DEFAULT);
+    }
+
+    public boolean isOSS() {
+        return flavor.equals(Flavor.OSS);
+    }
+
     public enum Packaging {
 
         TAR(".tar.gz", Platforms.LINUX),

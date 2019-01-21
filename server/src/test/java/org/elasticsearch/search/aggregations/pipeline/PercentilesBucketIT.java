@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
 import org.elasticsearch.search.aggregations.metrics.Sum;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucket;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
@@ -42,7 +41,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.percentilesBucket;
+import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.percentilesBucket;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -101,7 +100,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                         .extendedBounds(minRandomValue, maxRandomValue))
                 .addAggregation(percentilesBucket("percentiles_bucket", "histo>_count")
-                        .percents(PERCENTS)).execute().actionGet();
+                        .setPercents(PERCENTS)).get();
 
         assertSearchResponse(response);
 
@@ -139,7 +138,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue))
                                 .subAggregation(percentilesBucket("percentiles_bucket", "histo>_count")
-                                        .percents(PERCENTS))).execute().actionGet();
+                                        .setPercents(PERCENTS))).get();
 
         assertSearchResponse(response);
 
@@ -181,7 +180,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                 .prepareSearch("idx")
                 .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                 .addAggregation(percentilesBucket("percentiles_bucket", "terms>sum")
-                        .percents(PERCENTS)).execute().actionGet();
+                        .setPercents(PERCENTS)).get();
 
         assertSearchResponse(response);
 
@@ -214,7 +213,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(percentilesBucket("percentiles_bucket", "terms>sum")).execute().actionGet();
+                .addAggregation(percentilesBucket("percentiles_bucket", "terms>sum")).get();
 
         assertSearchResponse(response);
 
@@ -255,7 +254,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                                                 .extendedBounds(minRandomValue, maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                                 .subAggregation(percentilesBucket("percentiles_bucket", "histo>sum")
-                                        .percents(PERCENTS))).execute().actionGet();
+                                        .setPercents(PERCENTS))).get();
 
         assertSearchResponse(response);
 
@@ -309,8 +308,8 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                                 .subAggregation(percentilesBucket("percentiles_bucket", "histo>sum")
                                         .gapPolicy(BucketHelpers.GapPolicy.INSERT_ZEROS)
-                                        .percents(PERCENTS)))
-                .execute().actionGet();
+                                        .setPercents(PERCENTS)))
+                .get();
 
         assertSearchResponse(response);
 
@@ -355,7 +354,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                 .addAggregation(terms("terms").field("tag").includeExclude(new IncludeExclude(null, "tag.*"))
                         .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                 .addAggregation(percentilesBucket("percentiles_bucket", "terms>sum")
-                        .percents(PERCENTS)).execute().actionGet();
+                        .setPercents(PERCENTS)).get();
 
         assertSearchResponse(response);
 
@@ -378,7 +377,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                 .addAggregation(terms("terms").field("tag").includeExclude(new IncludeExclude(null, "tag.*"))
                         .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                 .addAggregation(percentilesBucket("percentiles_bucket", "terms>sum")
-                        .percents(PERCENTS)).execute().actionGet();
+                        .setPercents(PERCENTS)).get();
 
         assertSearchResponse(response);
 
@@ -407,7 +406,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
             client().prepareSearch("idx")
                     .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                     .addAggregation(percentilesBucket("percentiles_bucket", "terms>sum")
-                            .percents(badPercents)).execute().actionGet();
+                            .setPercents(badPercents)).get();
 
             fail("Illegal percent's were provided but no exception was thrown.");
         } catch (Exception e) {
@@ -441,7 +440,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue))
                                 .subAggregation(percentilesBucket("percentiles_bucket", "histo>_count")
-                                        .percents(badPercents))).execute().actionGet();
+                                        .setPercents(badPercents))).get();
 
             fail("Illegal percent's were provided but no exception was thrown.");
         } catch (Exception e) {
@@ -471,9 +470,9 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue))
-                                .subAggregation(percentilesBucket("percentile_histo_bucket", "histo>_count").percents(PERCENTS)))
+                                .subAggregation(percentilesBucket("percentile_histo_bucket", "histo>_count").setPercents(PERCENTS)))
                 .addAggregation(percentilesBucket("percentile_terms_bucket", "terms>percentile_histo_bucket.50")
-                        .percents(PERCENTS)).execute().actionGet();
+                        .setPercents(PERCENTS)).get();
 
         assertSearchResponse(response);
 
@@ -531,9 +530,9 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue))
                                 .subAggregation(percentilesBucket("percentile_histo_bucket", "histo>_count")
-                                        .percents(percent)))
+                                        .setPercents(percent)))
                 .addAggregation(percentilesBucket("percentile_terms_bucket", "terms>percentile_histo_bucket[99.9]")
-                        .percents(percent)).execute().actionGet();
+                        .setPercents(percent)).get();
 
         assertSearchResponse(response);
 

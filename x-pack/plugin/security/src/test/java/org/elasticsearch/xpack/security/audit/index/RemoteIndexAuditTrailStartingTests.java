@@ -95,7 +95,7 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
         // Setup a second test cluster with a single node, security enabled, and SSL
         final int numNodes = 1;
         SecuritySettingsSource cluster2SettingsSource =
-                new SecuritySettingsSource(numNodes, sslEnabled, createTempDir(), Scope.TEST) {
+                new SecuritySettingsSource(sslEnabled, createTempDir(), Scope.TEST) {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()
@@ -111,7 +111,7 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
                         .put("xpack.security.audit.index.settings.index.number_of_shards", 1)
                         .put("xpack.security.audit.index.settings.index.number_of_replicas", 0);
 
-                addClientSSLSettings(builder, "xpack.security.audit.index.client.");
+                addClientSSLSettings(builder, "xpack.security.audit.index.client.xpack.security.transport.");
                 builder.put("xpack.security.audit.index.client.xpack.security.transport.ssl.enabled", sslEnabled);
                 return builder.build();
             }

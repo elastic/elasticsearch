@@ -20,6 +20,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
@@ -57,7 +58,7 @@ import java.util.stream.Stream;
  *
  * @see #ReadOnlyEngine(EngineConfig, SeqNoStats, TranslogStats, boolean, Function)
  */
-public final class ReadOnlyEngine extends Engine {
+public class ReadOnlyEngine extends Engine {
 
     private final SegmentInfos lastCommittedSegmentInfos;
     private final SeqNoStats seqNoStats;
@@ -66,6 +67,7 @@ public final class ReadOnlyEngine extends Engine {
     private final IndexCommit indexCommit;
     private final Lock indexWriterLock;
     private final DocsStats docsStats;
+    private final RamAccountingSearcherFactory searcherFactory;
 
     /**
      * Creates a new ReadOnlyEngine. This ctor can also be used to open a read-only engine on top of an already opened
@@ -82,6 +84,7 @@ public final class ReadOnlyEngine extends Engine {
     public ReadOnlyEngine(EngineConfig config, SeqNoStats seqNoStats, TranslogStats translogStats, boolean obtainLock,
                    Function<DirectoryReader, DirectoryReader> readerWrapperFunction) {
         super(config);
+        this.searcherFactory = new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService());
         try {
             Store store = config.getStore();
             store.incRef();
@@ -96,14 +99,10 @@ public final class ReadOnlyEngine extends Engine {
                 this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
                 this.translogStats = translogStats == null ? new TranslogStats(0, 0, 0, 0, 0) : translogStats;
                 this.seqNoStats = seqNoStats == null ? buildSeqNoStats(lastCommittedSegmentInfos) : seqNoStats;
-                reader = ElasticsearchDirectoryReader.wrap(open(directory), config.getShardId());
-                if (config.getIndexSettings().isSoftDeleteEnabled()) {
-                    reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
-                }
-                reader = readerWrapperFunction.apply(reader);
-                this.indexCommit = reader.getIndexCommit();
-                this.searcherManager = new SearcherManager(reader,
-                    new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService()));
+                this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
+                reader = open(indexCommit);
+                reader = wrapReader(reader, readerWrapperFunction);
+                searcherManager = new SearcherManager(reader, searcherFactory);
                 this.docsStats = docsStats(lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
                 success = true;
@@ -117,8 +116,17 @@ public final class ReadOnlyEngine extends Engine {
         }
     }
 
-    protected DirectoryReader open(final Directory directory) throws IOException {
-        return DirectoryReader.open(directory);
+    protected final DirectoryReader wrapReader(DirectoryReader reader,
+                                                    Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
+        reader = ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
+        if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
+            reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
+        }
+        return readerWrapperFunction.apply(reader);
+    }
+
+    protected DirectoryReader open(IndexCommit commit) throws IOException {
+        return DirectoryReader.open(commit);
     }
 
     private DocsStats docsStats(final SegmentInfos lastCommittedSegmentInfos) {
@@ -235,6 +243,9 @@ public final class ReadOnlyEngine extends Engine {
     @Override
     public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService, long fromSeqNo, long toSeqNo,
                                                 boolean requiredFullRange) throws IOException {
+        if (engineConfig.getIndexSettings().isSoftDeleteEnabled() == false) {
+            throw new IllegalStateException("accessing changes snapshot requires soft-deletes enabled");
+        }
         return readHistoryOperations(source, mapperService, fromSeqNo);
     }
 
@@ -406,5 +417,14 @@ public final class ReadOnlyEngine extends Engine {
     @Override
     public void initializeMaxSeqNoOfUpdatesOrDeletes() {
         advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats.getMaxSeqNo());
+    }
+
+    protected void processReaders(IndexReader reader, IndexReader previousReader) {
+        searcherFactory.processReaders(reader, previousReader);
+    }
+
+    @Override
+    public boolean refreshNeeded() {
+        return false;
     }
 }

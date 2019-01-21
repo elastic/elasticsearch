@@ -20,20 +20,24 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.common.unit.TimeValue;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+
 /**
  * A base request for any requests that supply timeouts.
  *
  * Please note, any requests that use a ackTimeout should set timeout as they
  * represent the same backing field on the server.
  */
-public class TimedRequest implements Validatable {
+public abstract class TimedRequest implements Validatable {
 
-    private TimeValue timeout;
-    private TimeValue masterTimeout;
+    public static final TimeValue DEFAULT_ACK_TIMEOUT = timeValueSeconds(30);
+    public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
+
+    private TimeValue timeout = DEFAULT_ACK_TIMEOUT;
+    private TimeValue masterTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
 
     public void setTimeout(TimeValue timeout) {
         this.timeout = timeout;
-
     }
 
     public void setMasterTimeout(TimeValue masterTimeout) {

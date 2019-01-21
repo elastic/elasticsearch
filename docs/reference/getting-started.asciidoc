@@ -16,6 +16,7 @@ Here are a few sample use-cases that Elasticsearch could be used for:
 For the rest of this tutorial, you will be guided through the process of getting Elasticsearch up and running, taking a peek inside it, and performing basic operations like indexing, searching, and modifying your data. At the end of this tutorial, you should have a good idea of what Elasticsearch is, how it works, and hopefully be inspired to see how you can use it to either build sophisticated search applications or to mine intelligence from your data.
 --
 
+[[getting-started-concepts]]
 == Basic Concepts
 
 There are a few concepts that are core to Elasticsearch. Understanding these concepts from the outset will tremendously help ease the learning process.
@@ -103,6 +104,7 @@ You can monitor shard sizes using the {ref}/cat-shards.html[`_cat/shards`] API.
 
 With that out of the way, let's get started with the fun part...
 
+[[getting-started-install]]
 == Installation
 
 [TIP]
@@ -246,7 +248,7 @@ If everything goes well with installation, you should see a bunch of messages th
 [2018-09-13T12:20:05,006][INFO ][o.e.n.Node               ] [localhost.localdomain] initialized
 [2018-09-13T12:20:05,007][INFO ][o.e.n.Node               ] [localhost.localdomain] starting ...
 [2018-09-13T12:20:05,202][INFO ][o.e.t.TransportService   ] [localhost.localdomain] publish_address {127.0.0.1:9300}, bound_addresses {[::1]:9300}, {127.0.0.1:9300}
-[2018-09-13T12:20:05,221][WARN ][o.e.b.BootstrapChecks    ] [localhost.localdomain] max file descriptors [4096] for elasticsearch process is too low, increase to at least [65536]
+[2018-09-13T12:20:05,221][WARN ][o.e.b.BootstrapChecks    ] [localhost.localdomain] max file descriptors [4096] for elasticsearch process is too low, increase to at least [65535]
 [2018-09-13T12:20:05,221][WARN ][o.e.b.BootstrapChecks    ] [localhost.localdomain] max virtual memory areas vm.max_map_count [65530] is too low, increase to at least [262144]
 [2018-09-13T12:20:08,355][INFO ][o.e.c.s.MasterService    ] [localhost.localdomain] zen-disco-elected-as-master ([0] nodes joined)[, ], reason: master node changed {previous [], current [{localhost.localdomain}{B0aEHNagTiWx7SYj-l4NTw}{hzsQz6CVQMCTpMCVLM4IHg}{127.0.0.1}{127.0.0.1:9300}{testattr=test}]}
 [2018-09-13T12:20:08,360][INFO ][o.e.c.s.ClusterApplierService] [localhost.localdomain] master node changed {previous [], current [{localhost.localdomain}{B0aEHNagTiWx7SYj-l4NTw}{hzsQz6CVQMCTpMCVLM4IHg}{127.0.0.1}{127.0.0.1:9300}{testattr=test}]}, reason: apply cluster state (from master [master {localhost.localdomain}{B0aEHNagTiWx7SYj-l4NTw}{hzsQz6CVQMCTpMCVLM4IHg}{127.0.0.1}{127.0.0.1:9300}{testattr=test} committed version [1] source [zen-disco-elected-as-master ([0] nodes joined)[, ]]])
@@ -266,6 +268,7 @@ As mentioned previously, we can override either the cluster or node name. This c
 
 Also note the line marked http with information about the HTTP address (`192.168.8.112`) and port (`9200`) that our node is reachable from. By default, Elasticsearch uses port `9200` to provide access to its REST API. This port is configurable if necessary.
 
+[[getting-started-explore]]
 == Exploring Your Cluster
 
 [float]
@@ -278,6 +281,7 @@ Now that we have our node (and cluster) up and running, the next step is to unde
 * Perform CRUD (Create, Read, Update, and Delete) and search operations against your indexes
 * Execute advanced search operations such as paging, sorting, filtering, scripting, aggregations, and many others
 
+[[getting-started-cluster-health]]
 === Cluster Health
 
 Let's start with a basic health check, which we can use to see how our cluster is doing. We'll be using curl to do this but you can use any tool that allows you to make HTTP/REST calls. Let's assume that we are still on the same node where we started Elasticsearch on and open another command shell window.
@@ -336,6 +340,7 @@ ip        heap.percent ram.percent cpu load_1m load_5m load_15m node.role master
 
 Here, we can see our one node named "PB2SGZY", which is the single node that is currently in our cluster.
 
+[[getting-started-list-indices]]
 === List All Indices
 
 Now let's take a peek at our indices:
@@ -356,6 +361,7 @@ health status index uuid pri rep docs.count docs.deleted store.size pri.store.si
 
 Which simply means we have no indices yet in the cluster.
 
+[[getting-started-create-index]]
 === Create an Index
 
 Now let's create an index named "customer" and then list all the indexes again:
@@ -382,6 +388,7 @@ The results of the second command tells us that we now have one index named cust
 
 You might also notice that the customer index has a yellow health tagged to it. Recall from our previous discussion that yellow means that some replicas are not (yet) allocated. The reason this happens for this index is because Elasticsearch by default created one replica for this index. Since we only have one node running at the moment, that one replica cannot yet be allocated (for high availability) until a later point in time when another node joins the cluster. Once that replica gets allocated onto a second node, the health status for this index will turn to green.
 
+[[getting-started-query-document]]
 === Index and Query a Document
 
 Let's now put something into our customer index. We'll index a simple customer document into the customer index, with an ID of 1 as follows:
@@ -414,7 +421,7 @@ And the response:
   "_primary_term" : 1
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"_seq_no" : 0/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
+// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 From the above, we can see that a new customer document was successfully created inside the customer index. The document also has an internal id of 1 which we specified at index time.
 
@@ -438,14 +445,17 @@ And the response:
   "_type" : "_doc",
   "_id" : "1",
   "_version" : 1,
+  "_seq_no" : 25,
+  "_primary_term" : 1,
   "found" : true,
   "_source" : { "name": "John Doe" }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 Nothing out of the ordinary here other than a field, `found`, stating that we found a document with the requested ID 1 and another field, `_source`, which returns the full JSON document that we indexed from the previous step.
 
+[[getting-started-delete-index]]
 === Delete an Index
 
 Now let's delete the index that we just created and then list all the indexes again:
@@ -492,6 +502,7 @@ If we study the above commands carefully, we can actually see a pattern of how w
 
 This REST access pattern is so pervasive throughout all the API commands that if you can simply remember it, you will have a good head start at mastering Elasticsearch.
 
+[[getting-started-modify-data]]
 == Modifying Your Data
 
 Elasticsearch provides data manipulation and search capabilities in near real time. By default, you can expect a one second delay (refresh interval) from the time you index/update/delete your data until the time that it appears in your search results. This is an important distinction from other platforms like SQL wherein data is immediately available after a transaction is completed.
@@ -552,6 +563,7 @@ POST /customer/_doc?pretty
 
 Note that in the above case, we are using the `POST` verb instead of PUT since we didn't specify an ID.
 
+[[getting-started-update-documents]]
 === Updating Documents
 
 In addition to being able to index and replace documents, we can also update documents. Note though that Elasticsearch does not actually do in-place updates under the hood. Whenever we do an update, Elasticsearch deletes the old document and then indexes a new document with the update applied to it in one shot.
@@ -596,6 +608,7 @@ In the above example, `ctx._source` refers to the current source document that i
 
 Elasticsearch provides the ability to update multiple documents given a query condition (like an `SQL UPDATE-WHERE` statement). See {ref}/docs-update-by-query.html[`docs-update-by-query` API]
 
+[[getting-started-delete-documents]]
 === Deleting Documents
 
 Deleting a document is fairly straightforward. This example shows how to delete our previous customer with the ID of 2:
@@ -611,6 +624,7 @@ See the {ref}/docs-delete-by-query.html[`_delete_by_query` API] to delete all do
 It is worth noting that it is much more efficient to delete a whole index
 instead of deleting all documents with the Delete By Query API.
 
+[[getting-started-batch-processing]]
 === Batch Processing
 
 In addition to being able to index, update, and delete individual documents, Elasticsearch also provides the ability to perform any of the above operations in batches using the {ref}/docs-bulk.html[`_bulk` API]. This functionality is important in that it provides a very efficient mechanism to do multiple operations as fast as possible with as few network roundtrips as possible.
@@ -643,6 +657,7 @@ Note above that for the delete action, there is no corresponding source document
 
 The Bulk API does not fail due to failures in one of the actions. If a single action fails for whatever reason, it will continue to process the remainder of the actions after it. When the bulk API returns, it will provide a status for each action (in the same order it was sent in) so that you can check if a specific action failed or not.
 
+[[getting-started-explore-data]]
 == Exploring Your Data
 
 [float]
@@ -706,6 +721,7 @@ yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    12
 
 Which means that we just successfully bulk indexed 1000 documents into the bank index (under the `_doc` type).
 
+[[getting-started-search-API]]
 === The Search API
 
 Now let's start with some simple searches. There are two basic ways to run searches: one is by sending search parameters through the {ref}/search-uri-request.html[REST request URI] and the other by sending them through the {ref}/search-request-body.html[REST request body]. The request body method allows you to be more expressive and also to define your searches in a more readable JSON format. We'll try one example of the request URI method but for the remainder of this tutorial, we will exclusively be using the request body method.
@@ -735,7 +751,10 @@ And the response (partially shown):
     "failed" : 0
   },
   "hits" : {
-    "total" : 1000,
+    "total" : {
+        "value": 1000,
+        "relation": "eq"
+    },
     "max_score" : null,
     "hits" : [ {
       "_index" : "bank",
@@ -765,10 +784,16 @@ As for the response, we see the following parts:
 * `timed_out` – tells us if the search timed out or not
 * `_shards` – tells us how many shards were searched, as well as a count of the successful/failed searched shards
 * `hits` – search results
-* `hits.total` – total number of documents matching our search criteria
+* `hits.total` – an object that contains information about the total number of documents matching our search criteria
+** `hits.total.value` - the value of the total hit count (must be interpreted in the context of `hits.total.relation`).
+** `hits.total.relation` - whether `hits.total.value` is the exact hit count, in which case it is equal to `"eq"` or a
+                           lower bound of the total hit count (greater than or equals), in which case it is equal to `gte`.
 * `hits.hits` – actual array of search results (defaults to first 10 documents)
 * `hits.sort` - sort key for results (missing if sorting by score)
 * `hits._score` and `max_score` - ignore these fields for now
+
+The accuracy of `hits.total` is controlled by the request parameter `track_total_hits`, when set to true
+the request will track the total hits accurately (`"relation": "eq"`).
 
 Here is the same exact search above using the alternative request body method:
 
@@ -803,7 +828,10 @@ to clutter the docs with it:
     "failed" : 0
   },
   "hits" : {
-    "total" : 1000,
+    "total" : {
+       "value": 1000,
+       "relation": "eq"
+    },
     "max_score": null,
     "hits" : [ {
       "_index" : "bank",
@@ -831,6 +859,7 @@ to clutter the docs with it:
 
 It is important to understand that once you get your search results back, Elasticsearch is completely done with the request and does not maintain any kind of server-side resources or open cursors into your results. This is in stark contrast to many other platforms such as SQL wherein you may initially get a partial subset of your query results up-front and then you have to continuously go back to the server if you want to fetch (or page through) the rest of the results using some kind of stateful server-side cursor.
 
+[[getting-started-query-lang]]
 === Introducing the Query Language
 
 Elasticsearch provides a JSON-style domain-specific language that you can use to execute queries. This is referred to as the {ref}/query-dsl.html[Query DSL]. The query language is quite comprehensive and can be intimidating at first glance but the best way to actually learn it is to start with a few basic examples.
@@ -895,6 +924,7 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
+[[getting-started-search]]
 === Executing Searches
 
 Now that we have seen a few of the basic search parameters, let's dig in some more into the Query DSL. Let's first take a look at the returned document fields. By default, the full JSON document is returned as part of all searches. This is referred to as the source (`_source` field in the search hits). If we don't want the entire source document returned, we have the ability to request only a few fields from within source to be returned.
@@ -1054,6 +1084,7 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
+[[getting-started-filters]]
 === Executing Filters
 
 In the previous section, we skipped over a little detail called the document score (`_score` field in the search results). The score is a numeric value that is a relative measure of how well the document matches the search query that we specified. The higher the score, the more relevant the document is, the lower the score, the less relevant the document is.
@@ -1090,6 +1121,7 @@ Dissecting the above, the bool query contains a `match_all` query (the query par
 
 In addition to the `match_all`, `match`, `bool`, and `range` queries, there are a lot of other query types that are available and we won't go into them here. Since we already have a basic understanding of how they work, it shouldn't be too difficult to apply this knowledge in learning and experimenting with the other query types.
 
+[[getting-started-aggregations]]
 === Executing Aggregations
 
 Aggregations provide the ability to group and extract statistics from your data. The easiest way to think about aggregations is by roughly equating it to the SQL GROUP BY and the SQL aggregate functions. In Elasticsearch, you have the ability to execute searches returning hits and at the same time return aggregated results separate from the hits all in one response. This is very powerful and efficient in the sense that you can run queries and multiple aggregations and get the results back of both (or either) operations in one shot avoiding network roundtrips using a concise and simplified API.
@@ -1134,7 +1166,10 @@ And the response (partially shown):
     "failed": 0
   },
   "hits" : {
-    "total" : 1000,
+     "total" : {
+        "value": 1000,
+        "relation": "eq"
+     },
     "max_score" : null,
     "hits" : [ ]
   },
@@ -1290,6 +1325,7 @@ GET /bank/_search
 
 There are many other aggregations capabilities that we won't go into detail here. The {ref}/search-aggregations.html[aggregations reference guide] is a great starting point if you want to do further experimentation.
 
+[[getting-started-conclusion]]
 == Conclusion
 
 Elasticsearch is both a simple and complex product. We've so far learned the basics of what it is, how to look inside of it, and how to work with it using some of the REST APIs. Hopefully this tutorial has given you a better understanding of what Elasticsearch is and more importantly, inspired you to further experiment with the rest of its great features!

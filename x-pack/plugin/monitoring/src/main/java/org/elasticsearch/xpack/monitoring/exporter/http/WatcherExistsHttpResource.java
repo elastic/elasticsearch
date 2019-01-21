@@ -5,14 +5,13 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -31,7 +30,7 @@ import java.util.Set;
  */
 public class WatcherExistsHttpResource extends PublishableHttpResource {
 
-    private static final Logger logger = Loggers.getLogger(WatcherExistsHttpResource.class);
+    private static final Logger logger = LogManager.getLogger(WatcherExistsHttpResource.class);
     /**
      * Use this to avoid getting any JSON response from a request.
      */
@@ -82,49 +81,33 @@ public class WatcherExistsHttpResource extends PublishableHttpResource {
      * Watcher. We do the same thing if the current node is not the elected master node.
      */
     @Override
-    protected CheckResponse doCheck(final RestClient client) {
+    protected void doCheck(final RestClient client, final ActionListener<Boolean> listener) {
         // only the master manages watches
         if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
-            return checkXPackForWatcher(client);
+            checkXPackForWatcher(client, listener);
+        } else {
+            // not the elected master
+            listener.onResponse(true);
         }
-
-        // not the elected master
-        return CheckResponse.EXISTS;
     }
 
     /**
      * Reach out to the remote cluster to determine the usability of Watcher.
      *
      * @param client The REST client to make the request(s).
-     * @return Never {@code null}.
+     * @param listener Returns {@code true} to <em>skip</em> cluster alert creation. {@code false} to check/create them.
      */
-    private CheckResponse checkXPackForWatcher(final RestClient client) {
-        final Tuple<CheckResponse, Response> response =
-                checkForResource(client, logger,
-                                 "", "_xpack", "watcher check",
-                                 resourceOwnerName, "monitoring cluster",
-                                 GET_EXISTS,
-                                 Sets.newHashSet(RestStatus.NOT_FOUND.getStatus(), RestStatus.BAD_REQUEST.getStatus()));
+    private void checkXPackForWatcher(final RestClient client, final ActionListener<Boolean> listener) {
+        final CheckedFunction<Response, Boolean, IOException> responseChecker =
+            (response) -> canUseWatcher(response, XContentType.JSON.xContent());
+        // use DNE to pretend that we're all set; it means that Watcher is unusable
+        final CheckedFunction<Response, Boolean, IOException> doesNotExistChecker = (response) -> false;
 
-        final CheckResponse checkResponse = response.v1();
-
-        // if the response succeeds overall, then we have X-Pack, but we need to inspect to verify Watcher existence
-        if (checkResponse == CheckResponse.EXISTS) {
-            try {
-                if (canUseWatcher(response.v2(), XContentType.JSON.xContent())) {
-                    return CheckResponse.DOES_NOT_EXIST;
-                }
-            } catch (final IOException | RuntimeException e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to parse [_xpack] on the [{}]", resourceOwnerName), e);
-
-                return CheckResponse.ERROR;
-            }
-        } else if (checkResponse == CheckResponse.ERROR) {
-            return CheckResponse.ERROR;
-        }
-
-        // we return _exists_ to SKIP the work of putting Watches because WATCHER does not exist, so follow-on work cannot succeed
-        return CheckResponse.EXISTS;
+        checkForResource(client, listener, logger,
+                         "", "_xpack", "watcher check",
+                         resourceOwnerName, "monitoring cluster",
+                         GET_EXISTS, Sets.newHashSet(RestStatus.NOT_FOUND.getStatus(), RestStatus.BAD_REQUEST.getStatus()),
+                         responseChecker, doesNotExistChecker);
     }
 
     /**
@@ -148,9 +131,7 @@ public class WatcherExistsHttpResource extends PublishableHttpResource {
             final Map<String, Object> watcher = (Map<String, Object>) features.get("watcher");
 
             // if Watcher is both available _and_ enabled, then we can use it; either being true is not sufficient
-            if (Boolean.TRUE == watcher.get("available") && Boolean.TRUE == watcher.get("enabled")) {
-                return true;
-            }
+            return Boolean.TRUE == watcher.get("available") && Boolean.TRUE == watcher.get("enabled");
         }
 
         return false;
@@ -160,7 +141,7 @@ public class WatcherExistsHttpResource extends PublishableHttpResource {
      * Add Watches to the remote cluster.
      */
     @Override
-    protected boolean doPublish(final RestClient client) {
-        return watches.checkAndPublish(client);
+    protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
+        watches.checkAndPublish(client, listener);
     }
 }

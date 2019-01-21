@@ -5,13 +5,17 @@
  */
 package org.elasticsearch.xpack.sql.expression.gen.pipeline;
 
+import org.elasticsearch.xpack.sql.capabilities.Resolvable;
+import org.elasticsearch.xpack.sql.capabilities.Resolvables;
 import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
+import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.Node;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -24,12 +28,12 @@ import java.util.List;
  * Is an {@code Add} operator with left {@code ABS} over an aggregate (MAX), and
  * right being a {@code CAST} function.
  */
-public abstract class Pipe extends Node<Pipe> implements FieldExtraction {
+public abstract class Pipe extends Node<Pipe> implements FieldExtraction, Resolvable {
 
     private final Expression expression;
 
-    public Pipe(Location location, Expression expression, List<Pipe> children) {
-        super(location, children);
+    public Pipe(Source source, Expression expression, List<Pipe> children) {
+        super(source, children);
         this.expression = expression;
     }
 
@@ -37,7 +41,26 @@ public abstract class Pipe extends Node<Pipe> implements FieldExtraction {
         return expression;
     }
 
-    public abstract boolean resolved();
+    @Override
+    public boolean resolved() {
+        return Resolvables.resolved(children());
+    }
+
+    @Override
+    public void collectFields(SqlSourceBuilder sourceBuilder) {
+        children().forEach(c -> c.collectFields(sourceBuilder));
+    }
+
+    @Override
+    public boolean supportedByAggsOnlyQuery() {
+        for (Pipe pipe : children()) {
+            if (pipe.supportedByAggsOnlyQuery()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     public abstract Processor asProcessor();
 
@@ -48,7 +71,14 @@ public abstract class Pipe extends Node<Pipe> implements FieldExtraction {
      * @return {@code this} if the resolution doesn't change the
      *      definition, a new {@link Pipe} otherwise
      */
-    public abstract Pipe resolveAttributes(AttributeResolver resolver);
+    public Pipe resolveAttributes(AttributeResolver resolver) {
+        List<Pipe> newPipes = new ArrayList<>(children().size());
+        for (Pipe p : children()) {
+            newPipes.add(p.resolveAttributes(resolver));
+        }
+
+        return children().equals(newPipes) ? this : replaceChildren(newPipes);
+    }
 
     public interface AttributeResolver {
         FieldExtraction resolve(Attribute attribute);

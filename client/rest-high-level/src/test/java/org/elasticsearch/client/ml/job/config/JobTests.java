@@ -34,9 +34,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class JobTests extends AbstractXContentTestCase<Job> {
 
@@ -77,93 +75,6 @@ public class JobTests extends AbstractXContentTestCase<Job> {
         assertNotNull(Job.PARSER.apply(parser, null).build());
     }
 
-    public void testEquals_GivenDifferentClass() {
-        Job job = buildJobBuilder("foo").build();
-        assertFalse(job.equals("a string"));
-    }
-
-    public void testEquals_GivenDifferentIds() {
-        Date createTime = new Date();
-        Job.Builder builder = buildJobBuilder("foo");
-        builder.setCreateTime(createTime);
-        Job job1 = builder.build();
-        builder.setId("bar");
-        Job job2 = builder.build();
-        assertFalse(job1.equals(job2));
-    }
-
-    public void testEquals_GivenDifferentRenormalizationWindowDays() {
-        Date date = new Date();
-        Job.Builder jobDetails1 = new Job.Builder("foo");
-        jobDetails1.setDataDescription(new DataDescription.Builder());
-        jobDetails1.setAnalysisConfig(createAnalysisConfig());
-        jobDetails1.setRenormalizationWindowDays(3L);
-        jobDetails1.setCreateTime(date);
-        Job.Builder jobDetails2 = new Job.Builder("foo");
-        jobDetails2.setDataDescription(new DataDescription.Builder());
-        jobDetails2.setRenormalizationWindowDays(4L);
-        jobDetails2.setAnalysisConfig(createAnalysisConfig());
-        jobDetails2.setCreateTime(date);
-        assertFalse(jobDetails1.build().equals(jobDetails2.build()));
-    }
-
-    public void testEquals_GivenDifferentBackgroundPersistInterval() {
-        Date date = new Date();
-        Job.Builder jobDetails1 = new Job.Builder("foo");
-        jobDetails1.setDataDescription(new DataDescription.Builder());
-        jobDetails1.setAnalysisConfig(createAnalysisConfig());
-        jobDetails1.setBackgroundPersistInterval(TimeValue.timeValueSeconds(10000L));
-        jobDetails1.setCreateTime(date);
-        Job.Builder jobDetails2 = new Job.Builder("foo");
-        jobDetails2.setDataDescription(new DataDescription.Builder());
-        jobDetails2.setBackgroundPersistInterval(TimeValue.timeValueSeconds(8000L));
-        jobDetails2.setAnalysisConfig(createAnalysisConfig());
-        jobDetails2.setCreateTime(date);
-        assertFalse(jobDetails1.build().equals(jobDetails2.build()));
-    }
-
-    public void testEquals_GivenDifferentModelSnapshotRetentionDays() {
-        Date date = new Date();
-        Job.Builder jobDetails1 = new Job.Builder("foo");
-        jobDetails1.setDataDescription(new DataDescription.Builder());
-        jobDetails1.setAnalysisConfig(createAnalysisConfig());
-        jobDetails1.setModelSnapshotRetentionDays(10L);
-        jobDetails1.setCreateTime(date);
-        Job.Builder jobDetails2 = new Job.Builder("foo");
-        jobDetails2.setDataDescription(new DataDescription.Builder());
-        jobDetails2.setModelSnapshotRetentionDays(8L);
-        jobDetails2.setAnalysisConfig(createAnalysisConfig());
-        jobDetails2.setCreateTime(date);
-        assertFalse(jobDetails1.build().equals(jobDetails2.build()));
-    }
-
-    public void testEquals_GivenDifferentResultsRetentionDays() {
-        Date date = new Date();
-        Job.Builder jobDetails1 = new Job.Builder("foo");
-        jobDetails1.setDataDescription(new DataDescription.Builder());
-        jobDetails1.setAnalysisConfig(createAnalysisConfig());
-        jobDetails1.setCreateTime(date);
-        jobDetails1.setResultsRetentionDays(30L);
-        Job.Builder jobDetails2 = new Job.Builder("foo");
-        jobDetails2.setDataDescription(new DataDescription.Builder());
-        jobDetails2.setResultsRetentionDays(4L);
-        jobDetails2.setAnalysisConfig(createAnalysisConfig());
-        jobDetails2.setCreateTime(date);
-        assertFalse(jobDetails1.build().equals(jobDetails2.build()));
-    }
-
-    public void testEquals_GivenDifferentCustomSettings() {
-        Job.Builder jobDetails1 = buildJobBuilder("foo");
-        Map<String, Object> customSettings1 = new HashMap<>();
-        customSettings1.put("key1", "value1");
-        jobDetails1.setCustomSettings(customSettings1);
-        Job.Builder jobDetails2 = buildJobBuilder("foo");
-        Map<String, Object> customSettings2 = new HashMap<>();
-        customSettings2.put("key2", "value2");
-        jobDetails2.setCustomSettings(customSettings2);
-        assertFalse(jobDetails1.build().equals(jobDetails2.build()));
-    }
-
     public void testCopyConstructor() {
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
             Job job = createTestInstance();
@@ -182,20 +93,6 @@ public class JobTests extends AbstractXContentTestCase<Job> {
         Job.Builder builder = new Job.Builder("anything").setJobType(null);
         NullPointerException ex = expectThrows(NullPointerException.class, builder::build);
         assertEquals("[job_type] must not be null", ex.getMessage());
-    }
-
-    public static Job.Builder buildJobBuilder(String id, Date date) {
-        Job.Builder builder = new Job.Builder(id);
-        builder.setCreateTime(date);
-        AnalysisConfig.Builder ac = createAnalysisConfig();
-        DataDescription.Builder dc = new DataDescription.Builder();
-        builder.setAnalysisConfig(ac);
-        builder.setDataDescription(dc);
-        return builder;
-    }
-
-    public static Job.Builder buildJobBuilder(String id) {
-        return buildJobBuilder(id, new Date());
     }
 
     public static String randomValidJobId() {
@@ -228,12 +125,6 @@ public class JobTests extends AbstractXContentTestCase<Job> {
         if (randomBoolean()) {
             builder.setFinishedTime(new Date(randomNonNegativeLong()));
         }
-        if (randomBoolean()) {
-            builder.setLastDataTime(new Date(randomNonNegativeLong()));
-        }
-        if (randomBoolean()) {
-            builder.setEstablishedModelMemory(randomNonNegativeLong());
-        }
         builder.setAnalysisConfig(AnalysisConfigTests.createRandomized());
         builder.setAnalysisLimits(AnalysisLimitsTests.createRandomized());
 
@@ -264,6 +155,9 @@ public class JobTests extends AbstractXContentTestCase<Job> {
         }
         if (randomBoolean()) {
             builder.setResultsIndexName(randomValidJobId());
+        }
+        if (randomBoolean()) {
+            builder.setDeleting(randomBoolean());
         }
         return builder;
     }

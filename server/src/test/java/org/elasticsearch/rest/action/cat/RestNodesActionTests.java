@@ -47,9 +47,9 @@ public class RestNodesActionTests extends ESTestCase {
 
     @Before
     public void setUpAction() {
-        UsageService usageService = new UsageService(Settings.EMPTY);
+        UsageService usageService = new UsageService();
         action = new RestNodesAction(Settings.EMPTY,
-                new RestController(Settings.EMPTY, Collections.emptySet(), null, null, null, usageService));
+                new RestController(Collections.emptySet(), null, null, null, usageService));
     }
 
     public void testBuildTableDoesNotThrowGivenNullNodeInfoAndStats() {
@@ -60,7 +60,7 @@ public class RestNodesActionTests extends ESTestCase {
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.nodes()).thenReturn(discoveryNodes);
 
-        ClusterStateResponse clusterStateResponse = new ClusterStateResponse(clusterName, clusterState, randomNonNegativeLong());
+        ClusterStateResponse clusterStateResponse = new ClusterStateResponse(clusterName, clusterState, randomNonNegativeLong(), false);
         NodesInfoResponse nodesInfoResponse = new NodesInfoResponse(clusterName, Collections.emptyList(), Collections.emptyList());
         NodesStatsResponse nodesStatsResponse = new NodesStatsResponse(clusterName, Collections.emptyList(), Collections.emptyList());
 

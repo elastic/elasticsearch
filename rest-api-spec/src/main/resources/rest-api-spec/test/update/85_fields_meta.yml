@@ -12,7 +12,6 @@
 
   - do:
       update:
-          include_type_name: false
           index:  test_1
           id:     1
           parent: 5
@@ -25,7 +24,6 @@
 
   - do:
       get:
-          include_type_name: false
           index:  test_1
           id:     1
           parent: 5

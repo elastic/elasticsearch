@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
@@ -27,6 +28,8 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
+import org.elasticsearch.xpack.ml.datafeed.extractor.fields.TimeBasedExtractedFields;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -61,8 +64,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     private List<String> capturedContinueScrollIds;
     private ArgumentCaptor<ClearScrollRequest> capturedClearScrollRequests;
     private String jobId;
-    private ExtractedFields extractedFields;
-    private List<String> types;
+    private TimeBasedExtractedFields extractedFields;
     private List<String> indices;
     private QueryBuilder query;
     private List<SearchSourceBuilder.ScriptField> scriptFields;
@@ -128,10 +130,9 @@ public class ScrollDataExtractorTests extends ESTestCase {
         capturedContinueScrollIds = new ArrayList<>();
         jobId = "test-job";
         ExtractedField timeField = ExtractedField.newField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
-        extractedFields = new ExtractedFields(timeField,
+        extractedFields = new TimeBasedExtractedFields(timeField,
                 Arrays.asList(timeField, ExtractedField.newField("field_1", ExtractedField.ExtractionMethod.DOC_VALUE)));
         indices = Arrays.asList("index-1", "index-2");
-        types = Arrays.asList("type-1", "type-2");
         query = QueryBuilders.matchAllQuery();
         scriptFields = Collections.emptyList();
         scrollSize = 1000;
@@ -419,7 +420,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
         List<SearchSourceBuilder.ScriptField> sFields = Arrays.asList(withoutSplit, withSplit);
         ScrollDataExtractorContext context = new ScrollDataExtractorContext(jobId, extractedFields, indices,
-                types, query, sFields, scrollSize, 1000, 2000, Collections.emptyMap());
+                query, sFields, scrollSize, 1000, 2000, Collections.emptyMap());
 
         TestDataExtractor extractor = new TestDataExtractor(context);
 
@@ -454,8 +455,6 @@ public class ScrollDataExtractorTests extends ESTestCase {
         // Check for the scripts
         assertThat(searchRequest, containsString("{\"script\":{\"source\":\"return 1 + 1;\",\"lang\":\"mockscript\"}"
                 .replaceAll("\\s", "")));
-        assertThat(searchRequest, containsString("List domainSplit(String host, Map params)".replaceAll("\\s", "")));
-        assertThat(searchRequest, containsString("String replaceDots(String input) {".replaceAll("\\s", "")));
 
         assertThat(capturedContinueScrollIds.size(), equalTo(1));
         assertThat(capturedContinueScrollIds.get(0), equalTo(response1.getScrollId()));
@@ -466,7 +465,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     }
 
     private ScrollDataExtractorContext createContext(long start, long end) {
-        return new ScrollDataExtractorContext(jobId, extractedFields, indices, types, query, scriptFields, scrollSize, start, end,
+        return new ScrollDataExtractorContext(jobId, extractedFields, indices, query, scriptFields, scrollSize, start, end,
                 Collections.emptyMap());
     }
 
@@ -488,7 +487,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
             hit.fields(fields);
             hits.add(hit);
         }
-        SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[0]), hits.size(), 1);
+        SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[0]),
+            new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
         return searchResponse;
     }

@@ -53,6 +53,10 @@ public class PipelineProcessor extends AbstractProcessor {
         return TYPE;
     }
 
+    String getPipelineName() {
+        return pipelineName;
+    }
+
     public static final class Factory implements Processor.Factory {
 
         private final IngestService ingestService;
@@ -65,7 +69,7 @@ public class PipelineProcessor extends AbstractProcessor {
         public PipelineProcessor create(Map<String, Processor.Factory> registry, String processorTag,
             Map<String, Object> config) throws Exception {
             String pipeline =
-                ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "pipeline");
+                ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "name");
             return new PipelineProcessor(processorTag, pipeline, ingestService);
         }
     }

@@ -70,7 +70,7 @@ payload as well as an array of contexts to the action.
 |======
 | Name        |Required   | Description
 | `account`   | no        | The account to use, falls back to the default one.
-                            The account needs a `service_key_api` attribute.
+                            The account needs a `service_api_key` attribute.
 |======
 
 

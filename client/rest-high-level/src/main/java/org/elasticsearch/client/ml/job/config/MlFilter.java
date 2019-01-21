@@ -32,6 +32,14 @@ import java.util.Objects;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+/**
+ * An MlFilter Object
+ *
+ * A filter contains a list of strings.
+ * It can be used by one or more jobs.
+ *
+ * Specifically, filters are referenced in the custom_rules property of detector configuration objects.
+ */
 public class MlFilter implements ToXContentObject {
 
     public static final ParseField TYPE = new ParseField("type");
@@ -105,6 +113,10 @@ public class MlFilter implements ToXContentObject {
         return Objects.hash(id, description, items);
     }
 
+    /**
+     * Creates a new Builder object for creating an MlFilter object
+     * @param filterId The ID of the filter to create
+     */
     public static Builder builder(String filterId) {
         return new Builder().setId(filterId);
     }
@@ -118,6 +130,10 @@ public class MlFilter implements ToXContentObject {
         private Builder() {
         }
 
+        /**
+         * Set the ID of the filter
+         * @param id The id desired
+         */
         public Builder setId(String id) {
             this.id = Objects.requireNonNull(id);
             return this;
@@ -128,6 +144,10 @@ public class MlFilter implements ToXContentObject {
             return id;
         }
 
+        /**
+         * Set the description of the filter
+         * @param description The description desired
+         */
         public Builder setDescription(String description) {
             this.description = description;
             return this;
@@ -143,6 +163,13 @@ public class MlFilter implements ToXContentObject {
             return this;
         }
 
+        /**
+         * The items of the filter.
+         *
+         * A wildcard * can be used at the beginning or the end of an item. Up to 10000 items are allowed in each filter.
+         *
+         * @param items String list of items to be applied in the filter
+         */
         public Builder setItems(String... items) {
             setItems(Arrays.asList(items));
             return this;

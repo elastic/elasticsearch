@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -335,7 +336,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                     threadContext.wrapRestorable(storedContext), new TransportResponseHandler<Empty>() {
 
                 @Override
-                public Empty newInstance() {
+                public Empty read(StreamInput in) {
                     return Empty.INSTANCE;
                 }
 
@@ -374,7 +375,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                         new TransportResponseHandler<Empty>() {
 
                             @Override
-                            public Empty newInstance() {
+                            public Empty read(StreamInput in) {
                                 return Empty.INSTANCE;
                             }
 

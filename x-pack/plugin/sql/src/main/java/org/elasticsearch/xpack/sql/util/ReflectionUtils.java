@@ -24,7 +24,17 @@ public class ReflectionUtils {
                             c);
                 }
 
-                return (Class<E>) typeArguments[0];
+                Type tp = typeArguments[0];
+
+                if (tp instanceof Class<?>) {
+                    return (Class<E>) tp;
+                } else if (tp instanceof ParameterizedType) {
+                    Type rawType = ((ParameterizedType) type).getRawType();
+                    if (rawType instanceof Class<?>) {
+                        return (Class<E>) rawType;
+                    }
+                }
+                throw new SqlIllegalArgumentException("Unexpected class structure for class {}", c);
             }
             clazz = clazz.getSuperclass();
         }

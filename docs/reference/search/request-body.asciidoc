@@ -31,7 +31,10 @@ And here is a sample response:
         "failed" : 0
     },
     "hits":{
-        "total" : 1,
+        "total" : {
+            "value": 1,
+            "relation": "eq"
+        },
         "max_score": 1.3862944,
         "hits" : [
             {
@@ -162,7 +165,10 @@ be set to `true` in the response.
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": null,
     "hits": []
   }
@@ -182,6 +188,8 @@ include::request/query.asciidoc[]
 include::request/from-size.asciidoc[]
 
 include::request/sort.asciidoc[]
+
+include::request/track-total-hits.asciidoc[]
 
 include::request/source-filtering.asciidoc[]
 

@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -23,6 +24,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -45,8 +47,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -58,6 +62,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class FollowingEngineTests extends ESTestCase {
 
@@ -65,6 +70,7 @@ public class FollowingEngineTests extends ESTestCase {
     private Index index;
     private ShardId shardId;
     private AtomicLong primaryTerm = new AtomicLong();
+    private AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
 
     public void setUp() throws Exception {
         super.setUp();
@@ -121,6 +127,7 @@ public class FollowingEngineTests extends ESTestCase {
                         .put("index.number_of_replicas", 0)
                         .put("index.version.created", Version.CURRENT)
                         .put("index.xpack.ccr.following_index", true)
+                        .put("index.soft_deletes.enabled", true)
                         .build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
@@ -146,6 +153,7 @@ public class FollowingEngineTests extends ESTestCase {
                         .put("index.number_of_replicas", 0)
                         .put("index.version.created", Version.CURRENT)
                         .put("index.xpack.ccr.following_index", true)
+                        .put("index.soft_deletes.enabled", true)
                         .build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
@@ -180,6 +188,7 @@ public class FollowingEngineTests extends ESTestCase {
                         .put("index.number_of_replicas", 0)
                         .put("index.version.created", Version.CURRENT)
                         .put("index.xpack.ccr.following_index", true)
+                        .put("index.soft_deletes.enabled", true)
                         .build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
@@ -196,7 +205,8 @@ public class FollowingEngineTests extends ESTestCase {
                         randomNonNegativeLong(),
                         VersionType.EXTERNAL,
                         origin,
-                        System.currentTimeMillis());
+                        System.currentTimeMillis(),
+                        SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
 
                 consumer.accept(followingEngine, delete);
             }
@@ -210,6 +220,7 @@ public class FollowingEngineTests extends ESTestCase {
                 .put("index.number_of_replicas", 0)
                 .put("index.version.created", Version.CURRENT)
                 .put("index.xpack.ccr.following_index", true)
+                .put("index.soft_deletes.enabled", true)
                 .build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
@@ -258,10 +269,10 @@ public class FollowingEngineTests extends ESTestCase {
                 Collections.emptyList(),
                 null,
                 new NoneCircuitBreakerService(),
-                () -> SequenceNumbers.NO_OPS_PERFORMED,
+                globalCheckpoint::longValue,
+                Collections::emptyList,
                 () -> primaryTerm.get(),
-                EngineTestCase.tombstoneDocSupplier()
-        );
+                EngineTestCase.tombstoneDocSupplier());
     }
 
     private static Store createStore(
@@ -270,7 +281,7 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     private FollowingEngine createEngine(Store store, EngineConfig config) throws IOException {
-        store.createEmpty();
+        store.createEmpty(config.getIndexSettings().getIndexVersionCreated().luceneVersion);
         final String translogUuid = Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(),
                 SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L);
         store.associateIndexWithNewTranslog(translogUuid);
@@ -285,7 +296,8 @@ public class FollowingEngineTests extends ESTestCase {
         final long version = randomBoolean() ? 1 : randomNonNegativeLong();
         final ParsedDocument parsedDocument = EngineTestCase.createParsedDoc(id, null);
         return new Engine.Index(EngineTestCase.newUid(parsedDocument), parsedDocument, seqNo, primaryTerm.get(), version,
-            VersionType.EXTERNAL, origin, System.currentTimeMillis(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, randomBoolean());
+            VersionType.EXTERNAL, origin, System.currentTimeMillis(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, randomBoolean(),
+            SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
     }
 
     private Engine.Index indexForPrimary(String id) {
@@ -296,6 +308,26 @@ public class FollowingEngineTests extends ESTestCase {
     private Engine.Delete deleteForPrimary(String id) {
         final ParsedDocument parsedDoc = EngineTestCase.createParsedDoc(id, null);
         return new Engine.Delete(parsedDoc.type(), parsedDoc.id(), EngineTestCase.newUid(parsedDoc), primaryTerm.get());
+    }
+
+    private Engine.Result applyOperation(Engine engine, Engine.Operation op,
+                                         long primaryTerm, Engine.Operation.Origin origin) throws IOException {
+        final VersionType versionType = origin == Engine.Operation.Origin.PRIMARY ? VersionType.EXTERNAL : null;
+        final Engine.Result result;
+        if (op instanceof Engine.Index) {
+            Engine.Index index = (Engine.Index) op;
+            result = engine.index(new Engine.Index(index.uid(), index.parsedDoc(), index.seqNo(), primaryTerm, index.version(),
+                versionType, origin, index.startTime(), index.getAutoGeneratedIdTimestamp(), index.isRetry(),
+                index.getIfSeqNo(), index.getIfPrimaryTerm()));
+        } else if (op instanceof Engine.Delete) {
+            Engine.Delete delete = (Engine.Delete) op;
+            result = engine.delete(new Engine.Delete(delete.type(), delete.id(), delete.uid(), delete.seqNo(), primaryTerm,
+                delete.version(), versionType, origin, delete.startTime(), delete.getIfSeqNo(), delete.getIfPrimaryTerm()));
+        } else {
+            Engine.NoOp noOp = (Engine.NoOp) op;
+            result = engine.noOp(new Engine.NoOp(noOp.seqNo(), primaryTerm, origin, noOp.startTime(), noOp.reason()));
+        }
+        return result;
     }
 
     public void testBasicOptimization() throws Exception {
@@ -456,7 +488,7 @@ public class FollowingEngineTests extends ESTestCase {
         IndexMetaData leaderIndexMetaData = IndexMetaData.builder(index.getName()).settings(leaderSettings).build();
         IndexSettings leaderIndexSettings = new IndexSettings(leaderIndexMetaData, leaderSettings);
         try (Store leaderStore = createStore(shardId, leaderIndexSettings, newDirectory())) {
-            leaderStore.createEmpty();
+            leaderStore.createEmpty(leaderIndexMetaData.getCreationVersion().luceneVersion);
             EngineConfig leaderConfig = engineConfig(shardId, leaderIndexSettings, threadPool, leaderStore, logger, xContentRegistry());
             leaderStore.associateIndexWithNewTranslog(Translog.createEmptyTranslog(
                 leaderConfig.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L));
@@ -530,5 +562,81 @@ public class FollowingEngineTests extends ESTestCase {
                 snapshot.close();
             }
         };
+    }
+
+    public void testProcessOnceOnPrimary() throws Exception {
+        final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
+            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
+        final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
+        final CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedDocFunc = EngineTestCase.nestedParsedDocFactory();
+        int numOps = between(10, 100);
+        List<Engine.Operation> operations = new ArrayList<>(numOps);
+        for (int i = 0; i < numOps; i++) {
+            String docId = Integer.toString(between(1, 100));
+            ParsedDocument doc = randomBoolean() ? EngineTestCase.createParsedDoc(docId, null) : nestedDocFunc.apply(docId, randomInt(3));
+            if (randomBoolean()) {
+                operations.add(new Engine.Index(EngineTestCase.newUid(doc), doc, i, primaryTerm.get(), 1L,
+                    VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, threadPool.relativeTimeInMillis(), -1, true,
+                    SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
+            } else if (randomBoolean()) {
+                operations.add(new Engine.Delete(doc.type(), doc.id(), EngineTestCase.newUid(doc), i, primaryTerm.get(), 1L,
+                    VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, threadPool.relativeTimeInMillis(),
+                    SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
+            } else {
+                operations.add(new Engine.NoOp(i, primaryTerm.get(), Engine.Operation.Origin.PRIMARY,
+                    threadPool.relativeTimeInMillis(), "test-" + i));
+            }
+        }
+        Randomness.shuffle(operations);
+        final long oldTerm = randomLongBetween(1, Integer.MAX_VALUE);
+        primaryTerm.set(oldTerm);
+        try (Store store = createStore(shardId, indexSettings, newDirectory())) {
+            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
+            try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
+                followingEngine.advanceMaxSeqNoOfUpdatesOrDeletes(operations.size() - 1L);
+                final Map<Long,Long> operationWithTerms = new HashMap<>();
+                for (Engine.Operation op : operations) {
+                    long term = randomLongBetween(1, oldTerm);
+                    Engine.Result result = applyOperation(followingEngine, op, term, randomFrom(Engine.Operation.Origin.values()));
+                    assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+                    operationWithTerms.put(op.seqNo(), term);
+                    if (rarely()) {
+                        followingEngine.refresh("test");
+                    }
+                }
+                // Primary should reject duplicates
+                globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), followingEngine.getLocalCheckpoint()));
+                final long newTerm = randomLongBetween(oldTerm + 1, Long.MAX_VALUE);
+                for (Engine.Operation op : operations) {
+                    Engine.Result result = applyOperation(followingEngine, op, newTerm, Engine.Operation.Origin.PRIMARY);
+                    assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+                    assertThat(result.getFailure(), instanceOf(AlreadyProcessedFollowingEngineException.class));
+                    AlreadyProcessedFollowingEngineException failure = (AlreadyProcessedFollowingEngineException) result.getFailure();
+                    if (op.seqNo() <= globalCheckpoint.get()) {
+                        assertThat("should not look-up term for operations at most the global checkpoint",
+                            failure.getExistingPrimaryTerm().isPresent(), equalTo(false));
+                    } else {
+                        assertThat(failure.getExistingPrimaryTerm().getAsLong(), equalTo(operationWithTerms.get(op.seqNo())));
+                    }
+                }
+                for (DocIdSeqNoAndTerm docId : getDocIds(followingEngine, true)) {
+                    assertThat(docId.getPrimaryTerm(), equalTo(operationWithTerms.get(docId.getSeqNo())));
+                }
+                // Replica should accept duplicates
+                primaryTerm.set(newTerm);
+                followingEngine.rollTranslogGeneration();
+                for (Engine.Operation op : operations) {
+                    Engine.Operation.Origin nonPrimary = randomValueOtherThan(Engine.Operation.Origin.PRIMARY,
+                        () -> randomFrom(Engine.Operation.Origin.values()));
+                    Engine.Result result = applyOperation(followingEngine, op, newTerm, nonPrimary);
+                    assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+                }
+                for (DocIdSeqNoAndTerm docId : getDocIds(followingEngine, true)) {
+                    assertThat(docId.getPrimaryTerm(), equalTo(operationWithTerms.get(docId.getSeqNo())));
+                }
+            }
+        }
     }
 }

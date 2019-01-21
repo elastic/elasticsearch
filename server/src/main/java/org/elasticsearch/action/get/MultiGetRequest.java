@@ -89,10 +89,18 @@ public class MultiGetRequest extends ActionRequest
          * @param index The index name
          * @param type  The type (can be null)
          * @param id    The id
+         *
+         * @deprecated Types are in the process of being removed, use {@link Item(String, String) instead}.
          */
+        @Deprecated
         public Item(String index, @Nullable String type, String id) {
             this.index = index;
             this.type = type;
+            this.id = id;
+        }
+
+        public Item(String index, String id) {
+            this.index = index;
             this.id = id;
         }
 
@@ -117,11 +125,6 @@ public class MultiGetRequest extends ActionRequest
 
         public String type() {
             return this.type;
-        }
-
-        public Item type(String type) {
-            this.type = type;
-            return this;
         }
 
         public String id() {
@@ -191,7 +194,7 @@ public class MultiGetRequest extends ActionRequest
             type = in.readOptionalString();
             id = in.readString();
             routing = in.readOptionalString();
-            if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            if (in.getVersion().before(Version.V_7_0_0)) {
                 in.readOptionalString(); // _parent
             }
             storedFields = in.readOptionalStringArray();
@@ -207,7 +210,7 @@ public class MultiGetRequest extends ActionRequest
             out.writeOptionalString(type);
             out.writeString(id);
             out.writeOptionalString(routing);
-            if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().before(Version.V_7_0_0)) {
                 out.writeOptionalString(null); // _parent
             }
             out.writeOptionalStringArray(storedFields);
@@ -285,8 +288,18 @@ public class MultiGetRequest extends ActionRequest
         return this;
     }
 
+    /**
+     * @deprecated Types are in the process of being removed, use
+     * {@link MultiGetRequest#add(String, String)} instead.
+     */
+    @Deprecated
     public MultiGetRequest add(String index, @Nullable String type, String id) {
         items.add(new Item(index, type, id));
+        return this;
+    }
+
+    public MultiGetRequest add(String index, String id) {
+        items.add(new Item(index, id));
         return this;
     }
 
@@ -360,7 +373,8 @@ public class MultiGetRequest extends ActionRequest
                 currentFieldName = parser.currentName();
             } else if (token == Token.START_ARRAY) {
                 if ("docs".equals(currentFieldName)) {
-                    parseDocuments(parser, this.items, defaultIndex, defaultType, defaultFields, defaultFetchSource, defaultRouting, allowExplicitIndex);
+                    parseDocuments(parser, this.items, defaultIndex, defaultType, defaultFields, defaultFetchSource, defaultRouting,
+                        allowExplicitIndex);
                 } else if ("ids".equals(currentFieldName)) {
                     parseIds(parser, this.items, defaultIndex, defaultType, defaultFields, defaultFetchSource, defaultRouting);
                 } else {
@@ -384,7 +398,9 @@ public class MultiGetRequest extends ActionRequest
         return this;
     }
 
-    private static void parseDocuments(XContentParser parser, List<Item> items, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, @Nullable String defaultRouting, boolean allowExplicitIndex) throws IOException {
+    private static void parseDocuments(XContentParser parser, List<Item> items, @Nullable String defaultIndex, @Nullable String defaultType,
+                                       @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource,
+                                       @Nullable String defaultRouting, boolean allowExplicitIndex) throws IOException {
         String currentFieldName = null;
         Token token;
         while ((token = parser.nextToken()) != Token.END_ARRAY) {
@@ -427,8 +443,7 @@ public class MultiGetRequest extends ActionRequest
                     } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                         versionType = VersionType.fromString(parser.text());
                     } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
-                        // check lenient to avoid interpreting the value as string but parse strict in order to provoke an error early on.
-                        if (parser.isBooleanValueLenient()) {
+                        if (parser.isBooleanValue()) {
                             fetchSourceContext = new FetchSourceContext(parser.booleanValue(), fetchSourceContext.includes(),
                                 fetchSourceContext.excludes());
                         } else if (token == Token.VALUE_STRING) {
@@ -500,13 +515,16 @@ public class MultiGetRequest extends ActionRequest
         }
     }
 
-    public static void parseIds(XContentParser parser, List<Item> items, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, @Nullable String defaultRouting) throws IOException {
+    public static void parseIds(XContentParser parser, List<Item> items, @Nullable String defaultIndex, @Nullable String defaultType,
+                                @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource,
+                                @Nullable String defaultRouting) throws IOException {
         Token token;
         while ((token = parser.nextToken()) != Token.END_ARRAY) {
             if (!token.isValue()) {
                 throw new IllegalArgumentException("ids array element should only contain ids");
             }
-            items.add(new Item(defaultIndex, defaultType, parser.text()).storedFields(defaultFields).fetchSourceContext(defaultFetchSource).routing(defaultRouting));
+            items.add(new Item(defaultIndex, defaultType, parser.text()).storedFields(defaultFields).fetchSourceContext(defaultFetchSource)
+                .routing(defaultRouting));
         }
     }
 

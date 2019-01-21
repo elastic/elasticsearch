@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.FieldScript;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,10 +28,10 @@ public class ScriptFieldsContext {
 
     public static class ScriptField {
         private final String name;
-        private final SearchScript.LeafFactory script;
+        private final FieldScript.LeafFactory script;
         private final boolean ignoreException;
 
-        public ScriptField(String name, SearchScript.LeafFactory script, boolean ignoreException) {
+        public ScriptField(String name, FieldScript.LeafFactory script, boolean ignoreException) {
             this.name = name;
             this.script = script;
             this.ignoreException = ignoreException;
@@ -41,7 +41,7 @@ public class ScriptFieldsContext {
             return name;
         }
 
-        public SearchScript.LeafFactory script() {
+        public FieldScript.LeafFactory script() {
             return this.script;
         }
 

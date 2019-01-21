@@ -1,0 +1,158 @@
+---
+"Migrate results data to latest index binary version":
+  # Verify that all the results are there and the typical indices exist
+  - do:
+      ml.get_buckets:
+        job_id: old-cluster-job-to-upgrade
+  - match: { count: 1 }
+
+  - do:
+      ml.get_buckets:
+        job_id: old-cluster-job-to-upgrade-custom
+  - match: { count: 3 }
+
+  - do:
+      indices.exists:
+        index: .ml-anomalies-shared
+
+  - is_true: ''
+
+  - do:
+      indices.get_settings:
+        index: .ml-anomalies-shared
+        name: index.version.created
+
+  - match: { \.ml-anomalies-shared.settings.index.version.created: '/6\d+/' }
+
+  - do:
+      indices.exists:
+        index: .ml-anomalies-custom-old-cluster-job-to-upgrade-custom
+
+  - is_true: ''
+
+  # Do the upgrade
+  - do:
+      ml.upgrade:
+        wait_for_completion: true
+
+  - match: { acknowledged: true }
+
+  # Verify that old indices are gone
+  - do:
+      indices.exists:
+        index: .ml-anomalies-shared
+
+  - is_false: ''
+
+  - do:
+      indices.exists:
+        index: .ml-anomalies-custom-old-cluster-job-to-upgrade-custom
+
+  - is_false: ''
+
+  # Verify that results can still be retrieved
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      ml.get_buckets:
+        job_id: old-cluster-job-to-upgrade
+  - match: { count: 1 }
+
+  - do:
+      ml.get_buckets:
+        job_id: old-cluster-job-to-upgrade-custom
+  - match: { count: 3 }
+
+  # Verify the created version is correct
+
+  - do:
+      indices.get_settings:
+        index: .ml-anomalies-old-cluster-job-to-upgrade
+        name: index.version.created
+  - match: { \.ml-anomalies-shared-7.settings.index.version.created: '/7\d+/' }
+  - match: { \.ml-anomalies-shared-7r.settings.index.version.created: '/7\d+/' }
+
+  - do:
+      indices.get_settings:
+        index: .ml-anomalies-old-cluster-job-to-upgrade-custom
+        name: index.version.created
+  - match: { \.ml-anomalies-custom-old-cluster-job-to-upgrade-custom-7.settings.index.version.created: '/7\d+/' }
+  - match: { \.ml-anomalies-custom-old-cluster-job-to-upgrade-custom-7r.settings.index.version.created: '/7\d+/' }
+
+  # Create a new job to verify that the .ml-anomalies-shared index gets created again without issues
+
+  - do:
+      ml.put_job:
+        job_id: upgraded-cluster-job-should-not-upgrade
+        body:  >
+          {
+            "description":"Cluster upgrade",
+            "analysis_config" : {
+                "bucket_span": "60s",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "50mb"
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+  - match: { job_id: upgraded-cluster-job-should-not-upgrade }
+
+  - do:
+      ml.open_job:
+        job_id: upgraded-cluster-job-should-not-upgrade
+
+  - do:
+      ml.post_data:
+        job_id: upgraded-cluster-job-should-not-upgrade
+        body:
+        - airline: AAL
+          responsetime: 132.2046
+          sourcetype: post-data-job
+          time: 1403481600
+        - airline: JZA
+          responsetime: 990.4628
+          sourcetype: post-data-job
+          time: 1403481700
+  - match: { processed_record_count: 2 }
+
+  - do:
+      ml.close_job:
+        job_id: upgraded-cluster-job-should-not-upgrade
+
+  - do:
+      ml.get_buckets:
+        job_id: upgraded-cluster-job-should-not-upgrade
+  - match: { count: 1 }
+
+  - do:
+      indices.exists:
+        index: .ml-anomalies-shared
+
+  - is_true: ''
+
+  - do:
+      indices.get_settings:
+        index: .ml-anomalies-shared
+        name: index.version.created
+
+  - match: { \.ml-anomalies-shared.settings.index.version.created: '/7\d+/' }
+
+  # Do the upgrade Again as nothing needs upgraded now
+  - do:
+      ml.upgrade:
+        wait_for_completion: true
+
+  - match: { acknowledged: true }
+
+  - do:
+      indices.exists:
+        index: .ml-anomalies-shared
+
+  - is_true: ''

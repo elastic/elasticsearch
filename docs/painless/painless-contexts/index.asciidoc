@@ -28,7 +28,9 @@ include::painless-metric-agg-combine-context.asciidoc[]
 
 include::painless-metric-agg-reduce-context.asciidoc[]
 
-include::painless-bucket-agg-context.asciidoc[]
+include::painless-bucket-script-agg-context.asciidoc[]
+
+include::painless-bucket-selector-agg-context.asciidoc[]
 
 include::painless-analysis-predicate-context.asciidoc[]
 

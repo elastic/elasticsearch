@@ -23,7 +23,6 @@ class ChunkedDataExtractorContext {
     final String jobId;
     final String timeField;
     final String[] indices;
-    final String[] types;
     final QueryBuilder query;
     final int scrollSize;
     final long start;
@@ -31,14 +30,15 @@ class ChunkedDataExtractorContext {
     final TimeValue chunkSpan;
     final TimeAligner timeAligner;
     final Map<String, String> headers;
+    final boolean hasAggregations;
+    final Long histogramInterval;
 
-    ChunkedDataExtractorContext(String jobId, String timeField, List<String> indices, List<String> types,
-                                QueryBuilder query, int scrollSize, long start, long end, @Nullable TimeValue chunkSpan,
-                                TimeAligner timeAligner, Map<String, String> headers) {
+    ChunkedDataExtractorContext(String jobId, String timeField, List<String> indices, QueryBuilder query, int scrollSize, long start,
+                                long end, @Nullable TimeValue chunkSpan, TimeAligner timeAligner, Map<String, String> headers,
+                                boolean hasAggregations, @Nullable Long histogramInterval) {
         this.jobId = Objects.requireNonNull(jobId);
         this.timeField = Objects.requireNonNull(timeField);
         this.indices = indices.toArray(new String[indices.size()]);
-        this.types = types.toArray(new String[types.size()]);
         this.query = Objects.requireNonNull(query);
         this.scrollSize = scrollSize;
         this.start = start;
@@ -46,5 +46,7 @@ class ChunkedDataExtractorContext {
         this.chunkSpan = chunkSpan;
         this.timeAligner = Objects.requireNonNull(timeAligner);
         this.headers = headers;
+        this.hasAggregations = hasAggregations;
+        this.histogramInterval = histogramInterval;
     }
 }

@@ -20,10 +20,11 @@
 package org.elasticsearch.discovery.zen;
 
 import com.carrotsearch.hppc.ObjectContainer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -32,12 +33,13 @@ import org.elasticsearch.common.util.CollectionUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class ElectMasterService extends AbstractComponent {
+public class ElectMasterService {
+
+    private static final Logger logger = LogManager.getLogger(ElectMasterService.class);
 
     public static final Setting<Integer> DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING =
         Setting.intSetting("discovery.zen.minimum_master_nodes", -1, Property.Dynamic, Property.NodeScope);
@@ -98,7 +100,6 @@ public class ElectMasterService extends AbstractComponent {
     }
 
     public ElectMasterService(Settings settings) {
-        super(settings);
         this.minimumMasterNodes = DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
         logger.debug("using minimum_master_nodes [{}]", minimumMasterNodes);
     }
@@ -204,12 +205,7 @@ public class ElectMasterService extends AbstractComponent {
             return null;
         }
         // clean non master nodes
-        for (Iterator<DiscoveryNode> it = possibleNodes.iterator(); it.hasNext(); ) {
-            DiscoveryNode node = it.next();
-            if (!node.isMasterNode()) {
-                it.remove();
-            }
-        }
+        possibleNodes.removeIf(node -> !node.isMasterNode());
         CollectionUtil.introSort(possibleNodes, ElectMasterService::compareNodes);
         return possibleNodes;
     }

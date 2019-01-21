@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
@@ -47,10 +46,10 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     private final IndicesService indicesService;
 
     @Inject
-    public TransportGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
+    public TransportGetAction(ClusterService clusterService, TransportService transportService,
                               IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
                               IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(GetAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 GetRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
     }
@@ -63,7 +62,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting()
-                .getShards(clusterService.state(), request.concreteIndex(), request.request().id(), request.request().routing(), request.request().preference());
+                .getShards(clusterService.state(), request.concreteIndex(), request.request().id(), request.request().routing(),
+                    request.request().preference());
     }
 
     @Override
@@ -71,7 +71,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         // update the routing (request#index here is possibly an alias)
         request.request().routing(state.metaData().resolveIndexRouting(request.request().routing(), request.request().index()));
         // Fail fast on the node that received the request.
-        if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.request().type())) {
+        if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex())) {
             throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
         }
     }

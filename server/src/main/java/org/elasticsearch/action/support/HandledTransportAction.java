@@ -25,7 +25,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -41,27 +40,27 @@ import java.util.function.Supplier;
  */
 public abstract class HandledTransportAction<Request extends ActionRequest, Response extends ActionResponse>
         extends TransportAction<Request, Response> {
-    protected HandledTransportAction(Settings settings, String actionName, TransportService transportService,
+    protected HandledTransportAction(String actionName, TransportService transportService,
                                      ActionFilters actionFilters, Supplier<Request> request) {
-        this(settings, actionName, true, transportService, actionFilters, request);
+        this(actionName, true, transportService, actionFilters, request);
     }
 
-    protected HandledTransportAction(Settings settings, String actionName, TransportService transportService,
+    protected HandledTransportAction(String actionName, TransportService transportService,
                                      ActionFilters actionFilters, Writeable.Reader<Request> requestReader) {
-        this(settings, actionName, true, transportService, actionFilters, requestReader);
+        this(actionName, true, transportService, actionFilters, requestReader);
     }
 
-    protected HandledTransportAction(Settings settings, String actionName, boolean canTripCircuitBreaker,
+    protected HandledTransportAction(String actionName, boolean canTripCircuitBreaker,
                                      TransportService transportService, ActionFilters actionFilters, Supplier<Request> request) {
-        super(settings, actionName, actionFilters, transportService.getTaskManager());
+        super(actionName, actionFilters, transportService.getTaskManager());
         transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, false, canTripCircuitBreaker,
             new TransportHandler());
     }
 
-    protected HandledTransportAction(Settings settings, String actionName, boolean canTripCircuitBreaker,
+    protected HandledTransportAction(String actionName, boolean canTripCircuitBreaker,
                                      TransportService transportService, ActionFilters actionFilters,
                                      Writeable.Reader<Request> requestReader) {
-        super(settings, actionName, actionFilters, transportService.getTaskManager());
+        super(actionName, actionFilters, transportService.getTaskManager());
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, false, canTripCircuitBreaker, requestReader,
             new TransportHandler());
     }

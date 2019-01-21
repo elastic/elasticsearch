@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
@@ -13,7 +14,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -61,7 +61,7 @@ import static java.util.Collections.singletonList;
 // TODO: add retry/back-off
 public class Querier {
 
-    private final Logger log = Loggers.getLogger(getClass());
+    private final Logger log = LogManager.getLogger(getClass());
 
     private final TimeValue keepAlive, timeout;
     private final int size;
@@ -253,8 +253,9 @@ public class Querier {
             List<FieldExtraction> refs = query.columns();
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
+            ConstantExtractor totalCount = new ConstantExtractor(response.getHits().getTotalHits().value);
             for (FieldExtraction ref : refs) {
-                exts.add(createExtractor(ref, new ConstantExtractor(response.getHits().getTotalHits())));
+                exts.add(createExtractor(ref, totalCount));
             }
             return exts;
         }
@@ -262,7 +263,7 @@ public class Querier {
         private BucketExtractor createExtractor(FieldExtraction ref, BucketExtractor totalCount) {
             if (ref instanceof GroupByRef) {
                 GroupByRef r = (GroupByRef) ref;
-                return new CompositeKeyExtractor(r.key(), r.property(), r.timeZone());
+                return new CompositeKeyExtractor(r.key(), r.property(), r.zoneId());
             }
 
             if (ref instanceof MetricAggRef) {
@@ -280,7 +281,7 @@ public class Querier {
                 // wrap only agg inputs
                 proc = proc.transformDown(l -> {
                     BucketExtractor be = createExtractor(l.context(), totalCount);
-                    return new AggExtractorInput(l.location(), l.expression(), l.action(), be);
+                    return new AggExtractorInput(l.source(), l.expression(), l.action(), be);
                 }, AggPathInput.class);
 
                 return new ComputingExtractor(proc.asProcessor());
@@ -317,19 +318,20 @@ public class Querier {
             // there are some results
             if (hits.length > 0) {
                 String scrollId = response.getScrollId();
-
+                SchemaSearchHitRowSet hitRowSet = new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), scrollId);
+                
                 // if there's an id, try to setup next scroll
                 if (scrollId != null &&
                         // is all the content already retrieved?
-                        (Boolean.TRUE.equals(response.isTerminatedEarly()) || response.getHits().getTotalHits() == hits.length
-                        // or maybe the limit has been reached
-                        || (hits.length >= query.limit() && query.limit() > -1))) {
+                        (Boolean.TRUE.equals(response.isTerminatedEarly()) 
+                                || response.getHits().getTotalHits().value == hits.length
+                                || hitRowSet.isLimitReached())) {
                     // if so, clear the scroll
                     clear(response.getScrollId(), ActionListener.wrap(
                             succeeded -> listener.onResponse(new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), null)),
                             listener::onFailure));
                 } else {
-                    listener.onResponse(new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), scrollId));
+                    listener.onResponse(hitRowSet);
                 }
             }
             // no hits
@@ -362,7 +364,7 @@ public class Querier {
                         throw new SqlIllegalArgumentException("Multi-level nested fields [{}] not supported yet", hitNames);
                     }
 
-                    return new HitExtractorInput(l.location(), l.expression(), he);
+                    return new HitExtractorInput(l.source(), l.expression(), he);
                 }, ReferenceInput.class);
                 String hitName = null;
                 if (hitNames.size() == 1) {

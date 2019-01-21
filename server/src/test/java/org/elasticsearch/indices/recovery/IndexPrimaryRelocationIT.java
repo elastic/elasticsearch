@@ -44,7 +44,8 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
 
     private static final int RELOCATION_COUNT = 15;
 
-    @TestLogging("_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.index.shard:TRACE,org.elasticsearch.cluster.service:TRACE")
+    @TestLogging("_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.index.shard:TRACE," +
+        "org.elasticsearch.cluster.service:TRACE")
     public void testPrimaryRelocationWhileIndexing() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(randomIntBetween(2, 3));
         client().admin().indices().prepareCreate("test")
@@ -71,7 +72,8 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
 
         ClusterState initialState = client().admin().cluster().prepareState().get().getState();
         DiscoveryNode[] dataNodes = initialState.getNodes().getDataNodes().values().toArray(DiscoveryNode.class);
-        DiscoveryNode relocationSource = initialState.getNodes().getDataNodes().get(initialState.getRoutingTable().shardRoutingTable("test", 0).primaryShard().currentNodeId());
+        DiscoveryNode relocationSource = initialState.getNodes().getDataNodes().get(initialState.getRoutingTable()
+            .shardRoutingTable("test", 0).primaryShard().currentNodeId());
         for (int i = 0; i < RELOCATION_COUNT; i++) {
             DiscoveryNode relocationTarget = randomFrom(dataNodes);
             while (relocationTarget.equals(relocationSource)) {
@@ -81,11 +83,13 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
             client().admin().cluster().prepareReroute()
                 .add(new MoveAllocationCommand("test", 0, relocationSource.getId(), relocationTarget.getId()))
                 .execute().actionGet();
-            ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNoRelocatingShards(true).execute().actionGet();
+            ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth()
+                .setWaitForEvents(Priority.LANGUID).setWaitForNoRelocatingShards(true).execute().actionGet();
             assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
             logger.info("--> [iteration {}] relocation complete", i);
             relocationSource = relocationTarget;
-            if (indexingThread.isAlive() == false) { // indexing process aborted early, no need for more relocations as test has already failed
+            // indexing process aborted early, no need for more relocations as test has already failed
+            if (indexingThread.isAlive() == false) {
                 break;
             }
             if (i > 0  && i % 5 == 0) {

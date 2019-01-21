@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,8 +40,6 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
 
 import java.util.ArrayList;
@@ -62,23 +62,24 @@ import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NOD
  * for shard allocation. This class also manages new nodes joining the cluster
  * and rerouting of shards.
  */
-public class AllocationService extends AbstractComponent {
+public class AllocationService {
+
+    private static final Logger logger = LogManager.getLogger(AllocationService.class);
 
     private final AllocationDeciders allocationDeciders;
     private GatewayAllocator gatewayAllocator;
     private final ShardsAllocator shardsAllocator;
     private final ClusterInfoService clusterInfoService;
 
-    public AllocationService(Settings settings, AllocationDeciders allocationDeciders,
+    public AllocationService(AllocationDeciders allocationDeciders,
                              GatewayAllocator gatewayAllocator,
                              ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService) {
-        this(settings, allocationDeciders, shardsAllocator, clusterInfoService);
+        this(allocationDeciders, shardsAllocator, clusterInfoService);
         setGatewayAllocator(gatewayAllocator);
     }
 
-    public AllocationService(Settings settings, AllocationDeciders allocationDeciders,
+    public AllocationService(AllocationDeciders allocationDeciders,
                              ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService) {
-        super(settings);
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
@@ -254,6 +255,13 @@ public class AllocationService extends AbstractComponent {
                 // operation which make these copies stale
                 routingTableBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
                 metaDataBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
+                // update settings version for each index
+                for (final String index : indices) {
+                    final IndexMetaData indexMetaData = metaDataBuilder.get(index);
+                    final IndexMetaData.Builder indexMetaDataBuilder =
+                            new IndexMetaData.Builder(indexMetaData).settingsVersion(1 + indexMetaData.getSettingsVersion());
+                    metaDataBuilder.put(indexMetaDataBuilder);
+                }
                 logger.info("updating number_of_replicas to [{}] for indices {}", numberOfReplicas, indices);
             }
             final ClusterState fixedState = ClusterState.builder(clusterState).routingTable(routingTableBuilder.build())

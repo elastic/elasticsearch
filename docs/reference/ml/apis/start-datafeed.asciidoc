@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-start-datafeed]]
-=== Start {dfeeds-cap} API
+=== Start {dfeeds} API
 ++++
-<titleabbrev>Start {dfeeds-cap}</titleabbrev>
+<titleabbrev>Start {dfeeds}</titleabbrev>
 ++++
 
 Starts one or more {dfeeds}.
@@ -12,7 +12,7 @@ A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
 ==== Request
 
-`POST _xpack/ml/datafeeds/<feed_id>/_start`
+`POST _ml/datafeeds/<feed_id>/_start`
 
 ==== Description
 
@@ -77,16 +77,16 @@ of the latest processed record.
 
 ==== Authorization
 
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
+cluster privileges to use this API. For more information, see
+{stack-ov}/security-privileges.html[Security Privileges].
 
 
-==== Security Integration
+==== Security integration
 
-When {security} is enabled, your {dfeed} will remember which roles the last
-user to create or update it had at the time of creation/update, and run the query
-using those same roles.
+When {es} {security-features} are enabled, your {dfeed} remembers which roles the
+last user to create or update it had at the time of creation/update and runs the
+query using those same roles.
 
 
 ==== Examples
@@ -95,7 +95,7 @@ The following example starts the `datafeed-it-ops-kpi` {dfeed}:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/datafeeds/datafeed-total-requests/_start
+POST _ml/datafeeds/datafeed-total-requests/_start
 {
   "start": "2017-04-07T18:22:16Z"
 }

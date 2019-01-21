@@ -112,6 +112,11 @@ public class URLBlobContainer extends AbstractBlobContainer {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 
+    @Override
+    public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+        throw new UnsupportedOperationException("URL repository doesn't support this operation");
+    }
+
     @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
     private static InputStream getInputStream(URL url) throws IOException {
         try {

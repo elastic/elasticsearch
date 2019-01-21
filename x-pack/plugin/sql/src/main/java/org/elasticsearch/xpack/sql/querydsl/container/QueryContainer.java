@@ -11,6 +11,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
@@ -28,9 +29,11 @@ import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.io.IOException;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -172,7 +175,7 @@ public class QueryContainer {
     // reference methods
     //
     private FieldExtraction topHitFieldRef(FieldAttribute fieldAttr) {
-        return new SearchHitFieldRef(aliasName(fieldAttr), fieldAttr.field().getDataType(), fieldAttr.field().hasDocValues());
+        return new SearchHitFieldRef(aliasName(fieldAttr), fieldAttr.field().getDataType(), fieldAttr.field().isAggregatable());
     }
 
     private Tuple<QueryContainer, FieldExtraction> nestedHitFieldRef(FieldAttribute attr) {
@@ -180,21 +183,24 @@ public class QueryContainer {
         List<FieldExtraction> nestedRefs = new ArrayList<>();
 
         String name = aliasName(attr);
-        Query q = rewriteToContainNestedField(query, attr.location(),
-                attr.nestedParent().name(), name, attr.field().hasDocValues());
+        String format = attr.field().getDataType() == DataType.DATETIME ? "epoch_millis" : DocValueFieldsContext.USE_DEFAULT_FORMAT;
+        Query q = rewriteToContainNestedField(query, attr.source(),
+                attr.nestedParent().name(), name, format, attr.field().isAggregatable());
 
         SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, attr.field().getDataType(),
-                attr.field().hasDocValues(), attr.parent().name());
+                attr.field().isAggregatable(), attr.parent().name());
         nestedRefs.add(nestedFieldRef);
 
         return new Tuple<>(new QueryContainer(q, aggs, columns, aliases, pseudoFunctions, scalarFunctions, sort, limit), nestedFieldRef);
     }
 
-    static Query rewriteToContainNestedField(@Nullable Query query, Location location, String path, String name, boolean hasDocValues) {
+    static Query rewriteToContainNestedField(@Nullable Query query, Source source, String path, String name, String format,
+            boolean hasDocValues) {
         if (query == null) {
             /* There is no query so we must add the nested query
              * ourselves to fetch the field. */
-            return new NestedQuery(location, path, singletonMap(name, hasDocValues), new MatchAll(location));
+            return new NestedQuery(source, path, singletonMap(name, new AbstractMap.SimpleImmutableEntry<>(hasDocValues, format)),
+                    new MatchAll(source));
         }
         if (query.containsNestedField(path, name)) {
             // The query already has the nested field. Nothing to do.
@@ -202,7 +208,7 @@ public class QueryContainer {
         }
         /* The query doesn't have the nested field so we have to ask
          * it to add it. */
-        Query rewritten = query.addNestedField(path, name, hasDocValues);
+        Query rewritten = query.addNestedField(path, name, format, hasDocValues);
         if (rewritten != query) {
             /* It successfully added it so we can use the rewritten
              * query. */
@@ -210,8 +216,9 @@ public class QueryContainer {
         }
         /* There is no nested query with a matching path so we must
          * add the nested query ourselves just to fetch the field. */
-        NestedQuery nested = new NestedQuery(location, path, singletonMap(name, hasDocValues), new MatchAll(location));
-        return new BoolQuery(location, true, query, nested);
+        NestedQuery nested = new NestedQuery(source, path,
+                singletonMap(name, new AbstractMap.SimpleImmutableEntry<>(hasDocValues, format)), new MatchAll(source));
+        return new BoolQuery(source, true, query, nested);
     }
 
     // replace function/operators's input with references

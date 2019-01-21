@@ -12,8 +12,10 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
@@ -36,6 +38,9 @@ public interface ScriptWeaver {
             if (attr instanceof AggregateFunctionAttribute) {
                 return scriptWithAggregate((AggregateFunctionAttribute) attr);
             }
+            if (attr instanceof GroupingFunctionAttribute) {
+                return scriptWithGrouping((GroupingFunctionAttribute) attr);
+            }
             if (attr instanceof FieldAttribute) {
                 return scriptWithField((FieldAttribute) attr);
             }
@@ -46,8 +51,22 @@ public interface ScriptWeaver {
     DataType dataType();
 
     default ScriptTemplate scriptWithFoldable(Expression foldable) {
+        Object fold = foldable.fold();
+        // wrap intervals with dedicated methods for serialization
+        if (fold instanceof IntervalYearMonth) {
+            IntervalYearMonth iym = (IntervalYearMonth) fold;
+            return new ScriptTemplate(processScript("{sql}.intervalYearMonth({},{})"),
+                    paramsBuilder().variable(iym.interval().toString()).variable(iym.dataType().name()).build(),
+                    dataType());
+        } else if (fold instanceof IntervalDayTime) {
+            IntervalDayTime idt = (IntervalDayTime) fold;
+            return new ScriptTemplate(processScript("{sql}.intervalDayTime({},{})"),
+                    paramsBuilder().variable(idt.interval().toString()).variable(idt.dataType().name()).build(),
+                    dataType());
+        }
+
         return new ScriptTemplate(processScript("{}"),
-                paramsBuilder().variable(foldable.fold()).build(),
+                paramsBuilder().variable(fold).build(),
                 dataType());
     }
 
@@ -59,11 +78,25 @@ public interface ScriptWeaver {
     }
 
     default ScriptTemplate scriptWithAggregate(AggregateFunctionAttribute aggregate) {
-        return new ScriptTemplate(processScript("{}"),
+        String template = "{}";
+        if (aggregate.dataType() == DataType.DATETIME) {
+            template = "{sql}.asDateTime({})";
+        }
+        return new ScriptTemplate(processScript(template),
                 paramsBuilder().agg(aggregate).build(),
                 dataType());
     }
 
+    default ScriptTemplate scriptWithGrouping(GroupingFunctionAttribute grouping) {
+        String template = "{}";
+        if (grouping.dataType() == DataType.DATETIME) {
+            template = "{sql}.asDateTime({})";
+        }
+        return new ScriptTemplate(processScript(template),
+                paramsBuilder().grouping(grouping).build(),
+                dataType());
+    }
+    
     default ScriptTemplate scriptWithField(FieldAttribute field) {
         return new ScriptTemplate(processScript("doc[{}].value"),
                 paramsBuilder().variable(field.name()).build(),
@@ -75,6 +108,6 @@ public interface ScriptWeaver {
     }
 
     default String formatTemplate(String template) {
-        return template.replace("{sql}", InternalSqlScriptUtils.class.getSimpleName()).replace("{}", "params.%s");
+        return Scripts.formatTemplate(template);
     }
 }

@@ -30,10 +30,10 @@ public class DeleteDatafeedRequestTests extends ESTestCase {
 
     public void testSetForce() {
         DeleteDatafeedRequest deleteDatafeedRequest = createTestInstance();
-        assertFalse(deleteDatafeedRequest.isForce());
+        assertNull(deleteDatafeedRequest.getForce());
 
         deleteDatafeedRequest.setForce(true);
-        assertTrue(deleteDatafeedRequest.isForce());
+        assertTrue(deleteDatafeedRequest.getForce());
     }
 
     private DeleteDatafeedRequest createTestInstance() {

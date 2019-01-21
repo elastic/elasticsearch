@@ -9,7 +9,7 @@ A parent/child relation can be defined as follows:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -46,7 +46,7 @@ PUT my_index/_doc/1?refresh
 
 PUT my_index/_doc/2?refresh
 {
-  "text": "This is a another question",
+  "text": "This is another question",
   "my_join_field": {
     "name": "question"
   }
@@ -175,7 +175,10 @@ Will return:
 {
     ...,
     "hits": {
-        "total": 4,
+        "total" : {
+            "value": 4,
+            "relation": "eq"
+        },
         "max_score": null,
         "hits": [
             {
@@ -316,7 +319,7 @@ make sense to disable eager loading:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -355,7 +358,7 @@ It is also possible to define multiple children for a single parent:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -385,7 +388,7 @@ Multiple levels of parent/child:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -417,7 +420,7 @@ The mapping above represents the following tree:
                                  |
                                 vote
 
-Indexing a grand child document requires a `routing` value equals
+Indexing a grandchild document requires a `routing` value equals
 to the grand-parent (the greater parent of the lineage):
 
 

@@ -135,7 +135,9 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         mapperService = indexService.mapperService();
         indicesFieldDataCache = getInstanceFromNode(IndicesService.class).getIndicesFieldDataCache();
         // LogByteSizeMP to preserve doc ID order
-        writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy()));
+        writer = new IndexWriter(
+            new RAMDirectory(), new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
+        );
         shardContext = indexService.newQueryShardContext(0, null, () -> 0, null);
     }
 
@@ -161,7 +163,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
     protected Nested createNested(IndexSearcher searcher, Query parentFilter, Query childFilter) throws IOException {
         BitsetFilterCache s = indexService.cache().bitsetFilterCache();
-        return new Nested(s.getBitSetProducer(parentFilter), childFilter);
+        return new Nested(s.getBitSetProducer(parentFilter), childFilter, null);
     }
 
     public void testEmpty() throws Exception {

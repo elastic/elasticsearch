@@ -74,6 +74,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_index
         body:
           query:

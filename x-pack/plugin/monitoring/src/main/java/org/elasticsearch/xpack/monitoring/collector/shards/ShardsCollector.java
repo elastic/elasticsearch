@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
@@ -30,11 +29,9 @@ import java.util.List;
  */
 public class ShardsCollector extends Collector {
 
-    public ShardsCollector(final Settings settings,
-                           final ClusterService clusterService,
+    public ShardsCollector(final ClusterService clusterService,
                            final XPackLicenseState licenseState) {
-
-        super(settings, ShardMonitoringDoc.TYPE, clusterService, null, licenseState);
+        super(ShardMonitoringDoc.TYPE, clusterService, null, licenseState);
     }
 
     @Override

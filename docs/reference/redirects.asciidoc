@@ -560,3 +560,19 @@ See <<api-definitions>>.
 
 The standard token filter has been removed.
 
+[role="exclude",id="modules-discovery-azure-classic"]
+
+See <<azure-classic-hosts-provider>>.
+
+[role="exclude",id="modules-discovery-ec2"]
+
+See <<ec2-hosts-provider>>.
+
+[role="exclude",id="modules-discovery-gce"]
+
+See <<gce-hosts-provider>>.
+
+[role="exclude",id="modules-discovery-zen"]
+
+Zen discovery is replaced by the <<modules-discovery,discovery and cluster
+formation module>>.

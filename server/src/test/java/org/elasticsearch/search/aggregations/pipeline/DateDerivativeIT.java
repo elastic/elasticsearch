@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.Sum;
-import org.elasticsearch.search.aggregations.pipeline.derivative.Derivative;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;
@@ -45,7 +44,7 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.derivative;
+import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.derivative;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -66,7 +65,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
     }
 
     private DateTime date(String date) {
-        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date);
+        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseJoda(date);
     }
 
     private static String format(DateTime date, String pattern) {
@@ -89,7 +88,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         createIndex("idx");
         createIndex("idx_unmapped");
         // TODO: would be nice to have more random data here
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();
+        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").get();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(
@@ -115,7 +114,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                 .prepareSearch("idx")
                 .addAggregation(
                         dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv", "_count"))).execute().actionGet();
+                                .subAggregation(derivative("deriv", "_count"))).get();
 
         assertSearchResponse(response);
 
@@ -157,8 +156,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                 .prepareSearch("idx")
                 .addAggregation(
                         dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.DAY))).execute()
-                .actionGet();
+                                .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.DAY))).get();
 
         assertSearchResponse(response);
 
@@ -217,8 +215,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                 .addAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
                         .timeZone(timezone).minDocCount(0)
                         .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.HOUR)))
-                .execute()
-                .actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -255,8 +252,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                 .addAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
                         .timeZone(timezone).minDocCount(0)
                         .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.HOUR)))
-                .execute()
-                .actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -295,8 +291,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                 .addAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.HOUR)
                         .timeZone(timezone).minDocCount(0)
                         .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.MINUTE)))
-                .execute()
-                .actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -342,7 +337,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                 .addAggregation(
                         dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
                             .subAggregation(sum("sum").field("value")).subAggregation(derivative("deriv", "sum")))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -412,7 +407,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                 .prepareSearch("idx")
                 .addAggregation(
                         dateHistogram("histo").field("dates").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv", "_count"))).execute().actionGet();
+                                .subAggregation(derivative("deriv", "_count"))).get();
 
         assertSearchResponse(response);
 
@@ -467,7 +462,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                 .prepareSearch("idx_unmapped")
                 .addAggregation(
                         dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv", "_count"))).execute().actionGet();
+                                .subAggregation(derivative("deriv", "_count"))).get();
 
         assertSearchResponse(response);
 
@@ -482,7 +477,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
                 .prepareSearch("idx", "idx_unmapped")
                 .addAggregation(
                         dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv", "_count"))).execute().actionGet();
+                                .subAggregation(derivative("deriv", "_count"))).get();
 
         assertSearchResponse(response);
 

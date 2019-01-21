@@ -12,10 +12,10 @@ filter on, you can safely disable indexing on this field in your
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "foo": {
           "type": "integer",
@@ -35,10 +35,10 @@ to not write norms to the index:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "foo": {
           "type": "text",
@@ -58,10 +58,10 @@ Elasticsearch to not index positions:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "foo": {
           "type": "text",
@@ -81,10 +81,10 @@ and scoring will assume that terms appear only once in every document.
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "foo": {
           "type": "text",
@@ -115,10 +115,10 @@ fields as `keyword`:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "dynamic_templates": [
         {
           "strings": {

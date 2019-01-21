@@ -31,6 +31,30 @@ public final class DatafeedJobValidator {
             checkValidHistogramInterval(datafeedConfig, analysisConfig);
             checkFrequencyIsMultipleOfHistogramInterval(datafeedConfig);
         }
+
+        DelayedDataCheckConfig delayedDataCheckConfig = datafeedConfig.getDelayedDataCheckConfig();
+        TimeValue bucketSpan = analysisConfig.getBucketSpan();
+        if (delayedDataCheckConfig.isEnabled()) {
+            checkValidDelayedDataCheckConfig(bucketSpan, delayedDataCheckConfig);
+        }
+    }
+
+    private static void checkValidDelayedDataCheckConfig(TimeValue bucketSpan, DelayedDataCheckConfig delayedDataCheckConfig) {
+        TimeValue delayedDataCheckWindow =  delayedDataCheckConfig.getCheckWindow();
+        if (delayedDataCheckWindow != null) { // NULL implies we calculate on use and thus is always valid
+            if (delayedDataCheckWindow.compareTo(bucketSpan) < 0) {
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL,
+                        delayedDataCheckWindow,
+                        bucketSpan));
+            }
+            if (delayedDataCheckWindow.millis() > bucketSpan.millis() * DelayedDataCheckConfig.MAX_NUMBER_SPANABLE_BUCKETS) {
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS,
+                        delayedDataCheckWindow,
+                        bucketSpan));
+            }
+        }
     }
 
     private static void checkSummaryCountFieldNameIsSet(AnalysisConfig analysisConfig) {

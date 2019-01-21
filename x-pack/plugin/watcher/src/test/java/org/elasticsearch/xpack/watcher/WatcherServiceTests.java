@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -194,7 +195,7 @@ public class WatcherServiceTests extends ESTestCase {
             when(watch.status()).thenReturn(watchStatus);
             when(parser.parse(eq(id), eq(true), any(), eq(XContentType.JSON))).thenReturn(watch);
         }
-        SearchHits searchHits = new SearchHits(hits, count, 1.0f);
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(count, TotalHits.Relation.EQUAL_TO), 1.0f);
         SearchResponseSections sections = new SearchResponseSections(searchHits, null, null, false, false, null, 1);
         SearchResponse searchResponse = new SearchResponse(sections, "scrollId", 1, 1, 0, 10, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
@@ -223,7 +224,7 @@ public class WatcherServiceTests extends ESTestCase {
         String engineType = "foo";
         TriggerEngine triggerEngine = mock(TriggerEngine.class);
         when(triggerEngine.type()).thenReturn(engineType);
-        TriggerService triggerService = new TriggerService(Settings.EMPTY, Collections.singleton(triggerEngine));
+        TriggerService triggerService = new TriggerService(Collections.singleton(triggerEngine));
 
         Trigger trigger = mock(Trigger.class);
         when(trigger.type()).thenReturn(engineType);
@@ -231,7 +232,7 @@ public class WatcherServiceTests extends ESTestCase {
         Watch watch = mock(Watch.class);
         when(watch.trigger()).thenReturn(trigger);
         when(watch.condition()).thenReturn(InternalAlwaysCondition.INSTANCE);
-        ExecutableNoneInput noneInput = new ExecutableNoneInput(logger);
+        ExecutableNoneInput noneInput = new ExecutableNoneInput();
         when(watch.input()).thenReturn(noneInput);
 
         triggerService.add(watch);

@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-flush-job]]
-=== Flush Jobs API
+=== Flush jobs API
 ++++
-<titleabbrev>Flush Jobs</titleabbrev>
+<titleabbrev>Flush jobs</titleabbrev>
 ++++
 
 Forces any buffered data to be processed by the job.
@@ -11,7 +11,7 @@ Forces any buffered data to be processed by the job.
 
 ==== Request
 
-`POST _xpack/ml/anomaly_detectors/<job_id>/_flush`
+`POST _ml/anomaly_detectors/<job_id>/_flush`
 
 
 ==== Description
@@ -69,7 +69,7 @@ The following example flushes the `total-requests` job:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/anomaly_detectors/total-requests/_flush
+POST _ml/anomaly_detectors/total-requests/_flush
 {
   "calc_interim": true
 }
@@ -96,7 +96,7 @@ on January 1, 2018:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/anomaly_detectors/total-requests/_flush
+POST _ml/anomaly_detectors/total-requests/_flush
 {
   "advance_time": "1514804400"
 }

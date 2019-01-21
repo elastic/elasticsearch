@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 
 import java.util.Deque;
@@ -21,7 +21,7 @@ import java.util.concurrent.Semaphore;
  */
 public class ShortCircuitingRenormalizer implements Renormalizer {
 
-    private static final Logger LOGGER = Loggers.getLogger(ShortCircuitingRenormalizer.class);
+    private static final Logger LOGGER = LogManager.getLogger(ShortCircuitingRenormalizer.class);
 
     private final String jobId;
     private final ScoresUpdater scoresUpdater;

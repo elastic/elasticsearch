@@ -65,8 +65,7 @@ public class ClusterModuleTests extends ModuleTestCase {
     private ClusterService clusterService = new ClusterService(Settings.EMPTY,
         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null);
     static class FakeAllocationDecider extends AllocationDecider {
-        protected FakeAllocationDecider(Settings settings) {
-            super(settings);
+        protected FakeAllocationDecider() {
         }
     }
 
@@ -129,7 +128,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             Collections.singletonList(new ClusterPlugin() {
                 @Override
                 public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-                    return Collections.singletonList(new FakeAllocationDecider(settings));
+                    return Collections.singletonList(new FakeAllocationDecider());
                 }
             }), clusterInfoService);
         assertTrue(module.deciderList.stream().anyMatch(d -> d.getClass().equals(FakeAllocationDecider.class)));
@@ -206,8 +205,8 @@ public class ClusterModuleTests extends ModuleTestCase {
         final String whiteListedClusterCustom = randomFrom(ClusterModule.PRE_6_3_CLUSTER_CUSTOMS_WHITE_LIST);
         final String whiteListedMetaDataCustom = randomFrom(ClusterModule.PRE_6_3_METADATA_CUSTOMS_WHITE_LIST);
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .putCustom(whiteListedClusterCustom, new RestoreInProgress())
-            .putCustom("other", new RestoreInProgress())
+            .putCustom(whiteListedClusterCustom, new RestoreInProgress.Builder().build())
+            .putCustom("other", new RestoreInProgress.Builder().build())
             .metaData(MetaData.builder()
                 .putCustom(whiteListedMetaDataCustom, new RepositoriesMetaData(Collections.emptyList()))
                 .putCustom("other", new RepositoriesMetaData(Collections.emptyList()))

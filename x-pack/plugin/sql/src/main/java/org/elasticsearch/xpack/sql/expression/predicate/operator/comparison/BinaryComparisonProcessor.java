@@ -6,18 +6,21 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.sql.expression.gen.processor.FunctionalBinaryProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.expression.predicate.PredicateBiFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
 
 import java.io.IOException;
 import java.util.function.BiFunction;
 
-public class BinaryComparisonProcessor extends BinaryOperatorProcessor<BinaryComparisonOperation> {
-    
-    public enum BinaryComparisonOperation implements BiFunction<Object, Object, Boolean> {
+public class BinaryComparisonProcessor extends FunctionalBinaryProcessor<Object, Object, Boolean, BinaryComparisonOperation> {
+
+    public enum BinaryComparisonOperation implements PredicateBiFunction<Object, Object, Boolean> {
 
         EQ(Comparisons::eq, "=="),
+        NULLEQ(Comparisons::nulleq, "<=>"),
+        NEQ(Comparisons::neq, "!="),
         GT(Comparisons::gt, ">"),
         GTE(Comparisons::gte, ">="),
         LT(Comparisons::lt, "<"),
@@ -31,12 +34,21 @@ public class BinaryComparisonProcessor extends BinaryOperatorProcessor<BinaryCom
             this.symbol = symbol;
         }
 
+        @Override
         public String symbol() {
             return symbol;
         }
 
         @Override
-        public final Boolean apply(Object left, Object right) {
+        public Boolean apply(Object left, Object right) {
+            if (this != NULLEQ && (left == null || right == null)) {
+                return null;
+            }
+            return doApply(left, right);
+        }
+
+        @Override
+        public final Boolean doApply(Object left, Object right) {
             return process.apply(left, right);
         }
 
@@ -45,7 +57,7 @@ public class BinaryComparisonProcessor extends BinaryOperatorProcessor<BinaryCom
             return symbol;
         }
     }
-    
+
     public static final String NAME = "cb";
 
     public BinaryComparisonProcessor(Processor left, Processor right, BinaryComparisonOperation operation) {
@@ -57,12 +69,15 @@ public class BinaryComparisonProcessor extends BinaryOperatorProcessor<BinaryCom
     }
 
     @Override
-    protected void doWrite(StreamOutput out) throws IOException {
-        out.writeEnum(operation());
+    public String getWriteableName() {
+        return NAME;
     }
 
     @Override
-    public String getWriteableName() {
-        return NAME;
+    public Object process(Object input) {
+        if (function() == BinaryComparisonOperation.NULLEQ) {
+            return doProcess(left().process(input), right().process(input));
+        }
+        return super.process(input);
     }
 }

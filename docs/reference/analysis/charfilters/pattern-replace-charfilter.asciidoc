@@ -49,7 +49,7 @@ replace any embedded dashes in numbers with underscores, i.e `123-456-789` ->
 
 [source,js]
 ----------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "analysis": {
@@ -100,7 +100,7 @@ camelCase words to be queried individually:
 
 [source,js]
 ----------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "analysis": {
@@ -241,7 +241,10 @@ The output from the above is:
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.2876821,
     "hits": [
       {

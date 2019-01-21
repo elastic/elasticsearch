@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -34,10 +33,10 @@ import org.elasticsearch.transport.TransportService;
 public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse>
         extends TransportMasterNodeReadAction<Request, Response> {
 
-    public TransportClusterInfoAction(Settings settings, String actionName, TransportService transportService,
+    public TransportClusterInfoAction(String actionName, TransportService transportService,
                                       ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                       Writeable.Reader<Request> request, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
+        super(actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
     }
 
     @Override
@@ -52,5 +51,6 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
         doMasterOperation(request, concreteIndices, state, listener);
     }
 
-    protected abstract void doMasterOperation(Request request, String[] concreteIndices, ClusterState state, ActionListener<Response> listener);
+    protected abstract void doMasterOperation(Request request, String[] concreteIndices, ClusterState state,
+                                              ActionListener<Response> listener);
 }

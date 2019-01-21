@@ -2,13 +2,13 @@
 "Test get all jobs and stats given no job exists":
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: "_all"
   - match: { count: 0 }
   - match: { jobs: [] }
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: "_all"
   - match: { count: 0 }
   - match: { jobs: [] }
@@ -17,7 +17,7 @@
 "Test get jobs with expression that does not match and allow_no_jobs":
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: "missing-*"
         allow_no_jobs: true
   - match: { count: 0 }
@@ -28,7 +28,7 @@
 
   - do:
       catch: missing
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: "missing-*"
         allow_no_jobs: false
 
@@ -36,7 +36,7 @@
 "Test job crud apis":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: job-crud-test-apis
         body:  >
           {
@@ -56,7 +56,7 @@
   - match: { analysis_limits.categorization_examples_limit: 4 }
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: "job-crud-test-apis"
   - match: { count: 1 }
   - match: { jobs.0.job_id: "job-crud-test-apis" }
@@ -73,7 +73,7 @@
   - match: { \.ml-anomalies-shared.aliases.\.ml-anomalies-\.write-job-crud-test-apis: {} }
 
   - do:
-      xpack.ml.delete_job:
+      ml.delete_job:
         job_id: "job-crud-test-apis"
   - match: { acknowledged: true }
 
@@ -96,7 +96,7 @@
 "Test put job with model_memory_limit as number":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: job-model-memory-limit-as-number
         body:  >
           {
@@ -116,7 +116,7 @@
 "Test put job with model_memory_limit as string":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: job-model-memory-limit-as-string
         body:  >
           {
@@ -136,14 +136,14 @@
 "Test get job API with non existing job id":
   - do:
       catch: missing
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: "non-existing"
 
 ---
 "Test put job with inconsistent body/param ids":
   - do:
       catch: /illegal_argument_exception/
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: an_id
         body:  >
           {
@@ -162,7 +162,7 @@
 
   - do:
       catch: /Inconsistent job_id; 'a_different_id' specified in the body differs from 'an_id' specified as a URL argument/
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: an_id
         body:  >
           {
@@ -182,7 +182,7 @@
 ---
 "Test put job with id that is already taken":
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-id-already-taken
         body:  >
           {
@@ -202,7 +202,7 @@
 
   - do:
       catch: /resource_already_exists_exception/
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-id-already-taken
         body:  >
           {
@@ -220,7 +220,7 @@
           }
   - do:
       catch: /The job cannot be created with the Id 'jobs-crud-id-already-taken'. The Id is already used./
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-id-already-taken
         body:  >
           {
@@ -238,7 +238,7 @@
           }
   - do:
       catch: param
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-id-already-taken
         body:  >
           {
@@ -258,7 +258,7 @@
 ---
 "Test update job":
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-update-job
         body:  >
           {
@@ -291,11 +291,11 @@
   - match: { job_id: "jobs-crud-update-job" }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: jobs-crud-update-job
 
   - do:
-      xpack.ml.update_job:
+      ml.update_job:
         job_id: jobs-crud-update-job
         body:  >
           {
@@ -352,7 +352,7 @@
 
   - do:
       catch: "/Cannot update analysis_limits while the job is open/"
-      xpack.ml.update_job:
+      ml.update_job:
         job_id: jobs-crud-update-job
         body:  >
           {
@@ -362,12 +362,12 @@
           }
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: jobs-crud-update-job
   - match: { closed: true }
 
   - do:
-      xpack.ml.update_job:
+      ml.update_job:
         job_id: jobs-crud-update-job
         body:  >
           {
@@ -378,7 +378,7 @@
   - match: { analysis_limits.model_memory_limit: "20mb" }
 
   - do:
-      xpack.ml.update_job:
+      ml.update_job:
         job_id: jobs-crud-update-job
         body:  >
           {
@@ -390,17 +390,41 @@
 
   - do:
       catch: bad_request
-      xpack.ml.update_job:
+      ml.update_job:
         job_id: _all
         body:  >
           {
             "description":"Can't update all description"
           }
 
+  - do:
+      ml.put_job:
+        job_id: job-crud-update-group-name-clash
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+  - do:
+      catch: "/job and group names must be unique/"
+      ml.update_job:
+        job_id: jobs-crud-update-job
+        body:  >
+          {
+            "groups": ["job-crud-update-group-name-clash"]
+          }
+
 ---
 "Test cannot decrease model_memory_limit below current usage":
+  - skip:
+      features: headers
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-model-memory-limit-decrease
         body:  >
           {
@@ -437,7 +461,7 @@
 
   - do:
       catch: /Invalid update value for analysis_limits[:] model_memory_limit cannot be decreased below current usage; current usage \[9mb\], update had \[5mb\]/
-      xpack.ml.update_job:
+      ml.update_job:
         job_id: jobs-crud-model-memory-limit-decrease
         body:  >
           {
@@ -448,7 +472,7 @@
 
   # Decreasing over current usage works
   - do:
-      xpack.ml.update_job:
+      ml.update_job:
         job_id: jobs-crud-model-memory-limit-decrease
         body:  >
           {
@@ -459,9 +483,16 @@
   - match: { analysis_limits.model_memory_limit: "30mb" }
 
 ---
+"Test delete job that does not exist":
+  - do:
+      catch: missing
+      ml.delete_job:
+        job_id: not-a-job
+
+---
 "Test delete job that is referred by a datafeed":
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-datafeed-job
         body:  >
           {
@@ -480,25 +511,24 @@
   - match: { job_id: "jobs-crud-datafeed-job" }
 
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: jobs-crud-test-datafeed-1
         body:  >
           {
             "job_id":"jobs-crud-datafeed-job",
-            "indexes":["index-foo"],
-            "types":["type-bar"]
+            "indexes":["index-foo"]
           }
   - match: { datafeed_id: "jobs-crud-test-datafeed-1" }
 
   - do:
       catch: /Cannot delete job \[jobs-crud-datafeed-job\] because datafeed \[jobs-crud-test-datafeed-1\] refers to it/
-      xpack.ml.delete_job:
+      ml.delete_job:
         job_id: jobs-crud-datafeed-job
 
 ---
 "Test delete job that is opened":
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: delete-opened-job
         body:  >
           {
@@ -516,20 +546,21 @@
   - match: { job_id: "delete-opened-job" }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: delete-opened-job
   - match: { opened: true }
 
   - do:
       catch: /Cannot delete job \[delete-opened-job\] because the job is opened/
-      xpack.ml.delete_job:
+      ml.delete_job:
         job_id: delete-opened-job
 
 ---
 "Test close job":
-
+  - skip:
+      features: headers
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-close-job
         body:  >
           {
@@ -548,11 +579,11 @@
   - match: { job_id: "jobs-crud-close-job" }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: jobs-crud-close-job
 
   - do:
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: jobs-crud-close-job
         body: >
           {"airline":"AAL","responsetime":"132.2046","time":"1403481600"}
@@ -560,33 +591,33 @@
 
 
   - do:
-      xpack.ml.flush_job:
+      ml.flush_job:
         job_id: jobs-crud-close-job
   - match: { flushed: true }
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: jobs-crud-close-job
   - match: {"jobs.0.state": opened}
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: jobs-crud-close-job
   - match: { closed: true }
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: jobs-crud-close-job
   - match: {"jobs.0.state": closed}
 
 ---
 "Test closing a closed job isn't an error":
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-close-a-closed-job
         body:  >
           {
@@ -604,23 +635,23 @@
   - match: { job_id: "jobs-crud-close-a-closed-job" }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: jobs-crud-close-a-closed-job
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: jobs-crud-close-a-closed-job
   - match: { closed: true }
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: jobs-crud-close-a-closed-job
   - match: { closed: true }
 
 ---
 "Test close all jobs":
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-close-all-1
         body:  >
           {
@@ -638,7 +669,7 @@
   - match: { job_id: "jobs-crud-close-all-1" }
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-close-all-2
         body:  >
           {
@@ -656,16 +687,16 @@
   - match: { job_id: "jobs-crud-close-all-2" }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: jobs-crud-close-all-2
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: _all
   - match: { closed: true }
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: _all
   - match: { jobs.0.state: closed }
   - match: { jobs.1.state: closed }
@@ -673,7 +704,7 @@
 ---
 "Test close jobs with expression that matches":
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-with-expression-that-matches-foo-1
         body:  >
           {
@@ -687,7 +718,7 @@
           }
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-with-expression-that-matches-foo-2
         body:  >
           {
@@ -701,7 +732,7 @@
           }
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-with-expression-that-matches-bar-1
         body:  >
           {
@@ -715,30 +746,30 @@
           }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: jobs-crud-with-expression-that-matches-foo-1
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: jobs-crud-with-expression-that-matches-foo-2
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: jobs-crud-with-expression-that-matches-bar-1
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: "*foo-*"
   - match: { closed: true }
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: "*foo-*"
   - match: { jobs.0.state: closed }
   - match: { jobs.1.state: closed }
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: "*bar-1"
   - match: { jobs.0.state: opened }
 
@@ -746,7 +777,7 @@
 "Test close jobs with expression that does not match and allow_no_jobs":
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: "missing-*"
         allow_no_jobs: true
   - match: { closed: true }
@@ -756,15 +787,16 @@
 
   - do:
       catch: missing
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: "missing-*"
         allow_no_jobs: false
 
 ---
 "Test force close job":
-
+  - skip:
+      features: headers
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-force-close-job
         body:  >
           {
@@ -786,11 +818,11 @@
   - match: { job_id: "jobs-crud-force-close-job" }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: jobs-crud-force-close-job
 
   - do:
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: jobs-crud-force-close-job
         body: >
           {"airline":"AAL","responsetime":"132.2046","time":"1403481600"}
@@ -798,19 +830,19 @@
 
 
   - do:
-      xpack.ml.flush_job:
+      ml.flush_job:
         job_id: jobs-crud-force-close-job
   - match: { flushed: true }
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: jobs-crud-force-close-job
   - match: {"jobs.0.state": opened}
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: jobs-crud-force-close-job
         force: true
   - match: { closed: true }
@@ -818,14 +850,14 @@
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: jobs-crud-force-close-job
   - match: {"jobs.0.state": closed}
 
 ---
 "Test force closing a closed job isn't an error":
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-close-a-closed-job
         body:  >
           {
@@ -843,17 +875,17 @@
   - match: { job_id: "jobs-crud-close-a-closed-job" }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: jobs-crud-close-a-closed-job
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: jobs-crud-close-a-closed-job
         force: true
   - match: { closed: true }
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: jobs-crud-close-a-closed-job
         force: true
   - match: { closed: true }
@@ -862,12 +894,12 @@
 "Test open and close an unknown job is resource not found":
   - do:
       catch: missing
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: jobs-crud-some-missing-job-i-made-up
 
   - do:
       catch: missing
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: jobs-crud-some-missing-job-i-made-up
 
 ---
@@ -886,7 +918,7 @@
 
   - do:
       catch: /status_exception/
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-existing-docs
         body:  >
           {
@@ -914,7 +946,7 @@
 
   - do:
       catch: /status_exception/
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-existing-docs
         body:  >
           {
@@ -929,7 +961,8 @@
 
 ---
 "Test cannot create job with existing result document":
-
+  - skip:
+      features: headers
   - do:
       headers:
         Content-Type: application/json
@@ -951,7 +984,7 @@
 
   - do:
       catch: /status_exception/
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-existing-result-docs
         body:  >
           {
@@ -968,7 +1001,7 @@
 
   - do:
       catch: /illegal_argument_exception/
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: has-model-snapshot-id
         body:  >
           {
@@ -986,7 +1019,7 @@
 
   - do:
       catch: /illegal_argument_exception/
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-time-field-in-analysis_config
         body:  >
           {
@@ -1001,7 +1034,7 @@
 
   - do:
       catch: /data_description.time_field may not be used in the analysis_config/
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-time-field-in-analysis_config
         body:  >
           {
@@ -1025,7 +1058,7 @@
 
   - do:
       catch: /Cannot create job \[closed-results-job\] as it requires closed index \[\.ml-anomalies-shared\]/
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: closed-results-job
         body:  >
           {
@@ -1052,7 +1085,7 @@
 
   - do:
       catch: /Cannot create job \[closed-results-job\] as it requires closed index \[\.ml-state\]/
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: closed-results-job
         body:  >
           {
@@ -1068,7 +1101,8 @@
 
 ---
 "Test max model memory limit":
-
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
@@ -1079,7 +1113,7 @@
   - match: {transient.xpack.ml.max_model_memory_limit: "9g"}
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: job-model-memory-limit-below-global-max
         body:  >
           {
@@ -1097,7 +1131,7 @@
 
   - do:
       catch: /model_memory_limit \[10gb\] must be less than the value of the xpack.ml.max_model_memory_limit setting \[9gb\]/
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: job-model-memory-limit-above-global-max
         body:  >
           {
@@ -1121,7 +1155,7 @@
   - match: {transient: {}}
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: job-model-memory-limit-above-removed-global-max
         body:  >
           {
@@ -1147,7 +1181,7 @@
   - do:
       warnings:
           - Creating jobs with delimited data format is deprecated. Please use xcontent instead.
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: delimited-format-job
         body:  >
           {
@@ -1165,10 +1199,11 @@
   - match: { job_id: "delimited-format-job" }
 
 ---
-"Test job with named categorization_analyzer":
+"Test jobs with named and custom categorization_analyzer":
+# Check named and custom configs can share the same index & mappings
   - do:
-      xpack.ml.put_job:
-        job_id: jobs-crud-categorization-analyzer-job
+      ml.put_job:
+        job_id: jobs-crud-named-categorization-analyzer-job
         body:  >
           {
             "analysis_config" : {
@@ -1180,14 +1215,12 @@
             "data_description" : {
             }
           }
-  - match: { job_id: "jobs-crud-categorization-analyzer-job" }
+  - match: { job_id: "jobs-crud-named-categorization-analyzer-job" }
   - match: { analysis_config.categorization_analyzer: "standard" }
 
----
-"Test job with custom categorization_analyzer":
   - do:
-      xpack.ml.put_job:
-        job_id: jobs-crud-categorization-analyzer-job
+      ml.put_job:
+        job_id: jobs-crud-custom-categorization-analyzer-job
         body:  >
           {
             "analysis_config" : {
@@ -1203,7 +1236,7 @@
             "data_description" : {
             }
           }
-  - match: { job_id: "jobs-crud-categorization-analyzer-job" }
+  - match: { job_id: "jobs-crud-custom-categorization-analyzer-job" }
   - match: { analysis_config.categorization_analyzer.char_filter.0: "html_strip" }
   - match: { analysis_config.categorization_analyzer.tokenizer: "classic" }
   - match: { analysis_config.categorization_analyzer.filter.0: "stop" }
@@ -1212,7 +1245,7 @@
 "Test job with categorization_analyzer and categorization_filters":
   - do:
       catch: /categorization_filters cannot be used with categorization_analyzer - instead specify them as pattern_replace char_filters in the analyzer/
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-categorization-analyzer-job
         body:  >
           {
@@ -1235,7 +1268,7 @@
 "Test job with rules":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-crud-rules
         body:  >
           {
@@ -1271,7 +1304,7 @@
           }
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: jobs-crud-rules
   - match: { count: 1 }
   - match: {
@@ -1300,7 +1333,7 @@
 ---
 "Test function shortcut expansion":
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-function-shortcut-expansion
         body:  >
           {
@@ -1315,7 +1348,8 @@
 
 ---
 "Test open job when persistent task allocation disabled":
-
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
@@ -1326,7 +1360,7 @@
   - match: {transient.cluster.persistent_tasks.allocation.enable: "none"}
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: persistent-task-allocation-allowed-test
         body:  >
           {
@@ -1343,7 +1377,7 @@
 
   - do:
       catch: /no persistent task assignments are allowed due to cluster settings/
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: persistent-task-allocation-allowed-test
 
   - do:
@@ -1356,6 +1390,6 @@
   - match: {transient.cluster.persistent_tasks.allocation.enable: "all"}
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: persistent-task-allocation-allowed-test
   - match: { opened: true }

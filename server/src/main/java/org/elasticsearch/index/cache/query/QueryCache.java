@@ -25,15 +25,5 @@ import java.io.Closeable;
 
 public interface QueryCache extends IndexComponent, Closeable, org.apache.lucene.search.QueryCache {
 
-    class EntriesStats {
-        public final long sizeInBytes;
-        public final long count;
-
-        public EntriesStats(long sizeInBytes, long count) {
-            this.sizeInBytes = sizeInBytes;
-            this.count = count;
-        }
-    }
-
     void clear(String reason);
 }

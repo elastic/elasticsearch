@@ -31,6 +31,7 @@ import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -168,12 +169,12 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryColle
     }
 
     @Override
-    public Shape build() {
+    public Shape buildS4J() {
 
         List<Shape> shapes = new ArrayList<>(this.shapes.size());
 
         for (ShapeBuilder shape : this.shapes) {
-            shapes.add(shape.build());
+            shapes.add(shape.buildS4J());
         }
 
         if (shapes.size() == 1)
@@ -181,6 +182,22 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryColle
         else
             return new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
         //note: ShapeCollection is probably faster than a Multi* geom.
+    }
+
+    @Override
+    public Object buildLucene() {
+        List<Object> shapes = new ArrayList<>(this.shapes.size());
+
+        for (ShapeBuilder shape : this.shapes) {
+            Object o = shape.buildLucene();
+            if (o.getClass().isArray()) {
+                shapes.addAll(Arrays.asList((Object[])o));
+            } else {
+                shapes.add(o);
+            }
+        }
+
+        return shapes.toArray(new Object[shapes.size()]);
     }
 
     @Override

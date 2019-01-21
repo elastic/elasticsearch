@@ -2,12 +2,12 @@
 [[configuring-ldap-realm]]
 === Configuring an LDAP realm
 
-You can configure {security} to communicate with a Lightweight Directory Access
-Protocol (LDAP) server to authenticate users. To integrate with LDAP, you
-configure an `ldap` realm and map LDAP groups to user roles.
+You can configure {es} to authenticate users by communicating with a Lightweight
+Directory Access Protocol (LDAP) server. To integrate with LDAP, you configure
+an `ldap` realm and map LDAP groups to user roles.
 
 For more information about LDAP realms, see 
-{xpack-ref}/ldap-realm.html[LDAP User Authentication].
+{stack-ov}/ldap-realm.html[LDAP User Authentication].
 
 . Determine which mode you want to use. The `ldap` realm supports two modes of 
 operation, a user search mode and a mode with specific templates for user DNs. 
@@ -27,12 +27,12 @@ However, multiple bind operations might be needed to find the correct user DN.
 
 . To configure an `ldap` realm with user search:
 
-.. Add a realm configuration of type `ldap` to `elasticsearch.yml` under the
-`xpack.security.authc.realms` namespace. At a minimum, you must set the realm 
-`type` to `ldap`, specify the `url` of the LDAP server, and set 
-`user_search.base_dn` to the container DN where the users are searched for. If 
-you are configuring multiple realms, you should also explicitly set the `order` 
-attribute to control the order in which the realms are consulted during 
+.. Add a realm configuration of to `elasticsearch.yml` under the
+`xpack.security.authc.realms.ldap` namespace. At a minimum, you must specify
+the `url` of the LDAP server, and set `user_search.base_dn` to the container DN
+where the users are searched for.
+If you are configuring multiple realms, you should also explicitly set the
+`order` attribute to control the order in which the realms are consulted during 
 authentication. See <<ref-ldap-settings>> for all of the options you can set for 
 an `ldap` realm.
 +
@@ -45,19 +45,19 @@ xpack:
   security:
     authc:
       realms:
-        ldap1:
-          type: ldap
-          order: 0
-          url: "ldaps://ldap.example.com:636"
-          bind_dn: "cn=ldapuser, ou=users, o=services, dc=example, dc=com"
-          user_search:
-            base_dn: "dc=example,dc=com"
-            attribute: cn
-          group_search:
-            base_dn: "dc=example,dc=com"
-          files:
-            role_mapping: "ES_PATH_CONF/role_mapping.yml"
-          unmapped_groups_as_roles: false
+        ldap:
+          ldap1:
+            order: 0
+            url: "ldaps://ldap.example.com:636"
+            bind_dn: "cn=ldapuser, ou=users, o=services, dc=example, dc=com"
+            user_search:
+              base_dn: "dc=example,dc=com"
+              filter: "(cn={0})"
+            group_search:
+              base_dn: "dc=example,dc=com"
+            files:
+              role_mapping: "ES_PATH_CONF/role_mapping.yml"
+            unmapped_groups_as_roles: false
 ------------------------------------------------------------
 
 The password for the `bind_dn` user should be configured by adding the appropriate
@@ -67,7 +67,7 @@ For example, the following command adds the password for the example realm above
 [source, shell]
 ------------------------------------------------------------
 bin/elasticsearch-keystore add \
-xpack.security.authc.realms.ldap1.secure_bind_password
+xpack.security.authc.realms.ldap.ldap1.secure_bind_password
 ------------------------------------------------------------
 
 IMPORTANT: When you configure realms in `elasticsearch.yml`, only the
@@ -78,13 +78,13 @@ realms you specify are used for authentication. If you also want to use the
 
 . To configure an `ldap` realm with user DN templates:
 
-.. Add a realm configuration of type `ldap` to `elasticsearch.yml` in the
-`xpack.security.authc.realms` namespace. At a minimum, you must set the realm 
-`type` to `ldap`, specify the `url` of the LDAP server, and specify at least one 
-template with the `user_dn_templates` option. If you are configuring multiple 
-realms, you should also explicitly set the `order` attribute to control the 
-order in which the realms are consulted during authentication. See 
-<<ref-ldap-settings>> for all of the options you can set for an `ldap` realm.
+.. Add a realm configuration to `elasticsearch.yml` in the
+`xpack.security.authc.realms.ldap` namespace. At a minimum, you must specify
+the `url` of the LDAP server, and specify at least one template with the
+`user_dn_templates` option. If you are configuring multiple realms, you should
+also explicitly set the `order` attribute to control the order in which the
+realms are consulted during authentication.
+See <<ref-ldap-settings>> for all of the options you can set for an `ldap` realm.
 +
 --
 For example, the following snippet shows an LDAP realm configured with user DN 
@@ -96,18 +96,18 @@ xpack:
   security:
     authc:
       realms:
-        ldap1:
-          type: ldap
-          order: 0
-          url: "ldaps://ldap.example.com:636"
-          user_dn_templates:
-            - "cn={0}, ou=users, o=marketing, dc=example, dc=com"
-            - "cn={0}, ou=users, o=engineering, dc=example, dc=com"
-          group_search:
-            base_dn: "dc=example,dc=com"
-          files:
-            role_mapping: "/mnt/elasticsearch/group_to_role_mapping.yml"
-          unmapped_groups_as_roles: false
+        ldap:
+          ldap1:
+            order: 0
+            url: "ldaps://ldap.example.com:636"
+            user_dn_templates:
+              - "cn={0}, ou=users, o=marketing, dc=example, dc=com"
+              - "cn={0}, ou=users, o=engineering, dc=example, dc=com"
+            group_search:
+              base_dn: "dc=example,dc=com"
+            files:
+              role_mapping: "/mnt/elasticsearch/group_to_role_mapping.yml"
+            unmapped_groups_as_roles: false
 ------------------------------------------------------------
 
 IMPORTANT: The `bind_dn` setting is not used in template mode.
@@ -115,12 +115,13 @@ All LDAP operations run as the authenticating user.
 
 --
 
-. (Optional) Configure how {security} should interact with multiple LDAP servers. 
+. (Optional) Configure how the {security-features} interact with multiple LDAP
+servers. 
 + 
 --
-The `load_balance.type` setting can be used at the realm level. {security} 
-supports both failover and load balancing modes of operation. See 
-<<ref-ldap-settings>>.
+The `load_balance.type` setting can be used at the realm level. The {es}
+{security-features} support both failover and load balancing modes of operation.
+See <<ref-ldap-settings>>.
 --
 
 . (Optional) To protect passwords, 
@@ -146,7 +147,7 @@ names. For example, the following mapping configuration maps the LDAP
 Configured via the role-mapping API:
 [source,js]
 --------------------------------------------------
-PUT _xpack/security/role_mapping/admins
+PUT /_security/role_mapping/admins
 {
   "roles" : [ "monitoring" , "user" ],
   "rules" : { "field" : {
@@ -160,7 +161,7 @@ PUT _xpack/security/role_mapping/admins
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/security/role_mapping/basic_users
+PUT /_security/role_mapping/basic_users
 {
   "roles" : [ "user" ],
   "rules" : { "field" : {
@@ -186,9 +187,9 @@ user:
 <3> The LDAP distinguished name (DN) of the `users` group.
 
 For more information, see 
-{xpack-ref}/ldap-realm.html#mapping-roles-ldap[Mapping LDAP Groups to Roles] 
+{stack-ov}/ldap-realm.html#mapping-roles-ldap[Mapping LDAP Groups to Roles] 
 and 
-{xpack-ref}/mapping-roles.html[Mapping Users and Groups to Roles].
+{stack-ov}/mapping-roles.html[Mapping Users and Groups to Roles].
 
 NOTE: The LDAP realm supports
 {stack-ov}/realm-chains.html#authorization_realms[authorization realms] as an
@@ -202,7 +203,7 @@ fields in the user's metadata.
 --
 By default, `ldap_dn` and `ldap_groups` are populated in the user's metadata. 
 For more information, see 
-{xpack-ref}/ldap-realm.html#ldap-user-metadata[User Metadata in LDAP Realms]. 
+{stack-ov}/ldap-realm.html#ldap-user-metadata[User Metadata in LDAP Realms]. 
 
 The example below includes the user's common name (`cn`) as an additional
 field in their metadata.
@@ -212,8 +213,8 @@ xpack:
   security:
     authc:
       realms:
-        ldap1:
-          type: ldap
-          metadata: cn
+        ldap:
+          ldap1:
+            metadata: cn
 --------------------------------------------------
 --

@@ -20,14 +20,16 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -57,7 +59,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private static final int DELAY_MILLIS = 50;
     private static final Logger LOGGER = LogManager.getLogger(ShardFollowNodeTask.class);
 
-    private final String leaderIndex;
     private final ShardFollowTask params;
     private final BiConsumer<TimeValue, Runnable> scheduler;
     private final LongSupplier relativeTimeProvider;
@@ -69,21 +70,26 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private long lastRequestedSeqNo;
     private long followerGlobalCheckpoint = 0;
     private long followerMaxSeqNo = 0;
-    private int numConcurrentReads = 0;
-    private int numConcurrentWrites = 0;
+    private int numOutstandingReads = 0;
+    private int numOutstandingWrites = 0;
     private long currentMappingVersion = 0;
-    private long totalFetchTimeMillis = 0;
-    private long numberOfSuccessfulFetches = 0;
-    private long numberOfFailedFetches = 0;
-    private long operationsReceived = 0;
-    private long totalTransferredBytes = 0;
-    private long totalIndexTimeMillis = 0;
-    private long numberOfSuccessfulBulkOperations = 0;
-    private long numberOfFailedBulkOperations = 0;
-    private long numberOfOperationsIndexed = 0;
+    private long currentSettingsVersion = 0;
+    private long totalReadRemoteExecTimeMillis = 0;
+    private long totalReadTimeMillis = 0;
+    private long successfulReadRequests = 0;
+    private long failedReadRequests = 0;
+    private long operationsRead = 0;
+    private long bytesRead = 0;
+    private long totalWriteTimeMillis = 0;
+    private long successfulWriteRequests = 0;
+    private long failedWriteRequests = 0;
+    private long operationWritten = 0;
     private long lastFetchTime = -1;
     private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo));
+    private long bufferSizeInBytes = 0;
     private final LinkedHashMap<Long, Tuple<AtomicInteger, ElasticsearchException>> fetchExceptions;
+
+    private volatile ElasticsearchException fatalException;
 
     ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
                         ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler, final LongSupplier relativeTimeProvider) {
@@ -99,15 +105,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         this.fetchExceptions = new LinkedHashMap<Long, Tuple<AtomicInteger, ElasticsearchException>>() {
             @Override
             protected boolean removeEldestEntry(final Map.Entry<Long, Tuple<AtomicInteger, ElasticsearchException>> eldest) {
-                return size() > params.getMaxConcurrentReadBatches();
+                return size() > params.getMaxOutstandingReadRequests();
             }
         };
-
-        if (params.getLeaderClusterAlias() != null) {
-            leaderIndex = params.getLeaderClusterAlias() + ":" + params.getLeaderShardId().getIndexName();
-        } else {
-            leaderIndex = params.getLeaderShardId().getIndexName();
-        }
     }
 
     void start(
@@ -130,13 +130,23 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
 
         // updates follower mapping, this gets us the leader mapping version and makes sure that leader and follower mapping are identical
-        updateMapping(mappingVersion -> {
+        updateMapping(followerMappingVersion -> {
             synchronized (ShardFollowNodeTask.this) {
-                currentMappingVersion = mappingVersion;
+                currentMappingVersion = followerMappingVersion;
             }
-            LOGGER.info("{} Started to follow leader shard {}, followGlobalCheckPoint={}, mappingVersion={}",
-                params.getFollowShardId(), params.getLeaderShardId(), followerGlobalCheckpoint, mappingVersion);
-            coordinateReads();
+            updateSettings(followerSettingsVersion -> {
+                synchronized (ShardFollowNodeTask.this) {
+                    currentSettingsVersion = followerSettingsVersion;
+                }
+                LOGGER.info(
+                        "{} following leader shard {}, follower global checkpoint=[{}], mapping version=[{}], settings version=[{}]",
+                        params.getFollowShardId(),
+                        params.getLeaderShardId(),
+                        followerGlobalCheckpoint,
+                        followerMappingVersion,
+                        followerSettingsVersion);
+                coordinateReads();
+            });
         });
     }
 
@@ -148,45 +158,49 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
         LOGGER.trace("{} coordinate reads, lastRequestedSeqNo={}, leaderGlobalCheckpoint={}",
             params.getFollowShardId(), lastRequestedSeqNo, leaderGlobalCheckpoint);
-        final int maxBatchOperationCount = params.getMaxBatchOperationCount();
+        final int maxReadRequestOperationCount = params.getMaxReadRequestOperationCount();
         while (hasReadBudget() && lastRequestedSeqNo < leaderGlobalCheckpoint) {
             final long from = lastRequestedSeqNo + 1;
-            final long maxRequiredSeqNo = Math.min(leaderGlobalCheckpoint, from + maxBatchOperationCount - 1);
-            final int requestBatchCount;
-            if (numConcurrentReads == 0) {
+            final long maxRequiredSeqNo = Math.min(leaderGlobalCheckpoint, from + maxReadRequestOperationCount - 1);
+            final int requestOpCount;
+            if (numOutstandingReads == 0) {
                 // This is the only request, we can optimistically fetch more documents if possible but not enforce max_required_seqno.
-                requestBatchCount = maxBatchOperationCount;
+                requestOpCount = maxReadRequestOperationCount;
             } else {
-                requestBatchCount = Math.toIntExact(maxRequiredSeqNo - from + 1);
+                requestOpCount = Math.toIntExact(maxRequiredSeqNo - from + 1);
             }
-            assert 0 < requestBatchCount && requestBatchCount <= maxBatchOperationCount : "request_batch_count=" + requestBatchCount;
+            assert 0 < requestOpCount && requestOpCount <= maxReadRequestOperationCount : "read_request_operation_count=" + requestOpCount;
             LOGGER.trace("{}[{} ongoing reads] read from_seqno={} max_required_seqno={} batch_count={}",
-                params.getFollowShardId(), numConcurrentReads, from, maxRequiredSeqNo, requestBatchCount);
-            numConcurrentReads++;
-            sendShardChangesRequest(from, requestBatchCount, maxRequiredSeqNo);
+                params.getFollowShardId(), numOutstandingReads, from, maxRequiredSeqNo, requestOpCount);
+            numOutstandingReads++;
+            sendShardChangesRequest(from, requestOpCount, maxRequiredSeqNo);
             lastRequestedSeqNo = maxRequiredSeqNo;
         }
 
-        if (numConcurrentReads == 0 && hasReadBudget()) {
+        if (numOutstandingReads == 0 && hasReadBudget()) {
             assert lastRequestedSeqNo == leaderGlobalCheckpoint;
             // We sneak peek if there is any thing new in the leader.
             // If there is we will happily accept
-            numConcurrentReads++;
+            numOutstandingReads++;
             long from = lastRequestedSeqNo + 1;
-            LOGGER.trace("{}[{}] peek read [{}]", params.getFollowShardId(), numConcurrentReads, from);
-            sendShardChangesRequest(from, maxBatchOperationCount, lastRequestedSeqNo);
+            LOGGER.trace("{}[{}] peek read [{}]", params.getFollowShardId(), numOutstandingReads, from);
+            sendShardChangesRequest(from, maxReadRequestOperationCount, lastRequestedSeqNo);
         }
     }
 
     private boolean hasReadBudget() {
         assert Thread.holdsLock(this);
-        if (numConcurrentReads >= params.getMaxConcurrentReadBatches()) {
+        if (numOutstandingReads >= params.getMaxOutstandingReadRequests()) {
             LOGGER.trace("{} no new reads, maximum number of concurrent reads have been reached [{}]",
-                params.getFollowShardId(), numConcurrentReads);
+                params.getFollowShardId(), numOutstandingReads);
             return false;
         }
-        if (buffer.size() > params.getMaxWriteBufferSize()) {
-            LOGGER.trace("{} no new reads, buffer limit has been reached [{}]", params.getFollowShardId(), buffer.size());
+        if (bufferSizeInBytes >= params.getMaxWriteBufferSize().getBytes()) {
+            LOGGER.trace("{} no new reads, buffer size limit has been reached [{}]", params.getFollowShardId(), bufferSizeInBytes);
+            return false;
+        }
+        if (buffer.size() > params.getMaxWriteBufferCount()) {
+            LOGGER.trace("{} no new reads, buffer count limit has been reached [{}]", params.getFollowShardId(), buffer.size());
             return false;
         }
         return true;
@@ -200,18 +214,19 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
         while (hasWriteBudget() && buffer.isEmpty() == false) {
             long sumEstimatedSize = 0L;
-            int length = Math.min(params.getMaxBatchOperationCount(), buffer.size());
+            int length = Math.min(params.getMaxWriteRequestOperationCount(), buffer.size());
             List<Translog.Operation> ops = new ArrayList<>(length);
             for (int i = 0; i < length; i++) {
                 Translog.Operation op = buffer.remove();
                 ops.add(op);
                 sumEstimatedSize += op.estimateSize();
-                if (sumEstimatedSize > params.getMaxBatchSize().getBytes()) {
+                if (sumEstimatedSize > params.getMaxWriteRequestSize().getBytes()) {
                     break;
                 }
             }
-            numConcurrentWrites++;
-            LOGGER.trace("{}[{}] write [{}/{}] [{}]", params.getFollowShardId(), numConcurrentWrites, ops.get(0).seqNo(),
+            bufferSizeInBytes -= sumEstimatedSize;
+            numOutstandingWrites++;
+            LOGGER.trace("{}[{}] write [{}/{}] [{}]", params.getFollowShardId(), numOutstandingWrites, ops.get(0).seqNo(),
                 ops.get(ops.size() - 1).seqNo(), ops.size());
             sendBulkShardOperationsRequest(ops, leaderMaxSeqNoOfUpdatesOrDeletes, new AtomicInteger(0));
         }
@@ -219,9 +234,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private boolean hasWriteBudget() {
         assert Thread.holdsLock(this);
-        if (numConcurrentWrites >= params.getMaxConcurrentWriteBatches()) {
+        if (numOutstandingWrites >= params.getMaxOutstandingWriteRequests()) {
             LOGGER.trace("{} maximum number of concurrent writes have been reached [{}]",
-                params.getFollowShardId(), numConcurrentWrites);
+                params.getFollowShardId(), numOutstandingWrites);
             return false;
         }
         return true;
@@ -238,23 +253,25 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
         innerSendShardChangesRequest(from, maxOperationCount,
                 response -> {
-                    if (response.getOperations().length > 0) {
-                        // do not count polls against fetch stats
-                        synchronized (ShardFollowNodeTask.this) {
-                            totalFetchTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
-                            numberOfSuccessfulFetches++;
-                            fetchExceptions.remove(from);
-                            operationsReceived += response.getOperations().length;
-                            totalTransferredBytes +=
-                                    Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
+                    synchronized (ShardFollowNodeTask.this) {
+                        // Always clear fetch exceptions:
+                        fetchExceptions.remove(from);
+                        if (response.getOperations().length > 0) {
+                            // do not count polls against fetch stats
+                            totalReadRemoteExecTimeMillis += response.getTookInMillis();
+                            totalReadTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
+                            successfulReadRequests++;
+                            operationsRead += response.getOperations().length;
+                            bytesRead +=
+                                Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
                         }
                     }
                     handleReadResponse(from, maxRequiredSeqNo, response);
                 },
                 e -> {
                     synchronized (ShardFollowNodeTask.this) {
-                        totalFetchTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
-                        numberOfFailedFetches++;
+                        totalReadTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
+                        failedReadRequests++;
                         fetchExceptions.put(from, Tuple.tuple(retryCounter, ExceptionsHelper.convertToElastic(e)));
                     }
                     handleFailure(e, retryCounter, () -> sendShardChangesRequest(from, maxOperationCount, maxRequiredSeqNo, retryCounter));
@@ -262,7 +279,15 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     void handleReadResponse(long from, long maxRequiredSeqNo, ShardChangesAction.Response response) {
-        maybeUpdateMapping(response.getMappingVersion(), () -> innerHandleReadResponse(from, maxRequiredSeqNo, response));
+        // In order to process this read response (3), we need to check and potentially update the follow index's setting (1) and
+        // check and potentially update the follow index's mappings (2).
+
+        // 3) handle read response:
+        Runnable handleResponseTask = () -> innerHandleReadResponse(from, maxRequiredSeqNo, response);
+        // 2) update follow index mapping:
+        Runnable updateMappingsTask = () -> maybeUpdateMapping(response.getMappingVersion(), handleResponseTask);
+        // 1) update follow index settings:
+        maybeUpdateSettings(response.getSettingsVersion(), updateMappingsTask);
     }
 
     /** Called when some operations are fetched from the leading */
@@ -281,7 +306,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         } else {
             assert response.getOperations()[0].seqNo() == from :
                 "first operation is not what we asked for. From is [" + from + "], got " + response.getOperations()[0];
-            buffer.addAll(Arrays.asList(response.getOperations()));
+            List<Translog.Operation> operations = Arrays.asList(response.getOperations());
+            long operationsSize = operations.stream()
+                .mapToLong(Translog.Operation::estimateSize)
+                .sum();
+            buffer.addAll(operations);
+            bufferSizeInBytes += operationsSize;
             final long maxSeqNo = response.getOperations()[response.getOperations().length - 1].seqNo();
             assert maxSeqNo ==
                 Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::seqNo).max().getAsLong();
@@ -299,7 +329,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             sendShardChangesRequest(newFromSeqNo, newSize, maxRequiredSeqNo);
         } else {
             // read is completed, decrement
-            numConcurrentReads--;
+            numOutstandingReads--;
             coordinateReads();
         }
     }
@@ -311,16 +341,16 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         innerSendBulkShardOperationsRequest(followerHistoryUUID, operations, leaderMaxSeqNoOfUpdatesOrDeletes,
                 response -> {
                     synchronized (ShardFollowNodeTask.this) {
-                        totalIndexTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
-                        numberOfSuccessfulBulkOperations++;
-                        numberOfOperationsIndexed += operations.size();
+                        totalWriteTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
+                        successfulWriteRequests++;
+                        operationWritten += operations.size();
                     }
                     handleWriteResponse(response);
                 },
                 e -> {
                     synchronized (ShardFollowNodeTask.this) {
-                        totalIndexTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
-                        numberOfFailedBulkOperations++;
+                        totalWriteTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
+                        failedWriteRequests++;
                     }
                     handleFailure(e, retryCounter,
                         () -> sendBulkShardOperationsRequest(operations, leaderMaxSeqNoOfUpdatesOrDeletes, retryCounter));
@@ -331,8 +361,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private synchronized void handleWriteResponse(final BulkShardOperationsResponse response) {
         this.followerGlobalCheckpoint = Math.max(this.followerGlobalCheckpoint, response.getGlobalCheckpoint());
         this.followerMaxSeqNo = Math.max(this.followerMaxSeqNo, response.getMaxSeqNo());
-        numConcurrentWrites--;
-        assert numConcurrentWrites >= 0;
+        numOutstandingWrites--;
+        assert numOutstandingWrites >= 0;
         coordinateWrites();
 
         // In case that buffer has more ops than is allowed then reads may all have been stopped,
@@ -355,6 +385,21 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
     }
 
+    private synchronized void maybeUpdateSettings(final Long minimumRequiredSettingsVersion, Runnable task) {
+        if (currentSettingsVersion >= minimumRequiredSettingsVersion) {
+            LOGGER.trace("{} settings version [{}] is higher or equal than minimum required mapping version [{}]",
+                    params.getFollowShardId(), currentSettingsVersion, minimumRequiredSettingsVersion);
+            task.run();
+        } else {
+            LOGGER.trace("{} updating settings, settings version [{}] is lower than minimum required settings version [{}]",
+                    params.getFollowShardId(), currentSettingsVersion, minimumRequiredSettingsVersion);
+            updateSettings(settingsVersion -> {
+                currentSettingsVersion = settingsVersion;
+                task.run();
+            });
+        }
+    }
+
     private void updateMapping(LongConsumer handler) {
         updateMapping(handler, new AtomicInteger(0));
     }
@@ -363,16 +408,25 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         innerUpdateMapping(handler, e -> handleFailure(e, retryCounter, () -> updateMapping(handler, retryCounter)));
     }
 
+    private void updateSettings(final LongConsumer handler) {
+        updateSettings(handler, new AtomicInteger(0));
+    }
+
+    private void updateSettings(final LongConsumer handler, final AtomicInteger retryCounter) {
+        innerUpdateSettings(handler, e -> handleFailure(e, retryCounter, () -> updateSettings(handler, retryCounter)));
+    }
+
     private void handleFailure(Exception e, AtomicInteger retryCounter, Runnable task) {
         assert e != null;
-        if (shouldRetry(e) && isStopped() == false) {
+        if (shouldRetry(params.getRemoteCluster(), e) && isStopped() == false) {
             int currentRetry = retryCounter.incrementAndGet();
             LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying [{}]",
                 params.getFollowShardId(), currentRetry), e);
-            long delay = computeDelay(currentRetry, params.getPollTimeout().getMillis());
+            long delay = computeDelay(currentRetry, params.getReadPollTimeout().getMillis());
             scheduler.accept(TimeValue.timeValueMillis(delay), task);
         } else {
-            markAsFailed(e);
+            fatalException = ExceptionsHelper.convertToElastic(e);
+            LOGGER.warn("shard follow task encounter non-retryable error", e);
         }
     }
 
@@ -386,13 +440,17 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         return Math.min(backOffDelay, maxRetryDelayInMillis);
     }
 
-    static boolean shouldRetry(Exception e) {
+    static boolean shouldRetry(String remoteCluster, Exception e) {
         if (NetworkExceptionHelper.isConnectException(e)) {
             return true;
         } else if (NetworkExceptionHelper.isCloseConnectionException(e)) {
             return true;
         }
 
+        // This is thrown when using a Client and its remote cluster alias went MIA
+        String noSuchRemoteClusterMessage = "no such remote cluster: " + remoteCluster;
+        // This is thrown when creating a Client and the remote cluster does not exist:
+        String unknownClusterMessage = "unknown cluster alias [" + remoteCluster + "]";
         final Throwable actual = ExceptionsHelper.unwrapCause(e);
         return actual instanceof ShardNotFoundException ||
             actual instanceof IllegalIndexShardStateException ||
@@ -401,11 +459,18 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             actual instanceof AlreadyClosedException ||
             actual instanceof ElasticsearchSecurityException || // If user does not have sufficient privileges
             actual instanceof ClusterBlockException || // If leader index is closed or no elected master
-            actual instanceof IndexClosedException; // If follow index is closed
+            actual instanceof IndexClosedException || // If follow index is closed
+            actual instanceof ConnectTransportException ||
+            actual instanceof NodeClosedException ||
+            (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed")) ||
+            (actual instanceof IllegalArgumentException && (noSuchRemoteClusterMessage.equals(actual.getMessage()) ||
+                unknownClusterMessage.equals(actual.getMessage())));
     }
 
     // These methods are protected for testing purposes:
     protected abstract void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler);
+
+    protected abstract void innerUpdateSettings(LongConsumer handler, Consumer<Exception> errorHandler);
 
     protected abstract void innerSendBulkShardOperationsRequest(String followerHistoryUUID,
                                                                 List<Translog.Operation> operations,
@@ -422,7 +487,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     protected boolean isStopped() {
-        return isCancelled() || isCompleted();
+        return fatalException != null || isCancelled() || isCompleted();
     }
 
     public ShardId getFollowShardId() {
@@ -439,7 +504,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             timeSinceLastFetchMillis = -1;
         }
         return new ShardFollowNodeTaskStatus(
-                leaderIndex,
+                params.getRemoteCluster(),
+                params.getLeaderShardId().getIndexName(),
                 params.getFollowShardId().getIndexName(),
                 getFollowShardId().getId(),
                 leaderGlobalCheckpoint,
@@ -447,26 +513,30 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 followerGlobalCheckpoint,
                 followerMaxSeqNo,
                 lastRequestedSeqNo,
-                numConcurrentReads,
-                numConcurrentWrites,
+                numOutstandingReads,
+                numOutstandingWrites,
                 buffer.size(),
+                bufferSizeInBytes,
                 currentMappingVersion,
-                totalFetchTimeMillis,
-                numberOfSuccessfulFetches,
-                numberOfFailedFetches,
-                operationsReceived,
-                totalTransferredBytes,
-                totalIndexTimeMillis,
-                numberOfSuccessfulBulkOperations,
-                numberOfFailedBulkOperations,
-                numberOfOperationsIndexed,
+                currentSettingsVersion,
+                totalReadTimeMillis,
+                totalReadRemoteExecTimeMillis,
+                successfulReadRequests,
+                failedReadRequests,
+                operationsRead,
+                bytesRead,
+                totalWriteTimeMillis,
+                successfulWriteRequests,
+                failedWriteRequests,
+                operationWritten,
                 new TreeMap<>(
                         fetchExceptions
                                 .entrySet()
                                 .stream()
                                 .collect(
                                         Collectors.toMap(Map.Entry::getKey, e -> Tuple.tuple(e.getValue().v1().get(), e.getValue().v2())))),
-                timeSinceLastFetchMillis);
+                timeSinceLastFetchMillis,
+                fatalException);
     }
 
 }

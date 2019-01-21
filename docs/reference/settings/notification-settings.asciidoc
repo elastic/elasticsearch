@@ -14,7 +14,8 @@ You configure {watcher} settings to set up {watcher} and send notifications via
 All of these settings can be added to the `elasticsearch.yml` configuration file,
 with the exception of the secure settings, which you add to the {es} keystore.
 For more information about creating and updating the {es} keystore, see
-<<secure-settings>>.
+<<secure-settings>>. Dynamic settings can also be updated across a cluster with the
+<<cluster-update-settings,cluster update settings API>>.
 
 [float]
 [[general-notification-settings]]
@@ -63,6 +64,14 @@ request is aborted.
 Specifies the maximum size an HTTP response is allowed to have, defaults to
 `10mb`, the maximum configurable value is `50mb`.
 
+`xpack.http.whitelist`::
+A list of URLs, that the internal HTTP client is allowed to connect to. This
+client is used in the HTTP input, the webhook, the slack, pagerduty, hipchat
+and jira actions. This setting can be updated dynamically.  It defaults to `*`
+allowing everything. Note: If you configure this setting and you are using one
+of the slack/pagerduty/hipchat actions, you have to ensure that the
+corresponding endpoints are whitelisted as well.
+
 [[ssl-notification-settings]]
 :ssl-prefix:             xpack.http
 :component:              {watcher}
@@ -83,69 +92,69 @@ Specifies account information for sending notifications via email. You
 can specify the following email account attributes:
 
 [[email-account-attributes]]
-  `profile`;;
+  `profile` (<<cluster-update-settings,Dynamic>>);;
   The {xpack-ref}/actions-email.html#configuring-email[email profile] to use to build the MIME
   messages that are sent from the account. Valid values: `standard`, `gmail` and
   `outlook`. Defaults to `standard`.
 
-  `email_defaults.*`;;
+  `email_defaults.*` (<<cluster-update-settings,Dynamic>>);;
   An optional set of email attributes to use as defaults
   for the emails sent from the account. See {xpack-ref}/actions-email.html#email-action-attributes[
   Email Action Attributes] for the supported attributes.
 
-  `smtp.auth`;;
+  `smtp.auth` (<<cluster-update-settings,Dynamic>>);;
   Set to `true` to attempt to authenticate the user using the
   AUTH command. Defaults to `false`.
 
-  `smtp.host`;;
+  `smtp.host` (<<cluster-update-settings,Dynamic>>);;
   The SMTP server to connect to. Required.
 
-  `smtp.port`;;
+  `smtp.port` (<<cluster-update-settings,Dynamic>>);;
   The SMTP server port to connect to. Defaults to 25.
 
-  `smtp.user`;;
+  `smtp.user` (<<cluster-update-settings,Dynamic>>);;
   The user name for SMTP. Required.
 
-  `smtp.password`;;
+  `smtp.secure_password` (<<secure-settings,Secure>>);;
   The password for the specified SMTP user.
 
-  `smtp.starttls.enable`;;
+  `smtp.starttls.enable` (<<cluster-update-settings,Dynamic>>);;
   Set to `true` to enable the use of the `STARTTLS`
   command (if supported by the server) to switch the connection to a
   TLS-protected connection before issuing any login commands. Note that
   an appropriate trust store must configured so that the client will
   trust the server's certificate. Defaults to `false`.
 
-  `smtp.starttls.required`;;
+  `smtp.starttls.required` (<<cluster-update-settings,Dynamic>>);;
   If `true`, then `STARTTLS` will be required. If that command fails, the
   connection will fail. Defaults to `false`.
 
-  `smtp.ssl.trust`;;
+  `smtp.ssl.trust` (<<cluster-update-settings,Dynamic>>);;
   A list of SMTP server hosts that are assumed trusted and for which
   certificate verification is disabled. If set to "*", all hosts are
   trusted. If set to a whitespace separated list of hosts, those hosts
   are trusted. Otherwise, trust depends on the certificate the server
   presents.
 
-  `smtp.timeout`;;
+  `smtp.timeout` (<<cluster-update-settings,Dynamic>>);;
   The socket read timeout. Default is two minutes.
 
-  `smtp.connection_timeout`;;
+  `smtp.connection_timeout` (<<cluster-update-settings,Dynamic>>);;
   The socket connection timeout. Default is two minutes.
 
-  `smtp.write_timeout`;;
+  `smtp.write_timeout` (<<cluster-update-settings,Dynamic>>);;
   The socket write timeout. Default is two minutes.
 
-  `smtp.local_address`;;
+  `smtp.local_address` (<<cluster-update-settings,Dynamic>>);;
   A configurable local address when sending emails. Not configured by default.
 
-  `smtp.local_port`;;
+  `smtp.local_port` (<<cluster-update-settings,Dynamic>>);;
   A configurable local port when sending emails. Not configured by default.
 
-  `smtp.send_partial`;;
+  `smtp.send_partial` (<<cluster-update-settings,Dynamic>>);;
   Send an email, despite one of the receiver addresses being invalid.
 
-  `smtp.wait_on_quit`;;
+  `smtp.wait_on_quit` (<<cluster-update-settings,Dynamic>>);;
   If set to false the QUIT command is sent and the connection closed. If set to
   true, the QUIT command is sent and a reply is waited for. True by default.
 
@@ -213,9 +222,8 @@ via HipChat. You can specify the following HipChat account attributes:
   The HipChat account profile to use: `integration`,
                       `user`, or `v1`. Required.
 
-  `auth_token`;;
-  The authentication token to use to access
-                      the HipChat API. Required.
+  `secure_auth_token` (<<secure-settings,Secure>>);;
+  The authentication token to use to access the HipChat API. Required.
 
   `host`;;
   The HipChat server hostname. Defaults to `api.hipchat.com`.
@@ -259,9 +267,8 @@ via Slack. You can specify the following Slack account attributes:
 
 [[slack-account-attributes]]
 
-  `url`;;
-  The Incoming Webhook URL to use to post
-                                    messages to Slack. Required.
+  `secure_url` (<<secure-settings,Secure>>);;
+  The Incoming Webhook URL to use to post messages to Slack. Required.
 
   `message_defaults.from`;;
   The sender name to display in the
@@ -300,13 +307,13 @@ issues in Jira. You can specify the following Jira account attributes:
 
 [[jira-account-attributes]]
 
-  `url`;;
+  `secure_url` (<<secure-settings,Secure>>);;
   The URL of the Jira Software server. Required.
 
-  `user`;;
+  `secure_user` (<<secure-settings,Secure>>);;
   The name of the user to connect to the Jira Software server. Required.
 
-  `password`;;
+  `secure_password` (<<secure-settings,Secure>>);;
   The password of the user to connect to the Jira Software server. Required.
 
   `issue_defaults`;;
@@ -332,7 +339,7 @@ via PagerDuty. You can specify the following PagerDuty account attributes:
   A name for the PagerDuty account associated with the API key you
   are using to access PagerDuty. Required.
 
-  `service_api_key`;;
+  `secure_service_api_key` (<<secure-settings,Secure>>);;
    The https://developer.pagerduty.com/documentation/rest/authentication[
    PagerDuty API key] to use to access PagerDuty. Required.
 

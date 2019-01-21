@@ -19,21 +19,22 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.nio.MockNioTransport;
 import org.junit.After;
 import org.junit.Before;
 
@@ -78,10 +79,11 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
 
     @Before
     public void createTransportSvc() {
-        final MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(),
+        final MockNioTransport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool,
+            new NetworkService(Collections.emptyList()),
+            PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            new NetworkService(Collections.emptyList())) {
+            new NoneCircuitBreakerService()) {
             @Override
             public BoundTransportAddress boundAddress() {
                 return new BoundTransportAddress(
@@ -114,7 +116,7 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
 
     public void testUnicastHostsDoesNotExist() {
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        final FileBasedUnicastHostsProvider provider = new FileBasedUnicastHostsProvider(settings, createTempDir().toAbsolutePath());
+        final FileBasedUnicastHostsProvider provider = new FileBasedUnicastHostsProvider(createTempDir().toAbsolutePath());
         final List<TransportAddress> addresses = provider.buildDynamicHosts((hosts, limitPortCounts) ->
             UnicastZenPing.resolveHostsLists(executorService, logger, hosts, limitPortCounts, transportService,
                 TimeValue.timeValueSeconds(10)));
@@ -148,7 +150,7 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
             writer.write(String.join("\n", hostEntries));
         }
 
-        return new FileBasedUnicastHostsProvider(settings, configPath).buildDynamicHosts((hosts, limitPortCounts) ->
+        return new FileBasedUnicastHostsProvider(configPath).buildDynamicHosts((hosts, limitPortCounts) ->
             UnicastZenPing.resolveHostsLists(executorService, logger, hosts, limitPortCounts, transportService,
                 TimeValue.timeValueSeconds(10)));
     }

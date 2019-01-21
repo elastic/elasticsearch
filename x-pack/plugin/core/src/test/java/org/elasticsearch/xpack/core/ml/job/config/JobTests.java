@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.job.config;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -101,7 +102,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertNotNull(job.getDataDescription());
         assertNull(job.getDescription());
         assertNull(job.getFinishedTime());
-        assertNull(job.getLastDataTime());
         assertNull(job.getModelPlotConfig());
         assertNull(job.getRenormalizationWindowDays());
         assertNull(job.getBackgroundPersistInterval());
@@ -436,10 +436,9 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     public void testBuilder_buildWithCreateTime() {
         Job.Builder builder = buildJobBuilder("foo");
         Date now = new Date();
-        Job job = builder.setEstablishedModelMemory(randomNonNegativeLong()).build(now);
+        Job job = builder.build(now);
         assertEquals(now, job.getCreateTime());
         assertEquals(Version.CURRENT, job.getJobVersion());
-        assertNull(job.getEstablishedModelMemory());
     }
 
     public void testJobWithoutVersion() throws IOException {
@@ -484,12 +483,10 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
         builder.setCreateTime(new Date());
         builder.setFinishedTime(new Date());
-        builder.setLastDataTime(new Date());
 
         Set<String> expected = new HashSet<>();
         expected.add(Job.CREATE_TIME.getPreferredName());
         expected.add(Job.FINISHED_TIME.getPreferredName());
-        expected.add(Job.LAST_DATA_TIME.getPreferredName());
         expected.add(Job.MODEL_SNAPSHOT_ID.getPreferredName());
 
         assertEquals(expected, new HashSet<>(builder.invalidCreateTimeSettings()));
@@ -509,37 +506,11 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertThat(e.getMessage(), containsString("Invalid group id '$$$'"));
     }
 
-    public void testEstimateMemoryFootprint_GivenEstablished() {
-        Job.Builder builder = buildJobBuilder("established");
-        long establishedModelMemory = randomIntBetween(10_000, 2_000_000_000);
-        builder.setEstablishedModelMemory(establishedModelMemory);
-        if (randomBoolean()) {
-            builder.setAnalysisLimits(new AnalysisLimits(randomNonNegativeLong(), null));
-        }
-        assertEquals(establishedModelMemory + Job.PROCESS_MEMORY_OVERHEAD.getBytes(), builder.build().estimateMemoryFootprint());
-    }
-
-    public void testEstimateMemoryFootprint_GivenLimitAndNotEstablished() {
-        Job.Builder builder = buildJobBuilder("limit");
-        if (rarely()) {
-            // An "established" model memory of 0 means "not established".  Generally this won't be set, so getEstablishedModelMemory()
-            // will return null, but if it returns 0 we shouldn't estimate the job's memory requirement to be 0.
-            builder.setEstablishedModelMemory(0L);
-        }
-        ByteSizeValue limit = new ByteSizeValue(randomIntBetween(100, 10000), ByteSizeUnit.MB);
-        builder.setAnalysisLimits(new AnalysisLimits(limit.getMb(), null));
-        assertEquals(limit.getBytes() + Job.PROCESS_MEMORY_OVERHEAD.getBytes(), builder.build().estimateMemoryFootprint());
-    }
-
-    public void testEstimateMemoryFootprint_GivenNoLimitAndNotEstablished() {
-        Job.Builder builder = buildJobBuilder("nolimit");
-        if (rarely()) {
-            // An "established" model memory of 0 means "not established".  Generally this won't be set, so getEstablishedModelMemory()
-            // will return null, but if it returns 0 we shouldn't estimate the job's memory requirement to be 0.
-            builder.setEstablishedModelMemory(0L);
-        }
-        assertEquals(ByteSizeUnit.MB.toBytes(AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB)
-                        + Job.PROCESS_MEMORY_OVERHEAD.getBytes(), builder.build().estimateMemoryFootprint());
+    public void testInvalidGroup_matchesJobId() {
+        Job.Builder builder = buildJobBuilder("foo");
+        builder.setGroups(Collections.singletonList("foo"));
+        ResourceAlreadyExistsException e = expectThrows(ResourceAlreadyExistsException.class, builder::build);
+        assertEquals(e.getMessage(), "job and group names must be unique but job [foo] and group [foo] have the same name");
     }
 
     public void testEarliestValidTimestamp_GivenEmptyDataCounts() {
@@ -564,6 +535,13 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         dataCounts.setLatestRecordTimeStamp(new Date(123456789L));
 
         assertThat(builder.build().earliestValidTimestamp(dataCounts), equalTo(123455789L));
+    }
+
+    public void testCopyingJobDoesNotCauseStackOverflow() {
+        Job job = createRandomizedJob();
+        for (int i = 0; i < 100000; i++) {
+            job = new Job.Builder(job).build();
+        }
     }
 
     public static Job.Builder buildJobBuilder(String id, Date date) {
@@ -612,12 +590,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         builder.setCreateTime(new Date(randomNonNegativeLong()));
         if (randomBoolean()) {
             builder.setFinishedTime(new Date(randomNonNegativeLong()));
-        }
-        if (randomBoolean()) {
-            builder.setLastDataTime(new Date(randomNonNegativeLong()));
-        }
-        if (randomBoolean()) {
-            builder.setEstablishedModelMemory(randomNonNegativeLong());
         }
         builder.setAnalysisConfig(AnalysisConfigTests.createRandomized());
         builder.setAnalysisLimits(AnalysisLimits.validateAndSetDefaults(AnalysisLimitsTests.createRandomized(), null,

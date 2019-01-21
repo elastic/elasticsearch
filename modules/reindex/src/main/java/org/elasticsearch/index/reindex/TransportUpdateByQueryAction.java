@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -53,9 +52,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     private final ClusterService clusterService;
 
     @Inject
-    public TransportUpdateByQueryAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters, Client client,
+    public TransportUpdateByQueryAction(ThreadPool threadPool, ActionFilters actionFilters, Client client,
                                         TransportService transportService, ScriptService scriptService, ClusterService clusterService) {
-        super(settings, UpdateByQueryAction.NAME, transportService, actionFilters,
+        super(UpdateByQueryAction.NAME, transportService, actionFilters,
             (Writeable.Reader<UpdateByQueryRequest>) UpdateByQueryRequest::new);
         this.threadPool = threadPool;
         this.client = client;
@@ -91,8 +90,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         @Override
         protected boolean needsSourceDocumentVersions() {
             /*
-             * We always need the version of the source document so we can report a version conflict if we try to delete it and it has been
-             * changed.
+             * We always need the version of the source document so we can report a version conflict if we try to delete it and it has
+             * been changed.
              */
             return true;
         }

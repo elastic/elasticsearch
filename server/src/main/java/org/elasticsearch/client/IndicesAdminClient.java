@@ -147,24 +147,31 @@ public interface IndicesAdminClient extends ElasticsearchClient {
 
 
     /**
-     * Types Exists.
+     * Types exists.
      *
+     * @deprecated Types are deprecated and are in the process of being removed.
      * @param request The types exists request
      * @return The result future
      */
+    @Deprecated
     ActionFuture<TypesExistsResponse> typesExists(TypesExistsRequest request);
 
     /**
-     * Types exists
+     * Types exists.
      *
+     * @deprecated Types are deprecated and are in the process of being removed.
      * @param request  The types exists
      * @param listener A listener to be notified with a result
      */
+    @Deprecated
     void typesExists(TypesExistsRequest request, ActionListener<TypesExistsResponse> listener);
 
     /**
-     * Indices exists.
+     * Types exists.
+     *
+     * @deprecated Types are deprecated and are in the process of being removed.
      */
+    @Deprecated
     TypesExistsRequestBuilder prepareTypesExists(String... index);
 
     /**

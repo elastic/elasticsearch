@@ -96,7 +96,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void persistJob() {
+    public void persistState() {
     }
 
     @Override
@@ -147,6 +147,10 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
                 return result;
             }
         };
+    }
+
+    @Override
+    public void consumeAndCloseOutputStream() {
     }
 
     @Override

@@ -18,27 +18,21 @@
  */
 package org.elasticsearch.discovery.zen;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
-import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.DiscoverySettings;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -49,13 +43,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
-
 /**
  * This class processes incoming join request (passed zia {@link ZenDiscovery}). Incoming nodes
  * are directly added to the cluster state or are accumulated during master election.
  */
-public class NodeJoinController extends AbstractComponent {
+public class NodeJoinController {
+
+    private static final Logger logger = LogManager.getLogger(NodeJoinController.class);
 
     private final MasterService masterService;
     private final JoinTaskExecutor joinTaskExecutor;
@@ -65,11 +59,14 @@ public class NodeJoinController extends AbstractComponent {
     private ElectionContext electionContext = null;
 
 
-    public NodeJoinController(MasterService masterService, AllocationService allocationService, ElectMasterService electMaster,
-                              Settings settings) {
-        super(settings);
+    public NodeJoinController(MasterService masterService, AllocationService allocationService, ElectMasterService electMaster) {
         this.masterService = masterService;
-        joinTaskExecutor = new JoinTaskExecutor(allocationService, electMaster, logger);
+        joinTaskExecutor = new JoinTaskExecutor(allocationService, logger) {
+            @Override
+            public void clusterStatePublished(ClusterChangedEvent event) {
+                electMaster.logMinimumMasterNodesWarningIfNecessary(event.previousState(), event.state());
+            }
+        };
     }
 
     /**
@@ -176,7 +173,7 @@ public class NodeJoinController extends AbstractComponent {
             checkPendingJoinsAndElectIfNeeded();
         } else {
             masterService.submitStateUpdateTask("zen-disco-node-join",
-                node, ClusterStateTaskConfig.build(Priority.URGENT),
+                new JoinTaskExecutor.Task(node, "no election context"), ClusterStateTaskConfig.build(Priority.URGENT),
                 joinTaskExecutor, new JoinTaskListener(callback, logger));
         }
     }
@@ -250,9 +247,10 @@ public class NodeJoinController extends AbstractComponent {
             return hasEnough;
         }
 
-        private Map<DiscoveryNode, ClusterStateTaskListener> getPendingAsTasks() {
-            Map<DiscoveryNode, ClusterStateTaskListener> tasks = new HashMap<>();
-            joinRequestAccumulator.entrySet().stream().forEach(e -> tasks.put(e.getKey(), new JoinTaskListener(e.getValue(), logger)));
+        private Map<JoinTaskExecutor.Task, ClusterStateTaskListener> getPendingAsTasks(String reason) {
+            Map<JoinTaskExecutor.Task, ClusterStateTaskListener> tasks = new HashMap<>();
+            joinRequestAccumulator.entrySet().stream().forEach(e -> tasks.put(
+                new JoinTaskExecutor.Task(e.getKey(), reason), new JoinTaskListener(e.getValue(), logger)));
             return tasks;
         }
 
@@ -273,19 +271,20 @@ public class NodeJoinController extends AbstractComponent {
 
             innerClose();
 
-            Map<DiscoveryNode, ClusterStateTaskListener> tasks = getPendingAsTasks();
+            Map<JoinTaskExecutor.Task, ClusterStateTaskListener> tasks = getPendingAsTasks("become master");
             final String source = "zen-disco-elected-as-master ([" + tasks.size() + "] nodes joined)";
 
-            tasks.put(BECOME_MASTER_TASK, (source1, e) -> {}); // noop listener, the election finished listener determines result
-            tasks.put(FINISH_ELECTION_TASK, electionFinishedListener);
+            // noop listener, the election finished listener determines result
+            tasks.put(JoinTaskExecutor.newBecomeMasterTask(), (source1, e) -> {});
+            tasks.put(JoinTaskExecutor.newFinishElectionTask(), electionFinishedListener);
             masterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
         }
 
         public synchronized void closeAndProcessPending(String reason) {
             innerClose();
-            Map<DiscoveryNode, ClusterStateTaskListener> tasks = getPendingAsTasks();
+            Map<JoinTaskExecutor.Task, ClusterStateTaskListener> tasks = getPendingAsTasks(reason);
             final String source = "zen-disco-election-stop [" + reason + "]";
-            tasks.put(FINISH_ELECTION_TASK, electionFinishedListener);
+            tasks.put(JoinTaskExecutor.newFinishElectionTask(), electionFinishedListener);
             masterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
         }
 
@@ -377,152 +376,4 @@ public class NodeJoinController extends AbstractComponent {
         }
     }
 
-    /**
-     * a task indicated that the current node should become master, if no current master is known
-     */
-    public static final DiscoveryNode BECOME_MASTER_TASK = new DiscoveryNode("_BECOME_MASTER_TASK_",
-        new TransportAddress(TransportAddress.META_ADDRESS, 0),
-        Collections.emptyMap(), Collections.emptySet(), Version.CURRENT) {
-        @Override
-        public String toString() {
-            return ""; // this is not really task , so don't log anything about it...
-        }
-    };
-
-    /**
-     * a task that is used to signal the election is stopped and we should process pending joins.
-     * it may be use in combination with {@link #BECOME_MASTER_TASK}
-     */
-    public static final DiscoveryNode FINISH_ELECTION_TASK = new DiscoveryNode("_FINISH_ELECTION_",
-        new TransportAddress(TransportAddress.META_ADDRESS, 0), Collections.emptyMap(), Collections.emptySet(), Version.CURRENT) {
-            @Override
-            public String toString() {
-                return ""; // this is not really task , so don't log anything about it...
-            }
-    };
-
-    // visible for testing
-    public static class JoinTaskExecutor implements ClusterStateTaskExecutor<DiscoveryNode> {
-
-        private final AllocationService allocationService;
-
-        private final ElectMasterService electMasterService;
-
-        private final Logger logger;
-
-        public JoinTaskExecutor(AllocationService allocationService, ElectMasterService electMasterService, Logger logger) {
-            this.allocationService = allocationService;
-            this.electMasterService = electMasterService;
-            this.logger = logger;
-        }
-
-        @Override
-        public ClusterTasksResult<DiscoveryNode> execute(ClusterState currentState, List<DiscoveryNode> joiningNodes) throws Exception {
-            final ClusterTasksResult.Builder<DiscoveryNode> results = ClusterTasksResult.builder();
-
-            final DiscoveryNodes currentNodes = currentState.nodes();
-            boolean nodesChanged = false;
-            ClusterState.Builder newState;
-
-            if (joiningNodes.size() == 1  && joiningNodes.get(0).equals(FINISH_ELECTION_TASK)) {
-                return results.successes(joiningNodes).build(currentState);
-            } else if (currentNodes.getMasterNode() == null && joiningNodes.contains(BECOME_MASTER_TASK)) {
-                assert joiningNodes.contains(FINISH_ELECTION_TASK) : "becoming a master but election is not finished " + joiningNodes;
-                // use these joins to try and become the master.
-                // Note that we don't have to do any validation of the amount of joining nodes - the commit
-                // during the cluster state publishing guarantees that we have enough
-                newState = becomeMasterAndTrimConflictingNodes(currentState, joiningNodes);
-                nodesChanged = true;
-            } else if (currentNodes.isLocalNodeElectedMaster() == false) {
-                logger.trace("processing node joins, but we are not the master. current master: {}", currentNodes.getMasterNode());
-                throw new NotMasterException("Node [" + currentNodes.getLocalNode() + "] not master for join request");
-            } else {
-                newState = ClusterState.builder(currentState);
-            }
-
-            DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
-
-            assert nodesBuilder.isLocalNodeElectedMaster();
-
-            Version minClusterNodeVersion = newState.nodes().getMinNodeVersion();
-            Version maxClusterNodeVersion = newState.nodes().getMaxNodeVersion();
-            // we only enforce major version transitions on a fully formed clusters
-            final boolean enforceMajorVersion = currentState.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
-            // processing any joins
-            for (final DiscoveryNode node : joiningNodes) {
-                if (node.equals(BECOME_MASTER_TASK) || node.equals(FINISH_ELECTION_TASK)) {
-                    // noop
-                } else if (currentNodes.nodeExists(node)) {
-                    logger.debug("received a join request for an existing node [{}]", node);
-                } else {
-                    try {
-                        if (enforceMajorVersion) {
-                            MembershipAction.ensureMajorVersionBarrier(node.getVersion(), minClusterNodeVersion);
-                        }
-                        MembershipAction.ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
-                        // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
-                        // we have to reject nodes that don't support all indices we have in this cluster
-                        MembershipAction.ensureIndexCompatibility(node.getVersion(), currentState.getMetaData());
-                        nodesBuilder.add(node);
-                        nodesChanged = true;
-                        minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
-                        maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
-                    } catch (IllegalArgumentException | IllegalStateException e) {
-                        results.failure(node, e);
-                        continue;
-                    }
-                }
-                results.success(node);
-            }
-            if (nodesChanged) {
-                newState.nodes(nodesBuilder);
-                return results.build(allocationService.reroute(newState.build(), "node_join"));
-            } else {
-                // we must return a new cluster state instance to force publishing. This is important
-                // for the joining node to finalize its join and set us as a master
-                return results.build(newState.build());
-            }
-        }
-
-        private ClusterState.Builder becomeMasterAndTrimConflictingNodes(ClusterState currentState, List<DiscoveryNode> joiningNodes) {
-            assert currentState.nodes().getMasterNodeId() == null : currentState;
-            DiscoveryNodes currentNodes = currentState.nodes();
-            DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
-            nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
-
-            for (final DiscoveryNode joiningNode : joiningNodes) {
-                final DiscoveryNode nodeWithSameId = nodesBuilder.get(joiningNode.getId());
-                if (nodeWithSameId != null && nodeWithSameId.equals(joiningNode) == false) {
-                    logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameId, joiningNode);
-                    nodesBuilder.remove(nodeWithSameId.getId());
-                }
-                final DiscoveryNode nodeWithSameAddress = currentNodes.findByAddress(joiningNode.getAddress());
-                if (nodeWithSameAddress != null && nodeWithSameAddress.equals(joiningNode) == false) {
-                    logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameAddress,
-                        joiningNode);
-                    nodesBuilder.remove(nodeWithSameAddress.getId());
-                }
-            }
-
-
-            // now trim any left over dead nodes - either left there when the previous master stepped down
-            // or removed by us above
-            ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).blocks(ClusterBlocks.builder()
-                .blocks(currentState.blocks())
-                .removeGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)).build();
-            return ClusterState.builder(allocationService.deassociateDeadNodes(tmpState, false,
-                "removed dead nodes on election"));
-        }
-
-        @Override
-        public boolean runOnlyOnMaster() {
-            // we validate that we are allowed to change the cluster state during cluster state processing
-            return false;
-        }
-
-        @Override
-        public void clusterStatePublished(ClusterChangedEvent event) {
-            electMasterService.logMinimumMasterNodesWarningIfNecessary(event.previousState(), event.state());
-        }
-    }
 }

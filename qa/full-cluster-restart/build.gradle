@@ -19,7 +19,6 @@
 
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.standalone-test'
@@ -93,12 +92,12 @@ for (Version version : bwcVersions.indexCompatible) {
   }
 }
 
-test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+unitTest.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
 // basic integ tests includes testing bwc against the most recent version
 task integTest {
   if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.snapshotsIndexCompatible) {
+    for (final def version : bwcVersions.unreleasedIndexCompatible) {
       dependsOn "v${version}#bwcTest"
     }
   }

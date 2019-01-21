@@ -36,8 +36,11 @@ buildRestTests.expectedUnconvertedCandidates = [
 ]
 
 integTestCluster {
-  /* Enable regexes in painless so our tests don't complain about example
-   * snippets that use them. */
+  if ("zip".equals(integTestCluster.distribution)) {
+    setting 'xpack.license.self_generated.type', 'trial'
+  }
+
+  // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
   Closure configFile = {
     extraConfigFile it, "src/test/cluster/config/$it"
@@ -58,17 +61,7 @@ integTestCluster {
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
 }
 
-// remove when https://github.com/elastic/elasticsearch/issues/31305 is fixed
-if (rootProject.ext.compilerJavaVersion.isJava11()) {
-  integTestRunner {
-    systemProperty 'tests.rest.blacklist', [
-            'plugins/ingest-attachment/line_164',
-            'plugins/ingest-attachment/line_117'
-    ].join(',')
-  }
-}
-// Build the cluster with all plugins
-
+// build the cluster with all plugins
 project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
   /* Skip repositories. We just aren't going to be able to test them so it
    * doesn't make sense to waste time installing them. */
@@ -90,16 +83,6 @@ buildRestTests.docs = fileTree(projectDir) {
   // Just syntax examples
   exclude 'README.asciidoc'
   // Broken code snippet tests
-  exclude 'reference/rollup/rollup-getting-started.asciidoc'
-  exclude 'reference/rollup/apis/rollup-job-config.asciidoc'
-  exclude 'reference/rollup/apis/rollup-index-caps.asciidoc'
-  exclude 'reference/rollup/apis/put-job.asciidoc'
-  exclude 'reference/rollup/apis/stop-job.asciidoc'
-  exclude 'reference/rollup/apis/start-job.asciidoc'
-  exclude 'reference/rollup/apis/rollup-search.asciidoc'
-  exclude 'reference/rollup/apis/delete-job.asciidoc'
-  exclude 'reference/rollup/apis/get-job.asciidoc'
-  exclude 'reference/rollup/apis/rollup-caps.asciidoc'
   exclude 'reference/graph/explore.asciidoc'
 }
 
@@ -156,7 +139,6 @@ buildRestTests.setups['host'] = '''
   - do:
       nodes.info:
         metric: [ http, transport ]
-  - is_true: nodes.$master.http.publish_address
   - set: {nodes.$master.http.publish_address: host}
   - set: {nodes.$master.transport.publish_address: transport_host}
 '''
@@ -305,8 +287,8 @@ buildRestTests.setups['stackoverflow'] = '''
           body: |'''
 
 // Make Kibana strongly connected to elasticsearch and logstash
-// Make Kibana rarer (and therefore higher-ranking) than Javascript
-// Make Javascript strongly connected to jquery and angular
+// Make Kibana rarer (and therefore higher-ranking) than JavaScript
+// Make JavaScript strongly connected to jquery and angular
 // Make Cabana strongly connected to elasticsearch but only as a result of a single author
 
 for (int i = 0; i < 150; i++) {
@@ -543,6 +525,7 @@ for (int i = 0; i < 5; i++) {
 buildRestTests.setups['library'] = '''
   - do:
         indices.create:
+          include_type_name: true
           index: library
           body:
             settings:
@@ -641,8 +624,9 @@ buildRestTests.setups['sensor_rollup_job'] = '''
                 node:
                   type: keyword
   - do:
-      xpack.rollup.put_job:
-        id: "sensor"
+      raw:
+        method: PUT
+        path: _rollup/job/sensor
         body:  >
             {
                 "index_pattern": "sensor-*",
@@ -711,8 +695,9 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
           {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
 
   - do:
-      xpack.rollup.put_job:
-        id: "sensor"
+      raw:
+        method: PUT
+        path: _rollup/job/sensor
         body:  >
             {
                 "index_pattern": "sensor-*",
@@ -741,8 +726,9 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
                 ]
             }
   - do:
-      xpack.rollup.start_job:
-        id: "sensor"
+      raw:
+        method: POST
+        path: _rollup/job/sensor/_start
 '''
 
 buildRestTests.setups['sensor_index'] = '''
@@ -841,7 +827,7 @@ buildRestTests.setups['sensor_prefab_data'] = '''
                       date_histogram:
                         delay: "7d"
                         field: "timestamp"
-                        interval: "1h"
+                        interval: "60m"
                         time_zone: "UTC"
                       terms:
                         fields:
@@ -1097,4 +1083,79 @@ buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['cale
            ]}
 '''
 
+// used by median absolute deviation aggregation
+buildRestTests.setups['reviews'] = '''
+  - do:
+        indices.create:
+          index: reviews
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              _doc:
+                properties:
+                  product:
+                    type: keyword
+                  rating:
+                    type: long
+  - do:
+        bulk:
+          index: reviews
+          type: _doc
+          refresh: true
+          body: |
+            {"index": {"_id": "1"}}
+            {"product": "widget-foo", "rating": 1}
+            {"index": {"_id": "2"}}
+            {"product": "widget-foo", "rating": 5}
+'''
 
+buildRestTests.setups['remote_cluster'] = buildRestTests.setups['host'] + '''
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.remote.remote_cluster.seeds: $transport_host
+'''
+
+buildRestTests.setups['remote_cluster_and_leader_index'] = buildRestTests.setups['remote_cluster'] + '''
+  - do:
+      indices.create:
+        index: leader_index
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 1
+            index.soft_deletes.enabled: true
+'''
+
+buildRestTests.setups['seats'] = '''
+  - do:
+        indices.create:
+          index: seats
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              _doc:
+                properties:
+                  theatre:
+                    type: keyword
+                  cost:
+                    type: long
+  - do:
+        bulk:
+          index: seats
+          type: _doc
+          refresh: true
+          body: |
+            {"index":{}}
+            {"theatre": "Skyline", "cost": 1}
+            {"index":{}}
+            {"theatre": "Graye", "cost": 5}
+            {"index":{}}
+            {"theatre": "Graye", "cost": 8}
+            {"index":{}}
+            {"theatre": "Skyline", "cost": 10}'''

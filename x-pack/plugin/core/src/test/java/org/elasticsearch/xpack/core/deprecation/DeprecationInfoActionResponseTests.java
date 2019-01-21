@@ -80,7 +80,7 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
         List<NodeStats> nodeStats = Collections.singletonList(new NodeStats(discoveryNode, 0L, null,
             null, null, null, null, null, null, null, null,
             null, null, null, null));
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(Settings.EMPTY);
+        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false,
             true, true);
         boolean clusterIssueFound = randomBoolean();

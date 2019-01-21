@@ -5,8 +5,7 @@ The explain api computes a score explanation for a query and a specific
 document. This can give useful feedback whether a document matches or
 didn't match a specific query.
 
-The `index` and `type` parameters expect a single index and a single
-type respectively.
+Note that a single index must be provided to the `index` parameter.
 
 [float]
 === Usage
@@ -15,7 +14,7 @@ Full query example:
 
 [source,js]
 --------------------------------------------------
-GET /twitter/_doc/0/_explain
+GET /twitter/_explain/0
 {
       "query" : {
         "match" : { "message" : "elasticsearch" }
@@ -44,7 +43,7 @@ This will yield the following result:
             "details":[
                {
                   "value":2.2,
-                  "description":"scaling factor, k1 + 1",
+                  "description":"boost",
                   "details":[]
                },
                {
@@ -109,7 +108,7 @@ explain api:
 
 [source,js]
 --------------------------------------------------
-GET /twitter/_doc/0/_explain?q=message:search
+GET /twitter/_explain/0?q=message:search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -123,7 +122,7 @@ This will yield the same result as the previous request.
 `_source`::
 
     Set to `true` to retrieve the `_source` of the document explained. You can also
-    retrieve part of the document by using `_source_include` & `_source_exclude` (see <<get-source-filtering,Get API>> for more details)
+    retrieve part of the document by using `_source_includes` & `_source_excludes` (see <<get-source-filtering,Get API>> for more details)
 
 `stored_fields`::
     Allows to control which stored fields to return as part of the

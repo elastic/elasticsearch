@@ -31,6 +31,8 @@ public final class XPackField {
     public static final String SQL = "sql";
     /** Name constant for the rollup feature. */
     public static final String ROLLUP = "rollup";
+    /** Name constant for the index lifecycle feature. */
+    public static final String INDEX_LIFECYCLE = "ilm";
 
     private XPackField() {}
 

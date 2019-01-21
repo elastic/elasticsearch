@@ -52,3 +52,12 @@ namingConventions {
   //we don't have integration tests
   skipIntegTestInDisguise = true
 }
+
+testingConventions {
+  naming.clear()
+  naming {
+    Tests {
+      baseClass 'com.carrotsearch.randomizedtesting.RandomizedTest'
+    }
+  }
+}

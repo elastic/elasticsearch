@@ -20,14 +20,15 @@ List projects = [
   'distribution:archives:zip',
   'distribution:archives:oss-tar',
   'distribution:archives:tar',
+  'distribution:docker',
   'distribution:packages:oss-deb',
   'distribution:packages:deb',
   'distribution:packages:oss-rpm',
   'distribution:packages:rpm',
-  'distribution:bwc:next-minor-snapshot',
-  'distribution:bwc:staged-minor-snapshot',
-  'distribution:bwc:next-bugfix-snapshot',
-  'distribution:bwc:maintenance-bugfix-snapshot',
+  'distribution:bwc:bugfix',
+  'distribution:bwc:maintenance',
+  'distribution:bwc:minor',
+  'distribution:bwc:staged',
   'distribution:tools:java-version-checker',
   'distribution:tools:launchers',
   'distribution:tools:plugin-cli',
@@ -94,6 +95,8 @@ if (isEclipse) {
   projects << 'libs:x-content-tests'
   projects << 'libs:secure-sm-tests'
   projects << 'libs:grok-tests'
+  projects << 'libs:geo-tests'
+  projects << 'libs:ssl-config-tests'
 }
 
 include projects.toArray(new String[0])
@@ -129,6 +132,14 @@ if (isEclipse) {
   project(":libs:grok").buildFileName = 'eclipse-build.gradle'
   project(":libs:grok-tests").projectDir = new File(rootProject.projectDir, 'libs/grok/src/test')
   project(":libs:grok-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:geo").projectDir = new File(rootProject.projectDir, 'libs/geo/src/main')
+  project(":libs:geo").buildFileName = 'eclipse-build.gradle'
+  project(":libs:geo-tests").projectDir = new File(rootProject.projectDir, 'libs/geo/src/test')
+  project(":libs:geo-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:ssl-config").projectDir = new File(rootProject.projectDir, 'libs/ssl-config/src/main')
+  project(":libs:ssl-config").buildFileName = 'eclipse-build.gradle'
+  project(":libs:ssl-config-tests").projectDir = new File(rootProject.projectDir, 'libs/ssl-config/src/test')
+  project(":libs:ssl-config-tests").buildFileName = 'eclipse-build.gradle'
 }
 
 // look for extra plugins for elasticsearch
@@ -139,7 +150,6 @@ if (extraProjects.exists()) {
   }
 }
 
-// enable in preparation for Gradle 5.0
-enableFeaturePreview('STABLE_PUBLISHING')
-
 project(":libs:cli").name = 'elasticsearch-cli'
+project(":libs:geo").name = 'elasticsearch-geo'
+project(":libs:ssl-config").name = 'elasticsearch-ssl-config'

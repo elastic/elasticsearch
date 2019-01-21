@@ -1,4 +1,6 @@
 setup:
+  - skip:
+      features: headers
   - do:
       indices.create:
         index: foo
@@ -153,7 +155,48 @@ setup:
   - match: { aggregations.histo.buckets.3.doc_count: 20 }
 
 ---
+"Formatted Date Histo":
+
+  - do:
+      xpack.rollup.rollup_search:
+        index: "foo_rollup"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                interval: "1h"
+                time_zone: "UTC"
+                format: "yyyy-MM-dd"
+
+  - length: { aggregations.histo.buckets: 4 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01" }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2017-01-01" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2017-01-01" }
+  - match: { aggregations.histo.buckets.2.doc_count: 10 }
+  - match: { aggregations.histo.buckets.3.key_as_string: "2017-01-01" }
+  - match: { aggregations.histo.buckets.3.doc_count: 20 }
+
+---
 "Empty aggregation":
+
+  - do:
+      xpack.rollup.rollup_search:
+        rest_total_hits_as_int: true
+        index: "foo_rollup"
+        body:
+          size: 0
+          aggs: {}
+
+  - length: { hits.hits: 0 }
+  - match: { hits.total: 0 }
+  - is_false: aggregations
+
+---
+"Empty aggregation with new response format":
 
   - do:
       xpack.rollup.rollup_search:
@@ -163,8 +206,10 @@ setup:
           aggs: {}
 
   - length: { hits.hits: 0 }
-  - match: { hits.total: 0 }
+  - match: { hits.total.value:    0 }
+  - match: { hits.total.relation: eq }
   - is_false: aggregations
+
 
 
 ---
@@ -682,5 +727,213 @@ setup:
   - match: { aggregations.histo.buckets.3.doc_count: 10 }
   - match: { aggregations.histo.buckets.3.the_max.value: 3 }
 
+---
+"Wildcards matching single rollup index":
+
+  - do:
+      xpack.rollup.rollup_search:
+        index: "foo_rollup*"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                interval: "1h"
+                time_zone: "UTC"
+
+  - length: { aggregations.histo.buckets: 4 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01T05:00:00.000Z" }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2017-01-01T06:00:00.000Z" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2017-01-01T07:00:00.000Z" }
+  - match: { aggregations.histo.buckets.2.doc_count: 10 }
+  - match: { aggregations.histo.buckets.3.key_as_string: "2017-01-01T08:00:00.000Z" }
+  - match: { aggregations.histo.buckets.3.doc_count: 20 }
+
+---
+"Wildcards matching two rollup indices":
+
+  - do:
+      indices.create:
+        index: bar
+        body:
+          mappings:
+            _doc:
+              properties:
+                timestamp:
+                  type: date
+                partition:
+                  type: keyword
+                price:
+                  type: integer
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      xpack.rollup.put_job:
+        id: bar
+        body:  >
+          {
+            "index_pattern": "bar",
+            "rollup_index": "bar_rollup",
+            "cron": "*/30 * * * * ?",
+            "page_size" :10,
+            "groups" : {
+              "date_histogram": {
+                "field": "timestamp",
+                "interval": "1h"
+              },
+              "terms": {
+                "fields": ["partition"]
+              }
+            },
+            "metrics": [
+              {
+                "field": "price",
+                "metrics": ["max"]
+              }
+            ]
+          }
+
+  - do:
+      catch: /RollupSearch currently only supports searching one rollup index at a time\./
+      xpack.rollup.rollup_search:
+        index: "*_rollup"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                interval: "1h"
+                time_zone: "UTC"
 
 
+---
+"Rollup search via alias":
+
+  - do:
+      indices.put_alias:
+        index: foo_rollup
+        name: rollup_alias
+
+  - do:
+      xpack.rollup.rollup_search:
+        index: "rollup_alias"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                interval: "1h"
+                time_zone: "UTC"
+
+  - length: { aggregations.histo.buckets: 4 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01T05:00:00.000Z" }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2017-01-01T06:00:00.000Z" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2017-01-01T07:00:00.000Z" }
+  - match: { aggregations.histo.buckets.2.doc_count: 10 }
+  - match: { aggregations.histo.buckets.3.key_as_string: "2017-01-01T08:00:00.000Z" }
+  - match: { aggregations.histo.buckets.3.doc_count: 20 }
+
+---
+"Rollup search via alias, multiple rollup indices match":
+
+  - do:
+      indices.create:
+        index: bar
+        body:
+          mappings:
+            _doc:
+              properties:
+                timestamp:
+                  type: date
+                partition:
+                  type: keyword
+                price:
+                  type: integer
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      xpack.rollup.put_job:
+        id: bar
+        body:  >
+          {
+            "index_pattern": "bar",
+            "rollup_index": "bar_rollup",
+            "cron": "*/30 * * * * ?",
+            "page_size" :10,
+            "groups" : {
+              "date_histogram": {
+                "field": "timestamp",
+                "interval": "1h"
+              },
+              "terms": {
+                "fields": ["partition"]
+              }
+            },
+            "metrics": [
+              {
+                "field": "price",
+                "metrics": ["max"]
+              }
+            ]
+          }
+
+  - do:
+      indices.put_alias:
+        index: foo_rollup,bar_rollup
+        name: rollup_alias
+
+  - do:
+       catch: /RollupSearch currently only supports searching one rollup index at a time\./
+       xpack.rollup.rollup_search:
+         index: "rollup_alias"
+         body:
+           size: 0
+           aggs:
+             histo:
+               date_histogram:
+                 field: "timestamp"
+                 interval: "1h"
+                 time_zone: "UTC"
+
+
+---
+"Search with typed_keys":
+
+  - do:
+      xpack.rollup.rollup_search:
+        index: "foo_rollup"
+        typed_keys: true
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                interval: "1h"
+                time_zone: "UTC"
+              aggs:
+                the_max:
+                  max:
+                    field: "price"
+
+  - match: { aggregations.date_histogram#histo.buckets.0.key_as_string: "2017-01-01T05:00:00.000Z" }
+  - match: { aggregations.date_histogram#histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.date_histogram#histo.buckets.0.max#the_max.value: 1 }
+  - match: { aggregations.date_histogram#histo.buckets.1.key_as_string: "2017-01-01T06:00:00.000Z" }
+  - match: { aggregations.date_histogram#histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.date_histogram#histo.buckets.1.max#the_max.value: 2 }
+  - match: { aggregations.date_histogram#histo.buckets.2.key_as_string: "2017-01-01T07:00:00.000Z" }
+  - match: { aggregations.date_histogram#histo.buckets.2.doc_count: 10 }
+  - match: { aggregations.date_histogram#histo.buckets.2.max#the_max.value: 3 }
+  - match: { aggregations.date_histogram#histo.buckets.3.key_as_string: "2017-01-01T08:00:00.000Z" }
+  - match: { aggregations.date_histogram#histo.buckets.3.doc_count: 20 }
+  - match: { aggregations.date_histogram#histo.buckets.3.max#the_max.value: 4 }

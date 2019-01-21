@@ -62,7 +62,6 @@ public final class PutUserResponse {
 
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField("created"));
-        PARSER.declareObject((a,b) -> {}, (parser, context) -> null, new ParseField("user")); // ignore the user field!
     }
 
     public static PutUserResponse fromXContent(XContentParser parser) throws IOException {

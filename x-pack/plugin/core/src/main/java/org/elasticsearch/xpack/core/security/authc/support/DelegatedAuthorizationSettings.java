@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.authc.support;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -18,10 +19,11 @@ import java.util.function.Function;
  */
 public class DelegatedAuthorizationSettings {
 
-    public static final Setting<List<String>> AUTHZ_REALMS = Setting.listSetting("authorization_realms",
-        Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
+    public static final String AUTHZ_REALMS_SUFFIX = "authorization_realms";
+    public static final Function<String, Setting.AffixSetting<List<String>>> AUTHZ_REALMS = RealmSettings.affixSetting(
+        AUTHZ_REALMS_SUFFIX, key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Setting.Property.NodeScope));
 
-    public static Collection<Setting<?>> getSettings() {
-        return Collections.singleton(AUTHZ_REALMS);
+    public static Collection<Setting.AffixSetting<?>> getSettings(String realmType) {
+        return Collections.singleton(AUTHZ_REALMS.apply(realmType));
     }
 }

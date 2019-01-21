@@ -1,0 +1,11 @@
+---
+"Verify jobs exist":
+  - do:
+      ml.get_jobs:
+        job_id: old-cluster-job-to-upgrade
+  - match: { count: 1 }
+
+  - do:
+      ml.get_jobs:
+        job_id: old-cluster-job-to-upgrade-custom
+  - match: { count: 1 }

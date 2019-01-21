@@ -183,12 +183,19 @@ class ClusterFormationTasks {
         if (['integ-test-zip', 'oss', 'default'].contains(distro) == false) {
             throw new GradleException("Unknown distribution: ${distro} in project ${project.path}")
         }
-        String subgroup = distro == 'integ-test-zip' ? distro : 'zip'
+        Version version = Version.fromString(elasticsearchVersion)
+        if (version.before('6.3.0') && distro.startsWith('oss-')) {
+            distro = distro.substring('oss-'.length())
+        }
+        String group = "downloads.zip"
+        if (distro.equals("integ-test-zip")) {
+            group = "org.elasticsearch.distribution.integ-test-zip"
+        }
         String artifactName = 'elasticsearch'
         if (distro.equals('oss') && Version.fromString(elasticsearchVersion).onOrAfter('6.3.0')) {
             artifactName += '-oss'
         }
-        project.dependencies.add(configuration.name, "org.elasticsearch.distribution.${subgroup}:${artifactName}:${elasticsearchVersion}@zip")
+        project.dependencies.add(configuration.name, "${group}:${artifactName}:${elasticsearchVersion}@zip")
     }
 
     /** Adds a dependency on a different version of the given plugin, which will be retrieved using gradle's dependency resolution */

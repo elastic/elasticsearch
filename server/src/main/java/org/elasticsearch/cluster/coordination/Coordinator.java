@@ -872,8 +872,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     public void publish(ClusterChangedEvent clusterChangedEvent, ActionListener<Void> publishListener, AckListener ackListener) {
         try {
             synchronized (mutex) {
-                assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-
                 if (mode != Mode.LEADER) {
                     logger.debug(() -> new ParameterizedMessage("[{}] failed publication as not currently leading",
                         clusterChangedEvent.source()));

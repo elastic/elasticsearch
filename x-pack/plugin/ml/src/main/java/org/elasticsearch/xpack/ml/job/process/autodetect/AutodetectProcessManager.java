@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
@@ -421,7 +422,9 @@ public class AutodetectProcessManager extends AbstractComponent {
     public void openJob(JobTask jobTask, ClusterState clusterState, Consumer<Exception> closeHandler) {
         String jobId = jobTask.getJobId();
         logger.info("Opening job [{}]", jobId);
-        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, ActionListener.wrap(
+
+        // Start the process
+        ActionListener<Boolean> stateAliasHandler = ActionListener.wrap(
             r -> {
                 jobManager.getJob(jobId, ActionListener.wrap(
                     job -> {
@@ -430,7 +433,6 @@ public class AutodetectProcessManager extends AbstractComponent {
                                 + "] because jobs created prior to version 5.5 are not supported"));
                             return;
                         }
-
 
                         processByAllocation.putIfAbsent(jobTask.getAllocationId(), new ProcessContext(jobTask));
                         jobResultsProvider.getAutodetectParams(job, params -> {
@@ -481,7 +483,17 @@ public class AutodetectProcessManager extends AbstractComponent {
                     closeHandler
                 ));
             },
-            closeHandler));
+            closeHandler);
+
+        // Make sure the state index and alias exist
+        ActionListener<Boolean> resultsMappingUpdateHandler = ActionListener.wrap(
+            ack -> AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, stateAliasHandler),
+            closeHandler
+        );
+
+        // Try adding the results doc mapping - this updates to the latest version if an old mapping is present
+        ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
+            ElasticsearchMappings::resultsMapping, client, logger, clusterState, resultsMappingUpdateHandler);
     }
 
     private void createProcessAndSetRunning(ProcessContext processContext, Job job, AutodetectParams params, Consumer<Exception> handler) {

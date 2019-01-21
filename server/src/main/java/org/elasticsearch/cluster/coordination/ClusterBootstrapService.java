@@ -24,7 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -32,11 +32,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
@@ -47,13 +46,14 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
 import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 
 public class ClusterBootstrapService {
 
     public static final Setting<List<String>> INITIAL_MASTER_NODES_SETTING =
-        Setting.listSetting("cluster.initial_master_nodes", Collections.emptyList(), Function.identity(), Property.NodeScope);
+        Setting.listSetting("cluster.initial_master_nodes", emptyList(), Function.identity(), Property.NodeScope);
 
     public static final Setting<TimeValue> UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING =
         Setting.timeSetting("discovery.unconfigured_bootstrap_timeout",
@@ -66,13 +66,12 @@ public class ClusterBootstrapService {
     @Nullable // null if discoveryIsConfigured()
     private final TimeValue unconfiguredBootstrapTimeout;
     private final TransportService transportService;
-    private final Random random;
     private final Supplier<Iterable<DiscoveryNode>> discoveredNodesSupplier;
     private final BooleanSupplier isBootstrappedSupplier;
     private final Consumer<VotingConfiguration> votingConfigurationConsumer;
     private final AtomicBoolean bootstrappingPermitted = new AtomicBoolean(true);
 
-    public ClusterBootstrapService(Settings settings, TransportService transportService, Random random,
+    public ClusterBootstrapService(Settings settings, TransportService transportService,
                                    Supplier<Iterable<DiscoveryNode>> discoveredNodesSupplier, BooleanSupplier isBootstrappedSupplier,
                                    Consumer<VotingConfiguration> votingConfigurationConsumer) {
 
@@ -85,7 +84,6 @@ public class ClusterBootstrapService {
 
         unconfiguredBootstrapTimeout = discoveryIsConfigured(settings) ? null : UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
-        this.random = random;
         this.discoveredNodesSupplier = discoveredNodesSupplier;
         this.isBootstrappedSupplier = isBootstrappedSupplier;
         this.votingConfigurationConsumer = votingConfigurationConsumer;
@@ -101,17 +99,19 @@ public class ClusterBootstrapService {
         if (transportService.getLocalNode().isMasterNode() && bootstrapRequirements.isEmpty() == false
             && isBootstrappedSupplier.getAsBoolean() == false && nodes.stream().noneMatch(Coordinator::isZen1Node)) {
 
-            final Set<DiscoveryNode> nodesMatchingRequirements;
+            final Tuple<Set<DiscoveryNode>,List<String>> requirementMatchingResult;
             try {
-                nodesMatchingRequirements = getNodesMatchingRequirements(nodes);
+                requirementMatchingResult = checkRequirements(nodes);
             } catch (IllegalStateException e) {
                 logger.warn("bootstrapping cancelled", e);
                 bootstrappingPermitted.set(false);
                 return;
             }
 
+            final Set<DiscoveryNode> nodesMatchingRequirements = requirementMatchingResult.v1();
+            final List<String> unsatisfiedRequirements = requirementMatchingResult.v2();
             if (nodesMatchingRequirements.size() * 2 > bootstrapRequirements.size()) {
-                startBootstrap(nodesMatchingRequirements, bootstrapRequirements.size() - nodesMatchingRequirements.size());
+                startBootstrap(nodesMatchingRequirements, unsatisfiedRequirements);
             }
         }
     }
@@ -135,7 +135,7 @@ public class ClusterBootstrapService {
                 final List<DiscoveryNode> zen1Nodes = discoveredNodes.stream().filter(Coordinator::isZen1Node).collect(Collectors.toList());
                 if (zen1Nodes.isEmpty()) {
                     logger.debug("performing best-effort cluster bootstrapping with {}", discoveredNodes);
-                    startBootstrap(discoveredNodes, 0);
+                    startBootstrap(discoveredNodes, emptyList());
                 } else {
                     logger.info("avoiding best-effort cluster bootstrapping due to discovery of pre-7.0 nodes {}", zen1Nodes);
                 }
@@ -153,13 +153,13 @@ public class ClusterBootstrapService {
             StreamSupport.stream(discoveredNodesSupplier.get().spliterator(), false)).collect(Collectors.toSet());
     }
 
-    private void startBootstrap(Set<DiscoveryNode> discoveryNodes, int placeholderCount) {
+    private void startBootstrap(Set<DiscoveryNode> discoveryNodes, List<String> unsatisfiedRequirements) {
         assert discoveryNodes.stream().allMatch(DiscoveryNode::isMasterNode) : discoveryNodes;
         assert discoveryNodes.stream().noneMatch(Coordinator::isZen1Node) : discoveryNodes;
-        assert placeholderCount < discoveryNodes.size() : discoveryNodes.size() + " <= " + placeholderCount;
+        assert unsatisfiedRequirements.size() < discoveryNodes.size() : discoveryNodes + " smaller than " + unsatisfiedRequirements;
         if (bootstrappingPermitted.compareAndSet(true, false)) {
             doBootstrap(new VotingConfiguration(Stream.concat(discoveryNodes.stream().map(DiscoveryNode::getId),
-                Stream.generate(() -> BOOTSTRAP_PLACEHOLDER_PREFIX + UUIDs.randomBase64UUID(random)).limit(placeholderCount))
+                unsatisfiedRequirements.stream().map(s -> BOOTSTRAP_PLACEHOLDER_PREFIX + s))
                 .collect(Collectors.toSet())));
         }
     }
@@ -197,11 +197,16 @@ public class ClusterBootstrapService {
             || discoveryNode.getAddress().getAddress().equals(requirement);
     }
 
-    private Set<DiscoveryNode> getNodesMatchingRequirements(Set<DiscoveryNode> nodes) {
+    private Tuple<Set<DiscoveryNode>,List<String>> checkRequirements(Set<DiscoveryNode> nodes) {
         final Set<DiscoveryNode> selectedNodes = new HashSet<>();
+        final List<String> unmatchedRequirements = new ArrayList<>();
         for (final String bootstrapRequirement : bootstrapRequirements) {
             final Set<DiscoveryNode> matchingNodes
                 = nodes.stream().filter(n -> matchesRequirement(n, bootstrapRequirement)).collect(Collectors.toSet());
+
+            if (matchingNodes.size() == 0) {
+                unmatchedRequirements.add(bootstrapRequirement);
+            }
 
             if (matchingNodes.size() > 1) {
                 throw new IllegalStateException("requirement [" + bootstrapRequirement + "] matches multiple nodes: " + matchingNodes);
@@ -215,6 +220,6 @@ public class ClusterBootstrapService {
             }
         }
 
-        return selectedNodes;
+        return Tuple.tuple(selectedNodes, unmatchedRequirements);
     }
 }

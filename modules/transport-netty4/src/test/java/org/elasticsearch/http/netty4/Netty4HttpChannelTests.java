@@ -590,7 +590,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
             }
             final ByteArray bigArray = bigArrays.newByteArray(bytes.length);
             bigArray.set(0, bytes, 0, bytes.length);
-            reference = new ReleasablePagedBytesReference(bigArrays, bigArray, bytes.length, Releasables.releaseOnce(bigArray));
+            reference = new ReleasablePagedBytesReference(bigArray, bytes.length, Releasables.releaseOnce(bigArray));
         }
 
         @Override

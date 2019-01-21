@@ -49,8 +49,6 @@
 
 Also see <<breaking-changes-6.6,Breaking changes in 6.6>>.
 
-coming[6.6.0]
-
 [float]
 [[feature-6.6.0]]
 === New features
@@ -75,7 +73,6 @@ Machine Learning::
 {pull}36233[#36233]
 * Add lazy parsing for DatafeedConfig:Aggs,Query {pull}36117[#36117]
 * Add support for rollup indexes in datafeeds {pull}34654[#34654]
-
 
 [[bug-6.6.0]]
 [float]

@@ -105,21 +105,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
      * Constructs a new search request from the provided search request
      */
     public SearchRequest(SearchRequest searchRequest) {
-        this.allowPartialSearchResults = searchRequest.allowPartialSearchResults;
-        this.batchedReduceSize = searchRequest.batchedReduceSize;
-        this.indices = searchRequest.indices;
-        this.indicesOptions = searchRequest.indicesOptions;
-        this.maxConcurrentShardRequests = searchRequest.maxConcurrentShardRequests;
-        this.preference = searchRequest.preference;
-        this.preFilterShardSize = searchRequest.preFilterShardSize;
-        this.requestCache = searchRequest.requestCache;
-        this.routing = searchRequest.routing;
-        this.scroll = searchRequest.scroll;
-        this.searchType = searchRequest.searchType;
-        this.source = searchRequest.source;
-        this.types = searchRequest.types;
-        this.localClusterAlias = searchRequest.localClusterAlias;
-        this.absoluteStartMillis = searchRequest.absoluteStartMillis;
+        this(searchRequest, searchRequest.indices, searchRequest.localClusterAlias, searchRequest.absoluteStartMillis);
     }
 
     /**
@@ -143,16 +129,39 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
-     * Creates a new search request by providing the alias of the cluster where it will be executed, as well as the current time in
-     * milliseconds from the epoch time. Used when a {@link SearchRequest} is created and executed as part of a cross-cluster search
-     * request performing local reduction on each cluster. The coordinating CCS node provides the alias to prefix index names with in
-     * the returned search results, and the current time to be used on the remote clusters to ensure that the same value is used.
+     * Creates a new search request by providing the search request to copy all fields from, the indices to search against,
+     * the alias of the cluster where it will be executed, as well as the start time in milliseconds from the epoch time.
+     * Used when a {@link SearchRequest} is created and executed as part of a cross-cluster search request performing local reduction
+     * on each cluster. The coordinating CCS node provides the original search request, the indices to search against as well as the
+     * alias to prefix index names with in the returned search results, and the absolute start time to be used on the remote clusters
+     * to ensure that the same value is used.
      */
-    SearchRequest(String localClusterAlias, long absoluteStartMillis) {
-        this.localClusterAlias = Objects.requireNonNull(localClusterAlias, "cluster alias must not be null");
+    static SearchRequest withLocalReduction(SearchRequest originalSearchRequest, String[] indices,
+                                            String localClusterAlias, long absoluteStartMillis) {
+        Objects.requireNonNull(originalSearchRequest, "search request must not be null");
+        validateIndices(indices);
+        Objects.requireNonNull(localClusterAlias, "cluster alias must not be null");
         if (absoluteStartMillis < 0) {
             throw new IllegalArgumentException("absoluteStartMillis must not be negative but was [" + absoluteStartMillis + "]");
         }
+        return new SearchRequest(originalSearchRequest, indices, localClusterAlias, absoluteStartMillis);
+    }
+
+    private SearchRequest(SearchRequest searchRequest, String[] indices, String localClusterAlias, long absoluteStartMillis) {
+        this.allowPartialSearchResults = searchRequest.allowPartialSearchResults;
+        this.batchedReduceSize = searchRequest.batchedReduceSize;
+        this.indices = indices;
+        this.indicesOptions = searchRequest.indicesOptions;
+        this.maxConcurrentShardRequests = searchRequest.maxConcurrentShardRequests;
+        this.preference = searchRequest.preference;
+        this.preFilterShardSize = searchRequest.preFilterShardSize;
+        this.requestCache = searchRequest.requestCache;
+        this.routing = searchRequest.routing;
+        this.scroll = searchRequest.scroll;
+        this.searchType = searchRequest.searchType;
+        this.source = searchRequest.source;
+        this.types = searchRequest.types;
+        this.localClusterAlias = localClusterAlias;
         this.absoluteStartMillis = absoluteStartMillis;
     }
 
@@ -257,8 +266,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     /**
      * Returns the current time in milliseconds from the time epoch, to be used for the execution of this search request. Used to
      * ensure that the same value, determined by the coordinating node, is used on all nodes involved in the execution of the search
-     * request. When created through {@link #SearchRequest(String, long)}, this method returns the provided current time, otherwise
-     * it will return {@link System#currentTimeMillis()}.
+     * request. When created through {@link #withLocalReduction(SearchRequest, String[], String, long)}, this method returns the provided
+     * current time, otherwise it will return {@link System#currentTimeMillis()}.
      *
      */
     long getOrCreateAbsoluteStartMillis() {
@@ -270,12 +279,16 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
      */
     @Override
     public SearchRequest indices(String... indices) {
+        validateIndices(indices);
+        this.indices = indices;
+        return this;
+    }
+
+    private static void validateIndices(String... indices) {
         Objects.requireNonNull(indices, "indices must not be null");
         for (String index : indices) {
             Objects.requireNonNull(index, "index must not be null");
         }
-        this.indices = indices;
-        return this;
     }
 
     @Override

@@ -69,6 +69,7 @@ public class PutRoleRequestTests extends ESTestCase {
         assertThat(copy.roleDescriptor(), equalTo(original.roleDescriptor()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37662")
     public void testSerializationBetweenV63AndV70() throws IOException {
         final PutRoleRequest original = buildRandomRequest();
 

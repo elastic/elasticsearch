@@ -208,6 +208,51 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
+     * Adds a new retention lease.
+     *
+     * @param id                      the identifier of the retention lease
+     * @param retainingSequenceNumber the retaining sequence number
+     * @param source                  the source of the retention lease
+     * @return the new retention lease
+     * @throws IllegalArgumentException if the specified retention lease already exists
+     */
+    public RetentionLease addRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
+        final RetentionLease retentionLease;
+        final Collection<RetentionLease> currentRetentionLeases;
+        synchronized (this) {
+            assert primaryMode;
+            if (retentionLeases.containsKey(id)) {
+                throw new IllegalArgumentException("retention lease with ID [" + id + "] already exists");
+            }
+            retentionLease = new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source);
+            retentionLeases.put(id, retentionLease);
+            currentRetentionLeases = retentionLeases.values();
+        }
+        onNewRetentionLease.accept(Collections.unmodifiableCollection(new ArrayList<>(currentRetentionLeases)));
+        return retentionLease;
+    }
+
+    /**
+     * Renews an existing retention lease.
+     *
+     * @param id                      the identifier of the retention lease
+     * @param retainingSequenceNumber the retaining sequence number
+     * @param source                  the source of the retention lease
+     * @return the renewed retention lease
+     * @throws IllegalArgumentException if the specified retention lease does not exist
+     */
+    public synchronized RetentionLease renewRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
+        assert primaryMode;
+        if (retentionLeases.containsKey(id) == false) {
+            throw new IllegalArgumentException("retention lease with ID [" + id + "] does not exist");
+        }
+        final RetentionLease retentionLease =
+                new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source);
+        retentionLeases.put(id, retentionLease);
+        return retentionLease;
+    }
+
+    /**
      * Updates retention leases on a replica.
      *
      * @param retentionLeases the retention leases

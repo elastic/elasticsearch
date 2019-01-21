@@ -1895,18 +1895,33 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Adds a new or updates an existing retention lease.
+     * Adds a new retention lease.
      *
      * @param id                      the identifier of the retention lease
      * @param retainingSequenceNumber the retaining sequence number
      * @param source                  the source of the retention lease
-     *
-     * @return the new or updated retention lease
+     * @return the new retention lease
+     * @throws IllegalArgumentException if the specified retention lease already exists
      */
-    public RetentionLease addOrUpdateRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
+    public RetentionLease addRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
         assert assertPrimaryMode();
         verifyNotClosed();
-        return replicationTracker.addOrUpdateRetentionLease(id, retainingSequenceNumber, source);
+        return replicationTracker.addRetentionLease(id, retainingSequenceNumber, source);
+    }
+
+    /**
+     * Renews an existing retention lease.
+     *
+     * @param id                      the identifier of the retention lease
+     * @param retainingSequenceNumber the retaining sequence number
+     * @param source                  the source of the retention lease
+     * @return the renewed retention lease
+     * @throws IllegalArgumentException if the specified retention lease does not exist
+     */
+    public RetentionLease renewRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
+        assert assertPrimaryMode();
+        verifyNotClosed();
+        return replicationTracker.renewRetentionLease(id, retainingSequenceNumber, source);
     }
 
     /**

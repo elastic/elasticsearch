@@ -56,7 +56,7 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
             final String id = randomValueOtherThanMany(currentRetentionLeases.keySet()::contains, () -> randomAlphaOfLength(8));
             final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
             final String source = randomAlphaOfLength(8);
-            currentRetentionLeases.put(id, primary.addOrUpdateRetentionLease(id, retainingSequenceNumber, source));
+            currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source));
             assertBusy(() -> {
                 // check current retention leases have been synced to all replicas
                 for (final ShardRouting replicaShard : clusterService().state().routingTable().index("index").shard(0).replicaShards()) {

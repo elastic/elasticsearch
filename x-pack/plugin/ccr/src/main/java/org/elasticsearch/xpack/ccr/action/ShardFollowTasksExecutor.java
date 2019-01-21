@@ -112,16 +112,22 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             scheduler, System::nanoTime) {
 
             @Override
-            protected void innerUpdateMapping(long minRequiredMappingVersion, LongConsumer handler, Consumer<Exception> errorHandler) {
+            protected void innerUpdateMapping(long minRequiredMappingVersion, long minRequiredMetadataVersion,
+                                              LongConsumer handler, Consumer<Exception> errorHandler) {
                 Index leaderIndex = params.getLeaderShardId().getIndex();
                 Index followIndex = params.getFollowShardId().getIndex();
 
                 ClusterStateRequest clusterStateRequest = CcrRequests.metaDataRequest(leaderIndex.getName());
+                if (minRequiredMetadataVersion > 0) {
+                    clusterStateRequest.waitForMetaDataVersion(minRequiredMetadataVersion)
+                        .waitForTimeout(TimeValue.timeValueNanos(Long.MAX_VALUE));
+                }
                 CheckedConsumer<ClusterStateResponse, Exception> onResponse = clusterStateResponse -> {
                     IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().getIndexSafe(leaderIndex);
-                    // the returned mapping is outdated - retry again
+                    // this may return an outdated version if we did not have wait_for_metadata_version.
                     if (indexMetaData.getMappingVersion() < minRequiredMappingVersion) {
-                        innerUpdateMapping(minRequiredMappingVersion, handler, errorHandler);
+                        assert minRequiredMetadataVersion == 0 : minRequiredMappingVersion;
+                        innerUpdateMapping(minRequiredMappingVersion, minRequiredMetadataVersion, handler, errorHandler);
                         return;
                     }
                     if (indexMetaData.getMappings().isEmpty()) {

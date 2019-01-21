@@ -957,7 +957,8 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                 1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), followTask, scheduler, System::nanoTime) {
 
             @Override
-            protected void innerUpdateMapping(long minRequiredMappingVersion, LongConsumer handler, Consumer<Exception> errorHandler) {
+            protected void innerUpdateMapping(long minRequiredMappingVersion, long minRequiredMetadataVersion,
+                                              LongConsumer handler, Consumer<Exception> errorHandler) {
                 Exception failure = mappingUpdateFailures.poll();
                 if (failure != null) {
                     errorHandler.accept(failure);

@@ -144,7 +144,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         SearchHit hit = new SearchHit(1);
         DocumentField field = new DocumentField("my_date_field", documentFieldValues);
         hit.fields(singletonMap("my_date_field", field));
-        FieldHitExtractor extractor = new FieldHitExtractor("my_date_field", DataType.DATE, true);
+        FieldHitExtractor extractor = new FieldHitExtractor("my_date_field", DataType.DATETIME, true);
         assertEquals(DateUtils.of(millis), extractor.extract(hit));
     }
 
@@ -334,6 +334,24 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         map.put("a", singletonMap("b.c", singletonMap("d.e", singletonMap("f", singletonMap("g", value)))));
         SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Multiple values (returned by [a.b.c.d.e.f.g]) are not supported"));
+    }
+
+    public void testObjectsForSourceValue() throws IOException {
+        String fieldName = randomAlphaOfLength(5);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, null, false);
+        SearchHit hit = new SearchHit(1);
+        XContentBuilder source = JsonXContent.contentBuilder();
+        source.startObject(); {
+            source.startObject(fieldName); {
+                source.field("b", "c");
+            }
+            source.endObject();
+        }
+        source.endObject();
+        BytesReference sourceRef = BytesReference.bytes(source);
+        hit.sourceRef(sourceRef);
+        SqlException ex = expectThrows(SqlException.class, () -> fe.extract(hit));
+        assertThat(ex.getMessage(), is("Objects (returned by [" + fieldName + "]) are not supported"));
     }
 
     private Object randomValue() {

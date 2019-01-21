@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -20,7 +19,7 @@ import java.util.Objects;
 /**
  * API key information
  */
-public final class ApiKey implements ToXContentObject, Writeable, Streamable {
+public final class ApiKey implements ToXContentObject, Writeable {
 
     private final String name;
     private final String id;
@@ -105,11 +104,6 @@ public final class ApiKey implements ToXContentObject, Writeable, Streamable {
         out.writeBoolean(invalidated);
         out.writeString(username);
         out.writeString(realm);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

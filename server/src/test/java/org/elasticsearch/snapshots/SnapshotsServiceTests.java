@@ -49,7 +49,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -80,7 +79,6 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -144,7 +142,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -678,9 +675,7 @@ public class SnapshotsServiceTests extends ESTestCase {
 
         private final Logger logger = LogManager.getLogger(TestClusterNode.class);
 
-        private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
-            Stream.concat(ClusterModule.getNamedWriteables().stream(), NetworkModule.getNamedWriteables().stream()
-            ).collect(Collectors.toList()));
+        private final NamedWriteableRegistry namedWriteableRegistry = DisruptableMockTransport.writeableRegistry();
 
         private final TransportService transportService;
 

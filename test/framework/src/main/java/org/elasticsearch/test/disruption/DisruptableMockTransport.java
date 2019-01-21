@@ -256,7 +256,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
         }
     }
 
-    private NamedWriteableRegistry writeableRegistry() {
+    public static NamedWriteableRegistry writeableRegistry() {
         return new NamedWriteableRegistry(
             Stream.concat(ClusterModule.getNamedWriteables().stream(), NetworkModule.getNamedWriteables().stream())
                 .collect(Collectors.toList()));

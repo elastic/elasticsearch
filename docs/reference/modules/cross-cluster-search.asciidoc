@@ -87,8 +87,6 @@ GET /cluster_one:twitter/_search
         "_index": "cluster_one:twitter",
         "_type": "_doc",
         "_id": "0",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score": 1,
         "_source": {
           "user": "kimchy",
@@ -154,8 +152,6 @@ will be prefixed with their remote cluster name:
         "_index": "cluster_one:twitter",
         "_type": "_doc",
         "_id": "0",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score": 1,
         "_source": {
           "user": "kimchy",
@@ -168,8 +164,6 @@ will be prefixed with their remote cluster name:
         "_index": "twitter",
         "_type": "_doc",
         "_id": "0",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score": 2,
         "_source": {
           "user": "kimchy",
@@ -250,8 +244,6 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
         "_index": "cluster_one:twitter",
         "_type": "_doc",
         "_id": "0",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score": 1,
         "_source": {
           "user": "kimchy",
@@ -264,8 +256,6 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
         "_index": "twitter",
         "_type": "_doc",
         "_id": "0",
-        "_seq_no": 10,
-        "_primary_term": 1,
         "_score": 2,
         "_source": {
           "user": "kimchy",
@@ -282,6 +272,4 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
 // TESTRESPONSE[s/"max_score": 1/"max_score": "$body.hits.max_score"/]
 // TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
 // TESTRESPONSE[s/"_score": 2/"_score": "$body.hits.hits.1._score"/]
-// TESTRESPONSE[s/"_seq_no": 0/"_seq_no": "$body.hits.hits.0._seq_no"/]
-// TESTRESPONSE[s/"_seq_no": 10/"_seq_no": "$body.hits.hits.1._seq_no"/]
 <1> The `clusters` section indicates that one cluster was unavailable and got skipped

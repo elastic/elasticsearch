@@ -209,8 +209,6 @@ now returns matches from the new index:
         "_index": "new_index", <1>
         "_type": "_doc",
         "_id": "1",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score": 0.13076457,
         "_source": {
           "query": {
@@ -409,8 +407,6 @@ This results in a response like this:
         "_index": "test_index",
         "_type": "_doc",
         "_id": "1",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score": 0.13076457,
         "_source": {
           "query": {
@@ -573,8 +569,6 @@ GET /my_queries1/_search
         "_index": "my_queries1",
         "_type": "_doc",
         "_id": "1",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score": 0.18864399,
         "_source": {
           "query": {

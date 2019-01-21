@@ -94,8 +94,6 @@ GET index/_search
         "_index": "index",
         "_type": "_doc",
         "_id": "1",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score": 0.18232156,
         "_source": {
           "body": "Ski resort"
@@ -105,8 +103,6 @@ GET index/_search
         "_index": "index",
         "_type": "_doc",
         "_id": "2",
-        "_seq_no": 1,
-        "_primary_term": 1,
         "_score": 0.18232156,
         "_source": {
           "body": "A pair of skis"
@@ -159,8 +155,6 @@ GET index/_search
         "_index": "index",
         "_type": "_doc",
         "_id": "1",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score": 0.8025915,
         "_source": {
           "body": "Ski resort"
@@ -221,8 +215,6 @@ GET index/_search
         "_index": "index",
         "_type": "_doc",
         "_id": "1",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score": 0.8025915,
         "_source": {
           "body": "Ski resort"

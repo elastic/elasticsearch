@@ -310,8 +310,6 @@ GET my_index/_search
         "_index": "my_index",
         "_type": "_doc",
         "_id": "1",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score": 0.5753642,
         "_source": {
           "title": "Quick Foxes"

@@ -99,8 +99,6 @@ The above request will yield the following response:
         "_index": "my-index",
         "_type": "_doc",
         "_id": "1",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score": 0.26152915,
         "_source": {
           "query": {
@@ -252,8 +250,6 @@ GET /my-index/_search
         "_index": "my-index",
         "_type": "_doc",
         "_id": "1",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score": 0.7093853,
         "_source": {
           "query": {
@@ -437,8 +433,6 @@ This will yield the following response.
         "_index": "my-index",
         "_type": "_doc",
         "_id": "3",
-        "_seq_no": 2,
-        "_primary_term": 1,
         "_score": 0.26152915,
         "_source": {
           "query": {
@@ -460,8 +454,6 @@ This will yield the following response.
         "_index": "my-index",
         "_type": "_doc",
         "_id": "4",
-        "_seq_no": 3,
-        "_primary_term": 1,
         "_score": 0.26152915,
         "_source": {
           "query": {
@@ -549,8 +541,6 @@ The slightly different response:
         "_index": "my-index",
         "_type": "_doc",
         "_id": "1",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score": 0.7093853,
         "_source": {
           "query": {
@@ -650,8 +640,6 @@ The above search request returns a response similar to this:
         "_index": "my-index",
         "_type": "_doc",
         "_id": "1",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score": 0.26152915,
         "_source": {
           "query": {

@@ -97,8 +97,6 @@ The result produced by the above query.
         "_index" : "range_index",
         "_type" : "_doc",
         "_id" : "1",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score" : 1.0,
         "_source" : {
           "expected_attendees" : {
@@ -162,8 +160,6 @@ This query produces a similar result:
         "_index" : "range_index",
         "_type" : "_doc",
         "_id" : "1",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score" : 1.0,
         "_source" : {
           "expected_attendees" : {

@@ -195,8 +195,6 @@ returns this response:
         "_index": "music",
         "_type": "_doc",
         "_id": "1",
-        "_seq_no": 2,
-        "_primary_term": 1,
         "_score": 1.0,
         "_source": {
           "suggest": ["Nevermind", "Nirvana"]
@@ -276,8 +274,6 @@ Which should look like:
                 "_index": "music",
                 "_type": "_doc",
                 "_id": "1",
-                "_seq_no": 2,
-                "_primary_term": 1,
                 "_score": 1.0,
                 "_source": {
                     "suggest": ["Nevermind", "Nirvana"]

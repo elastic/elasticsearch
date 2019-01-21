@@ -144,8 +144,6 @@ An example of a response snippet that could be generated from the above search r
         "_index": "test",
         "_type": "_doc",
         "_id": "1",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score": 1.0,
         "_source": ...,
         "inner_hits": {
@@ -278,8 +276,6 @@ Response not included in text but tested for completeness sake.
         "_index": "test",
         "_type": "_doc",
         "_id": "1",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score": 1.0444684,
         "_source": ...,
         "inner_hits": {
@@ -399,8 +395,6 @@ Which would look like:
         "_index": "test",
         "_type": "_doc",
         "_id": "1",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score": 0.6931472,
         "_source": ...,
         "inner_hits": {
@@ -516,8 +510,6 @@ An example of a response snippet that could be generated from the above search r
                 "_index": "test",
                 "_type": "_doc",
                 "_id": "1",
-                "_seq_no": 0,
-                "_primary_term": 1,
                 "_score": 1.0,
                 "_source": {
                     "number": 1,
@@ -536,8 +528,6 @@ An example of a response snippet that could be generated from the above search r
                                     "_index": "test",
                                     "_type": "_doc",
                                     "_id": "2",
-                                    "_seq_no": 1,
-                                    "_primary_term": 1,
                                     "_score": 1.0,
                                     "_routing": "1",
                                     "_source": {

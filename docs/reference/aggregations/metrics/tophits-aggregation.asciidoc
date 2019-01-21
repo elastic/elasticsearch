@@ -91,8 +91,6 @@ Possible response:
                          "_index": "sales",
                          "_type": "_doc",
                          "_id": "AVnNBmauCQpcRyxw6ChK",
-                         "_seq_no": 123,
-                         "_primary_term": 1,
                          "_source": {
                             "date": "2015/03/01 00:00:00",
                             "price": 200
@@ -121,8 +119,6 @@ Possible response:
                          "_index": "sales",
                          "_type": "_doc",
                          "_id": "AVnNBmauCQpcRyxw6ChL",
-                         "_seq_no": 324,
-                         "_primary_term": 1,
                          "_source": {
                             "date": "2015/03/01 00:00:00",
                             "price": 175
@@ -151,8 +147,6 @@ Possible response:
                          "_index": "sales",
                          "_type": "_doc",
                          "_id": "AVnNBmatCQpcRyxw6ChH",
-                         "_seq_no": 545,
-                         "_primary_term": 1,
                          "_source": {
                             "date": "2015/01/01 00:00:00",
                             "price": 150
@@ -175,9 +169,6 @@ Possible response:
 // TESTRESPONSE[s/AVnNBmauCQpcRyxw6ChK/$body.aggregations.top_tags.buckets.0.top_sales_hits.hits.hits.0._id/]
 // TESTRESPONSE[s/AVnNBmauCQpcRyxw6ChL/$body.aggregations.top_tags.buckets.1.top_sales_hits.hits.hits.0._id/]
 // TESTRESPONSE[s/AVnNBmatCQpcRyxw6ChH/$body.aggregations.top_tags.buckets.2.top_sales_hits.hits.hits.0._id/]
-// TESTRESPONSE[s/"_seq_no": 123/"_seq_no": $body.aggregations.top_tags.buckets.0.top_sales_hits.hits.hits.0._seq_no/]
-// TESTRESPONSE[s/"_seq_no": 324/"_seq_no": $body.aggregations.top_tags.buckets.1.top_sales_hits.hits.hits.0._seq_no/]
-// TESTRESPONSE[s/"_seq_no": 545/"_seq_no": $body.aggregations.top_tags.buckets.2.top_sales_hits.hits.hits.0._seq_no/]
 
 
 ==== Field collapse example
@@ -398,8 +389,6 @@ the second slow of the `nested_child_field` field:
      "_index": "a",
      "_type": "b",
      "_id": "1",
-     "_seq_no": 0,
-     "_primary_term": 1,
      "_score": 1,
      "_nested" : {
        "field" : "nested_child_field",

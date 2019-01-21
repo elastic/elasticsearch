@@ -278,8 +278,6 @@ GET /my_ip_locations/_search
         "_index" : "my_ip_locations",
         "_type" : "_doc",
         "_id" : "1",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score" : 1.0,
         "_source" : {
           "geoip" : {

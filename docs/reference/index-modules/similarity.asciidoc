@@ -275,8 +275,6 @@ Which yields:
         "_index": "index",
         "_type": "_doc",
         "_id": "1",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score": 1.9508477,
         "_source": {
           "field": "foo bar foo"
@@ -454,8 +452,6 @@ GET /index/_search?explain=true
         "_index": "index",
         "_type": "_doc",
         "_id": "1",
-        "_seq_no": 0,
-        "_primary_term": 1,
         "_score": 1.9508477,
         "_source": {
           "field": "foo bar foo"

@@ -279,9 +279,6 @@ public class SnapshotsServiceTests extends ESTestCase {
                             }))));
 
         runUntil(() -> {
-            if (createdSnapshot.get() == false) {
-                return false;
-            }
             final SnapshotsInProgress snapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
             return snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty();
         }, TimeUnit.MINUTES.toMillis(20L));
@@ -391,17 +388,18 @@ public class SnapshotsServiceTests extends ESTestCase {
                                                         testClusterNodes.randomDataNode().get().client.admin().cluster()
                                                             .prepareCreateSnapshot(repoName, snapshotName)
                                                             .execute(ActionListener.wrap(() -> {
-                                                                testClusterNodes.randomDataNode().get().client.admin()
-                                                                    .cluster().deleteSnapshot(
+                                                                testClusterNodes.randomDataNode().orElseThrow(
+                                                                    () -> new AssertionError("Expected at least one active data node")
+                                                                ).client.admin().cluster().deleteSnapshot(
                                                                     new DeleteSnapshotRequest(repoName, snapshotName), noopListener());
                                                                 createdSnapshot.set(true);
                                                             }));
-                                                        deterministicTaskQueue.scheduleNow(() -> masterAdminClient.cluster().reroute(
-                                                            new ClusterRerouteRequest().add(
-                                                                new AllocateEmptyPrimaryAllocationCommand(
-                                                                    index, shardRouting.shardId().id(), otherNode.node.getName(), true
-                                                                )
-                                                            ), noopListener()));
+                                                        deterministicTaskQueue.scheduleNow(
+                                                            () -> masterAdminClient.cluster().reroute(
+                                                                new ClusterRerouteRequest().add(
+                                                                    new AllocateEmptyPrimaryAllocationCommand(
+                                                                        index, shardRouting.shardId().id(), otherNode.node.getName(), true)
+                                                                ), noopListener()));
                                                     } else {
                                                         deterministicTaskQueue.scheduleAt(
                                                             deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(0, 100L),
@@ -441,18 +439,6 @@ public class SnapshotsServiceTests extends ESTestCase {
         final Repository repository = masterNode.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
         assertThat(snapshotIds, either(hasSize(1)).or(hasSize(0)));
-    }
-
-    private static <T> ActionListener<T> noopListener() {
-        return new ActionListener<T>() {
-            @Override
-            public void onResponse(final T t) {
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-            }
-        };
     }
 
     private void scheduleClearDisruptionNow() {
@@ -540,6 +526,18 @@ public class SnapshotsServiceTests extends ESTestCase {
             @Override
             public void onFailure(final Exception e) {
                 throw new AssertionError(e);
+            }
+        };
+    }
+
+    private static <T> ActionListener<T> noopListener() {
+        return new ActionListener<T>() {
+            @Override
+            public void onResponse(final T t) {
+            }
+
+            @Override
+            public void onFailure(final Exception e) {
             }
         };
     }

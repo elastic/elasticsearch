@@ -59,7 +59,7 @@ public class ClusterBootstrapService {
         Setting.timeSetting("discovery.unconfigured_bootstrap_timeout",
             TimeValue.timeValueSeconds(3), TimeValue.timeValueMillis(1), Property.NodeScope);
 
-    static final String BOOTSTRAP_PLACEHOLDER_PREFIX = "{bootstrap-placeholder}";
+    static final String BOOTSTRAP_PLACEHOLDER_PREFIX = "{bootstrap-placeholder}-";
 
     private static final Logger logger = LogManager.getLogger(ClusterBootstrapService.class);
     private final Set<String> bootstrapRequirements;

@@ -4,7 +4,7 @@ plugins {
 
 testClusters {
     myTestCluster {
-        distribution = 'default'
+        distribution = 'ZIP'
         version = System.getProperty("test.version_under_test")
     }
 }

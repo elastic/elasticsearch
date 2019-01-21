@@ -40,6 +40,24 @@ public class RestGetFieldMappingActionTests extends RestActionTestCase {
         new RestGetFieldMappingAction(Settings.EMPTY, controller());
     }
 
+    public void testIncludeTypeName() {
+        Map<String, String> params = new HashMap<>();
+        params.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.GET)
+            .withPath("some_index/some_type/_mapping/field/some_field")
+            .withParams(params)
+            .build();
+        dispatchRequest(deprecatedRequest);
+        assertWarnings(RestGetFieldMappingAction.TYPES_DEPRECATION_MESSAGE);
+
+        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.GET)
+            .withPath("some_index/_mapping/field/some_field")
+            .build();
+        dispatchRequest(validRequest);
+    }
+
     public void testTypeInPath() {
         // Test that specifying a type while setting include_type_name to false
         // results in an illegal argument exception.

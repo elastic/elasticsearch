@@ -567,6 +567,8 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         parser.declareField((map, value) -> map.put(Fields._SCORE, value), SearchHit::parseScore, new ParseField(Fields._SCORE),
                 ValueType.FLOAT_OR_NULL);
         parser.declareLong((map, value) -> map.put(Fields._VERSION, value), new ParseField(Fields._VERSION));
+        parser.declareLong((map, value) -> map.put(Fields._SEQ_NO, value), new ParseField(Fields._SEQ_NO));
+        parser.declareLong((map, value) -> map.put(Fields._PRIMARY_TERM, value), new ParseField(Fields._PRIMARY_TERM));
         parser.declareField((map, value) -> map.put(Fields._SHARD, value), (p, c) -> ShardId.fromString(p.text()),
                 new ParseField(Fields._SHARD), ValueType.STRING);
         parser.declareObject((map, value) -> map.put(SourceFieldMapper.NAME, value), (p, c) -> parseSourceBytes(p),

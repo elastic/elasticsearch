@@ -46,8 +46,9 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     @Override
     protected void onStartJob(long now) {
+        // for now a match all, to be replaced
         QueryBuilder queryBuilder = new MatchAllQueryBuilder();
-        this.pivot = new Pivot(getConfig().getSource(), queryBuilder, getConfig().getPivotConfig());
+        pivot = new Pivot(getConfig().getSource(), queryBuilder, getConfig().getPivotConfig());
     }
 
     @Override
@@ -69,7 +70,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
         final DataFrameTransformConfig transformConfig = getConfig();
         String indexName = transformConfig.getDestination();
 
-        return this.pivot.extractResults(agg, getStats()).map(document -> {
+        return pivot.extractResults(agg, getStats()).map(document -> {
             XContentBuilder builder;
             try {
                 builder = jsonBuilder();

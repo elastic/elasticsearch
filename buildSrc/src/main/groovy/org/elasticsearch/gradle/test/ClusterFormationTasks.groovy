@@ -18,14 +18,12 @@
  */
 package org.elasticsearch.gradle.test
 
-import java.util.stream.Collectors
 import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
 import org.gradle.api.AntBuilder
@@ -45,7 +43,7 @@ import org.gradle.api.tasks.Exec
 import java.nio.charset.StandardCharsets
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit
-
+import java.util.stream.Collectors
 /**
  * A helper for creating tasks to build a cluster that is used by a task, and tear down the cluster when the task is finished.
  */
@@ -174,10 +172,15 @@ class ClusterFormationTasks {
 
     /** Adds a dependency on the given distribution */
     static void configureDistributionDependency(Project project, String distro, Configuration configuration, String elasticsearchVersion) {
-        if (Version.fromString(elasticsearchVersion).before('6.3.0') &&
-                distro.startsWith('oss-')
-        ) {
+        Version version = Version.fromString(elasticsearchVersion)
+        if (version.before('6.3.0') && distro.startsWith('oss-')) {
             distro = distro.substring('oss-'.length())
+        }
+        String os = "linux"
+        if (Os.FAMILY_WINDOWS) {
+            os = "windows"
+        } else if (Os.FAMILY_MAC) {
+            os = "darwin"
         }
         String packaging = distro
         if (distro.contains('tar')) {
@@ -185,13 +188,15 @@ class ClusterFormationTasks {
         } else if (distro.contains('zip')) {
             packaging = 'zip'
         }
-        String subgroup = distro
+        String group = "downloads.${packaging}"
+        if (distro.equals("integ-test-zip")) {
+            group = "org.elasticsearch.distribution.integ-test-zip"
+        }
         String artifactName = 'elasticsearch'
         if (distro.contains('oss')) {
             artifactName += '-oss'
-            subgroup = distro.substring('oss-'.length())
         }
-        project.dependencies.add(configuration.name, "org.elasticsearch.distribution.${subgroup}:${artifactName}:${elasticsearchVersion}@${packaging}")
+        project.dependencies.add(configuration.name, "${group}:${artifactName}:${elasticsearchVersion}@${packaging}")
     }
 
     /** Adds a dependency on a different version of the given plugin, which will be retrieved using gradle's dependency resolution */

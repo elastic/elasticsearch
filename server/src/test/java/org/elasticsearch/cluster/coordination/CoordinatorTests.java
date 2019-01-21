@@ -86,8 +86,10 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clusterState;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.setValue;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.value;
@@ -1731,11 +1733,18 @@ public class CoordinatorTests extends ESTestCase {
 
             void applyInitialConfiguration() {
                 onNode(() -> {
+                    final Set<String> nodeIdsWithPlaceholders = new HashSet<>(initialConfiguration.getNodeIds());
+                    Stream.generate(() -> BOOTSTRAP_PLACEHOLDER_PREFIX + UUIDs.randomBase64UUID(random()))
+                        .limit((Math.max(initialConfiguration.getNodeIds().size(), 2) - 1) / 2)
+                        .forEach(nodeIdsWithPlaceholders::add);
+                    final VotingConfiguration configurationWithPlaceholders = new VotingConfiguration(new HashSet<>(
+                        randomSubsetOf(initialConfiguration.getNodeIds().size(), nodeIdsWithPlaceholders)));
                     try {
-                        coordinator.setInitialConfiguration(initialConfiguration);
-                        logger.info("successfully set initial configuration to {}", initialConfiguration);
+                        coordinator.setInitialConfiguration(configurationWithPlaceholders);
+                        logger.info("successfully set initial configuration to {}", configurationWithPlaceholders);
                     } catch (CoordinationStateRejectedException e) {
-                        logger.info(new ParameterizedMessage("failed to set initial configuration to {}", initialConfiguration), e);
+                        logger.info(new ParameterizedMessage("failed to set initial configuration to {}",
+                            configurationWithPlaceholders), e);
                     }
                 }).run();
             }

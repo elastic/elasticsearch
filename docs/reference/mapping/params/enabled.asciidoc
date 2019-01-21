@@ -64,7 +64,7 @@ retrieved, but none of its contents are indexed in any way:
 PUT my_index
 {
   "mappings": {
-      "enabled": false
+    "enabled": false <1>
   }
 }
 
@@ -84,7 +84,7 @@ GET my_index/_doc/session_1 <2>
 GET my_index/_mapping <3>
 --------------------------------------------------
 // CONSOLE
-<1> The entire `_doc` mapping type is disabled.
+<1> The entire mapping type is disabled.
 <2> The document can be retrieved.
 <3> Checking the mapping reveals that no fields have been added.
 

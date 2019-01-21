@@ -1203,12 +1203,8 @@ public class CoordinatorTests extends ESTestCase {
                         }
                     } else if (rarely()) {
                         final ClusterNode clusterNode = getAnyNode();
-                        clusterNode.onNode(
-                            () -> {
-                                logger.debug("----> [runRandomly {}] applying initial configuration {} to {}",
-                                    thisStep, initialConfiguration, clusterNode.getId());
-                                clusterNode.coordinator.setInitialConfiguration(initialConfiguration);
-                            }).run();
+                        logger.debug("----> [runRandomly {}] applying initial configuration on {}", step, clusterNode.getId());
+                        clusterNode.applyInitialConfiguration();
                     } else {
                         if (deterministicTaskQueue.hasDeferredTasks() && randomBoolean()) {
                             deterministicTaskQueue.advanceTime();

@@ -226,7 +226,7 @@ public class RecoverySourceHandler {
                 final Translog.Snapshot phase2Snapshot = shard.getHistoryOperations("peer-recovery", startingSeqNo);
                 resources.add(phase2Snapshot);
                 // we can release the retention lock here because the snapshot itself will retain the required operations.
-                IOUtils.close(retentionLock);
+                retentionLock.close();
                 // we have to capture the max_seen_auto_id_timestamp and the max_seq_no_of_updates to make sure that these values
                 // are at least as high as the corresponding values on the primary when any of these operations were executed on it.
                 final long maxSeenAutoIdTimestamp = shard.getMaxSeenAutoIdTimestamp();
@@ -235,7 +235,10 @@ public class RecoverySourceHandler {
                     maxSeqNoOfUpdatesOrDeletes, sendSnapshotStep);
                 sendSnapshotStep.whenComplete(
                     r -> IOUtils.close(phase2Snapshot),
-                    e -> onFailure.accept(new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e)));
+                    e -> {
+                        IOUtils.closeWhileHandlingException(phase2Snapshot);
+                        onFailure.accept(new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e));
+                    });
 
             }, onFailure);
 
@@ -490,9 +493,7 @@ public class RecoverySourceHandler {
                 logger.trace("recovery [phase1]: remote engine start took [{}]", tookTime);
                 listener.onResponse(tookTime);
             },
-            e -> {
-                listener.onFailure(new RecoveryEngineException(shard.shardId(), 1, "prepare target for translog failed", e));
-            });
+            e -> listener.onFailure(new RecoveryEngineException(shard.shardId(), 1, "prepare target for translog failed", e)));
         // Send a request preparing the new shard's translog to receive operations. This ensures the shard engine is started and disables
         // garbage collection (not the JVM's GC!) of tombstone deletes.
         logger.trace("recovery [phase1]: prepare remote engine for translog");

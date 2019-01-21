@@ -24,30 +24,30 @@ import java.util.Objects;
  */
 public final class GetApiKeyResponse extends ActionResponse implements ToXContentObject, Writeable {
 
-    private final ApiKeyInfo[] foundApiKeysInfo;
+    private final ApiKey[] foundApiKeysInfo;
 
     public GetApiKeyResponse(StreamInput in) throws IOException {
         super(in);
-        this.foundApiKeysInfo = in.readArray(ApiKeyInfo::new, ApiKeyInfo[]::new);
+        this.foundApiKeysInfo = in.readArray(ApiKey::new, ApiKey[]::new);
     }
 
-    public GetApiKeyResponse(Collection<ApiKeyInfo> foundApiKeysInfo) {
+    public GetApiKeyResponse(Collection<ApiKey> foundApiKeysInfo) {
         Objects.requireNonNull(foundApiKeysInfo, "found_api_key_infos must be provided");
-        this.foundApiKeysInfo = foundApiKeysInfo.toArray(new ApiKeyInfo[0]);
+        this.foundApiKeysInfo = foundApiKeysInfo.toArray(new ApiKey[0]);
     }
 
     public static GetApiKeyResponse emptyResponse() {
         return new GetApiKeyResponse(Collections.emptyList());
     }
 
-    public ApiKeyInfo[] getApiKeyInfos() {
+    public ApiKey[] getApiKeyInfos() {
         return foundApiKeysInfo;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
-            .array("api_key_infos", (Object[]) foundApiKeysInfo);
+            .array("api_keys", (Object[]) foundApiKeysInfo);
         return builder.endObject();
     }
 

@@ -14,7 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
  */
 public final class GetApiKeyAction extends Action<GetApiKeyResponse> {
 
-    public static final String NAME = "cluster:admin/xpack/security/api_key";
+    public static final String NAME = "cluster:admin/xpack/security/api_key/get";
     public static final GetApiKeyAction INSTANCE = new GetApiKeyAction();
 
     private GetApiKeyAction() {

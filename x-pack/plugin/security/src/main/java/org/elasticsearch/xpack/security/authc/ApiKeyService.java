@@ -49,7 +49,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
-import org.elasticsearch.xpack.core.security.action.ApiKeyInfo;
+import org.elasticsearch.xpack.core.security.action.ApiKey;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
@@ -506,7 +506,7 @@ public class ApiKeyService {
     }
 
     private void findApiKeysForUserAndRealm(String userName, String realmName, boolean onlyActiveApiKeys,
-                                            ActionListener<Collection<ApiKeyInfo>> listener) {
+                                            ActionListener<Collection<ApiKey>> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
@@ -529,7 +529,7 @@ public class ApiKeyService {
         }
     }
 
-    private void findApiKeys(final BoolQueryBuilder boolQuery, ActionListener<Collection<ApiKeyInfo>> listener) {
+    private void findApiKeys(final BoolQueryBuilder boolQuery, ActionListener<Collection<ApiKey>> listener) {
         final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
             .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
             .setQuery(boolQuery)
@@ -548,7 +548,7 @@ public class ApiKeyService {
                             Boolean invalidated = (Boolean) source.get("api_key_invalidated");
                             String username = (String) ((Map<String, Object>) source.get("creator")).get("principal");
                             String realm = (String) ((Map<String, Object>) source.get("creator")).get("realm");
-                            return new ApiKeyInfo(name, id, Instant.ofEpochMilli(creation),
+                            return new ApiKey(name, id, Instant.ofEpochMilli(creation),
                                     (expiration != null) ? Instant.ofEpochMilli(expiration) : null, invalidated, username, realm);
                         }));
     }
@@ -559,7 +559,7 @@ public class ApiKeyService {
         }, listener::onFailure));
     }
 
-    private void findApiKeyForApiKeyName(String apiKeyName, boolean onlyActiveApiKeys, ActionListener<Collection<ApiKeyInfo>> listener) {
+    private void findApiKeyForApiKeyName(String apiKeyName, boolean onlyActiveApiKeys, ActionListener<Collection<ApiKey>> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
@@ -580,7 +580,7 @@ public class ApiKeyService {
     }
 
     private void findApiKeysForApiKeyId(String apiKeyId,
-                                            ActionListener<Collection<ApiKeyInfo>> listener) {
+                                            ActionListener<Collection<ApiKey>> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());

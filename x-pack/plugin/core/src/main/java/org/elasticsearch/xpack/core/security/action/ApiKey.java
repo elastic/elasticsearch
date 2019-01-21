@@ -20,7 +20,7 @@ import java.util.Objects;
 /**
  * API key information
  */
-public final class ApiKeyInfo implements ToXContentObject, Writeable, Streamable {
+public final class ApiKey implements ToXContentObject, Writeable, Streamable {
 
     private final String name;
     private final String id;
@@ -30,7 +30,7 @@ public final class ApiKeyInfo implements ToXContentObject, Writeable, Streamable
     private final String username;
     private final String realm;
 
-    public ApiKeyInfo(String name, String id, Instant creation, Instant expiration, boolean invalidated, String username, String realm) {
+    public ApiKey(String name, String id, Instant creation, Instant expiration, boolean invalidated, String username, String realm) {
         this.name = name;
         this.id = id;
         // As we do not yet support the nanosecond precision when we serialize to JSON,
@@ -43,7 +43,7 @@ public final class ApiKeyInfo implements ToXContentObject, Writeable, Streamable
         this.realm = realm;
     }
 
-    public ApiKeyInfo(StreamInput in) throws IOException {
+    public ApiKey(StreamInput in) throws IOException {
         this.name = in.readString();
         this.id = in.readString();
         this.creation = in.readInstant();
@@ -128,7 +128,7 @@ public final class ApiKeyInfo implements ToXContentObject, Writeable, Streamable
         if (getClass() != obj.getClass()) {
             return false;
         }
-        ApiKeyInfo other = (ApiKeyInfo) obj;
+        ApiKey other = (ApiKey) obj;
         return Objects.equals(name, other.name)
                 && Objects.equals(id, other.id)
                 && Objects.equals(creation, other.creation)

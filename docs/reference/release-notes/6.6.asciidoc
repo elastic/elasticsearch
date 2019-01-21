@@ -49,6 +49,31 @@
 
 Also see <<breaking-changes-6.6,Breaking changes in 6.6>>.
 
+[float]
+[[feature-6.6.0]]
+=== New features
+
+Machine Learning::
+* Store job configuration information in the new `.ml-config` index
+{pull}36698[#36698] (issue: {issue}32905[#32905])
+* Determine when data is missing from a bucket due to ingest latency
+{pull}35387[#35387] (issue: {issue}35131[#35131])
+
+[float]
+[[enhancement-6.6.0]]
+=== Enhancements
+
+Machine Learning::
+* Create the {ml} annotations index {pull}36731[#36731] (issue: {issue}33376[#33376])
+* Add cluster setting to enable/disable config migration {pull}36700[#36700]
+(issue: {issue}32905[#32905])
+* Enable the use of endpoints starting with `_ml` instead of `_xpack/ml`
+{pull}36373[#36373] (issue: {issue}36315[#36315])
+* Add audits when deprecation warnings occur while datafeeds start
+{pull}36233[#36233]
+* Add lazy parsing for DatafeedConfig:Aggs,Query {pull}36117[#36117]
+* Add support for rollup indexes in datafeeds {pull}34654[#34654]
+
 [[bug-6.6.0]]
 [float]
 === Bug fixes
@@ -58,3 +83,9 @@ Machine Learning::
 * Fix hang when closing a job or creating a forecast. This problem occurs if you
 created a forecast for a large job and temporary storage was not cleaned up.
 {ml-pull}352[#352] (issue: {ml-issue}350[#350])
+* Wait for autodetect to be ready in the datafeed {pull}37349[#37349]
+(issues: {issue}36810[#36810], {issue}37227[#37227])
+* Stop datafeeds when their jobs are stale {pull}37227[#37227]
+(issue: {issue}36810[#36810])
+* Order get job stats API response by job id {pull}36841[#36841]
+(issue: {issue}36683[#36683])

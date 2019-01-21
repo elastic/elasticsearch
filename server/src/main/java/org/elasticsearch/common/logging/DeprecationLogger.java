@@ -159,6 +159,7 @@ public class DeprecationLogger {
             "299 " + // warn code
                     "Elasticsearch-\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-(?:[a-f0-9]{7}|Unknown) " + // warn agent
                     "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\""); // quoted warning value, captured
+
     /**
      * Extracts the warning value from the value of a warning header that is formatted according to RFC 7234. That is, given a string
      * {@code 299 Elasticsearch-6.0.0 "warning value"}, the return value of this method would be {@code warning value}.

@@ -54,6 +54,22 @@ public class NodeDeprecationChecks {
         return null;
     }
 
+    static DeprecationIssue auditIndexSettingsCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
+        List<String> nodesFound = nodeInfos.stream()
+             .filter(nodeInfo -> (nodeInfo.getSettings().getByPrefix("xpack.security.audit.outputs").isEmpty() == false)
+                    || (nodeInfo.getSettings().getByPrefix("xpack.security.audit.index").isEmpty() == false))
+             .map(nodeInfo -> nodeInfo.getNode().getName())
+            .collect(Collectors.toList());
+        if (nodesFound.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Audit index output type removed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "#remove-audit-index-output",
+                "nodes with audit index output type settings: " + nodesFound);
+        }
+        return null;
+    }
+
     static DeprecationIssue indexThreadPoolCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
         List<String> nodesFound = nodeInfos.stream()
             .filter(nodeInfo -> nodeInfo.getSettings().getByPrefix("thread_pool.index.").isEmpty() == false)

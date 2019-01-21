@@ -75,17 +75,17 @@ public class PutRoleRequestTests extends ESTestCase {
         assertThat(copy.roleDescriptor(), equalTo(original.roleDescriptor()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37662")
-    public void testSerializationBetweenV63AndV70() throws IOException {
+    public void testSerializationBetweenV64AndV66() throws IOException {
         final PutRoleRequest original = buildRandomRequest();
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_3_2, Version.V_6_7_0);
+        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, Version.V_6_6_0);
         out.setVersion(version);
         original.writeTo(out);
 
         final PutRoleRequest copy = new PutRoleRequest();
-        final StreamInput in = out.bytes().streamInput();
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
+        StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
         in.setVersion(version);
         copy.readFrom(in);
 
@@ -100,7 +100,7 @@ public class PutRoleRequestTests extends ESTestCase {
         assertThat(copy.conditionalClusterPrivileges(), equalTo(original.conditionalClusterPrivileges()));
     }
 
-    public void testSerializationV63AndBefore() throws IOException {
+    public void testSerializationV60AndV32() throws IOException {
         final PutRoleRequest original = buildRandomRequest();
 
         final BytesStreamOutput out = new BytesStreamOutput();

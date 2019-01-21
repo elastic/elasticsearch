@@ -29,7 +29,6 @@ import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
 import org.gradle.api.AntBuilder
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
-import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.artifacts.Configuration
@@ -87,7 +86,7 @@ class ClusterFormationTasks {
         Configuration currentDistro = project.configurations.create("${prefix}_elasticsearchDistro")
         Configuration bwcDistro = project.configurations.create("${prefix}_elasticsearchBwcDistro")
         Configuration bwcPlugins = project.configurations.create("${prefix}_elasticsearchBwcPlugins")
-        if (System.getProperty('tests.distribution', 'oss-zip') == 'integ-test-zip') {
+        if (System.getProperty('tests.distribution', 'oss') == 'integ-test-zip') {
             throw new Exception("tests.distribution=integ-test-zip is not supported")
         }
         configureDistributionDependency(project, config.distribution, currentDistro, VersionProperties.elasticsearch)
@@ -172,31 +171,31 @@ class ClusterFormationTasks {
 
     /** Adds a dependency on the given distribution */
     static void configureDistributionDependency(Project project, String distro, Configuration configuration, String elasticsearchVersion) {
+        // TEMP HACK
+        // The oss docs CI build overrides the distro on the command line. This hack handles backcompat until CI is updated.
+        if (distro.equals('oss-zip')) {
+            distro = 'oss'
+        }
+        if (distro.equals('zip')) {
+            distro = 'default'
+        }
+        // END TEMP HACK
+        if (['integ-test-zip', 'oss', 'default'].contains(distro) == false) {
+            throw new GradleException("Unknown distribution: ${distro} in project ${project.path}")
+        }
         Version version = Version.fromString(elasticsearchVersion)
         if (version.before('6.3.0') && distro.startsWith('oss-')) {
             distro = distro.substring('oss-'.length())
         }
-        String os = "linux"
-        if (Os.FAMILY_WINDOWS) {
-            os = "windows"
-        } else if (Os.FAMILY_MAC) {
-            os = "darwin"
-        }
-        String packaging = distro
-        if (distro.contains('tar')) {
-            packaging = 'tar.gz'\
-        } else if (distro.contains('zip')) {
-            packaging = 'zip'
-        }
-        String group = "downloads.${packaging}"
+        String group = "downloads.zip"
         if (distro.equals("integ-test-zip")) {
             group = "org.elasticsearch.distribution.integ-test-zip"
         }
         String artifactName = 'elasticsearch'
-        if (distro.contains('oss')) {
+        if (distro.equals('oss') && Version.fromString(elasticsearchVersion).onOrAfter('6.3.0')) {
             artifactName += '-oss'
         }
-        project.dependencies.add(configuration.name, "${group}:${artifactName}:${elasticsearchVersion}@${packaging}")
+        project.dependencies.add(configuration.name, "${group}:${artifactName}:${elasticsearchVersion}@zip")
     }
 
     /** Adds a dependency on a different version of the given plugin, which will be retrieved using gradle's dependency resolution */
@@ -319,31 +318,13 @@ class ClusterFormationTasks {
           elasticsearch source tree. If this is a plugin built in the elasticsearch source tree or this is a distro in
           the elasticsearch source tree then this should be the version of elasticsearch built by the source tree.
           If it isn't then Bad Things(TM) will happen. */
-        Task extract
-
-        switch (node.config.distribution) {
-            case 'integ-test-zip':
-            case 'zip':
-            case 'oss-zip':
-                extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
-                    from {
-                        project.zipTree(configuration.singleFile)
-                    }
-                    into node.baseDir
-                }
-                break;
-            case 'tar':
-            case 'oss-tar':
-                extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
-                    from {
-                        project.tarTree(project.resources.gzip(configuration.singleFile))
-                    }
-                    into node.baseDir
-                }
-                break;
-            default:
-                throw new InvalidUserDataException("Unknown distribution: ${node.config.distribution}")
+        Task extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
+            from {
+                project.zipTree(configuration.singleFile)
+            }
+            into node.baseDir
         }
+
         return extract
     }
 

@@ -70,7 +70,8 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
                 .addMapping("typeA", getMappingForType("typeA"))
                 .execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
+            .setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         // Get all mappings

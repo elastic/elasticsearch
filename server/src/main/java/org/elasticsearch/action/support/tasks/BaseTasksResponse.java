@@ -55,34 +55,8 @@ public class BaseTasksResponse extends ActionResponse {
         this.nodeFailures = nodeFailures == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(nodeFailures));
     }
 
-    /**
-     * The list of task failures exception.
-     */
-    public List<TaskOperationFailure> getTaskFailures() {
-        return taskFailures;
-    }
-
-    /**
-     * The list of node failures exception.
-     */
-    public List<ElasticsearchException> getNodeFailures() {
-        return nodeFailures;
-    }
-
-    /**
-     * Rethrow task failures if there are any.
-     */
-    public void rethrowFailures(String operationName) {
-        rethrowAndSuppress(Stream.concat(
-                    getNodeFailures().stream(),
-                    getTaskFailures().stream().map(f -> new ElasticsearchException(
-                            "{} of [{}] failed", f.getCause(), operationName, new TaskId(f.getNodeId(), f.getTaskId()))))
-                .collect(toList()));
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    public BaseTasksResponse(StreamInput in) throws IOException {
+        super(in);
         int size = in.readVInt();
         List<TaskOperationFailure> taskFailures = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -108,6 +82,31 @@ public class BaseTasksResponse extends ActionResponse {
         for (ElasticsearchException exp : nodeFailures) {
             exp.writeTo(out);
         }
+    }
+
+    /**
+     * The list of task failures exception.
+     */
+    public List<TaskOperationFailure> getTaskFailures() {
+        return taskFailures;
+    }
+
+    /**
+     * The list of node failures exception.
+     */
+    public List<ElasticsearchException> getNodeFailures() {
+        return nodeFailures;
+    }
+
+    /**
+     * Rethrow task failures if there are any.
+     */
+    public void rethrowFailures(String operationName) {
+        rethrowAndSuppress(Stream.concat(
+                    getNodeFailures().stream(),
+                    getTaskFailures().stream().map(f -> new ElasticsearchException(
+                            "{} of [{}] failed", f.getCause(), operationName, new TaskId(f.getNodeId(), f.getTaskId()))))
+                .collect(toList()));
     }
 
     protected void toXContentCommon(XContentBuilder builder, ToXContent.Params params) throws IOException {

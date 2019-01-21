@@ -16,6 +16,7 @@ remoteClusterTestCluster {
   numNodes = 2
   clusterName = 'remote-cluster'
   setting 'cluster.remote.connect', false
+  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
@@ -74,5 +75,5 @@ task integTest {
   dependsOn = [mixedClusterTest]
 }
 
-test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
+unitTest.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
 check.dependsOn(integTest)

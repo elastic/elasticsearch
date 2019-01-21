@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.job.process;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
@@ -34,7 +34,9 @@ import java.util.function.Function;
  * changes when each of the reporting stages are passed. If the
  * function returns {@code true} the usage is logged.
  */
-public class DataCountsReporter extends AbstractComponent {
+public class DataCountsReporter {
+
+    private static final Logger logger = LogManager.getLogger(DataCountsReporter.class);
 
     private final Job job;
     private final JobDataCountsPersister dataCountsPersister;
@@ -52,10 +54,7 @@ public class DataCountsReporter extends AbstractComponent {
 
     private DataStreamDiagnostics diagnostics;
 
-    public DataCountsReporter(Settings settings, Job job, DataCounts counts, JobDataCountsPersister dataCountsPersister) {
-
-        super(settings);
-
+    public DataCountsReporter(Job job, DataCounts counts, JobDataCountsPersister dataCountsPersister) {
         this.job = job;
         this.dataCountsPersister = dataCountsPersister;
 

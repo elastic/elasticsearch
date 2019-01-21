@@ -10,18 +10,18 @@ import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 // marker class to indicate operations that rely on values
 public abstract class BinaryComparison extends BinaryOperator<Object, Object, Boolean, BinaryComparisonOperation> {
 
-    protected BinaryComparison(Location location, Expression left, Expression right, BinaryComparisonOperation operation) {
-        super(location, left, right, operation);
+    protected BinaryComparison(Source source, Expression left, Expression right, BinaryComparisonOperation operation) {
+        super(source, left, right, operation);
     }
 
     @Override
-    protected TypeResolution resolveInputType(DataType inputType) {
+    protected TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal) {
         return TypeResolution.TYPE_RESOLVED;
     }
 
@@ -37,18 +37,7 @@ public abstract class BinaryComparison extends BinaryOperator<Object, Object, Bo
 
     @Override
     protected Pipe makePipe() {
-        return new BinaryComparisonPipe(location(), this, Expressions.pipe(left()), Expressions.pipe(right()), function());
-    }
-
-    @Override
-    public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(left());
-        sb.append(" ");
-        sb.append(symbol());
-        sb.append(" ");
-        sb.append(right());
-        return sb.toString();
+        return new BinaryComparisonPipe(source(), this, Expressions.pipe(left()), Expressions.pipe(right()), function());
     }
 
     public static Integer compare(Object left, Object right) {

@@ -68,6 +68,11 @@ Example response:
          "available" : true,
          "enabled" : true
       },
+      "ilm" : {
+         "description" : "Index lifecycle management for the Elastic Stack",
+         "available" : true,
+         "enabled" : true
+      },
       "logstash" : {
          "description" : "Logstash management component for X-Pack",
          "available" : true,
@@ -96,6 +101,11 @@ Example response:
          "description" : "Security for the Elastic Stack",
          "available" : true,
          "enabled" : false
+      },
+      "sql" : {
+         "description" : "SQL access to Elasticsearch",
+         "available" : true,
+         "enabled" : true
       },
       "watcher" : {
          "description" : "Alerting, Notification and Automation for the Elastic Stack",

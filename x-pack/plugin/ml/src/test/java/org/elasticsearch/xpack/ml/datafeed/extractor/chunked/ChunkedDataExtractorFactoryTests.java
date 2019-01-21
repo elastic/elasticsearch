@@ -91,7 +91,7 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         jobBuilder.setDataDescription(dataDescription);
         jobBuilder.setAnalysisConfig(analysisConfig);
         DatafeedConfig.Builder datafeedConfigBuilder = new DatafeedConfig.Builder("foo-feed", jobBuilder.getId());
-        datafeedConfigBuilder.setAggregations(aggs);
+        datafeedConfigBuilder.setParsedAggregations(aggs);
         datafeedConfigBuilder.setIndices(Arrays.asList("my_index"));
         return new ChunkedDataExtractorFactory(client, datafeedConfigBuilder.build(), jobBuilder.build(new Date()), dataExtractorFactory);
     }

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
@@ -19,7 +20,7 @@ public class InProcessor implements Processor {
 
     private final List<Processor> processsors;
 
-    public InProcessor(List<Processor> processors) {
+    InProcessor(List<Processor> processors) {
         this.processsors = processors;
     }
 
@@ -40,14 +41,17 @@ public class InProcessor implements Processor {
     @Override
     public Object process(Object input) {
         Object leftValue = processsors.get(processsors.size() - 1).process(input);
-        Boolean result = false;
+        return apply(leftValue, Processors.process(processsors.subList(0, processsors.size() - 1), leftValue));
+    }
 
-        for (int i = 0; i < processsors.size() - 1; i++) {
-            Boolean compResult = Comparisons.eq(leftValue, processsors.get(i).process(input));
+    public static Boolean apply(Object input, List<Object> values) {
+        Boolean result = Boolean.FALSE;
+        for (Object v : values) {
+            Boolean compResult = Comparisons.eq(input, v);
             if (compResult == null) {
                 result = null;
-            } else if (compResult) {
-                return true;
+            } else if (compResult == Boolean.TRUE) {
+                return Boolean.TRUE;
             }
         }
         return result;

@@ -40,7 +40,7 @@ import java.util.Objects;
  */
 public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScoreFunctionBuilder> {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
             LogManager.getLogger(RandomScoreFunctionBuilder.class));
 
     public static final String NAME = "random_score";
@@ -168,7 +168,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
             if (field != null) {
                 fieldType = context.getMapperService().fullName(field);
             } else {
-                DEPRECATION_LOGGER.deprecated(
+                deprecationLogger.deprecated(
                         "As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set");
                 fieldType = context.getMapperService().fullName(IdFieldMapper.NAME);
             }

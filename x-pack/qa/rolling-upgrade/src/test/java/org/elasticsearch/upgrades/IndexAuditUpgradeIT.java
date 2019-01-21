@@ -49,7 +49,7 @@ public class IndexAuditUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private void assertAuditDocsExist() throws Exception {
-        Response response = client().performRequest(new Request("GET", "/.security_audit_log*/doc/_count"));
+        Response response = client().performRequest(new Request("GET", "/.security_audit_log*/_count"));
         assertEquals(200, response.getStatusLine().getStatusCode());
         Map<String, Object> responseMap = entityAsMap(response);
         assertNotNull(responseMap.get("count"));

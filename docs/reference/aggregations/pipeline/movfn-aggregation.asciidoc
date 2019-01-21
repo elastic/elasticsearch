@@ -7,6 +7,7 @@ etc.
 
 This is conceptually very similar to the <<search-aggregations-pipeline-movavg-aggregation, Moving Average>> pipeline aggregation, except
 it provides more functionality.
+
 ==== Syntax
 
 A `moving_fn` aggregation looks like this in isolation:
@@ -448,7 +449,7 @@ The `ewma` function (aka "single-exponential") is similar to the `linearMovAvg` 
 except older data-points become exponentially less important,
 rather than linearly less important.  The speed at which the importance decays can be controlled with an `alpha`
 setting.  Small values make the weight decay slowly, which provides greater smoothing and takes into account a larger
-portion of the window.  Larger valuers make the weight decay quickly, which reduces the impact of older values on the
+portion of the window.  Larger values make the weight decay quickly, which reduces the impact of older values on the
 moving average.  This tends to make the moving average track the data more closely but with less smoothing.
 
 `null` and `NaN` values are ignored; the average is only calculated over the real values. If the window is empty, or all values are

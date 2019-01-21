@@ -5,23 +5,21 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.logical;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator.Negateable;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
+import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
-
-import java.util.Objects;
 
 public class Not extends UnaryScalarFunction {
 
-    public Not(Location location, Expression child) {
-        super(location, child);
+    public Not(Source source, Expression child) {
+        super(source, child);
     }
 
     @Override
@@ -31,7 +29,7 @@ public class Not extends UnaryScalarFunction {
 
     @Override
     protected Not replaceChild(Expression newChild) {
-        return new Not(location(), newChild);
+        return new Not(source(), newChild);
     }
 
     @Override
@@ -39,30 +37,29 @@ public class Not extends UnaryScalarFunction {
         if (DataType.BOOLEAN == field().dataType()) {
             return TypeResolution.TYPE_RESOLVED;
         }
-        return new TypeResolution("Cannot negate expression ([" + Expressions.name(field()) + "] of type ["
-                + field().dataType().esType + "])");
+        return Expressions.typeMustBeBoolean(field(), sourceText(), ParamOrdinal.DEFAULT);
     }
 
     @Override
     public Object fold() {
-        return Objects.equals(field().fold(), Boolean.TRUE) ? Boolean.FALSE : Boolean.TRUE;
+        return NotProcessor.INSTANCE.process(field().fold());
     }
 
     @Override
-    protected Pipe makePipe() {
-        throw new SqlIllegalArgumentException("Not supported yet");
+    protected Processor makeProcessor() {
+        return NotProcessor.INSTANCE;
     }
 
     @Override
-    public ScriptTemplate asScript() {
-        throw new SqlIllegalArgumentException("Not supported yet");
+    public String processScript(String script) {
+        return Scripts.formatTemplate(Scripts.SQL_SCRIPTS + ".not(" + script + ")");
     }
 
     @Override
     protected Expression canonicalize() {
         Expression canonicalChild = field().canonical();
-        if (canonicalChild instanceof Negateable) {
-            return ((Negateable) canonicalChild).negate();
+        if (canonicalChild instanceof Negatable) {
+            return ((Negatable) canonicalChild).negate();
         }
         return this;
     }

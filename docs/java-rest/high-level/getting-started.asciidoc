@@ -83,7 +83,7 @@ dependencies {
 The very first releases of any major version (like a beta), might have been built on top of a Lucene Snapshot version.
 In such a case you will be unable to resolve the Lucene dependencies of the client.
 
-For example, if you want to use the `6.0.0-beta1` version which depends on Lucene `7.0.0-snapshot-00142c9`, you must
+For example, if you want to use the `7.0.0-alpha1` version which depends on Lucene `8.0.0-snapshot-6d9c714052`, you must
 define the following repository.
 
 For Maven:
@@ -93,7 +93,7 @@ For Maven:
 <repository>
     <id>elastic-lucene-snapshots</id>
     <name>Elastic Lucene Snapshots</name>
-    <url>http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/00142c9</url>
+    <url>http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/6d9c714052</url>
     <releases><enabled>true</enabled></releases>
     <snapshots><enabled>false</enabled></snapshots>
 </repository>
@@ -104,7 +104,7 @@ For Gradle:
 ["source","groovy",subs="attributes"]
 --------------------------------------------------
 maven {
-    url 'http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/00142c9'
+    url 'http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/6d9c714052'
 }
 --------------------------------------------------
 
@@ -144,7 +144,7 @@ include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-cl
 In the rest of this documentation about the Java High Level Client, the `RestHighLevelClient` instance
 will be referenced as `client`.
 
-[[java-rest-hight-getting-started-request-options]]
+[[java-rest-high-getting-started-request-options]]
 === RequestOptions
 
 All APIs in the `RestHighLevelClient` accept a `RequestOptions` which you can

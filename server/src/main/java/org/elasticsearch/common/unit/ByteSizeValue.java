@@ -36,7 +36,7 @@ import java.util.Objects;
 
 public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXContentFragment {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(ByteSizeValue.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ByteSizeValue.class));
 
     public static final ByteSizeValue ZERO = new ByteSizeValue(0, ByteSizeUnit.BYTES);
 
@@ -237,7 +237,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
             } catch (final NumberFormatException e) {
                 try {
                     final double doubleValue = Double.parseDouble(s);
-                    DEPRECATION_LOGGER.deprecated(
+                    deprecationLogger.deprecated(
                             "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [{}] found for setting [{}]",
                             initialInput, settingName);
                     return new ByteSizeValue((long) (doubleValue * unit.toBytes(1)));

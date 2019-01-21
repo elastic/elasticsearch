@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -51,10 +50,10 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
     private final IndicesService indicesService;
 
     @Inject
-    public TransportFieldCapabilitiesIndexAction(Settings settings, ClusterService clusterService, TransportService transportService,
+    public TransportFieldCapabilitiesIndexAction(ClusterService clusterService, TransportService transportService,
                                                  IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
                                                  IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
             FieldCapabilitiesIndexRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }

@@ -249,7 +249,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
             .highlighter(highlight().field("field1").order("score").preTags("<x>").postTags("</x>"));
 
         searchResponse = client().search(searchRequest("first_test_index").source(source)).actionGet();
-        assertThat(searchResponse.getHits().totalHits, equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         for (int i = 0; i < 2; i++) {
             assertHighlight(searchResponse, i, "field1", 0, 1, anyOf(
                 equalTo("The quick <x>browse</x> button is a fancy thing, right <x>bro</x>?"),

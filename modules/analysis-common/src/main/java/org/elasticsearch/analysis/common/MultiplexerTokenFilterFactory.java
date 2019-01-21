@@ -19,12 +19,15 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.ConditionalTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.RemoveDuplicatesTokenFilter;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -40,6 +43,9 @@ import java.util.function.Function;
 
 public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
 
+    private static final DeprecationLogger DEPRECATION_LOGGER
+        = new DeprecationLogger(LogManager.getLogger(MultiplexerTokenFilterFactory.class));
+
     private List<String> filterNames;
     private final boolean preserveOriginal;
 
@@ -52,6 +58,22 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
     @Override
     public TokenStream create(TokenStream tokenStream) {
         throw new UnsupportedOperationException("TokenFilterFactory.getChainAwareTokenFilterFactory() must be called first");
+    }
+
+    @Override
+    public TokenFilterFactory getSynonymFilter() {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
+            throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
+        }
+        else {
+            if (preserveOriginal) {
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
+                    + "] will not be usable to parse synonyms after v7.0");
+                return IDENTITY_FILTER;
+            }
+            throw new IllegalArgumentException("Token filter [" + name()
+                + "] cannot be used to parse synonyms unless [preserve_original] is [true]");
+        }
     }
 
     @Override
@@ -98,7 +120,18 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
 
             @Override
             public TokenFilterFactory getSynonymFilter() {
-                return IDENTITY_FILTER;
+                if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
+                    throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
+                }
+                else {
+                    if (preserveOriginal) {
+                        DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
+                            + "] will not be usable to parse synonyms after v7.0");
+                        return IDENTITY_FILTER;
+                    }
+                    throw new IllegalArgumentException("Token filter [" + name()
+                        + "] cannot be used to parse synonyms unless [preserve_original] is [true]");
+                }
             }
         };
     }

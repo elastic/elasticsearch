@@ -26,10 +26,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -133,6 +137,12 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
     @Override
     protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
         return new SerialDiffPipelineAggregator(name, bucketsPaths, formatter(), gapPolicy, lag, metaData);
+    }
+    
+    @Override
+    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggFactories,
+            Collection<PipelineAggregationBuilder> pipelineAggregatoractories) {        
+        validateSequentiallyOrderedParentAggs(parent, NAME, name);
     }
 
     @Override

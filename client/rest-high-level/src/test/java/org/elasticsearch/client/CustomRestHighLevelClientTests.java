@@ -24,10 +24,10 @@ import org.apache.http.HttpHost;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.RequestLine;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
+import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
@@ -126,8 +126,11 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
                                                   "parseResponseException",
                                                   "performRequest",
                                                   "performRequestAndParseEntity",
+                                                  "performRequestAndParseOptionalEntity",
                                                   "performRequestAsync",
-                                                  "performRequestAsyncAndParseEntity"};
+                                                  "performRequestAsyncAndParseEntity",
+                                                  "performRequestAsyncAndParseOptionalEntity"
+                                                  };
 
         final Set<String> protectedMethods =  Arrays.stream(RestHighLevelClient.class.getDeclaredMethods())
                                                      .filter(method -> Modifier.isProtected(method.getModifiers()))
@@ -163,7 +166,7 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
 
         MainResponse response = new MainResponse(httpHeader.getValue(), Version.CURRENT, ClusterName.DEFAULT, "_na", Build.CURRENT);
         BytesRef bytesRef = XContentHelper.toXContent(response, XContentType.JSON, false).toBytesRef();
-        when(mockResponse.getEntity()).thenReturn(new ByteArrayEntity(bytesRef.bytes, ContentType.APPLICATION_JSON));
+        when(mockResponse.getEntity()).thenReturn(new NByteArrayEntity(bytesRef.bytes, ContentType.APPLICATION_JSON));
 
         RequestLine requestLine = new BasicRequestLine(HttpGet.METHOD_NAME, ENDPOINT, protocol);
         when(mockResponse.getRequestLine()).thenReturn(requestLine);

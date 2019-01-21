@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -35,7 +37,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -59,7 +60,8 @@ import static org.elasticsearch.index.IndexSettings.same;
 /**
  * Service responsible for submitting update index settings requests
  */
-public class MetaDataUpdateSettingsService extends AbstractComponent {
+public class MetaDataUpdateSettingsService {
+    private static final Logger logger = LogManager.getLogger(MetaDataUpdateSettingsService.class);
 
     private final ClusterService clusterService;
 
@@ -70,9 +72,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
     private final ThreadPool threadPool;
 
     @Inject
-    public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService,
+    public MetaDataUpdateSettingsService(ClusterService clusterService, AllocationService allocationService,
                                          IndexScopedSettings indexScopedSettings, IndicesService indicesService, ThreadPool threadPool) {
-        super(settings);
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.allocationService = allocationService;
@@ -80,8 +81,10 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
         this.indicesService = indicesService;
     }
 
-    public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-        final Settings normalizedSettings = Settings.builder().put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
+    public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request,
+                               final ActionListener<ClusterStateUpdateResponse> listener) {
+        final Settings normalizedSettings =
+            Settings.builder().put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
         Settings.Builder settingsForClosedIndices = Settings.builder();
         Settings.Builder settingsForOpenIndices = Settings.builder();
         final Set<String> skippedSettings = new HashSet<>();
@@ -150,7 +153,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
                     int totalNewShards = Arrays.stream(request.indices())
                         .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfReplicas))
                         .sum();
-                    Optional<String> error = IndicesService.checkShardLimit(totalNewShards, currentState, deprecationLogger);
+                    Optional<String> error = IndicesService.checkShardLimit(totalNewShards, currentState);
                     if (error.isPresent()) {
                         ValidationException ex = new ValidationException();
                         ex.addValidationError(error.get());
@@ -166,11 +169,16 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
                 }
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_ONLY_BLOCK, IndexMetaData.INDEX_READ_ONLY_SETTING, openSettings);
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK, IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING, openSettings);
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_METADATA_BLOCK, IndexMetaData.INDEX_BLOCKS_METADATA_SETTING, openSettings);
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_WRITE_BLOCK, IndexMetaData.INDEX_BLOCKS_WRITE_SETTING, openSettings);
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_BLOCK, IndexMetaData.INDEX_BLOCKS_READ_SETTING, openSettings);
+                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_ONLY_BLOCK,
+                    IndexMetaData.INDEX_READ_ONLY_SETTING, openSettings);
+                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK,
+                    IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING, openSettings);
+                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_METADATA_BLOCK,
+                    IndexMetaData.INDEX_BLOCKS_METADATA_SETTING, openSettings);
+                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_WRITE_BLOCK,
+                    IndexMetaData.INDEX_BLOCKS_WRITE_SETTING, openSettings);
+                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_BLOCK,
+                    IndexMetaData.INDEX_BLOCKS_READ_SETTING, openSettings);
 
                 if (!openIndices.isEmpty()) {
                     for (Index index : openIndices) {
@@ -182,7 +190,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
                                 indexSettings.put(indexMetaData.getSettings());
                             }
                             Settings finalSettings = indexSettings.build();
-                            indexScopedSettings.validate(finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false), true);
+                            indexScopedSettings.validate(
+                                finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false), true);
                             metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(finalSettings));
                         }
                     }
@@ -198,7 +207,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
                                 indexSettings.put(indexMetaData.getSettings());
                             }
                             Settings finalSettings = indexSettings.build();
-                            indexScopedSettings.validate(finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false), true);
+                            indexScopedSettings.validate(
+                                finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false), true);
                             metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(finalSettings));
                         }
                     }
@@ -213,7 +223,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
                     }
                 }
 
-                ClusterState updatedState = ClusterState.builder(currentState).metaData(metaDataBuilder).routingTable(routingTableBuilder.build()).blocks(blocks).build();
+                ClusterState updatedState = ClusterState.builder(currentState).metaData(metaDataBuilder)
+                    .routingTable(routingTableBuilder.build()).blocks(blocks).build();
 
                 // now, reroute in case things change that require it (like number of replicas)
                 updatedState = allocationService.reroute(updatedState, "settings update");
@@ -251,7 +262,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
     /**
      * Updates the cluster block only iff the setting exists in the given settings
      */
-    private static void maybeUpdateClusterBlock(String[] actualIndices, ClusterBlocks.Builder blocks, ClusterBlock block, Setting<Boolean> setting, Settings openSettings) {
+    private static void maybeUpdateClusterBlock(String[] actualIndices, ClusterBlocks.Builder blocks, ClusterBlock block,
+                                                Setting<Boolean> setting, Settings openSettings) {
         if (setting.exists(openSettings)) {
             final boolean updateBlock = setting.get(openSettings);
             for (String index : actualIndices) {
@@ -265,7 +277,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
     }
 
 
-    public void upgradeIndexSettings(final UpgradeSettingsClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+    public void upgradeIndexSettings(final UpgradeSettingsClusterStateUpdateRequest request,
+                                     final ActionListener<ClusterStateUpdateResponse> listener) {
         clusterService.submitStateUpdateTask("update-index-compatibility-versions",
             new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request,
                 wrapPreservingContext(listener, threadPool.getThreadContext())) {

@@ -20,7 +20,7 @@ settings.
 
 [source,js]
 --------------------------------------------------
-PUT /index
+PUT /index?include_type_name=true
 {
     "settings" : {
         "index" : {
@@ -44,7 +44,7 @@ Here we configure the DFRSimilarity so it can be referenced as
 
 [source,js]
 --------------------------------------------------
-PUT /index/_mapping/_doc
+PUT /index/_mapping
 {
   "properties" : {
     "title" : { "type" : "text", "similarity" : "my_similarity" }
@@ -200,7 +200,7 @@ TF-IDF:
 
 [source,js]
 --------------------------------------------------
-PUT /index
+PUT /index?include_type_name=true
 {
   "settings": {
     "number_of_shards": 1, 
@@ -263,7 +263,10 @@ Which yields:
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total": {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 1.9508477,
     "hits": [
       {
@@ -366,7 +369,7 @@ more efficient:
 
 [source,js]
 --------------------------------------------------
-PUT /index
+PUT /index?include_type_name=true
 {
   "settings": {
     "number_of_shards": 1, 
@@ -437,7 +440,10 @@ GET /index/_search?explain=true
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total": {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 1.9508477,
     "hits": [
       {
@@ -531,7 +537,7 @@ it is <<indices-create-index,created>>:
 
 [source,js]
 --------------------------------------------------
-PUT /index
+PUT /index?include_type_name=true
 {
   "settings": {
     "index": {

@@ -175,3 +175,15 @@ PUT /test_index
 
 Using `synonyms_path` to define WordNet synonyms in a file is supported
 as well.
+
+=== Parsing synonym files
+
+Elasticsearch will use the token filters preceding the synonym filter
+in a tokenizer chain to parse the entries in a synonym file.  So, for example, if a
+synonym filter is placed after a stemmer, then the stemmer will also be applied
+to the synonym entries.  Because entries in the synonym map cannot have stacked
+positions, some token filters may cause issues here.  Token filters that produce
+multiple versions of a token may choose which version of the token to emit when
+parsing synonyms, e.g. `asciifolding` will only produce the folded version of the
+token.  Others, e.g. `multiplexer`, `word_delimiter_graph` or `ngram` will throw an
+error.

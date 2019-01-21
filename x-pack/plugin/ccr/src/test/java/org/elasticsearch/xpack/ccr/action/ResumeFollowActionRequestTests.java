@@ -6,11 +6,12 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
@@ -19,11 +20,11 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ResumeFollowActionRequestTests extends AbstractStreamableXContentTestCase<ResumeFollowAction.Request> {
+public class ResumeFollowActionRequestTests extends AbstractSerializingTestCase<ResumeFollowAction.Request> {
 
     @Override
-    protected ResumeFollowAction.Request createBlankInstance() {
-        return new ResumeFollowAction.Request();
+    protected Writeable.Reader<ResumeFollowAction.Request> instanceReader() {
+        return ResumeFollowAction.Request::new;
     }
 
     @Override
@@ -58,6 +59,12 @@ public class ResumeFollowActionRequestTests extends AbstractStreamableXContentTe
         }
         if (randomBoolean()) {
             request.setMaxWriteBufferCount(randomIntBetween(1, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteRequestOperationCount(randomIntBetween(1, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
             request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));

@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -29,7 +29,7 @@ import java.util.Objects;
  * and iterate through them in batches.
  */
 public abstract class BatchedDocumentsIterator<T>  {
-    private static final Logger LOGGER = Loggers.getLogger(BatchedDocumentsIterator.class);
+    private static final Logger LOGGER = LogManager.getLogger(BatchedDocumentsIterator.class);
 
     private static final String CONTEXT_ALIVE_DURATION = "5m";
     private static final int BATCH_SIZE = 10000;
@@ -98,10 +98,11 @@ public abstract class BatchedDocumentsIterator<T>  {
                 .size(BATCH_SIZE)
                 .query(getQuery())
                 .fetchSource(shouldFetchSource())
+                .trackTotalHits(true)
                 .sort(SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC)));
 
         SearchResponse searchResponse = client.search(searchRequest).actionGet();
-        totalHits = searchResponse.getHits().getTotalHits();
+        totalHits = searchResponse.getHits().getTotalHits().value;
         scrollId = searchResponse.getScrollId();
         return searchResponse;
     }

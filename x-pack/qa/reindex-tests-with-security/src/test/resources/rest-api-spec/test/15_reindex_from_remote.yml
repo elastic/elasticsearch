@@ -73,6 +73,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -118,6 +119,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -163,6 +165,8 @@
 
 ---
 "Using a script to write to an index to which you don't have access is forbidden even if you read as a superuser":
+  - skip:
+      features: headers
   - do:
       index:
         index:        source
@@ -210,10 +214,12 @@
   - do:
       catch: missing
       search:
+        rest_total_hits_as_int: true
         index: other_dest
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
   - length:   { hits.hits: 1  }
   - match: { hits.hits.0._index: dest }
@@ -264,6 +270,7 @@
   # We copied just one doc, presumably the one without the hidden field
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -274,6 +281,7 @@
   # We didn't copy the doc with the hidden field
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -320,6 +328,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -329,6 +338,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -338,6 +348,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:

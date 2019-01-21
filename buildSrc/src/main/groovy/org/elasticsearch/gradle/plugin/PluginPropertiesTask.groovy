@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.plugin
 
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Task
@@ -66,17 +67,11 @@ class PluginPropertiesTask extends Copy {
     }
 
     Map<String, String> generateSubstitutions() {
-        def stringSnap = { version ->
-            if (version.endsWith("-SNAPSHOT")) {
-               return version.substring(0, version.length() - 9)
-            }
-            return version
-        }
         return [
             'name': extension.name,
             'description': extension.description,
-            'version': stringSnap(extension.version),
-            'elasticsearchVersion': stringSnap(VersionProperties.elasticsearch.toString()),
+            'version': extension.version,
+            'elasticsearchVersion': Version.fromString(VersionProperties.elasticsearch).toString(),
             'javaVersion': project.targetCompatibility as String,
             'classname': extension.classname,
             'extendedPlugins': extension.extendedPlugins.join(','),

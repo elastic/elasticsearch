@@ -29,7 +29,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,7 +37,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -51,9 +50,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -134,6 +131,17 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(0, s.size());
         assertEquals(1, dynamicSetting.get(currentSettings).intValue());
         assertEquals(1, currentSettings.size());
+    }
+
+    public void testNoopSettingsUpdate() {
+        String value = "192.168.0.1,127.0.0.1";
+        String setting = "index.routing.allocation.require._ip";
+        Settings currentSettings = Settings.builder().put(setting, value)
+            .build();
+        Settings updates = Settings.builder().put(setting, value).build();
+        IndexScopedSettings settings = new IndexScopedSettings(currentSettings,
+            new HashSet<>(Collections.singletonList(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING)));
+        assertFalse(settings.updateSettings(updates, Settings.builder().put(currentSettings), Settings.builder(), ""));
     }
 
     public void testAddConsumer() {
@@ -503,94 +511,6 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(15, bC.get());
     }
 
-    private static final Setting<Integer> FOO_BAR_LOW_SETTING = new Setting<>(
-            "foo.bar.low",
-            "1",
-            Integer::parseInt,
-            new FooBarLowValidator(),
-            Property.Dynamic,
-            Property.NodeScope);
-
-    private static final Setting<Integer> FOO_BAR_HIGH_SETTING = new Setting<>(
-            "foo.bar.high",
-            "2",
-            Integer::parseInt,
-            new FooBarHighValidator(),
-            Property.Dynamic,
-            Property.NodeScope);
-
-    static class FooBarLowValidator implements Setting.Validator<Integer> {
-        @Override
-        public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
-            final int high = settings.get(FOO_BAR_HIGH_SETTING);
-            if (value > high) {
-                throw new IllegalArgumentException("low [" + value + "] more than high [" + high + "]");
-            }
-        }
-
-        @Override
-        public Iterator<Setting<Integer>> settings() {
-            return Collections.singletonList(FOO_BAR_HIGH_SETTING).iterator();
-        }
-    }
-
-    static class FooBarHighValidator implements Setting.Validator<Integer> {
-        @Override
-        public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
-            final int low = settings.get(FOO_BAR_LOW_SETTING);
-            if (value < low) {
-                throw new IllegalArgumentException("high [" + value + "] less than low [" + low + "]");
-            }
-        }
-
-        @Override
-        public Iterator<Setting<Integer>> settings() {
-            return Collections.singletonList(FOO_BAR_LOW_SETTING).iterator();
-        }
-    }
-
-    public void testValidator() {
-        final AbstractScopedSettings service =
-                new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(FOO_BAR_LOW_SETTING, FOO_BAR_HIGH_SETTING)));
-
-        final AtomicInteger consumerLow = new AtomicInteger();
-        final AtomicInteger consumerHigh = new AtomicInteger();
-
-        service.addSettingsUpdateConsumer(FOO_BAR_LOW_SETTING, consumerLow::set);
-
-        service.addSettingsUpdateConsumer(FOO_BAR_HIGH_SETTING, consumerHigh::set);
-
-        final Settings newSettings = Settings.builder().put("foo.bar.low", 17).put("foo.bar.high", 13).build();
-        {
-            final IllegalArgumentException e =
-                    expectThrows(
-                            IllegalArgumentException.class,
-                            () -> service.validateUpdate(newSettings));
-            assertThat(e, hasToString(containsString("illegal value can't update [foo.bar.low] from [1] to [17]")));
-            assertNotNull(e.getCause());
-            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-            final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-            assertThat(cause, hasToString(containsString("low [17] more than high [13]")));
-            assertThat(e.getSuppressed(), arrayWithSize(1));
-            assertThat(e.getSuppressed()[0], instanceOf(IllegalArgumentException.class));
-            final IllegalArgumentException suppressed = (IllegalArgumentException) e.getSuppressed()[0];
-            assertThat(suppressed, hasToString(containsString("illegal value can't update [foo.bar.high] from [2] to [13]")));
-            assertNotNull(suppressed.getCause());
-            assertThat(suppressed.getCause(), instanceOf(IllegalArgumentException.class));
-            final IllegalArgumentException suppressedCause = (IllegalArgumentException) suppressed.getCause();
-            assertThat(suppressedCause, hasToString(containsString("high [13] less than low [17]")));
-            assertThat(consumerLow.get(), equalTo(0));
-            assertThat(consumerHigh.get(), equalTo(0));
-        }
-
-        {
-            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.applySettings(newSettings));
-            assertThat(e, hasToString(containsString("illegal value can't update [foo.bar.low] from [1] to [17]")));
-            assertThat(consumerLow.get(), equalTo(0));
-            assertThat(consumerHigh.get(), equalTo(0));
-        }
-    }
-
     public void testGet() {
         ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         // affix setting - complex matcher
@@ -603,7 +523,7 @@ public class ScopedSettingsTests extends ESTestCase {
 
         // array settings - complex matcher
         assertNotNull(settings.get("transport.tracer.include." + randomIntBetween(1, 100)));
-        assertSame(TransportService.TRACE_LOG_INCLUDE_SETTING, settings.get("transport.tracer.include." + randomIntBetween(1, 100)));
+        assertSame(TransportSettings.TRACE_LOG_INCLUDE_SETTING, settings.get("transport.tracer.include." + randomIntBetween(1, 100)));
 
         // array settings - complex matcher - only accepts numbers
         assertNull(settings.get("transport.tracer.include.FOO"));
@@ -745,7 +665,7 @@ public class ScopedSettingsTests extends ESTestCase {
     public void testUpdateTracer() {
         ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         AtomicReference<List<String>> ref = new AtomicReference<>();
-        settings.addSettingsUpdateConsumer(TransportService.TRACE_LOG_INCLUDE_SETTING, ref::set);
+        settings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_INCLUDE_SETTING, ref::set);
         settings.applySettings(Settings.builder()
                 .putList("transport.tracer.include", "internal:index/shard/recovery/*", "internal:gateway/local*").build());
         assertNotNull(ref.get().size());

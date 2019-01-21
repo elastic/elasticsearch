@@ -1,11 +1,14 @@
+setup:
+  - skip:
+      features: headers
 ---
-"Test JSON file structure analysis without overrides":
+"Test NDJSON file structure analysis without overrides":
   - do:
       headers:
         # This is to stop the usual content type randomization, which
         # would obviously ruin the results for this particular test
         Content-Type: "application/json"
-      xpack.ml.find_file_structure:
+      ml.find_file_structure:
         lines_to_sample: 3
         timeout: 10s
         body:
@@ -26,7 +29,7 @@
   - match: { num_messages_analyzed: 3 }
   - match: { charset: "UTF-8" }
   - match: { has_byte_order_marker: false }
-  - match: { format: json }
+  - match: { format: ndjson }
   - match: { timestamp_field: time }
   - match: { joda_timestamp_formats.0: UNIX }
   - match: { java_timestamp_formats.0: UNIX }
@@ -56,15 +59,15 @@
   - is_false: explanation
 
 ---
-"Test JSON file structure analysis with overrides":
+"Test NDJSON file structure analysis with overrides":
   - do:
       headers:
         # This is to stop the usual content type randomization, which
         # would obviously ruin the results for this particular test
         Content-Type: "application/json"
-      xpack.ml.find_file_structure:
+      ml.find_file_structure:
         charset: UTF-8
-        format: json
+        format: ndjson
         timestamp_field: time
         timestamp_format: UNIX
         explain: true
@@ -86,7 +89,7 @@
   - match: { num_messages_analyzed: 3 }
   - match: { charset: "UTF-8" }
   - match: { has_byte_order_marker: false }
-  - match: { format: json }
+  - match: { format: ndjson }
   - match: { timestamp_field: time }
   - match: { joda_timestamp_formats.0: UNIX }
   - match: { java_timestamp_formats.0: UNIX }

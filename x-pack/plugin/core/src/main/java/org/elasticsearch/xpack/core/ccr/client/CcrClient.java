@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.xpack.core.ccr.action.AutoFollowStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
@@ -53,26 +53,26 @@ public class CcrClient {
         return listener;
     }
 
-    public void stats(
+    public void followStats(
             final FollowStatsAction.StatsRequest request,
             final ActionListener<FollowStatsAction.StatsResponses> listener) {
         client.execute(FollowStatsAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<FollowStatsAction.StatsResponses> stats(final FollowStatsAction.StatsRequest request) {
+    public ActionFuture<FollowStatsAction.StatsResponses> followStats(final FollowStatsAction.StatsRequest request) {
         final PlainActionFuture<FollowStatsAction.StatsResponses> listener = PlainActionFuture.newFuture();
         client.execute(FollowStatsAction.INSTANCE, request, listener);
         return listener;
     }
 
-    public void autoFollowStats(final AutoFollowStatsAction.Request request,
-                                final ActionListener<AutoFollowStatsAction.Response> listener) {
-        client.execute(AutoFollowStatsAction.INSTANCE, request, listener);
+    public void stats(final CcrStatsAction.Request request,
+                      final ActionListener<CcrStatsAction.Response> listener) {
+        client.execute(CcrStatsAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<AutoFollowStatsAction.Response> autoFollowStats(final AutoFollowStatsAction.Request request) {
-        final PlainActionFuture<AutoFollowStatsAction.Response> listener = PlainActionFuture.newFuture();
-        autoFollowStats(request, listener);
+    public ActionFuture<CcrStatsAction.Response> stats(final CcrStatsAction.Request request) {
+        final PlainActionFuture<CcrStatsAction.Response> listener = PlainActionFuture.newFuture();
+        stats(request, listener);
         return listener;
     }
 

@@ -54,7 +54,7 @@ public final class TimeUtils {
         }
 
         try {
-            return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseMillis(date);
+            return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(date);
         } catch (IllegalArgumentException e) {
         }
         // Could not do the conversion
@@ -87,6 +87,22 @@ public final class TimeUtils {
         checkMultiple(timeValue, baseUnit, field);
     }
 
+    /**
+     * Checks that the given {@code timeValue} is positive.
+     *
+     * <ul>
+     *   <li>1s is valid</li>
+     *   <li>-1s is invalid</li>
+     * </ul>
+     */
+    public static void checkPositive(TimeValue timeValue, ParseField field) {
+        long nanos = timeValue.getNanos();
+        if (nanos <= 0) {
+            throw new IllegalArgumentException(field.getPreferredName() + " cannot be less or equal than 0. Value = "
+                    + timeValue.toString());
+        }
+    }
+
     private static void checkNonNegative(TimeValue timeValue, ParseField field) {
         long nanos = timeValue.getNanos();
         if (nanos < 0) {
@@ -94,13 +110,7 @@ public final class TimeUtils {
         }
     }
 
-    private static void checkPositive(TimeValue timeValue, ParseField field) {
-        long nanos = timeValue.getNanos();
-        if (nanos <= 0) {
-            throw new IllegalArgumentException(field.getPreferredName() + " cannot be less or equal than 0. Value = "
-                    + timeValue.toString());
-        }
-    }
+
 
     /**
      * Check the given {@code timeValue} is a multiple of the {@code baseUnit}

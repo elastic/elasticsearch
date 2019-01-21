@@ -35,10 +35,12 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -97,8 +99,13 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     private TermsLookup randomTermsLookup() {
-        return new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
-                termsPath).routing(randomBoolean() ? randomAlphaOfLength(10) : null);
+        // Randomly choose between a typeless terms lookup and one with an explicit type to make sure we are
+        // testing both cases.
+        TermsLookup lookup = randomBoolean()
+            ? new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), termsPath)
+            : new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), termsPath);
+        lookup.routing(randomBoolean() ? randomAlphaOfLength(10) : null);
+        return lookup;
     }
 
     @Override
@@ -201,7 +208,8 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         } catch (IOException ex) {
             throw new ElasticsearchException("boom", ex);
         }
-        return new GetResponse(new GetResult(getRequest.index(), getRequest.type(), getRequest.id(), 0, true, new BytesArray(json), null));
+        return new GetResponse(new GetResult(getRequest.index(), getRequest.type(), getRequest.id(), 0, 1, 0, true,
+            new BytesArray(json), null));
     }
 
     public void testNumeric() throws IOException {
@@ -273,10 +281,10 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     @Override
-    protected boolean isCachable(TermsQueryBuilder queryBuilder) {
-        // even though we use a terms lookup here we do this during rewrite and that means we are cachable on toQuery
+    protected boolean isCacheable(TermsQueryBuilder queryBuilder) {
+        // even though we use a terms lookup here we do this during rewrite and that means we are cacheable on toQuery
         // that's why we return true here all the time
-        return super.isCachable(queryBuilder);
+        return super.isCacheable(queryBuilder);
     }
 
     public void testSerializationFailsUnlessFetched() throws IOException {
@@ -309,5 +317,22 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         assertEquals(Arrays.asList(5, 42d), TermsQueryBuilder.convert(list));
         assertEquals(Arrays.asList(5, 42d), TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
     }
-}
 
+    public void testTypeField() throws IOException {
+        TermsQueryBuilder builder = QueryBuilders.termsQuery("_type", "value1", "value2");
+        builder.doToQuery(createShardContext());
+        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    @Override
+    protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
+        QueryBuilder query = super.parseQuery(parser);
+        assertThat(query, CoreMatchers.instanceOf(TermsQueryBuilder.class));
+
+        TermsQueryBuilder termsQuery = (TermsQueryBuilder) query;
+        if (termsQuery.isTypeless() == false) {
+            assertWarnings(TermsQueryBuilder.TYPES_DEPRECATION_MESSAGE);
+        }
+        return query;
+    }
+}

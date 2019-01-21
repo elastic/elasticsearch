@@ -93,7 +93,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
         final int numberOfConcurrentWrites = randomIntBetween(1, Integer.MAX_VALUE);
         final int writeBufferOperationCount = randomIntBetween(0, Integer.MAX_VALUE);
         final long writeBufferSizeInBytes = randomNonNegativeLong();
-        final long followerMappingVersion = randomIntBetween(0, Integer.MAX_VALUE);
+        final long followerMappingVersion = randomNonNegativeLong();
+        final long followerSettingsVersion = randomNonNegativeLong();
         final long totalReadTimeMillis = randomLongBetween(0, 4096);
         final long totalReadRemoteExecTimeMillis = randomLongBetween(0, 4096);
         final long successfulReadRequests = randomNonNegativeLong();
@@ -124,6 +125,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                 writeBufferOperationCount,
                 writeBufferSizeInBytes,
                 followerMappingVersion,
+                followerSettingsVersion,
                 totalReadTimeMillis,
                 totalReadRemoteExecTimeMillis,
                 successfulReadRequests,
@@ -170,6 +172,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                                         + "\"write_buffer_operation_count\":" + writeBufferOperationCount + ","
                                         + "\"write_buffer_size_in_bytes\":" + writeBufferSizeInBytes + ","
                                         + "\"follower_mapping_version\":" + followerMappingVersion + ","
+                                        + "\"follower_settings_version\":" + followerSettingsVersion + ","
                                         + "\"total_read_time_millis\":" + totalReadTimeMillis + ","
                                         + "\"total_read_remote_exec_time_millis\":" + totalReadRemoteExecTimeMillis + ","
                                         + "\"successful_read_requests\":" + successfulReadRequests + ","
@@ -214,6 +217,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             1,
             1,
             1,
+            1,
             100,
             50,
             10,
@@ -226,7 +230,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             10,
             fetchExceptions,
             2,
-            null);
+            new ElasticsearchException("fatal error"));
         XContentBuilder builder = jsonBuilder();
         builder.value(status);
         Map<String, Object> serializedStatus = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false);
@@ -262,6 +266,11 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                     assertThat(exceptionFieldMapping.size(), equalTo(2));
                     assertThat(XContentMapValues.extractValue("type.type", exceptionFieldMapping), equalTo("keyword"));
                     assertThat(XContentMapValues.extractValue("reason.type", exceptionFieldMapping), equalTo("text"));
+                } else if (fieldName.equals("fatal_exception")) {
+                    assertThat(fieldType, equalTo("object"));
+                    assertThat(((Map<?, ?>) fieldMapping.get("properties")).size(), equalTo(2));
+                    assertThat(XContentMapValues.extractValue("properties.type.type", fieldMapping), equalTo("keyword"));
+                    assertThat(XContentMapValues.extractValue("properties.reason.type", fieldMapping), equalTo("text"));
                 } else {
                     fail("unexpected field value type [" + fieldValue.getClass() + "] for field [" + fieldName + "]");
                 }

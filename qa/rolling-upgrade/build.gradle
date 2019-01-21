@@ -56,7 +56,6 @@ for (Version version : bwcVersions.wireCompatible) {
     mustRunAfter(precommit)
   }
 
-  Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
   configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
     bwcVersion = version
     numBwcNodes = 3
@@ -73,12 +72,13 @@ for (Version version : bwcVersions.wireCompatible) {
     systemProperty 'tests.rest.suite', 'old_cluster'
   }
 
-  Closure configureUpgradeCluster = {String name, Task lastRunner, int stopNode, Closure unicastSeed ->
+  Closure configureUpgradeCluster = {String name, Task lastRunner, int stopNode, Closure getOtherUnicastHostAddresses ->
     configure(extensions.findByName("${baseName}#${name}")) {
       dependsOn lastRunner, "${baseName}#oldClusterTestCluster#node${stopNode}.stop"
       clusterName = 'rolling-upgrade'
-      unicastTransportUri = { seedNode, node, ant -> unicastSeed() }
-      minimumMasterNodes = { 3 }
+      otherUnicastHostAddresses = { getOtherUnicastHostAddresses() }
+      minimumMasterNodes = { 2 }
+      autoSetInitialMasterNodes = false
       /* Override the data directory so the new node always gets the node we
       * just stopped's data directory. */
       dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }
@@ -91,7 +91,7 @@ for (Version version : bwcVersions.wireCompatible) {
 
   configureUpgradeCluster("oneThirdUpgradedTestCluster", oldClusterTestRunner, 0,
     // Use all running nodes as seed nodes so there is no race between pinging and the tests
-    { oldClusterTest.nodes.get(1).transportUri() + ',' + oldClusterTest.nodes.get(2).transportUri() })
+    { [oldClusterTest.nodes.get(1).transportUri(), oldClusterTest.nodes.get(2).transportUri()] })
 
   Task oneThirdUpgradedTestRunner = tasks.getByName("${baseName}#oneThirdUpgradedTestRunner")
   oneThirdUpgradedTestRunner.configure {
@@ -104,7 +104,7 @@ for (Version version : bwcVersions.wireCompatible) {
 
   configureUpgradeCluster("twoThirdsUpgradedTestCluster", oneThirdUpgradedTestRunner, 1,
     // Use all running nodes as seed nodes so there is no race between pinging and the tests
-    { oldClusterTest.nodes.get(2).transportUri() + ',' + oneThirdUpgradedTest.nodes.get(0).transportUri() })
+    { [oldClusterTest.nodes.get(2).transportUri(), oneThirdUpgradedTest.nodes.get(0).transportUri()] })
 
   Task twoThirdsUpgradedTestRunner = tasks.getByName("${baseName}#twoThirdsUpgradedTestRunner")
   twoThirdsUpgradedTestRunner.configure {
@@ -117,7 +117,7 @@ for (Version version : bwcVersions.wireCompatible) {
 
   configureUpgradeCluster("upgradedClusterTestCluster", twoThirdsUpgradedTestRunner, 2,
     // Use all running nodes as seed nodes so there is no race between pinging and the tests
-    { oneThirdUpgradedTest.nodes.get(0).transportUri() + ',' + twoThirdsUpgradedTest.nodes.get(0).transportUri() })
+    { [oneThirdUpgradedTest.nodes.get(0).transportUri(), twoThirdsUpgradedTest.nodes.get(0).transportUri()] })
 
   Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")
   upgradedClusterTestRunner.configure {
@@ -140,12 +140,12 @@ for (Version version : bwcVersions.wireCompatible) {
   }
 }
 
-test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+unitTest.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
 // basic integ tests includes testing bwc against the most recent version
 task integTest {
   if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.snapshotsWireCompatible) {
+    for (final def version : bwcVersions.unreleasedWireCompatible) {
       dependsOn "v${version}#bwcTest"
     }
   }

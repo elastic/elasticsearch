@@ -81,7 +81,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                     .setQuery(q)
                     .setProfile(true)
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
-                    .execute().actionGet();
+                    .get();
 
             assertNotNull("Profile response element should not be null", resp.getProfileResults());
             assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
@@ -107,6 +107,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
      * search for each query.  It then does some basic sanity checking of score and hits
      * to make sure the profiling doesn't interfere with the hits being returned
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32492")
     public void testProfileMatchesRegular() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -146,7 +147,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
             MultiSearchResponse.Item[] responses = client().prepareMultiSearch()
                     .add(vanilla)
                     .add(profile)
-                    .execute().actionGet().getResponses();
+                    .get().getResponses();
 
             SearchResponse vanillaResponse = responses[0].getResponse();
             SearchResponse profileResponse = responses[1].getResponse();
@@ -165,10 +166,10 @@ public class QueryProfilerIT extends ESIntegTestCase {
                         vanillaMaxScore, profileMaxScore, 0.001);
             }
 
-            if (vanillaResponse.getHits().totalHits != profileResponse.getHits().totalHits) {
+            if (vanillaResponse.getHits().getTotalHits().value != profileResponse.getHits().getTotalHits().value) {
                 Set<SearchHit> vanillaSet = new HashSet<>(Arrays.asList(vanillaResponse.getHits().getHits()));
                 Set<SearchHit> profileSet = new HashSet<>(Arrays.asList(profileResponse.getHits().getHits()));
-                if (vanillaResponse.getHits().totalHits > profileResponse.getHits().totalHits) {
+                if (vanillaResponse.getHits().getTotalHits().value > profileResponse.getHits().getTotalHits().value) {
                     vanillaSet.removeAll(profileSet);
                     fail("Vanilla hits were larger than profile hits.  Non-overlapping elements were: "
                         + vanillaSet.toString());
@@ -213,7 +214,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setQuery(q)
                 .setProfile(true)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .execute().actionGet();
+                .get();
 
         Map<String, ProfileShardResult> p = resp.getProfileResults();
         assertNotNull(p);
@@ -260,7 +261,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setQuery(q)
                 .setProfile(true)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .execute().actionGet();
+                .get();
 
         Map<String, ProfileShardResult> p = resp.getProfileResults();
         assertNotNull(p);
@@ -329,7 +330,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setQuery(q)
                 .setProfile(true)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .execute().actionGet();
+                .get();
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
@@ -381,7 +382,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setQuery(q)
                 .setProfile(true)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .execute().actionGet();
+                .get();
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
@@ -428,7 +429,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setQuery(q)
                 .setProfile(true)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .execute().actionGet();
+                .get();
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
@@ -475,7 +476,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setQuery(q)
                 .setProfile(true)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .execute().actionGet();
+                .get();
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
@@ -521,7 +522,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setQuery(q)
                 .setProfile(true)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .execute().actionGet();
+                .get();
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
         assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
@@ -569,7 +570,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setTypes("type1")
                 .setProfile(true)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .execute().actionGet();
+                .get();
 
         if (resp.getShardFailures().length > 0) {
             for (ShardSearchFailure f : resp.getShardFailures()) {
@@ -619,7 +620,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         logger.info("Query: {}", q);
 
-        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(false).execute().actionGet();
+        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(false).get();
         assertThat("Profile response element should be an empty map", resp.getProfileResults().size(), equalTo(0));
     }
 

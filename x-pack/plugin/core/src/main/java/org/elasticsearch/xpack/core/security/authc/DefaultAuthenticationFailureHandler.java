@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -27,16 +28,6 @@ import static org.elasticsearch.xpack.core.security.support.Exceptions.authentic
  */
 public class DefaultAuthenticationFailureHandler implements AuthenticationFailureHandler {
     private final Map<String, List<String>> defaultFailureResponseHeaders;
-
-    /**
-     * Constructs default authentication failure handler
-     *
-     * @deprecated replaced by {@link #DefaultAuthenticationFailureHandler(Map)}
-     */
-    @Deprecated
-    public DefaultAuthenticationFailureHandler() {
-        this(null);
-    }
 
     /**
      * Constructs default authentication failure handler with provided default
@@ -55,7 +46,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
                     .toMap(entry -> entry.getKey(), entry -> {
                         if (entry.getKey().equalsIgnoreCase("WWW-Authenticate")) {
                             List<String> values = new ArrayList<>(entry.getValue());
-                            Collections.sort(values, (o1, o2) -> authSchemePriority(o1).compareTo(authSchemePriority(o2)));
+                            values.sort(Comparator.comparing(DefaultAuthenticationFailureHandler::authSchemePriority));
                             return Collections.unmodifiableList(values);
                         } else {
                             return Collections.unmodifiableList(entry.getValue());
@@ -108,12 +99,12 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
 
     @Override
     public ElasticsearchSecurityException missingToken(RestRequest request, ThreadContext context) {
-        return createAuthenticationError("missing authentication token for REST request [{}]", null, request.uri());
+        return createAuthenticationError("missing authentication credentials for REST request [{}]", null, request.uri());
     }
 
     @Override
     public ElasticsearchSecurityException missingToken(TransportMessage message, String action, ThreadContext context) {
-        return createAuthenticationError("missing authentication token for action [{}]", null, action);
+        return createAuthenticationError("missing authentication credentials for action [{}]", null, action);
     }
 
     @Override

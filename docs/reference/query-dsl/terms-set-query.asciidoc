@@ -12,7 +12,7 @@ be a number field:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index
+PUT /my-index?include_type_name=true
 {
     "mappings": {
         "_doc": {
@@ -72,7 +72,10 @@ Response:
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.87546873,
     "hits": [
       {

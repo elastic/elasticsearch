@@ -14,15 +14,16 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.joda.time.ReadableDateTime;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.io.IOException;
-import java.sql.JDBCType;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
 
 /**
  * Response to perform an sql query
@@ -31,6 +32,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
 
     // TODO: Simplify cursor handling
     private String cursor;
+    private Mode mode;
     private List<ColumnInfo> columns;
     // TODO investigate reusing Page here - it probably is much more efficient
     private List<List<Object>> rows;
@@ -38,8 +40,9 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     public SqlQueryResponse() {
     }
 
-    public SqlQueryResponse(String cursor, @Nullable List<ColumnInfo> columns, List<List<Object>> rows) {
+    public SqlQueryResponse(String cursor, Mode mode, @Nullable List<ColumnInfo> columns, List<List<Object>> rows) {
         this.cursor = cursor;
+        this.mode = mode;
         this.columns = columns;
         this.rows = rows;
     }
@@ -134,7 +137,6 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Mode mode = Mode.fromString(params.param("mode"));
         builder.startObject();
         {
             if (columns != null) {
@@ -157,7 +159,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             builder.endArray();
 
             if (cursor.equals("") == false) {
-                builder.field(SqlQueryRequest.CURSOR.getPreferredName(), cursor);
+                builder.field(CURSOR.getPreferredName(), cursor);
             }
         }
         return builder.endObject();
@@ -167,9 +169,10 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
      * Serializes the provided value in SQL-compatible way based on the client mode
      */
     public static XContentBuilder value(XContentBuilder builder, Mode mode, Object value) throws IOException {
-        if (Mode.isDriver(mode) && value instanceof ReadableDateTime) {
-            // JDBC cannot parse dates in string format
-            builder.value(((ReadableDateTime) value).getMillis());
+        if (value instanceof ZonedDateTime) {
+            ZonedDateTime zdt = (ZonedDateTime) value;
+            // use the ISO format
+            builder.value(StringUtils.toString(zdt));
         } else {
             builder.value(value);
         }
@@ -180,30 +183,16 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         String table = in.readString();
         String name = in.readString();
         String esType = in.readString();
-        JDBCType jdbcType;
-        int displaySize;
-        if (in.readBoolean()) {
-            // FIXME: this needs changing to allow custom types
-            jdbcType = JDBCType.valueOf(in.readVInt());
-            displaySize = in.readVInt();
-        } else {
-            jdbcType = null;
-            displaySize = 0;
-        }
-        return new ColumnInfo(table, name, esType, jdbcType, displaySize);
+        Integer displaySize = in.readOptionalVInt();
+            
+        return new ColumnInfo(table, name, esType, displaySize);
     }
 
     public static void writeColumnInfo(StreamOutput out, ColumnInfo columnInfo) throws IOException {
         out.writeString(columnInfo.table());
         out.writeString(columnInfo.name());
         out.writeString(columnInfo.esType());
-        if (columnInfo.jdbcType() != null) {
-            out.writeBoolean(true);
-            out.writeVInt(columnInfo.jdbcType().getVendorTypeNumber());
-            out.writeVInt(columnInfo.displaySize());
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalVInt(columnInfo.displaySize());
     }
 
     @Override

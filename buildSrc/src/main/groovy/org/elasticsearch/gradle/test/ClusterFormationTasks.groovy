@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.test
 
+import java.util.stream.Collectors
 import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
@@ -92,7 +93,8 @@ class ClusterFormationTasks {
             throw new Exception("tests.distribution=integ-test-zip is not supported")
         }
         configureDistributionDependency(project, config.distribution, currentDistro, VersionProperties.elasticsearch)
-        if (config.numBwcNodes > 0) {
+        boolean hasBwcNodes = config.numBwcNodes > 0
+        if (hasBwcNodes) {
             if (config.bwcVersion == null) {
                 throw new IllegalArgumentException("Must specify bwcVersion when numBwcNodes > 0")
             }
@@ -101,7 +103,7 @@ class ClusterFormationTasks {
             // from here on everything else works the same as if it's the current version, we fetch the BWC version
             // from mirrors using gradles built-in mechanism etc.
 
-            configureDistributionDependency(project, config.distribution, bwcDistro, config.bwcVersion)
+            configureDistributionDependency(project, config.distribution, bwcDistro, config.bwcVersion.toString())
             for (Map.Entry<String, Object> entry : config.plugins.entrySet()) {
                 configureBwcPluginDependency(project, entry.getValue(), bwcPlugins, config.bwcVersion)
             }
@@ -111,10 +113,13 @@ class ClusterFormationTasks {
         for (int i = 0; i < config.numNodes; i++) {
             // we start N nodes and out of these N nodes there might be M bwc nodes.
             // for each of those nodes we might have a different configuration
-            final Configuration distro
-            final Version elasticsearchVersion
+            Configuration distro
+            String elasticsearchVersion
             if (i < config.numBwcNodes) {
-                elasticsearchVersion = config.bwcVersion
+                elasticsearchVersion = config.bwcVersion.toString()
+                if (project.bwcVersions.unreleased.contains(config.bwcVersion)) {
+                    elasticsearchVersion += "-SNAPSHOT"
+                }
                 distro = bwcDistro
             } else {
                 elasticsearchVersion = VersionProperties.elasticsearch
@@ -124,20 +129,32 @@ class ClusterFormationTasks {
             nodes.add(node)
             Closure<Map> writeConfigSetup
             Object dependsOn
-            if (node.nodeVersion.onOrAfter("6.5.0-SNAPSHOT")) {
+            if (node.nodeVersion.onOrAfter("6.5.0")) {
                 writeConfigSetup = { Map esConfig ->
-                    // Don't force discovery provider if one is set by the test cluster specs already
-                    if (esConfig.containsKey('discovery.zen.hosts_provider') == false) {
-                        esConfig['discovery.zen.hosts_provider'] = 'file'
+                    if (config.getAutoSetHostsProvider()) {
+                        // Don't force discovery provider if one is set by the test cluster specs already
+                        if (esConfig.containsKey('discovery.zen.hosts_provider') == false) {
+                            esConfig['discovery.zen.hosts_provider'] = 'file'
+                        }
+                        esConfig['discovery.zen.ping.unicast.hosts'] = []
                     }
-                    esConfig['discovery.zen.ping.unicast.hosts'] = []
+                    boolean supportsInitialMasterNodes = hasBwcNodes == false || config.bwcVersion.onOrAfter("7.0.0")
+                    if (esConfig['discovery.type'] == null && config.getAutoSetInitialMasterNodes() && supportsInitialMasterNodes) {
+                        esConfig['cluster.initial_master_nodes'] = nodes.stream().map({ n ->
+                            if (n.config.settings['node.name'] == null) {
+                                return "node-" + n.nodeNum
+                            } else {
+                                return n.config.settings['node.name']
+                            }
+                        }).collect(Collectors.toList())
+                    }
                     esConfig
                 }
                 dependsOn = startDependencies
             } else {
                 dependsOn = startTasks.empty ? startDependencies : startTasks.get(0)
                 writeConfigSetup = { Map esConfig ->
-                    String unicastTransportUri = node.config.unicastTransportUri(nodes.get(0), node, project.ant)
+                    String unicastTransportUri = node.config.unicastTransportUri(nodes.get(0), node, project.createAntBuilder())
                     if (unicastTransportUri == null) {
                         esConfig['discovery.zen.ping.unicast.hosts'] = []
                     } else {
@@ -156,8 +173,10 @@ class ClusterFormationTasks {
     }
 
     /** Adds a dependency on the given distribution */
-    static void configureDistributionDependency(Project project, String distro, Configuration configuration, Version elasticsearchVersion) {
-        if (elasticsearchVersion.before('6.3.0') && distro.startsWith('oss-')) {
+    static void configureDistributionDependency(Project project, String distro, Configuration configuration, String elasticsearchVersion) {
+        if (Version.fromString(elasticsearchVersion).before('6.3.0') &&
+                distro.startsWith('oss-')
+        ) {
             distro = distro.substring('oss-'.length())
         }
         String packaging = distro
@@ -227,7 +246,7 @@ class ClusterFormationTasks {
         setup = configureAddKeystoreFileTasks(prefix, project, setup, node)
 
         if (node.config.plugins.isEmpty() == false) {
-            if (node.nodeVersion == VersionProperties.elasticsearch) {
+            if (node.nodeVersion == Version.fromString(VersionProperties.elasticsearch)) {
                 setup = configureCopyPluginsTask(taskName(prefix, node, 'copyPlugins'), project, setup, node, prefix)
             } else {
                 setup = configureCopyBwcPluginsTask(taskName(prefix, node, 'copyBwcPlugins'), project, setup, node, prefix)
@@ -338,10 +357,17 @@ class ClusterFormationTasks {
         if (minimumMasterNodes > 0) {
             esConfig['discovery.zen.minimum_master_nodes'] = minimumMasterNodes
         }
-        if (node.config.numNodes > 1) {
+        if (minimumMasterNodes > 1) {
             // don't wait for state.. just start up quickly
             // this will also allow new and old nodes in the BWC case to become the master
             esConfig['discovery.initial_state_timeout'] = '0s'
+        }
+        if (esConfig.containsKey('discovery.zen.master_election.wait_for_joins_timeout') == false) {
+            // If a node decides to become master based on partial information from the pinging, don't let it hang for 30 seconds to correct
+            // its mistake. Instead, only wait 5s to do another round of pinging.
+            // This is necessary since we use 30s as the default timeout in REST requests waiting for cluster formation
+            // so we need to bail quicker than the default 30s for the cluster to form in time.
+            esConfig['discovery.zen.master_election.wait_for_joins_timeout'] = '5s'
         }
         esConfig['node.max_local_storage_nodes'] = node.config.numNodes
         esConfig['http.port'] = node.config.httpPort
@@ -583,8 +609,8 @@ class ClusterFormationTasks {
     }
 
     static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, String pluginName, String prefix) {
-        final FileCollection pluginZip;
-        if (node.nodeVersion != VersionProperties.elasticsearch) {
+        FileCollection pluginZip;
+        if (node.nodeVersion != Version.fromString(VersionProperties.elasticsearch)) {
             pluginZip = project.configurations.getByName(pluginBwcConfigurationName(prefix, pluginName))
         } else {
             pluginZip = project.configurations.getByName(pluginConfigurationName(prefix, pluginName))
@@ -703,10 +729,11 @@ class ClusterFormationTasks {
         wait.doLast {
 
             Collection<String> unicastHosts = new HashSet<>()
-            nodes.forEach { otherNode ->
-                String unicastHost = otherNode.config.unicastTransportUri(otherNode, null, project.ant)
+            nodes.forEach { node ->
+                unicastHosts.addAll(node.config.otherUnicastHostAddresses.call())
+                String unicastHost = node.config.unicastTransportUri(node, null, project.createAntBuilder())
                 if (unicastHost != null) {
-                    unicastHosts.addAll(Arrays.asList(unicastHost.split(",")))
+                    unicastHosts.add(unicastHost)
                 }
             }
             String unicastHostsTxt = String.join("\n", unicastHosts)
@@ -900,9 +927,10 @@ class ClusterFormationTasks {
                 outputPrintStream: outputStream,
                 messageOutputLevel: org.apache.tools.ant.Project.MSG_INFO)
 
-        project.ant.project.addBuildListener(listener)
-        Object retVal = command(project.ant)
-        project.ant.project.removeBuildListener(listener)
+        AntBuilder ant = project.createAntBuilder()
+        ant.project.addBuildListener(listener)
+        Object retVal = command(ant)
+        ant.project.removeBuildListener(listener)
         return retVal
     }
 

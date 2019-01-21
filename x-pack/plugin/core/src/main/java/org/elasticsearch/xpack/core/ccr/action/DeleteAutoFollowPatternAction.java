@@ -33,7 +33,11 @@ public class DeleteAutoFollowPatternAction extends Action<AcknowledgedResponse> 
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-        private String name;
+        private final String name;
+
+        public Request(String name) {
+            this.name = name;
+        }
 
         @Override
         public ActionRequestValidationException validate() {
@@ -48,13 +52,8 @@ public class DeleteAutoFollowPatternAction extends Action<AcknowledgedResponse> 
             return name;
         }
 
-        public void setName(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Request(StreamInput in) throws IOException {
+            super(in);
             name = in.readString();
         }
 

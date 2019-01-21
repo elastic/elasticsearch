@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-put-datafeed]]
-=== Create {dfeeds-cap} API
+=== Create {dfeeds} API
 ++++
-<titleabbrev>Create {dfeeds-cap}</titleabbrev>
+<titleabbrev>Create {dfeeds}</titleabbrev>
 ++++
 
 Instantiates a {dfeed}.
@@ -11,7 +11,7 @@ Instantiates a {dfeed}.
 
 ==== Request
 
-`PUT _xpack/ml/datafeeds/<feed_id>`
+`PUT _ml/datafeeds/<feed_id>`
 
 
 ==== Description
@@ -73,10 +73,9 @@ You must create a job before you create a {dfeed}.  You can associate only one
   (unsigned integer) The `size` parameter that is used in {es} searches.
   The default value is `1000`.
 
-`types`::
-  (array) A list of types to search for within the specified indices.
-  For example: `[]`. This property is provided for backwards compatibility with
-  releases earlier than 6.0.0. For more information, see <<removal-of-types>>.
+`delayed_data_check_config`::
+  (object) Specifies if and with how large a window should the data feed check
+  for missing data. See <<ml-datafeed-delayed-data-check-config>>.
 
 For more information about these properties,
 see <<ml-datafeed-resource>>.
@@ -84,15 +83,16 @@ see <<ml-datafeed-resource>>.
 
 ==== Authorization
 
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
+cluster privileges to use this API. For more information, see
+{stack-ov}/security-privileges.html[Security Privileges].
 
 
-==== Security Integration
+==== Security integration
 
-When {security} is enabled, your {dfeed} will remember which roles the user who
-created it had at the time of creation, and run the query using those same roles.
+When {es} {security-features} are enabled, your {dfeed} remembers which roles the
+user who created it had at the time of creation and runs the query using those
+same roles.
 
 
 ==== Examples
@@ -101,7 +101,7 @@ The following example creates the `datafeed-total-requests` {dfeed}:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/datafeeds/datafeed-total-requests
+PUT _ml/datafeeds/datafeed-total-requests
 {
   "job_id": "total-requests",
   "indices": ["server-metrics"]
@@ -120,7 +120,6 @@ When the {dfeed} is created, you receive the following results:
   "indices": [
     "server-metrics"
   ],
-  "types": [],
   "query": {
     "match_all": {
       "boost": 1.0

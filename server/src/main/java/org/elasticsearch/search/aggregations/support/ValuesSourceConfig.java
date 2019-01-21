@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -32,8 +33,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.joda.time.DateTimeZone;
-
-import java.io.IOException;
 
 /**
  * A configuration that tells aggregations how to retrieve data from the index
@@ -55,7 +54,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         if (field == null) {
             if (script == null) {
                 ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(ValuesSourceType.ANY);
-                config.format(resolveFormat(null, valueType));
+                config.format(resolveFormat(null, valueType, timeZone));
                 return config;
             }
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : ValuesSourceType.ANY;
@@ -66,10 +65,10 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
                 // on Bytes
                 valuesSourceType = ValuesSourceType.BYTES;
             }
-            ValuesSourceConfig<VS> config = new ValuesSourceConfig<VS>(valuesSourceType);
+            ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
             config.missing(missing);
             config.timezone(timeZone);
-            config.format(resolveFormat(format, valueType));
+            config.format(resolveFormat(format, valueType, timeZone));
             config.script(createScript(script, context));
             config.scriptValueType(valueType);
             return config;
@@ -81,7 +80,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
             config.missing(missing);
             config.timezone(timeZone);
-            config.format(resolveFormat(format, valueType));
+            config.format(resolveFormat(format, valueType, timeZone));
             config.unmapped(true);
             if (valueType != null) {
                 // todo do we really need this for unmapped?
@@ -122,13 +121,16 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         }
     }
 
-    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {
+    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType, @Nullable DateTimeZone tz) {
         if (valueType == null) {
             return DocValueFormat.RAW; // we can't figure it out
         }
         DocValueFormat valueFormat = valueType.defaultFormat;
         if (valueFormat instanceof DocValueFormat.Decimal && format != null) {
             valueFormat = new DocValueFormat.Decimal(format);
+        }
+        if (valueFormat instanceof DocValueFormat.DateTime && format != null) {
+            valueFormat = new DocValueFormat.DateTime(DateFormatter.forPattern(format), tz != null ? tz : DateTimeZone.UTC);
         }
         return valueFormat;
     }
@@ -220,7 +222,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     /** Get a value source given its configuration. A return value of null indicates that
      *  no value source could be built. */
     @Nullable
-    public VS toValuesSource(QueryShardContext context) throws IOException {
+    public VS toValuesSource(QueryShardContext context) {
         if (!valid()) {
             throw new IllegalStateException(
                     "value source config is invalid; must have either a field context or a script or marked as unwrapped");
@@ -271,7 +273,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     /**
      * Return the original values source, before we apply `missing`.
      */
-    private VS originalValuesSource() throws IOException {
+    private VS originalValuesSource() {
         if (fieldContext() == null) {
             if (valueSourceType() == ValuesSourceType.NUMERIC) {
                 return (VS) numericScript();
@@ -293,11 +295,11 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return (VS) bytesField();
     }
 
-    private ValuesSource.Numeric numericScript() throws IOException {
+    private ValuesSource.Numeric numericScript() {
         return new ValuesSource.Numeric.Script(script(), scriptValueType());
     }
 
-    private ValuesSource.Numeric numericField() throws IOException {
+    private ValuesSource.Numeric numericField() {
 
         if (!(fieldContext().indexFieldData() instanceof IndexNumericFieldData)) {
             throw new IllegalArgumentException("Expected numeric type on field [" + fieldContext().field() +
@@ -311,7 +313,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return dataSource;
     }
 
-    private ValuesSource bytesField() throws IOException {
+    private ValuesSource bytesField() {
         final IndexFieldData<?> indexFieldData = fieldContext().indexFieldData();
         ValuesSource dataSource;
         if (indexFieldData instanceof IndexOrdinalsFieldData) {
@@ -325,11 +327,11 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return dataSource;
     }
 
-    private ValuesSource.Bytes bytesScript() throws IOException {
+    private ValuesSource.Bytes bytesScript() {
         return new ValuesSource.Bytes.Script(script());
     }
 
-    private ValuesSource.GeoPoint geoPointField() throws IOException {
+    private ValuesSource.GeoPoint geoPointField() {
 
         if (!(fieldContext().indexFieldData() instanceof IndexGeoPointFieldData)) {
             throw new IllegalArgumentException("Expected geo_point type on field [" + fieldContext().field() +

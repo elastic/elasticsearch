@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -14,8 +15,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -27,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -45,7 +45,7 @@ import java.util.Objects;
  */
 public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover {
 
-    private static final Logger LOGGER = Loggers.getLogger(ExpiredModelSnapshotsRemover.class);
+    private static final Logger LOGGER = LogManager.getLogger(ExpiredModelSnapshotsRemover.class);
 
     /**
      *  The max number of snapshots to fetch per job. It is set to 10K, the default for an index as
@@ -57,8 +57,8 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
     private final Client client;
     private final ThreadPool threadPool;
 
-    public ExpiredModelSnapshotsRemover(Client client, ThreadPool threadPool, ClusterService clusterService) {
-        super(clusterService);
+    public ExpiredModelSnapshotsRemover(Client client, ThreadPool threadPool) {
+        super(client);
         this.client = Objects.requireNonNull(client);
         this.threadPool = Objects.requireNonNull(threadPool);
     }
@@ -103,7 +103,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
                     for (SearchHit hit : searchResponse.getHits()) {
                         modelSnapshots.add(ModelSnapshot.fromJson(hit.getSourceRef()));
                     }
-                    deleteModelSnapshots(createVolatileCursorIterator(modelSnapshots), listener);
+                    deleteModelSnapshots(new VolatileCursorIterator<>(modelSnapshots), listener);
                 } catch (Exception e) {
                     onFailure(e);
                 }

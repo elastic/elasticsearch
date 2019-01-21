@@ -9,11 +9,15 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData.State;
+import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.IndexFollowingIT;
@@ -21,11 +25,14 @@ import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction.validate;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class TransportResumeFollowActionTests extends ESTestCase {
 
@@ -67,25 +74,34 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         }
         {
             // should fail because leader index does not have soft deletes enabled
-            IndexMetaData leaderIMD = createIMD("index1", 5, Settings.EMPTY, null);
+            IndexMetaData leaderIMD = createIMD("index1", 5, Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "false").build(), null);
+            IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY, customMetaData);
+            Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
+            assertThat(e.getMessage(), equalTo("leader index [index1] does not have soft deletes enabled"));
+        }
+        {
+            // should fail because leader index does not have soft deletes enabled (by default).
+            Version prevVersion = VersionUtils.randomVersionBetween(
+                random(), Version.V_6_5_0, VersionUtils.getPreviousVersion(Version.V_7_0_0));
+            IndexMetaData leaderIMD = IndexMetaData.builder("index1").settings(settings(prevVersion)).numberOfShards(1)
+                .numberOfReplicas(0).setRoutingNumShards(1).putMapping("_doc", "{\"properties\": {}}").build();
             IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY, customMetaData);
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
             assertThat(e.getMessage(), equalTo("leader index [index1] does not have soft deletes enabled"));
         }
         {
             // should fail because the follower index does not have soft deletes enabled
-            IndexMetaData leaderIMD = createIMD("index1", 5, Settings.builder()
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), null);
-            IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY, customMetaData);
+            IndexMetaData leaderIMD = createIMD("index1", 5, Settings.EMPTY, null);
+            IndexMetaData followIMD = createIMD("index2", 5, Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "false").build(), customMetaData);
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
             assertThat(e.getMessage(), equalTo("follower index [index2] does not have soft deletes enabled"));
         }
         {
             // should fail because the number of primary shards between leader and follow index are not equal
-            IndexMetaData leaderIMD = createIMD("index1", 5, Settings.builder()
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), null);
-            IndexMetaData followIMD = createIMD("index2", 4,
-                Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), customMetaData);
+            IndexMetaData leaderIMD = createIMD("index1", 5, Settings.EMPTY, null);
+            IndexMetaData followIMD = createIMD("index2", 4, Settings.EMPTY, customMetaData);
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
             assertThat(e.getMessage(),
                 equalTo("leader index primary shards [5] does not match with the number of shards of the follow index [4]"));
@@ -94,17 +110,14 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             // should fail, because leader index is closed
             IndexMetaData leaderIMD = createIMD("index1", State.CLOSE, "{}", 5, Settings.builder()
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), null);
-            IndexMetaData followIMD = createIMD("index2", State.OPEN, "{}", 5,
-                Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), customMetaData);
+            IndexMetaData followIMD = createIMD("index2", State.OPEN, "{}", 5, Settings.EMPTY, customMetaData);
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
             assertThat(e.getMessage(), equalTo("leader and follow index must be open"));
         }
         {
             // should fail, because index.xpack.ccr.following_index setting has not been enabled in leader index
-            IndexMetaData leaderIMD = createIMD("index1", 1,
-                Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), null);
-            IndexMetaData followIMD = createIMD("index2", 1,
-                Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), customMetaData);
+            IndexMetaData leaderIMD = createIMD("index1", 1, Settings.EMPTY, null);
+            IndexMetaData followIMD = createIMD("index2", 1, Settings.EMPTY, customMetaData);
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "index2");
             mapperService.updateMapping(null, followIMD);
             Exception e = expectThrows(IllegalArgumentException.class,
@@ -200,6 +213,32 @@ public class TransportResumeFollowActionTests extends ESTestCase {
                 followIMD.getSettings(), "index2");
             mapperService.updateMapping(null, followIMD);
             validate(request, leaderIMD, followIMD, UUIDs, mapperService);
+        }
+    }
+    
+    public void testDynamicIndexSettingsAreClassified() {
+        // We should be conscious which dynamic settings are replicated from leader to follower index.
+        // This is the list of settings that should be replicated:
+        Set<Setting<?>> replicatedSettings = new HashSet<>();
+
+        // These fields need to be replicated otherwise documents that can be indexed in the leader index cannot
+        // be indexed in the follower index:
+        replicatedSettings.add(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
+        replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
+        replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
+        replicatedSettings.add(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING);
+        replicatedSettings.add(MapperService.INDEX_MAPPER_DYNAMIC_SETTING);
+        replicatedSettings.add(IndexSettings.MAX_NGRAM_DIFF_SETTING);
+        replicatedSettings.add(IndexSettings.MAX_SHINGLE_DIFF_SETTING);
+        replicatedSettings.add(EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS);
+
+        for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
+            if (setting.isDynamic()) {
+                boolean notReplicated = TransportResumeFollowAction.NON_REPLICATED_SETTINGS.contains(setting);
+                boolean replicated = replicatedSettings.contains(setting);
+                assertThat("setting [" + setting.getKey() + "] is not classified as replicated xor not replicated",
+                    notReplicated ^ replicated, is(true));
+            }
         }
     }
 

@@ -44,6 +44,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             feature:
@@ -65,6 +66,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             feature:
@@ -86,6 +88,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             feature:
@@ -109,6 +112,7 @@ setup:
   - do:
       catch: bad_request
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             feature:
@@ -121,6 +125,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             feature:
@@ -142,6 +147,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             feature:

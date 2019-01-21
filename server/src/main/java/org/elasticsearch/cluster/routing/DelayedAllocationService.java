@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -28,7 +30,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -52,6 +53,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * another cluster change event.
  */
 public class DelayedAllocationService extends AbstractLifecycleComponent implements ClusterStateListener {
+    private static final Logger logger = LogManager.getLogger(DelayedAllocationService.class);
 
     static final String CLUSTER_UPDATE_TASK_SOURCE = "delayed_allocation_reroute";
 
@@ -127,9 +129,8 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
     }
 
     @Inject
-    public DelayedAllocationService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public DelayedAllocationService(ThreadPool threadPool, ClusterService clusterService,
                                     AllocationService allocationService) {
-        super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocationService = allocationService;

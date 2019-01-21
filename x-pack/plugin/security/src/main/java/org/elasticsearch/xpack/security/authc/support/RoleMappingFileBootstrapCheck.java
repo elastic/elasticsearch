@@ -43,8 +43,8 @@ public class RoleMappingFileBootstrapCheck implements BootstrapCheck {
     }
 
     public static BootstrapCheck create(RealmConfig realmConfig) {
-        if (realmConfig.enabled() && DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING.exists(realmConfig.settings())) {
-            Path file = DnRoleMapper.resolveFile(realmConfig.settings(), realmConfig.env());
+        if (realmConfig.enabled() && realmConfig.hasSetting(DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING)) {
+            Path file = DnRoleMapper.resolveFile(realmConfig);
             return new RoleMappingFileBootstrapCheck(realmConfig, file);
         }
         return null;

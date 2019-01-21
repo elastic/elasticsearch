@@ -37,6 +37,11 @@ of the node id. It can still be configured explicitly in `elasticsearch.yml`.
   These fallback settings and this system property have been removed.
 
 [float]
+==== Disabling memory-mapping
+
+* The setting `node.store.allow_mmapfs` has been renamed to `node.store.allow_mmap`.
+
+[float]
 [[remove-http-enabled]]
 ==== Http enabled setting removed
 
@@ -66,3 +71,63 @@ used.  Therefore, these settings have been renamed from `search.remote.*` to
 in the cluster state, or set on dynamic settings updates, we will automatically
 upgrade the setting from `search.remote.*` to `cluster.remote.*`. The fallback
 settings will be removed in 8.0.0.
+
+[float]
+[[audit-logfile-local-node-info]]
+==== Audit logfile local node info
+
+The following settings have been removed:
+
+- `xpack.security.audit.logfile.prefix.emit_node_host_address`, instead use
+  `xpack.security.audit.logfile.emit_node_host_address`
+- `xpack.security.audit.logfile.prefix.emit_node_host_name`, instead use
+  `xpack.security.audit.logfile.emit_node_host_name`
+- `xpack.security.audit.logfile.prefix.emit_node_name`, instead use
+  `xpack.security.audit.logfile.emit_node_name`
+
+The new settings have the same meaning as the removed ones, but the `prefix`
+name component is no longer meaningful as logfile audit entries are structured
+JSON documents and are not prefixed by anything.
+Moreover, `xpack.security.audit.logfile.emit_node_name` has changed its default
+from `true` to `false`. All other settings mentioned before, have kept their
+default value of `false`.
+
+[float]
+[[include-realm-type-in-setting]]
+==== Security realms settings
+
+The settings for all security realms must now include the realm type as part
+of the setting name, and the explicit `type` setting has been removed.
+
+A realm that was previous configured as:
+[source,yaml]
+--------------------------------------------------
+xpack.security.authc.realms:
+  ldap1:
+    type: ldap
+    order: 1
+    url: "ldaps://ldap.example.com/"
+--------------------------------------------------
+
+Must be migrated to:
+[source,yaml]
+--------------------------------------------------
+xpack.security.authc.realms:
+  ldap.ldap1:
+    order: 1
+    url: "ldaps://ldap.example.com/"
+--------------------------------------------------
+
+Any realm specific secure settings that have been stored in the elasticsearch
+keystore (such as ldap bind passwords, or passwords for ssl keys) must be updated
+in a similar way.
+
+[float]
+[[tls-setting-fallback]]
+==== TLS/SSL settings
+
+The default TLS/SSL settings, which were prefixed by `xpack.ssl`, have been removed.
+The removal of these default settings also removes the ability for a component to
+fallback to a default configuration when using TLS. Each component (realm, transport, http,
+http client, etc) must now be configured with their own settings for TLS if it is being
+used.

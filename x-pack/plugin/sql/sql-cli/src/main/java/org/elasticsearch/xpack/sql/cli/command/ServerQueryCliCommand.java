@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
+import org.elasticsearch.xpack.sql.action.CliFormatter;
 import org.elasticsearch.xpack.sql.cli.CliTerminal;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.client.JreHttpUrlConnection;
-import org.elasticsearch.xpack.sql.action.CliFormatter;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
 
 import java.sql.SQLException;

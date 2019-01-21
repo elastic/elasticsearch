@@ -6,7 +6,7 @@ bounding box. Assuming the following indexed document:
 
 [source,js]
 --------------------------------------------------
-PUT /my_locations
+PUT /my_locations?include_type_name=true
 {
     "mappings": {
         "_doc": {

@@ -3,6 +3,8 @@
 [[sql-cli]]
 == SQL CLI
 
+beta[]
+
 Elasticsearch ships with a script to run the SQL CLI in its `bin` directory:
 
 [source,bash]

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -15,10 +16,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
@@ -27,11 +26,12 @@ import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TestProfiles;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.nio.MockNioTransport;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
@@ -39,13 +39,24 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import javax.net.SocketFactory;
 import javax.net.ssl.HandshakeCompletedListener;
+import javax.net.ssl.SNIHostName;
+import javax.net.ssl.SNIMatcher;
+import javax.net.ssl.SNIServerName;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLServerSocket;
+import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocket;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -56,7 +67,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSimpleTransportTestCase {
 
-    protected static final ConnectionProfile SINGLE_CHANNEL_PROFILE;
+    private static final ConnectionProfile SINGLE_CHANNEL_PROFILE;
 
     static {
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
@@ -66,8 +77,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
             TransportRequestOptions.Type.RECOVERY,
             TransportRequestOptions.Type.REG,
             TransportRequestOptions.Type.STATE);
-        SINGLE_CHANNEL_PROFILE = ConnectionProfile.resolveConnectionProfile(builder.build(),
-            ConnectionManager.buildDefaultConnectionProfile(Settings.EMPTY));
+        SINGLE_CHANNEL_PROFILE = builder.build();
     }
 
     protected SSLService createSSLService() {
@@ -78,13 +88,13 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         Path testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
         Path testnodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         Settings settings1 = Settings.builder()
-            .put(settings)
             .put("xpack.security.transport.ssl.enabled", true)
-            .put("xpack.ssl.key", testnodeKey)
-            .put("xpack.ssl.certificate", testnodeCert)
+            .put("xpack.security.transport.ssl.key", testnodeKey)
+            .put("xpack.security.transport.ssl.certificate", testnodeCert)
             .put("path.home", createTempDir())
+            .put(settings)
             .setSecureSettings(secureSettings)
             .build();
         try {
@@ -112,9 +122,9 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         int port = serviceA.boundAddress().publishAddress().getPort();
         Settings settings = Settings.builder()
             .put(Node.NODE_NAME_SETTING.getKey(), "foobar")
-            .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-            .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
-            .put("transport.tcp.port", port)
+            .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
+            .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
+            .put(TransportSettings.PORT.getKey(), port)
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {
@@ -130,51 +140,26 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
     }
 
     @Override
-    public void testTcpHandshake() throws IOException, InterruptedException {
+    public void testTcpHandshake() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
 
         ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
-        try (TransportService service = buildService("TS_TPC", Version.CURRENT, null);
-             TcpTransport.NodeChannels connection = originalTransport.openConnection(
-                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0),
-                 connectionProfile)) {
-            Version version = originalTransport.executeHandshake(connection.getNode(),
-                connection.channel(TransportRequestOptions.Type.PING), TimeValue.timeValueSeconds(10));
-            assertEquals(version, Version.CURRENT);
-        }
-    }
-
-    public void testDualTLSStack() throws Exception {
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        Version expectedVersion = serviceA.getLocalNode().getVersion();
-
-        MockNioTransport transport = new MockNioTransport(Settings.EMPTY, threadPool, new NetworkService(Collections.emptyList()),
-            BigArrays.NON_RECYCLING_INSTANCE, new MockPageCacheRecycler(Settings.EMPTY), namedWriteableRegistry, new NoneCircuitBreakerService());
-
-        try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, transport, expectedVersion, threadPool,
-            null, Collections.emptySet())) {
-            service.start();
-            service.acceptIncomingRequests();
-            try (TcpTransport.NodeChannels connection = transport.openConnection(serviceA.getLocalNode(), SINGLE_CHANNEL_PROFILE)) {
-                Version version = transport.executeHandshake(connection.getNode(),
-                    connection.channel(TransportRequestOptions.Type.PING), TimeValue.timeValueSeconds(10));
-                assertEquals(expectedVersion, version);
+        try (TransportService service = buildService("TS_TPC", Version.CURRENT, null)) {
+            DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(),
+                version0);
+            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+            originalTransport.openConnection(node, connectionProfile, future);
+            try (TcpTransport.NodeChannels connection = (TcpTransport.NodeChannels) future.actionGet()) {
+                assertEquals(connection.getVersion(), Version.CURRENT);
             }
-
-//            TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
-//            try (TcpTransport.NodeChannels connection = originalTransport.openConnection(service.getLocalNode(), SINGLE_CHANNEL_PROFILE)) {
-//                Version version = originalTransport.executeHandshake(connection.getNode(),
-//                    connection.channel(TransportRequestOptions.Type.PING), TimeValue.timeValueSeconds(10));
-//                assertEquals(expectedVersion, version);
-//            }
         }
     }
 
     @SuppressForbidden(reason = "Need to open socket connection")
     public void testRenegotiation() throws Exception {
         SSLService sslService = createSSLService();
-        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");
+        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SocketFactory factory = sslService.sslSocketFactory(sslConfiguration);
         try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
             SocketAccess.doPrivileged(() -> socket.connect(serviceA.boundAddress().publishAddress().address()));
@@ -219,6 +204,133 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
             stream.writeByte((byte) 'S');
             stream.writeInt(-1);
             stream.flush();
+        }
+    }
+
+    public void testSNIServerNameIsPropagated() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, TrustAllConfig is not a SunJSSE TrustManagers", inFipsJvm());
+        SSLService sslService = createSSLService();
+
+        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        SSLContext sslContext = sslService.sslContext(sslConfiguration);
+        final SSLServerSocketFactory serverSocketFactory = sslContext.getServerSocketFactory();
+        final String sniIp = "sni-hostname";
+        final SNIHostName sniHostName = new SNIHostName(sniIp);
+        final CountDownLatch latch = new CountDownLatch(2);
+
+        try (SSLServerSocket sslServerSocket = (SSLServerSocket) serverSocketFactory.createServerSocket()) {
+            SSLParameters sslParameters = sslServerSocket.getSSLParameters();
+            sslParameters.setSNIMatchers(Collections.singletonList(new SNIMatcher(0) {
+                @Override
+                public boolean matches(SNIServerName sniServerName) {
+                    if (sniHostName.equals(sniServerName)) {
+                        latch.countDown();
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }
+            }));
+            sslServerSocket.setSSLParameters(sslParameters);
+
+            SocketAccess.doPrivileged(() -> sslServerSocket.bind(getLocalEphemeral()));
+
+            new Thread(() -> {
+                try {
+                    SSLSocket acceptedSocket = (SSLSocket) SocketAccess.doPrivileged(sslServerSocket::accept);
+
+                    // A read call will execute the handshake
+                    int byteRead = acceptedSocket.getInputStream().read();
+                    assertEquals('E', byteRead);
+                    latch.countDown();
+                    IOUtils.closeWhileHandlingException(acceptedSocket);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }).start();
+
+            InetSocketAddress serverAddress = (InetSocketAddress) SocketAccess.doPrivileged(sslServerSocket::getLocalSocketAddress);
+
+            Settings settings = Settings.builder().put("name", "TS_TEST")
+                .put("xpack.security.transport.ssl.verification_mode", "none")
+                .build();
+            try (MockTransportService serviceC = build(settings, version0, null, true)) {
+                serviceC.acceptIncomingRequests();
+
+                HashMap<String, String> attributes = new HashMap<>();
+                attributes.put("server_name", sniIp);
+                DiscoveryNode node = new DiscoveryNode("server_node_id", new TransportAddress(serverAddress), attributes,
+                    EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
+
+                new Thread(() -> {
+                    try {
+                        serviceC.connectToNode(node, TestProfiles.LIGHT_PROFILE);
+                    } catch (ConnectTransportException ex) {
+                        // Ignore. The other side is not setup to do the ES handshake. So this will fail.
+                    }
+                }).start();
+
+                latch.await();
+            }
+        }
+    }
+
+    public void testInvalidSNIServerName() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, TrustAllConfig is not a SunJSSE TrustManagers", inFipsJvm());
+        SSLService sslService = createSSLService();
+
+        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        SSLContext sslContext = sslService.sslContext(sslConfiguration);
+        final SSLServerSocketFactory serverSocketFactory = sslContext.getServerSocketFactory();
+        final String sniIp = "invalid_hostname";
+
+        try (SSLServerSocket sslServerSocket = (SSLServerSocket) serverSocketFactory.createServerSocket()) {
+            SocketAccess.doPrivileged(() -> sslServerSocket.bind(getLocalEphemeral()));
+
+            new Thread(() -> {
+                try {
+                    SocketAccess.doPrivileged(sslServerSocket::accept);
+                } catch (IOException e) {
+                    // We except an IOException from the `accept` call because the server socket will be
+                    // closed before the call returns.
+                }
+            }).start();
+
+            InetSocketAddress serverAddress = (InetSocketAddress) SocketAccess.doPrivileged(sslServerSocket::getLocalSocketAddress);
+
+            Settings settings = Settings.builder().put("name", "TS_TEST")
+                .put("xpack.security.transport.ssl.verification_mode", "none")
+                .build();
+            try (MockTransportService serviceC = build(settings, version0, null, true)) {
+                serviceC.acceptIncomingRequests();
+
+                HashMap<String, String> attributes = new HashMap<>();
+                attributes.put("server_name", sniIp);
+                DiscoveryNode node = new DiscoveryNode("server_node_id", new TransportAddress(serverAddress), attributes,
+                    EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
+
+                ConnectTransportException connectException = expectThrows(ConnectTransportException.class,
+                    () -> serviceC.connectToNode(node, TestProfiles.LIGHT_PROFILE));
+
+                assertThat(connectException.getMessage(), containsString("invalid DiscoveryNode server_name [invalid_hostname]"));
+            }
+        }
+    }
+
+    public void testDualTLSStack() throws Exception {
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
+        Version expectedVersion = serviceA.getLocalNode().getVersion();
+
+        MockNioTransport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool, new NetworkService(Collections.emptyList()),
+            new MockPageCacheRecycler(Settings.EMPTY), namedWriteableRegistry, new NoneCircuitBreakerService());
+
+        try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, transport, expectedVersion, threadPool,
+            null, Collections.emptySet())) {
+            service.start();
+            service.acceptIncomingRequests();
+            try (Transport.Connection connection = service.openConnection(serviceA.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
+                // Would throw if failed
+            }
         }
     }
 }

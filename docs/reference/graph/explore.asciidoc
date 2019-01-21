@@ -18,7 +18,7 @@ For additional information about working with the explore API, see the Graph
 [float]
 === Request
 
-`POST <index>/_xpack/graph/_explore`
+`POST <index>/_graph/explore`
 
 [float]
 === Description
@@ -183,7 +183,7 @@ An initial search typically begins with a query to identify strongly related ter
 
 [source,js]
 --------------------------------------------------
-POST clicklogs/_xpack/graph/_explore
+POST clicklogs/_graph/explore
 {
     "query": { <1>
         "match": {
@@ -288,7 +288,7 @@ every document could be of interest, see the
 
 [source,js]
 --------------------------------------------------
-POST clicklogs/_xpack/graph/_explore
+POST clicklogs/_graph/explore
 {
     "query": {
         "match": {
@@ -375,7 +375,7 @@ out to find additional search terms associated with that product. The terms
 
 [source,js]
 --------------------------------------------------
-POST clicklogs/_xpack/graph/_explore
+POST clicklogs/_graph/explore
 {
    "vertices": [
       {

@@ -307,7 +307,8 @@ public class CollectionUtils {
         sort(new BytesRefBuilder(), new BytesRefBuilder(), bytes, indices);
     }
 
-    private static void sort(final BytesRefBuilder scratch, final BytesRefBuilder scratch1, final BytesRefArray bytes, final int[] indices) {
+    private static void sort(final BytesRefBuilder scratch, final BytesRefBuilder scratch1,
+                             final BytesRefArray bytes, final int[] indices) {
 
         final int numValues = bytes.size();
         assert indices.length >= numValues;

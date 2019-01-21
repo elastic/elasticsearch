@@ -18,10 +18,17 @@ Set to `true` to enable auditing on the node. The default value is `false`.
 `xpack.security.audit.outputs`::
 Specifies where audit logs are output. For example: `[ index, logfile ]`. The
 default value is `logfile`, which puts the auditing events in a dedicated
-`<clustername>_access.log` file on the node. You can also specify `index`, which
-puts the auditing events in an {es} index that is prefixed with
-`.security_audit_log`. The index can reside on the same cluster or a separate
-cluster.
+file named `<clustername>_audit.log` on each node.
+You can also specify `index`, which puts the auditing events in an {es} index
+that is prefixed with `.security_audit_log`. The index can reside on the same
+cluster or a separate cluster.
++
+For backwards compatibility reasons, if you use the logfile output type, a
+`<clustername>_access.log` file is also created. It contains the same
+information, but it uses the older (pre-6.5.0) formatting style.
+If the backwards compatible format is not required, it should be disabled.
+To do that, change its logger level to `off` in the `log4j2.properties` file.
+For more information, see <<configuring-logging-levels>>.
 +
 --
 TIP: If the index is unavailable, it is possible for auditing events to
@@ -51,23 +58,61 @@ event types such as `authentication_failed`. The default value is `false`.
 --
 IMPORTANT: No filtering is performed when auditing, so sensitive data may be
 audited in plain text when including the request body in audit events.
-
 --
 
 [[node-audit-settings]]
 ==== Local Node Info Settings
 
-`xpack.security.audit.logfile.prefix.emit_node_name`::
-Specifies whether to include the node's name in the local node info. The
-default value is `true`.
+`xpack.security.audit.logfile.emit_node_name`::
+Specifies whether to include the <<node.name,node name>> as a field in
+each audit event.
+The default value is `true`.
 
-`xpack.security.audit.logfile.prefix.emit_node_host_address`::
-Specifies whether to include the node's IP address in the local node info. The
-default value is `false`.
+`xpack.security.audit.logfile.emit_node_host_address`::
+Specifies whether to include the node's IP address as a field in each audit event.
+The default value is `false`.
 
-`xpack.security.audit.logfile.prefix.emit_node_host_name`::
-Specifies whether to include the node's host name in the local node info. The
-default value is `false`.
+`xpack.security.audit.logfile.emit_node_host_name`::
+Specifies whether to include the node's host name as a field in each audit event.
+The default value is `false`.
+
+`xpack.security.audit.logfile.emit_node_id`::
+Specifies whether to include the node id as a field in each audit event.
+This is available for the new format only. That is to say, this information
+does not exist in the `<clustername>_access.log` file.
+Unlike <<node.name,node name>>, whose value might change if the administrator
+changes the setting in the config file, the node id will persist across cluster
+restarts and the administrator cannot change it.
+The default value is `true`.
+
+[[audit-event-ignore-policies]]
+==== Audit Logfile Event Ignore Policies
+
+These settings affect the {stack-ov}/audit-log-output.html#audit-log-ignore-policy[ignore policies]
+that enable fine-grained control over which audit events are printed to the log file.
+All of the settings with the same policy name combine to form a single policy.
+If an event matches all of the conditions for a specific policy, it is ignored 
+and not printed.
+
+`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.users`::
+A list of user names or wildcards. The specified policy will
+not print audit events for users matching these values.
+
+`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.realms`::
+A list of authentication realm names or wildcards. The specified policy will
+not print audit events for users in these realms.
+
+`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.roles`::
+A list of role names or wildcards. The specified policy will
+not print audit events for users that have these roles. If the user has several
+roles, some of which are *not* covered by the policy, the policy will
+*not* cover this event.
+
+`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.indices`::
+A list of index names or wildcards. The specified policy will
+not print audit events when all the indices in the event match
+these values. If the event concerns several indices, some of which are
+*not* covered by the policy, the policy will *not* cover this event.
 
 [[index-audit-settings]]
 ==== Audit Log Indexing Configuration Settings
@@ -116,9 +161,9 @@ xpack.security.audit.index.settings:
 --
 NOTE: These settings apply to the local audit indices, as well as to the
 <<remote-audit-settings, remote audit indices>>, but only if the remote cluster
-does *not* have {security} installed, or the {es} versions are different.
-If the remote cluster has {security} installed, and the versions coincide, the
-settings for the audit indices there will take precedence,
+does *not* have {security-features} enabled or the {es} versions are different.
+If the remote cluster has {security-features} enabled and the versions coincide,
+the settings for the audit indices there will take precedence,
 even if they are unspecified (i.e. left to defaults).
 --
 
@@ -131,8 +176,8 @@ To index audit events to a remote {es} cluster, you configure the following
 `xpack.security.audit.index.client.hosts`::
 Specifies a comma-separated list of `host:port` pairs. These hosts should be
 nodes in the remote cluster. If you are using default values for the 
-<<common-network-settings,`transport.tcp.port`>> setting, you can omit the 
-`port` value. Otherwise, it must match the `transport.tcp.port` setting. 
+<<common-network-settings,`transport.port`>> setting, you can omit the
+`port` value. Otherwise, it must match the `transport.port` setting.
 
 `xpack.security.audit.index.client.cluster.name`::
 Specifies the name of the remote cluster.

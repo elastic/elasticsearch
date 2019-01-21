@@ -22,7 +22,8 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class GetMappingsRequestBuilder extends ClusterInfoRequestBuilder<GetMappingsRequest, GetMappingsResponse, GetMappingsRequestBuilder> {
+public class GetMappingsRequestBuilder
+        extends ClusterInfoRequestBuilder<GetMappingsRequest, GetMappingsResponse, GetMappingsRequestBuilder> {
 
     public GetMappingsRequestBuilder(ElasticsearchClient client, GetMappingsAction action, String... indices) {
         super(client, action, new GetMappingsRequest().indices(indices));

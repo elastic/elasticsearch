@@ -24,8 +24,6 @@ import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.model.Tag;
 
-import org.elasticsearch.common.settings.Settings;
-
 import java.util.List;
 
 public class AwsEc2ServiceMock extends AwsEc2ServiceImpl {
@@ -33,8 +31,7 @@ public class AwsEc2ServiceMock extends AwsEc2ServiceImpl {
     private final int nodes;
     private final List<List<Tag>> tagsList;
 
-    public AwsEc2ServiceMock(Settings settings, int nodes, List<List<Tag>> tagsList) {
-        super(settings);
+    public AwsEc2ServiceMock(int nodes, List<List<Tag>> tagsList) {
         this.nodes = nodes;
         this.tagsList = tagsList;
     }

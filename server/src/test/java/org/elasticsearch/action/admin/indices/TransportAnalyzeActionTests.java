@@ -148,7 +148,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.text("the qu1ck brown fox");
         request.tokenizer("standard");
         request.addTokenFilter("mock");
-        analyze = TransportAnalyzeAction.analyze(request, "text", null, randomBoolean() ? indexAnalyzers : null, registry, environment, maxTokenCount);
+        analyze = TransportAnalyzeAction.analyze(request, "text", null, randomBoolean() ? indexAnalyzers : null, registry, environment,
+            maxTokenCount);
         tokens = analyze.getTokens();
         assertEquals(3, tokens.size());
         assertEquals("qu1ck", tokens.get(0).getTerm());
@@ -160,7 +161,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.text("the qu1ck brown fox");
         request.tokenizer("standard");
         request.addCharFilter("append_foo");
-        analyze = TransportAnalyzeAction.analyze(request, "text", null, randomBoolean() ? indexAnalyzers : null, registry, environment, maxTokenCount);
+        analyze = TransportAnalyzeAction.analyze(request, "text", null, randomBoolean() ? indexAnalyzers : null, registry, environment,
+            maxTokenCount);
         tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
         assertEquals("the", tokens.get(0).getTerm());
@@ -174,7 +176,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.tokenizer("standard");
         request.addCharFilter("append");
         request.text("the qu1ck brown fox");
-        analyze = TransportAnalyzeAction.analyze(request, "text", null, randomBoolean() ? indexAnalyzers : null, registry, environment, maxTokenCount);
+        analyze = TransportAnalyzeAction.analyze(request, "text", null, randomBoolean() ? indexAnalyzers : null, registry, environment,
+            maxTokenCount);
         tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
         assertEquals("the", tokens.get(0).getTerm());
@@ -219,7 +222,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         AnalyzeRequest request = new AnalyzeRequest();
         request.text("the quick brown fox");
         request.analyzer("custom_analyzer");
-        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, "text", null, indexAnalyzers, registry, environment, maxTokenCount);
+        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, "text", null, indexAnalyzers, registry, environment,
+            maxTokenCount);
         List<AnalyzeResponse.AnalyzeToken> tokens = analyze.getTokens();
         assertEquals(3, tokens.size());
         assertEquals("quick", tokens.get(0).getTerm());
@@ -333,7 +337,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.tokenizer("standard");
         request.addTokenFilter("stop"); // stop token filter is not prebuilt in AnalysisModule#setupPreConfiguredTokenFilters()
         request.text("the quick brown fox");
-        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, "text", null, indexAnalyzers, registry, environment, maxTokenCount);
+        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, "text", null, indexAnalyzers, registry, environment,
+            maxTokenCount);
         List<AnalyzeResponse.AnalyzeToken> tokens = analyze.getTokens();
         assertEquals(3, tokens.size());
         assertEquals("quick", tokens.get(0).getTerm());
@@ -345,7 +350,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         AnalyzeRequest request = new AnalyzeRequest("index");
         request.normalizer("my_normalizer");
         request.text("ABc");
-        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, "text", null, indexAnalyzers, registry, environment, maxTokenCount);
+        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, "text", null, indexAnalyzers, registry, environment,
+            maxTokenCount);
         List<AnalyzeResponse.AnalyzeToken> tokens = analyze.getTokens();
 
         assertEquals(1, tokens.size());

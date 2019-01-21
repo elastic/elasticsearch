@@ -28,8 +28,6 @@ import org.apache.lucene.queries.function.valuesource.DoubleConstValueSource;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -63,13 +61,9 @@ import java.util.Map;
  *
  * Only contexts returning numeric types or {@link Object} are supported.
  */
-public class ExpressionScriptEngine extends AbstractComponent implements ScriptEngine {
+public class ExpressionScriptEngine implements ScriptEngine {
 
     public static final String NAME = "expression";
-
-    public ExpressionScriptEngine(Settings settings) {
-        super(settings);
-    }
 
     @Override
     public String getType() {
@@ -115,7 +109,7 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
             BucketAggregationSelectorScript.Factory wrappedFactory = parameters -> new BucketAggregationSelectorScript(parameters) {
                 @Override
                 public boolean execute() {
-                    return factory.newInstance(getParams()).execute() == 1.0;
+                    return factory.newInstance(getParams()).execute().doubleValue() == 1.0;
                 }
             };
             return context.factoryClazz.cast(wrappedFactory);

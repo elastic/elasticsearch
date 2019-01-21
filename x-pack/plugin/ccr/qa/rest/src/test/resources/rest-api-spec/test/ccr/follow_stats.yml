@@ -45,7 +45,7 @@
 
   # we can not reliably wait for replication to occur so we test the endpoint without indexing any documents
   - do:
-      ccr.stats:
+      ccr.follow_stats:
         index: bar
   - match: { indices.0.index: "bar" }
   - match: { indices.0.shards.0.leader_index: "foo" }

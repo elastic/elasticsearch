@@ -62,7 +62,7 @@ public interface CircuitBreaker {
     String ACCOUNTING = "accounting";
 
     enum Type {
-        // A regular or child MemoryCircuitBreaker
+        // A regular or ChildMemoryCircuitBreaker
         MEMORY,
         // A special parent-type for the hierarchy breaker service
         PARENT,
@@ -81,6 +81,13 @@ public interface CircuitBreaker {
                     throw new IllegalArgumentException("No CircuitBreaker with type: " + value);
             }
         }
+    }
+
+    enum Durability {
+        // The condition that tripped the circuit breaker fixes itself eventually.
+        TRANSIENT,
+        // The condition that tripped the circuit breaker requires manual intervention.
+        PERMANENT
     }
 
     /**
@@ -127,4 +134,9 @@ public interface CircuitBreaker {
      * @return the name of the breaker
      */
     String getName();
+
+    /**
+     * @return whether a tripped circuit breaker will reset itself (transient) or requires manual intervention (permanent).
+     */
+    Durability getDurability();
 }

@@ -25,6 +25,8 @@ import java.util.function.Supplier;
 
 import com.carrotsearch.hppc.ObjectLookupContainer;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
@@ -35,7 +37,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -45,7 +46,10 @@ import org.elasticsearch.common.util.set.Sets;
  * reroute if it does. Also responsible for logging about nodes that have
  * passed the disk watermarks
  */
-public class DiskThresholdMonitor extends AbstractComponent {
+public class DiskThresholdMonitor {
+
+    private static final Logger logger = LogManager.getLogger(DiskThresholdMonitor.class);
+
     private final DiskThresholdSettings diskThresholdSettings;
     private final Client client;
     private final Set<String> nodeHasPassedWatermark = Sets.newConcurrentHashSet();
@@ -54,7 +58,6 @@ public class DiskThresholdMonitor extends AbstractComponent {
 
     public DiskThresholdMonitor(Settings settings, Supplier<ClusterState> clusterStateSupplier, ClusterSettings clusterSettings,
                                 Client client) {
-        super(settings);
         this.clusterStateSupplier = clusterStateSupplier;
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         this.client = client;

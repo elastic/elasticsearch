@@ -12,9 +12,9 @@ public class VersionTests extends ESTestCase {
     public void testVersionIsCurrent() {
         /* This test will only work properly in gradle because in gradle we run the tests
          * using the jar. */
-        assertEquals(org.elasticsearch.Version.CURRENT.toString(), Version.CURRENT.version);
         assertNotNull(Version.CURRENT.hash);
         assertEquals(org.elasticsearch.Version.CURRENT.major, Version.CURRENT.major);
         assertEquals(org.elasticsearch.Version.CURRENT.minor, Version.CURRENT.minor);
+        assertEquals(org.elasticsearch.Version.CURRENT.revision, Version.CURRENT.revision);
     }
 }

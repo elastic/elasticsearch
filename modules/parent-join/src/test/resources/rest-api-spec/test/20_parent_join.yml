@@ -61,6 +61,7 @@ setup:
 "Test basic":
     - do:
         search:
+          rest_total_hits_as_int: true
           body: { sort: ["join_field", "_id"] }
 
     - match: { hits.total: 6 }
@@ -102,6 +103,7 @@ setup:
 "Test parent_id query":
     - do:
         search:
+          rest_total_hits_as_int: true
           body:
             sort: [ "_id" ]
             query:

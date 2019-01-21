@@ -43,7 +43,7 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         if (index.equals(index.stream().sorted().collect(Collectors.toList())) == false) {
             fail("Expected the following lines to appear in this order:\n" +
                 Stream.of(lines).map(line -> "   - `" + line + "`").collect(Collectors.joining("\n")) +
-                "\nBut they did not. Output is:\n\n```" + output + "\n```\n"
+                "\nTBut the order was different. Output is:\n\n```" + output + "\n```\n"
             );
         }
     }
@@ -78,8 +78,22 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         assertTaskOutcome(result, taskName, TaskOutcome.FAILED);
     }
 
-    protected void assertTaskSuccessful(BuildResult result, String taskName) {
-        assertTaskOutcome(result, taskName, TaskOutcome.SUCCESS);
+    protected void assertTaskSuccessful(BuildResult result, String... taskNames) {
+        for (String taskName : taskNames) {
+            assertTaskOutcome(result, taskName, TaskOutcome.SUCCESS);
+        }
+    }
+
+    protected void assertTaskSkipped(BuildResult result, String... taskNames) {
+        for (String taskName : taskNames) {
+            assertTaskOutcome(result, taskName, TaskOutcome.SKIPPED);
+        }
+    }
+
+    protected void assertTaskNoSource(BuildResult result, String... taskNames) {
+        for (String taskName : taskNames) {
+            assertTaskOutcome(result, taskName, TaskOutcome.NO_SOURCE);
+        }
     }
 
     private void assertTaskOutcome(BuildResult result, String taskName, TaskOutcome taskOutcome) {
@@ -89,24 +103,26 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
                 "\n\nOutput is:\n" + result.getOutput());
         }
         assertEquals(
-            "Expected task `" + taskName +"` to be successful but it was: " + task.getOutcome() +
-                taskOutcome + "\n\nOutput is:\n" + result.getOutput() ,
+            "Expected task `" + taskName +"` to be " + taskOutcome + " but it was: " + task.getOutcome() +
+                "\n\nOutput is:\n" + result.getOutput() ,
             taskOutcome,
             task.getOutcome()
         );
     }
 
-    protected void assertTaskUpToDate(BuildResult result, String taskName) {
-        BuildTask task = result.task(taskName);
-        if (task == null) {
-            fail("Expected task `" + taskName + "` to be up-to-date, but it did not run");
+    protected void assertTaskUpToDate(BuildResult result, String... taskNames) {
+        for (String taskName : taskNames) {
+            BuildTask task = result.task(taskName);
+            if (task == null) {
+                fail("Expected task `" + taskName + "` to be up-to-date, but it did not run");
+            }
+            assertEquals(
+                "Expected task to be up to date but it was: " + task.getOutcome() +
+                    "\n\nOutput is:\n" + result.getOutput(),
+                TaskOutcome.UP_TO_DATE,
+                task.getOutcome()
+            );
         }
-        assertEquals(
-            "Expected task to be up to date but it was: " + task.getOutcome() +
-                "\n\nOutput is:\n" + result.getOutput() ,
-            TaskOutcome.UP_TO_DATE,
-            task.getOutcome()
-        );
     }
 
     protected void assertBuildFileExists(BuildResult result, String projectName, String path) {
@@ -137,6 +153,19 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
             return file.getAbsolutePath().replace(File.separator, "/");
         } else {
             return file.getAbsolutePath();
+        }
+    }
+
+    public void assertOutputOnlyOnce(String output, String... text) {
+        for (String each : text) {
+            int i = output.indexOf(each);
+            if (i == -1 ) {
+                fail("Expected \n```" + each + "```\nto appear at most once, but it didn't at all.\n\nOutout is:\n"+ output
+                );
+            }
+            if(output.indexOf(each) !=  output.lastIndexOf(each)) {
+                fail("Expected `" + each + "` to appear at most once, but it did multiple times.\n\nOutout is:\n"+ output);
+            }
         }
     }
 }

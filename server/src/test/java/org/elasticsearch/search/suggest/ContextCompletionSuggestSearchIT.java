@@ -207,7 +207,8 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         }
         indexRandom(true, indexRequestBuilders);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
-                .contexts(Collections.singletonMap("cat", Collections.singletonList(CategoryQueryContext.builder().setCategory("cat0").build())));
+                .contexts(Collections.singletonMap("cat", Collections.singletonList(CategoryQueryContext.builder()
+                        .setCategory("cat0").build())));
 
         assertSuggestions("foo", prefix, "suggestion8", "suggestion6", "suggestion4", "suggestion2", "suggestion0");
     }
@@ -265,12 +266,14 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
         // filter only on context cat
         CompletionSuggestionBuilder catFilterSuggest = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
-        catFilterSuggest.contexts(Collections.singletonMap("cat", Collections.singletonList(CategoryQueryContext.builder().setCategory("cat0").build())));
+        catFilterSuggest.contexts(Collections.singletonMap("cat", Collections.singletonList(CategoryQueryContext.builder()
+                .setCategory("cat0").build())));
         assertSuggestions("foo", catFilterSuggest, "suggestion8", "suggestion6", "suggestion4", "suggestion2", "suggestion0");
 
         // filter only on context type
         CompletionSuggestionBuilder typeFilterSuggest = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
-        typeFilterSuggest.contexts(Collections.singletonMap("type", Arrays.asList(CategoryQueryContext.builder().setCategory("type2").build(),
+        typeFilterSuggest.contexts(Collections.singletonMap("type", Arrays.asList(CategoryQueryContext.builder().setCategory("type2")
+                .build(),
                 CategoryQueryContext.builder().setCategory("type1").build())));
         assertSuggestions("foo", typeFilterSuggest, "suggestion9", "suggestion6", "suggestion5", "suggestion2", "suggestion1");
     }
@@ -449,7 +452,8 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         }
         indexRandom(true, indexRequestBuilders);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
-                .contexts(Collections.singletonMap("geo", Collections.singletonList(GeoQueryContext.builder().setGeoPoint(new GeoPoint(52.2263, 4.543)).build())));
+                .contexts(Collections.singletonMap("geo", Collections.singletonList(GeoQueryContext.builder()
+                        .setGeoPoint(new GeoPoint(52.2263, 4.543)).build())));
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
     }
 
@@ -487,7 +491,8 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         indexRandom(true, indexRequestBuilders);
 
         CompletionSuggestionBuilder geoNeighbourPrefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
-                .contexts(Collections.singletonMap("geo", Collections.singletonList(GeoQueryContext.builder().setGeoPoint(GeoPoint.fromGeohash(geohash)).build())));
+                .contexts(Collections.singletonMap("geo", Collections.singletonList(GeoQueryContext.builder()
+                        .setGeoPoint(GeoPoint.fromGeohash(geohash)).build())));
 
         assertSuggestions("foo", geoNeighbourPrefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
     }
@@ -540,7 +545,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .array("input", "Hotel Amsterdam in Berlin")
                 .endObject()
                 .endObject();
-        client().prepareIndex(INDEX, TYPE, "1").setSource(source1).execute().actionGet();
+        client().prepareIndex(INDEX, TYPE, "1").setSource(source1).get();
 
         XContentBuilder source2 = jsonBuilder()
                 .startObject()
@@ -551,17 +556,20 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .array("input", "Hotel Berlin in Amsterdam")
                 .endObject()
                 .endObject();
-        client().prepareIndex(INDEX, TYPE, "2").setSource(source2).execute().actionGet();
+        client().prepareIndex(INDEX, TYPE, "2").setSource(source2).get();
 
         refresh();
 
         String suggestionName = randomAlphaOfLength(10);
         CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(FIELD).text("h").size(10)
-                .contexts(Collections.singletonMap("st", Collections.singletonList(GeoQueryContext.builder().setGeoPoint(new GeoPoint(52.52, 13.4)).build())));
-        SearchResponse searchResponse = client().prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion(suggestionName, context)).get();
+                .contexts(Collections.singletonMap("st", Collections.singletonList(GeoQueryContext.builder()
+                        .setGeoPoint(new GeoPoint(52.52, 13.4)).build())));
+        SearchResponse searchResponse = client().prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion(suggestionName, context))
+                .get();
 
         assertEquals(searchResponse.getSuggest().size(), 1);
-        assertEquals("Hotel Amsterdam in Berlin", searchResponse.getSuggest().getSuggestion(suggestionName).iterator().next().getOptions().iterator().next().getText().string());
+        assertEquals("Hotel Amsterdam in Berlin", searchResponse.getSuggest()
+                .getSuggestion(suggestionName).iterator().next().getOptions().iterator().next().getText().string());
     }
 
     public void testSkipDuplicatesWithContexts() throws Exception {
@@ -606,7 +614,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     public void assertSuggestions(String suggestionName, SuggestionBuilder suggestBuilder, String... suggestions) {
         SearchResponse searchResponse = client().prepareSearch(INDEX).suggest(
             new SuggestBuilder().addSuggestion(suggestionName, suggestBuilder)
-        ).execute().actionGet();
+        ).get();
         CompletionSuggestSearchIT.assertSuggestions(searchResponse, suggestionName, suggestions);
     }
 

@@ -1,0 +1,33 @@
+--
+:api: get-ml-info
+:request: MlInfoRequest
+:response: MlInfoResponse
+--
+[id="{upid}-{api}"]
+=== ML Get Info API
+
+The ML Get API provides defaults and limits used internally by {ml}.
+These may be useful to a user interface that needs to interpret machine learning
+configurations where certain fields are missing because the end user was happy with the default value.
+
+It accepts a +{request}+ object and responds with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Get Info Request
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request
+
+[id="{upid}-{api}-response"]
+==== ML Get Info Response
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> `info` from the +{response}+ contains ml info details
+
+include::../execution.asciidoc[]

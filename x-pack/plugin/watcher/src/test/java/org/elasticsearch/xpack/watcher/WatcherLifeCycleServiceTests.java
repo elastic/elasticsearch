@@ -78,7 +78,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         };
         doAnswer(answer).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
         watcherService = mock(WatcherService.class);
-        lifeCycleService = new WatcherLifeCycleService(Settings.EMPTY, clusterService, watcherService);
+        lifeCycleService = new WatcherLifeCycleService(clusterService, watcherService);
     }
 
     public void testNoRestartWithoutAllocationIdsConfigured() {

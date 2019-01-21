@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
@@ -33,6 +34,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -42,6 +44,10 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -50,8 +56,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.hamcrest.CoreMatchers.startsWith;
 
 public class TransportSearchActionTests extends ESTestCase {
 
@@ -80,7 +89,7 @@ public class TransportSearchActionTests extends ESTestCase {
         GroupShardsIterator<ShardIterator> localShardsIterator = new GroupShardsIterator<>(localShardIterators);
 
         OriginalIndices localIndices = new OriginalIndices(new String[]{"local_alias", "local_index_2"},
-                IndicesOptions.strictExpandOpenAndForbidClosed());
+                SearchRequest.DEFAULT_INDICES_OPTIONS);
 
         OriginalIndices remoteIndices = new OriginalIndices(new String[]{"remote_alias", "remote_index_2"},
                 IndicesOptions.strictExpandOpen());
@@ -109,8 +118,9 @@ public class TransportSearchActionTests extends ESTestCase {
             remoteShardIterators.add(remoteShardIterator3);
         }
 
+        String localClusterAlias = randomBoolean() ? null : "local";
         GroupShardsIterator<SearchShardIterator> searchShardIterators = TransportSearchAction.mergeShardsIterators(localShardsIterator,
-                localIndices, remoteShardIterators);
+                localIndices, localClusterAlias, remoteShardIterators);
 
         assertEquals(searchShardIterators.size(), 5);
         int i = 0;
@@ -120,26 +130,31 @@ public class TransportSearchActionTests extends ESTestCase {
                     assertEquals("local_index", searchShardIterator.shardId().getIndexName());
                     assertEquals(0, searchShardIterator.shardId().getId());
                     assertSame(localIndices, searchShardIterator.getOriginalIndices());
+                    assertEquals(localClusterAlias, searchShardIterator.getClusterAlias());
                     break;
                 case 1:
                     assertEquals("local_index_2", searchShardIterator.shardId().getIndexName());
                     assertEquals(1, searchShardIterator.shardId().getId());
                     assertSame(localIndices, searchShardIterator.getOriginalIndices());
+                    assertEquals(localClusterAlias, searchShardIterator.getClusterAlias());
                     break;
                 case 2:
                     assertEquals("remote_index", searchShardIterator.shardId().getIndexName());
                     assertEquals(2, searchShardIterator.shardId().getId());
                     assertSame(remoteIndices, searchShardIterator.getOriginalIndices());
+                    assertEquals("remote", searchShardIterator.getClusterAlias());
                     break;
                 case 3:
                     assertEquals("remote_index_2", searchShardIterator.shardId().getIndexName());
                     assertEquals(3, searchShardIterator.shardId().getId());
                     assertSame(remoteIndices, searchShardIterator.getOriginalIndices());
+                    assertEquals("remote", searchShardIterator.getClusterAlias());
                     break;
                 case 4:
                     assertEquals("remote_index_3", searchShardIterator.shardId().getIndexName());
                     assertEquals(4, searchShardIterator.shardId().getId());
                     assertSame(remoteIndices2, searchShardIterator.getOriginalIndices());
+                    assertEquals("remote", searchShardIterator.getClusterAlias());
                     break;
             }
         }
@@ -185,9 +200,9 @@ public class TransportSearchActionTests extends ESTestCase {
 
             Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
             remoteIndicesByCluster.put("test_cluster_1",
-                new OriginalIndices(new String[]{"fo*", "ba*"}, IndicesOptions.strictExpandOpenAndForbidClosed()));
+                new OriginalIndices(new String[]{"fo*", "ba*"}, SearchRequest.DEFAULT_INDICES_OPTIONS));
             remoteIndicesByCluster.put("test_cluster_2",
-                new OriginalIndices(new String[]{"x*"}, IndicesOptions.strictExpandOpenAndForbidClosed()));
+                new OriginalIndices(new String[]{"x*"}, SearchRequest.DEFAULT_INDICES_OPTIONS));
             Map<String, AliasFilter> remoteAliases = new HashMap<>();
             TransportSearchAction.processRemoteShards(searchShardsResponseMap, remoteIndicesByCluster, iteratorList,
                 remoteAliases);
@@ -239,6 +254,56 @@ public class TransportSearchActionTests extends ESTestCase {
         }
     }
 
+    public void testBuildConnectionLookup() {
+        Function<String, DiscoveryNode> localNodes = (nodeId) -> new DiscoveryNode("local-" + nodeId,
+            new TransportAddress(TransportAddress.META_ADDRESS, 1024), Version.CURRENT);
+        BiFunction<String, String, DiscoveryNode> remoteNodes = (clusterAlias, nodeId) -> new DiscoveryNode("remote-" + nodeId,
+            new TransportAddress(TransportAddress.META_ADDRESS, 2048), Version.CURRENT);
+        BiFunction<String, DiscoveryNode, Transport.Connection> nodeToConnection = (clusterAlias, node) -> new Transport.Connection() {
+            @Override
+            public DiscoveryNode getNode() {
+                return node;
+            }
+
+            @Override
+            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                throws TransportException {
+            }
+
+            @Override
+            public void addCloseListener(ActionListener<Void> listener) {
+            }
+
+            @Override
+            public boolean isClosed() {
+                return false;
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+
+        {
+            BiFunction<String, String, Transport.Connection> connectionLookup = TransportSearchAction.buildConnectionLookup(
+                null, localNodes, remoteNodes, nodeToConnection);
+
+            Transport.Connection localConnection = connectionLookup.apply(null, randomAlphaOfLengthBetween(5, 10));
+            assertThat(localConnection.getNode().getId(), startsWith("local-"));
+            Transport.Connection remoteConnection = connectionLookup.apply(randomAlphaOfLengthBetween(5, 10),
+                randomAlphaOfLengthBetween(5, 10));
+            assertThat(remoteConnection.getNode().getId(), startsWith("remote-"));
+        }
+        {
+            String requestClusterAlias = randomAlphaOfLengthBetween(5, 10);
+            BiFunction<String, String, Transport.Connection> connectionLookup = TransportSearchAction.buildConnectionLookup(
+                requestClusterAlias, localNodes, remoteNodes, nodeToConnection);
+
+            Transport.Connection localConnection = connectionLookup.apply(requestClusterAlias, randomAlphaOfLengthBetween(5, 10));
+            assertThat(localConnection.getNode().getId(), startsWith("local-"));
+        }
+    }
+
     public void testBuildClusters() {
         OriginalIndices localIndices = randomBoolean() ? null : randomOriginalIndices();
         Map<String, OriginalIndices> remoteIndices = new HashMap<>();
@@ -254,7 +319,7 @@ public class TransportSearchActionTests extends ESTestCase {
             remoteIndices.put(cluster, randomOriginalIndices());
             if (onlySuccessful || randomBoolean()) {
                 //whatever response counts as successful as long as it's not the empty placeholder
-                searchShardsResponses.put(cluster, new ClusterSearchShardsResponse());
+                searchShardsResponses.put(cluster, new ClusterSearchShardsResponse(null, null, null));
                 successful++;
             } else {
                 searchShardsResponses.put(cluster, ClusterSearchShardsResponse.EMPTY);
@@ -274,6 +339,6 @@ public class TransportSearchActionTests extends ESTestCase {
             localIndices[i] = randomAlphaOfLengthBetween(3, 10);
         }
         return new OriginalIndices(localIndices, IndicesOptions.fromOptions(randomBoolean(),
-                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
     }
 }

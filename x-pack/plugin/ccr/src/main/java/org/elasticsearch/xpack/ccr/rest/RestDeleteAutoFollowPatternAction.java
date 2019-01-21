@@ -31,8 +31,7 @@ public class RestDeleteAutoFollowPatternAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        Request request = new Request();
-        request.setName(restRequest.param("name"));
+        Request request = new Request(restRequest.param("name"));
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

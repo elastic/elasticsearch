@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-datafeed-resource]]
-=== {dfeed-cap} Resources
+=== {dfeed-cap} resources
 
 A {dfeed} resource has the following properties:
 
@@ -59,10 +59,11 @@ A {dfeed} resource has the following properties:
   (unsigned integer) The `size` parameter that is used in {es} searches.
   The default value is `1000`.
 
-`types`::
-  (array) A list of types to search for within the specified indices. For
-  example: `[]`. This property is provided for backwards compatibility with
-  releases earlier than 6.0.0. For more information, see <<removal-of-types>>.  
+`delayed_data_check_config`::
+  (object) Specifies whether the data feed checks for missing data and 
+  and the size of the window. For example:
+  `{"enabled": true, "check_window": "1h"}` See
+  <<ml-datafeed-delayed-data-check-config>>.
 
 [[ml-datafeed-chunking-config]]
 ==== Chunking Configuration Objects
@@ -85,6 +86,29 @@ A chunking configuration object has the following properties:
   (time units) The time span that each search will be querying.
   This setting is only applicable when the mode is set to `manual`.
   For example: `3h`.
+
+[[ml-datafeed-delayed-data-check-config]]
+==== Delayed Data Check Configuration Objects
+
+The {dfeed} can optionally search over indices that have already been read in
+an effort to find if any data has since been added to the index. If missing data
+is found, it is a good indication that the `query_delay` option is set too low and
+the data is being indexed after the {dfeed} has passed that moment in time. See 
+{stack-ov}/ml-delayed-data-detection.html[Working with delayed data].
+
+This check only runs on real-time {dfeeds}
+
+The configuration object has the following properties:
+
+`enabled`::
+  (boolean) Should the {dfeed} periodically check for data being indexed after reading.
+  Defaults to `true`
+
+`check_window`::
+  (time units) The window of time before the latest finalized bucket that should be searched
+  for late data. Defaults to `null` which causes an appropriate `check_window` to be calculated
+  when the real-time {dfeed} runs.
+  The default `check_window` span calculation is the max between `2h` or `8 * bucket_span`.
 
 [float]
 [[ml-datafeed-counts]]

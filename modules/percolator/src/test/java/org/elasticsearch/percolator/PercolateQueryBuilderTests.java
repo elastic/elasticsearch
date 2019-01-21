@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQueryBuilder> {
@@ -152,12 +153,13 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         assertThat(getRequest.version(), Matchers.equalTo(indexedDocumentVersion));
         if (indexedDocumentExists) {
             return new GetResponse(
-                    new GetResult(indexedDocumentIndex, indexedDocumentType, indexedDocumentId, 0L, true,
+                    new GetResult(indexedDocumentIndex, indexedDocumentType, indexedDocumentId, 0, 1, 0L, true,
                             documentSource.iterator().next(), Collections.emptyMap())
             );
         } else {
             return new GetResponse(
-                    new GetResult(indexedDocumentIndex, indexedDocumentType, indexedDocumentId, -1, false, null, Collections.emptyMap())
+                    new GetResult(indexedDocumentIndex, indexedDocumentType, indexedDocumentId, UNASSIGNED_SEQ_NO, 0, -1,
+                        false, null, Collections.emptyMap())
             );
         }
     }
@@ -267,7 +269,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     }
 
     @Override
-    protected boolean isCachable(PercolateQueryBuilder queryBuilder) {
+    protected boolean isCacheable(PercolateQueryBuilder queryBuilder) {
         return false;
     }
 

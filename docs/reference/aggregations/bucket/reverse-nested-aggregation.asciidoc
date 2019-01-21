@@ -20,18 +20,16 @@ the issue documents as nested documents. The mapping could look like:
 PUT /issues
 {
     "mappings": {
-        "issue" : {
-            "properties" : {
-                "tags" : { "type" : "keyword" },
-                "comments" : { <1>
-                    "type" : "nested",
-                    "properties" : {
-                        "username" : { "type" : "keyword" },
-                        "comment" : { "type" : "text" }
-                    }
-                }
-            }
-        }
+         "properties" : {
+             "tags" : { "type" : "keyword" },
+             "comments" : { <1>
+                 "type" : "nested",
+                 "properties" : {
+                     "username" : { "type" : "keyword" },
+                     "comment" : { "type" : "text" }
+                 }
+             }
+         }
     }
 }
 --------------------------------------------------
@@ -45,7 +43,7 @@ tags of the issues the user has commented on:
 
 [source,js]
 --------------------------------------------------
-POST /issues/issue/0?refresh
+POST /issues/_doc/0?refresh
 {"tags": ["tag_1"], "comments": [{"username": "username_1"}]}
 --------------------------------------------------
 // CONSOLE

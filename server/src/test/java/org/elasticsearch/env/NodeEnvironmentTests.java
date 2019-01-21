@@ -35,7 +35,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -352,7 +351,8 @@ public class NodeEnvironmentTests extends ESTestCase {
                     for (int i = 0; i < iters; i++) {
                         int shard = randomIntBetween(0, counts.length - 1);
                         try {
-                            try (ShardLock autoCloses = env.shardLock(new ShardId("foo", "fooUUID", shard), scaledRandomIntBetween(0, 10))) {
+                            try (ShardLock autoCloses = env.shardLock(new ShardId("foo", "fooUUID", shard), 
+                                    scaledRandomIntBetween(0, 10))) {
                                 counts[shard].value++;
                                 countsAtomic[shard].incrementAndGet();
                                 assertEquals(flipFlop[shard].incrementAndGet(), 1);
@@ -386,7 +386,9 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         final Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, "myindexUUID").build();
         IndexSettings s1 = IndexSettingsModule.newIndexSettings("myindex", indexSettings);
-        IndexSettings s2 = IndexSettingsModule.newIndexSettings("myindex", Settings.builder().put(indexSettings).put(IndexMetaData.SETTING_DATA_PATH, "/tmp/foo").build());
+        IndexSettings s2 = IndexSettingsModule.newIndexSettings("myindex", Settings.builder()
+                .put(indexSettings)
+                .put(IndexMetaData.SETTING_DATA_PATH, "/tmp/foo").build());
         Index index = new Index("myindex", "myindexUUID");
         ShardId sid = new ShardId(index, 0);
 
@@ -454,12 +456,8 @@ public class NodeEnvironmentTests extends ESTestCase {
             }
         }
         NodeEnvironment env = newNodeEnvironment(paths, Settings.EMPTY);
-        try {
-            env.ensureAtomicMoveSupported();
-        } catch (AtomicMoveNotSupportedException e) {
-            // that's OK :)
-        }
         env.close();
+
         // check we clean up
         for (String path: paths) {
             final Path nodePath = NodeEnvironment.resolveNodePath(PathUtils.get(path), 0);

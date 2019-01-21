@@ -17,14 +17,14 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.TimeZone;
 import java.util.function.Supplier;
 
 /**
@@ -33,24 +33,35 @@ import java.util.function.Supplier;
 public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest implements CompositeIndicesRequest, ToXContentFragment {
 
     private String query = "";
-    private TimeZone timeZone = Protocol.TIME_ZONE;
+    private ZoneId zoneId = Protocol.TIME_ZONE;
     private int fetchSize = Protocol.FETCH_SIZE;
     private TimeValue requestTimeout = Protocol.REQUEST_TIMEOUT;
     private TimeValue pageTimeout = Protocol.PAGE_TIMEOUT;
     @Nullable
     private QueryBuilder filter = null;
     private List<SqlTypedParamValue> params = Collections.emptyList();
+    
+    static final ParseField QUERY = new ParseField("query");
+    static final ParseField CURSOR = new ParseField("cursor");
+    static final ParseField PARAMS = new ParseField("params");
+    static final ParseField TIME_ZONE = new ParseField("time_zone");
+    static final ParseField FETCH_SIZE = new ParseField("fetch_size");
+    static final ParseField REQUEST_TIMEOUT = new ParseField("request_timeout");
+    static final ParseField PAGE_TIMEOUT = new ParseField("page_timeout");
+    static final ParseField FILTER = new ParseField("filter");
+    static final ParseField MODE = new ParseField("mode");
+    static final ParseField CLIENT_ID = new ParseField("client_id");
 
     public AbstractSqlQueryRequest() {
         super();
     }
 
-    public AbstractSqlQueryRequest(Mode mode, String query, List<SqlTypedParamValue> params, QueryBuilder filter, TimeZone timeZone,
-                                   int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
-        super(mode);
+    public AbstractSqlQueryRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, ZoneId zoneId,
+                                   int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
+        super(requestInfo);
         this.query = query;
         this.params = params;
-        this.timeZone = timeZone;
+        this.zoneId = zoneId;
         this.fetchSize = fetchSize;
         this.requestTimeout = requestTimeout;
         this.pageTimeout = pageTimeout;
@@ -58,19 +69,22 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     }
 
     protected static <R extends AbstractSqlQueryRequest> ObjectParser<R, Void> objectParser(Supplier<R> supplier) {
-        // TODO: convert this into ConstructingObjectParser
-        ObjectParser<R, Void> parser = new ObjectParser<>("sql/query", true, supplier);
-        parser.declareString(AbstractSqlQueryRequest::query, new ParseField("query"));
-        parser.declareObjectArray(AbstractSqlQueryRequest::params, (p, c) -> SqlTypedParamValue.fromXContent(p), new ParseField("params"));
-        parser.declareString((request, zoneId) -> request.timeZone(TimeZone.getTimeZone(zoneId)), new ParseField("time_zone"));
-        parser.declareInt(AbstractSqlQueryRequest::fetchSize, new ParseField("fetch_size"));
+        // Using an ObjectParser here (vs. ConstructingObjectParser) because the latter needs to instantiate a concrete class
+        // and we would duplicate the code from this class to its subclasses
+        ObjectParser<R, Void> parser = new ObjectParser<>("sql/query", false, supplier);
+        parser.declareString(AbstractSqlQueryRequest::query, QUERY);
+        parser.declareString((request, mode) -> request.mode(Mode.fromString(mode)), MODE);
+        parser.declareString((request, clientId) -> request.clientId(clientId), CLIENT_ID);
+        parser.declareObjectArray(AbstractSqlQueryRequest::params, (p, c) -> SqlTypedParamValue.fromXContent(p), PARAMS);
+        parser.declareString((request, zoneId) -> request.zoneId(ZoneId.of(zoneId)), TIME_ZONE);
+        parser.declareInt(AbstractSqlQueryRequest::fetchSize, FETCH_SIZE);
         parser.declareString((request, timeout) -> request.requestTimeout(TimeValue.parseTimeValue(timeout, Protocol.REQUEST_TIMEOUT,
-            "request_timeout")), new ParseField("request_timeout"));
+            "request_timeout")), REQUEST_TIMEOUT);
         parser.declareString(
                 (request, timeout) -> request.pageTimeout(TimeValue.parseTimeValue(timeout, Protocol.PAGE_TIMEOUT, "page_timeout")),
-                new ParseField("page_timeout"));
+                PAGE_TIMEOUT);
         parser.declareObject(AbstractSqlQueryRequest::filter,
-                (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), new ParseField("filter"));
+                (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER);
         return parser;
     }
 
@@ -107,15 +121,15 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     /**
      * The client's time zone
      */
-    public TimeZone timeZone() {
-        return timeZone;
+    public ZoneId zoneId() {
+        return zoneId;
     }
 
-    public AbstractSqlQueryRequest timeZone(TimeZone timeZone) {
-        if (timeZone == null) {
+    public AbstractSqlQueryRequest zoneId(ZoneId zoneId) {
+        if (zoneId == null) {
             throw new IllegalArgumentException("time zone may not be null.");
         }
-        this.timeZone = timeZone;
+        this.zoneId = zoneId;
         return this;
     }
 
@@ -180,7 +194,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         super(in);
         query = in.readString();
         params = in.readList(AbstractSqlQueryRequest::readSqlTypedParamValue);
-        timeZone = TimeZone.getTimeZone(in.readString());
+        zoneId = ZoneId.of(in.readString());
         fetchSize = in.readVInt();
         requestTimeout = in.readTimeValue();
         pageTimeout = in.readTimeValue();
@@ -188,12 +202,12 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     }
 
     public static void writeSqlTypedParamValue(StreamOutput out, SqlTypedParamValue value) throws IOException {
-        out.writeEnum(value.dataType);
+        out.writeString(value.type);
         out.writeGenericValue(value.value);
     }
 
     public static SqlTypedParamValue readSqlTypedParamValue(StreamInput in) throws IOException {
-        return new SqlTypedParamValue(in.readEnum(DataType.class), in.readGenericValue());
+        return new SqlTypedParamValue(in.readString(), in.readGenericValue());
     }
 
     @Override
@@ -204,7 +218,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         for (SqlTypedParamValue param: params) {
             writeSqlTypedParamValue(out, param);
         }
-        out.writeString(timeZone.getID());
+        out.writeString(zoneId.getId());
         out.writeVInt(fetchSize);
         out.writeTimeValue(requestTimeout);
         out.writeTimeValue(pageTimeout);
@@ -213,14 +227,20 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (!super.equals(o)) {
+            return false;
+        }
         AbstractSqlQueryRequest that = (AbstractSqlQueryRequest) o;
         return fetchSize == that.fetchSize &&
                 Objects.equals(query, that.query) &&
                 Objects.equals(params, that.params) &&
-                Objects.equals(timeZone, that.timeZone) &&
+                Objects.equals(zoneId, that.zoneId) &&
                 Objects.equals(requestTimeout, that.requestTimeout) &&
                 Objects.equals(pageTimeout, that.pageTimeout) &&
                 Objects.equals(filter, that.filter);
@@ -228,6 +248,6 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), query, timeZone, fetchSize, requestTimeout, pageTimeout, filter);
+        return Objects.hash(super.hashCode(), query, zoneId, fetchSize, requestTimeout, pageTimeout, filter);
     }
 }

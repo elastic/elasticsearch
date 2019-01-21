@@ -22,28 +22,19 @@ package org.elasticsearch.client.security;
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-
-import java.io.IOException;
 
 /**
  * Request object to retrieve the X.509 certificates that are used to encrypt communications in an Elasticsearch cluster.
  */
-public final class GetSslCertificatesRequest implements Validatable, ToXContentObject {
+public final class GetSslCertificatesRequest implements Validatable {
 
     public static final GetSslCertificatesRequest INSTANCE = new GetSslCertificatesRequest();
-    private final Request request;
 
     private GetSslCertificatesRequest() {
-        request = new Request(HttpGet.METHOD_NAME, "/_xpack/ssl/certificates");
     }
 
     public Request getRequest() {
-        return request;
+        return new Request(HttpGet.METHOD_NAME, "/_ssl/certificates");
     }
 
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().endObject();
-    }
 }

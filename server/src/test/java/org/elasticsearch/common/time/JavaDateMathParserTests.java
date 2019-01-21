@@ -35,8 +35,8 @@ import static org.hamcrest.Matchers.is;
 
 public class JavaDateMathParserTests extends ESTestCase {
 
-    private final DateFormatter formatter = DateFormatters.forPattern("dateOptionalTime||epoch_millis");
-    private final JavaDateMathParser parser = new JavaDateMathParser(formatter);
+    private final DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime||epoch_millis");
+    private final DateMathParser parser = formatter.toDateMathParser();
 
     public void testBasicDates() {
         assertDateMathEquals("2014", "2014-01-01T00:00:00.000");
@@ -139,7 +139,7 @@ public class JavaDateMathParserTests extends ESTestCase {
     public void testRoundingPreservesEpochAsBaseDate() {
         // If a user only specifies times, then the date needs to always be 1970-01-01 regardless of rounding
         DateFormatter formatter = DateFormatters.forPattern("HH:mm:ss");
-        JavaDateMathParser parser = new JavaDateMathParser(formatter);
+        DateMathParser parser = formatter.toDateMathParser();
         ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(formatter.parse("04:52:20"));
         assertThat(zonedDateTime.getYear(), is(1970));
         long millisStart = zonedDateTime.toInstant().toEpochMilli();
@@ -165,7 +165,7 @@ public class JavaDateMathParserTests extends ESTestCase {
 
         // implicit rounding with explicit timezone in the date format
         DateFormatter formatter = DateFormatters.forPattern("yyyy-MM-ddXXX");
-        JavaDateMathParser parser = new JavaDateMathParser(formatter);
+        DateMathParser parser = formatter.toDateMathParser();
         long time = parser.parse("2011-10-09+01:00", () -> 0, false, (ZoneId) null);
         assertEquals(this.parser.parse("2011-10-09T00:00:00.000+01:00", () -> 0), time);
         time = parser.parse("2011-10-09+01:00", () -> 0, true, (ZoneId) null);
@@ -239,7 +239,7 @@ public class JavaDateMathParserTests extends ESTestCase {
         assertDateMathEquals("1418248078000||/m", "2014-12-10T21:47:00.000");
 
         // also check other time units
-        JavaDateMathParser parser = new JavaDateMathParser(DateFormatters.forPattern("epoch_second||dateOptionalTime"));
+        DateMathParser parser = DateFormatter.forPattern("8epoch_second||dateOptionalTime").toDateMathParser();
         long datetime = parser.parse("1418248078", () -> 0);
         assertDateEquals(datetime, "1418248078", "2014-12-10T21:47:58.000");
 
@@ -252,12 +252,8 @@ public class JavaDateMathParserTests extends ESTestCase {
     }
 
     void assertParseException(String msg, String date, String exc) {
-        try {
-            parser.parse(date, () -> 0);
-            fail("Date: " + date + "\n" + msg);
-        } catch (ElasticsearchParseException e) {
-            assertThat(ExceptionsHelper.detailedMessage(e), containsString(exc));
-        }
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parser.parse(date, () -> 0));
+        assertThat(msg, ExceptionsHelper.detailedMessage(e), containsString(exc));
     }
 
     public void testIllegalMathFormat() {
@@ -270,7 +266,7 @@ public class JavaDateMathParserTests extends ESTestCase {
 
     public void testIllegalDateFormat() {
         assertParseException("Expected bad timestamp exception", Long.toString(Long.MAX_VALUE) + "0", "failed to parse date field");
-        assertParseException("Expected bad date format exception", "123bogus", "could not be parsed");
+        assertParseException("Expected bad date format exception", "123bogus", "Unrecognized chars at the end of [123bogus]");
     }
 
     public void testOnlyCallsNowIfNecessary() {

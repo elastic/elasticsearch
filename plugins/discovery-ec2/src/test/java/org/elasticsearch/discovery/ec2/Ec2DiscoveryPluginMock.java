@@ -32,7 +32,7 @@ public class Ec2DiscoveryPluginMock extends Ec2DiscoveryPlugin {
     }
 
     public Ec2DiscoveryPluginMock(Settings settings, int nodes, List<List<Tag>> tagsList) {
-        super(settings, new AwsEc2ServiceMock(settings, nodes, tagsList));
+        super(settings, new AwsEc2ServiceMock(nodes, tagsList));
     }
 
 }

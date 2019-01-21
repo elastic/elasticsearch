@@ -157,7 +157,8 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
                             }
                             settings = Settings.fromXContent(parser);
                         } else {
-                            throw new ElasticsearchParseException("failed to parse repository [{}], unknown field [{}]", name, currentFieldName);
+                            throw new ElasticsearchParseException("failed to parse repository [{}], unknown field [{}]",
+                                name, currentFieldName);
                         }
                     } else {
                         throw new ElasticsearchParseException("failed to parse repository [{}]", name);

@@ -3,8 +3,8 @@
     "documentation": "https://www.elastic.co/guide/en/x-pack/current/license-management.html",
     "methods": ["POST"],
     "url": {
-      "path": "/_xpack/license/start_trial",
-      "paths": ["/_xpack/license/start_trial"],
+      "path": "/_license/start_trial",
+      "paths": ["/_license/start_trial"],
       "parts" : {
       },
       "params": {

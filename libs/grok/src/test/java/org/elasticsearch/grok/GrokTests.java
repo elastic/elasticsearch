@@ -477,6 +477,16 @@ public class GrokTests extends ESTestCase {
         assertNull(matches);
     }
 
+    public void testJavaClassPatternWithUnderscore() {
+        Grok grok = new Grok(basePatterns, "%{JAVACLASS}");
+        assertThat(grok.match("Test_Class.class"), is(true));
+    }
+
+    public void testJavaFilePatternWithSpaces() {
+        Grok grok = new Grok(basePatterns, "%{JAVAFILE}");
+        assertThat(grok.match("Test Class.java"), is(true));
+    }
+
     private void assertGrokedField(String fieldName) {
         String line = "foo";
         Grok grok = new Grok(basePatterns, "%{WORD:" + fieldName + "}");

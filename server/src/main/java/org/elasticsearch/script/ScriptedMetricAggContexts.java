@@ -95,7 +95,7 @@ public class ScriptedMetricAggContexts {
             if (leafLookup != null) {
                 params = new HashMap<>(params); // copy params so we aren't modifying input
                 params.putAll(leafLookup.asMap()); // add lookup vars
-                params = new ParameterMap(params, DEPRECATIONS); // wrap with deprecations
+                params = new DeprecationMap(params, DEPRECATIONS, "map-script"); // wrap with deprecations
             }
             this.params = params;
         }

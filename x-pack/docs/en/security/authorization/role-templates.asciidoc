@@ -14,7 +14,7 @@ of the current authenticated user:
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/security/role/example1
+POST /_security/role/example1
 {
   "indices" : [
     {
@@ -51,7 +51,7 @@ based on the `group.id` field in your documents:
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/security/role/example2
+POST /_security/role/example2
 {
   "indices" : [
     {

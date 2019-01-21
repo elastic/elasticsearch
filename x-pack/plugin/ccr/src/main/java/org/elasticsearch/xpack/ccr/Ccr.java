@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.ccr;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -19,9 +20,11 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.license.XPackLicenseState;
@@ -31,6 +34,8 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -40,46 +45,57 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
-import org.elasticsearch.xpack.ccr.action.TransportGetAutoFollowPatternAction;
-import org.elasticsearch.xpack.ccr.action.TransportUnfollowAction;
-import org.elasticsearch.xpack.ccr.rest.RestGetAutoFollowPatternAction;
-import org.elasticsearch.xpack.ccr.action.TransportAutoFollowStatsAction;
-import org.elasticsearch.xpack.ccr.rest.RestAutoFollowStatsAction;
-import org.elasticsearch.xpack.ccr.rest.RestUnfollowAction;
-import org.elasticsearch.xpack.core.ccr.action.AutoFollowStatsAction;
-import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
-import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
-import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor;
-import org.elasticsearch.xpack.ccr.action.TransportFollowStatsAction;
-import org.elasticsearch.xpack.ccr.action.TransportPutFollowAction;
+import org.elasticsearch.xpack.ccr.action.TransportCcrStatsAction;
 import org.elasticsearch.xpack.ccr.action.TransportDeleteAutoFollowPatternAction;
-import org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction;
-import org.elasticsearch.xpack.ccr.action.TransportPutAutoFollowPatternAction;
+import org.elasticsearch.xpack.ccr.action.TransportFollowInfoAction;
+import org.elasticsearch.xpack.ccr.action.TransportFollowStatsAction;
+import org.elasticsearch.xpack.ccr.action.TransportGetAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.action.TransportPauseFollowAction;
+import org.elasticsearch.xpack.ccr.action.TransportPutAutoFollowPatternAction;
+import org.elasticsearch.xpack.ccr.action.TransportPutFollowAction;
+import org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction;
+import org.elasticsearch.xpack.ccr.action.TransportUnfollowAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction;
+import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
+import org.elasticsearch.xpack.ccr.action.repositories.DeleteInternalCcrRepositoryAction;
+import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkAction;
+import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionAction;
+import org.elasticsearch.xpack.ccr.action.repositories.PutInternalCcrRepositoryAction;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
-import org.elasticsearch.xpack.ccr.rest.RestFollowStatsAction;
-import org.elasticsearch.xpack.ccr.rest.RestPutFollowAction;
+import org.elasticsearch.xpack.ccr.repository.CcrRepository;
+import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
+import org.elasticsearch.xpack.ccr.rest.RestCcrStatsAction;
 import org.elasticsearch.xpack.ccr.rest.RestDeleteAutoFollowPatternAction;
-import org.elasticsearch.xpack.ccr.rest.RestResumeFollowAction;
-import org.elasticsearch.xpack.ccr.rest.RestPutAutoFollowPatternAction;
+import org.elasticsearch.xpack.ccr.rest.RestFollowInfoAction;
+import org.elasticsearch.xpack.ccr.rest.RestFollowStatsAction;
+import org.elasticsearch.xpack.ccr.rest.RestGetAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestPauseFollowAction;
+import org.elasticsearch.xpack.ccr.rest.RestPutAutoFollowPatternAction;
+import org.elasticsearch.xpack.ccr.rest.RestPutFollowAction;
+import org.elasticsearch.xpack.ccr.rest.RestResumeFollowAction;
+import org.elasticsearch.xpack.ccr.rest.RestUnfollowAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
+import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
-import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -91,7 +107,7 @@ import static org.elasticsearch.xpack.core.XPackSettings.CCR_ENABLED_SETTING;
 /**
  * Container class for CCR functionality.
  */
-public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, EnginePlugin {
+public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, EnginePlugin, RepositoryPlugin {
 
     public static final String CCR_THREAD_POOL_NAME = "ccr";
     public static final String CCR_CUSTOM_METADATA_KEY = "ccr";
@@ -103,6 +119,9 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     private final boolean enabled;
     private final Settings settings;
     private final CcrLicenseChecker ccrLicenseChecker;
+    private final SetOnce<CcrRestoreSourceService> restoreSourceService = new SetOnce<>();
+    private final SetOnce<CcrSettings> ccrSettings = new SetOnce<>();
+    private Client client;
 
     /**
      * Construct an instance of the CCR container with the specified settings.
@@ -137,20 +156,31 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             final Environment environment,
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry) {
+        this.client = client;
         if (enabled == false) {
             return emptyList();
         }
 
+        CcrSettings ccrSettings = new CcrSettings(settings, clusterService.getClusterSettings());
+        this.ccrSettings.set(ccrSettings);
+        CcrRestoreSourceService restoreSourceService = new CcrRestoreSourceService(threadPool, ccrSettings);
+        this.restoreSourceService.set(restoreSourceService);
         return Arrays.asList(
             ccrLicenseChecker,
-            new AutoFollowCoordinator(settings, client, threadPool, clusterService, ccrLicenseChecker)
+            restoreSourceService,
+            new CcrRepositoryManager(settings, clusterService, client),
+            new AutoFollowCoordinator(settings, client, clusterService, ccrLicenseChecker,
+                threadPool::relativeTimeInMillis, threadPool::absoluteTimeInMillis)
         );
     }
 
     @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
-                                                                       ThreadPool threadPool, Client client) {
-        return Collections.singletonList(new ShardFollowTasksExecutor(settings, client, threadPool, clusterService));
+                                                                       ThreadPool threadPool,
+                                                                       Client client,
+                                                                       SettingsModule settingsModule) {
+        IndexScopedSettings indexScopedSettings = settingsModule.getIndexScopedSettings();
+        return Collections.singletonList(new ShardFollowTasksExecutor(client, threadPool, clusterService, indexScopedSettings));
     }
 
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -162,9 +192,20 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 // internal actions
                 new ActionHandler<>(BulkShardOperationsAction.INSTANCE, TransportBulkShardOperationsAction.class),
                 new ActionHandler<>(ShardChangesAction.INSTANCE, ShardChangesAction.TransportAction.class),
+                new ActionHandler<>(PutInternalCcrRepositoryAction.INSTANCE,
+                    PutInternalCcrRepositoryAction.TransportPutInternalRepositoryAction.class),
+                new ActionHandler<>(DeleteInternalCcrRepositoryAction.INSTANCE,
+                    DeleteInternalCcrRepositoryAction.TransportDeleteInternalRepositoryAction.class),
+                new ActionHandler<>(PutCcrRestoreSessionAction.INSTANCE,
+                    PutCcrRestoreSessionAction.TransportPutCcrRestoreSessionAction.class),
+                new ActionHandler<>(ClearCcrRestoreSessionAction.INSTANCE,
+                    ClearCcrRestoreSessionAction.TransportDeleteCcrRestoreSessionAction.class),
+                new ActionHandler<>(GetCcrRestoreFileChunkAction.INSTANCE,
+                    GetCcrRestoreFileChunkAction.TransportGetCcrRestoreFileChunkAction.class),
                 // stats action
                 new ActionHandler<>(FollowStatsAction.INSTANCE, TransportFollowStatsAction.class),
-                new ActionHandler<>(AutoFollowStatsAction.INSTANCE, TransportAutoFollowStatsAction.class),
+                new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsAction.class),
+                new ActionHandler<>(FollowInfoAction.INSTANCE, TransportFollowInfoAction.class),
                 // follow actions
                 new ActionHandler<>(PutFollowAction.INSTANCE, TransportPutFollowAction.class),
                 new ActionHandler<>(ResumeFollowAction.INSTANCE, TransportResumeFollowAction.class),
@@ -187,7 +228,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         return Arrays.asList(
                 // stats API
                 new RestFollowStatsAction(settings, restController),
-                new RestAutoFollowStatsAction(settings, restController),
+                new RestCcrStatsAction(settings, restController),
+                new RestFollowInfoAction(settings, restController),
                 // follow APIs
                 new RestPutFollowAction(settings, restController),
                 new RestResumeFollowAction(settings, restController),
@@ -253,6 +295,20 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         }
 
         return Collections.singletonList(new FixedExecutorBuilder(settings, CCR_THREAD_POOL_NAME, 32, 100, "xpack.ccr.ccr_thread_pool"));
+    }
+
+    @Override
+    public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+        Repository.Factory repositoryFactory =
+            (metadata) -> new CcrRepository(metadata, client, ccrLicenseChecker, settings, ccrSettings.get());
+        return Collections.singletonMap(CcrRepository.TYPE, repositoryFactory);
+    }
+
+    @Override
+    public void onIndexModule(IndexModule indexModule) {
+        if (enabled) {
+            indexModule.addIndexEventListener(this.restoreSourceService.get());
+        }
     }
 
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }

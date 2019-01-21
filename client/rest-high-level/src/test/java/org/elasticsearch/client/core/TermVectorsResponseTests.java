@@ -35,8 +35,8 @@ public class TermVectorsResponseTests extends ESTestCase {
     public void testFromXContent() throws IOException {
         xContentTester(
             this::createParser,
-            this::createTestInstance,
-            this::toXContent,
+            TermVectorsResponseTests::createTestInstance,
+            TermVectorsResponseTests::toXContent,
             TermVectorsResponse::fromXContent)
             .supportsUnknownFields(true)
             .randomFieldsExcludeFilter(field ->
@@ -44,7 +44,7 @@ public class TermVectorsResponseTests extends ESTestCase {
             .test();
     }
 
-    private void toXContent(TermVectorsResponse response, XContentBuilder builder) throws IOException {
+    static void toXContent(TermVectorsResponse response, XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field("_index", response.getIndex());
         builder.field("_type", response.getType());
@@ -66,7 +66,7 @@ public class TermVectorsResponseTests extends ESTestCase {
         builder.endObject();
     }
 
-    private void toXContent(TermVectorsResponse.TermVector tv, XContentBuilder builder) throws IOException {
+    private static void toXContent(TermVectorsResponse.TermVector tv, XContentBuilder builder) throws IOException {
         builder.startObject(tv.getFieldName());
         // build fields_statistics
         if (tv.getFieldStatistics() != null) {
@@ -117,7 +117,7 @@ public class TermVectorsResponseTests extends ESTestCase {
     }
 
 
-    protected TermVectorsResponse createTestInstance() {
+    static TermVectorsResponse createTestInstance() {
         String index = randomAlphaOfLength(5);
         String type = randomAlphaOfLength(5);
         String id = String.valueOf(randomIntBetween(1,100));
@@ -134,16 +134,22 @@ public class TermVectorsResponseTests extends ESTestCase {
             boolean hasPayloads = randomBoolean();
             int fieldsCount = randomIntBetween(1, 3);
             tvList = new ArrayList<>(fieldsCount);
+            List<String> usedFieldNames = new ArrayList<>(fieldsCount);
             for (int i = 0; i < fieldsCount; i++) {
-                tvList.add(randomTermVector(hasFieldStatistics, hasTermStatistics, hasScores, hasOffsets, hasPositions, hasPayloads));
+                String fieldName = randomValueOtherThanMany(usedFieldNames::contains, () -> randomAlphaOfLength(7));
+                usedFieldNames.add(fieldName);
+                tvList.add(randomTermVector(
+                    fieldName, hasFieldStatistics, hasTermStatistics, hasScores, hasOffsets, hasPositions, hasPayloads));
             }
         }
         TermVectorsResponse tvresponse = new TermVectorsResponse(index, type, id, version, found, tookInMillis, tvList);
         return tvresponse;
     }
 
-    private TermVectorsResponse.TermVector randomTermVector(boolean hasFieldStatistics, boolean hasTermStatistics, boolean hasScores,
-            boolean hasOffsets, boolean hasPositions, boolean hasPayloads) {
+
+
+    private static TermVectorsResponse.TermVector randomTermVector(String fieldName, boolean hasFieldStatistics, boolean hasTermStatistics,
+            boolean hasScores, boolean hasOffsets, boolean hasPositions, boolean hasPayloads) {
         TermVectorsResponse.TermVector.FieldStatistics fs = null;
         if (hasFieldStatistics) {
             long sumDocFreq = randomNonNegativeLong();
@@ -154,18 +160,20 @@ public class TermVectorsResponseTests extends ESTestCase {
 
         int termsCount = randomIntBetween(1, 5);
         List<TermVectorsResponse.TermVector.Term> terms = new ArrayList<>(termsCount);
+        List<String> usedTerms = new ArrayList<>(termsCount);
         for (int i = 0; i < termsCount; i++) {
-            terms.add(randomTerm(hasTermStatistics, hasScores, hasOffsets, hasPositions, hasPayloads));
+            String termTxt = randomValueOtherThanMany(usedTerms::contains, () -> randomAlphaOfLength(7));
+            usedTerms.add(termTxt);
+            terms.add(randomTerm(termTxt, hasTermStatistics, hasScores, hasOffsets, hasPositions, hasPayloads));
         }
 
-        TermVectorsResponse.TermVector tv = new TermVectorsResponse.TermVector("field" + randomAlphaOfLength(2), fs, terms);
+        TermVectorsResponse.TermVector tv = new TermVectorsResponse.TermVector(fieldName, fs, terms);
         return tv;
     }
 
-    private TermVectorsResponse.TermVector.Term randomTerm(boolean hasTermStatistics, boolean hasScores,
+    private static TermVectorsResponse.TermVector.Term randomTerm(String termTxt, boolean hasTermStatistics, boolean hasScores,
             boolean hasOffsets, boolean hasPositions, boolean hasPayloads) {
 
-        String termTxt = "term" + randomAlphaOfLength(2);
         int termFreq =  randomInt(10000);
         Integer docFreq = null;
         Long totalTermFreq = null;
@@ -199,5 +207,4 @@ public class TermVectorsResponseTests extends ESTestCase {
             new TermVectorsResponse.TermVector.Term(termTxt, termFreq, docFreq, totalTermFreq, score, tokens);
         return term;
     }
-
 }

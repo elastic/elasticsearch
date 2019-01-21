@@ -1,5 +1,7 @@
 ---
 "Verify user and role in upgraded cluster":
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic bmF0aXZlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
@@ -11,13 +13,13 @@
   - match: { timed_out: false }
 
   - do:
-      xpack.security.get_user:
+      security.get_user:
         username: "native_user"
   - match: { native_user.username:  "native_user" }
   - match: { native_user.roles.0:  "native_role" }
 
   - do:
-      xpack.security.get_role:
+      security.get_role:
         name: "native_role"
   - match: { native_role.cluster.0:  "all" }
   - match: { native_role.indices.0.names.0: "test_index" }

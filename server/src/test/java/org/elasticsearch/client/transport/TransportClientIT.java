@@ -21,6 +21,7 @@ package org.elasticsearch.client.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -65,6 +66,8 @@ public class TransportClientIT extends ESIntegTestCase {
                 .put("transport.type", getTestTransportType())
                 .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .put("cluster.name", "foobar")
+                .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
+                .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), "testNodeVersionIsUpdated")
                 .build(), Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class,
                                         MockHttpTransport.TestPlugin.class)).start()) {
             TransportAddress transportAddress = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();

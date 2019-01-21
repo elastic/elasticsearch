@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.querydsl.query;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Foldables;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -24,10 +24,10 @@ public class TermsQuery extends LeafQuery {
     private final String term;
     private final Set<Object> values;
 
-    public TermsQuery(Location location, String term, List<Expression> values) {
-        super(location);
+    public TermsQuery(Source source, String term, List<Expression> values) {
+        super(source);
         this.term = term;
-        values.removeIf(e -> e.dataType() == DataType.NULL);
+        values.removeIf(e -> DataTypes.isNull(e.dataType()));
         if (values.isEmpty()) {
             this.values = Collections.emptySet();
         } else {

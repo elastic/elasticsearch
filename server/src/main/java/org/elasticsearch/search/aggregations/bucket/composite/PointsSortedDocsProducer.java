@@ -54,7 +54,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             return DocIdSet.EMPTY;
         }
         long lowerBucket = Long.MIN_VALUE;
-        Comparable<?> lowerValue = queue.getLowerValueLeadSource();
+        Comparable lowerValue = queue.getLowerValueLeadSource();
         if (lowerValue != null) {
             if (lowerValue.getClass() != Long.class) {
                 throw new IllegalStateException("expected Long, got " + lowerValue.getClass());
@@ -63,7 +63,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
         }
 
         long upperBucket = Long.MAX_VALUE;
-        Comparable<?> upperValue = queue.getUpperValueLeadSource();
+        Comparable upperValue = queue.getUpperValueLeadSource();
         if (upperValue != null) {
             if (upperValue.getClass() != Long.class) {
                 throw new IllegalStateException("expected Long, got " + upperValue.getClass());

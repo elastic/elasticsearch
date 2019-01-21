@@ -107,7 +107,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
                         buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT)));
 
                 // open index
-                final IndexMetaData indexMetaData = IndexMetaData.builder(currentState.metaData().index(index)).state(IndexMetaData.State.OPEN).build();
+                final IndexMetaData indexMetaData = IndexMetaData.builder(currentState.metaData()
+                    .index(index)).state(IndexMetaData.State.OPEN).build();
 
                 builder.metaData(MetaData.builder(currentState.metaData()).put(indexMetaData, true));
                 builder.blocks(ClusterBlocks.builder().blocks(currentState.blocks()).removeIndexBlocks(index));
@@ -147,8 +148,12 @@ public class RareClusterStateIT extends ESIntegTestCase {
     }
 
     public void testDeleteCreateInOneBulk() throws Exception {
-        internalCluster().startMasterOnlyNode();
-        String dataNode = internalCluster().startDataOnlyNode();
+        internalCluster().startMasterOnlyNode(Settings.builder()
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // TODO: convert test to support Zen2
+            .build());
+        String dataNode = internalCluster().startDataOnlyNode(Settings.builder()
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // TODO: convert test to support Zen2
+            .build());
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).addMapping("type").get();
         ensureGreen("test");
@@ -192,6 +197,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         Settings settings = Settings.builder()
             .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // explicitly set so it won't default to publish timeout
             .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0s") // don't wait post commit as we are blocking things by design
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // TODO: convert test to support Zen2
             .build();
         final List<String> nodeNames = internalCluster().startNodes(2, settings);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
@@ -235,7 +241,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // Add a new mapping...
         final AtomicReference<Object> putMappingResponse = new AtomicReference<>();
-        client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long").execute(new ActionListener<AcknowledgedResponse>() {
+        client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long").execute(
+            new ActionListener<AcknowledgedResponse>() {
             @Override
             public void onResponse(AcknowledgedResponse response) {
                 putMappingResponse.set(response);
@@ -248,7 +255,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
         });
         // ...and wait for mappings to be available on master
         assertBusy(() -> {
-            ImmutableOpenMap<String, MappingMetaData> indexMappings = client().admin().indices().prepareGetMappings("index").get().getMappings().get("index");
+            ImmutableOpenMap<String, MappingMetaData> indexMappings = client().admin().indices()
+                .prepareGetMappings("index").get().getMappings().get("index");
             assertNotNull(indexMappings);
             MappingMetaData typeMappings = indexMappings.get("type");
             assertNotNull(typeMappings);
@@ -306,6 +314,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             Settings.builder()
                 .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // explicitly set so it won't default to publish timeout
                 .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0s") // don't wait post commit as we are blocking things by design
+                .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // TODO: convert test to support Zen2
                 .build());
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
@@ -349,7 +358,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
         internalCluster().setDisruptionScheme(disruption);
         disruption.startDisrupting();
         final AtomicReference<Object> putMappingResponse = new AtomicReference<>();
-        client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long").execute(new ActionListener<AcknowledgedResponse>() {
+        client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long").execute(
+            new ActionListener<AcknowledgedResponse>() {
             @Override
             public void onResponse(AcknowledgedResponse response) {
                 putMappingResponse.set(response);

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -24,11 +25,11 @@ public abstract class Exporter implements AutoCloseable {
 
     private static final Setting.AffixSetting<Boolean> ENABLED_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","enabled",
-                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
+                    key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
 
     private static final Setting.AffixSetting<String> TYPE_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","type",
-                    (key) -> Setting.simpleString(key, (v, s) -> {
+                    key -> Setting.simpleString(key, v -> {
                         switch (v) {
                             case "":
                             case "http":
@@ -46,13 +47,13 @@ public abstract class Exporter implements AutoCloseable {
      */
     public static final Setting.AffixSetting<Boolean> USE_INGEST_PIPELINE_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","use_ingest",
-                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
+                    key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
     /**
      * Every {@code Exporter} allows users to explicitly disable cluster alerts.
      */
     public static final Setting.AffixSetting<Boolean> CLUSTER_ALERTS_MANAGEMENT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.", "cluster_alerts.management.enabled",
-                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
+                    key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
     /**
      * Every {@code Exporter} allows users to explicitly disable specific cluster alerts.
      * <p>
@@ -60,14 +61,14 @@ public abstract class Exporter implements AutoCloseable {
      */
     public static final Setting.AffixSetting<List<String>> CLUSTER_ALERTS_BLACKLIST_SETTING = Setting
                 .affixKeySetting("xpack.monitoring.exporters.", "cluster_alerts.management.blacklist",
-                    (key) -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope));
+                    key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope));
 
     /**
      * Every {@code Exporter} allows users to use a different index time format.
      */
     private static final Setting.AffixSetting<String> INDEX_NAME_TIME_FORMAT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.name.time_format",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
+                    key -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
 
     private static final String INDEX_FORMAT = "YYYY.MM.dd";
 
@@ -93,17 +94,18 @@ public abstract class Exporter implements AutoCloseable {
     }
 
     /**
-     * Opens up a new export bulk. May return {@code null} indicating this exporter is not ready
-     * yet to export the docs
+     * Opens up a new export bulk.
+     *
+     * @param listener Returns {@code null} to indicate that this exporter is not ready to export the docs.
      */
-    public abstract ExportBulk openBulk();
+    public abstract void openBulk(ActionListener<ExportBulk> listener);
 
     protected final boolean isClosed() {
         return closed.get();
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         if (closed.compareAndSet(false, true)) {
             doClose();
         }

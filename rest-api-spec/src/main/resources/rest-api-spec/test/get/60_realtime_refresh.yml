@@ -3,7 +3,7 @@
 
  - skip:
       version: " - 6.99.99"
-      reason:  include_type_name was introduced in 7.0.0
+      reason: types are required in requests before 7.0.0
 
  - do:
       indices.create:
@@ -21,7 +21,6 @@
 
  - do:
       index:
-          include_type_name: false
           index:   test_1
           id:      1
           body:    { foo: bar }
@@ -29,14 +28,12 @@
  - do:
       catch:        missing
       get:
-          include_type_name: false
           index:    test_1
           id:       1
           realtime: false
 
  - do:
       get:
-          include_type_name: false
           index:    test_1
           id:       1
           realtime: true
@@ -45,7 +42,6 @@
 
  - do:
       get:
-          include_type_name: false
           index:    test_1
           id:       1
           realtime: false

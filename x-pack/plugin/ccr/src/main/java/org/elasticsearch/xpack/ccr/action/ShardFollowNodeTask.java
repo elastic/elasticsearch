@@ -20,16 +20,16 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.NodeDisconnectedException;
-import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -73,6 +73,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private int numOutstandingReads = 0;
     private int numOutstandingWrites = 0;
     private long currentMappingVersion = 0;
+    private long currentSettingsVersion = 0;
     private long totalReadRemoteExecTimeMillis = 0;
     private long totalReadTimeMillis = 0;
     private long successfulReadRequests = 0;
@@ -133,9 +134,19 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             synchronized (ShardFollowNodeTask.this) {
                 currentMappingVersion = followerMappingVersion;
             }
-            LOGGER.info("{} Started to follow leader shard {}, followGlobalCheckPoint={}, followerMappingVersion={}",
-                params.getFollowShardId(), params.getLeaderShardId(), followerGlobalCheckpoint, followerMappingVersion);
-            coordinateReads();
+            updateSettings(followerSettingsVersion -> {
+                synchronized (ShardFollowNodeTask.this) {
+                    currentSettingsVersion = followerSettingsVersion;
+                }
+                LOGGER.info(
+                        "{} following leader shard {}, follower global checkpoint=[{}], mapping version=[{}], settings version=[{}]",
+                        params.getFollowShardId(),
+                        params.getLeaderShardId(),
+                        followerGlobalCheckpoint,
+                        followerMappingVersion,
+                        followerSettingsVersion);
+                coordinateReads();
+            });
         });
     }
 
@@ -268,7 +279,15 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     void handleReadResponse(long from, long maxRequiredSeqNo, ShardChangesAction.Response response) {
-        maybeUpdateMapping(response.getMappingVersion(), () -> innerHandleReadResponse(from, maxRequiredSeqNo, response));
+        // In order to process this read response (3), we need to check and potentially update the follow index's setting (1) and
+        // check and potentially update the follow index's mappings (2).
+
+        // 3) handle read response:
+        Runnable handleResponseTask = () -> innerHandleReadResponse(from, maxRequiredSeqNo, response);
+        // 2) update follow index mapping:
+        Runnable updateMappingsTask = () -> maybeUpdateMapping(response.getMappingVersion(), handleResponseTask);
+        // 1) update follow index settings:
+        maybeUpdateSettings(response.getSettingsVersion(), updateMappingsTask);
     }
 
     /** Called when some operations are fetched from the leading */
@@ -366,6 +385,21 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
     }
 
+    private synchronized void maybeUpdateSettings(final Long minimumRequiredSettingsVersion, Runnable task) {
+        if (currentSettingsVersion >= minimumRequiredSettingsVersion) {
+            LOGGER.trace("{} settings version [{}] is higher or equal than minimum required mapping version [{}]",
+                    params.getFollowShardId(), currentSettingsVersion, minimumRequiredSettingsVersion);
+            task.run();
+        } else {
+            LOGGER.trace("{} updating settings, settings version [{}] is lower than minimum required settings version [{}]",
+                    params.getFollowShardId(), currentSettingsVersion, minimumRequiredSettingsVersion);
+            updateSettings(settingsVersion -> {
+                currentSettingsVersion = settingsVersion;
+                task.run();
+            });
+        }
+    }
+
     private void updateMapping(LongConsumer handler) {
         updateMapping(handler, new AtomicInteger(0));
     }
@@ -374,9 +408,17 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         innerUpdateMapping(handler, e -> handleFailure(e, retryCounter, () -> updateMapping(handler, retryCounter)));
     }
 
+    private void updateSettings(final LongConsumer handler) {
+        updateSettings(handler, new AtomicInteger(0));
+    }
+
+    private void updateSettings(final LongConsumer handler, final AtomicInteger retryCounter) {
+        innerUpdateSettings(handler, e -> handleFailure(e, retryCounter, () -> updateSettings(handler, retryCounter)));
+    }
+
     private void handleFailure(Exception e, AtomicInteger retryCounter, Runnable task) {
         assert e != null;
-        if (shouldRetry(e) && isStopped() == false) {
+        if (shouldRetry(params.getRemoteCluster(), e) && isStopped() == false) {
             int currentRetry = retryCounter.incrementAndGet();
             LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying [{}]",
                 params.getFollowShardId(), currentRetry), e);
@@ -398,13 +440,17 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         return Math.min(backOffDelay, maxRetryDelayInMillis);
     }
 
-    static boolean shouldRetry(Exception e) {
+    static boolean shouldRetry(String remoteCluster, Exception e) {
         if (NetworkExceptionHelper.isConnectException(e)) {
             return true;
         } else if (NetworkExceptionHelper.isCloseConnectionException(e)) {
             return true;
         }
 
+        // This is thrown when using a Client and its remote cluster alias went MIA
+        String noSuchRemoteClusterMessage = "no such remote cluster: " + remoteCluster;
+        // This is thrown when creating a Client and the remote cluster does not exist:
+        String unknownClusterMessage = "unknown cluster alias [" + remoteCluster + "]";
         final Throwable actual = ExceptionsHelper.unwrapCause(e);
         return actual instanceof ShardNotFoundException ||
             actual instanceof IllegalIndexShardStateException ||
@@ -414,13 +460,17 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             actual instanceof ElasticsearchSecurityException || // If user does not have sufficient privileges
             actual instanceof ClusterBlockException || // If leader index is closed or no elected master
             actual instanceof IndexClosedException || // If follow index is closed
-            actual instanceof NodeDisconnectedException ||
-            actual instanceof NodeNotConnectedException ||
-            (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed"));
+            actual instanceof ConnectTransportException ||
+            actual instanceof NodeClosedException ||
+            (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed")) ||
+            (actual instanceof IllegalArgumentException && (noSuchRemoteClusterMessage.equals(actual.getMessage()) ||
+                unknownClusterMessage.equals(actual.getMessage())));
     }
 
     // These methods are protected for testing purposes:
     protected abstract void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler);
+
+    protected abstract void innerUpdateSettings(LongConsumer handler, Consumer<Exception> errorHandler);
 
     protected abstract void innerSendBulkShardOperationsRequest(String followerHistoryUUID,
                                                                 List<Translog.Operation> operations,
@@ -468,6 +518,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 buffer.size(),
                 bufferSizeInBytes,
                 currentMappingVersion,
+                currentSettingsVersion,
                 totalReadTimeMillis,
                 totalReadRemoteExecTimeMillis,
                 successfulReadRequests,

@@ -446,10 +446,6 @@ public final class IndexGraveyard implements MetaData.Custom {
             return builder.endObject();
         }
 
-        public static Tombstone fromXContent(final XContentParser parser) throws IOException {
-            return TOMBSTONE_PARSER.parse(parser, null).build();
-        }
-
         /**
          * A builder for building tombstone entries.
          */

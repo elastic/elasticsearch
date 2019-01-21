@@ -1,12 +1,15 @@
 [role="xpack"]
 [[security-api-delete-user]]
 === Delete users API
+++++
+<titleabbrev>Delete users</titleabbrev>
+++++
 
 Deletes users from the native realm. 
 
 ==== Request
 
-`DELETE /_xpack/security/user/<username>` 
+`DELETE /_security/user/<username>` 
 
 ==== Description
 
@@ -31,7 +34,7 @@ The following example deletes the user `jacknich`:
 
 [source,js]
 --------------------------------------------------
-DELETE /_xpack/security/user/jacknich
+DELETE /_security/user/jacknich
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:jacknich_user]

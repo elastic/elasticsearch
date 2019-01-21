@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.watcher.transform.chain;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -144,7 +144,7 @@ public class ChainTransformTests extends ESTestCase {
         }
 
         NamedExecutableTransform(Transform transform) {
-            super(transform, Loggers.getLogger(NamedExecutableTransform.class));
+            super(transform, LogManager.getLogger(NamedExecutableTransform.class));
         }
 
         @Override

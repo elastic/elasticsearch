@@ -6,68 +6,51 @@
 
 package org.elasticsearch.xpack.ccr.action.repositories;
 
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
-import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.transport.RemoteClusterAwareRequest;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class ClearCcrRestoreSessionRequest extends BaseNodesRequest<ClearCcrRestoreSessionRequest> {
+public class ClearCcrRestoreSessionRequest extends ActionRequest implements RemoteClusterAwareRequest {
 
-    private Request request;
+    private DiscoveryNode node;
+    private String sessionUUID;
 
     ClearCcrRestoreSessionRequest() {
     }
 
-    public ClearCcrRestoreSessionRequest(String nodeId, Request request) {
-        super(nodeId);
-        this.request = request;
+    public ClearCcrRestoreSessionRequest(String sessionUUID, DiscoveryNode node) {
+        this.sessionUUID = sessionUUID;
+        this.node = node;
     }
 
     @Override
-    public void readFrom(StreamInput streamInput) throws IOException {
-        super.readFrom(streamInput);
-        request = new Request();
-        request.readFrom(streamInput);
+    public ActionRequestValidationException validate() {
+        return null;
     }
 
     @Override
-    public void writeTo(StreamOutput streamOutput) throws IOException {
-        super.writeTo(streamOutput);
-        request.writeTo(streamOutput);
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        sessionUUID = in.readString();
     }
 
-    public Request getRequest() {
-        return request;
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(sessionUUID);
     }
 
-    public static class Request extends BaseNodeRequest {
+    String getSessionUUID() {
+        return sessionUUID;
+    }
 
-        private String sessionUUID;
-
-        Request() {
-        }
-
-        public Request(String nodeId, String sessionUUID) {
-            super(nodeId);
-            this.sessionUUID = sessionUUID;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            sessionUUID = in.readString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(sessionUUID);
-        }
-
-        public String getSessionUUID() {
-            return sessionUUID;
-        }
+    @Override
+    public DiscoveryNode getPreferredTargetNode() {
+        return node;
     }
 }

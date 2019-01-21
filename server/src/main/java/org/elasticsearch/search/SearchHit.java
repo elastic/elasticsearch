@@ -180,12 +180,17 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         this.primaryTerm = primaryTerm;
     }
 
-    /** returns the sequence number of the last modification to the document */
+    /**
+     * returns the sequence number of the last modification to the document, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO}
+     * if not requested.
+     **/
     public long getSeqNo() {
         return this.seqNo;
     }
 
-    /** returns the primary term of the last modification to the document */
+    /**
+     * returns the primary term of the last modification to the document, or {@link SequenceNumbers#UNASSIGNED_PRIMARY_TERM}
+     * if not requested. */
     public long getPrimaryTerm() {
         return this.primaryTerm;
     }

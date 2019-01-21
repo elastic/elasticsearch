@@ -85,7 +85,7 @@ public class PutRoleRequestTests extends ESTestCase {
 
         final PutRoleRequest copy = new PutRoleRequest();
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
-        final StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
+        StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
         in.setVersion(version);
         copy.readFrom(in);
 

@@ -121,6 +121,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final List<IndexEventListener> buildInIndexListener;
     private final PrimaryReplicaSyncer primaryReplicaSyncer;
     private final Consumer<ShardId> globalCheckpointSyncer;
+    private volatile ClusterState clusterState; // the latest applied cluster state
 
     @Inject
     public IndicesClusterStateService(
@@ -229,6 +230,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             return;
         }
 
+        this.clusterState = state;
         updateFailedShardsCache(state);
 
         deleteIndices(event); // also deletes shards of deleted indices
@@ -244,6 +246,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         createIndices(state);
 
         createOrUpdateShards(state);
+    }
+
+    /**
+     * Returns the latest applied cluster state
+     */
+    public ClusterState getClusterState() {
+        return clusterState;
     }
 
     /**

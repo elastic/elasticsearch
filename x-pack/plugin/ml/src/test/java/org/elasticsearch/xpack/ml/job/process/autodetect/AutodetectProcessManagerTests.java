@@ -232,7 +232,8 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         ThreadPool.Cancellable cancellable = mock(ThreadPool.Cancellable.class);
         when(threadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(cancellable);
-        ExecutorService executorService = mock(ExecutorService.class);
+        AutodetectProcessManager.AutodetectWorkerExecutorService executorService =
+                mock(AutodetectProcessManager.AutodetectWorkerExecutorService.class);
         Future<?> future = mock(Future.class);
         when(executorService.submit(any(Callable.class))).thenReturn(future);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.newDirectExecutorService());

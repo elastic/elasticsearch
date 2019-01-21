@@ -68,7 +68,7 @@ public class AutodetectCommunicator implements Closeable {
     private final DataCountsReporter dataCountsReporter;
     private final AutoDetectResultProcessor autoDetectResultProcessor;
     private final Consumer<Exception> onFinishHandler;
-    private final ExecutorService autodetectWorkerExecutor;
+    private final AutodetectProcessManager.AutodetectWorkerExecutorService autodetectWorkerExecutor;
     private final NamedXContentRegistry xContentRegistry;
     private final boolean includeTokensField;
     private volatile CategorizationAnalyzer categorizationAnalyzer;
@@ -77,7 +77,7 @@ public class AutodetectCommunicator implements Closeable {
     AutodetectCommunicator(Job job, Environment environment, AutodetectProcess process, StateStreamer stateStreamer,
                            DataCountsReporter dataCountsReporter, AutoDetectResultProcessor autoDetectResultProcessor,
                            Consumer<Exception> onFinishHandler, NamedXContentRegistry xContentRegistry,
-                           ExecutorService autodetectWorkerExecutor) {
+                           AutodetectProcessManager.AutodetectWorkerExecutorService autodetectWorkerExecutor) {
         this.job = job;
         this.environment = environment;
         this.autodetectProcess = process;

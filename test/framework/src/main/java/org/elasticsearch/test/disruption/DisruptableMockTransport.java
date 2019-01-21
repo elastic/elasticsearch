@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -48,6 +49,8 @@ import java.io.IOException;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ESTestCase.copyWriteable;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
@@ -254,7 +257,9 @@ public abstract class DisruptableMockTransport extends MockTransport {
     }
 
     private NamedWriteableRegistry writeableRegistry() {
-        return new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+        return new NamedWriteableRegistry(
+            Stream.concat(ClusterModule.getNamedWriteables().stream(), NetworkModule.getNamedWriteables().stream())
+                .collect(Collectors.toList()));
     }
 
     public enum ConnectionStatus {

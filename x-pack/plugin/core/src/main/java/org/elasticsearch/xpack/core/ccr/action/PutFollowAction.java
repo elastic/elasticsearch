@@ -16,8 +16,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,16 +26,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.FOLLOWER_INDEX_FIELD;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_READ_REQUEST_OPERATION_COUNT;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_READ_REQUEST_SIZE;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_OUTSTANDING_READ_REQUESTS;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_OUTSTANDING_WRITE_REQUESTS;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_RETRY_DELAY_FIELD;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_BUFFER_COUNT;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_BUFFER_SIZE;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_REQUEST_OPERATION_COUNT;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_REQUEST_SIZE;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.READ_POLL_TIMEOUT;
 
 public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
@@ -60,111 +48,43 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
 
-        private static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
-        private static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
-
-        private static final ObjectParser<Request, String> PARSER = new ObjectParser<>(NAME, () -> {
-            Request request = new Request();
-            request.setFollowRequest(new ResumeFollowAction.Request());
-            return request;
-        });
-
-        static {
-            PARSER.declareString(Request::setRemoteCluster, REMOTE_CLUSTER_FIELD);
-            PARSER.declareString(Request::setLeaderIndex, LEADER_INDEX_FIELD);
-            PARSER.declareString((req, val) -> req.followRequest.setFollowerIndex(val), FOLLOWER_INDEX_FIELD);
-            PARSER.declareInt((req, val) -> req.followRequest.setMaxReadRequestOperationCount(val), MAX_READ_REQUEST_OPERATION_COUNT);
-            PARSER.declareField(
-                (req, val) -> req.followRequest.setMaxReadRequestSize(val),
-                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_READ_REQUEST_SIZE.getPreferredName()),
-                MAX_READ_REQUEST_SIZE,
-                ObjectParser.ValueType.STRING);
-            PARSER.declareInt((req, val) -> req.followRequest.setMaxOutstandingReadRequests(val), MAX_OUTSTANDING_READ_REQUESTS);
-            PARSER.declareInt((req, val) -> req.followRequest.setMaxWriteRequestOperationCount(val), MAX_WRITE_REQUEST_OPERATION_COUNT);
-            PARSER.declareField(
-                    (req, val) -> req.followRequest.setMaxWriteRequestSize(val),
-                    (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_REQUEST_SIZE.getPreferredName()),
-                    MAX_WRITE_REQUEST_SIZE,
-                    ObjectParser.ValueType.STRING);
-            PARSER.declareInt((req, val) -> req.followRequest.setMaxOutstandingWriteRequests(val), MAX_OUTSTANDING_WRITE_REQUESTS);
-            PARSER.declareInt((req, val) -> req.followRequest.setMaxWriteBufferCount(val), MAX_WRITE_BUFFER_COUNT);
-            PARSER.declareField(
-                (req, val) -> req.followRequest.setMaxWriteBufferSize(val),
-                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_BUFFER_SIZE.getPreferredName()),
-                MAX_WRITE_BUFFER_SIZE,
-                ObjectParser.ValueType.STRING);
-            PARSER.declareField(
-                (req, val) -> req.followRequest.setMaxRetryDelay(val),
-                (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY_FIELD.getPreferredName()),
-                MAX_RETRY_DELAY_FIELD,
-                ObjectParser.ValueType.STRING);
-            PARSER.declareField(
-                (req, val) -> req.followRequest.setReadPollTimeout(val),
-                (p, c) -> TimeValue.parseTimeValue(p.text(), READ_POLL_TIMEOUT.getPreferredName()),
-                READ_POLL_TIMEOUT,
-                ObjectParser.ValueType.STRING);
-        }
-
         public static Request fromXContent(final XContentParser parser, final String followerIndex) throws IOException {
-            Request request = PARSER.parse(parser, followerIndex);
+            Body body = Body.PARSER.parse(parser, null);
             if (followerIndex != null) {
-                if (request.getFollowRequest().getFollowerIndex() == null) {
-                    request.getFollowRequest().setFollowerIndex(followerIndex);
+                if (body.getFollowerIndex() == null) {
+                    body.setFollowerIndex(followerIndex);
                 } else {
-                    if (request.getFollowRequest().getFollowerIndex().equals(followerIndex) == false) {
+                    if (body.getFollowerIndex().equals(followerIndex) == false) {
                         throw new IllegalArgumentException("provided follower_index is not equal");
                     }
                 }
             }
+            Request request = new Request();
+            request.setBody(body);
             return request;
         }
 
-        private String remoteCluster;
-        private String leaderIndex;
-        private ResumeFollowAction.Request followRequest;
+        private Body body = new Body();
 
         public Request() {
         }
 
-        public String getRemoteCluster() {
-            return remoteCluster;
+        public Body getBody() {
+            return body;
         }
 
-        public void setRemoteCluster(String remoteCluster) {
-            this.remoteCluster = remoteCluster;
-        }
-
-        public String getLeaderIndex() {
-            return leaderIndex;
-        }
-
-        public void setLeaderIndex(String leaderIndex) {
-            this.leaderIndex = leaderIndex;
-        }
-
-        public ResumeFollowAction.Request getFollowRequest() {
-            return followRequest;
-        }
-
-        public void setFollowRequest(ResumeFollowAction.Request followRequest) {
-            this.followRequest = followRequest;
+        public void setBody(Body body) {
+            this.body = body;
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            ActionRequestValidationException e = followRequest.validate();
-            if (remoteCluster == null) {
-                e = addValidationError(REMOTE_CLUSTER_FIELD.getPreferredName() + " is missing", e);
-            }
-            if (leaderIndex == null) {
-                e = addValidationError(LEADER_INDEX_FIELD.getPreferredName() + " is missing", e);
-            }
-            return e;
+            return body.validate();
         }
 
         @Override
         public String[] indices() {
-            return new String[]{followRequest.getFollowerIndex()};
+            return new String[]{body.getFollowerIndex()};
         }
 
         @Override
@@ -174,29 +94,18 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            remoteCluster = in.readString();
-            leaderIndex = in.readString();
-            followRequest = new ResumeFollowAction.Request(in);
+            body = new Body(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(remoteCluster);
-            out.writeString(leaderIndex);
-            followRequest.writeTo(out);
+            body.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            {
-                builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
-                builder.field(LEADER_INDEX_FIELD.getPreferredName(), leaderIndex);
-                followRequest.toXContentFragment(builder, params);
-            }
-            builder.endObject();
-            return builder;
+            return body.toXContent(builder, params);
         }
 
         @Override
@@ -204,15 +113,119 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(remoteCluster, request.remoteCluster) &&
-                Objects.equals(leaderIndex, request.leaderIndex) &&
-                Objects.equals(followRequest, request.followRequest);
+            return Objects.equals(body, request.body);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(remoteCluster, leaderIndex, followRequest);
+            return Objects.hash(body);
         }
+
+        public static class Body extends FollowParameters implements ToXContentObject {
+
+            private static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
+            private static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
+
+            private static final ObjectParser<Body, Void> PARSER = new ObjectParser<>(NAME, Body::new);
+
+            static {
+                PARSER.declareString(Body::setRemoteCluster, REMOTE_CLUSTER_FIELD);
+                PARSER.declareString(Body::setLeaderIndex, LEADER_INDEX_FIELD);
+                PARSER.declareString(Body::setFollowerIndex, FOLLOWER_INDEX_FIELD);
+                initParser(PARSER);
+            }
+
+            private String remoteCluster;
+            private String leaderIndex;
+            private String followerIndex;
+
+            public Body() {
+            }
+
+            public String getRemoteCluster() {
+                return remoteCluster;
+            }
+
+            public void setRemoteCluster(String remoteCluster) {
+                this.remoteCluster = remoteCluster;
+            }
+
+            public String getLeaderIndex() {
+                return leaderIndex;
+            }
+
+            public void setLeaderIndex(String leaderIndex) {
+                this.leaderIndex = leaderIndex;
+            }
+
+            public String getFollowerIndex() {
+                return followerIndex;
+            }
+
+            public void setFollowerIndex(String followerIndex) {
+                this.followerIndex = followerIndex;
+            }
+
+            @Override
+            public ActionRequestValidationException validate() {
+                ActionRequestValidationException e = super.validate();
+                if (remoteCluster == null) {
+                    e = addValidationError(REMOTE_CLUSTER_FIELD.getPreferredName() + " is missing", e);
+                }
+                if (leaderIndex == null) {
+                    e = addValidationError(LEADER_INDEX_FIELD.getPreferredName() + " is missing", e);
+                }
+                if (followerIndex == null) {
+                    e = addValidationError(FOLLOWER_INDEX_FIELD.getPreferredName() + " is missing", e);
+                }
+                return e;
+            }
+
+            public Body(StreamInput in) throws IOException {
+                this.remoteCluster = in.readString();
+                this.leaderIndex = in.readString();
+                this.followerIndex = in.readString();
+                fromStreamInput(in);
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeString(remoteCluster);
+                out.writeString(leaderIndex);
+                out.writeString(followerIndex);
+                super.writeTo(out);
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject();
+                {
+                    builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
+                    builder.field(LEADER_INDEX_FIELD.getPreferredName(), leaderIndex);
+                    builder.field(FOLLOWER_INDEX_FIELD.getPreferredName(), followerIndex);
+                    toXContentFragment(builder);
+                }
+                builder.endObject();
+                return builder;
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                if (!super.equals(o)) return false;
+                Body body = (Body) o;
+                return Objects.equals(remoteCluster, body.remoteCluster) &&
+                    Objects.equals(leaderIndex, body.leaderIndex) &&
+                    Objects.equals(followerIndex, body.followerIndex);
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(super.hashCode(), remoteCluster, leaderIndex, followerIndex);
+            }
+        }
+
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {

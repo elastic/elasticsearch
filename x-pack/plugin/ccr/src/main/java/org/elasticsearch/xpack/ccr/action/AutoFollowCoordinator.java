@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
-import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -515,23 +514,20 @@ public class AutoFollowCoordinator implements ClusterStateListener {
             final String leaderIndexName = indexToFollow.getName();
             final String followIndexName = getFollowerIndexName(pattern, leaderIndexName);
 
-            ResumeFollowAction.Request followRequest = new ResumeFollowAction.Request();
-            followRequest.setFollowerIndex(followIndexName);
-            followRequest.setMaxReadRequestOperationCount(pattern.getMaxReadRequestOperationCount());
-            followRequest.setMaxReadRequestSize(pattern.getMaxReadRequestSize());
-            followRequest.setMaxOutstandingReadRequests(pattern.getMaxOutstandingReadRequests());
-            followRequest.setMaxWriteRequestOperationCount(pattern.getMaxWriteRequestOperationCount());
-            followRequest.setMaxWriteRequestSize(pattern.getMaxWriteRequestSize());
-            followRequest.setMaxOutstandingWriteRequests(pattern.getMaxOutstandingWriteRequests());
-            followRequest.setMaxWriteBufferCount(pattern.getMaxWriteBufferCount());
-            followRequest.setMaxWriteBufferSize(pattern.getMaxWriteBufferSize());
-            followRequest.setMaxRetryDelay(pattern.getMaxRetryDelay());
-            followRequest.setReadPollTimeout(pattern.getPollTimeout());
-
             PutFollowAction.Request request = new PutFollowAction.Request();
-            request.setRemoteCluster(remoteCluster);
-            request.setLeaderIndex(indexToFollow.getName());
-            request.setFollowRequest(followRequest);
+            request.getBody().setRemoteCluster(remoteCluster);
+            request.getBody().setLeaderIndex(indexToFollow.getName());
+            request.getBody().setFollowerIndex(followIndexName);
+            request.getBody().setMaxReadRequestOperationCount(pattern.getMaxReadRequestOperationCount());
+            request.getBody().setMaxReadRequestSize(pattern.getMaxReadRequestSize());
+            request.getBody().setMaxOutstandingReadRequests(pattern.getMaxOutstandingReadRequests());
+            request.getBody().setMaxWriteRequestOperationCount(pattern.getMaxWriteRequestOperationCount());
+            request.getBody().setMaxWriteRequestSize(pattern.getMaxWriteRequestSize());
+            request.getBody().setMaxOutstandingWriteRequests(pattern.getMaxOutstandingWriteRequests());
+            request.getBody().setMaxWriteBufferCount(pattern.getMaxWriteBufferCount());
+            request.getBody().setMaxWriteBufferSize(pattern.getMaxWriteBufferSize());
+            request.getBody().setMaxRetryDelay(pattern.getMaxRetryDelay());
+            request.getBody().setReadPollTimeout(pattern.getPollTimeout());
 
             // Execute if the create and follow api call succeeds:
             Runnable successHandler = () -> {

@@ -29,9 +29,9 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
 
     public void testInnerPut() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setName("name1");
-        request.setRemoteCluster("eu_cluster");
-        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+        request.getBody().setName("name1");
+        request.getBody().setRemoteCluster("eu_cluster");
+        request.getBody().setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
         ClusterState localState = ClusterState.builder(new ClusterName("us_cluster"))
             .metaData(MetaData.builder())
@@ -54,9 +54,9 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
 
     public void testInnerPut_existingLeaderIndices() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setName("name1");
-        request.setRemoteCluster("eu_cluster");
-        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+        request.getBody().setName("name1");
+        request.getBody().setRemoteCluster("eu_cluster");
+        request.getBody().setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
         ClusterState localState = ClusterState.builder(new ClusterName("us_cluster"))
             .metaData(MetaData.builder())
@@ -95,9 +95,9 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
 
     public void testInnerPut_existingLeaderIndicesAndAutoFollowMetadata() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setName("name1");
-        request.setRemoteCluster("eu_cluster");
-        request.setLeaderIndexPatterns(Arrays.asList("logs-*", "transactions-*"));
+        request.getBody().setName("name1");
+        request.getBody().setRemoteCluster("eu_cluster");
+        request.getBody().setLeaderIndexPatterns(Arrays.asList("logs-*", "transactions-*"));
 
         Map<String, AutoFollowPattern> existingAutoFollowPatterns = new HashMap<>();
         List<String> existingPatterns = new ArrayList<>();

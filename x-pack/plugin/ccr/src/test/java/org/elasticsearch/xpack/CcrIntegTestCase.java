@@ -412,17 +412,19 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     public static PutFollowAction.Request putFollow(String leaderIndex, String followerIndex) {
         PutFollowAction.Request request = new PutFollowAction.Request();
-        request.setRemoteCluster("leader_cluster");
-        request.setLeaderIndex(leaderIndex);
-        request.setFollowRequest(resumeFollow(followerIndex));
+        request.getBody().setRemoteCluster("leader_cluster");
+        request.getBody().setLeaderIndex(leaderIndex);
+        request.getBody().setFollowerIndex(followerIndex);
+        request.getBody().setMaxRetryDelay(TimeValue.timeValueMillis(10));
+        request.getBody().setReadPollTimeout(TimeValue.timeValueMillis(10));
         return request;
     }
 
     public static ResumeFollowAction.Request resumeFollow(String followerIndex) {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-        request.setFollowerIndex(followerIndex);
-        request.setMaxRetryDelay(TimeValue.timeValueMillis(10));
-        request.setReadPollTimeout(TimeValue.timeValueMillis(10));
+        request.getBody().setFollowerIndex(followerIndex);
+        request.getBody().setMaxRetryDelay(TimeValue.timeValueMillis(10));
+        request.getBody().setReadPollTimeout(TimeValue.timeValueMillis(10));
         return request;
     }
 

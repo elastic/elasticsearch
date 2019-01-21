@@ -82,10 +82,10 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "false"));
         assertAcked(client().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
         ResumeFollowAction.Request followRequest = getResumeFollowRequest("follower");
-        followRequest.setFollowerIndex("follower-index");
+        followRequest.getBody().setFollowerIndex("follower-index");
         PutFollowAction.Request putFollowRequest = getPutFollowRequest("leader", "follower");
-        putFollowRequest.setLeaderIndex("leader-index");
-        putFollowRequest.setFollowRequest(followRequest);
+        putFollowRequest.getBody().setLeaderIndex("leader-index");
+        putFollowRequest.getBody().setFollowerIndex("follower-index");
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
             () -> client().execute(PutFollowAction.INSTANCE, putFollowRequest).actionGet());
         assertThat(error.getMessage(), equalTo("leader index [leader-index] does not have soft deletes enabled"));
@@ -94,11 +94,11 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
     public void testRemoveRemoteConnection() throws Exception {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setName("my_pattern");
-        request.setRemoteCluster("local");
-        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
-        request.setFollowIndexNamePattern("copy-{{leader_index}}");
-        request.setReadPollTimeout(TimeValue.timeValueMillis(10));
+        request.getBody().setName("my_pattern");
+        request.getBody().setRemoteCluster("local");
+        request.getBody().setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+        request.getBody().setFollowIndexNamePattern("copy-{{leader_index}}");
+        request.getBody().setReadPollTimeout(TimeValue.timeValueMillis(10));
         assertTrue(client().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
         long previousNumberOfSuccessfulFollowedIndices = getAutoFollowStats().getNumberOfSuccessfulFollowIndices();
 

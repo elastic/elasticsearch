@@ -12,6 +12,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
@@ -29,7 +30,10 @@ public class ResumeFollowActionRequestTests extends AbstractSerializingTestCase<
 
     @Override
     protected ResumeFollowAction.Request createTestInstance() {
-        return createTestRequest();
+        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
+        request.getBody().setFollowerIndex(randomAlphaOfLength(4));
+        generateFollowParameters(request.getBody());
+        return request;
     }
 
     @Override
@@ -42,57 +46,54 @@ public class ResumeFollowActionRequestTests extends AbstractSerializingTestCase<
         return false;
     }
 
-    static ResumeFollowAction.Request createTestRequest() {
-        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-        request.setFollowerIndex(randomAlphaOfLength(4));
+    static void generateFollowParameters(FollowParameters followParameters) {
         if (randomBoolean()) {
-            request.setMaxReadRequestOperationCount(randomIntBetween(1, Integer.MAX_VALUE));
+            followParameters.setMaxReadRequestOperationCount(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxOutstandingReadRequests(randomIntBetween(1, Integer.MAX_VALUE));
+            followParameters.setMaxOutstandingReadRequests(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxOutstandingWriteRequests(randomIntBetween(1, Integer.MAX_VALUE));
+            followParameters.setMaxOutstandingWriteRequests(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+            followParameters.setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
-            request.setMaxWriteBufferCount(randomIntBetween(1, Integer.MAX_VALUE));
+            followParameters.setMaxWriteBufferCount(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxWriteRequestOperationCount(randomIntBetween(1, Integer.MAX_VALUE));
+            followParameters.setMaxWriteRequestOperationCount(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
+            followParameters.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
-            request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+            followParameters.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
-            request.setMaxRetryDelay(TimeValue.timeValueMillis(500));
+            followParameters.setMaxRetryDelay(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
-            request.setReadPollTimeout(TimeValue.timeValueMillis(500));
+            followParameters.setReadPollTimeout(TimeValue.timeValueMillis(500));
         }
-        return request;
     }
 
     public void testValidate() {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-        request.setFollowerIndex("index2");
-        request.setMaxRetryDelay(TimeValue.ZERO);
+        request.getBody().setFollowerIndex("index2");
+        request.getBody().setMaxRetryDelay(TimeValue.ZERO);
 
         ActionRequestValidationException validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be positive but was [0ms]"));
 
-        request.setMaxRetryDelay(TimeValue.timeValueMinutes(10));
+        request.getBody().setMaxRetryDelay(TimeValue.timeValueMinutes(10));
         validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be less than [5m] but was [10m]"));
 
-        request.setMaxRetryDelay(TimeValue.timeValueMinutes(1));
+        request.getBody().setMaxRetryDelay(TimeValue.timeValueMinutes(1));
         validationException = request.validate();
         assertThat(validationException, nullValue());
     }

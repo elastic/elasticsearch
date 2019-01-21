@@ -22,7 +22,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
-import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowParameters;
+import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowerInfo;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.Status;
 
@@ -88,18 +88,17 @@ public class TransportFollowInfoAction extends TransportMasterNodeReadAction<Fol
                 String leaderIndex = ccrCustomData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
                 if (result.isPresent()) {
                     ShardFollowTask params = result.get();
-                    FollowParameters followParameters = new FollowParameters(
-                        params.getMaxReadRequestOperationCount(),
-                        params.getMaxReadRequestSize(),
-                        params.getMaxOutstandingReadRequests(),
-                        params.getMaxWriteRequestOperationCount(),
-                        params.getMaxWriteRequestSize(),
-                        params.getMaxOutstandingWriteRequests(),
-                        params.getMaxWriteBufferCount(),
-                        params.getMaxWriteBufferSize(),
-                        params.getMaxRetryDelay(),
-                        params.getReadPollTimeout()
-                    );
+                    FollowParameters followParameters = new FollowParameters();
+                    followParameters.setMaxOutstandingReadRequests(params.getMaxOutstandingReadRequests());
+                    followParameters.setMaxOutstandingWriteRequests(params.getMaxOutstandingWriteRequests());
+                    followParameters.setMaxReadRequestOperationCount(params.getMaxReadRequestOperationCount());
+                    followParameters.setMaxWriteRequestOperationCount(params.getMaxWriteRequestOperationCount());
+                    followParameters.setMaxReadRequestSize(params.getMaxReadRequestSize());
+                    followParameters.setMaxWriteRequestSize(params.getMaxWriteRequestSize());
+                    followParameters.setMaxWriteBufferCount(params.getMaxWriteBufferCount());
+                    followParameters.setMaxWriteBufferSize(params.getMaxWriteBufferSize());
+                    followParameters.setMaxRetryDelay(params.getMaxRetryDelay());
+                    followParameters.setReadPollTimeout(params.getReadPollTimeout());
                     followerInfos.add(new FollowerInfo(followerIndex, remoteCluster, leaderIndex, Status.ACTIVE, followParameters));
                 } else {
                     followerInfos.add(new FollowerInfo(followerIndex, remoteCluster, leaderIndex, Status.PAUSED, null));

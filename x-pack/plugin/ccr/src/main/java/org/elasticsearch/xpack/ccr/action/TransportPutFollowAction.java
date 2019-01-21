@@ -101,11 +101,11 @@ public final class TransportPutFollowAction
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        String remoteCluster = request.getRemoteCluster();
+        String remoteCluster = request.getBody().getRemoteCluster();
         // Validates whether the leader cluster has been configured properly:
         client.getRemoteClusterClient(remoteCluster);
 
-        String leaderIndex = request.getLeaderIndex();
+        String leaderIndex = request.getBody().getLeaderIndex();
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
             client,
             remoteCluster,
@@ -120,14 +120,14 @@ public final class TransportPutFollowAction
             final PutFollowAction.Request request,
             final ActionListener<PutFollowAction.Response> listener) {
         if (leaderIndexMetaData == null) {
-            listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist"));
+            listener.onFailure(new IllegalArgumentException("leader index [" + request.getBody().getLeaderIndex() + "] does not exist"));
             return;
         }
         // soft deletes are enabled by default on indices created on 7.0.0 or later
         if (leaderIndexMetaData.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
             IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(leaderIndexMetaData.getSettings()).onOrAfter(Version.V_7_0_0)) == false) {
-            listener.onFailure(
-                new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not have soft deletes enabled"));
+            listener.onFailure(new IllegalArgumentException("leader index [" + request.getBody().getLeaderIndex() +
+                "] does not have soft deletes enabled"));
             return;
         }
 
@@ -151,7 +151,7 @@ public final class TransportPutFollowAction
 
             @Override
             public ClusterState execute(final ClusterState currentState) throws Exception {
-                String followIndex = request.getFollowRequest().getFollowerIndex();
+                String followIndex = request.getBody().getFollowerIndex();
                 IndexMetaData currentIndex = currentState.metaData().index(followIndex);
                 if (currentIndex != null) {
                     throw new ResourceAlreadyExistsException(currentIndex.getIndex());
@@ -165,7 +165,7 @@ public final class TransportPutFollowAction
                 metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", historyUUIDs));
                 metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, leaderIndexMetaData.getIndexUUID());
                 metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY, leaderIndexMetaData.getIndex().getName());
-                metadata.put(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY, request.getRemoteCluster());
+                metadata.put(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY, request.getBody().getRemoteCluster());
                 imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, metadata);
 
                 // Copy all settings, but overwrite a few settings.
@@ -191,10 +191,10 @@ public final class TransportPutFollowAction
                 ClusterState updatedState = builder.build();
 
                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
-                        .addAsNew(updatedState.metaData().index(request.getFollowRequest().getFollowerIndex()));
+                        .addAsNew(updatedState.metaData().index(request.getBody().getFollowerIndex()));
                 updatedState = allocationService.reroute(
                         ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
-                        "follow index [" + request.getFollowRequest().getFollowerIndex() + "] created");
+                        "follow index [" + request.getBody().getFollowerIndex() + "] created");
 
                 logger.info("[{}] creating index, cause [ccr_create_and_follow], shards [{}]/[{}]",
                         followIndex, followIMD.getNumberOfShards(), followIMD.getNumberOfReplicas());
@@ -207,10 +207,23 @@ public final class TransportPutFollowAction
     private void initiateFollowing(
             final PutFollowAction.Request request,
             final ActionListener<PutFollowAction.Response> listener) {
-        activeShardsObserver.waitForActiveShards(new String[]{request.getFollowRequest().getFollowerIndex()},
+        activeShardsObserver.waitForActiveShards(new String[]{request.getBody().getFollowerIndex()},
                 ActiveShardCount.DEFAULT, request.timeout(), result -> {
                     if (result) {
-                        client.execute(ResumeFollowAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
+                        ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
+                        resumeFollowRequest.getBody().setFollowerIndex(request.getBody().getFollowerIndex());
+                        resumeFollowRequest.getBody().setMaxOutstandingReadRequests(request.getBody().getMaxOutstandingReadRequests());
+                        resumeFollowRequest.getBody().setMaxOutstandingWriteRequests(request.getBody().getMaxOutstandingWriteRequests());
+                        resumeFollowRequest.getBody().setMaxReadRequestOperationCount(request.getBody().getMaxReadRequestOperationCount());
+                        resumeFollowRequest.getBody().setMaxWriteRequestOperationCount(
+                            request.getBody().getMaxWriteRequestOperationCount());
+                        resumeFollowRequest.getBody().setMaxReadRequestSize(request.getBody().getMaxReadRequestSize());
+                        resumeFollowRequest.getBody().setMaxWriteRequestSize(request.getBody().getMaxWriteRequestSize());
+                        resumeFollowRequest.getBody().setMaxWriteBufferCount(request.getBody().getMaxWriteBufferCount());
+                        resumeFollowRequest.getBody().setMaxWriteBufferSize(request.getBody().getMaxWriteBufferSize());
+                        resumeFollowRequest.getBody().setReadPollTimeout(request.getBody().getReadPollTimeout());
+                        resumeFollowRequest.getBody().setMaxRetryDelay(request.getBody().getMaxRetryDelay());
+                        client.execute(ResumeFollowAction.INSTANCE, resumeFollowRequest, ActionListener.wrap(
                                 r -> listener.onResponse(new PutFollowAction.Response(true, true, r.isAcknowledged())),
                                 listener::onFailure
                         ));
@@ -222,7 +235,7 @@ public final class TransportPutFollowAction
 
     @Override
     protected ClusterBlockException checkBlock(final PutFollowAction.Request request, final ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getFollowRequest().getFollowerIndex());
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getBody().getFollowerIndex());
     }
 
 }

@@ -77,13 +77,13 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         }
         availableDocs.release(between(100, 200));
         PutFollowAction.Request follow = putFollow("leader-index", "follower-index");
-        follow.getFollowRequest().setMaxReadRequestOperationCount(randomIntBetween(32, 2048));
-        follow.getFollowRequest().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
-        follow.getFollowRequest().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
-        follow.getFollowRequest().setMaxWriteRequestOperationCount(randomIntBetween(32, 2048));
-        follow.getFollowRequest().setMaxWriteRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
-        follow.getFollowRequest().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
-        logger.info("--> follow params {}", Strings.toString(follow.getFollowRequest()));
+        follow.getBody().setMaxReadRequestOperationCount(randomIntBetween(32, 2048));
+        follow.getBody().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        follow.getBody().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
+        follow.getBody().setMaxWriteRequestOperationCount(randomIntBetween(32, 2048));
+        follow.getBody().setMaxWriteRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        follow.getBody().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
+        logger.info("--> follow params {}", Strings.toString(follow.getBody()));
         followerClient().execute(PutFollowAction.INSTANCE, follow).get();
         disableDelayedAllocation("follower-index");
         ensureFollowerGreen("follower-index");
@@ -137,17 +137,17 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         thread.start();
 
         PutFollowAction.Request followRequest = putFollow("index1", "index2");
-        followRequest.getFollowRequest().setMaxReadRequestOperationCount(randomIntBetween(32, 2048));
-        followRequest.getFollowRequest().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
-        followRequest.getFollowRequest().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
-        followRequest.getFollowRequest().setMaxWriteRequestOperationCount(randomIntBetween(32, 2048));
-        followRequest.getFollowRequest().setMaxWriteRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
-        followRequest.getFollowRequest().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
+        followRequest.getBody().setMaxReadRequestOperationCount(randomIntBetween(32, 2048));
+        followRequest.getBody().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        followRequest.getBody().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
+        followRequest.getBody().setMaxWriteRequestOperationCount(randomIntBetween(32, 2048));
+        followRequest.getBody().setMaxWriteRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        followRequest.getBody().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
         disableDelayedAllocation("index2");
-        logger.info("--> follow params {}", Strings.toString(followRequest.getFollowRequest()));
+        logger.info("--> follow params {}", Strings.toString(followRequest.getBody()));
 
-        int maxOpsPerRead = followRequest.getFollowRequest().getMaxReadRequestOperationCount();
+        int maxOpsPerRead = followRequest.getBody().getMaxReadRequestOperationCount();
         int maxNumDocsReplicated = Math.min(between(50, 500), between(maxOpsPerRead, maxOpsPerRead * 10));
         availableDocs.release(maxNumDocsReplicated / 2 + 1);
         atLeastDocsIndexed(followerClient(), "index2", maxNumDocsReplicated / 3);

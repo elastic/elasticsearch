@@ -43,7 +43,7 @@ public class RestResumeFollowAction extends BaseRestHandler {
             }
         } else {
             Request request = new Request();
-            request.setFollowerIndex(restRequest.param("index"));
+            request.getBody().setFollowerIndex(restRequest.param("index"));
             return request;
         }
     }

@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
-import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowParameters;
+import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowerInfo;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
@@ -185,42 +185,44 @@ public class AutoFollowIT extends CcrIntegTestCase {
             .build();
 
         // Enabling auto following:
-        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setName("my-pattern");
-        request.setRemoteCluster("leader_cluster");
-        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+        PutAutoFollowPatternAction.Request.Body requestBody = new PutAutoFollowPatternAction.Request.Body();
+        requestBody.setName("my-pattern");
+        requestBody.setRemoteCluster("leader_cluster");
+        requestBody.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
         // Need to set this, because following an index in the same cluster
-        request.setFollowIndexNamePattern("copy-{{leader_index}}");
+        requestBody.setFollowIndexNamePattern("copy-{{leader_index}}");
         if (randomBoolean()) {
-            request.setMaxWriteBufferCount(randomIntBetween(0, Integer.MAX_VALUE));
+            requestBody.setMaxWriteBufferCount(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxConcurrentReadBatches(randomIntBetween(0, Integer.MAX_VALUE));
+            requestBody.setMaxOutstandingReadRequests(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxConcurrentWriteBatches(randomIntBetween(0, Integer.MAX_VALUE));
+            requestBody.setMaxOutstandingWriteRequests(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxReadRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
+            requestBody.setMaxReadRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+            requestBody.setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
-            request.setMaxRetryDelay(TimeValue.timeValueMillis(500));
+            requestBody.setMaxRetryDelay(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
-            request.setReadPollTimeout(TimeValue.timeValueMillis(500));
+            requestBody.setReadPollTimeout(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
-            request.setMaxWriteRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
+            requestBody.setMaxWriteRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+            requestBody.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
-            request.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
+            requestBody.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
         }
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        request.setBody(requestBody);
         assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
 
         createLeaderIndex("logs-201901", leaderIndexSettings);
@@ -242,35 +244,35 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
             FollowParameters followParameters = followerInfo.getParameters();
             assertThat(followParameters, notNullValue());
-            if (request.getMaxWriteBufferCount() != null) {
-                assertThat(followParameters.getMaxWriteBufferCount(), equalTo(request.getMaxWriteBufferCount()));
+            if (requestBody.getMaxWriteBufferCount() != null) {
+                assertThat(followParameters.getMaxWriteBufferCount(), equalTo(requestBody.getMaxWriteBufferCount()));
             }
-            if (request.getMaxWriteBufferSize() != null) {
-                assertThat(followParameters.getMaxWriteBufferSize(), equalTo(request.getMaxWriteBufferSize()));
+            if (requestBody.getMaxWriteBufferSize() != null) {
+                assertThat(followParameters.getMaxWriteBufferSize(), equalTo(requestBody.getMaxWriteBufferSize()));
             }
-            if (request.getMaxConcurrentReadBatches() != null) {
-                assertThat(followParameters.getMaxOutstandingReadRequests(), equalTo(request.getMaxConcurrentReadBatches()));
+            if (requestBody.getMaxOutstandingReadRequests() != null) {
+                assertThat(followParameters.getMaxOutstandingReadRequests(), equalTo(requestBody.getMaxOutstandingReadRequests()));
             }
-            if (request.getMaxConcurrentWriteBatches() != null) {
-                assertThat(followParameters.getMaxOutstandingWriteRequests(), equalTo(request.getMaxConcurrentWriteBatches()));
+            if (requestBody.getMaxOutstandingWriteRequests() != null) {
+                assertThat(followParameters.getMaxOutstandingWriteRequests(), equalTo(requestBody.getMaxOutstandingWriteRequests()));
             }
-            if (request.getMaxReadRequestOperationCount() != null) {
-                assertThat(followParameters.getMaxReadRequestOperationCount(), equalTo(request.getMaxReadRequestOperationCount()));
+            if (requestBody.getMaxReadRequestOperationCount() != null) {
+                assertThat(followParameters.getMaxReadRequestOperationCount(), equalTo(requestBody.getMaxReadRequestOperationCount()));
             }
-            if (request.getMaxReadRequestSize() != null) {
-                assertThat(followParameters.getMaxReadRequestSize(), equalTo(request.getMaxReadRequestSize()));
+            if (requestBody.getMaxReadRequestSize() != null) {
+                assertThat(followParameters.getMaxReadRequestSize(), equalTo(requestBody.getMaxReadRequestSize()));
             }
-            if (request.getMaxRetryDelay() != null) {
-                assertThat(followParameters.getMaxRetryDelay(), equalTo(request.getMaxRetryDelay()));
+            if (requestBody.getMaxRetryDelay() != null) {
+                assertThat(followParameters.getMaxRetryDelay(), equalTo(requestBody.getMaxRetryDelay()));
             }
-            if (request.getReadPollTimeout() != null) {
-                assertThat(followParameters.getReadPollTimeout(), equalTo(request.getReadPollTimeout()));
+            if (requestBody.getReadPollTimeout() != null) {
+                assertThat(followParameters.getReadPollTimeout(), equalTo(requestBody.getReadPollTimeout()));
             }
-            if (request.getMaxWriteRequestOperationCount() != null) {
-                assertThat(followParameters.getMaxWriteRequestOperationCount(), equalTo(request.getMaxWriteRequestOperationCount()));
+            if (requestBody.getMaxWriteRequestOperationCount() != null) {
+                assertThat(followParameters.getMaxWriteRequestOperationCount(), equalTo(requestBody.getMaxWriteRequestOperationCount()));
             }
-            if (request.getMaxWriteRequestSize() != null) {
-                assertThat(followParameters.getMaxWriteRequestSize(), equalTo(request.getMaxWriteRequestSize()));
+            if (requestBody.getMaxWriteRequestSize() != null) {
+                assertThat(followParameters.getMaxWriteRequestSize(), equalTo(requestBody.getMaxWriteRequestSize()));
             }
         });
     }
@@ -358,11 +360,11 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     private void putAutoFollowPatterns(String name, String[] patterns) {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setName(name);
-        request.setRemoteCluster("leader_cluster");
-        request.setLeaderIndexPatterns(Arrays.asList(patterns));
+        request.getBody().setName(name);
+        request.getBody().setRemoteCluster("leader_cluster");
+        request.getBody().setLeaderIndexPatterns(Arrays.asList(patterns));
         // Need to set this, because following an index in the same cluster
-        request.setFollowIndexNamePattern("copy-{{leader_index}}");
+        request.getBody().setFollowIndexNamePattern("copy-{{leader_index}}");
         assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
     }
 

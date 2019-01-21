@@ -22,9 +22,10 @@ public class PutFollowActionRequestTests extends AbstractSerializingTestCase<Put
     @Override
     protected PutFollowAction.Request createTestInstance() {
         PutFollowAction.Request request = new PutFollowAction.Request();
-        request.setRemoteCluster(randomAlphaOfLength(4));
-        request.setLeaderIndex(randomAlphaOfLength(4));
-        request.setFollowRequest(ResumeFollowActionRequestTests.createTestRequest());
+        request.getBody().setRemoteCluster(randomAlphaOfLength(4));
+        request.getBody().setLeaderIndex(randomAlphaOfLength(4));
+        request.getBody().setFollowerIndex(randomAlphaOfLength(4));
+        ResumeFollowActionRequestTests.generateFollowParameters(request.getBody());
         return request;
     }
 

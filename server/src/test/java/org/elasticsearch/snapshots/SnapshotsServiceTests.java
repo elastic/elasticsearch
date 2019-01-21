@@ -153,6 +153,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
+// -Dtests.seed=45B12C2784692942
 public class SnapshotsServiceTests extends ESTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;

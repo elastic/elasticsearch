@@ -66,8 +66,8 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
         final String json1 = "{ \"realm_name\" : \"realm-1\", \"username\": \"user-x\" }";
         final String json2 = "{ \"realm_name\" : \"realm-1\" }";
         final String json3 = "{ \"username\": \"user-x\" }";
-        final String json4 = "{ \"api_key_id\" : \"api-key-id-1\" }";
-        final String json5 = "{ \"api_key_name\" : \"api-key-name-1\" }";
+        final String json4 = "{ \"id\" : \"api-key-id-1\" }";
+        final String json5 = "{ \"name\" : \"api-key-name-1\" }";
         final List<String> jsons = Arrays.asList(json1, json2, json3, json4, json5);
         final String json = randomFrom(json1, json2, json3, json4, json5);
         final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)

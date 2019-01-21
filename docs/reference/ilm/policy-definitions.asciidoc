@@ -87,16 +87,19 @@ The below list shows the actions which are available in each phase.
 * Hot
   - <<ilm-set-priority-action,Set Priority>>
   - <<ilm-rollover-action,Rollover>>
+  - <<ilm-unfollow-action,Unfollow>>
 * Warm
   - <<ilm-set-priority-action,Set Priority>>
   - <<ilm-allocate-action,Allocate>>
   - <<ilm-readonly-action,Read-Only>>
   - <<ilm-forcemerge-action,Force Merge>>
   - <<ilm-shrink-action,Shrink>>
+  - <<ilm-unfollow-action,Unfollow>>
 * Cold
   - <<ilm-set-priority-action,Set Priority>>
   - <<ilm-allocate-action,Allocate>>
   - <<ilm-freeze-action,Freeze>>
+  - <<ilm-unfollow-action,Unfollow>>
 * Delete
   - <<ilm-delete-action,Delete>>
 
@@ -356,7 +359,7 @@ index "my_index" must be the write index for the alias. For more information, re
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "settings": {
     "index.lifecycle.name": "my_policy",
@@ -616,6 +619,43 @@ PUT _ilm/policy/my_policy
 --------------------------------------------------
 // CONSOLE
 
+[[ilm-unfollow-action]]
+==== Unfollow
+
+This action turns a {ref}/ccr-apis.html[ccr] follower index
+into a regular index. This can be desired when moving follower
+indices into the next phase. Also certain actions like shrink
+and rollover can then be performed safely on follower indices.
+
+If the unfollow action encounters a follower index then
+the following operations will be performed on it:
+
+* Pauses indexing following for the follower index.
+* Closes the follower index.
+* Unfollows the follower index.
+* Opens the follower index (which is at this point is a regular index).
+
+The unfollow action does not have any options and
+if it encounters a non follower index, then the
+unfollow action leaves that index untouched and
+lets the next action operate on this index.
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "unfollow" : {}
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
 
 === Full Policy
 

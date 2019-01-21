@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -19,7 +18,6 @@ import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -36,7 +34,6 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -215,12 +212,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             return settingsVersion;
         }
 
-        private long metadataVersion;
-
-        public long getMetadataVersion() {
-            return metadataVersion;
-        }
-
         private long globalCheckpoint;
 
         public long getGlobalCheckpoint() {
@@ -257,7 +248,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         Response(
             final long mappingVersion,
             final long settingsVersion,
-            final long metadataVersion,
             final long globalCheckpoint,
             final long maxSeqNo,
             final long maxSeqNoOfUpdatesOrDeletes,
@@ -266,7 +256,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
 
             this.mappingVersion = mappingVersion;
             this.settingsVersion = settingsVersion;
-            this.metadataVersion = metadataVersion;
             this.globalCheckpoint = globalCheckpoint;
             this.maxSeqNo = maxSeqNo;
             this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
@@ -279,11 +268,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             super.readFrom(in);
             mappingVersion = in.readVLong();
             settingsVersion = in.readVLong();
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-                metadataVersion = in.readVLong();
-            } else {
-                metadataVersion = 0L;
-            }
             globalCheckpoint = in.readZLong();
             maxSeqNo = in.readZLong();
             maxSeqNoOfUpdatesOrDeletes = in.readZLong();
@@ -296,9 +280,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             super.writeTo(out);
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                out.writeVLong(metadataVersion);
-            }
             out.writeZLong(globalCheckpoint);
             out.writeZLong(maxSeqNo);
             out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
@@ -313,7 +294,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             final Response that = (Response) o;
             return mappingVersion == that.mappingVersion &&
                     settingsVersion == that.settingsVersion &&
-                    metadataVersion == that.metadataVersion &&
                     globalCheckpoint == that.globalCheckpoint &&
                     maxSeqNo == that.maxSeqNo &&
                     maxSeqNoOfUpdatesOrDeletes == that.maxSeqNoOfUpdatesOrDeletes &&
@@ -326,7 +306,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             return Objects.hash(
                     mappingVersion,
                     settingsVersion,
-                    metadataVersion,
                     globalCheckpoint,
                     maxSeqNo,
                     maxSeqNoOfUpdatesOrDeletes,
@@ -338,7 +317,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
     public static class TransportAction extends TransportSingleShardAction<Request, Response> {
 
         private final IndicesService indicesService;
-        private final IndicesClusterStateService indicesClusterStateService;
 
         @Inject
         public TransportAction(ThreadPool threadPool,
@@ -346,12 +324,10 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                                TransportService transportService,
                                ActionFilters actionFilters,
                                IndexNameExpressionResolver indexNameExpressionResolver,
-                               IndicesService indicesService,
-                               IndicesClusterStateService indicesClusterStateService) {
+                               IndicesService indicesService) {
             super(NAME, threadPool, clusterService, transportService, actionFilters,
                 indexNameExpressionResolver, Request::new, ThreadPool.Names.SEARCH);
             this.indicesService = indicesService;
-            this.indicesClusterStateService = indicesClusterStateService;
         }
 
         @Override
@@ -371,14 +347,12 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             // must capture IndexMetaData after snapshotting operations to ensure the returned mapping version is at least as up-to-date
             // as the mapping version that these operations used. Here we must not use IndexMetaData from ClusterService for we expose
             // a new cluster state to ClusterApplier(s) before exposing it in the ClusterService.
-            final MetaData metaData = indicesClusterStateService.getClusterState().metaData();
-            final IndexMetaData indexMetaData = metaData.getIndexSafe(shardId.getIndex());
+            final IndexMetaData indexMetaData = indexService.getMetaData();
             final long mappingVersion = indexMetaData.getMappingVersion();
             final long settingsVersion = indexMetaData.getSettingsVersion();
             return getResponse(
                     mappingVersion,
                     settingsVersion,
-                    metaData.version(),
                     seqNoStats,
                     maxSeqNoOfUpdatesOrDeletes,
                     operations,
@@ -458,8 +432,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                     e);
             if (e instanceof TimeoutException) {
                 try {
-                    final MetaData metaData = indicesClusterStateService.getClusterState().metaData();
-                    final IndexMetaData indexMetaData = metaData.getIndexSafe(shardId.getIndex());
+                    final IndexMetaData indexMetaData = clusterService.state().metaData().index(shardId.getIndex());
                     final long mappingVersion = indexMetaData.getMappingVersion();
                     final long settingsVersion = indexMetaData.getSettingsVersion();
                     final SeqNoStats latestSeqNoStats = indexShard.seqNoStats();
@@ -468,7 +441,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                             getResponse(
                                     mappingVersion,
                                     settingsVersion,
-                                    metaData.version(),
                                     latestSeqNoStats,
                                     maxSeqNoOfUpdatesOrDeletes,
                                     EMPTY_OPERATIONS_ARRAY,
@@ -560,7 +532,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
     static Response getResponse(
             final long mappingVersion,
             final long settingsVersion,
-            final long metadataVersion,
             final SeqNoStats seqNoStats,
             final long maxSeqNoOfUpdates,
             final Translog.Operation[] operations,
@@ -570,7 +541,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         return new Response(
                 mappingVersion,
                 settingsVersion,
-                metadataVersion,
                 seqNoStats.getGlobalCheckpoint(),
                 seqNoStats.getMaxSeqNo(),
                 maxSeqNoOfUpdates,

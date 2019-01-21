@@ -557,7 +557,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[1], equalTo(64L));
 
         shardChangesRequests.clear();
-        task.innerHandleReadResponse(0L, 63L, new ShardChangesAction.Response(0, 0, 1L, 0, 0, 100, new Translog.Operation[0], 1L));
+        task.innerHandleReadResponse(0L, 63L, new ShardChangesAction.Response(0, 0, 0, 0, 100, new Translog.Operation[0], 1L));
 
         assertThat(shardChangesRequests.size(), equalTo(1));
         assertThat(shardChangesRequests.get(0)[0], equalTo(0L));
@@ -1054,7 +1054,6 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                     final ShardChangesAction.Response response = new ShardChangesAction.Response(
                         mappingVersions.poll(),
                         0L,
-                        1L,
                         leaderGlobalCheckpoints.poll(),
                         maxSeqNos.poll(),
                         randomNonNegativeLong(),
@@ -1091,7 +1090,6 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         return new ShardChangesAction.Response(
             mappingVersion,
             settingsVersion,
-            1L,
             leaderGlobalCheckPoint,
             leaderGlobalCheckPoint,
             randomNonNegativeLong(),

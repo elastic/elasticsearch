@@ -17,11 +17,6 @@ Set to `true` to enable auditing on the node. The default value is `false`.
 This puts the auditing events in a dedicated file named `<clustername>_audit.log`
 on each node.
 +
-For backwards compatibility reasons, a `<clustername>_access.log` file is also
-created. It contains the same information, but it uses the older (pre-6.5.0)
-formatting style. If the backwards compatible format is not required, it should
-be disabled. To do that, change its logger level to `off` in the `log4j2.properties`
-file.
 For more information, see <<configuring-logging-levels>>.
 
 [[event-audit-settings]]

@@ -88,6 +88,9 @@
             },
             "query" : {
               "type" : "keyword"
+            },
+            "allow_restricted_indices" : {
+              "type" : "boolean"
             }
           }
         },

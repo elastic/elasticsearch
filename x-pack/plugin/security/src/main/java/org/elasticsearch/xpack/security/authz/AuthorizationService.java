@@ -67,9 +67,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.ResolvedIndices;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -87,7 +85,6 @@ public class AuthorizationService {
     public static final String ORIGINATING_ACTION_KEY = "_originating_action_name";
     public static final String ROLE_NAMES_KEY = "_effective_role_names";
 
-    private static final Predicate<String> MONITOR_INDEX_PREDICATE = IndexPrivilege.MONITOR.predicate();
     private static final Predicate<String> SAME_USER_PRIVILEGE = Automatons.predicate(
         ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME);
 
@@ -292,7 +289,7 @@ public class AuthorizationService {
         }
 
         final MetaData metaData = clusterService.state().metaData();
-        final AuthorizedIndices authorizedIndices = new AuthorizedIndices(authentication.getUser(), permission, action, metaData);
+        final AuthorizedIndices authorizedIndices = new AuthorizedIndices(permission, action, metaData);
         final ResolvedIndices resolvedIndices = resolveIndexNames(auditId, authentication, action, request, metaData,
             authorizedIndices, permission);
         assert !resolvedIndices.isEmpty()
@@ -314,18 +311,10 @@ public class AuthorizationService {
 
         final Set<String> localIndices = new HashSet<>(resolvedIndices.getLocal());
         IndicesAccessControl indicesAccessControl = permission.authorize(action, localIndices, metaData, fieldPermissionsCache);
-        if (!indicesAccessControl.isGranted()) {
-            throw denial(auditId, authentication, action, request, permission.names());
-        } else if (hasSecurityIndexAccess(indicesAccessControl)
-            && MONITOR_INDEX_PREDICATE.test(action) == false
-            && isSuperuser(authentication.getUser()) == false) {
-            // only the XPackUser is allowed to work with this index, but we should allow indices monitoring actions through for debugging
-            // purposes. These monitor requests also sometimes resolve indices concretely and then requests them
-            logger.debug("user [{}] attempted to directly perform [{}] against the security index [{}]",
-                authentication.getUser().principal(), action, SecurityIndexManager.SECURITY_INDEX_NAME);
-            throw denial(auditId, authentication, action, request, permission.names());
-        } else {
+        if (indicesAccessControl.isGranted()) {
             putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
+        } else {
+            throw denial(auditId, authentication, action, request, permission.names());
         }
 
         //if we are creating an index we need to authorize potential aliases created at the same time
@@ -359,16 +348,6 @@ public class AuthorizationService {
 
     private boolean isInternalUser(User user) {
         return SystemUser.is(user) || XPackUser.is(user) || XPackSecurityUser.is(user);
-    }
-
-    private boolean hasSecurityIndexAccess(IndicesAccessControl indicesAccessControl) {
-        for (String index : SecurityIndexManager.indexNames()) {
-            final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
-            if (indexPermissions != null && indexPermissions.isGranted()) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
@@ -607,11 +586,6 @@ public class AuthorizationService {
         }
         logger.debug("action [{}] is unauthorized for user [{}]", action, authUser.principal());
         return authorizationError("action [{}] is unauthorized for user [{}]", action, authUser.principal());
-    }
-
-    static boolean isSuperuser(User user) {
-        return Arrays.stream(user.roles())
-            .anyMatch(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()::equals);
     }
 
     public static void addSettings(List<Setting<?>> settings) {

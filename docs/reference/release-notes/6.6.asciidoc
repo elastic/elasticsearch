@@ -109,13 +109,9 @@ Geo::
 * [GEO] Fork Lucene's LatLonShape Classes to local lucene package {pull}36794[#36794]
 * [Geo] Integrate Lucene's LatLonShape (BKD Backed GeoShapes) as default `geo_shape` indexing approach {pull}35320[#35320] (issue: {issue}32039[#32039])
 
-MULTIPLE AREA LABELS::
-* [Geo] Integrate Lucene's LatLonShape (BKD Backed GeoShapes) as default `geo_shape` indexing approach {pull}36855[#36855]
-* [Geo] Integrate Lucene's LatLonShape (BKD Backed GeoShapes) as default `geo_shape` indexing approach {pull}36743[#36743] (issue: {issue}35320[#35320])
-
 Machine Learning::
-* [ML] Store ml job configurations in the new .ml-config index {pull}36698[#36698] (issue: {issue}32905[#32905])
-* Add delayed datacheck to the datafeed job runner {pull}35387[#35387] (issue: {issue}35131[#35131])
+* Store job configuration information in the new `.ml-config` index {pull}36698[#36698] (issue: {issue}32905[#32905])
+* Determine when data is missing from a bucket due to ingest latency {pull}35387[#35387] (issue: {issue}35131[#35131])
 
 SQL::
 * SQL: Introduce HISTOGRAM grouping function {pull}36510[#36510] (issue: {issue}36509[#36509])
@@ -329,12 +325,13 @@ MULTIPLE AREA LABELS::
 * HLRest: add security authenticate API {pull}33552[#33552]
 
 Machine Learning::
-* [ML] Create the ML annotations index {pull}36731[#36731] (issues: {issue}26034[#26034], {issue}33376[#33376])
-* [FEATURE][ML] Add cluster setting to enable/disable config  migration {pull}36700[#36700] (issue: {issue}32905[#32905])
-* [ML] Option to use endpoints starting _ml instead of _xpack/ml {pull}36373[#36373] (issue: {issue}36315[#36315])
-* [ML] Adding audits when deprecation warnings occur with datafeed start {pull}36233[#36233]
-* [ML] Add lazy parsing for DatafeedConfig:Aggs,Query {pull}36117[#36117]
-* ML: Add support for rollup Indexes in Datafeeds {pull}34654[#34654]
+* Create the {ml} annotations index {pull}36731[#36731] (issue: {issue}33376[#33376])
+* Add cluster setting to enable/disable config migration {pull}36700[#36700] (issue: {issue}32905[#32905])
+* Enable the use of endpoints starting with `_ml` instead of `_xpack/ml` {pull}36373[#36373] (issue: {issue}36315[#36315])
+* Add audits when deprecation warnings occur while datafeeds start {pull}36233[#36233]
+* Add lazy parsing for DatafeedConfig:Aggs,Query {pull}36117[#36117]
+* Add support for rollup indexes in datafeeds {pull}34654[#34654]
+
 
 Network::
 * Unify transport settings naming {pull}36623[#36623]
@@ -535,14 +532,11 @@ Infra/Settings::
 * SETTINGS: Correctly Identify Noop Updates {pull}36560[#36560] (issue: {issue}36496[#36496])
 
 Machine Learning::
-* [ML] Wait for autodetect to be ready in the datafeed {pull}37349[#37349] (issues: {issue}36810[#36810], {issue}37227[#37227])
-* [ML] Stop datafeeds running when their jobs are stale {pull}37227[#37227] (issue: {issue}36810[#36810])
-* [ML] Order GET job stats response by job id {pull}36841[#36841] (issue: {issue}36683[#36683])
-* [ML] Interrupt Grok in file structure finder timeout {pull}36588[#36588]
-* [ML] Prevent stack overflow while copying ML jobs and datafeeds {pull}36370[#36370] (issue: {issue}36360[#36360])
-* [ML] Adjust file structure finder parser config {pull}35935[#35935]
-* [ML] Fix find_file_structure NPE with should_trim_fields {pull}35465[#35465] (issue: {issue}35462[#35462])
-* [ML] Prevent notifications being created on deletion of a non existent job {pull}35337[#35337] (issues: {issue}34058[#34058], {issue}35336[#35336])
+* Fix cause of "Sample out of bounds" error message. {ml-pull}335[#335]
+* Fix hang when closing a job or creating a forecast. This problem occurs if you created a forecast for a large job and temporary storage was not cleaned up.  {ml-pull}352[#352] (issue: {ml-issue}350[#350])
+* Wait for autodetect to be ready in the datafeed {pull}37349[#37349] (issues: {issue}36810[#36810], {issue}37227[#37227])
+* Stop datafeeds when their jobs are stale {pull}37227[#37227] (issue: {issue}36810[#36810])
+* Order get job stats API response by job id {pull}36841[#36841] (issue: {issue}36683[#36683])
 
 Mapping::
 * Make sure to accept empty unnested mappings in create index requests. {pull}37089[#37089]
@@ -641,6 +635,4 @@ Infra/Scripting::
 
 Network::
 * Upgrade Netty 4.3.32.Final {pull}36102[#36102] (issue: {issue}35360[#35360])
-
-
 

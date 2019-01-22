@@ -45,7 +45,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.hamcrest.core.Is.is;
 
 public class ShardFollowNodeTaskTests extends ESTestCase {
 

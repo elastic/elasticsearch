@@ -29,8 +29,12 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
+import java.util.stream.IntStream;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchAsYouTypeAnalyzerTests extends ESTestCase {
@@ -49,16 +53,113 @@ public class SearchAsYouTypeAnalyzerTests extends ESTestCase {
         return tokens;
     }
 
-    public void testSingleTermNGrams() throws IOException {
+    private void testCase(String text,
+                                 Function<Integer, SearchAsYouTypeAnalyzer> analyzerFunction,
+                                 Function<Integer, List<String>> expectedTokensFunction) throws IOException {
+
         for (int shingleSize = 2; shingleSize <= 4; shingleSize++) {
-            final List<String> tokens = analyze(SearchAsYouTypeAnalyzer.withShingleAndPrefix(SIMPLE, shingleSize), "quick");
-            final List<String> expectedTokens = new ArrayList<>(asList("q", "qu", "qui", "quic", "quick"));
-            for (int i = 1; i < shingleSize; i++) {
-                expectedTokens.add("quick" + spaces(i));
-            }
-            assertThat("analyzed correctly with [" + shingleSize + "] shingles and ngrams", tokens, equalTo(expectedTokens));
-            logger.error("TOKENS " + tokens); // todo remove
+            final SearchAsYouTypeAnalyzer analyzer = analyzerFunction.apply(shingleSize);
+            final List<String> expectedTokens = expectedTokensFunction.apply(shingleSize);
+            final List<String> actualTokens = analyze(analyzer, text);
+            assertThat("analyzed correctly with " + analyzer, actualTokens, equalTo(expectedTokens));
         }
+    }
+
+    public void testSingleTermShingles() throws IOException {
+        testCase(
+            "quick",
+            shingleSize -> SearchAsYouTypeAnalyzer.withShingle(SIMPLE, shingleSize),
+            shingleSize -> emptyList()
+        );
+    }
+
+    public void testMultiTermShingles() throws IOException {
+        testCase(
+            "quick red fox lazy brown",
+            shingleSize -> SearchAsYouTypeAnalyzer.withShingle(SIMPLE, shingleSize),
+            shingleSize -> {
+                if (shingleSize == 2) {
+                    return asList("quick red", "red fox", "fox lazy", "lazy brown");
+                } else if (shingleSize == 3) {
+                    return asList("quick red fox", "red fox lazy", "fox lazy brown");
+                } else if (shingleSize == 4) {
+                    return asList("quick red fox lazy", "red fox lazy brown");
+                }
+                throw new IllegalArgumentException();
+            }
+        );
+    }
+
+    public void testSingleTermPrefix() throws IOException {
+        testCase(
+            "quick",
+            shingleSize -> SearchAsYouTypeAnalyzer.withShingleAndPrefix(SIMPLE, shingleSize),
+            shingleSize -> {
+                final List<String> tokens = new ArrayList<>(asList("q", "qu", "qui", "quic", "quick"));
+                tokens.addAll(tokenWithSpaces("quick", shingleSize));
+                return tokens;
+            }
+        );
+    }
+
+    public void testMultiTermPrefix() throws IOException {
+        testCase(
+            "quick red fox lazy brown",
+            shingleSize -> SearchAsYouTypeAnalyzer.withShingleAndPrefix(SIMPLE, shingleSize),
+            shingleSize -> {
+                if (shingleSize == 2) {
+                    final List<String> tokens = new ArrayList<>(asList(
+                        "q", "qu", "qui", "quic", "quick", "quick ", "quick r", "quick re", "quick red",
+                        "r", "re", "red", "red ", "red f", "red fo", "red fox",
+                        "f", "fo", "fox", "fox ", "fox l", "fox la", "fox laz", "fox lazy",
+                        "l", "la", "laz", "lazy", "lazy ", "lazy b", "lazy br", "lazy bro", "lazy brow", "lazy brown"
+                    ));
+                    tokens.addAll(asList("b", "br", "bro", "brow", "brown"));
+                    tokens.addAll(tokenWithSpaces("brown", shingleSize));
+                    return tokens;
+                } else if (shingleSize == 3) {
+                    final List<String> tokens = new ArrayList<>(asList(
+                        "q", "qu", "qui", "quic", "quick", "quick ", "quick r", "quick re", "quick red", "quick red ", "quick red f",
+                        "quick red fo", "quick red fox",
+                        "r", "re", "red", "red ", "red f", "red fo", "red fox", "red fox ", "red fox l", "red fox la", "red fox laz",
+                        "red fox lazy",
+                        "f", "fo", "fox", "fox ", "fox l", "fox la", "fox laz", "fox lazy", "fox lazy ", "fox lazy b", "fox lazy br",
+                        "fox lazy bro", "fox lazy brow", "fox lazy brown"
+                    ));
+                    tokens.addAll(asList("l", "la", "laz", "lazy", "lazy ", "lazy b", "lazy br", "lazy bro", "lazy brow", "lazy brown"));
+                    tokens.addAll(tokenWithSpaces("lazy brown", shingleSize - 1));
+                    tokens.addAll(asList("b", "br", "bro", "brow", "brown"));
+                    tokens.addAll(tokenWithSpaces("brown", shingleSize));
+                    return tokens;
+                } else if (shingleSize == 4) {
+                    final List<String> tokens = new ArrayList<>(asList(
+                        "q", "qu", "qui", "quic", "quick", "quick ", "quick r", "quick re", "quick red", "quick red ", "quick red f",
+                        "quick red fo", "quick red fox", "quick red fox ", "quick red fox l", "quick red fox la", "quick red fox laz",
+                        "quick red fox lazy",
+                        "r", "re", "red", "red ", "red f", "red fo", "red fox", "red fox ", "red fox l", "red fox la", "red fox laz",
+                        "red fox lazy", "red fox lazy ", "red fox lazy b", "red fox lazy br", "red fox lazy bro", "red fox lazy brow",
+                        "red fox lazy brown"
+
+                    ));
+                    tokens.addAll(asList(
+                        "f", "fo", "fox", "fox ", "fox l", "fox la", "fox laz", "fox lazy", "fox lazy ", "fox lazy b", "fox lazy br",
+                        "fox lazy bro", "fox lazy brow", "fox lazy brown"
+                    ));
+                    tokens.addAll(tokenWithSpaces("fox lazy brown", shingleSize - 2));
+                    tokens.addAll(asList("l", "la", "laz", "lazy", "lazy ", "lazy b", "lazy br", "lazy bro", "lazy brow", "lazy brown"));
+                    tokens.addAll(tokenWithSpaces("lazy brown", shingleSize - 1));
+                    tokens.addAll(asList("b", "br", "bro", "brow", "brown"));
+                    tokens.addAll(tokenWithSpaces("brown", shingleSize));
+                    return tokens;
+                }
+
+                throw new IllegalArgumentException();
+            }
+        );
+    }
+
+    private static List<String> tokenWithSpaces(String text, int maxShingleSize) {
+        return IntStream.range(1, maxShingleSize).mapToObj(i -> text + spaces(i)).collect(toList());
     }
 
     private static String spaces(int count) {

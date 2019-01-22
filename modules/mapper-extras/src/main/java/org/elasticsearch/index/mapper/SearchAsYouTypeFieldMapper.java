@@ -503,6 +503,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             return indexPrefixes;
         }
 
+        @Override
+        public String toString() {
+            return "<" + getClass().getCanonicalName() + " shingleSize=[" + shingleSize + "] indexPrefixes=[" + indexPrefixes + "]>";
+        }
+
         private static class TrailingShingleTokenFilter extends TokenFilter {
 
             private final int numberOfExtraTrailingPositions;

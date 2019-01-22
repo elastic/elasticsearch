@@ -20,7 +20,6 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -41,9 +40,7 @@ public class CreateIndexRequestTests extends AbstractXContentTestCase<CreateInde
 
     @Override
     protected CreateIndexRequest doParseInstance(XContentParser parser) throws IOException {
-        CreateIndexRequest request = new CreateIndexRequest("index");
-        request.source(parser.map(), LoggingDeprecationHandler.INSTANCE);
-        return request;
+        return new CreateIndexRequest("index").source(parser.map());
     }
 
     @Override

@@ -137,6 +137,14 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
         return this;
     }
 
+    public BytesReference mappings() {
+        return mappings;
+    }
+
+    public XContentType mappingsXContentType() {
+        return mappingsXContentType;
+    }
+
     /**
      * Adds mapping that will be added when the index gets created.
      *
@@ -185,11 +193,15 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
      * @param source The mapping source
      * @param xContentType the content type of the mapping source
      */
-    private CreateIndexRequest mapping(BytesReference source, XContentType xContentType) {
+    public CreateIndexRequest mapping(BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
         mappings = source;
         mappingsXContentType = xContentType;
         return this;
+    }
+
+    public Set<Alias> aliases() {
+        return this.aliases;
     }
 
     /**
@@ -276,28 +288,9 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
      *
      * Note that the mapping definition should *not* be nested under a type name.
      */
-    public CreateIndexRequest source(byte[] source, XContentType xContentType) {
-        return source(source, 0, source.length, xContentType);
-    }
-
-    /**
-     * Sets the settings and mappings as a single source.
-     *
-     * Note that the mapping definition should *not* be nested under a type name.
-     */
-    public CreateIndexRequest source(byte[] source, int offset, int length, XContentType xContentType) {
-        return source(new BytesArray(source, offset, length), xContentType);
-    }
-
-    /**
-     * Sets the settings and mappings as a single source.
-     *
-     * Note that the mapping definition should *not* be nested under a type name.
-     */
     public CreateIndexRequest source(BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
-        source(XContentHelper.convertToMap(source, false, xContentType).v2(),
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION);
+        source(XContentHelper.convertToMap(source, false, xContentType).v2());
         return this;
     }
 
@@ -307,7 +300,8 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
      * Note that the mapping definition should *not* be nested under a type name.
      */
     @SuppressWarnings("unchecked")
-    public CreateIndexRequest source(Map<String, ?> source, DeprecationHandler deprecationHandler) {
+    public CreateIndexRequest source(Map<String, ?> source) {
+        DeprecationHandler deprecationHandler = DeprecationHandler.THROW_UNSUPPORTED_OPERATION;
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
             if (SETTINGS.match(name, deprecationHandler)) {
@@ -319,18 +313,6 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
             }
         }
         return this;
-    }
-
-    public BytesReference mappings() {
-        return mappings;
-    }
-
-    public XContentType mappingsXContentType() {
-        return mappingsXContentType;
-    }
-
-    public Set<Alias> aliases() {
-        return this.aliases;
     }
 
     public ActiveShardCount waitForActiveShards() {

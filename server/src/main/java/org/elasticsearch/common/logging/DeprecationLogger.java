@@ -157,14 +157,13 @@ public class DeprecationLogger {
      * arbitrary token; here we use the Elasticsearch version and build hash. The warn text must be quoted. The warn-date is an optional
      * quoted field that can be in a variety of specified date formats; here we use RFC 1123 format.
      */
-    private static final String WARNING_FORMAT =
+    private static final String WARNING_PREFIX =
             String.format(
                     Locale.ROOT,
-                    "299 Elasticsearch-%s%s-%s ",
+                    "299 Elasticsearch-%s%s-%s",
                     Version.CURRENT.toString(),
                     Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
-                    Build.CURRENT.shortHash()) +
-                    "\"%s\" \"%s\"";
+                    Build.CURRENT.shortHash());
 
     /*
      * RFC 7234 section 5.5 specifies that the warn-date is a quoted HTTP-date. HTTP-date is defined in RFC 7234 Appendix B as being from
@@ -223,7 +222,7 @@ public class DeprecationLogger {
                 .toFormatter(Locale.getDefault(Locale.Category.FORMAT));
     }
 
-    private static final ZoneId GMT = ZoneId.of("GMT");
+    private static final String STARTUP_TIME = RFC_7231_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("GMT")));
 
     /**
      * Regular expression to test if a string matches the RFC7234 specification for warning headers. This pattern assumes that the warn code
@@ -339,7 +338,9 @@ public class DeprecationLogger {
      * @return a warning value formatted according to RFC 7234
      */
     public static String formatWarning(final String s) {
-        return String.format(Locale.ROOT, WARNING_FORMAT, escapeAndEncode(s), RFC_7231_DATE_TIME.format(ZonedDateTime.now(GMT)));
+        return WARNING_PREFIX + " "
+                + "\"" + escapeAndEncode(s) + "\"" + " "
+                + "\"" + STARTUP_TIME + "\"";
     }
 
     /**
@@ -359,7 +360,31 @@ public class DeprecationLogger {
      * @return the escaped string
      */
     static String escapeBackslashesAndQuotes(final String s) {
-        return s.replaceAll("([\"\\\\])", "\\\\$1");
+        /*
+         * We want a fast path check to avoid creating the string builder and copying characters if needed. So we walk the string looking
+         * for either of the characters that we need to escape. If we find a character that needs escaping, we start over and
+         */
+        boolean escapingNeeded = false;
+        for (int i = 0; i < s.length(); i++) {
+            final char c = s.charAt(i);
+            if (c == '\\' || c == '"') {
+                escapingNeeded = true;
+                break;
+            }
+        }
+
+        if (escapingNeeded) {
+            final StringBuilder sb = new StringBuilder();
+            for (final char c : s.toCharArray()) {
+                if (c == '\\' || c == '"') {
+                    sb.append("\\");
+                }
+                sb.append(c);
+            }
+            return sb.toString();
+        } else {
+            return s;
+        }
     }
 
     private static BitSet doesNotNeedEncoding;
@@ -384,7 +409,7 @@ public class DeprecationLogger {
         for (int i = 0x80; i <= 0xFF; i++) {
             doesNotNeedEncoding.set(i);
         }
-        assert !doesNotNeedEncoding.get('%');
+        assert doesNotNeedEncoding.get('%') == false : doesNotNeedEncoding;
     }
 
     private static final Charset UTF_8 = Charset.forName("UTF-8");
@@ -396,8 +421,21 @@ public class DeprecationLogger {
      * @return the encoded string
      */
     static String encode(final String s) {
-        final StringBuilder sb = new StringBuilder(s.length());
+        // first check if the string needs any encoding; this is the fast path and we want to avoid creating a string builder and copying
         boolean encodingNeeded = false;
+        for (int i = 0; i < s.length(); i++) {
+            int current = s.charAt(i);
+            if (doesNotNeedEncoding.get(current) == false) {
+                encodingNeeded = true;
+                break;
+            }
+        }
+
+        if (encodingNeeded == false) {
+            return s;
+        }
+
+        final StringBuilder sb = new StringBuilder(s.length());
         for (int i = 0; i < s.length();) {
             int current = s.charAt(i);
             /*
@@ -420,10 +458,9 @@ public class DeprecationLogger {
                 for (int j = 0; j < bytes.length; j++) {
                     sb.append('%').append(hex(bytes[j] >> 4)).append(hex(bytes[j]));
                 }
-                encodingNeeded = true;
             }
         }
-        return encodingNeeded ? sb.toString() : s;
+        return sb.toString();
     }
 
     private static char hex(int b) {

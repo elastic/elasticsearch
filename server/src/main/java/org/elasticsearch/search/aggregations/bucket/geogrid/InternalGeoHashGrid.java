@@ -19,13 +19,10 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.geo.GeoHashUtils;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -45,110 +42,14 @@ import static java.util.Collections.unmodifiableList;
  * All geohashes in a grid are of the same precision and held internally as a single long
  * for efficiency's sake.
  */
-public class InternalGeoHashGrid extends InternalMultiBucketAggregation<InternalGeoHashGrid, InternalGeoHashGrid.Bucket> implements
+public class InternalGeoHashGrid extends InternalMultiBucketAggregation<InternalGeoHashGrid, GeoGridBucket> implements
         GeoHashGrid {
-    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements GeoHashGrid.Bucket, Comparable<Bucket> {
-
-        protected long geohashAsLong;
-        protected long docCount;
-        protected InternalAggregations aggregations;
-
-        Bucket(long geohashAsLong, long docCount, InternalAggregations aggregations) {
-            this.docCount = docCount;
-            this.aggregations = aggregations;
-            this.geohashAsLong = geohashAsLong;
-        }
-
-        /**
-         * Read from a stream.
-         */
-        private Bucket(StreamInput in) throws IOException {
-            geohashAsLong = in.readLong();
-            docCount = in.readVLong();
-            aggregations = InternalAggregations.readAggregations(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(geohashAsLong);
-            out.writeVLong(docCount);
-            aggregations.writeTo(out);
-        }
-
-        @Override
-        public String getKeyAsString() {
-            return GeoHashUtils.stringEncode(geohashAsLong);
-        }
-
-        @Override
-        public GeoPoint getKey() {
-            return GeoPoint.fromGeohash(geohashAsLong);
-        }
-
-        @Override
-        public long getDocCount() {
-            return docCount;
-        }
-
-        @Override
-        public Aggregations getAggregations() {
-            return aggregations;
-        }
-
-        @Override
-        public int compareTo(Bucket other) {
-            if (this.geohashAsLong > other.geohashAsLong) {
-                return 1;
-            }
-            if (this.geohashAsLong < other.geohashAsLong) {
-                return -1;
-            }
-            return 0;
-        }
-
-        public Bucket reduce(List<? extends Bucket> buckets, ReduceContext context) {
-            List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
-            long docCount = 0;
-            for (Bucket bucket : buckets) {
-                docCount += bucket.docCount;
-                aggregationsList.add(bucket.aggregations);
-            }
-            final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
-            return new Bucket(geohashAsLong, docCount, aggs);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(CommonFields.KEY.getPreferredName(), getKeyAsString());
-            builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
-            aggregations.toXContentInternal(builder, params);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Bucket bucket = (Bucket) o;
-            return geohashAsLong == bucket.geohashAsLong &&
-                docCount == bucket.docCount &&
-                Objects.equals(aggregations, bucket.aggregations);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(geohashAsLong, docCount, aggregations);
-        }
-
-    }
 
     private final int requiredSize;
-    private final List<Bucket> buckets;
+    private final List<GeoGridBucket> buckets;
 
-    InternalGeoHashGrid(String name, int requiredSize, List<Bucket> buckets, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
+    InternalGeoHashGrid(String name, int requiredSize, List<GeoGridBucket> buckets, List<PipelineAggregator> pipelineAggregators,
+                        Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.requiredSize = requiredSize;
         this.buckets = buckets;
@@ -160,7 +61,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
     public InternalGeoHashGrid(StreamInput in) throws IOException {
         super(in);
         requiredSize = readSize(in);
-        buckets = in.readList(Bucket::new);
+        buckets = in.readList(GeoGridBucket::new);
     }
 
     @Override
@@ -175,30 +76,30 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
     }
 
     @Override
-    public InternalGeoHashGrid create(List<Bucket> buckets) {
+    public InternalGeoHashGrid create(List<GeoGridBucket> buckets) {
         return new InternalGeoHashGrid(this.name, this.requiredSize, buckets, this.pipelineAggregators(), this.metaData);
     }
 
     @Override
-    public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
-        return new Bucket(prototype.geohashAsLong, prototype.docCount, aggregations);
+    public GeoGridBucket createBucket(InternalAggregations aggregations, GeoGridBucket prototype) {
+        return new GeoGridBucket(prototype.geohashAsLong, prototype.docCount, aggregations);
     }
 
     @Override
-    public List<InternalGeoHashGrid.Bucket> getBuckets() {
+    public List<GeoGridBucket> getBuckets() {
         return unmodifiableList(buckets);
     }
 
     @Override
     public InternalGeoHashGrid doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        LongObjectPagedHashMap<List<Bucket>> buckets = null;
+        LongObjectPagedHashMap<List<GeoGridBucket>> buckets = null;
         for (InternalAggregation aggregation : aggregations) {
             InternalGeoHashGrid grid = (InternalGeoHashGrid) aggregation;
             if (buckets == null) {
                 buckets = new LongObjectPagedHashMap<>(grid.buckets.size(), reduceContext.bigArrays());
             }
-            for (Bucket bucket : grid.buckets) {
-                List<Bucket> existingBuckets = buckets.get(bucket.geohashAsLong);
+            for (GeoGridBucket bucket : grid.buckets) {
+                List<GeoGridBucket> existingBuckets = buckets.get(bucket.geohashAsLong);
                 if (existingBuckets == null) {
                     existingBuckets = new ArrayList<>(aggregations.size());
                     buckets.put(bucket.geohashAsLong, existingBuckets);
@@ -209,9 +110,9 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
 
         final int size = Math.toIntExact(reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size()));
         BucketPriorityQueue ordered = new BucketPriorityQueue(size);
-        for (LongObjectPagedHashMap.Cursor<List<Bucket>> cursor : buckets) {
-            List<Bucket> sameCellBuckets = cursor.value;
-            Bucket removed = ordered.insertWithOverflow(sameCellBuckets.get(0).reduce(sameCellBuckets, reduceContext));
+        for (LongObjectPagedHashMap.Cursor<List<GeoGridBucket>> cursor : buckets) {
+            List<GeoGridBucket> sameCellBuckets = cursor.value;
+            GeoGridBucket removed = ordered.insertWithOverflow(sameCellBuckets.get(0).reduce(sameCellBuckets, reduceContext));
             if (removed != null) {
                 reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
             } else {
@@ -219,7 +120,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
             }
         }
         buckets.close();
-        Bucket[] list = new Bucket[ordered.size()];
+        GeoGridBucket[] list = new GeoGridBucket[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; i--) {
             list[i] = ordered.pop();
         }
@@ -229,7 +130,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
-        for (Bucket bucket : buckets) {
+        for (GeoGridBucket bucket : buckets) {
             bucket.toXContent(builder, params);
         }
         builder.endArray();
@@ -253,14 +154,14 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
             Objects.equals(buckets, other.buckets);
     }
 
-    static class BucketPriorityQueue extends PriorityQueue<Bucket> {
+    static class BucketPriorityQueue extends PriorityQueue<GeoGridBucket> {
 
         BucketPriorityQueue(int size) {
             super(size);
         }
 
         @Override
-        protected boolean lessThan(Bucket o1, Bucket o2) {
+        protected boolean lessThan(GeoGridBucket o1, GeoGridBucket o2) {
             int cmp = Long.compare(o2.getDocCount(), o1.getDocCount());
             if (cmp == 0) {
                 cmp = o2.compareTo(o1);

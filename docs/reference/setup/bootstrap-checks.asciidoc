@@ -21,6 +21,7 @@ Elasticsearch from running with incompatible settings. These checks are
 documented individually.
 
 [float]
+[[dev-vs-prod-mode]]
 === Development vs. production mode
 
 By default, Elasticsearch binds to loopback addresses for <<modules-http,HTTP>>

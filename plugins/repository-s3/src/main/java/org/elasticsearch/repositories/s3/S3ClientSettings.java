@@ -44,6 +44,8 @@ final class S3ClientSettings {
     // prefix for s3 client settings
     private static final String PREFIX = "s3.client.";
 
+    private static final String DEFAULT_CLIENT = "default";
+
     /** The access key (ie login id) for connecting to s3. */
     static final Setting.AffixSetting<SecureString> ACCESS_KEY_SETTING = Setting.affixKeySetting(PREFIX, "access_key",
         key -> SecureSetting.secureString(key, null));
@@ -147,48 +149,17 @@ final class S3ClientSettings {
      */
     S3ClientSettings refine(RepositoryMetaData metadata) {
         final Settings repoSettings = metadata.settings();
-        final String newEndpoint;
-        if (ENDPOINT_SETTING.exists(repoSettings)) {
-            newEndpoint = ENDPOINT_SETTING.get(repoSettings);
-        } else {
-            newEndpoint = endpoint;
-        }
-        final Protocol newProtocol;
-        if (PROTOCOL_SETTING.exists(repoSettings)) {
-            newProtocol = PROTOCOL_SETTING.get(repoSettings);
-        } else {
-            newProtocol = protocol;
-        }
-        final String newProxyHost;
-        if (PROXY_HOST_SETTING.exists(repoSettings)) {
-            newProxyHost = PROXY_HOST_SETTING.get(repoSettings);
-        } else {
-            newProxyHost = proxyHost;
-        }
-        final int newProxyPort;
-        if (PROXY_PORT_SETTING.exists(repoSettings)) {
-            newProxyPort = PROXY_PORT_SETTING.get(repoSettings);
-        } else {
-            newProxyPort = proxyPort;
-        }
-        final int newReadTimeoutMillis;
-        if (READ_TIMEOUT_SETTING.exists(repoSettings)) {
-            newReadTimeoutMillis = Math.toIntExact(READ_TIMEOUT_SETTING.get(repoSettings).millis());
-        } else {
-            newReadTimeoutMillis = readTimeoutMillis;
-        }
-        final int newMaxRetries;
-        if (MAX_RETRIES_SETTING.exists(repoSettings)) {
-            newMaxRetries = MAX_RETRIES_SETTING.get(repoSettings);
-        } else {
-            newMaxRetries = maxRetries;
-        }
-        final boolean newThrottleRetries;
-        if (USE_THROTTLE_RETRIES_SETTING.exists(repoSettings)) {
-            newThrottleRetries = USE_THROTTLE_RETRIES_SETTING.get(repoSettings);
-        } else {
-            newThrottleRetries = throttleRetries;
-        }
+        final Settings normalizedSettings =
+            Settings.builder().put(repoSettings).normalizePrefix(PREFIX + DEFAULT_CLIENT + '.').build();
+        final String newEndpoint = getRepoSettingOrDefault(ENDPOINT_SETTING, normalizedSettings, endpoint);
+
+        final Protocol newProtocol = getRepoSettingOrDefault(PROTOCOL_SETTING, normalizedSettings, protocol);
+        final String newProxyHost = getRepoSettingOrDefault(PROXY_HOST_SETTING, normalizedSettings, proxyHost);
+        final int newProxyPort = getRepoSettingOrDefault(PROXY_PORT_SETTING, normalizedSettings, proxyPort);
+        final int newReadTimeoutMillis = Math.toIntExact(
+            getRepoSettingOrDefault(READ_TIMEOUT_SETTING, normalizedSettings, TimeValue.timeValueMillis(readTimeoutMillis)).millis());
+        final int newMaxRetries = getRepoSettingOrDefault(MAX_RETRIES_SETTING, normalizedSettings, maxRetries);
+        final boolean newThrottleRetries = getRepoSettingOrDefault(USE_THROTTLE_RETRIES_SETTING, normalizedSettings, throttleRetries);
         final S3BasicCredentials newCredentials;
         if (checkDeprecatedCredentials(repoSettings)) {
             newCredentials = loadDeprecatedCredentials(repoSettings);
@@ -333,5 +304,12 @@ final class S3ClientSettings {
                                         Setting.AffixSetting<T> clientSetting) {
         final Setting<T> concreteSetting = clientSetting.getConcreteSettingForNamespace(clientName);
         return concreteSetting.get(settings);
+    }
+
+    private static <T> T getRepoSettingOrDefault(Setting.AffixSetting<T> setting, Settings normalizedSettings, T defaultValue) {
+        if (setting.getConcreteSettingForNamespace(DEFAULT_CLIENT).exists(normalizedSettings)) {
+            return getConfigValue(normalizedSettings, DEFAULT_CLIENT, setting);
+        }
+        return defaultValue;
     }
 }

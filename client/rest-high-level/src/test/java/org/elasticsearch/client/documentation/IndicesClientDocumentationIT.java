@@ -2096,7 +2096,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             // tag::put-template-request-mappings-json
-            request.mapping("_doc",// <1>
+            request.mapping("_doc", // <1>
                 "{\n" +
                     "  \"_doc\": {\n" +
                     "    \"properties\": {\n" +

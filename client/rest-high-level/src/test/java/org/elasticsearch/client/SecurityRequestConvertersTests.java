@@ -397,7 +397,8 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         final List<String> indicesPrivilegeDeniedName = Arrays.asList(randomArray(3, String[]::new, () -> randomAlphaOfLength(5)));
         final String indicesPrivilegeQuery = randomAlphaOfLengthBetween(0, 7);
         final IndicesPrivileges indicesPrivilege = IndicesPrivileges.builder().indices(indicesName).privileges(indicesPrivilegeName)
-                .grantedFields(indicesPrivilegeGrantedName).deniedFields(indicesPrivilegeDeniedName).query(indicesPrivilegeQuery).build();
+                .allowRestrictedIndices(randomBoolean()).grantedFields(indicesPrivilegeGrantedName).deniedFields(indicesPrivilegeDeniedName)
+                .query(indicesPrivilegeQuery).build();
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
         final Map<String, String> expectedParams;
         if (refreshPolicy != RefreshPolicy.NONE) {

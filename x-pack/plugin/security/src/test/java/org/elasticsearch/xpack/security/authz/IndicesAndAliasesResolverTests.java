@@ -1371,7 +1371,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final Authentication authentication =
             new Authentication(user, new RealmRef("test", "indices-aliases-resolver-tests", "node"), null);
         authzService.roles(user, authentication, rolesListener);
-        return new AuthorizedIndices(user, rolesListener.actionGet(), action, metaData);
+        return new AuthorizedIndices(rolesListener.actionGet(), action, metaData);
     }
 
     public static IndexMetaData.Builder indexBuilder(String index) {

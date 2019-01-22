@@ -12,7 +12,7 @@ Also see <<breaking-changes-6.6>>.
 CCR::
 * Change get autofollow patterns API response format {pull}36203[#36203] (issue: {issue}36049[#36049])
 
-Features/Watcher::
+Watcher::
 * Fix metric stats names {pull}34951[#34951] (issue: {issue}34865[#34865])
 
 Ranking::
@@ -28,7 +28,7 @@ Search::
 [float]
 === Breaking Java changes
 
-Features/Java High Level REST Client::
+Java High Level REST Client::
 * HLRC XPack Protocol clean up: Migration; Graph; Watcher {pull}34639[#34639] (issue: {issue}34451[#34451])
 
 Infra/Core::
@@ -49,22 +49,22 @@ ZenDiscovery::
 Aggregations::
 * Deprecate dots in aggregation names {pull}31468[#31468] (issues: {issue}17600[#17600], {issue}19040[#19040])
 
-Features/Features::
+Features::
 * Deprecation info API: 'fix' value for index.shard.check_on_startup {pull}36458[#36458] (issues: {issue}33194[#33194], {issue}36024[#36024])
 * Deprecation info API: negative index.unassigned.node_left.delayed_timeout {pull}36454[#36454] (issues: {issue}26828[#26828], {issue}36024[#36024])
 
-Features/Watcher::
+Watcher::
 * Watcher deprecate notification service settings {pull}36403[#36403]
 * Undeprecate /_watcher endpoints {pull}36269[#36269]
 
-Infra/Core::
+Core::
 * Deprecate use of scientific notation in epoch time parsing {pull}36691[#36691]
 * Add backcompat for joda time formats {pull}36531[#36531]
 
-Infra/Scripting::
+Scripting::
 * Adds deprecation logging to ScriptDocValues#getValues. {pull}34279[#34279] (issue: {issue}22919[#22919])
 
-Infra/Settings::
+Settings::
 * Deprecate setting index.optimize_auto_generated_id in 6.x {pull}28862[#28862] (issue: {issue}27600[#27600])
 
 Mapping::
@@ -91,13 +91,13 @@ Analysis::
 * Add support for inlined user dictionary in Nori {pull}36123[#36123] (issue: {issue}35842[#35842])
 * Add a prebuilt ICU Analyzer {pull}34958[#34958] (issue: {issue}34285[#34285])
 
-Features/ILM::
+Index Lifecycle Management::
 * Adds Index lifecycle feature {pull}35193[#35193]
 
-Features/Java High Level REST Client::
+Java High Level REST Client::
 * Add rollup search {pull}36334[#36334] (issue: {issue}29827[#29827])
 
-Features/Java Low Level REST Client::
+Java Low Level REST Client::
 * Make warning behavior pluggable per request {pull}36345[#36345]
 * Add PreferHasAttributeNodeSelector {pull}36005[#36005]
 
@@ -191,7 +191,7 @@ Engine::
 * Add IndexShardOperationPermits.asyncBlockOperations(ActionListener<Releasable>) {pull}34902[#34902] (issue: {issue}33888[#33888])
 * Add a frozen engine implementation {pull}34357[#34357] (issue: {issue}34352[#34352])
 
-Features/Features::
+Features::
 * Deprecation check for discovery configuration {pull}36666[#36666] (issue: {issue}36024[#36024])
 * Simplify deprecation issue levels {pull}36326[#36326]
 * Deprecation check for tribe node {pull}36240[#36240] (issue: {issue}36024[#36024])
@@ -205,11 +205,11 @@ Features/Features::
 * Deprecation check for http.enabled setting {pull}36394[#36394] (issues: {issue}29601[#29601], {issue}36024[#36024])
 * Deprecation check for File Discovery plugin {pull}36190[#36190] (issue: {issue}36024[#36024])
 
-Features/Ingest::
+Ingest::
 * Make the ingest-geoip databases even lazier to load {pull}36679[#36679]
 * ingest: grok fix duplicate patterns JAVACLASS and JAVAFILE  {pull}35886[#35886]
 
-Features/Java High Level REST Client::
+Java High Level REST Client::
 * Add HLRC support for pause follow API {pull}35216[#35216] (issue: {issue}33824[#33824])
 * Add security Create Token API {pull}34791[#34791]
 * Add start rollup job support to HL REST Client {pull}34623[#34623] (issue: {issue}29827[#29827])
@@ -277,14 +277,14 @@ Features/Java High Level REST Client::
 * HLRC API for _termvectors {pull}33447[#33447] (issue: {issue}27205[#27205])
 * Add support for get license basic/trial status API {pull}33176[#33176] (issue: {issue}29827[#29827])
 
-Features/Java Low Level REST Client::
+Java Low Level REST Client::
 * On retry timeout add root exception {pull}25576[#25576]
 
-Features/Monitoring::
+Monitoring::
 * Make Exporters Async {pull}35765[#35765] (issue: {issue}35743[#35743])
 * Add cluster metadata to cluster_stats docs (#33860) {pull}34023[#34023] (issues: {issue}33860[#33860], {issue}34040[#34040])
 
-Features/Stats::
+Stats::
 * Handle OS pretty name on old OS without OS release {pull}35453[#35453] (issue: {issue}35440[#35440])
 * Add more detailed OS name on Linux {pull}35352[#35352]
 
@@ -292,26 +292,26 @@ Geo::
 * Adds a name of the field to geopoint parsing errors {pull}36529[#36529] (issue: {issue}15965[#15965])
 * Add support to ShapeBuilders for building Lucene geometry {pull}35707[#35707] (issue: {issue}35320[#35320])
 
-Infra/Build::
+Build::
 * Sounds like typo in exception message {pull}35458[#35458]
 * Improve validation of yaml suites {pull}34957[#34957] (issue: {issue}34735[#34735])
 * Enforce skip headers when needed {pull}34735[#34735] (issue: {issue}34650[#34650])
 * Improve validation of do sections {pull}34734[#34734] (issue: {issue}34651[#34651])
 
-Infra/Core::
+Core::
 * Override the JVM DNS cache policy {pull}36570[#36570]
 * Added wait_for_metadata_version parameter to cluster state api. {pull}35535[#35535]
 * Extract RunOnce into a dedicated class {pull}35489[#35489]
 
-Infra/Packaging::
+Packaging::
 * Introduce Docker images build {pull}36246[#36246]
 * Move creation of temporary directory to Java {pull}36002[#36002] (issue: {issue}31003[#31003])
 * Update procrun executables to version 1.1.0 {pull}35147[#35147]
 
-Infra/Plugins::
+Plugins::
 * Plugin install: don't print download progress in batch mode {pull}36361[#36361]
 
-Infra/Scripting::
+Scripting::
 * Update joda compat methods to use compat class {pull}36654[#36654]
 * [Painless] Add boxed type to boxed type casts for method/return {pull}36571[#36571]
 * [Painless] Add def to boxed type casts {pull}36506[#36506]
@@ -431,7 +431,7 @@ Authentication::
 * Fix NPE in CachingUsernamePasswordRealm {pull}36953[#36953] (issue: {issue}36951[#36951])
 * Add support for Kerberos V5 Oid {pull}35764[#35764] (issue: {issue}34763[#34763])
 
-CCR::
+Cross Cluster Replication::
 * Add fatal_exception field for ccr stats in monitoring mapping {pull}37563[#37563]
 * When removing an AutoFollower also mark it as removed. {pull}37402[#37402] (issue: {issue}36761[#36761])
 * Make shard follow tasks more resilient for restarts {pull}37239[#37239] (issue: {issue}37231[#37231])
@@ -459,27 +459,27 @@ Engine::
 * Wrap can_match reader with ElasticsearchDirectoryReader {pull}35857[#35857]
 * Copy checkpoint atomically when rolling generation {pull}35407[#35407]
 
-Features/Features::
+Features::
 * Handle Null in FetchSourceContext#fetchSource {pull}36839[#36839] (issue: {issue}29293[#29293])
 
-Features/ILM::
+ILM::
 * Remove `indexing_complete` when removing policy {pull}36620[#36620]
 
-Features/Index APIs::
+Index APIs::
 * Fix duplicate phrase in shrink/split error message {pull}36734[#36734] (issue: {issue}36729[#36729])
 * Make XContentBuilder in AliasActions build `is_write_index` field {pull}35071[#35071]
 * Raise a 404 exception when document source is not found (#33384) {pull}34083[#34083] (issue: {issue}33384[#33384])
 
-Features/Ingest::
+Ingest::
 * Fix on_failure with Drop processor {pull}36686[#36686] (issue: {issue}36151[#36151])
 * Support default pipelines + bulk upserts {pull}36618[#36618] (issue: {issue}36219[#36219])
 * Support default pipeline through an alias {pull}36231[#36231] (issue: {issue}35817[#35817])
 * Dot_expander_processor prevent null add/append to source document {pull}35106[#35106]
 
-Features/Monitoring::
+Monitoring::
 * Add missing error type mapping for apm-server {pull}36178[#36178] (issue: {issue}1614[#1614])
 
-Features/Watcher::
+Watcher::
 * Watcher accounts constructed lazily {pull}36656[#36656]
 * Only trigger a watch if new or schedule/changed {pull}35908[#35908]
 * Fix Watcher NotificationService's secure settings {pull}35610[#35610] (issue: {issue}35378[#35378])
@@ -491,26 +491,26 @@ Geo::
 * Enables coerce support in WKT polygon parser {pull}35414[#35414] (issue: {issue}35059[#35059])
 * Further improve robustness of geo shape parser for malformed shapes {pull}34498[#34498] (issues: {issue}31449[#31449], {issue}34047[#34047])
 
-Infra/Build::
+Build::
 * Use explicit deps on test tasks for check {pull}36325[#36325]
 * Fix jdbc jar pom to not include deps {pull}36036[#36036] (issue: {issue}32014[#32014])
 * Fix official plugins list {pull}35661[#35661] (issue: {issue}35623[#35623])
 
-Infra/Circuit Breakers::
+Circuit Breakers::
 * Modify `BigArrays` to take name of circuit breaker {pull}36461[#36461] (issue: {issue}31435[#31435])
 
-Infra/Core::
+Core::
 * Revert back to joda's multi date formatters {pull}36814[#36814] (issues: {issue}36447[#36447], {issue}36602[#36602])
 * Fix CompositeBytesReference#slice to not throw AIOOBE with legal offsets. {pull}35955[#35955] (issue: {issue}35950[#35950])
 * Suppress CachedTimeThread in hot threads output {pull}35558[#35558] (issue: {issue}23175[#23175])
 * Upgrade to Joda 2.10.1 {pull}35410[#35410] (issue: {issue}33749[#33749])
 * XContent: Check for bad parsers {pull}34561[#34561] (issue: {issue}34351[#34351])
 
-Infra/Packaging::
+Packaging::
 * Fix error message when package install fails due to missing Java {pull}36077[#36077] (issue: {issue}31845[#31845])
 * Add missing entries to conffiles  {pull}35810[#35810] (issue: {issue}35691[#35691])
 
-Infra/Scripting::
+Scripting::
 * Properly support no-offset date formatting {pull}36316[#36316] (issue: {issue}36306[#36306])
 * [Painless] Generate Bridge Methods {pull}36097[#36097]
 * Fix serialization bug in painless execute api request {pull}36075[#36075] (issue: {issue}36050[#36050])
@@ -519,7 +519,7 @@ Infra/Scripting::
 * [Painless] Partially fixes def boxed types casting {pull}35563[#35563] (issue: {issue}35351[#35351])
 * Add back lookup vars in score script {pull}34833[#34833]
 
-Infra/Settings::
+Settings::
 * Fix setting by time unit {pull}37192[#37192]
 * Fix handling of fractional byte size value settings {pull}37172[#37172]
 * Fix handling of fractional time value settings {pull}37171[#37171]
@@ -617,7 +617,7 @@ Snapshot/Restore::
 [float]
 === Regressions
 
-Infra/Scripting::
+Scripting::
 * Use Number as a return value for BucketAggregationScript {pull}35653[#35653] (issue: {issue}35351[#35351])
 
 

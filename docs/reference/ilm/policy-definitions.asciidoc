@@ -646,6 +646,17 @@ into a regular index. This can be desired when moving follower
 indices into the next phase. Also certain actions like shrink
 and rollover can then be performed safely on follower indices.
 
+This action will wait until is it safe to convert a follower index into a
+regular index. In particular, the following conditions must be met:
+
+* The leader index must have `index.lifecycle.indexing_complete` set to `true`.
+This happens automatically if the leader index is rolled over using
+<<ilm-rollover-action,the Rollover action>>, or may be set manually using
+theIndex Settings API.
+* All operations performed on the leader index must have been replicated to the
+follower index. This ensures that no operations will be lost when the index is
+converted into a regular index.
+
 If the unfollow action encounters a follower index then
 the following operations will be performed on it:
 

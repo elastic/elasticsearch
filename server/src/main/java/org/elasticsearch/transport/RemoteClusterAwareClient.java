@@ -45,20 +45,18 @@ final class RemoteClusterAwareClient extends AbstractClient {
     @Override
     protected <Request extends ActionRequest, Response extends ActionResponse>
     void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
-        // in case we have no connected nodes we try to connect and if we fail we either notify the listener
-        // or not depending on the skip_unavailable setting and whether a CCSActionListener was provided
         remoteClusterService.ensureConnected(clusterAlias, ActionListener.wrap(res -> {
-                Transport.Connection connection;
-                if (request instanceof RemoteClusterAwareRequest) {
-                    DiscoveryNode preferredTargetNode = ((RemoteClusterAwareRequest) request).getPreferredTargetNode();
-                    connection = remoteClusterService.getConnection(preferredTargetNode, clusterAlias);
-                } else {
-                    connection = remoteClusterService.getConnection(clusterAlias);
-                }
-                service.sendRequest(connection, action.name(), request, TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(listener, action.getResponseReader()));
-            },
-            listener::onFailure));
+            Transport.Connection connection;
+            if (request instanceof RemoteClusterAwareRequest) {
+                DiscoveryNode preferredTargetNode = ((RemoteClusterAwareRequest) request).getPreferredTargetNode();
+                connection = remoteClusterService.getConnection(preferredTargetNode, clusterAlias);
+            } else {
+                connection = remoteClusterService.getConnection(clusterAlias);
+            }
+            service.sendRequest(connection, action.name(), request, TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(listener, action.getResponseReader()));
+        },
+        listener::onFailure));
     }
 
     @Override

@@ -10,7 +10,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.sql.action.CliFormatter;
+import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.RowSet;
@@ -21,31 +21,31 @@ import java.util.Objects;
 /**
  * The cursor that wraps all necessary information for textual representation of the result table
  */
-public class CliFormatterCursor implements Cursor {
+public class TextFormatterCursor implements Cursor {
     public static final String NAME = "f";
 
     private final Cursor delegate;
-    private final CliFormatter formatter;
+    private final BasicFormatter formatter;
 
     /**
      * If the newCursor is empty, returns an empty cursor. Otherwise, creates a new
-     * CliFormatterCursor that wraps the newCursor.
+     * TextFormatterCursor that wraps the newCursor.
      */
-    public static Cursor wrap(Cursor newCursor, CliFormatter formatter) {
+    public static Cursor wrap(Cursor newCursor, BasicFormatter formatter) {
         if (newCursor == EMPTY) {
             return EMPTY;
         }
-        return new CliFormatterCursor(newCursor, formatter);
+        return new TextFormatterCursor(newCursor, formatter);
     }
 
-    private CliFormatterCursor(Cursor delegate, CliFormatter formatter) {
+    private TextFormatterCursor(Cursor delegate, BasicFormatter formatter) {
         this.delegate = delegate;
         this.formatter = formatter;
     }
 
-    public CliFormatterCursor(StreamInput in) throws IOException {
+    public TextFormatterCursor(StreamInput in) throws IOException {
         delegate = in.readNamedWriteable(Cursor.class);
-        formatter = new CliFormatter(in);
+        formatter = new BasicFormatter(in);
     }
 
     @Override
@@ -54,7 +54,7 @@ public class CliFormatterCursor implements Cursor {
         formatter.writeTo(out);
     }
 
-    public CliFormatter getCliFormatter() {
+    public BasicFormatter getFormatter() {
         return formatter;
     }
 
@@ -81,7 +81,7 @@ public class CliFormatterCursor implements Cursor {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        CliFormatterCursor that = (CliFormatterCursor) o;
+        TextFormatterCursor that = (TextFormatterCursor) o;
         return Objects.equals(delegate, that.delegate) &&
                 Objects.equals(formatter, that.formatter);
     }

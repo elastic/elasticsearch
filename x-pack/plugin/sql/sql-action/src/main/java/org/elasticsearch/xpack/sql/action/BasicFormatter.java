@@ -14,26 +14,46 @@ import org.elasticsearch.xpack.sql.proto.StringUtils;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Function;
 
 /**
- * Formats {@link SqlQueryResponse} for the CLI. {@linkplain Writeable} so
+ * Formats {@link SqlQueryResponse} for the CLI and for the TEXT format. {@linkplain Writeable} so
  * that its state can be saved between pages of results.
  */
-public class CliFormatter implements Writeable {
+public class BasicFormatter implements Writeable {
     /**
      * The minimum width for any column in the formatted results.
      */
     private static final int MIN_COLUMN_WIDTH = 15;
 
     private int[] width;
+    
+    public enum FormatOption {
+        CLI(Objects::toString),
+        TEXT(StringUtils::toString);
+
+        private final Function<Object, String> apply;
+
+        FormatOption(Function<Object, String> apply) {
+            this.apply = l -> l == null ? null : apply.apply(l);
+        }
+
+        public final String apply(Object l) {
+            return apply.apply(l);
+        }
+    }
+    
+    private final FormatOption formatOption;
 
     /**
-     * Create a new {@linkplain CliFormatter} for formatting responses similar
+     * Create a new {@linkplain BasicFormatter} for formatting responses similar
      * to the provided columns and rows.
      */
-    public CliFormatter(List<ColumnInfo> columns, List<List<Object>> rows) {
+    public BasicFormatter(List<ColumnInfo> columns, List<List<Object>> rows, FormatOption formatOption) {
         // Figure out the column widths:
         // 1. Start with the widths of the column names
+        this.formatOption = formatOption;
         width = new int[columns.size()];
         for (int i = 0; i < width.length; i++) {
             // TODO read the width from the data type?
@@ -43,24 +63,24 @@ public class CliFormatter implements Writeable {
         // 2. Expand columns to fit the largest value
         for (List<Object> row : rows) {
             for (int i = 0; i < width.length; i++) {
-                // TODO are we sure toString is correct here? What about dates that come back as longs.
-                // Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/3081
-                width[i] = Math.max(width[i], StringUtils.toString(row.get(i)).length());
+                width[i] = Math.max(width[i], formatOption.apply(row.get(i)).length());
             }
         }
     }
 
-    public CliFormatter(StreamInput in) throws IOException {
+    public BasicFormatter(StreamInput in) throws IOException {
         width = in.readIntArray();
+        formatOption = in.readEnum(FormatOption.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeIntArray(width);
+        out.writeEnum(formatOption);
     }
-
+    
     /**
-     * Format the provided {@linkplain SqlQueryResponse} for the CLI
+     * Format the provided {@linkplain SqlQueryResponse} for the set format
      * including the header lines.
      */
     public String formatWithHeader(List<ColumnInfo> columns, List<List<Object>> rows) {
@@ -103,7 +123,7 @@ public class CliFormatter implements Writeable {
     }
 
     /**
-     * Format the provided {@linkplain SqlQueryResponse} for the CLI
+     * Format the provided {@linkplain SqlQueryResponse} for the set format
      * without the header lines.
      */
     public String formatWithoutHeader(List<List<Object>> rows) {
@@ -116,9 +136,7 @@ public class CliFormatter implements Writeable {
                 if (i > 0) {
                     sb.append('|');
                 }
-                // TODO are we sure toString is correct here? What about dates that come back as longs.
-                // Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/3081
-                String string = StringUtils.toString(row.get(i));
+                String string = formatOption.apply(row.get(i));
                 if (string.length() <= width[i]) {
                     // Pad
                     sb.append(string);
@@ -159,12 +177,12 @@ public class CliFormatter implements Writeable {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        CliFormatter that = (CliFormatter) o;
-        return Arrays.equals(width, that.width);
+        BasicFormatter that = (BasicFormatter) o;
+        return Arrays.equals(width, that.width) && formatOption == that.formatOption;
     }
 
     @Override
     public int hashCode() {
-        return Arrays.hashCode(width);
+        return Objects.hash(width, formatOption);
     }
 }

@@ -133,7 +133,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         assertThat(client().admin().cluster().prepareState().setIndices("not-found").get().getState().metaData().version(),
             equalTo(metadataVersion));
         assertThat(client().admin().cluster().prepareState().clear().setMetaData(false).get().getState().metaData().version(),
-            equalTo(metadataVersion));
+            equalTo(0L));
     }
 
     public void testIndexTemplates() throws Exception {

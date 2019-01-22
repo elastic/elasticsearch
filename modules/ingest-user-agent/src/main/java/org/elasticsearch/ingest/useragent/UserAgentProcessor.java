@@ -19,6 +19,8 @@
 
 package org.elasticsearch.ingest.useragent;
 
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -47,15 +49,17 @@ public class UserAgentProcessor extends AbstractProcessor {
     private final Set<Property> properties;
     private final UserAgentParser parser;
     private final boolean ignoreMissing;
+    private final boolean useECS;
 
     public UserAgentProcessor(String tag, String field, String targetField, UserAgentParser parser, Set<Property> properties,
-                              boolean ignoreMissing) {
+                              boolean ignoreMissing, boolean useECS) {
         super(tag);
         this.field = field;
         this.targetField = targetField;
         this.parser = parser;
         this.properties = properties;
         this.ignoreMissing = ignoreMissing;
+        this.useECS = useECS;
     }
 
     boolean isIgnoreMissing() {
@@ -63,7 +67,7 @@ public class UserAgentProcessor extends AbstractProcessor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+    public IngestDocument execute(IngestDocument ingestDocument) {
         String userAgent = ingestDocument.getFieldValue(field, String.class, ignoreMissing);
 
         if (userAgent == null && ignoreMissing) {
@@ -75,71 +79,134 @@ public class UserAgentProcessor extends AbstractProcessor {
         Details uaClient = parser.parse(userAgent);
 
         Map<String, Object> uaDetails = new HashMap<>();
-        for (Property property : this.properties) {
-            switch (property) {
-                case NAME:
-                    if (uaClient.userAgent != null && uaClient.userAgent.name != null) {
-                        uaDetails.put("name", uaClient.userAgent.name);
-                    }
-                    else {
-                        uaDetails.put("name", "Other");
-                    }
-                    break;
-                case MAJOR:
-                    if (uaClient.userAgent != null && uaClient.userAgent.major != null) {
-                        uaDetails.put("major", uaClient.userAgent.major);
-                    }
-                    break;
-                case MINOR:
-                    if (uaClient.userAgent != null && uaClient.userAgent.minor != null) {
-                        uaDetails.put("minor", uaClient.userAgent.minor);
-                    }
-                    break;
-                case PATCH:
-                    if (uaClient.userAgent != null && uaClient.userAgent.patch != null) {
-                        uaDetails.put("patch", uaClient.userAgent.patch);
-                    }
-                    break;
-                case BUILD:
-                    if (uaClient.userAgent != null && uaClient.userAgent.build != null) {
-                        uaDetails.put("build", uaClient.userAgent.build);
-                    }
-                    break;
-                case OS:
-                    if (uaClient.operatingSystem != null) {
-                        uaDetails.put("os", buildFullOSName(uaClient.operatingSystem));
-                    }
-                    else {
-                        uaDetails.put("os", "Other");
-                    }
 
-                    break;
-                case OS_NAME:
-                    if (uaClient.operatingSystem != null && uaClient.operatingSystem.name != null) {
-                        uaDetails.put("os_name", uaClient.operatingSystem.name);
-                    }
-                    else {
-                        uaDetails.put("os_name", "Other");
-                    }
-                    break;
-                case OS_MAJOR:
-                    if (uaClient.operatingSystem != null && uaClient.operatingSystem.major != null) {
-                        uaDetails.put("os_major", uaClient.operatingSystem.major);
-                    }
-                    break;
-                case OS_MINOR:
-                    if (uaClient.operatingSystem != null && uaClient.operatingSystem.minor != null) {
-                        uaDetails.put("os_minor", uaClient.operatingSystem.minor);
-                    }
-                    break;
-                case DEVICE:
-                    if (uaClient.device != null && uaClient.device.name != null) {
-                        uaDetails.put("device", uaClient.device.name);
-                    }
-                    else {
-                        uaDetails.put("device", "Other");
-                    }
-                    break;
+        if (useECS) {
+            // Parse the user agent in the ECS (Elastic Common Schema) format
+            for (Property property : this.properties) {
+                switch (property) {
+                    case ORIGINAL:
+                        uaDetails.put("original", userAgent);
+                        break;
+                    case NAME:
+                        if (uaClient.userAgent != null && uaClient.userAgent.name != null) {
+                            uaDetails.put("name", uaClient.userAgent.name);
+                        } else {
+                            uaDetails.put("name", "Other");
+                        }
+                        break;
+                    case VERSION:
+                        StringBuilder version = new StringBuilder();
+                        if (uaClient.userAgent != null && uaClient.userAgent.major != null) {
+                            version.append(uaClient.userAgent.major);
+                            if (uaClient.userAgent.minor != null) {
+                                version.append(".").append(uaClient.userAgent.minor);
+                                if (uaClient.userAgent.patch != null) {
+                                    version.append(".").append(uaClient.userAgent.patch);
+                                    if (uaClient.userAgent.build != null) {
+                                        version.append(".").append(uaClient.userAgent.build);
+                                    }
+                                }
+                            }
+                            uaDetails.put("version", version.toString());
+                        }
+                        break;
+                    case OS:
+                        if (uaClient.operatingSystem != null) {
+                            Map<String, String> osDetails = new HashMap<>(3);
+                            if (uaClient.operatingSystem.name != null) {
+                                osDetails.put("name", uaClient.operatingSystem.name);
+                                StringBuilder sb = new StringBuilder();
+                                if (uaClient.operatingSystem.major != null) {
+                                    sb.append(uaClient.operatingSystem.major);
+                                    if (uaClient.operatingSystem.minor != null) {
+                                        sb.append(".").append(uaClient.operatingSystem.minor);
+                                        if (uaClient.operatingSystem.patch != null) {
+                                            sb.append(".").append(uaClient.operatingSystem.patch);
+                                            if (uaClient.operatingSystem.build != null) {
+                                                sb.append(".").append(uaClient.operatingSystem.build);
+                                            }
+                                        }
+                                    }
+                                    osDetails.put("version", sb.toString());
+                                    osDetails.put("full", uaClient.operatingSystem.name + " " + sb.toString());
+                                }
+                                uaDetails.put("os", osDetails);
+                            }
+                        }
+                        break;
+                    case DEVICE:
+                        if (uaClient.device != null && uaClient.device.name != null) {
+                            uaDetails.put("device", uaClient.device.name);
+                        } else {
+                            uaDetails.put("device", "Other");
+                        }
+                        break;
+                }
+            }
+        } else {
+            // Deprecated format, removed in 7.0
+            for (Property property : this.properties) {
+                switch (property) {
+                    case NAME:
+                        if (uaClient.userAgent != null && uaClient.userAgent.name != null) {
+                            uaDetails.put("name", uaClient.userAgent.name);
+                        } else {
+                            uaDetails.put("name", "Other");
+                        }
+                        break;
+                    case MAJOR:
+                        if (uaClient.userAgent != null && uaClient.userAgent.major != null) {
+                            uaDetails.put("major", uaClient.userAgent.major);
+                        }
+                        break;
+                    case MINOR:
+                        if (uaClient.userAgent != null && uaClient.userAgent.minor != null) {
+                            uaDetails.put("minor", uaClient.userAgent.minor);
+                        }
+                        break;
+                    case PATCH:
+                        if (uaClient.userAgent != null && uaClient.userAgent.patch != null) {
+                            uaDetails.put("patch", uaClient.userAgent.patch);
+                        }
+                        break;
+                    case BUILD:
+                        if (uaClient.userAgent != null && uaClient.userAgent.build != null) {
+                            uaDetails.put("build", uaClient.userAgent.build);
+                        }
+                        break;
+                    case OS:
+                        if (uaClient.operatingSystem != null) {
+                            uaDetails.put("os", buildFullOSName(uaClient.operatingSystem));
+                        } else {
+                            uaDetails.put("os", "Other");
+                        }
+
+                        break;
+                    case OS_NAME:
+                        if (uaClient.operatingSystem != null && uaClient.operatingSystem.name != null) {
+                            uaDetails.put("os_name", uaClient.operatingSystem.name);
+                        } else {
+                            uaDetails.put("os_name", "Other");
+                        }
+                        break;
+                    case OS_MAJOR:
+                        if (uaClient.operatingSystem != null && uaClient.operatingSystem.major != null) {
+                            uaDetails.put("os_major", uaClient.operatingSystem.major);
+                        }
+                        break;
+                    case OS_MINOR:
+                        if (uaClient.operatingSystem != null && uaClient.operatingSystem.minor != null) {
+                            uaDetails.put("os_minor", uaClient.operatingSystem.minor);
+                        }
+                        break;
+                    case DEVICE:
+                        if (uaClient.device != null && uaClient.device.name != null) {
+                            uaDetails.put("device", uaClient.device.name);
+                        } else {
+                            uaDetails.put("device", "Other");
+                        }
+                        break;
+                }
             }
         }
 
@@ -199,7 +266,13 @@ public class UserAgentProcessor extends AbstractProcessor {
         return parser;
     }
 
+    public boolean isUseECS() {
+        return useECS;
+    }
+
     public static final class Factory implements Processor.Factory {
+
+        private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(UserAgentProcessor.class));
 
         private final Map<String, UserAgentParser> userAgentParsers;
 
@@ -215,6 +288,7 @@ public class UserAgentProcessor extends AbstractProcessor {
             String regexFilename = readStringProperty(TYPE, processorTag, config, "regex_file", IngestUserAgentPlugin.DEFAULT_PARSER_NAME);
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
+            boolean useECS = readBooleanProperty(TYPE, processorTag, config, "ecs", false);
 
             UserAgentParser parser = userAgentParsers.get(regexFilename);
             if (parser == null) {
@@ -236,13 +310,31 @@ public class UserAgentProcessor extends AbstractProcessor {
                 properties = EnumSet.allOf(Property.class);
             }
 
-            return new UserAgentProcessor(processorTag, field, targetField, parser, properties, ignoreMissing);
+            if (useECS == false) {
+                deprecationLogger.deprecated("setting [ecs] to false for non-common schema " +
+                    "format is deprecated and will be removed in 7.0, set to true to use the non-deprecated format");
+            }
+
+            return new UserAgentProcessor(processorTag, field, targetField, parser, properties, ignoreMissing, useECS);
         }
     }
 
     enum Property {
 
-        NAME, MAJOR, MINOR, PATCH, OS, OS_NAME, OS_MAJOR, OS_MINOR, DEVICE, BUILD;
+        NAME,
+        // Deprecated in 6.7 (superceded by VERSION), to be removed in 7.0
+        @Deprecated MAJOR,
+        @Deprecated MINOR,
+        @Deprecated PATCH,
+        OS,
+        // Deprecated in 6.7 (superceded by just using OS), to be removed in 7.0
+        @Deprecated OS_NAME,
+        @Deprecated OS_MAJOR,
+        @Deprecated OS_MINOR,
+        DEVICE,
+        @Deprecated BUILD, // Same deprecated as OS_* above
+        ORIGINAL,
+        VERSION;
 
         public static Property parseProperty(String propertyName) {
             try {

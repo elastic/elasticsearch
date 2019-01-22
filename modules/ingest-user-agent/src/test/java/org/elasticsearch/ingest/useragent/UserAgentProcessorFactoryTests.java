@@ -78,6 +78,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
+        config.put("ecs", true);
 
         String processorTag = randomAlphaOfLength(10);
 
@@ -90,6 +91,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getUaParser().getDevicePatterns().size(), greaterThan(0));
         assertThat(processor.getProperties(), equalTo(EnumSet.allOf(UserAgentProcessor.Property.class)));
         assertFalse(processor.isIgnoreMissing());
+        assertTrue(processor.isUseECS());
     }
 
     public void testBuildWithIgnoreMissing() throws Exception {
@@ -98,6 +100,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("ignore_missing", true);
+        config.put("ecs", true);
 
         String processorTag = randomAlphaOfLength(10);
 
@@ -118,6 +121,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("target_field", "_target_field");
+        config.put("ecs", true);
 
         UserAgentProcessor processor = factory.create(null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
@@ -130,6 +134,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("regex_file", regexWithoutDevicesFilename);
+        config.put("ecs", true);
 
         UserAgentProcessor processor = factory.create(null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
@@ -164,6 +169,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("properties", fieldNames);
+        config.put("ecs", true);
 
         UserAgentProcessor processor = factory.create(null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
@@ -179,7 +185,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
 
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, config));
         assertThat(e.getMessage(), equalTo("[properties] illegal property value [invalid]. valid values are [NAME, MAJOR, MINOR, "
-                + "PATCH, OS, OS_NAME, OS_MAJOR, OS_MINOR, DEVICE, BUILD]"));
+                + "PATCH, OS, OS_NAME, OS_MAJOR, OS_MINOR, DEVICE, BUILD, ORIGINAL, VERSION]"));
     }
 
     public void testInvalidPropertiesType() throws Exception {

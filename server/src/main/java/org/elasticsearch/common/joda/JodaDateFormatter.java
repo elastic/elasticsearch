@@ -35,19 +35,13 @@ import java.util.Locale;
 public class JodaDateFormatter implements DateFormatter {
 
     final String pattern;
-    private final int year;
     final DateTimeFormatter parser;
     final DateTimeFormatter printer;
 
     JodaDateFormatter(String pattern, DateTimeFormatter parser, DateTimeFormatter printer) {
-        this(pattern, parser, printer, 1970);
-    }
-
-    private JodaDateFormatter(String pattern, DateTimeFormatter parser, DateTimeFormatter printer, int year) {
         this.pattern = pattern;
-        this.year = year;
-        this.printer = printer.withDefaultYear(year);
-        this.parser = parser.withDefaultYear(year);
+        this.printer = printer;
+        this.parser = parser;
     }
 
     @Override
@@ -72,7 +66,7 @@ public class JodaDateFormatter implements DateFormatter {
         }
         DateTimeFormatter parser = this.parser.withZone(timeZone);
         DateTimeFormatter printer = this.printer.withZone(timeZone);
-        return new JodaDateFormatter(pattern, parser, printer, year);
+        return new JodaDateFormatter(pattern, parser, printer);
     }
 
     @Override
@@ -82,7 +76,7 @@ public class JodaDateFormatter implements DateFormatter {
         }
         DateTimeFormatter parser = this.parser.withLocale(locale);
         DateTimeFormatter printer = this.printer.withLocale(locale);
-        return new JodaDateFormatter(pattern, parser, printer, year);
+        return new JodaDateFormatter(pattern, parser, printer);
     }
 
     @Override
@@ -101,10 +95,10 @@ public class JodaDateFormatter implements DateFormatter {
     }
 
     public JodaDateFormatter withYear(int year) {
-        if (this.year == year) {
+        if (parser.getDefaultYear() == year) {
             return this;
         }
-        return new JodaDateFormatter(pattern, parser, printer, year);
+        return new JodaDateFormatter(pattern, parser.withDefaultYear(year), printer.withDefaultYear(year));
     }
 
     @Override

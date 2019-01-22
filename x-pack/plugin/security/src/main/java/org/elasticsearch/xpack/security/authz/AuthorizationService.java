@@ -36,7 +36,9 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
@@ -47,13 +49,12 @@ import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
-import org.elasticsearch.xpack.security.authz.AuthorizationEngine.AsyncSupplier;
-import org.elasticsearch.xpack.security.authz.AuthorizationEngine.AuthorizationInfo;
-import org.elasticsearch.xpack.security.authz.AuthorizationEngine.AuthorizationResult;
-import org.elasticsearch.xpack.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
-import org.elasticsearch.xpack.security.authz.AuthorizationEngine.IndexAuthorizationResult;
-import org.elasticsearch.xpack.security.authz.AuthorizationEngine.RequestInfo;
-import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.ResolvedIndices;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AsyncSupplier;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationResult;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.IndexAuthorizationResult;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.util.ArrayList;
@@ -212,7 +213,7 @@ public class AuthorizationService {
                 authzEngine.loadAuthorizedIndices(requestInfo, authzInfo, metaData.getAliasAndIndexLookup(),
                     authzIndicesListener));
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>((resolvedIndicesListener) -> {
-                authorizedIndicesSupplier.get(ActionListener.wrap(authorizedIndices -> {
+                authorizedIndicesSupplier.getAsync(ActionListener.wrap(authorizedIndices -> {
                     resolveIndexNames(request, metaData, authorizedIndices, resolvedIndicesListener);
                 }, e -> {
                     if (e instanceof IndexNotFoundException) {
@@ -238,7 +239,7 @@ public class AuthorizationService {
                                 final RequestInfo aliasesRequestInfo = new RequestInfo(authentication, request, IndicesAliasesAction.NAME);
                                 authzEngine.authorizeIndexAction(aliasesRequestInfo, authzInfo,
                                     ril -> {
-                                        resolvedIndicesAsyncSupplier.get(ActionListener.wrap(resolvedIndices -> {
+                                        resolvedIndicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                                             List<String> aliasesAndIndices = new ArrayList<>(resolvedIndices.getLocal());
                                             for (Alias alias : aliases) {
                                                 aliasesAndIndices.add(alias.name());
@@ -383,8 +384,8 @@ public class AuthorizationService {
         // Maps action -> resolved indices set
         final Map<String, Set<String>> actionToIndicesMap = new HashMap<>();
 
-        authorizedIndicesSupplier.get(ActionListener.wrap(authorizedIndices -> {
-            resolvedIndicesAsyncSupplier.get(ActionListener.wrap(overallResolvedIndices -> {
+        authorizedIndicesSupplier.getAsync(ActionListener.wrap(authorizedIndices -> {
+            resolvedIndicesAsyncSupplier.getAsync(ActionListener.wrap(overallResolvedIndices -> {
                 final Set<String> localIndices = new HashSet<>(overallResolvedIndices.getLocal());
                 for (BulkItemRequest item : request.items()) {
                     String resolvedIndex = resolvedIndexNames.computeIfAbsent(item.index(), key -> {
@@ -541,9 +542,9 @@ public class AuthorizationService {
         }
 
         @Override
-        public synchronized void get(ActionListener<V> listener) {
+        public synchronized void getAsync(ActionListener<V> listener) {
             if (value == null) {
-                asyncSupplier.get(ActionListener.wrap(loaded -> {
+                asyncSupplier.getAsync(ActionListener.wrap(loaded -> {
                     value = loaded;
                     listener.onResponse(value);
                 }, listener::onFailure));

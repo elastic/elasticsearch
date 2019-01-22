@@ -79,6 +79,32 @@ that the tool was able to bootstrap master eligible node.
 them if you previously stopped them.
 8. Start more master eligible nodes to get desired level of fault-tolerance.
 
+[source, txt]
+----
+$ ./bin/elasticsearch-node unsafe-bootstrap -v
+-----------------------------------------------------------------------
+    WARNING: Elasticsearch MUST be stopped before running this tool.
+
+You should run this tool only if you've lost the majority of master eligible nodes.
+If you have a backup, restore from the backup instead.
+Running this tool should be the last resort.
+Running this tool may cause arbitrary data loss and may render your cluster completely non functional.
+Do you accept this risk?
+
+Confirm [y/N] y
+Checking node.master setting
+Obtaining lock for node
+Loading node metadata
+Current nodeId is Dtm_EDAQTo-2QmnWGmmYvg
+Loading manifest file
+Loading global metadata file
+New coordination metadata is constructed CoordinationMetaData{term=1, lastCommittedConfiguration=VotingConfiguration{Dtm_EDAQTo-2QmnWGmmYvg}, lastAcceptedConfiguration=VotingConfiguration{Dtm_EDAQTo-2QmnWGmmYvg}, votingConfigExclusions=[]}
+Writing new global metadata to disk
+Writing new manifest file to disk
+Cleaning up old metadata
+Master node was successfully bootstrapped
+----
+
 [WARNING]
 When you run the tool it will make sure that the node being bootstrapped is
 stopped. There is no way for this tool to understand if other master eligible

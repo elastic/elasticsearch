@@ -76,16 +76,6 @@ public abstract class DataTypeConversion {
         }
 
         // interval and dates
-        if (left == DATETIME) {
-            if (right == DATE || DataTypes.isInterval(right)) {
-                return left;
-            }
-        }
-        if (right == DATETIME) {
-            if (left == DATE || DataTypes.isInterval(left)) {
-                return right;
-            }
-        }
         if (left == DATE) {
             if (DataTypes.isInterval(right)) {
                 return left;
@@ -93,6 +83,16 @@ public abstract class DataTypeConversion {
         }
         if (right == DATE) {
             if (DataTypes.isInterval(left)) {
+                return right;
+            }
+        }
+        if (left == DATETIME) {
+            if (right == DATE || DataTypes.isInterval(right)) {
+                return left;
+            }
+        }
+        if (right == DATETIME) {
+            if (left == DATE || DataTypes.isInterval(left)) {
                 return right;
             }
         }
@@ -497,7 +497,7 @@ public abstract class DataTypeConversion {
         RATIONAL_TO_DATE(toDate(RATIONAL_TO_LONG)),
         INTEGER_TO_DATE(toDate(INTEGER_TO_LONG)),
         BOOL_TO_DATE(toDate(BOOL_TO_INT)),
-        STRING_TO_DATE(fromString(DateUtils::asDate, "date")),
+        STRING_TO_DATE(fromString(DateUtils::asDateOnly, "date")),
         DATETIME_TO_DATE(fromDatetimeToDate()),
 
         RATIONAL_TO_DATETIME(toDateTime(RATIONAL_TO_LONG)),
@@ -559,11 +559,11 @@ public abstract class DataTypeConversion {
         }
 
         private static Function<Object, Object> toDate(Conversion conversion) {
-            return l -> DateUtils.asDate(((Number) conversion.convert(l)).longValue());
+            return l -> DateUtils.asDateOnly(((Number) conversion.convert(l)).longValue());
         }
 
         private static Function<Object, Object> fromDatetimeToDate() {
-            return l -> DateUtils.asDate((ZonedDateTime) l);
+            return l -> DateUtils.asDateOnly((ZonedDateTime) l);
         }
 
         public Object convert(Object l) {

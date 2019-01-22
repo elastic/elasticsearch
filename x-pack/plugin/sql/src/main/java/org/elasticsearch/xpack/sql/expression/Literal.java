@@ -38,11 +38,7 @@ public class Literal extends NamedExpression {
     public Literal(Source source, String name, Object value, DataType dataType) {
         super(source, name == null ? source.text() : name, emptyList(), null);
         this.dataType = dataType;
-//        if (dataType == DATE) {
-//            this.value = value;
-//        } else {
-            this.value = DataTypeConversion.convert(value, dataType);
-//        }
+        this.value = DataTypeConversion.convert(value, dataType);
     }
 
     @Override

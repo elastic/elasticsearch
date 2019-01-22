@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
@@ -16,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.StringJoiner;
 import java.util.function.Predicate;
 
 import static java.lang.String.format;
@@ -173,11 +173,11 @@ public final class Expressions {
         return typeMustBe(e, DataType::isString, operationName, paramOrd, "string");
     }
 
-    public static TypeResolution typeMustBeDateOrDateTime(Expression e, String operationName, ParamOrdinal paramOrd) {
+    public static TypeResolution typeMustBeDate(Expression e, String operationName, ParamOrdinal paramOrd) {
         return typeMustBe(e, dt -> dt == DATETIME || dt == DATE, operationName, paramOrd, "datetime, date");
     }
 
-    public static TypeResolution typeMustBeNumericOrDateTimeOrDate(Expression e, String operationName, ParamOrdinal paramOrd) {
+    public static TypeResolution typeMustBeNumericOrDate(Expression e, String operationName, ParamOrdinal paramOrd) {
         return typeMustBe(e, dt -> dt.isNumeric() || dt == DATETIME, operationName, paramOrd, "numeric", "datetime", "date");
     }
 
@@ -191,8 +191,20 @@ public final class Expressions {
             new TypeResolution(format(Locale.ROOT, "[%s]%s argument must be [%s], found value [%s] type [%s]",
                 operationName,
                 paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : " " + paramOrd.name().toLowerCase(Locale.ROOT),
-                Strings.arrayToDelimitedString(acceptedTypes, " or "),
+                acceptedTypesForErrorMsg(acceptedTypes),
                 Expressions.name(e),
                 e.dataType().esType));
+    }
+
+    private static String acceptedTypesForErrorMsg(String... acceptedTypes) {
+        StringJoiner sj = new StringJoiner(", ");
+        for (int i = 0; i < acceptedTypes.length - 1; i++) {
+            sj.add(acceptedTypes[i]);
+        }
+        if (acceptedTypes.length > 1) {
+            return sj.toString() + " or " + acceptedTypes[acceptedTypes.length - 1];
+        } else {
+            return acceptedTypes[0];
+        }
     }
 }

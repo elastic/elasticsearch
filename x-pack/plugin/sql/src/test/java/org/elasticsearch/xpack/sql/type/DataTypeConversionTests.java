@@ -44,7 +44,6 @@ import static org.elasticsearch.xpack.sql.type.DataType.fromTypeName;
 import static org.elasticsearch.xpack.sql.type.DataType.values;
 import static org.elasticsearch.xpack.sql.type.DataTypeConversion.commonType;
 import static org.elasticsearch.xpack.sql.type.DataTypeConversion.conversionFor;
-import static org.elasticsearch.xpack.sql.util.DateUtils.asDate;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asDateTime;
 
 
@@ -60,7 +59,7 @@ public class DataTypeConversionTests extends ESTestCase {
         {
             Conversion conversion = conversionFor(DATE, to);
             assertNull(conversion.convert(null));
-            assertEquals("1973-11-29", conversion.convert(asDate(123456789101L)));
+            assertEquals("1973-11-29", conversion.convert(DateUtils.asDateOnly(123456789101L)));
         }
         {
             Conversion conversion = conversionFor(DATETIME, to);
@@ -98,7 +97,7 @@ public class DataTypeConversionTests extends ESTestCase {
         {
             Conversion conversion = conversionFor(DATE, to);
             assertNull(conversion.convert(null));
-            assertEquals(123379200L, conversion.convert(asDate(123456789101L)));
+            assertEquals(123379200L, conversion.convert(DateUtils.asDateOnly(123456789101L)));
         }
         {
             Conversion conversion = conversionFor(DATETIME, to);
@@ -155,7 +154,7 @@ public class DataTypeConversionTests extends ESTestCase {
             ZonedDateTime zdt = TestUtils.now();
             Conversion forward = conversionFor(DATE, KEYWORD);
             Conversion back = conversionFor(KEYWORD, DATE);
-            assertEquals(DateUtils.asDate(zdt), back.convert(forward.convert(zdt)));
+            assertEquals(DateUtils.asDateOnly(zdt), back.convert(forward.convert(zdt)));
             Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("0xff"));
             assertEquals("cannot cast [0xff] to [date]:Invalid format: \"0xff\" is malformed at \"xff\"", e.getMessage());
         }
@@ -187,7 +186,7 @@ public class DataTypeConversionTests extends ESTestCase {
         {
             Conversion conversion = conversionFor(DATE, to);
             assertNull(conversion.convert(null));
-            assertEquals(dateTime(123379200000L), conversion.convert(asDate(123456789101L)));
+            assertEquals(dateTime(123379200000L), conversion.convert(DateUtils.asDateOnly(123456789101L)));
         }
         {
             Conversion conversion = conversionFor(KEYWORD, to);
@@ -231,7 +230,7 @@ public class DataTypeConversionTests extends ESTestCase {
         {
             Conversion conversion = conversionFor(DATE, to);
             assertNull(conversion.convert(null));
-            assertEquals(1.233792E8, (double) conversion.convert(asDate(123456789101L)), 0);
+            assertEquals(1.233792E8, (double) conversion.convert(DateUtils.asDateOnly(123456789101L)), 0);
         }
         {
             Conversion conversion = conversionFor(DATETIME, to);
@@ -282,8 +281,8 @@ public class DataTypeConversionTests extends ESTestCase {
         {
             Conversion conversion = conversionFor(DATE, to);
             assertNull(conversion.convert(null));
-            assertEquals(true, conversion.convert(asDate(123456789101L)));
-            assertEquals(false, conversion.convert(asDate(0L)));
+            assertEquals(true, conversion.convert(DateUtils.asDateOnly(123456789101L)));
+            assertEquals(false, conversion.convert(DateUtils.asDateOnly(0L)));
         }
         {
             Conversion conversion = conversionFor(DATETIME, to);
@@ -329,7 +328,7 @@ public class DataTypeConversionTests extends ESTestCase {
         {
             Conversion conversion = conversionFor(DATE, to);
             assertNull(conversion.convert(null));
-            assertEquals(123379200, conversion.convert(asDate(123456789101L)));
+            assertEquals(123379200, conversion.convert(DateUtils.asDateOnly(123456789101L)));
         }
         {
             Conversion conversion = conversionFor(DATETIME, to);

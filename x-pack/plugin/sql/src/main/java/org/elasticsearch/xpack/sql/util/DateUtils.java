@@ -38,7 +38,7 @@ public final class DateUtils {
     /**
      * Creates an date for SQL DATE type from the millis since epoch.
      */
-    public static ZonedDateTime asDate(long millis) {
+    public static ZonedDateTime asDateOnly(long millis) {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC)
             .withHour(0)
             .withMinute(0)
@@ -63,11 +63,11 @@ public final class DateUtils {
     /**
      * Parses the given string into a Date (SQL DATE type) using UTC as a default timezone.
      */
-    public static ZonedDateTime asDate(String dateFormat) {
-        return asDate(UTC_DATE_FORMATTER.parseDateTime(dateFormat));
+    public static ZonedDateTime asDateOnly(String dateFormat) {
+        return asDateOnly(UTC_DATE_FORMATTER.parseDateTime(dateFormat));
     }
 
-    public static ZonedDateTime asDate(DateTime dateTime) {
+    public static ZonedDateTime asDateOnly(DateTime dateTime) {
         LocalDateTime ldt = LocalDateTime.of(
             dateTime.getYear(),
             dateTime.getMonthOfYear(),
@@ -82,7 +82,7 @@ public final class DateUtils {
             org.elasticsearch.common.time.DateUtils.dateTimeZoneToZoneId(dateTime.getZone()));
     }
 
-    public static ZonedDateTime asDate(ZonedDateTime zdt) {
+    public static ZonedDateTime asDateOnly(ZonedDateTime zdt) {
         return zdt
             .withHour(0)
             .withMinute(0)

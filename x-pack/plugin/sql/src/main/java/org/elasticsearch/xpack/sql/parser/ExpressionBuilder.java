@@ -795,7 +795,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         } catch(IllegalArgumentException ex) {
             throw new ParsingException(source, "Invalid date received; {}", ex.getMessage());
         }
-        return new Literal(source, DateUtils.asDate(dt), DataType.DATE);
+        return new Literal(source, DateUtils.asDateOnly(dt), DataType.DATE);
     }
 
     @Override

@@ -30,6 +30,6 @@ public class DateTimeTestUtils {
     }
 
     public static ZonedDateTime date(long millisSinceEpoch) {
-        return DateUtils.asDate(millisSinceEpoch);
+        return DateUtils.asDateOnly(millisSinceEpoch);
     }
 }

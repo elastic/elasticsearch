@@ -48,6 +48,6 @@ public class Min extends NumericAggregate implements EnclosedAgg {
 
     @Override
     protected TypeResolution resolveType() {
-        return Expressions.typeMustBeNumericOrDateTimeOrDate(field(), sourceText(), ParamOrdinal.DEFAULT);
+        return Expressions.typeMustBeNumericOrDate(field(), sourceText(), ParamOrdinal.DEFAULT);
     }
 }

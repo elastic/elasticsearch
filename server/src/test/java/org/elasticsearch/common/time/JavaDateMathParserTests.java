@@ -166,7 +166,8 @@ public class JavaDateMathParserTests extends ESTestCase {
         DateMathParser parser = formatter.toDateMathParser();
         Instant time = parser.parse("2011-10-09+01:00", () -> 0, false, (ZoneId) null);
         assertEquals(this.parser.parse("2011-10-09T00:00:00.000+01:00", () -> 0), time);
-        time = parser.parse("2011-10-09+01:00", () -> 0, true, (ZoneId) null);
+        time = DateFormatter.forPattern("strict_date_optional_time_nanos").toDateMathParser()
+            .parse("2011-10-09T23:59:59.999+01:00", () -> 0, false, (ZoneId) null);
         assertEquals(this.parser.parse("2011-10-09T23:59:59.999+01:00", () -> 0), time);
     }
 

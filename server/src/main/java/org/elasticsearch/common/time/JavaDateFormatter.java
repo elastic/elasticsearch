@@ -92,7 +92,9 @@ class JavaDateFormatter implements DateFormatter {
         }
 
         DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
-        builder.append(this.parser);
+        if (format.contains("||") == false) {
+            builder.append(this.parser);
+        }
         roundupParserConsumer.accept(builder);
         DateTimeFormatter roundupFormatter = builder.toFormatter(parser.getLocale());
         if (printer.getZone() != null) {
@@ -168,7 +170,7 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public DateMathParser toDateMathParser() {
-        return new JavaDateMathParser(parser, roundupParser);
+        return new JavaDateMathParser(format, parser, roundupParser);
     }
 
     @Override

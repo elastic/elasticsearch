@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -33,6 +35,7 @@ import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.TransportException;
 import org.hamcrest.Matchers;
 
 import java.time.ZoneId;
@@ -971,10 +974,9 @@ public class DateRangeIT extends ESIntegTestCase {
         assertBucket(buckets.get(1), 1L, "3000000-4000000", 3000000L, 4000000L);
 
         // providing numeric input without format should throw an exception
-        Exception e = expectThrows(Exception.class, () -> client().prepareSearch(indexName).setSize(0)
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> client().prepareSearch(indexName).setSize(0)
                 .addAggregation(dateRange("date_range").field("date").addRange(1000000, 3000000).addRange(3000000, 4000000)).get());
-        Throwable cause = e.getCause();
-        assertThat(cause.getMessage(),
+        assertThat(e.getDetailedMessage(),
             containsString("failed to parse date field [1000000] with format [strict_hour_minute_second]"));
     }
 

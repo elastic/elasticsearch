@@ -168,6 +168,7 @@ public class DateFormattersTests extends ESTestCase {
 
         assertRoundupFormatter("strict_date_optional_time||epoch_millis", "2018-10-10T12:13:14.123Z", 1539173594123L);
         assertRoundupFormatter("strict_date_optional_time||epoch_millis", "1234567890", 1234567890L);
+        assertRoundupFormatter("strict_date_optional_time||epoch_millis", "2018-10-10", 1539215999999L);
         assertRoundupFormatter("uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_millis", "2018-10-10T12:13:14.123", 1539173594123L);
         assertRoundupFormatter("uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_millis", "1234567890", 1234567890L);
 
@@ -179,6 +180,7 @@ public class DateFormattersTests extends ESTestCase {
 
         assertRoundupFormatter("strict_date_optional_time||epoch_second", "2018-10-10T12:13:14.123Z", 1539173594123L);
         assertRoundupFormatter("strict_date_optional_time||epoch_second", "1234567890", 1234567890999L);
+        assertRoundupFormatter("strict_date_optional_time||epoch_second", "2018-10-10", 1539215999999L);
         assertRoundupFormatter("uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_second", "2018-10-10T12:13:14.123", 1539173594123L);
         assertRoundupFormatter("uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_second", "1234567890", 1234567890999L);
     }
@@ -209,21 +211,5 @@ public class DateFormattersTests extends ESTestCase {
         DateTimeFormatter roundupParser = formatter.getRoundupParser();
         assertThat(roundupParser.getLocale(), is(locale));
         assertThat(formatter.locale(), is(locale));
-    }
-
-    public void testMultipleFormats() {
-        DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time||dd-MM-yyyy");
-        formatter.parse("31-01-2014");
-        // TODO assert or die
-    }
-
-    public void testFoo() throws Exception {
-        // assertDateMathEquals("2014-11-18", "2014-11-18T23:59:59.999Z", 0, true, null);
-//        JavaDateFormatter formatter = (JavaDateFormatter) DateFormatter.forPattern("strict_date_optional_time||dd-MM-yyyy");
-        JavaDateFormatter formatter = (JavaDateFormatter) DateFormatter.forPattern("dateOptionalTime||epoch_millis");
-        logger.info(formatter.getRoundupParser().parse("2014-11-18"));
-//        private final DateMathParser parser = formatter.toDateMathParser();
-
-
     }
 }

@@ -3791,7 +3791,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> and try to restore this open index again");
         restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap2")
-            .setRenamePattern("(.+)").setRenameReplacement("$1-copy").setRestoreOpenIndex(true).setWaitForCompletion(true).execute().actionGet();
+            .setRenamePattern("(.+)").setRenameReplacement("$1-copy").setRestoreOpenIndex(true).setWaitForCompletion(true).execute().get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         assertThat(client.prepareSearch("test-idx-1-copy").setSize(0).get().getHits().getTotalHits().value, equalTo(200L));

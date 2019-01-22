@@ -45,7 +45,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class FsDirectoryService extends DirectoryService {
-    protected final IndexStore indexStore;
     public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {
         switch (s) {
             case "native":
@@ -60,10 +59,9 @@ public class FsDirectoryService extends DirectoryService {
     private final ShardPath path;
 
     @Inject
-    public FsDirectoryService(IndexSettings indexSettings, IndexStore indexStore, ShardPath path) {
+    public FsDirectoryService(IndexSettings indexSettings, ShardPath path) {
         super(path.getShardId(), indexSettings);
         this.path = path;
-        this.indexStore = indexStore;
     }
 
     @Override

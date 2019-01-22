@@ -14,22 +14,22 @@ DESCRIBE emp;
 
        column       |     type      |    mapping    
 --------------------+---------------+---------------
-birth_date          |TIMESTAMP      |DATE           
-dep                 |STRUCT         |NESTED         
-dep.dep_id          |VARCHAR        |KEYWORD        
-dep.dep_name        |VARCHAR        |TEXT           
-dep.dep_name.keyword|VARCHAR        |KEYWORD        
-dep.from_date       |TIMESTAMP      |DATE           
-dep.to_date         |TIMESTAMP      |DATE           
-emp_no              |INTEGER        |INTEGER        
-first_name          |VARCHAR        |TEXT           
-first_name.keyword  |VARCHAR        |KEYWORD        
-gender              |VARCHAR        |KEYWORD        
-hire_date           |TIMESTAMP      |DATE           
-languages           |TINYINT        |BYTE           
-last_name           |VARCHAR        |TEXT           
-last_name.keyword   |VARCHAR        |KEYWORD        
-salary              |INTEGER        |INTEGER           
+birth_date          |TIMESTAMP      |datetime
+dep                 |STRUCT         |nested
+dep.dep_id          |VARCHAR        |keyword
+dep.dep_name        |VARCHAR        |text
+dep.dep_name.keyword|VARCHAR        |keyword
+dep.from_date       |TIMESTAMP      |datetime
+dep.to_date         |TIMESTAMP      |datetime
+emp_no              |INTEGER        |integer
+first_name          |VARCHAR        |text
+first_name.keyword  |VARCHAR        |keyword
+gender              |VARCHAR        |keyword
+hire_date           |TIMESTAMP      |datetime
+languages           |TINYINT        |byte
+last_name           |VARCHAR        |text
+last_name.keyword   |VARCHAR        |keyword
+salary              |INTEGER        |integer
 
 // end::describeTable
 ;
@@ -53,22 +53,22 @@ SHOW COLUMNS IN emp;
 
        column       |     type      |    mapping    
 --------------------+---------------+---------------
-birth_date          |TIMESTAMP      |DATE           
-dep                 |STRUCT         |NESTED         
-dep.dep_id          |VARCHAR        |KEYWORD        
-dep.dep_name        |VARCHAR        |TEXT           
-dep.dep_name.keyword|VARCHAR        |KEYWORD        
-dep.from_date       |TIMESTAMP      |DATE           
-dep.to_date         |TIMESTAMP      |DATE           
-emp_no              |INTEGER        |INTEGER        
-first_name          |VARCHAR        |TEXT           
-first_name.keyword  |VARCHAR        |KEYWORD        
-gender              |VARCHAR        |KEYWORD        
-hire_date           |TIMESTAMP      |DATE           
-languages           |TINYINT        |BYTE           
-last_name           |VARCHAR        |TEXT           
-last_name.keyword   |VARCHAR        |KEYWORD        
-salary              |INTEGER        |INTEGER       
+birth_date          |TIMESTAMP      |datetime
+dep                 |STRUCT         |nested
+dep.dep_id          |VARCHAR        |keyword
+dep.dep_name        |VARCHAR        |text
+dep.dep_name.keyword|VARCHAR        |keyword
+dep.from_date       |TIMESTAMP      |datetime
+dep.to_date         |TIMESTAMP      |datetime
+emp_no              |INTEGER        |integer
+first_name          |VARCHAR        |text
+first_name.keyword  |VARCHAR        |keyword
+gender              |VARCHAR        |keyword
+hire_date           |TIMESTAMP      |datetime
+languages           |TINYINT        |byte
+last_name           |VARCHAR        |text
+last_name.keyword   |VARCHAR        |keyword
+salary              |INTEGER        |integer
 
 // end::showColumns
 ;
@@ -96,7 +96,7 @@ SHOW TABLES;
      name      |     type      
 ---------------+---------------
 emp            |BASE TABLE     
-employees      |ALIAS          
+employees      |VIEW          
 library        |BASE TABLE 
 
 // end::showTables
@@ -120,7 +120,7 @@ SHOW TABLES LIKE 'emp%';
      name      |     type      
 ---------------+---------------
 emp            |BASE TABLE     
-employees      |ALIAS          
+employees      |VIEW          
 
 // end::showTablesLikeWildcard
 ;
@@ -167,7 +167,7 @@ SHOW TABLES "*,-l*";
      name      |     type      
 ---------------+---------------
 emp            |BASE TABLE     
-employees      |ALIAS
+employees      |VIEW
 
 // end::showTablesEsMultiIndex
 ;
@@ -746,9 +746,9 @@ SELECT HISTOGRAM(salary % 100, 10) AS h, COUNT(*) AS c FROM emp GROUP BY h;
 // end::histogramNumericExpression  
 ;
 
-histogramDate
+histogramDateTime
 schema::h:ts|c:l
-// tag::histogramDate
+// tag::histogramDateTime
 SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) AS c FROM emp GROUP BY h;
 
 
@@ -770,7 +770,7 @@ null                |10
 1963-02-07T00:00:00Z|7
 1964-02-02T00:00:00Z|5    
 
-// end::histogramDate
+// end::histogramDateTime
 ;
 
 expressionOnHistogramNotAllowed-Ignore
@@ -778,9 +778,9 @@ expressionOnHistogramNotAllowed-Ignore
 SELECT MONTH(HISTOGRAM(birth_date), 2)) AS h, COUNT(*) as c FROM emp GROUP BY h ORDER BY h DESC;
 // end::expressionOnHistogramNotAllowed
 
-histogramDateExpression
+histogramDateTimeExpression
 schema::h:i|c:l
-// tag::histogramDateExpression
+// tag::histogramDateTimeExpression
 SELECT HISTOGRAM(MONTH(birth_date), 2) AS h, COUNT(*) as c FROM emp GROUP BY h ORDER BY h DESC;
 
        h       |       c       
@@ -794,12 +794,12 @@ SELECT HISTOGRAM(MONTH(birth_date), 2) AS h, COUNT(*) as c FROM emp GROUP BY h O
 0              |6              
 null           |10 
 
-// end::histogramDateExpression   
+// end::histogramDateTimeExpression
 ;
 
 ///////////////////////////////
 //
-// Date/Time
+// DateTime/Time
 //
 ///////////////////////////////
 
@@ -816,14 +816,14 @@ SELECT INTERVAL 1 DAY + INTERVAL 53 MINUTES AS result;
 ;
 
 
-dtDatePlusInterval
-// tag::dtDatePlusInterval
-SELECT CAST('1969-05-13T12:34:56' AS DATE) + INTERVAL 49 YEARS AS result;
+dtDateTimePlusInterval
+// tag::dtDateTimePlusInterval
+SELECT CAST('1969-05-13T12:34:56' AS DATETIME) + INTERVAL 49 YEARS AS result;
 
        result       
 --------------------
 2018-05-13T12:34:56Z
-// end::dtDatePlusInterval
+// end::dtDateTimePlusInterval
 ;
 
 dtMinusInterval
@@ -848,14 +848,14 @@ SELECT INTERVAL '1' DAY - INTERVAL '2' HOURS AS result;
 ;
 
 
-dtDateMinusInterval
-// tag::dtDateMinusInterval
-SELECT CAST('2018-05-13T12:34:56' AS DATE) - INTERVAL '2-8' YEAR TO MONTH AS result; 
+dtDateTimeMinusInterval
+// tag::dtDateTimeMinusInterval
+SELECT CAST('2018-05-13T12:34:56' AS DATETIME) - INTERVAL '2-8' YEAR TO MONTH AS result;
 
        result       
 --------------------
 2015-09-13T12:34:56Z
-// end::dtDateMinusInterval
+// end::dtDateTimeMinusInterval
 ;
 
 dtIntervalMul
@@ -1124,8 +1124,8 @@ stringAscii
 // tag::stringAscii
 SELECT ASCII('Elastic');
 
-ASCII(Elastic) 
----------------
+ASCII('Elastic') 
+----------------
 69   
 // end::stringAscii
 ;
@@ -1134,8 +1134,8 @@ stringBitLength
 // tag::stringBitLength
 SELECT BIT_LENGTH('Elastic');
 
-BIT_LENGTH(Elastic)
--------------------
+BIT_LENGTH('Elastic')
+---------------------
 56  
 // end::stringBitLength
 ;
@@ -1154,8 +1154,8 @@ stringCharLength
 // tag::stringCharLength
 SELECT CHAR_LENGTH('Elastic');
 
-CHAR_LENGTH(Elastic)
---------------------
+CHAR_LENGTH('Elastic')
+----------------------
 7     
 // end::stringCharLength
 ;
@@ -1164,8 +1164,8 @@ stringConcat
 // tag::stringConcat
 SELECT CONCAT('Elasticsearch', ' SQL');
 
-CONCAT(Elasticsearch, SQL)
---------------------------
+CONCAT('Elasticsearch', ' SQL')
+-------------------------------
 Elasticsearch SQL  
 // end::stringConcat
 ;
@@ -1174,8 +1174,8 @@ stringInsert
 // tag::stringInsert
 SELECT INSERT('Elastic ', 8, 1, 'search');
 
-INSERT(Elastic ,8,1,search)
----------------------------
+INSERT('Elastic ', 8, 1, 'search')
+----------------------------------
 Elasticsearch
 // end::stringInsert
 ;
@@ -1184,8 +1184,8 @@ stringLCase
 // tag::stringLCase
 SELECT LCASE('Elastic');
 
-LCASE(Elastic) 
----------------
+LCASE('Elastic')
+----------------
 elastic    
 // end::stringLCase
 ;
@@ -1194,8 +1194,8 @@ stringLeft
 // tag::stringLeft
 SELECT LEFT('Elastic',3);
 
-LEFT(Elastic,3)
----------------
+LEFT('Elastic',3)
+-----------------
 Ela    
 // end::stringLeft
 ;
@@ -1204,8 +1204,8 @@ stringLength
 // tag::stringLength
 SELECT LENGTH('Elastic   ');
 
-LENGTH(Elastic   )
-------------------
+LENGTH('Elastic   ')
+--------------------
 7     
 // end::stringLength
 ;
@@ -1214,8 +1214,8 @@ stringLocateWoStart
 // tag::stringLocateWoStart
 SELECT LOCATE('a', 'Elasticsearch');
 
-LOCATE(a,Elasticsearch)
------------------------
+LOCATE('a', 'Elasticsearch')
+----------------------------
 3        
 // end::stringLocateWoStart
 ;
@@ -1224,8 +1224,8 @@ stringLocateWithStart
 // tag::stringLocateWithStart
 SELECT LOCATE('a', 'Elasticsearch', 5);
 
-LOCATE(a,Elasticsearch,5)
--------------------------
+LOCATE('a', 'Elasticsearch', 5)
+-------------------------------
 10
 // end::stringLocateWithStart
 ;
@@ -1234,8 +1234,8 @@ stringLTrim
 // tag::stringLTrim
 SELECT LTRIM('   Elastic');
 
-LTRIM(   Elastic)
------------------
+LTRIM('   Elastic')
+-------------------
 Elastic   
 // end::stringLTrim
 ;
@@ -1244,8 +1244,8 @@ stringOctetLength
 // tag::stringOctetLength
 SELECT OCTET_LENGTH('Elastic');
 
-OCTET_LENGTH(Elastic)
--------------------
+OCTET_LENGTH('Elastic')
+-----------------------
 7  
 // end::stringOctetLength
 ;
@@ -1254,8 +1254,8 @@ stringPosition
 // tag::stringPosition
 SELECT POSITION('Elastic', 'Elasticsearch');
 
-POSITION(Elastic,Elasticsearch)
--------------------------------
+POSITION('Elastic', 'Elasticsearch')
+------------------------------------
 1  
 // end::stringPosition
 ;
@@ -1264,8 +1264,8 @@ stringRepeat
 // tag::stringRepeat
 SELECT REPEAT('La', 3);
 
- REPEAT(La,3)  
----------------
+ REPEAT('La', 3)  
+----------------
 LaLaLa      
 // end::stringRepeat
 ;
@@ -1274,8 +1274,8 @@ stringReplace
 // tag::stringReplace
 SELECT REPLACE('Elastic','El','Fant');
 
-  REPLACE(Elastic,El,Fant)
------------------------------
+REPLACE('Elastic','El','Fant')
+------------------------------
 Fantastic
 // end::stringReplace
 ;
@@ -1284,8 +1284,8 @@ stringRight
 // tag::stringRight
 SELECT RIGHT('Elastic',3);
 
-RIGHT(Elastic,3)
-----------------
+RIGHT('Elastic',3)
+------------------
 tic    
 // end::stringRight
 ;
@@ -1294,8 +1294,8 @@ stringRTrim
 // tag::stringRTrim
 SELECT RTRIM('Elastic   ');
 
-RTRIM(Elastic   )
------------------
+RTRIM('Elastic   ')
+-------------------
 Elastic       
 // end::stringRTrim
 ;
@@ -1316,8 +1316,8 @@ stringSubString
 // tag::stringSubString
 SELECT SUBSTRING('Elasticsearch', 0, 7);
 
-SUBSTRING(Elasticsearch,0,7)
-----------------------------
+SUBSTRING('Elasticsearch', 0, 7)
+--------------------------------
 Elastic    
 // end::stringSubString
 ;
@@ -1326,8 +1326,8 @@ stringUCase
 // tag::stringUCase
 SELECT UCASE('Elastic');
 
-UCASE(Elastic) 
----------------
+UCASE('Elastic') 
+----------------
 ELASTIC    
 // end::stringUCase
 ;
@@ -1360,14 +1360,14 @@ SELECT CAST(123 AS VARCHAR) AS string;
 // end::conversionIntToStringCast
 ;
 
-conversionStringToDateCast
-// tag::conversionStringToDateCast
+conversionStringToDateTimeCast
+// tag::conversionStringToDateTimeCast
 SELECT YEAR(CAST('2018-05-19T11:23:45Z' AS TIMESTAMP)) AS year;
 
      year
 ---------------
 2018
-// end::conversionStringToDateCast
+// end::conversionStringToDateTimeCast
 ;
 
 ///////////////////////////////
@@ -1417,7 +1417,7 @@ mathInlineAcos
 // tag::mathInlineAcos
 SELECT ACOS(COS(PI())), PI();
 
-  ACOS(COS(PI))  |       PI
+ ACOS(COS(PI())) |      PI()
 -----------------+-----------------
 3.141592653589793|3.141592653589793
 // end::mathInlineAcos
@@ -1467,8 +1467,8 @@ mathInlineCeiling
 // tag::mathInlineCeiling
 SELECT CEIL(125.01), CEILING(-125.99);
 
- CEIL(125.01)  | CEIL(-125.99)
----------------+---------------
+ CEIL(125.01)  |CEILING(-125.99)
+---------------+----------------
 126            |-125
 // end::mathInlineCeiling
 ;
@@ -1507,7 +1507,7 @@ mathInlineDegrees
 // tag::mathInlineDegrees
 SELECT DEGREES(PI() * 2), DEGREES(PI());
 
-DEGREES((PI) * 2)|  DEGREES(PI)
+DEGREES(PI() * 2)| DEGREES(PI())
 -----------------+---------------
 360.0            |180.0
 // end::mathInlineDegrees
@@ -1517,7 +1517,7 @@ mathEulersNumber
 // tag::mathEulersNumber
 SELECT E(), CEIL(E());
 
-        E        |    CEIL(E)
+       E()       |   CEIL(E())
 -----------------+---------------
 2.718281828459045|3
 // end::mathEulersNumber
@@ -1527,7 +1527,7 @@ mathExpInline
 // tag::mathExpInline
 SELECT EXP(1), E(), EXP(2), E() * E();
 
-     EXP(1)      |        E        |     EXP(2)     |     (E) * (E)
+     EXP(1)      |       E()       |     EXP(2)     |     E() * E()
 -----------------+-----------------+----------------+------------------
 2.718281828459045|2.718281828459045|7.38905609893065|7.3890560989306495
 // end::mathExpInline
@@ -1537,7 +1537,7 @@ mathExpm1Inline
 // tag::mathExpm1Inline
 SELECT E(), EXP(2), EXPM1(2);
 
-        E        |     EXP(2)     |    EXPM1(2)
+       E()       |     EXP(2)     |    EXPM1(2)
 -----------------+----------------+----------------
 2.718281828459045|7.38905609893065|6.38905609893065
 // end::mathExpm1Inline
@@ -1567,8 +1567,8 @@ mathInlineLog10
 // tag::mathInlineLog10
 SELECT LOG10(5), LOG(5)/LOG(10);
 
-     LOG10(5)     |(LOG(5)) / (LOG(10))
-------------------+--------------------
+     LOG10(5)     |    LOG(5)/LOG(10)
+------------------+-----------------------
 0.6989700043360189|0.6989700043360187
 // end::mathInlineLog10
 ;
@@ -1577,7 +1577,7 @@ mathPINumber
 // tag::mathPINumber
 SELECT PI();
 
-       PI
+      PI()
 -----------------
 3.141592653589793
 // end::mathPINumber
@@ -1587,7 +1587,7 @@ mathInlinePowerPositive
 // tag::mathInlinePowerPositive
 SELECT POWER(3, 2), POWER(3, 3);
 
-  POWER(3,2)   |  POWER(3,3)
+  POWER(3, 2)  |  POWER(3, 3)
 ---------------+---------------
 9.0            |27.0
 // end::mathInlinePowerPositive
@@ -1597,7 +1597,7 @@ mathInlinePowerNegative
 // tag::mathInlinePowerNegative
 SELECT POWER(5, -1), POWER(5, -2);
 
-  POWER(5,-1)  |  POWER(5,-2)
+  POWER(5, -1) |  POWER(5, -2)
 ---------------+---------------
 0.2            |0.04
 // end::mathInlinePowerNegative
@@ -1607,7 +1607,7 @@ mathInlineRadians
 // tag::mathInlineRadians
 SELECT RADIANS(90), PI()/2;
 
-   RADIANS(90)    |     (PI) / 2
+   RADIANS(90)    |      PI()/2
 ------------------+------------------
 1.5707963267948966|1.5707963267948966
 // end::mathInlineRadians
@@ -1677,7 +1677,7 @@ mathInlineSqrt
 // tag::mathInlineSqrt
 SELECT SQRT(EXP(2)), E(), SQRT(25);
 
-  SQRT(EXP(2))   |        E        |   SQRT(25)
+  SQRT(EXP(2))   |       E()       |   SQRT(25)
 -----------------+-----------------+---------------
 2.718281828459045|2.718281828459045|5.0
 // end::mathInlineSqrt
@@ -1918,7 +1918,7 @@ elastic
 
 ///////////////////////////////
 //
-// Date-Time functions
+// DateTime-Time functions
 //
 ///////////////////////////////
 

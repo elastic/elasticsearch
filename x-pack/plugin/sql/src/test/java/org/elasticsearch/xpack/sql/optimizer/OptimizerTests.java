@@ -330,7 +330,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testConstantFoldingDatetime() {
-        Expression cast = new Cast(EMPTY, Literal.of(EMPTY, "2018-01-19T10:23:27Z"), DataType.DATE);
+        Expression cast = new Cast(EMPTY, Literal.of(EMPTY, "2018-01-19T10:23:27Z"), DataType.DATETIME);
         assertEquals(2018, foldFunction(new Year(EMPTY, cast, UTC)));
         assertEquals(1, foldFunction(new MonthOfYear(EMPTY, cast, UTC)));
         assertEquals(19, foldFunction(new DayOfMonth(EMPTY, cast, UTC)));
@@ -585,7 +585,7 @@ public class OptimizerTests extends ESTestCase {
         BooleanLiteralsOnTheRight swapLiteralsToRight = new BooleanLiteralsOnTheRight();
         BinaryComparisonSimplification bcSimpl = new BinaryComparisonSimplification();
         FieldAttribute fa = getFieldAttribute();
-        Source source = new Source(1, 10, StringUtils.EMPTY);
+        Source source = new Source(1, 10, "IS_NULL(a)");
 
         Expression e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(source, fa, NULL)));
         assertEquals(IsNull.class, e.getClass());

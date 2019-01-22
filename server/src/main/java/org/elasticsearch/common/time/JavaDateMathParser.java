@@ -20,6 +20,7 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 
 import java.time.DateTimeException;
 import java.time.DayOfWeek;
@@ -28,6 +29,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjusters;
@@ -44,12 +46,10 @@ import java.util.function.LongSupplier;
  */
 public class JavaDateMathParser implements DateMathParser {
 
+    private final DateTimeFormatter formatter;
+    private final DateTimeFormatter roundUpFormatter;
 
-
-    private final DateFormatter formatter;
-    private final DateFormatter roundUpFormatter;
-
-    public JavaDateMathParser(DateFormatter formatter, DateFormatter roundUpFormatter) {
+    public JavaDateMathParser(DateTimeFormatter formatter, DateTimeFormatter roundUpFormatter) {
         Objects.requireNonNull(formatter);
         this.formatter = formatter;
         this.roundUpFormatter = roundUpFormatter;
@@ -208,7 +208,11 @@ public class JavaDateMathParser implements DateMathParser {
     }
 
     private long parseDateTime(String value, ZoneId timeZone, boolean roundUpIfNoTime) {
-        DateFormatter formatter = roundUpIfNoTime ? this.roundUpFormatter : this.formatter;
+        if (Strings.isNullOrEmpty(value)) {
+            throw new IllegalArgumentException("cannot parse empty date");
+        }
+
+        DateTimeFormatter formatter = roundUpIfNoTime ? this.roundUpFormatter : this.formatter;
         try {
             if (timeZone == null) {
                 return DateFormatters.toZonedDateTime(formatter.parse(value)).toInstant().toEpochMilli();

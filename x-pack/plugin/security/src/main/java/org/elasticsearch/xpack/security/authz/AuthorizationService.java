@@ -318,7 +318,6 @@ public class AuthorizationService {
     private TransportRequest maybeUnwrapRequest(Authentication authentication, TransportRequest originalRequest, String action,
                                                 String requestId) {
         final TransportRequest request;
-
         if (originalRequest instanceof ConcreteShardRequest) {
             request = ((ConcreteShardRequest<?>) originalRequest).getRequest();
             assert TransportActionProxy.isProxyRequest(request) == false : "expected non-proxy request for action: " + action;

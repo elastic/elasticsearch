@@ -157,12 +157,13 @@ public final class Role {
         }
 
         public Builder add(IndexPrivilege privilege, String... indices) {
-            groups.add(new IndicesPermission.Group(privilege, FieldPermissions.DEFAULT, null, indices));
+            groups.add(new IndicesPermission.Group(privilege, FieldPermissions.DEFAULT, null, false, indices));
             return this;
         }
 
-        public Builder add(FieldPermissions fieldPermissions, Set<BytesReference> query, IndexPrivilege privilege, String... indices) {
-            groups.add(new IndicesPermission.Group(privilege, fieldPermissions, query, indices));
+        public Builder add(FieldPermissions fieldPermissions, Set<BytesReference> query, IndexPrivilege privilege,
+                boolean allowRestrictedIndices, String... indices) {
+            groups.add(new IndicesPermission.Group(privilege, fieldPermissions, query, allowRestrictedIndices, indices));
             return this;
         }
 
@@ -191,11 +192,8 @@ public final class Role {
                         new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields()));
                 }
                 final Set<BytesReference> query = privilege.getQuery() == null ? null : Collections.singleton(privilege.getQuery());
-                list.add(new IndicesPermission.Group(IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())),
-                    fieldPermissions,
-                    query,
-                    privilege.getIndices()));
-
+                list.add(new IndicesPermission.Group(IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())), fieldPermissions,
+                        query, privilege.allowRestrictedIndices(), privilege.getIndices()));
             }
             return list;
         }

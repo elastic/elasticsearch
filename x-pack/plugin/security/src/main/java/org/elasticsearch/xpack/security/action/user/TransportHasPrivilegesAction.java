@@ -125,7 +125,7 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
                     privileges.putAll(existing.getPrivileges());
                 }
                 for (String privilege : check.getPrivileges()) {
-                    if (testIndexMatch(index, privilege, userRole, predicateCache)) {
+                    if (testIndexMatch(index, check.allowRestrictedIndices(), privilege, userRole, predicateCache)) {
                         logger.debug(() -> new ParameterizedMessage("Role [{}] has [{}] on index [{}]",
                             Strings.arrayToCommaDelimitedString(userRole.names()), privilege, index));
                         privileges.put(privilege, true);
@@ -174,16 +174,17 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
         listener.onResponse(new HasPrivilegesResponse(request.username(), allMatch, cluster, indices.values(), privilegesByApplication));
     }
 
-    private boolean testIndexMatch(String checkIndex, String checkPrivilegeName, Role userRole,
-                                   Map<IndicesPermission.Group, Automaton> predicateCache) {
+    private boolean testIndexMatch(String checkIndexPattern, boolean allowRestrictedIndices, String checkPrivilegeName, Role userRole,
+            Map<IndicesPermission.Group, Automaton> predicateCache) {
         final IndexPrivilege checkPrivilege = IndexPrivilege.get(Collections.singleton(checkPrivilegeName));
 
-        final Automaton checkIndexAutomaton = Automatons.patterns(checkIndex);
+        final Automaton checkIndexAutomaton = IndicesPermission.Group.buildIndexMatcherAutomaton(allowRestrictedIndices, checkIndexPattern);
 
         List<Automaton> privilegeAutomatons = new ArrayList<>();
         for (IndicesPermission.Group group : userRole.indices().groups()) {
-            final Automaton groupIndexAutomaton = predicateCache.computeIfAbsent(group, g -> Automatons.patterns(g.indices()));
-            if (testIndex(checkIndexAutomaton, groupIndexAutomaton)) {
+            final Automaton groupIndexAutomaton = predicateCache.computeIfAbsent(group,
+                    g -> IndicesPermission.Group.buildIndexMatcherAutomaton(g.allowRestrictedIndices(), g.indices()));
+            if (Operations.subsetOf(checkIndexAutomaton, groupIndexAutomaton)) {
                 final IndexPrivilege rolePrivilege = group.privilege();
                 if (rolePrivilege.name().contains(checkPrivilegeName)) {
                     return true;
@@ -192,10 +193,6 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
             }
         }
         return testPrivilege(checkPrivilege, Automatons.unionAndMinimize(privilegeAutomatons));
-    }
-
-    private static boolean testIndex(Automaton checkIndex, Automaton roleIndex) {
-        return Operations.subsetOf(checkIndex, roleIndex);
     }
 
     private static boolean testPrivilege(Privilege checkPrivilege, Automaton roleAutomaton) {

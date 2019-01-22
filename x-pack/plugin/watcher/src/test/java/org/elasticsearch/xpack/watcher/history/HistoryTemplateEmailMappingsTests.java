@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.history;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -52,16 +53,17 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.notification.email.account.test.smtp.secure_password", EmailServer.PASSWORD);
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
 
                 // email
                 .put("xpack.notification.email.account.test.smtp.auth", true)
                 .put("xpack.notification.email.account.test.smtp.user", EmailServer.USERNAME)
-                .put("xpack.notification.email.account.test.smtp.password", EmailServer.PASSWORD)
                 .put("xpack.notification.email.account.test.smtp.port", server.port())
                 .put("xpack.notification.email.account.test.smtp.host", "localhost")
-
+                .setSecureSettings(secureSettings)
                 .build();
     }
 

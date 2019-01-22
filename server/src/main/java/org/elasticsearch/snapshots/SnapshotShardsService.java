@@ -71,9 +71,12 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
@@ -111,6 +114,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     private final Condition shutdownCondition = shutdownLock.newCondition();
 
     private volatile Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> shardSnapshots = emptyMap();
+
+    // A map of snapshots to the shardIds that we already reported to the master as failed
+    private volatile Map<Snapshot, Set<ShardId>> remoteFailedShardsCache = emptyMap();
 
     private final SnapshotStateExecutor snapshotStateExecutor = new SnapshotStateExecutor();
     private final UpdateSnapshotStatusAction updateSnapshotStatusHandler;
@@ -237,6 +243,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         // Now go through all snapshots and update existing or create missing
         final String localNodeId = event.state().nodes().getLocalNodeId();
         final Map<Snapshot, Map<String, IndexId>> snapshotIndices = new HashMap<>();
+        final Map<Snapshot, Set<ShardId>> newFailedShardsCache = new HashMap<>();
         if (snapshotsInProgress != null) {
             for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
                 snapshotIndices.put(entry.snapshot(),
@@ -296,17 +303,26 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         }
                     } else {
                         final ImmutableOpenMap<ShardId, ShardSnapshotStatus> clusterStateShards = entry.shards();
+                        final Snapshot snapshot = entry.snapshot();
+                        final Set<ShardId> cachedFailedShards = remoteFailedShardsCache.getOrDefault(snapshot, Collections.emptySet());
                         for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> curr : clusterStateShards) {
+                            // due to CS batching we might have missed the INIT state and straight went into ABORTED
+                            // notify master that abort has completed by moving to FAILED
                             if (curr.value.state() == State.ABORTED) {
-                                // due to CS batching we might have missed the INIT state and straight went into ABORTED
-                                // notify master that abort has completed by moving to FAILED
-                                notifyFailedSnapshotShard(entry.snapshot(), curr.key, localNodeId, curr.value.reason());
+                                final ShardId shardId = curr.key;
+                                final Set<ShardId> newFailedShardIds =
+                                    newFailedShardsCache.computeIfAbsent(snapshot, k -> new HashSet<>(cachedFailedShards));
+                                if (newFailedShardIds.add(shardId)) {
+                                    notifyFailedSnapshotShard(snapshot, shardId, localNodeId, curr.value.reason());
+                                }
                             }
                         }
                     }
                 }
             }
         }
+
+        remoteFailedShardsCache = unmodifiableMap(newFailedShardsCache);
 
         // Update the list of snapshots that we saw and tried to started
         // If startup of these shards fails later, we don't want to try starting these shards again

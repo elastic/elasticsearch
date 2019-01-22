@@ -296,15 +296,11 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         }
                     } else {
                         final ImmutableOpenMap<ShardId, ShardSnapshotStatus> clusterStateShards = entry.shards();
-                        if (clusterStateShards.isEmpty()) {
-
-                        } else {
-                            for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> curr : clusterStateShards) {
-                                if (curr.value.state() == State.ABORTED) {
-                                    // due to CS batching we might have missed the INIT state and straight went into ABORTED
-                                    // notify master that abort has completed by moving to FAILED
-                                    notifyFailedSnapshotShard(entry.snapshot(), curr.key, localNodeId, curr.value.reason());
-                                }
+                        for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> curr : clusterStateShards) {
+                            if (curr.value.state() == State.ABORTED) {
+                                // due to CS batching we might have missed the INIT state and straight went into ABORTED
+                                // notify master that abort has completed by moving to FAILED
+                                notifyFailedSnapshotShard(entry.snapshot(), curr.key, localNodeId, curr.value.reason());
                             }
                         }
                     }

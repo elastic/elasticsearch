@@ -258,9 +258,10 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         String mode = Mode.PLAIN.toString();
         if (clientType.equals(ClientType.JDBC.toString())) {
             mode = Mode.JDBC.toString();
-        }
-        if (clientType.startsWith(ClientType.ODBC.toString())) {
+        } else if (clientType.startsWith(ClientType.ODBC.toString())) {
             mode = Mode.ODBC.toString();
+        } else if (clientType.equals(ClientType.CLI.toString())) {
+            mode = Mode.CLI.toString();
         }
 
         runSql(mode, clientType, sql);

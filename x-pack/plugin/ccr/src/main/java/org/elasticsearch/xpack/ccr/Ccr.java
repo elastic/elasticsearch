@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.DeleteInternalCcrRepositoryAction;
+import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkAction;
 import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.PutInternalCcrRepositoryAction;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
@@ -121,6 +122,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     private final Settings settings;
     private final CcrLicenseChecker ccrLicenseChecker;
     private final SetOnce<CcrRestoreSourceService> restoreSourceService = new SetOnce<>();
+    private final SetOnce<CcrSettings> ccrSettings = new SetOnce<>();
     private Client client;
 
     private final boolean tribeNode;
@@ -168,6 +170,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
         CcrRestoreSourceService restoreSourceService = new CcrRestoreSourceService();
         this.restoreSourceService.set(restoreSourceService);
+        CcrSettings ccrSettings = new CcrSettings(settings, clusterService.getClusterSettings());
+        this.ccrSettings.set(ccrSettings);
         return Arrays.asList(
             ccrLicenseChecker,
             restoreSourceService,
@@ -203,6 +207,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                     PutCcrRestoreSessionAction.TransportPutCcrRestoreSessionAction.class),
                 new ActionHandler<>(ClearCcrRestoreSessionAction.INSTANCE,
                     ClearCcrRestoreSessionAction.TransportDeleteCcrRestoreSessionAction.class),
+                new ActionHandler<>(GetCcrRestoreFileChunkAction.INSTANCE,
+                    GetCcrRestoreFileChunkAction.TransportGetCcrRestoreFileChunkAction.class),
                 // stats action
                 new ActionHandler<>(FollowStatsAction.INSTANCE, TransportFollowStatsAction.class),
                 new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsAction.class),
@@ -300,7 +306,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     @Override
     public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
-        Repository.Factory repositoryFactory = (metadata) -> new CcrRepository(metadata, client, ccrLicenseChecker, settings);
+        Repository.Factory repositoryFactory =
+            (metadata) -> new CcrRepository(metadata, client, ccrLicenseChecker, settings, ccrSettings.get());
         return Collections.singletonMap(CcrRepository.TYPE, repositoryFactory);
     }
 

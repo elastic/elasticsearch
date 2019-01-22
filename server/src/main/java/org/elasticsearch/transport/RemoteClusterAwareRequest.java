@@ -17,28 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.common.bytes;
+package org.elasticsearch.transport;
 
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 
-/**
- * An extension to {@link PagedBytesReference} that requires releasing its content. This
- * class exists to make it explicit when a bytes reference needs to be released, and when not.
- */
-public final class ReleasablePagedBytesReference extends PagedBytesReference implements Releasable {
+public interface RemoteClusterAwareRequest {
 
-    private final Releasable releasable;
-
-    public ReleasablePagedBytesReference(ByteArray byteArray, int length, Releasable releasable) {
-        super(byteArray, length);
-        this.releasable = releasable;
-    }
-
-    @Override
-    public void close() {
-        Releasables.close(releasable);
-    }
+    /**
+     * Returns the preferred discovery node for this request. The remote cluster client will attempt to send
+     * this request directly to this node. Otherwise, it will send the request as a proxy action that will
+     * be routed by the remote cluster to this node.
+     *
+     * @return preferred discovery node
+     */
+    DiscoveryNode getPreferredTargetNode();
 
 }

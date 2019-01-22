@@ -193,6 +193,19 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
     }
 
     /**
+     * If set to true, the restore procedure will restore an open index from this
+     * snapshot. This will overwrite all the existing shards with new data.
+     *
+     * @param restoreOpenIndex true if open index should be restored from this snapshot
+     * @return this builder
+     */
+    public RestoreSnapshotRequestBuilder setRestoreOpenIndex(boolean restoreOpenIndex) {
+        request.restoreOpenIndex(restoreOpenIndex);
+        return this;
+    }
+
+
+    /**
      * If set to true the restore procedure will restore global cluster state.
      * <p>
      * The global cluster state includes persistent settings and index template definitions.

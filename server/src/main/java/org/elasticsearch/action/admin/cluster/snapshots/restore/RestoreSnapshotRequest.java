@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -60,6 +61,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean includeGlobalState = false;
     private boolean partial = false;
     private boolean includeAliases = true;
+    private boolean restoreOpenIndex = false;
     private Settings settings = EMPTY_SETTINGS;
     private Settings indexSettings = EMPTY_SETTINGS;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
@@ -93,6 +95,12 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         settings = readSettingsFromStream(in);
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
+        // TODO: Update to 6.7 after backport
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            restoreOpenIndex = in.readBoolean();
+        } else {
+            restoreOpenIndex = false;
+        }
     }
 
     @Override
@@ -111,6 +119,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         writeSettingsToStream(settings, out);
         writeSettingsToStream(indexSettings, out);
         out.writeStringArray(ignoreIndexSettings);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeBoolean(restoreOpenIndex);
+        }
     }
 
     @Override
@@ -458,6 +469,27 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     }
 
     /**
+     * If set to true, the restore procedure will restore an open index from this
+     * snapshot. This will overwrite all the existing shards with new data.
+     *
+     * @param restoreOpenIndex true if open index should be restored from this snapshot
+     * @return this request
+     */
+    public RestoreSnapshotRequest restoreOpenIndex(boolean restoreOpenIndex) {
+        this.restoreOpenIndex = restoreOpenIndex;
+        return this;
+    }
+
+    /**
+     * Returns true if open indices should be restored from this snapshot
+     *
+     * @return true if open indexes should be restore from this snapshot
+     */
+    public boolean restoreOpenIndex() {
+        return restoreOpenIndex;
+    }
+
+    /**
      * Sets settings that should be added/changed in all restored indices
      */
     public RestoreSnapshotRequest indexSettings(Settings settings) {
@@ -636,13 +668,14 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             Objects.equals(renameReplacement, that.renameReplacement) &&
             Objects.equals(settings, that.settings) &&
             Objects.equals(indexSettings, that.indexSettings) &&
+            Objects.equals(restoreOpenIndex, that.restoreOpenIndex) &&
             Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings);
     }
 
     @Override
     public int hashCode() {
         int result = Objects.hash(snapshot, repository, indicesOptions, renamePattern, renameReplacement, waitForCompletion,
-            includeGlobalState, partial, includeAliases, settings, indexSettings);
+            includeGlobalState, partial, includeAliases, settings, indexSettings, restoreOpenIndex);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
         return result;

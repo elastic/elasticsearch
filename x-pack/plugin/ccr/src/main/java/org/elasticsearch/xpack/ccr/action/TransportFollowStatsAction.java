@@ -68,11 +68,13 @@ public class TransportFollowStatsAction extends TransportTasksAction<
             return;
         }
 
-        final ClusterState state = clusterService.state();
-        Set<String> shardFollowTaskFollowerIndices = findFollowerIndicesFromShardFollowTasks(state, request.indices());
-        if (Strings.isAllOrWildcard(request.indices()) == false && shardFollowTaskFollowerIndices.isEmpty()) {
-            String resources = String.join(",", request.indices());
-            throw new ResourceNotFoundException("No shard follow tasks for follower indices [{}]", resources);
+        if (Strings.isAllOrWildcard(request.indices()) == false) {
+            final ClusterState state = clusterService.state();
+            Set<String> shardFollowTaskFollowerIndices = findFollowerIndicesFromShardFollowTasks(state, request.indices());
+            if (shardFollowTaskFollowerIndices.isEmpty()) {
+                String resources = String.join(",", request.indices());
+                throw new ResourceNotFoundException("No shard follow tasks for follower indices [{}]", resources);
+            }
         }
         super.doExecute(task, request, listener);
     }

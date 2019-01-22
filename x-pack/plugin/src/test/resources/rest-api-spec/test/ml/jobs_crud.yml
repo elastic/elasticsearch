@@ -447,7 +447,6 @@
         Content-Type: application/json
       index:
         index: .ml-anomalies-shared
-        type: doc
         id: jobs-crud-model-memory-limit-decrease_model_size_stats_1517443200000
         body:
           job_id: jobs-crud-model-memory-limit-decrease
@@ -908,7 +907,6 @@
   - do:
       index:
         index: .ml-state
-        type: doc
         id: jobs-crud-existing-docs_categorizer_state#1
         body:
           key: value
@@ -936,7 +934,6 @@
   - do:
       index:
         index: .ml-state
-        type: doc
         id: jobs-crud-existing-docs_quantiles
         body:
           key: value
@@ -968,7 +965,6 @@
         Content-Type: application/json
       index:
         index:  .ml-anomalies-shared
-        type:   doc
         id:     "jobs-crud-existing-result-docs_1464739200000_1"
         body:
           {
@@ -1393,3 +1389,45 @@
       ml.open_job:
         job_id: persistent-task-allocation-allowed-test
   - match: { opened: true }
+
+---
+"Test reopen job resets the finished time":
+  - do:
+      ml.put_job:
+        job_id: jobs-crud-reset-finished-time
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: jobs-crud-reset-finished-time }
+
+  - do:
+      ml.open_job:
+        job_id: jobs-crud-reset-finished-time
+
+  - do:
+      ml.get_jobs:
+        job_id: jobs-crud-reset-finished-time
+  - is_false: jobs.0.finished_time
+
+  - do:
+      ml.close_job:
+        job_id: jobs-crud-reset-finished-time
+
+  - do:
+      ml.get_jobs:
+        job_id: jobs-crud-reset-finished-time
+  - is_true: jobs.0.finished_time
+
+  - do:
+      ml.open_job:
+        job_id: jobs-crud-reset-finished-time
+
+  - do:
+      ml.get_jobs:
+        job_id: jobs-crud-reset-finished-time
+  - is_false: jobs.0.finished_time

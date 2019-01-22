@@ -36,7 +36,7 @@ public interface RecoveryTargetHandler {
      * @param fileBasedRecovery whether or not this call is part of an file based recovery
      * @param totalTranslogOps  total translog operations expected to be sent
      */
-    void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException;
+    void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener);
 
     /**
      * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, and

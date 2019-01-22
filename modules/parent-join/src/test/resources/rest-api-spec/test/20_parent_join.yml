@@ -1,6 +1,7 @@
 setup:
   - do:
       indices.create:
+        include_type_name: false
         index: test
         body:
           mappings:
@@ -59,35 +60,35 @@ setup:
 
     - match: { hits.total: 6 }
     - match: { hits.hits.0._index: "test" }
-    - match: { hits.hits.0._type: "doc" }
+    - match: { hits.hits.0._type: "_doc" }
     - match: { hits.hits.0._id: "3" }
     - match: { hits.hits.0._source.join_field.name: "child" }
     - match: { hits.hits.0._source.join_field.parent: "1" }
     - is_false: hits.hits.0.fields.join_field#child }
     - match: { hits.hits.1._index: "test" }
-    - match: { hits.hits.1._type: "doc" }
+    - match: { hits.hits.1._type: "_doc" }
     - match: { hits.hits.1._id: "4" }
     - match: { hits.hits.1._source.join_field.name: "child" }
     - match: { hits.hits.1._source.join_field.parent: "1" }
     - is_false: hits.hits.1.fields.join_field#child }
     - match: { hits.hits.2._index: "test" }
-    - match: { hits.hits.2._type: "doc" }
+    - match: { hits.hits.2._type: "_doc" }
     - match: { hits.hits.2._id: "5" }
     - match: { hits.hits.2._source.join_field.name: "child" }
     - match: { hits.hits.2._source.join_field.parent: "2" }
     - is_false: hits.hits.2.fields.join_field#child }
     - match: { hits.hits.3._index: "test" }
-    - match: { hits.hits.3._type: "doc" }
+    - match: { hits.hits.3._type: "_doc" }
     - match: { hits.hits.3._id: "6" }
     - match: { hits.hits.3._source.join_field.name: "grand_child" }
     - match: { hits.hits.3._source.join_field.parent: "5" }
     - match: { hits.hits.4._index: "test" }
-    - match: { hits.hits.4._type: "doc" }
+    - match: { hits.hits.4._type: "_doc" }
     - match: { hits.hits.4._id: "1" }
     - match: { hits.hits.4._source.join_field.name: "parent" }
     - is_false: hits.hits.4._source.join_field.parent
     - match: { hits.hits.5._index: "test" }
-    - match: { hits.hits.5._type: "doc" }
+    - match: { hits.hits.5._type: "_doc" }
     - match: { hits.hits.5._id: "2" }
     - match: { hits.hits.5._source.join_field.name: "parent" }
     - is_false: hits.hits.5._source.join_field.parent
@@ -106,12 +107,12 @@ setup:
 
     - match: { hits.total: 2 }
     - match: { hits.hits.0._index: "test" }
-    - match: { hits.hits.0._type: "doc" }
+    - match: { hits.hits.0._type: "_doc" }
     - match: { hits.hits.0._id: "3" }
     - match: { hits.hits.0._source.join_field.name: "child" }
     - match: { hits.hits.0._source.join_field.parent: "1" }
     - match: { hits.hits.1._index: "test" }
-    - match: { hits.hits.1._type: "doc" }
+    - match: { hits.hits.1._type: "_doc" }
     - match: { hits.hits.1._id: "4" }
     - match: { hits.hits.1._source.join_field.name: "child" }
     - match: { hits.hits.1._source.join_field.parent: "1" }

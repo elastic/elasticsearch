@@ -44,6 +44,14 @@ public final class CcrSettings {
             Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     /**
+     * The leader must open resources for a ccr recovery. If there is no activity for this interval of time,
+     * the leader will close the restore session.
+     */
+    public static final Setting<TimeValue> INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING =
+        Setting.timeSetting("ccr.indices.recovery.recovery_activity_timeout", TimeValue.timeValueSeconds(60),
+            Setting.Property.Dynamic, Setting.Property.NodeScope);
+
+    /**
      * The settings defined by CCR.
      *
      * @return the settings
@@ -53,22 +61,33 @@ public final class CcrSettings {
                 XPackSettings.CCR_ENABLED_SETTING,
                 CCR_FOLLOWING_INDEX_SETTING,
                 RECOVERY_MAX_BYTES_PER_SECOND,
+                INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
                 CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT);
     }
 
     private final CombinedRateLimiter ccrRateLimiter;
+    private volatile TimeValue recoveryActivityTimeout;
 
     public CcrSettings(Settings settings, ClusterSettings clusterSettings) {
+        this.recoveryActivityTimeout = INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.get(settings);
         this.ccrRateLimiter = new CombinedRateLimiter(RECOVERY_MAX_BYTES_PER_SECOND.get(settings));
         clusterSettings.addSettingsUpdateConsumer(RECOVERY_MAX_BYTES_PER_SECOND, this::setMaxBytesPerSec);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setRecoveryActivityTimeout);
     }
 
     private void setMaxBytesPerSec(ByteSizeValue maxBytesPerSec) {
         ccrRateLimiter.setMBPerSec(maxBytesPerSec);
     }
 
+    private void setRecoveryActivityTimeout(TimeValue recoveryActivityTimeout) {
+        this.recoveryActivityTimeout = recoveryActivityTimeout;
+    }
+
     public CombinedRateLimiter getRateLimiter() {
         return ccrRateLimiter;
     }
 
+    public TimeValue getRecoveryActivityTimeout() {
+        return recoveryActivityTimeout;
+    }
 }

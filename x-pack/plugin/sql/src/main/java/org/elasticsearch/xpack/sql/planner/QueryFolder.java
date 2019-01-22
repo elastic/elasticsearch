@@ -61,7 +61,6 @@ import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
-import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
@@ -284,7 +283,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 if (matchingGroup != null) {
                                     if (exp instanceof Attribute || exp instanceof ScalarFunction || exp instanceof GroupingFunction) {
                                         Processor action = null;
-                                        ZoneId zi = DataType.DATETIME == exp.dataType() ? DateUtils.UTC : null;
+                                        ZoneId zi = exp.dataType().isDate() ? DateUtils.UTC : null;
                                         /*
                                          * special handling of dates since aggs return the typed Date object which needs
                                          * extraction instead of handling this in the scroller, the folder handles this
@@ -335,7 +334,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 // check if the field is a date - if so mark it as such to interpret the long as a date
                                 // UTC is used since that's what the server uses and there's no conversion applied
                                 // (like for date histograms)
-                                ZoneId zi = DataType.DATETIME == child.dataType() ? DateUtils.UTC : null;
+                                ZoneId zi = child.dataType().isDate() ? DateUtils.UTC : null;
                                 queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, zi));
                             }
                             // handle histogram
@@ -359,7 +358,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             matchingGroup = groupingContext.groupFor(ne);
                             Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(ne));
 
-                            ZoneId zi = DataType.DATETIME == ne.dataType() ? DateUtils.UTC : null;
+                            ZoneId zi = ne.dataType().isDate() ? DateUtils.UTC : null;
                             queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, zi));
                         }
                     }

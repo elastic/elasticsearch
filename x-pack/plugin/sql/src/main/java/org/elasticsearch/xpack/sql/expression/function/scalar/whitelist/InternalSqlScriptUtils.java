@@ -357,7 +357,7 @@ public final class InternalSqlScriptUtils {
             return ((JodaCompatibleZonedDateTime) dateTime).getZonedDateTime();
         }
         if (dateTime instanceof ZonedDateTime) {
-            return (ZonedDateTime) dateTime;
+            return dateTime;
         }
         if (false == lenient) {
             if (dateTime instanceof Number) {

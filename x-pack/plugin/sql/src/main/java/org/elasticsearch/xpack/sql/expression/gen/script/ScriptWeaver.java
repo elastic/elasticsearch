@@ -79,7 +79,7 @@ public interface ScriptWeaver {
 
     default ScriptTemplate scriptWithAggregate(AggregateFunctionAttribute aggregate) {
         String template = "{}";
-        if (aggregate.dataType() == DataType.DATETIME) {
+        if (aggregate.dataType().isDate()) {
             template = "{sql}.asDateTime({})";
         }
         return new ScriptTemplate(processScript(template),
@@ -89,7 +89,7 @@ public interface ScriptWeaver {
 
     default ScriptTemplate scriptWithGrouping(GroupingFunctionAttribute grouping) {
         String template = "{}";
-        if (grouping.dataType() == DataType.DATETIME) {
+        if (grouping.dataType().isDate()) {
             template = "{sql}.asDateTime({})";
         }
         return new ScriptTemplate(processScript(template),

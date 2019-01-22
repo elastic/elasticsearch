@@ -22,8 +22,6 @@ import static java.lang.String.format;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.sql.type.DataType.DATE;
-import static org.elasticsearch.xpack.sql.type.DataType.DATETIME;
 
 public final class Expressions {
 
@@ -174,11 +172,11 @@ public final class Expressions {
     }
 
     public static TypeResolution typeMustBeDate(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, dt -> dt == DATETIME || dt == DATE, operationName, paramOrd, "datetime, date");
+        return typeMustBe(e, DataType::isDate, operationName, paramOrd, "datetime, date");
     }
 
     public static TypeResolution typeMustBeNumericOrDate(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, dt -> dt.isNumeric() || dt == DATETIME, operationName, paramOrd, "numeric", "datetime", "date");
+        return typeMustBe(e, dt -> dt.isNumeric() || dt.isDate(), operationName, paramOrd, "numeric", "datetime", "date");
     }
 
     public static TypeResolution typeMustBe(Expression e,

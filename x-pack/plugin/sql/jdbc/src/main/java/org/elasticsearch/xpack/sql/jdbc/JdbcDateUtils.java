@@ -12,7 +12,6 @@ import java.sql.Timestamp;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
-import java.time.format.DateTimeParseException;
 import java.util.Locale;
 import java.util.function.Function;
 
@@ -43,25 +42,8 @@ final class JdbcDateUtils {
         .appendOffsetId()
         .toFormatter(Locale.ROOT);
 
-    static final DateTimeFormatter ISO_WITH_MINUTES = new DateTimeFormatterBuilder()
-        .parseCaseInsensitive()
-        .append(ISO_LOCAL_DATE)
-        .appendLiteral('T')
-        .appendValue(HOUR_OF_DAY, 2)
-        .appendLiteral(':')
-        .appendValue(MINUTE_OF_HOUR, 2)
-        .appendOffsetId()
-        .toFormatter(Locale.ROOT);
-    
     static long asMillisSinceEpoch(String date) {
-        ZonedDateTime zdt;
-        try {
-            zdt = ISO_WITH_MILLIS.parse(date, ZonedDateTime::from);
-        } catch (DateTimeParseException e) {
-            // Case of a Group By with casting as DATE
-            zdt = ISO_WITH_MINUTES.parse(date, ZonedDateTime::from);
-        }
-        return zdt.toInstant().toEpochMilli();
+        return ISO_WITH_MILLIS.parse(date, ZonedDateTime::from).toInstant().toEpochMilli();
     }
     
     static Date asDate(String date) {

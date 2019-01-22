@@ -424,6 +424,7 @@ public final class ThreadContext implements Closeable, Writeable {
                 } else if (size == 1) {
                     return Collections.singleton(input.readString());
                 } else {
+                    // use a linked hash set to preserve order
                     final LinkedHashSet<String> values = new LinkedHashSet<>(size);
                     for (int i = 0; i < size; i++) {
                         final String value = input.readString();
@@ -544,7 +545,9 @@ public final class ThreadContext implements Closeable, Writeable {
                 if (existingValues.contains(uniqueValue.apply(value))) {
                     return this;
                 }
-                final Set<String> newValues = Stream.concat(existingValues.stream(), Stream.of(value)).collect(Collectors.toSet());
+                // preserve insertion order
+                final LinkedHashSet<String> newValues = new LinkedHashSet<>(existingValues);
+                newValues.add(value);
                 newResponseHeaders = new HashMap<>(responseHeaders);
                 newResponseHeaders.put(key, Collections.unmodifiableSet(newValues));
             } else {

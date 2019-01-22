@@ -26,7 +26,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -60,5 +62,42 @@ public class CompletionSuggestionTests extends ESTestCase {
             assertThat(option.getDoc().doc, equalTo(count));
             count++;
         }
+    }
+
+    public void testToReduceWithDuplicates() {
+        List<Suggest.Suggestion<CompletionSuggestion.Entry>> shardSuggestions = new ArrayList<>();
+        int nShards = randomIntBetween(2, 10);
+        String name = randomAlphaOfLength(10);
+        int size = randomIntBetween(10, 100);
+        int totalResults = size * nShards;
+        int numSurfaceForms = randomIntBetween(1, size);
+        String[] surfaceForms = new String[numSurfaceForms];
+        for (int i = 0; i < numSurfaceForms; i++) {
+            surfaceForms[i] = randomAlphaOfLength(20);
+        }
+        List<CompletionSuggestion.Entry.Option> options = new ArrayList<>();
+        for (int i = 0; i < nShards; i++) {
+            CompletionSuggestion suggestion = new CompletionSuggestion(name, size, true);
+            CompletionSuggestion.Entry entry = new CompletionSuggestion.Entry(new Text(""), 0, 0);
+            suggestion.addTerm(entry);
+            int maxScore = randomIntBetween(totalResults, totalResults*2);
+            for (int j = 0; j < size; j++) {
+                String surfaceForm = randomFrom(surfaceForms);
+                CompletionSuggestion.Entry.Option newOption =
+                    new CompletionSuggestion.Entry.Option(j, new Text(surfaceForm), maxScore - j, Collections.emptyMap());
+                entry.addOption(newOption);
+                options.add(newOption);
+            }
+            shardSuggestions.add(suggestion);
+        }
+        List<CompletionSuggestion.Entry.Option> expected = options.stream()
+            .sorted(COMPARATOR)
+            .distinct()
+            .limit(size)
+            .collect(Collectors.toList());
+        CompletionSuggestion reducedSuggestion = CompletionSuggestion.reduceTo(shardSuggestions);
+        assertNotNull(reducedSuggestion);
+        assertThat(reducedSuggestion.getOptions().size(), lessThanOrEqualTo(size));
+        assertEquals(expected, reducedSuggestion.getOptions());
     }
 }

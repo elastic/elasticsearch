@@ -26,7 +26,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -48,7 +47,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -57,12 +55,15 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.MockGatewayMetaState;
 import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matcher;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -79,15 +80,16 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clusterState;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.setValue;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.value;
@@ -122,7 +124,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -130,6 +131,16 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
 public class CoordinatorTests extends ESTestCase {
+
+    private final List<NodeEnvironment> nodeEnvironments = new ArrayList<>();
+
+    @After
+    public void closeNodeEnvironmentsAfterEachTest() {
+        for (NodeEnvironment nodeEnvironment : nodeEnvironments) {
+            nodeEnvironment.close();
+        }
+        nodeEnvironments.clear();
+    }
 
     @Before
     public void resetPortCounterBeforeEachTest() {
@@ -713,70 +724,6 @@ public class CoordinatorTests extends ESTestCase {
 //        assertTrue("expected ack from " + follower1, ackCollector.hasAckedSuccessfully(follower1));
     }
 
-    public void testDiscoveryOfPeersTriggersNotification() {
-        final Cluster cluster = new Cluster(randomIntBetween(2, 5));
-
-        // register a listener and then deregister it again to show that it is not called after deregistration
-        try (Releasable ignored = cluster.getAnyNode().coordinator.withDiscoveryListener(ActionListener.wrap(() -> {
-            throw new AssertionError("should not be called");
-        }))) {
-            // do nothing
-        }
-
-        final long startTimeMillis = cluster.deterministicTaskQueue.getCurrentTimeMillis();
-        final ClusterNode bootstrapNode = cluster.getAnyNode();
-        final AtomicBoolean hasDiscoveredAllPeers = new AtomicBoolean();
-        assertFalse(bootstrapNode.coordinator.getFoundPeers().iterator().hasNext());
-        try (Releasable ignored = bootstrapNode.coordinator.withDiscoveryListener(
-            new ActionListener<Iterable<DiscoveryNode>>() {
-                @Override
-                public void onResponse(Iterable<DiscoveryNode> discoveryNodes) {
-                    int peerCount = 0;
-                    for (final DiscoveryNode discoveryNode : discoveryNodes) {
-                        peerCount++;
-                    }
-                    assertThat(peerCount, lessThan(cluster.size()));
-                    if (peerCount == cluster.size() - 1 && hasDiscoveredAllPeers.get() == false) {
-                        hasDiscoveredAllPeers.set(true);
-                        final long elapsedTimeMillis = cluster.deterministicTaskQueue.getCurrentTimeMillis() - startTimeMillis;
-                        logger.info("--> {} discovered {} peers in {}ms", bootstrapNode.getId(), cluster.size() - 1, elapsedTimeMillis);
-                        assertThat(elapsedTimeMillis, lessThanOrEqualTo(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2));
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new AssertionError("unexpected", e);
-                }
-            })) {
-            cluster.runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2 + randomLongBetween(0, 60000), "discovery phase");
-        }
-
-        assertTrue(hasDiscoveredAllPeers.get());
-
-        final AtomicBoolean receivedAlreadyBootstrappedException = new AtomicBoolean();
-        try (Releasable ignored = bootstrapNode.coordinator.withDiscoveryListener(
-            new ActionListener<Iterable<DiscoveryNode>>() {
-                @Override
-                public void onResponse(Iterable<DiscoveryNode> discoveryNodes) {
-                    // ignore
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof ClusterAlreadyBootstrappedException) {
-                        receivedAlreadyBootstrappedException.set(true);
-                    } else {
-                        throw new AssertionError("unexpected", e);
-                    }
-                }
-            })) {
-
-            cluster.stabilise();
-        }
-        assertTrue(receivedAlreadyBootstrappedException.get());
-    }
-
     public void testSettingInitialConfigurationTriggersElection() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5));
         cluster.runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2 + randomLongBetween(0, 60000), "initial discovery phase");
@@ -1102,8 +1049,8 @@ public class CoordinatorTests extends ESTestCase {
         private final Set<String> blackholedNodes = new HashSet<>();
         private final Map<Long, ClusterState> committedStatesByVersion = new HashMap<>();
 
-        private final Function<DiscoveryNode, PersistedState> defaultPersistedStateSupplier = localNode -> new MockPersistedState(0L,
-                clusterState(0L, 0L, localNode, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 0L));
+        private final Function<DiscoveryNode, MockPersistedState> defaultPersistedStateSupplier =
+                localNode -> new MockPersistedState(localNode);
 
         Cluster(int initialNodeCount) {
             this(initialNodeCount, true);
@@ -1258,12 +1205,8 @@ public class CoordinatorTests extends ESTestCase {
                         }
                     } else if (rarely()) {
                         final ClusterNode clusterNode = getAnyNode();
-                        clusterNode.onNode(
-                            () -> {
-                                logger.debug("----> [runRandomly {}] applying initial configuration {} to {}",
-                                    thisStep, initialConfiguration, clusterNode.getId());
-                                clusterNode.coordinator.setInitialConfiguration(initialConfiguration);
-                            }).run();
+                        logger.debug("----> [runRandomly {}] applying initial configuration on {}", step, clusterNode.getId());
+                        clusterNode.applyInitialConfiguration();
                     } else {
                         if (deterministicTaskQueue.hasDeferredTasks() && randomBoolean()) {
                             deterministicTaskQueue.advanceTime();
@@ -1490,35 +1433,77 @@ public class CoordinatorTests extends ESTestCase {
             return getAnyNode();
         }
 
-        class MockPersistedState extends InMemoryPersistedState {
-            MockPersistedState(long term, ClusterState acceptedState) {
-                super(term, acceptedState);
+        class MockPersistedState implements PersistedState {
+            private final PersistedState delegate;
+            private final NodeEnvironment nodeEnvironment;
+
+            MockPersistedState(DiscoveryNode localNode) {
+                try {
+                    if (rarely()) {
+                        nodeEnvironment = newNodeEnvironment();
+                        nodeEnvironments.add(nodeEnvironment);
+                        delegate = new MockGatewayMetaState(Settings.EMPTY, nodeEnvironment, xContentRegistry(), localNode)
+                                .getPersistedState(Settings.EMPTY, null);
+                    } else {
+                        nodeEnvironment = null;
+                        delegate = new InMemoryPersistedState(0L,
+                                clusterState(0L, 0L, localNode, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 0L));
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Unable to create MockPersistedState", e);
+                }
+            }
+
+            MockPersistedState(DiscoveryNode newLocalNode, MockPersistedState oldState) {
+                try {
+                    if (oldState.nodeEnvironment != null) {
+                        nodeEnvironment = oldState.nodeEnvironment;
+                        delegate = new MockGatewayMetaState(Settings.EMPTY, nodeEnvironment, xContentRegistry(), newLocalNode)
+                                .getPersistedState(Settings.EMPTY, null);
+                    } else {
+                        nodeEnvironment = null;
+                        BytesStreamOutput outStream = new BytesStreamOutput();
+                        outStream.setVersion(Version.CURRENT);
+                        oldState.getLastAcceptedState().writeTo(outStream);
+                        StreamInput inStream = new NamedWriteableAwareStreamInput(outStream.bytes().streamInput(),
+                                new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
+                        delegate = new InMemoryPersistedState(oldState.getCurrentTerm(), ClusterState.readFrom(inStream,
+                                newLocalNode)); // adapts it to new localNode instance
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Unable to create MockPersistedState", e);
+                }
             }
 
             private void possiblyFail(String description) {
                 if (disruptStorage && rarely()) {
-                    // TODO revisit this when we've decided how PersistedState should throw exceptions
                     logger.trace("simulating IO exception [{}]", description);
-                    if (randomBoolean()) {
-                        throw new UncheckedIOException(new IOException("simulated IO exception [" + description + ']'));
-                    } else {
-                        throw new CoordinationStateRejectedException("simulated IO exception [" + description + ']');
-                    }
+                    // In the real-life IOError might be thrown, for example if state fsync fails.
+                    // This will require node restart and we're not emulating it here.
+                    throw new UncheckedIOException(new IOException("simulated IO exception [" + description + ']'));
                 }
+            }
+
+            @Override
+            public long getCurrentTerm() {
+                return delegate.getCurrentTerm();
+            }
+
+            @Override
+            public ClusterState getLastAcceptedState() {
+                return delegate.getLastAcceptedState();
             }
 
             @Override
             public void setCurrentTerm(long currentTerm) {
                 possiblyFail("before writing term of " + currentTerm);
-                super.setCurrentTerm(currentTerm);
-                // TODO possiblyFail() here if that's a failure mode of the storage layer
+                delegate.setCurrentTerm(currentTerm);
             }
 
             @Override
             public void setLastAcceptedState(ClusterState clusterState) {
                 possiblyFail("before writing last-accepted state of term=" + clusterState.term() + ", version=" + clusterState.version());
-                super.setLastAcceptedState(clusterState);
-                // TODO possiblyFail() here if that's a failure mode of the storage layer
+                delegate.setLastAcceptedState(clusterState);
             }
         }
 
@@ -1528,7 +1513,7 @@ public class CoordinatorTests extends ESTestCase {
             private final int nodeIndex;
             private Coordinator coordinator;
             private final DiscoveryNode localNode;
-            private final PersistedState persistedState;
+            private final MockPersistedState persistedState;
             private FakeClusterApplier clusterApplier;
             private AckedFakeThreadPoolMasterService masterService;
             private TransportService transportService;
@@ -1540,7 +1525,7 @@ public class CoordinatorTests extends ESTestCase {
                 this(nodeIndex, createDiscoveryNode(nodeIndex, masterEligible), defaultPersistedStateSupplier);
             }
 
-            ClusterNode(int nodeIndex, DiscoveryNode localNode, Function<DiscoveryNode, PersistedState> persistedStateSupplier) {
+            ClusterNode(int nodeIndex, DiscoveryNode localNode, Function<DiscoveryNode, MockPersistedState> persistedStateSupplier) {
                 this.nodeIndex = nodeIndex;
                 this.localNode = localNode;
                 persistedState = persistedStateSupplier.apply(localNode);
@@ -1608,19 +1593,7 @@ public class CoordinatorTests extends ESTestCase {
                     UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
                     address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
                     localNode.isMasterNode() ? EnumSet.allOf(Role.class) : emptySet(), Version.CURRENT);
-                final PersistedState newPersistedState;
-                try {
-                    BytesStreamOutput outStream = new BytesStreamOutput();
-                    outStream.setVersion(Version.CURRENT);
-                    persistedState.getLastAcceptedState().writeTo(outStream);
-                    StreamInput inStream = new NamedWriteableAwareStreamInput(outStream.bytes().streamInput(),
-                        new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
-                    newPersistedState = new MockPersistedState(persistedState.getCurrentTerm(),
-                        ClusterState.readFrom(inStream, newLocalNode)); // adapts it to new localNode instance
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-                return new ClusterNode(nodeIndex, newLocalNode, node -> newPersistedState);
+                return new ClusterNode(nodeIndex, newLocalNode, node -> new MockPersistedState(newLocalNode, persistedState));
             }
 
             private PersistedState getPersistedState() {
@@ -1760,11 +1733,18 @@ public class CoordinatorTests extends ESTestCase {
 
             void applyInitialConfiguration() {
                 onNode(() -> {
+                    final Set<String> nodeIdsWithPlaceholders = new HashSet<>(initialConfiguration.getNodeIds());
+                    Stream.generate(() -> BOOTSTRAP_PLACEHOLDER_PREFIX + UUIDs.randomBase64UUID(random()))
+                        .limit((Math.max(initialConfiguration.getNodeIds().size(), 2) - 1) / 2)
+                        .forEach(nodeIdsWithPlaceholders::add);
+                    final VotingConfiguration configurationWithPlaceholders = new VotingConfiguration(new HashSet<>(
+                        randomSubsetOf(initialConfiguration.getNodeIds().size(), nodeIdsWithPlaceholders)));
                     try {
-                        coordinator.setInitialConfiguration(initialConfiguration);
-                        logger.info("successfully set initial configuration to {}", initialConfiguration);
+                        coordinator.setInitialConfiguration(configurationWithPlaceholders);
+                        logger.info("successfully set initial configuration to {}", configurationWithPlaceholders);
                     } catch (CoordinationStateRejectedException e) {
-                        logger.info(new ParameterizedMessage("failed to set initial configuration to {}", initialConfiguration), e);
+                        logger.info(new ParameterizedMessage("failed to set initial configuration to {}",
+                            configurationWithPlaceholders), e);
                     }
                 }).run();
             }

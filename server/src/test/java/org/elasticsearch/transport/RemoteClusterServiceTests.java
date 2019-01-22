@@ -908,7 +908,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
-    private void updateRemoteCluster(RemoteClusterService service, String clusterAlias, List<String> addresses, String proxyAddress)
+    private static void updateRemoteCluster(RemoteClusterService service, String clusterAlias, List<String> addresses, String proxyAddress)
         throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
@@ -920,6 +920,42 @@ public class RemoteClusterServiceTests extends ESTestCase {
         latch.await();
         if (exceptionAtomicReference.get() != null) {
             throw exceptionAtomicReference.get();
+        }
+    }
+
+    public static void updateSkipUnavailable(RemoteClusterService service, String clusterAlias, boolean skipUnavailable) {
+        RemoteClusterConnection connection = service.getRemoteClusterConnection(clusterAlias);
+        connection.updateSkipUnavailable(skipUnavailable);
+    }
+
+    public static void addConnectionListener(RemoteClusterService service, TransportConnectionListener listener) {
+        for (RemoteClusterConnection connection : service.getConnections()) {
+            ConnectionManager connectionManager = connection.getConnectionManager();
+            connectionManager.addListener(listener);
+        }
+    }
+
+    public void testSkipUnavailable() {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
+            knownNodes.add(seedNode);
+            Settings.Builder builder = Settings.builder();
+            builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
+            try (MockTransportService service = MockTransportService.createNewService(builder.build(), Version.CURRENT, threadPool, null)) {
+                service.start();
+                service.acceptIncomingRequests();
+
+                assertFalse(service.getRemoteClusterService().isSkipUnavailable("cluster1"));
+
+                if (randomBoolean()) {
+                    updateSkipUnavailable(service.getRemoteClusterService(), "cluster1", false);
+                    assertFalse(service.getRemoteClusterService().isSkipUnavailable("cluster1"));
+                }
+
+                updateSkipUnavailable(service.getRemoteClusterService(), "cluster1", true);
+                assertTrue(service.getRemoteClusterService().isSkipUnavailable("cluster1"));
+            }
         }
     }
 }

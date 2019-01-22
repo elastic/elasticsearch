@@ -29,8 +29,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.function.Consumer;
-
 final class RemoteClusterAwareClient extends AbstractClient {
 
     private final TransportService service;
@@ -47,20 +45,9 @@ final class RemoteClusterAwareClient extends AbstractClient {
     @Override
     protected <Request extends ActionRequest, Response extends ActionResponse>
     void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
-        RemoteClusterConnection remoteClusterConnection = remoteClusterService.getRemoteClusterConnection(clusterAlias);
-        final ActionListener<Response> responseListener;
-        final Consumer<Exception> onConnectFailure;
-        if (listener instanceof CCSActionListener && remoteClusterConnection.isSkipUnavailable()) {
-            CCSActionListener skipUnavailableActionListener = (CCSActionListener) listener;
-            onConnectFailure = skipUnavailableActionListener::onSkippedFailure;
-            responseListener = ActionListener.wrap(listener::onResponse, skipUnavailableActionListener::onSkippedFailure);
-        } else {
-            onConnectFailure = listener::onFailure;
-            responseListener = listener;
-        }
         // in case we have no connected nodes we try to connect and if we fail we either notify the listener
         // or not depending on the skip_unavailable setting and whether a CCSActionListener was provided
-        remoteClusterConnection.ensureConnected(ActionListener.wrap(res -> {
+        remoteClusterService.ensureConnected(clusterAlias, ActionListener.wrap(res -> {
                 Transport.Connection connection;
                 if (request instanceof RemoteClusterAwareRequest) {
                     DiscoveryNode preferredTargetNode = ((RemoteClusterAwareRequest) request).getPreferredTargetNode();
@@ -69,9 +56,9 @@ final class RemoteClusterAwareClient extends AbstractClient {
                     connection = remoteClusterService.getConnection(clusterAlias);
                 }
                 service.sendRequest(connection, action.name(), request, TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(responseListener, action.getResponseReader()));
+                    new ActionListenerResponseHandler<>(listener, action.getResponseReader()));
             },
-            onConnectFailure));
+            listener::onFailure));
     }
 
     @Override

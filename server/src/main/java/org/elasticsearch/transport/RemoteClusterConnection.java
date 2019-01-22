@@ -168,6 +168,9 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
         this.skipUnavailable = skipUnavailable;
     }
 
+    /**
+     * Returns whether this cluster is configured to be skipped when unavailable
+     */
     boolean isSkipUnavailable() {
         return skipUnavailable;
     }

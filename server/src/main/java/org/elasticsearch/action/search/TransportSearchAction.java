@@ -51,7 +51,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.CCSActionListener;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -238,20 +237,32 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final AtomicReference<RemoteTransportException> transportException = new AtomicReference<>();
         for (Map.Entry<String, OriginalIndices> entry : remoteIndicesByCluster.entrySet()) {
             final String clusterAlias = entry.getKey();
+            boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
             Client clusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
             final String[] indices = entry.getValue().indices();
             ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices)
                 .indicesOptions(indicesOptions).local(true).preference(preference).routing(routing);
-            clusterClient.admin().cluster().searchShards(searchShardsRequest, new CCSActionListener<ClusterSearchShardsResponse>() {
+            clusterClient.admin().cluster().searchShards(searchShardsRequest, new ActionListener<ClusterSearchShardsResponse>() {
                     @Override
-                    public void onSkippedFailure(Exception e) {
-                        skippedClusters.incrementAndGet();
+                    public void onResponse(ClusterSearchShardsResponse response) {
+                        searchShardsResponses.put(clusterAlias, response);
                         maybeFinish();
                     }
 
                     @Override
-                    public void onResponse(ClusterSearchShardsResponse response) {
-                        searchShardsResponses.put(clusterAlias, response);
+                    public void onFailure(Exception e) {
+                        if (skipUnavailable) {
+                            skippedClusters.incrementAndGet();
+                        } else {
+                            RemoteTransportException exception =
+                                new RemoteTransportException("error while communicating with remote cluster [" + clusterAlias + "]", e);
+                            if (transportException.compareAndSet(null, exception) == false) {
+                                transportException.accumulateAndGet(exception, (previous, current) -> {
+                                    current.addSuppressed(previous);
+                                    return current;
+                                });
+                            }
+                        }
                         maybeFinish();
                     }
 
@@ -263,21 +274,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             } else {
                                 listener.onFailure(transportException.get());
                             }
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        RemoteTransportException exception =
-                            new RemoteTransportException("error while communicating with remote cluster [" + clusterAlias + "]", e);
-                        if (transportException.compareAndSet(null, exception) == false) {
-                            exception = transportException.accumulateAndGet(exception, (previous, current) -> {
-                                current.addSuppressed(previous);
-                                return current;
-                            });
-                        }
-                        if (responsesCountDown.countDown()) {
-                            listener.onFailure(exception);
                         }
                     }
                 }

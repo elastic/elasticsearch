@@ -42,9 +42,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-
-import static org.hamcrest.Matchers.instanceOf;
 
 public class RemoteClusterAwareClientTests extends ESTestCase {
 
@@ -81,8 +78,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                         .indicesOptions(request.indicesOptions()).local(true).preference(request.preference())
                         .routing(request.routing());
                     client.admin().cluster().searchShards(searchShardsRequest,
-                        new LatchedCCSActionListener<>(ActionListener.wrap(reference::set, e -> fail("no failures expected")),
-                            e -> fail("no skipped failures expected"), responseLatch));
+                        new LatchedActionListener<>(ActionListener.wrap(reference::set, e -> fail("no failures expected")), responseLatch));
                     responseLatch.await();
                     assertNotNull(reference.get());
                     ClusterSearchShardsResponse clusterSearchShardsResponse = reference.get();
@@ -120,12 +116,12 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                                 .routing(request.routing());
                             CountDownLatch responseLatch = new CountDownLatch(1);
                             client.admin().cluster().searchShards(searchShardsRequest,
-                                new LatchedCCSActionListener<>(ActionListener.wrap(
+                                new LatchedActionListener<>(ActionListener.wrap(
                                     resp -> {
                                         reference.set(resp);
                                         assertEquals(threadId, seedTransport.threadPool.getThreadContext().getHeader("threadId"));
                                     },
-                                    e -> fail("no failures expected")), e -> fail("no skipped failures expected"), responseLatch));
+                                    e -> fail("no failures expected")), responseLatch));
                             try {
                                 responseLatch.await();
                             } catch (InterruptedException e) {
@@ -138,138 +134,6 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                     }
                     ThreadPool.terminate(executorService, 5, TimeUnit.SECONDS);
                 }
-            }
-        }
-    }
-
-    public static void addConnectionListener(RemoteClusterService service, String clusterAlias, TransportConnectionListener listener) {
-        RemoteClusterConnection connection = service.getRemoteClusterConnection(clusterAlias);
-        ConnectionManager connectionManager = connection.getConnectionManager();
-        connectionManager.addListener(listener);
-    }
-
-    public static void addConnectionListener(RemoteClusterService service, TransportConnectionListener listener) {
-        for (RemoteClusterConnection connection : service.getConnections()) {
-            ConnectionManager connectionManager = connection.getConnectionManager();
-            connectionManager.addListener(listener);
-        }
-    }
-
-    public static void updateSkipUnavailable(RemoteClusterService service, String clusterAlias, boolean skipUnavailable) {
-        RemoteClusterConnection connection = service.getRemoteClusterConnection(clusterAlias);
-        connection.updateSkipUnavailable(skipUnavailable);
-    }
-
-    public void testSearchShardsSkipUnavailable() throws Exception {
-        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes)) {
-            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
-            knownNodes.add(seedNode);
-            Settings.Builder builder = Settings.builder();
-            builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
-            try (MockTransportService service = MockTransportService.createNewService(builder.build(), Version.CURRENT, threadPool, null)) {
-                service.start();
-                service.acceptIncomingRequests();
-                try (RemoteClusterAwareClient client = new RemoteClusterAwareClient(Settings.EMPTY, threadPool, service, "cluster1")) {
-
-                    SearchRequest request = new SearchRequest("test-index");
-                    ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest("test-index")
-                        .indicesOptions(request.indicesOptions()).local(true).preference(request.preference())
-                        .routing(request.routing());
-                    {
-                        CountDownLatch responseLatch = new CountDownLatch(1);
-                        AtomicReference<ClusterSearchShardsResponse> reference = new AtomicReference<>();
-                        client.admin().cluster().searchShards(searchShardsRequest,
-                            new LatchedCCSActionListener<>(ActionListener.wrap(reference::set,
-                                e -> fail("no failures expected")), e -> fail("no skipped failures expected"), responseLatch));
-                        assertTrue(responseLatch.await(10, TimeUnit.SECONDS));
-                        assertNotNull(reference.get());
-                        assertEquals(knownNodes, Arrays.asList(reference.get().getNodes()));
-                    }
-
-                    CountDownLatch disconnectedLatch = new CountDownLatch(1);
-                    addConnectionListener(service.getRemoteClusterService(), "cluster1", new TransportConnectionListener() {
-                        @Override
-                        public void onNodeDisconnected(DiscoveryNode node) {
-                            if (node.equals(seedNode)) {
-                                disconnectedLatch.countDown();
-                            }
-                        }
-                    });
-
-                    service.addFailToSendNoConnectRule(seedTransport);
-
-                    if (randomBoolean()) {
-                        updateSkipUnavailable(service.getRemoteClusterService(), "cluster1", false);
-                    }
-                    {
-                        CountDownLatch responseLatch = new CountDownLatch(1);
-                        AtomicReference<ClusterSearchShardsResponse> reference = new AtomicReference<>();
-                        AtomicReference<Exception> failReference = new AtomicReference<>();
-                        client.admin().cluster().searchShards(searchShardsRequest,
-                            new LatchedCCSActionListener<>(ActionListener.wrap(reference::set, failReference::set),
-                                e -> fail("no skipped failures expected"), responseLatch));
-                        assertTrue(responseLatch.await(10, TimeUnit.SECONDS));
-                        assertNotNull(failReference.get());
-                        assertThat(failReference.get(), instanceOf(TransportException.class));
-                        assertNull(reference.get());
-                    }
-
-                    updateSkipUnavailable(service.getRemoteClusterService(), "cluster1", true);
-                    {
-                        CountDownLatch responseLatch = new CountDownLatch(1);
-                        AtomicReference<ClusterSearchShardsResponse> reference = new AtomicReference<>();
-                        AtomicReference<Exception> skippedFailureReference = new AtomicReference<>();
-                        client.admin().cluster().searchShards(searchShardsRequest,
-                            new LatchedCCSActionListener<>(ActionListener.wrap(reference::set,
-                                e -> fail("no failures expected")), skippedFailureReference::set, responseLatch));
-                        assertTrue(responseLatch.await(10, TimeUnit.SECONDS));
-                        assertNull(reference.get());
-                        assertNotNull(skippedFailureReference.get());
-                        assertThat(skippedFailureReference.get(), instanceOf(TransportException.class));
-                    }
-
-                    //give transport service enough time to realize that the node is down, and to notify the connection listeners
-                    //so that RemoteClusterConnection is left with no connected nodes, hence it will retry connecting next
-                    assertTrue(disconnectedLatch.await(10, TimeUnit.SECONDS));
-
-                    if (randomBoolean()) {
-                        updateSkipUnavailable(service.getRemoteClusterService(), "cluster1", false);
-                    }
-
-                    service.clearAllRules();
-                    //check that we reconnect once the node is back up
-                    {
-                        CountDownLatch responseLatch = new CountDownLatch(1);
-                        AtomicReference<ClusterSearchShardsResponse> reference = new AtomicReference<>();
-                        client.admin().cluster().searchShards(searchShardsRequest,
-                            new LatchedCCSActionListener<>(ActionListener.wrap(reference::set,
-                                e -> fail("no failures expected")), e -> fail("no skipped failures expected"), responseLatch));
-                        assertTrue(responseLatch.await(10, TimeUnit.SECONDS));
-                        assertNotNull(reference.get());
-                        assertEquals(knownNodes, Arrays.asList(reference.get().getNodes()));
-                    }
-                }
-            }
-        }
-    }
-
-    private static class LatchedCCSActionListener<Response> extends LatchedActionListener<Response>
-        implements CCSActionListener<Response> {
-
-        private final Consumer<Exception> skippedFailureConsumer;
-
-        LatchedCCSActionListener(ActionListener<Response> delegate, Consumer<Exception> consumer, CountDownLatch latch) {
-            super(delegate, latch);
-            this.skippedFailureConsumer = consumer;
-        }
-
-        @Override
-        public void onSkippedFailure(Exception e) {
-            try {
-                skippedFailureConsumer.accept(e);
-            } finally {
-                latch.countDown();
             }
         }
     }

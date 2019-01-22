@@ -46,9 +46,9 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeDisconnectedException;
-import org.elasticsearch.transport.RemoteClusterAwareClientTests;
 import org.elasticsearch.transport.RemoteClusterConnectionTests;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterServiceTests;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportConnectionListener;
@@ -392,7 +392,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 }
 
                 CountDownLatch disconnectedLatch = new CountDownLatch(numDisconnectedClusters);
-                RemoteClusterAwareClientTests.addConnectionListener(remoteClusterService, new TransportConnectionListener() {
+                RemoteClusterServiceTests.addConnectionListener(remoteClusterService, new TransportConnectionListener() {
                     @Override
                     public void onNodeDisconnected(DiscoveryNode node) {
                         if (disconnectedNodes.remove(node)) {
@@ -421,7 +421,7 @@ public class TransportSearchActionTests extends ESTestCase {
 
                 //setting skip_unavailable to true for all the disconnected clusters will make the request succeed again
                 for (int i : disconnectedNodesIndices) {
-                    RemoteClusterAwareClientTests.updateSkipUnavailable(remoteClusterService, "remote" + i, true);
+                    RemoteClusterServiceTests.updateSkipUnavailable(remoteClusterService, "remote" + i, true);
                 }
 
                 {
@@ -454,7 +454,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 if (randomBoolean()) {
                     for (int i : disconnectedNodesIndices) {
                         if (randomBoolean()) {
-                            RemoteClusterAwareClientTests.updateSkipUnavailable(remoteClusterService, "remote" + i, true);
+                            RemoteClusterServiceTests.updateSkipUnavailable(remoteClusterService, "remote" + i, true);
                         }
 
                     }

@@ -212,11 +212,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             Map<String, AliasFilter> remoteAliasFilters = new HashMap<>();
                             BiFunction<String, String, DiscoveryNode> clusterNodeLookup = processRemoteShards(
                                 searchShardsResponses, remoteClusterIndices, remoteShardIterators, remoteAliasFilters);
-                            int total = remoteClusterIndices.size() + (localIndices == null ? 0 : 1);
-                            int successful = searchShardsResponses.size();
+                            int localClusters = localIndices == null ? 0 : 1;
+                            int totalClusters = remoteClusterIndices.size() + localClusters;
+                            int successfulClusters = searchShardsResponses.size() + localClusters;
                             executeSearch((SearchTask) task, timeProvider, searchRequest, localIndices,
                                 remoteShardIterators, clusterNodeLookup, clusterState, remoteAliasFilters, listener,
-                                new SearchResponse.Clusters(total, successful, skippedClusters.get()));
+                                new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters.get()));
                         },
                         listener::onFailure));
             }

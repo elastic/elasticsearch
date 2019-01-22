@@ -565,6 +565,12 @@ class BuildPlugin implements Plugin<Project> {
             repos.mavenLocal()
         }
         repos.jcenter()
+        repos.ivy {
+            url "https://artifacts.elastic.co/downloads"
+            patternLayout {
+                artifact "elasticsearch/[module]-[revision](-[classifier]).[ext]"
+            }
+        }
         repos.maven {
             name "elastic"
             url "https://artifacts.elastic.co/maven"

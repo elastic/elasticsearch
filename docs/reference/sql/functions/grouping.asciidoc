@@ -78,6 +78,6 @@ include-tagged::{sql-specs}/docs.csv-spec[histogramDateTimeExpression]
 ----
 
 [NOTE]
-When the histogram in SQL is applied on **DATE** type instead of **DATETIME** and the interval specified is rounded to
+When the histogram in SQL is applied on **DATE** type instead of **DATETIME**, then the interval specified is rounded to
 the nearest multiple of a day. E.g.: for `HISTOGRAM(CAST(birth_date AS DATE), INTERVAL '2 3:04' DAY TO MINUTE)`
 the interval actually used will be `INTERVAL 2 DAYS`.

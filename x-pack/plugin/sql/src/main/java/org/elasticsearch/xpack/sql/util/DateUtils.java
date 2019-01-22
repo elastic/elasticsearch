@@ -21,6 +21,8 @@ import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 
 public final class DateUtils {
 
+    private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000;
+
     // TODO: do we have a java.time based parser we can use instead?
     private static final DateTimeFormatter UTC_DATE_FORMATTER = ISODateTimeFormat.dateOptionalTimeParser().withZoneUTC();
 
@@ -112,5 +114,12 @@ public final class DateUtils {
 
     public static String toDateString(ZonedDateTime date) {
         return date.format(ISO_LOCAL_DATE);
+    }
+
+    public static long minDayInterval(long l) {
+        if (l < DAY_IN_MILLIS ) {
+            return DAY_IN_MILLIS;
+        }
+        return l - (l % DAY_IN_MILLIS);
     }
 }

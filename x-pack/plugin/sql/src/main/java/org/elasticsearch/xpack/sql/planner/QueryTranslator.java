@@ -91,8 +91,8 @@ import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.Check;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.elasticsearch.xpack.sql.util.ReflectionUtils;
 
 import java.util.Arrays;
@@ -106,6 +106,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.expression.Foldables.doubleValuesOf;
 import static org.elasticsearch.xpack.sql.expression.Foldables.valueOf;
+import static org.elasticsearch.xpack.sql.type.DataType.DATE;
 
 final class QueryTranslator {
 
@@ -275,8 +276,11 @@ final class QueryTranslator {
                             Expression field = h.field();
 
                             // date histogram
-                            if (h.dataType() == DataType.DATETIME) {
+                            if (h.dataType().isDate()) {
                                 long intervalAsMillis = Intervals.inMillis(h.interval());
+                                if (h.dataType() == DATE) {
+                                    intervalAsMillis = DateUtils.minDayInterval(intervalAsMillis);
+                                }
                                 // TODO: set timezone
                                 if (field instanceof FieldAttribute) {
                                     key = new GroupByDateHistogram(aggId, nameOf(field), intervalAsMillis, h.zoneId());

@@ -214,7 +214,7 @@ final class TypeConverter {
             case FLOAT:
                 return floatValue(v); // Float might be represented as string for infinity and NaN values
             case DATE:
-                return JdbcDateUtils.asDate(v.toString());
+                return JdbcDateUtils.asDateTimeField(v, JdbcDateUtils::asDate, Date::new);
             case DATETIME:
                 return JdbcDateUtils.asDateTimeField(v, JdbcDateUtils::asTimestamp, Timestamp::new);
             case INTERVAL_YEAR:

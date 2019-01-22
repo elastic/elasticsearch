@@ -326,6 +326,10 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertEquals(0, snapshotInfo.failedShards());
     }
 
+    /**
+     * Simulates concurrent restarts of data and master nodes as well as relocating a primary shard, while starting and subsequently
+     * deleting a snapshot.
+     */
     public void testSnapshotPrimaryRelocations() {
         final int masterNodeCount = randomFrom(1, 3, 5);
         setupTestCluster(masterNodeCount, randomIntBetween(2, 10));
@@ -989,6 +993,9 @@ public class SnapshotsServiceTests extends ESTestCase {
 
     private final class DisconnectedNodes extends NetworkDisruption.DisruptedLinks {
 
+        /**
+         * Node names that are disconnected from all other nodes.
+         */
         private final Set<String> disconnected = new HashSet<>();
 
         @Override
@@ -996,6 +1003,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             if (node1.equals(node2)) {
                 return false;
             }
+            // Check if both nodes are still part of the cluster
             if (testClusterNodes.nodes.containsKey(node1) == false
                 || testClusterNodes.nodes.containsKey(node2) == false) {
                 return true;

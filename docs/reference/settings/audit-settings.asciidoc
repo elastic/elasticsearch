@@ -37,7 +37,7 @@ For more information, see <<configuring-logging-levels>>.
 TIP: If the index is unavailable, it is possible for auditing events to
 be lost. The `index` output type should therefore be used in conjunction with
 the `logfile` output type and the latter should be the official record of events.
-This unreliability is an important reason for why the `index` output type got
+This unreliability is an important reason for why the `index` output type was
 deprecated in 6.7.0 and will be removed in 7.0.
 
 --

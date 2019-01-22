@@ -24,7 +24,7 @@ creation time:
 
 [source,js]
 ---------------------------------
-PUT /my_index?include_type_name=true
+PUT /my_index
 {
   "settings": {
     "index.store.type": "niofs"
@@ -114,7 +114,7 @@ or in the index settings at index creation time:
 
 [source,js]
 ---------------------------------
-PUT /my_index?include_type_name=true
+PUT /my_index
 {
   "settings": {
     "index.store.preload": ["nvd", "dvd"]

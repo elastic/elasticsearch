@@ -16,14 +16,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.CcrIntegTestCase;
-import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowParameters;
+import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowerInfo;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.util.Arrays;
@@ -223,42 +225,52 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         createLeaderIndex("logs-201901", leaderIndexSettings);
         assertBusy(() -> {
-            PersistentTasksCustomMetaData persistentTasksMetaData =
-                followerClient().admin().cluster().prepareState().get().getState().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            assertThat(persistentTasksMetaData, notNullValue());
-            assertThat(persistentTasksMetaData.tasks().size(), equalTo(1));
-            ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTasksMetaData.tasks().iterator().next().getParams();
-            assertThat(shardFollowTask.getLeaderShardId().getIndexName(), equalTo("logs-201901"));
-            assertThat(shardFollowTask.getFollowShardId().getIndexName(), equalTo("copy-logs-201901"));
+            FollowInfoAction.Request followInfoRequest = new FollowInfoAction.Request();
+            followInfoRequest.setFollowerIndices("copy-logs-201901");
+            FollowInfoAction.Response followInfoResponse;
+            try {
+                 followInfoResponse = followerClient().execute(FollowInfoAction.INSTANCE, followInfoRequest).actionGet();
+            } catch (IndexNotFoundException e) {
+                throw new AssertionError(e);
+            }
+
+            assertThat(followInfoResponse.getFollowInfos().size(), equalTo(1));
+            FollowerInfo followerInfo = followInfoResponse.getFollowInfos().get(0);
+            assertThat(followerInfo.getFollowerIndex(), equalTo("copy-logs-201901"));
+            assertThat(followerInfo.getRemoteCluster(), equalTo("leader_cluster"));
+            assertThat(followerInfo.getLeaderIndex(), equalTo("logs-201901"));
+
+            FollowParameters followParameters = followerInfo.getParameters();
+            assertThat(followParameters, notNullValue());
             if (request.getMaxWriteBufferCount() != null) {
-                assertThat(shardFollowTask.getMaxWriteBufferCount(), equalTo(request.getMaxWriteBufferCount()));
+                assertThat(followParameters.getMaxWriteBufferCount(), equalTo(request.getMaxWriteBufferCount()));
             }
             if (request.getMaxWriteBufferSize() != null) {
-                assertThat(shardFollowTask.getMaxWriteBufferSize(), equalTo(request.getMaxWriteBufferSize()));
+                assertThat(followParameters.getMaxWriteBufferSize(), equalTo(request.getMaxWriteBufferSize()));
             }
             if (request.getMaxConcurrentReadBatches() != null) {
-                assertThat(shardFollowTask.getMaxOutstandingReadRequests(), equalTo(request.getMaxConcurrentReadBatches()));
+                assertThat(followParameters.getMaxOutstandingReadRequests(), equalTo(request.getMaxConcurrentReadBatches()));
             }
             if (request.getMaxConcurrentWriteBatches() != null) {
-                assertThat(shardFollowTask.getMaxOutstandingWriteRequests(), equalTo(request.getMaxConcurrentWriteBatches()));
+                assertThat(followParameters.getMaxOutstandingWriteRequests(), equalTo(request.getMaxConcurrentWriteBatches()));
             }
             if (request.getMaxReadRequestOperationCount() != null) {
-                assertThat(shardFollowTask.getMaxReadRequestOperationCount(), equalTo(request.getMaxReadRequestOperationCount()));
+                assertThat(followParameters.getMaxReadRequestOperationCount(), equalTo(request.getMaxReadRequestOperationCount()));
             }
             if (request.getMaxReadRequestSize() != null) {
-                assertThat(shardFollowTask.getMaxReadRequestSize(), equalTo(request.getMaxReadRequestSize()));
+                assertThat(followParameters.getMaxReadRequestSize(), equalTo(request.getMaxReadRequestSize()));
             }
             if (request.getMaxRetryDelay() != null) {
-                assertThat(shardFollowTask.getMaxRetryDelay(), equalTo(request.getMaxRetryDelay()));
+                assertThat(followParameters.getMaxRetryDelay(), equalTo(request.getMaxRetryDelay()));
             }
             if (request.getReadPollTimeout() != null) {
-                assertThat(shardFollowTask.getReadPollTimeout(), equalTo(request.getReadPollTimeout()));
+                assertThat(followParameters.getReadPollTimeout(), equalTo(request.getReadPollTimeout()));
             }
             if (request.getMaxWriteRequestOperationCount() != null) {
-                assertThat(shardFollowTask.getMaxWriteRequestOperationCount(), equalTo(request.getMaxWriteRequestOperationCount()));
+                assertThat(followParameters.getMaxWriteRequestOperationCount(), equalTo(request.getMaxWriteRequestOperationCount()));
             }
             if (request.getMaxWriteRequestSize() != null) {
-                assertThat(shardFollowTask.getMaxWriteRequestSize(), equalTo(request.getMaxWriteRequestSize()));
+                assertThat(followParameters.getMaxWriteRequestSize(), equalTo(request.getMaxWriteRequestSize()));
             }
         });
     }

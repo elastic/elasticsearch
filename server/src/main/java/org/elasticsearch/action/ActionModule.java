@@ -23,10 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
-import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapClusterAction;
-import org.elasticsearch.action.admin.cluster.bootstrap.GetDiscoveredNodesAction;
-import org.elasticsearch.action.admin.cluster.bootstrap.TransportBootstrapClusterAction;
-import org.elasticsearch.action.admin.cluster.bootstrap.TransportGetDiscoveredNodesAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
@@ -438,8 +434,6 @@ public class ActionModule extends AbstractModule {
         actions.register(GetTaskAction.INSTANCE, TransportGetTaskAction.class);
         actions.register(CancelTasksAction.INSTANCE, TransportCancelTasksAction.class);
 
-        actions.register(GetDiscoveredNodesAction.INSTANCE, TransportGetDiscoveredNodesAction.class);
-        actions.register(BootstrapClusterAction.INSTANCE, TransportBootstrapClusterAction.class);
         actions.register(AddVotingConfigExclusionsAction.INSTANCE, TransportAddVotingConfigExclusionsAction.class);
         actions.register(ClearVotingConfigExclusionsAction.INSTANCE, TransportClearVotingConfigExclusionsAction.class);
         actions.register(ClusterAllocationExplainAction.INSTANCE, TransportClusterAllocationExplainAction.class);

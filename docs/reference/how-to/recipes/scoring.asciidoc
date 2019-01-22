@@ -93,7 +93,7 @@ textual relevance, eg. as computed with BM25:
 
 For instance imagine that you have a `pagerank` field that you wish to
 combine with the BM25 score so that the final score is equal to
-latexmath:[score = bm25_score + pagerank / (10 + pagerank)].
+`score = bm25_score + pagerank / (10 + pagerank)`.
 
 With the <<query-dsl-script-score-query,script_score query>> the query would
 look like this:

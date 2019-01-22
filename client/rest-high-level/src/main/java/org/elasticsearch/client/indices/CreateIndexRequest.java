@@ -21,10 +21,8 @@ package org.elasticsearch.client.indices;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.ParseField;
@@ -54,7 +52,7 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 /**
  * A request to create an index.
  */
-public class CreateIndexRequest extends TimedRequest implements Validatable, IndicesRequest, ToXContentObject {
+public class CreateIndexRequest extends TimedRequest implements Validatable, ToXContentObject {
     static final ParseField MAPPINGS = new ParseField("mappings");
     static final ParseField SETTINGS = new ParseField("settings");
     static final ParseField ALIASES = new ParseField("aliases");
@@ -77,16 +75,6 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, Ind
             throw new IllegalArgumentException("The index name cannot be null.");
         }
         this.index = index;
-    }
-
-    @Override
-    public String[] indices() {
-        return new String[]{index};
-    }
-
-    @Override
-    public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
     /**

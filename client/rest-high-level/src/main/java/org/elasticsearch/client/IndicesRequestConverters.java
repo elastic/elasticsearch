@@ -97,9 +97,9 @@ final class IndicesRequestConverters {
         return request;
     }
 
-    static Request createIndex(CreateIndexRequest createIndexRequest)
-        throws IOException {
-        String endpoint = RequestConverters.endpoint(createIndexRequest.indices());
+    static Request createIndex(CreateIndexRequest createIndexRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPart(createIndexRequest.index()).build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
 
         RequestConverters.Params parameters = new RequestConverters.Params(request);

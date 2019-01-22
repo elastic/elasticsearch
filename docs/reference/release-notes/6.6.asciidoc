@@ -197,12 +197,24 @@ Features/Features::
 * Simplify deprecation issue levels {pull}36326[#36326]
 * Deprecation check for tribe node {pull}36240[#36240] (issue: {issue}36024[#36024])
 * Deprecation check for `:` in Cluster/Index name {pull}36185[#36185] (issue: {issue}36024[#36024])
+* Deprecation check for renamed bulk threadpool settings {pull}36662[#36662] (issue: {issue}36024[#36024])
+* Deprecation check for audit log prefix settings {pull}36661[#36661] (issue: {issue}36024[#36024])
+* Deprecation check for classic similarity {pull}36577[#36577] (issue: {issue}36024[#36024])
+* Deprecation check for HTTP pipelining {pull}36521[#36521] (issue: {issue}36024[#36024])
+* Deprecation check for index threadpool {pull}36520[#36520] (issue: {issue}36024[#36024])
+* Deprecation check for percolator.map_unmapped_fields_as_string {pull}36460[#36460] (issue: {issue}36024[#36024])
+* Deprecation check for http.enabled setting {pull}36394[#36394] (issues: {issue}29601[#29601], {issue}36024[#36024])
+* Deprecation check for File Discovery plugin {pull}36190[#36190] (issue: {issue}36024[#36024])
 
 Features/Ingest::
 * Make the ingest-geoip databases even lazier to load {pull}36679[#36679]
 * ingest: grok fix duplicate patterns JAVACLASS and JAVAFILE  {pull}35886[#35886]
 
 Features/Java High Level REST Client::
+* [CCR] Added HLRC support for pause follow API {pull}35216[#35216] (issue: {issue}33824[#33824])
+* HLRC: Add security Create Token API {pull}34791[#34791]
+* Add start rollup job support to HL REST Client {pull}34623[#34623] (issue: {issue}29827[#29827])
+* HLRest: add security authenticate API {pull}33552[#33552]
 * HLRC: Add get users action {pull}36332[#36332] (issue: {issue}29827[#29827])
 * HLRC: Add delete template API {pull}36320[#36320] (issue: {issue}27205[#27205])
 * HLRC: Implement get-user-privileges API {pull}36292[#36292]
@@ -307,19 +319,6 @@ Infra/Scripting::
 * [Scripting] Make Max Script Length Setting Dynamic {pull}35184[#35184] (issue: {issue}23209[#23209])
 * [Painless] Add instance bindings {pull}34410[#34410]
 
-MULTIPLE AREA LABELS::
-* Deprecation check for renamed bulk threadpool settings {pull}36662[#36662] (issue: {issue}36024[#36024])
-* Deprecation check for audit log prefix settings {pull}36661[#36661] (issue: {issue}36024[#36024])
-* Deprecation check for classic similarity {pull}36577[#36577] (issue: {issue}36024[#36024])
-* Deprecation check for HTTP pipelining {pull}36521[#36521] (issue: {issue}36024[#36024])
-* Deprecation check for index threadpool {pull}36520[#36520] (issue: {issue}36024[#36024])
-* Deprecation check for percolator.map_unmapped_fields_as_string {pull}36460[#36460] (issue: {issue}36024[#36024])
-* Deprecation check for http.enabled setting {pull}36394[#36394] (issues: {issue}29601[#29601], {issue}36024[#36024])
-* Deprecation check for File Discovery plugin {pull}36190[#36190] (issue: {issue}36024[#36024])
-* [CCR] Added HLRC support for pause follow API {pull}35216[#35216] (issue: {issue}33824[#33824])
-* HLRC: Add security Create Token API {pull}34791[#34791]
-* Add start rollup job support to HL REST Client {pull}34623[#34623] (issue: {issue}29827[#29827])
-* HLRest: add security authenticate API {pull}33552[#33552]
 
 Machine Learning::
 * Create the {ml} annotations index {pull}36731[#36731] (issue: {issue}33376[#33376])

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
@@ -127,6 +128,8 @@ public class ElasticsearchMappings {
     public static final String TEXT = "text";
 
     static final String RAW = "raw";
+
+    private static final Logger logger = LogManager.getLogger(ElasticsearchMappings.class);
 
     private ElasticsearchMappings() {
     }
@@ -990,8 +993,7 @@ public class ElasticsearchMappings {
                 .endObject();
     }
 
-    static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion,
-                                          Logger logger) throws IOException {
+    static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion) throws IOException {
         List<String> indicesToUpdate = new ArrayList<>();
 
         ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> currentMapping = state.metaData().findMappings(concreteIndices,
@@ -1040,7 +1042,7 @@ public class ElasticsearchMappings {
     }
 
     public static void addDocMappingIfMissing(String alias, CheckedSupplier<XContentBuilder, IOException> mappingSupplier,
-                                              Client client, Logger logger, ClusterState state, ActionListener<Boolean> listener) {
+                                              Client client, ClusterState state, ActionListener<Boolean> listener) {
         AliasOrIndex aliasOrIndex = state.metaData().getAliasAndIndexLookup().get(alias);
         if (aliasOrIndex == null) {
             // The index has never been created yet
@@ -1052,7 +1054,7 @@ public class ElasticsearchMappings {
 
         String[] indicesThatRequireAnUpdate;
         try {
-            indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, Version.CURRENT, logger);
+            indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, Version.CURRENT);
         } catch (IOException e) {
             listener.onFailure(e);
             return;

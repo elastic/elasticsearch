@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
 
@@ -134,7 +135,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
     }
     
     private Map<String, Object> runSql(String mode, String sql) throws IOException {
-        Request request = new Request("POST", "/_sql");
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         String requestContent = "{\"query\":\"" + sql + "\"" + mode(mode) + "}";
         String format = randomFrom(XContentType.values()).name().toLowerCase(Locale.ROOT);
         

@@ -28,7 +28,7 @@ import java.util.concurrent.CountDownLatch;
 public class LatchedActionListener<T> implements ActionListener<T> {
 
     private final ActionListener<T> delegate;
-    protected final CountDownLatch latch;
+    private final CountDownLatch latch;
 
     public LatchedActionListener(ActionListener<T> delegate, CountDownLatch latch) {
         this.delegate = delegate;

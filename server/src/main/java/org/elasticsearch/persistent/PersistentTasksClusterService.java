@@ -268,13 +268,8 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                 PersistentTasksCustomMetaData.Builder tasksInProgress = builder(currentState);
                 if (tasksInProgress.hasTask(taskId, taskAllocationId)) {
                     logger.trace("Unassigning task {} with allocation id {}", taskId, taskAllocationId);
-                    return update(currentState, tasksInProgress.reassignTask(taskId, new Assignment(null, reason)));
+                    return update(currentState, tasksInProgress.reassignTask(taskId, unassignedAssignment(reason)));
                 } else {
-                    if (tasksInProgress.hasTask(taskId)) {
-                        logger.warn("trying to unassign task {} with unexpected allocation id {}", taskId, taskAllocationId);
-                    } else {
-                        logger.warn("trying to unassign non-existing task {}", taskId);
-                    }
                     throw new ResourceNotFoundException("the task with id {} and allocation id {} doesn't exist", taskId, taskAllocationId);
                 }
             }
@@ -307,7 +302,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
         AssignmentDecision decision = decider.canAssign();
         if (decision.getType() == AssignmentDecision.Type.NO) {
-            return new Assignment(null, "persistent task [" + taskName + "] cannot be assigned [" + decision.getReason() + "]");
+            return unassignedAssignment("persistent task [" + taskName + "] cannot be assigned [" + decision.getReason() + "]");
         }
 
         return persistentTasksExecutor.getAssignment(taskParams, currentState);
@@ -446,6 +441,10 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         } else {
             return currentState;
         }
+    }
+
+    private static Assignment unassignedAssignment(String reason) {
+        return new Assignment(null, reason);
     }
 
     /**

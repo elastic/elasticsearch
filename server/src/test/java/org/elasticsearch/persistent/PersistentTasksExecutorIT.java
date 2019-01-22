@@ -336,8 +336,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             assertThat(tasks.size(), equalTo(0));
 
             // Verify that the task is STILL in internal cluster state
-            assertThat(((PersistentTasksCustomMetaData) internalCluster().clusterService().state().getMetaData()
-                .custom(PersistentTasksCustomMetaData.TYPE)).tasks(), hasSize(1));
+            internalClusterHasSingleTask(taskId);
         });
 
         // Allow it to be reassigned again to the same node
@@ -347,8 +346,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         waitForTaskToStart();
 
         // Assert that we still have it in master state
-        assertThat(((PersistentTasksCustomMetaData) internalCluster().clusterService().state().getMetaData()
-            .custom(PersistentTasksCustomMetaData.TYPE)).tasks(), hasSize(1));
+        internalClusterHasSingleTask(taskId);
 
         // Complete or cancel the running task
         TaskInfo taskInfo = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
@@ -371,12 +369,23 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         }
     }
 
-    private void waitForTaskToStart() throws Exception {
+    private static void waitForTaskToStart() throws Exception {
         assertBusy(() -> {
             // Wait for the task to start
             assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks()
                 .size(), equalTo(1));
         });
+    }
+
+    private static void internalClusterHasSingleTask(String taskId) {
+        Collection<PersistentTask<?>> clusterTasks = ((PersistentTasksCustomMetaData) internalCluster()
+            .clusterService()
+            .state()
+            .getMetaData()
+            .custom(PersistentTasksCustomMetaData.TYPE))
+            .tasks();
+        assertThat(clusterTasks, hasSize(1));
+        assertThat(clusterTasks.iterator().next().getId(), equalTo(taskId));
     }
 
     private void assertNoRunningTasks() throws Exception {

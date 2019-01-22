@@ -14,7 +14,7 @@ this can be overridden with the `search_analyzer` setting:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "analysis": {

@@ -14,7 +14,7 @@ For example:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -61,7 +61,7 @@ allow to ignore malformed content globally across all mapping types.
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "index.mapping.ignore_malformed": true <1>

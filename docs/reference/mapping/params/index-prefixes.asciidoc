@@ -19,7 +19,7 @@ This example creates a text field using the default prefix length settings:
 
 [source,js]
 --------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -42,7 +42,7 @@ This example uses custom prefix length settings:
 
 [source,js]
 --------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {

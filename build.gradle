@@ -221,14 +221,14 @@ allprojects {
     "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${version}": ':modules:lang-painless:spi',
     "org.elasticsearch.test:framework:${version}": ':test:framework',
     "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:archives:integ-test-zip',
-    "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:archives:zip',
-    "org.elasticsearch.distribution.zip:elasticsearch-oss:${version}": ':distribution:archives:oss-zip',
-    "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:archives:tar',
-    "org.elasticsearch.distribution.tar:elasticsearch-oss:${version}": ':distribution:archives:oss-tar',
-    "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:packages:rpm',
-    "org.elasticsearch.distribution.rpm:elasticsearch-oss:${version}": ':distribution:packages:oss-rpm',
-    "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:packages:deb',
-    "org.elasticsearch.distribution.deb:elasticsearch-oss:${version}": ':distribution:packages:oss-deb',
+    "downloads.zip:elasticsearch:${version}": ':distribution:archives:zip',
+    "downloads.zip:elasticsearch-oss:${version}": ':distribution:archives:oss-zip',
+    "downloads.tar:elasticsearch:${version}": ':distribution:archives:tar',
+    "downloads.tar:elasticsearch-oss:${version}": ':distribution:archives:oss-tar',
+    "downloads.rpm:elasticsearch:${version}": ':distribution:packages:rpm',
+    "downloads.rpm:elasticsearch-oss:${version}": ':distribution:packages:oss-rpm',
+    "downloads.deb:elasticsearch:${version}": ':distribution:packages:deb',
+    "downloads.deb:elasticsearch-oss:${version}": ':distribution:packages:oss-deb',
     "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
     "org.elasticsearch.xpack.test:feature-aware:${version}": ':x-pack:test:feature-aware',
     // for transport client
@@ -244,13 +244,13 @@ allprojects {
   bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unreleasedVersion ->
     Version unreleased = unreleasedVersion.version
     String snapshotProject = ":distribution:bwc:${unreleasedVersion.gradleProjectName}"
-    ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${unreleased}"] = snapshotProject
-    ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${unreleased}"] = snapshotProject
-    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${unreleased}"] = snapshotProject
+    ext.projectSubstitutions["downloads.deb:elasticsearch:${unreleased}"] = snapshotProject
+    ext.projectSubstitutions["downloads.rpm:elasticsearch:${unreleased}"] = snapshotProject
+    ext.projectSubstitutions["downloads.zip:elasticsearch:${unreleased}"] = snapshotProject
     if (unreleased.onOrAfter('6.3.0')) {
-      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch-oss:${unreleased}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch-oss:${unreleased}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch-oss:${unreleased}"] = snapshotProject
+      ext.projectSubstitutions["downloads.deb:elasticsearch-oss:${unreleased}"] = snapshotProject
+      ext.projectSubstitutions["downloads.rpm:elasticsearch-oss:${unreleased}"] = snapshotProject
+      ext.projectSubstitutions["downloads.zip:elasticsearch-oss:${unreleased}"] = snapshotProject
     }
   }
 

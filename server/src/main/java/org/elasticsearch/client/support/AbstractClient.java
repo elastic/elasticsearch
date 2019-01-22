@@ -1067,11 +1067,6 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source) {
-            return new PutPipelineRequestBuilder(this, PutPipelineAction.INSTANCE, id, source);
-        }
-
-        @Override
         public PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source, XContentType xContentType) {
             return new PutPipelineRequestBuilder(this, PutPipelineAction.INSTANCE, id, source, xContentType);
         }
@@ -1119,11 +1114,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public ActionFuture<SimulatePipelineResponse> simulatePipeline(SimulatePipelineRequest request) {
             return execute(SimulatePipelineAction.INSTANCE, request);
-        }
-
-        @Override
-        public SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source) {
-            return new SimulatePipelineRequestBuilder(this, SimulatePipelineAction.INSTANCE, source);
         }
 
         @Override

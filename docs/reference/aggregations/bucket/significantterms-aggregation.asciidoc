@@ -22,20 +22,18 @@ that is significant and probably very relevant to their search. 5/10,000,000 vs 
 PUT /reports
 {
     "mappings": {
-        "report": {
-            "properties": {
-                "force": {
-                    "type": "keyword"
-                },
-                "crime_type": {
-                    "type": "keyword"
-                }
+        "properties": {
+            "force": {
+                "type": "keyword"
+            },
+            "crime_type": {
+                "type": "keyword"
             }
         }
     }
 }
 
-POST /reports/report/_bulk?refresh
+POST /reports/_bulk?refresh
 {"index":{"_id":0}}
 {"force": "British Transport Police", "crime_type": "Bicycle theft"}
 {"index":{"_id":1}}

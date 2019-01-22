@@ -105,7 +105,7 @@ integTestCluster {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.token.enabled', 'true'
   // Truststore settings are not used since TLS is not enabled. Included for testing the get certificates API
-  setting 'xpack.ssl.certificate_authorities', 'testnode.crt'
+  setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'
   setting 'xpack.security.transport.ssl.truststore.path', 'testnode.jks'
   keystoreSetting 'xpack.security.transport.ssl.truststore.secure_password', 'testnode'
   setupCommand 'setupDummyUser',

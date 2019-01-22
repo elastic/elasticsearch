@@ -320,6 +320,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return remoteClusters.containsKey(clusterName);
     }
 
+    /**
+     * Returns the registered remote cluster names.
+     */
+    public Set<String> getRegisteredRemoteClusterNames() {
+        // remoteClusters is unmodifiable so its key set will be unmodifiable too
+        return remoteClusters.keySet();
+    }
+
     public void collectSearchShards(IndicesOptions indicesOptions, String preference, String routing,
                                     Map<String, OriginalIndices> remoteIndicesByCluster,
                                     ActionListener<Map<String, ClusterSearchShardsResponse>> listener) {

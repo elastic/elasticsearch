@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.randomMode;
+import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.SQL_QUERY_REST_ENDPOINT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -180,7 +181,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         }
 
         private static Map<String, Object> runSql(@Nullable String asUser, HttpEntity entity) throws IOException {
-            Request request = new Request("POST", "/_xpack/sql");
+            Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
             if (asUser != null) {
                 RequestOptions.Builder options = request.getOptions().toBuilder();
                 options.addHeader("es-security-runas-user", asUser);

@@ -98,6 +98,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
      * The temporal unicast responses is empty. When partition is solved the one ping response contains a master node.
      * The rejoining node should take this master node and connect.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37687")
     public void testUnicastSinglePingResponseContainsMaster() throws Exception {
         internalCluster().setHostsListContainsOnlyFirstNode(true);
         List<String> nodes = startCluster(4);

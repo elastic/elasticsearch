@@ -276,7 +276,7 @@ final class QueryTranslator {
                             Expression field = h.field();
 
                             // date histogram
-                            if (h.dataType().isDate()) {
+                            if (h.dataType().isDateBased()) {
                                 long intervalAsMillis = Intervals.inMillis(h.interval());
                                 if (h.dataType() == DATE) {
                                     intervalAsMillis = DateUtils.minDayInterval(intervalAsMillis);

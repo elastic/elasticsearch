@@ -216,7 +216,7 @@ public enum DataType {
         return this != OBJECT && this != NESTED;
     }
 
-    public boolean isDate() {
+    public boolean isDateBased() {
         return this == DATE || this == DATETIME;
     }
     

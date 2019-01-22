@@ -70,6 +70,5 @@ setup:
             match:
               foo: bar
 
-  - match: {hits.total.value: 1}
   - is_false: hits.hits.0._seq_no
   - is_false: hits.hits.0._primary_term

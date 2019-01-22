@@ -62,6 +62,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 public class JoinHelper {
 
@@ -84,7 +85,7 @@ public class JoinHelper {
     final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = ConcurrentCollections.newConcurrentSet();
 
     public JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
-                      TransportService transportService, LongSupplier currentTermSupplier,
+                      TransportService transportService, LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
                       BiConsumer<JoinRequest, JoinCallback> joinHandler, Function<StartJoinRequest, Join> joinLeaderInTerm,
                       Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators) {
         this.masterService = masterService;
@@ -132,6 +133,13 @@ public class JoinHelper {
         transportService.registerRequestHandler(VALIDATE_JOIN_ACTION_NAME,
             MembershipAction.ValidateJoinRequest::new, ThreadPool.Names.GENERIC,
             (request, channel, task) -> {
+                final ClusterState localState = currentStateSupplier.get();
+                if (localState.metaData().clusterUUIDCommitted() &&
+                    localState.metaData().clusterUUID().equals(request.getState().metaData().clusterUUID()) == false) {
+                    throw new CoordinationStateRejectedException("join validation on cluster state" +
+                        " with a different cluster uuid " + request.getState().metaData().clusterUUID() +
+                        " than local cluster uuid " + localState.metaData().clusterUUID() + ", rejecting");
+                }
                 joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
                 channel.sendResponse(Empty.INSTANCE);
             });

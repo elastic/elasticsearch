@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.coordination;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.apache.logging.log4j.CloseableThreadContext;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -59,6 +61,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MockGatewayMetaState;
 import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.elasticsearch.transport.TransportService;
@@ -80,6 +83,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -132,6 +136,13 @@ import static org.hamcrest.Matchers.startsWith;
 public class CoordinatorTests extends ESTestCase {
 
     private final List<NodeEnvironment> nodeEnvironments = new ArrayList<>();
+
+    private final AtomicInteger nextNodeIndex = new AtomicInteger();
+
+    @Before
+    public void resetNodeIndexBeforeEachTest() {
+        nextNodeIndex.set(0);
+    }
 
     @After
     public void closeNodeEnvironmentsAfterEachTest() {
@@ -997,6 +1008,40 @@ public class CoordinatorTests extends ESTestCase {
         assertTrue(cluster.clusterNodes.stream().allMatch(cn -> cn.getLastAppliedClusterState().version() == 0));
     }
 
+    public void testCannotJoinClusterWithDifferentUUID() throws IllegalAccessException {
+        final Cluster cluster1 = new Cluster(randomIntBetween(1, 3));
+        cluster1.runRandomly();
+        cluster1.stabilise();
+
+        final Cluster cluster2 = new Cluster(3);
+        cluster2.runRandomly();
+        cluster2.stabilise();
+
+        final ClusterNode shiftedNode = randomFrom(cluster2.clusterNodes).restartedNode();
+        final ClusterNode newNode = cluster1.new ClusterNode(nextNodeIndex.getAndIncrement(),
+            shiftedNode.getLocalNode(), n -> shiftedNode.persistedState);
+        cluster1.clusterNodes.add(newNode);
+
+        MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "test1",
+                JoinHelper.class.getCanonicalName(),
+                Level.INFO,
+                "*failed to join*"));
+        Logger joinLogger = LogManager.getLogger(JoinHelper.class);
+        Loggers.addAppender(joinLogger, mockAppender);
+        cluster1.runFor(10000, "failing join validation");
+        try {
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(joinLogger, mockAppender);
+            mockAppender.stop();
+        }
+        assertTrue(newNode.getLastAppliedClusterState().version() == 0);
+    }
+
     private static long defaultMillis(Setting<TimeValue> setting) {
         return setting.get(Settings.EMPTY).millis() + Cluster.DEFAULT_DELAY_VARIABILITY;
     }
@@ -1073,7 +1118,8 @@ public class CoordinatorTests extends ESTestCase {
             final Set<String> masterEligibleNodeIds = new HashSet<>(initialNodeCount);
             clusterNodes = new ArrayList<>(initialNodeCount);
             for (int i = 0; i < initialNodeCount; i++) {
-                final ClusterNode clusterNode = new ClusterNode(i, allNodesMasterEligible || i == 0 || randomBoolean());
+                final ClusterNode clusterNode = new ClusterNode(nextNodeIndex.getAndIncrement(),
+                    allNodesMasterEligible || i == 0 || randomBoolean());
                 clusterNodes.add(clusterNode);
                 if (clusterNode.getLocalNode().isMasterNode()) {
                     masterEligibleNodeIds.add(clusterNode.getId());
@@ -1104,10 +1150,9 @@ public class CoordinatorTests extends ESTestCase {
         List<ClusterNode> addNodes(int newNodesCount) {
             logger.info("--> adding {} nodes", newNodesCount);
 
-            final int nodeSizeAtStart = clusterNodes.size();
             final List<ClusterNode> addedNodes = new ArrayList<>();
             for (int i = 0; i < newNodesCount; i++) {
-                final ClusterNode clusterNode = new ClusterNode(nodeSizeAtStart + i, true);
+                final ClusterNode clusterNode = new ClusterNode(nextNodeIndex.getAndIncrement(), true);
                 addedNodes.add(clusterNode);
             }
             clusterNodes.addAll(addedNodes);

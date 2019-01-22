@@ -475,12 +475,24 @@ public class CoordinationState {
          */
         default void markLastAcceptedConfigAsCommitted() {
             final ClusterState lastAcceptedState = getLastAcceptedState();
+            MetaData.Builder metaDataBuilder = null;
             if (lastAcceptedState.getLastAcceptedConfiguration().equals(lastAcceptedState.getLastCommittedConfiguration()) == false) {
                 final CoordinationMetaData coordinationMetaData = CoordinationMetaData.builder(lastAcceptedState.coordinationMetaData())
                         .lastCommittedConfiguration(lastAcceptedState.getLastAcceptedConfiguration())
                         .build();
-                final MetaData metaData = MetaData.builder(lastAcceptedState.metaData()).coordinationMetaData(coordinationMetaData).build();
-                setLastAcceptedState(ClusterState.builder(lastAcceptedState).metaData(metaData).build());
+                if (metaDataBuilder == null) {
+                    metaDataBuilder = MetaData.builder(lastAcceptedState.metaData());
+                }
+                metaDataBuilder.coordinationMetaData(coordinationMetaData);
+            }
+            if (lastAcceptedState.metaData().clusterUUIDCommitted() == false) {
+                if (metaDataBuilder == null) {
+                    metaDataBuilder = MetaData.builder(lastAcceptedState.metaData());
+                }
+                metaDataBuilder.clusterUUIDCommitted(true);
+            }
+            if (metaDataBuilder != null) {
+                setLastAcceptedState(ClusterState.builder(lastAcceptedState).metaData(metaDataBuilder).build());
             }
         }
     }

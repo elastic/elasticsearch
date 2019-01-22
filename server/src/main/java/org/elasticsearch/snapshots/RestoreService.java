@@ -232,6 +232,19 @@ public class RestoreService implements ClusterStateApplier {
                         if (restoreInProgress != null && restoreInProgress.isEmpty() == false) {
                             throw new ConcurrentSnapshotExecutionException(snapshot, "Restore process is already running in this cluster");
                         }
+                    } else if (restoreInProgress != null) {
+                        Set<String> concurrentIndexRestores = new HashSet<>();
+                        for (RestoreInProgress.Entry restore : restoreInProgress) {
+                            for (String index : restore.indices()) {
+                                if (indices.containsKey(index)) {
+                                    concurrentIndexRestores.add(index);
+                                }
+                            }
+                        }
+                        if (concurrentIndexRestores.isEmpty() == false) {
+                            throw new ConcurrentSnapshotExecutionException(snapshot, "Restore process for indices " +
+                                concurrentIndexRestores + " already running in this cluster. Cannot concurrently restore an index.");
+                        }
                     }
 
                     // Check if the snapshot to restore is currently being deleted

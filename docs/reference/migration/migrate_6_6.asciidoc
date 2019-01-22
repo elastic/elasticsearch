@@ -8,7 +8,6 @@ This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 6.6.
 
 * <<breaking_66_api_changes>>
-* <<breaking_66_ml_changes>>
 * <<breaking_66_mapping_changes>>
 * <<breaking_66_search_changes>>
 * <<breaking_66_setting_changes>>
@@ -16,7 +15,7 @@ your application to Elasticsearch 6.6.
 See also <<release-highlights>> and <<es-release-notes>>.
 
 [float]
-[[breaking_63_api_changes]]
+[[breaking_66_api_changes]]
 === API changes
 
 [float]

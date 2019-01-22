@@ -613,7 +613,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals(RestStatus.OK, updateResponse.status());
             assertEquals(indexResponse.getVersion() + 1, updateResponse.getVersion());
 
-            UpdateRequest updateRequestConflict = new UpdateRequest("index", "id");
+            final UpdateRequest updateRequestConflict = new UpdateRequest("index", "id");
             updateRequestConflict.doc(singletonMap("field", "with_version_conflict"), randomFrom(XContentType.values()));
             updateRequestConflict.version(indexResponse.getVersion());
 
@@ -622,6 +622,24 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals(RestStatus.CONFLICT, exception.status());
             assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[_doc][id]: version conflict, " +
                             "current version [2] is different than the one provided [1]]", exception.getMessage());
+
+            final UpdateRequest updateRequestSeqNoConflict = new UpdateRequest("index", "id");
+            updateRequestSeqNoConflict.doc(singletonMap("field", "with_seq_no_conflict"), randomFrom(XContentType.values()));
+            if (randomBoolean()) {
+                updateRequestConflict.setIfSeqNo(updateResponse.getSeqNo() + 1);
+                updateRequestConflict.setIfPrimaryTerm(updateResponse.getPrimaryTerm());
+            } else {
+                updateRequestConflict.setIfSeqNo(updateResponse.getSeqNo() + (randomBoolean() ? 0 : 1));
+                updateRequestConflict.setIfPrimaryTerm(updateResponse.getPrimaryTerm() + 1);
+            }
+
+            final UpdateRequest updateRequestSeqNo = new UpdateRequest("index", "id");
+            updateRequestSeqNo.doc(singletonMap("field", "with_seq_no"), randomFrom(XContentType.values()));
+            updateRequestConflict.setIfSeqNo(updateResponse.getSeqNo());
+            updateRequestConflict.setIfPrimaryTerm(updateResponse.getPrimaryTerm());
+            updateResponse = execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
+            assertEquals(RestStatus.OK, updateResponse.status());
+            assertEquals(updateRequestSeqNo.ifSeqNo() + 1, updateResponse.getSeqNo());
         }
         {
             IndexRequest indexRequest = new IndexRequest("index").id("with_script");

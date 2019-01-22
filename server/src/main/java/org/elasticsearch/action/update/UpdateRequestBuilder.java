@@ -20,6 +20,7 @@
 package org.elasticsearch.action.update;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -147,6 +148,30 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      */
     public UpdateRequestBuilder setVersionType(VersionType versionType) {
         request.versionType(versionType);
+        return this;
+    }
+
+    /**
+     * only perform this update request if the document was last modification was assigned the given
+     * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
+     *
+     * If the document last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public UpdateRequestBuilder setIfSeqNo(long seqNo) {
+        request.setIfSeqNo(seqNo);
+        return this;
+    }
+
+    /**
+     * only perform this update request if the document was last modification was assigned the given
+     * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
+     *
+     * If the document last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public UpdateRequestBuilder setIfPrimaryTerm(long term) {
+        request.setIfPrimaryTerm(term);
         return this;
     }
 

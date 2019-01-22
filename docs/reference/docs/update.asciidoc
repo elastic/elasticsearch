@@ -349,3 +349,11 @@ version numbers being out of sync with the external system.  Use the
 <<docs-index_,`index` API>> instead.
 
 =====================================================
+
+`if_seq_no` and `if_primary_term`::
+
+Update operations can be made optional and only be performed if the last
+modification to the document was assigned the sequence number and primary
+term specified by the `if_seq_no` and `if_primary_term` parameters. If a
+mismatch is detected, the operation will result in a `VersionConflictException`
+and a status code of 409. See <<optimistic-concurrency-control>> for more details.

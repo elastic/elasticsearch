@@ -700,12 +700,10 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
     }
-    
-    public void testAutodetectWorkerExecutorService_SubmitAfterShutdown() {
-        AutodetectProcessManager manager = createNonSpyManager("foo");
 
+    public void testAutodetectWorkerExecutorService_SubmitAfterShutdown() {
         AutodetectProcessManager.AutodetectWorkerExecutorService executor =
-                manager.new AutodetectWorkerExecutorService(new ThreadContext(Settings.EMPTY));
+                new AutodetectWorkerExecutorService(new ThreadContext(Settings.EMPTY));
 
         threadPool.generic().execute(() -> executor.start());
         executor.shutdown();
@@ -714,10 +712,8 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
     public void testAutodetectWorkerExecutorService_TasksNotExecutedCallHandlerOnShutdown()
             throws InterruptedException, ExecutionException {
-        AutodetectProcessManager manager = createNonSpyManager("foo");
-
         AutodetectProcessManager.AutodetectWorkerExecutorService executor =
-                manager.new AutodetectWorkerExecutorService(new ThreadContext(Settings.EMPTY));
+                new AutodetectWorkerExecutorService(new ThreadContext(Settings.EMPTY));
 
         CountDownLatch latch = new CountDownLatch(1);
 

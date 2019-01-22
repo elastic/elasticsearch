@@ -334,9 +334,4 @@ final class S3ClientSettings {
         final Setting<T> concreteSetting = clientSetting.getConcreteSettingForNamespace(clientName);
         return concreteSetting.get(settings);
     }
-
-    private static boolean hasConfigValue(Settings settings, String clientName, Setting.AffixSetting<?> clientSetting) {
-        final Setting<?> concreteSetting = clientSetting.getConcreteSettingForNamespace(clientName);
-        return concreteSetting.exists(settings);
-    }
 }

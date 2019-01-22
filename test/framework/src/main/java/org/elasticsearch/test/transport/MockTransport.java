@@ -20,6 +20,7 @@
 package org.elasticsearch.test.transport;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
@@ -30,12 +31,12 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ConnectionManager;
@@ -99,7 +100,7 @@ public class MockTransport implements Transport, LifecycleComponent {
             try (BytesStreamOutput output = new BytesStreamOutput()) {
                 response.writeTo(output);
                 deliveredResponse = transportResponseHandler.read(
-                    new NamedWriteableAwareStreamInput(output.bytes().streamInput(), DisruptableMockTransport.writeableRegistry()));
+                    new NamedWriteableAwareStreamInput(output.bytes().streamInput(), writeableRegistry()));
             } catch (IOException | UnsupportedOperationException e) {
                 throw new AssertionError("failed to serialize/deserialize response " + response, e);
             }
@@ -277,5 +278,9 @@ public class MockTransport implements Transport, LifecycleComponent {
             return true;
         }
         return false;
+    }
+
+    protected NamedWriteableRegistry writeableRegistry() {
+        return new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
     }
 }

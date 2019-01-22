@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.MappingRequestOriginValidator;
@@ -12,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.util.Arrays;
@@ -45,9 +47,10 @@ public final class CcrRequests {
                 return indexMetaData != null && CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(indexMetaData.getSettings());
             }).collect(Collectors.toList());
         if (followingIndices.isEmpty() == false && "ccr".equals(request.origin()) == false) {
-            return new IllegalStateException("can't put mapping to the following indices [" +
-                followingIndices.stream().map(Index::getName).collect(Collectors.joining(", ")) + "]; "
-                + "the mapping of the following indices are self-replicated from its leader indices");
+            final String errorMessage = "can't put mapping to the following indices "
+                + "[" + followingIndices.stream().map(Index::getName).collect(Collectors.joining(", ")) + "]; "
+                + "the mapping of the following indices are self-replicated from its leader indices";
+            return new ElasticsearchStatusException(errorMessage, RestStatus.FORBIDDEN);
         }
         return null;
     };

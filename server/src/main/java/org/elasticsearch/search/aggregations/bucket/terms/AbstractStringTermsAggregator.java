@@ -33,7 +33,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 
-public abstract class AbstractStringTermsAggregator extends TermsAggregator {
+abstract class AbstractStringTermsAggregator extends TermsAggregator {
 
     protected final boolean showTermDocCountError;
 

@@ -80,7 +80,6 @@ public abstract class InternalMappedRareTerms<A extends InternalTerms<A, B>, B e
         BloomFilter bloomFilter = null;
 
         for (InternalAggregation aggregation : aggregations) {
-
             // Unmapped rare terms don't have a bloom filter so we'll skip all this work
             // and save some type casting headaches later.
             if (aggregation.isMapped() == false) {
@@ -107,26 +106,30 @@ public abstract class InternalMappedRareTerms<A extends InternalTerms<A, B>, B e
             }
 
             if (bloomFilter == null) {
-                bloomFilter = ((InternalMappedRareTerms)aggregation).bloom;
+                bloomFilter = BloomFilter.EmptyBloomFilter(((InternalMappedRareTerms)aggregation).getBloom().getNumBits(),
+                    ((InternalMappedRareTerms)aggregation).getBloom().getNumHashFunctions());
             } else {
-                bloomFilter.merge(((InternalMappedRareTerms)aggregation).bloom);
+                bloomFilter.merge(((InternalMappedRareTerms)aggregation).getBloom());
             }
         }
 
-        // Always return all results, so just proactively size the array to num buckets
-        final int size = buckets.size();
-        final List<B> rare = new ArrayList<>(size);
+        final List<B> rare = new ArrayList<>();
         for (List<B> sameTermBuckets : buckets.values()) {
             final B b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext);
-            // Only prune if this is the final reduction, otherwise we may remove a term that shows
-            // up in a later incremental reduction and looks "rare" even though it isn't.
-            if (reduceContext.isFinalReduce() == false || (b.getDocCount() <= maxDocCount && containsTerm(bloom, b) == false)) {
+            if ((b.getDocCount() <= maxDocCount && containsTerm(bloomFilter, b) == false)) {
                 rare.add(b);
+                reduceContext.consumeBucketsAndMaybeBreak(1);
+            } else if (b.getDocCount() > maxDocCount) {
+                // this term has gone over threshold while merging, so add it to the bloom.
+                // Note this may happen during incremental reductions too
+                addToBloom(bloomFilter, b);
             }
         }
         CollectionUtil.introSort(rare, order.comparator(null));
         return create(name, rare, 0, 0);
     }
 
-    public abstract boolean containsTerm(BloomFilter bloom, B b);
+    public abstract boolean containsTerm(BloomFilter bloom, B bucket);
+
+    public abstract void addToBloom(BloomFilter bloom, B bucket);
 }

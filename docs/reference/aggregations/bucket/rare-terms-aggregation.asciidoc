@@ -285,11 +285,3 @@ GET /_search
 // CONSOLE
 
 <1> Documents without a value in the `tags` field will fall into the same bucket as documents that have the value `N/A`.
-
-
-==== Mixing field types
-
-WARNING: When aggregating on multiple indices the type of the aggregated field may not be the same in all indices.
-Some types are compatible with each other (`integer` and `long` or `float` and `double`) but when the types are a mix
-of decimal and non-decimal number the terms aggregation will promote the non-decimal numbers to decimal numbers.
-This can result in a loss of precision in the bucket values.

@@ -96,8 +96,8 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
                                         map.put(val, 1L);
                                         long bucketOrdinal = bucketOrds.add(val);
                                         if (bucketOrdinal < 0) { // already seen
-                                            bucketOrdinal = - 1 - bucketOrdinal;
-                                            collectExistingBucket(subCollectors, docId, bucketOrdinal);
+                                           throw new IllegalStateException("Term count is zero, but an ordinal for this " +
+                                               "term has already been recorded");
                                         } else {
                                             collectBucket(subCollectors, docId, bucketOrdinal);
                                         }
@@ -108,6 +108,14 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
                                             // TODO if we only need maxDocCount==1, we could specialize
                                             // and use a bitset instead of a counter scheme
                                             map.put(val, termCount + 1);
+                                            long bucketOrdinal = bucketOrds.add(val);
+                                            if (bucketOrdinal < 0) {
+                                                bucketOrdinal = - 1 - bucketOrdinal;
+                                                collectExistingBucket(subCollectors, docId, bucketOrdinal);
+                                            } else {
+                                                throw new IllegalStateException("Term has seen before, but we have not recorded " +
+                                                    "an ordinal yet.");
+                                            }
                                         } else {
                                             // Otherwise we've breached the threshold, remove from
                                             // the map and add to the bloom filter
@@ -116,7 +124,8 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
                                             numDeleted += 1;
 
                                             if (numDeleted > GC_THRESHOLD) {
-                                                gcDeletedEntries();
+                                                gcDeletedEntries(numDeleted);
+                                                numDeleted = 0;
                                             }
                                         }
                                     }
@@ -130,13 +139,12 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
         };
     }
 
-    protected void gcDeletedEntries() {
-        boolean hasDeletedEntry = false;
+    protected void gcDeletedEntries(Long numDeleted) {
+        long deletionCount = 0;
         LongHash newBucketOrds = new LongHash(1, context.bigArrays());
         try (LongHash oldBucketOrds = bucketOrds) {
 
             long[] mergeMap = new long[(int) oldBucketOrds.size()];
-
             for (int i = 0; i < oldBucketOrds.size(); i++) {
                 long oldKey = oldBucketOrds.get(i);
                 long newBucketOrd = -1;
@@ -146,13 +154,19 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
                     newBucketOrd = newBucketOrds.add(oldKey);
                 } else {
                     // Make a note when one of the ords has been deleted
-                    hasDeletedEntry = true;
+                    deletionCount += 1;
                 }
                 mergeMap[i] = newBucketOrd;
             }
+
+            if (numDeleted != null && deletionCount != numDeleted) {
+                throw new IllegalStateException("Expected to prune [" + numDeleted + "] terms, but [" + numDeleted
+                    + "] were removed instead");
+            }
+
             // Only merge/delete the ordinals if we have actually deleted one,
             // to save on some redundant work
-            if (hasDeletedEntry) {
+            if (deletionCount > 0) {
                 mergeBuckets(mergeMap, newBucketOrds.size());
                 if (deferringCollector != null) {
                     deferringCollector.mergeBuckets(mergeMap);
@@ -199,6 +213,6 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
 
     @Override
     public void doClose() {
-        Releasables.close(bloom, bucketOrds);
+        Releasables.close(bucketOrds);
     }
 }

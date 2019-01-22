@@ -93,11 +93,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory<Va
         if (valuesSource instanceof ValuesSource.Numeric) {
             IncludeExclude.LongFilter longFilter = null;
             if (((ValuesSource.Numeric) valuesSource).isFloatingPoint()) {
-                if (includeExclude != null) {
-                    longFilter = includeExclude.convertToDoubleFilter();
-                }
-                return new DoubleRareTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource,
-                    config.format(), context, parent, longFilter, maxDocCount, pipelineAggregators, metaData);
+                throw new AggregationExecutionException("RareTerms aggregation does not support floating point fields.");
             }
             if (includeExclude != null) {
                 longFilter = includeExclude.convertToLongFilter(config.format());
@@ -106,7 +102,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory<Va
                 context, parent, longFilter, maxDocCount, pipelineAggregators, metaData);
         }
 
-        throw new AggregationExecutionException("terms aggregation cannot be applied to field [" + config.fieldContext().field()
+        throw new AggregationExecutionException("RareTerms aggregation cannot be applied to field [" + config.fieldContext().field()
             + "]. It can only be applied to numeric or string fields.");
     }
 

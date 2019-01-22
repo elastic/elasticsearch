@@ -77,4 +77,9 @@ public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, St
     public boolean containsTerm(BloomFilter bloom, StringTerms.Bucket bucket) {
         return bloom.mightContain(bucket.termBytes);
     }
+
+    @Override
+    public void addToBloom(BloomFilter bloom, StringTerms.Bucket bucket) {
+        bloom.put(bucket.termBytes);
+    }
 }

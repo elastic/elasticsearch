@@ -105,8 +105,8 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
                                 map.put(BytesRef.deepCopyOf(bytes), 1L);
                                 long bucketOrdinal = bucketOrds.add(bytes);
                                 if (bucketOrdinal < 0) { // already seen
-                                    bucketOrdinal = - 1 - bucketOrdinal;
-                                    collectExistingBucket(subCollectors, docId, bucketOrdinal);
+                                    throw new IllegalStateException("Term count is zero, but an ordinal for this " +
+                                        "term has already been recorded");
                                 } else {
                                     collectBucket(subCollectors, docId, bucketOrdinal);
                                 }
@@ -115,6 +115,14 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
                                 // so just increment its counter
                                 if (valueCount < maxDocCount) {
                                     map.put(bytes, valueCount + 1);
+                                    long bucketOrdinal = bucketOrds.add(bytes);
+                                    if (bucketOrdinal < 0) {
+                                        bucketOrdinal = - 1 - bucketOrdinal;
+                                        collectExistingBucket(subCollectors, docId, bucketOrdinal);
+                                    } else {
+                                        throw new IllegalStateException("Term has seen before, but we have not recorded " +
+                                            "an ordinal yet.");
+                                    }
                                 } else {
                                     // Otherwise we've breached the threshold, remove from
                                     // the map and add to the bloom filter
@@ -123,7 +131,8 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
                                     numDeleted += 1;
 
                                     if (numDeleted > GC_THRESHOLD) {
-                                        gcDeletedEntries();
+                                        gcDeletedEntries(numDeleted);
+                                        numDeleted = 0;
                                     }
                                 }
                             }
@@ -135,8 +144,8 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
         };
     }
 
-    protected void gcDeletedEntries() {
-        boolean hasDeletedEntry = false;
+    protected void gcDeletedEntries(Long numDeleted) {
+        long deletionCount = 0;
         BytesRefHash newBucketOrds = new BytesRefHash(1, context.bigArrays());
         try (BytesRefHash oldBucketOrds = bucketOrds) {
 
@@ -151,13 +160,18 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
                     newBucketOrd = newBucketOrds.add(oldKey);
                 } else {
                     // Make a note when one of the ords has been deleted
-                    hasDeletedEntry = true;
+                    deletionCount += 1;
                 }
                 mergeMap[i] = newBucketOrd;
             }
+            if (numDeleted != null && deletionCount != numDeleted) {
+                throw new IllegalStateException("Expected to prune [" + numDeleted + "] terms, but [" + numDeleted
+                    + "] were removed instead");
+            }
+
             // Only merge/delete the ordinals if we have actually deleted one,
             // to save on some redundant work
-            if (hasDeletedEntry) {
+            if (deletionCount > 0) {
                 mergeBuckets(mergeMap, newBucketOrds.size());
                 if (deferringCollector != null) {
                     deferringCollector.mergeBuckets(mergeMap);
@@ -207,7 +221,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
 
     @Override
     public void doClose() {
-        Releasables.close(bloom, bucketOrds);
+        Releasables.close(bucketOrds);
     }
 }
 

@@ -83,7 +83,7 @@ public class BloomFilter implements Writeable {
      * @param fpp                the desired false positive probability (must be positive and less than 1.0)
      * @param numHashFunctions   the number of hash functions to use (must be less than or equal to 255)
      */
-    public BloomFilter(int expectedInsertions, double fpp, int numHashFunctions) {
+    private BloomFilter(int expectedInsertions, double fpp, int numHashFunctions) {
         if (expectedInsertions == 0) {
             expectedInsertions = 1;
         }
@@ -104,6 +104,15 @@ public class BloomFilter implements Writeable {
             throw new IllegalArgumentException("BloomFilters with more than 255 hash functions are not allowed.");
         }
 
+        this.bits = new BitArray(numBits);
+        this.numHashFunctions = numHashFunctions;
+    }
+
+    public static BloomFilter EmptyBloomFilter(long numBits, int numHashFunctions) {
+        return new BloomFilter(numBits, numHashFunctions);
+    }
+
+    private BloomFilter(long numBits, int numHashFunctions) {
         this.bits = new BitArray(numBits);
         this.numHashFunctions = numHashFunctions;
     }
@@ -148,6 +157,10 @@ public class BloomFilter implements Writeable {
 
     public int getNumHashFunctions() {
         return this.numHashFunctions;
+    }
+
+    public long getNumBits() {
+        return bits.bitSize();
     }
 
     public long getSizeInBytes() {

@@ -146,7 +146,6 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Perce
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ScriptHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
-import org.elasticsearch.search.aggregations.bucket.terms.DoubleRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
@@ -400,11 +399,10 @@ public class SearchModule {
                     .addResultReader(LongTerms.NAME, LongTerms::new)
                     .addResultReader(DoubleTerms.NAME, DoubleTerms::new));
         registerAggregation(new AggregationSpec(RareTermsAggregationBuilder.NAME, RareTermsAggregationBuilder::new,
-            RareTermsAggregationBuilder::parse)
-            .addResultReader(StringRareTerms.NAME, StringRareTerms::new)
-            .addResultReader(UnmappedRareTerms.NAME, UnmappedRareTerms::new)
-            .addResultReader(LongRareTerms.NAME, LongRareTerms::new)
-            .addResultReader(DoubleRareTerms.NAME, DoubleRareTerms::new));
+                RareTermsAggregationBuilder::parse)
+                    .addResultReader(StringRareTerms.NAME, StringRareTerms::new)
+                    .addResultReader(UnmappedRareTerms.NAME, UnmappedRareTerms::new)
+                    .addResultReader(LongRareTerms.NAME, LongRareTerms::new));
         registerAggregation(new AggregationSpec(SignificantTermsAggregationBuilder.NAME, SignificantTermsAggregationBuilder::new,
                 SignificantTermsAggregationBuilder.getParser(significanceHeuristicParserRegistry))
                     .addResultReader(SignificantStringTerms.NAME, SignificantStringTerms::new)

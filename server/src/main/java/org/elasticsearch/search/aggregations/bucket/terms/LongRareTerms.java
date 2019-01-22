@@ -80,35 +80,12 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongTe
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        for (InternalAggregation agg : aggregations) {
-            if (agg instanceof DoubleRareTerms) {
-                return agg.doReduce(aggregations, reduceContext);
-            }
-        }
-        return super.doReduce(aggregations, reduceContext);
-    }
-
-    @Override
     public boolean containsTerm(BloomFilter bloom, LongTerms.Bucket bucket) {
         return bloom.mightContain((long) bucket.getKey());
     }
 
-    /**
-     * Converts a {@link LongRareTerms} into a {@link DoubleRareTerms}, returning the
-     * value of the specified long terms as doubles.
-     */
-    static DoubleRareTerms convertLongRareTermsToDouble(LongRareTerms longTerms, DocValueFormat decimalFormat) {
-        List<LongTerms.Bucket> buckets = longTerms.getBuckets();
-        List<DoubleTerms.Bucket> newBuckets = new ArrayList<>();
-        for (Terms.Bucket bucket : buckets) {
-            newBuckets.add(new DoubleTerms.Bucket(bucket.getKeyAsNumber().doubleValue(),
-                bucket.getDocCount(), (InternalAggregations) bucket.getAggregations(), longTerms.showTermDocCountError,
-                longTerms.showTermDocCountError ? bucket.getDocCountError() : 0, decimalFormat));
-        }
-        return new DoubleRareTerms(longTerms.getName(), longTerms.order,
-            longTerms.pipelineAggregators(),
-            longTerms.metaData, longTerms.format,
-            newBuckets, longTerms.getMaxDocCount(), longTerms.getBloom());
+    @Override
+    public void addToBloom(BloomFilter bloom, LongTerms.Bucket bucket) {
+        bloom.put((long) bucket.getKey());
     }
 }

@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public abstract class  AbstractRareTermsAggregator<T extends ValuesSource, U extends IncludeExclude.Filter>
+public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U extends IncludeExclude.Filter>
     extends DeferableBucketAggregator {
 
     // TODO review question: What to set this at?
@@ -96,7 +96,7 @@ public abstract class  AbstractRareTermsAggregator<T extends ValuesSource, U ext
     protected void doPostCollection() {
         // Make sure we do one final GC to clean up any deleted ords
         // that may be lingering (but still below GC threshold)
-        gcDeletedEntries();
+        gcDeletedEntries(null);
     }
 
     private String subAggsNeedScore() {
@@ -118,5 +118,5 @@ public abstract class  AbstractRareTermsAggregator<T extends ValuesSource, U ext
         return null;
     }
 
-    protected abstract void gcDeletedEntries();
+    protected abstract void gcDeletedEntries(Long numDeleted);
 }

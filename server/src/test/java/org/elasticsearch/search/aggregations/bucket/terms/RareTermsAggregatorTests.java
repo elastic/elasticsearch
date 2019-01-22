@@ -52,6 +52,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -407,11 +408,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         InternalAggregation.ReduceContext ctx =
             new InternalAggregation.ReduceContext(new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY),
                 new NoneCircuitBreakerService()), null, true);
-        InternalAggregation mergedAggs = aggs.get(0).doReduce(aggs, ctx);
-        assertTrue(mergedAggs instanceof DoubleRareTerms);
-        List<DoubleTerms.Bucket> buckets = ((DoubleRareTerms) mergedAggs).getBuckets();
-        assertThat(buckets.size(), equalTo(1));
-        assertThat(buckets.get(0).getKeyAsString(), equalTo("1.0"));
+        AggregationExecutionException e = expectThrows(AggregationExecutionException.class, () -> aggs.get(0).doReduce(aggs, ctx));
     }
 
 

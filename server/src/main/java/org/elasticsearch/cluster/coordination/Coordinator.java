@@ -446,7 +446,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         if (mode != Mode.CANDIDATE) {
             mode = Mode.CANDIDATE;
-            cancelActivePublication();
+            cancelActivePublication("become candidate: " + method);
             joinAccumulator.close(mode);
             joinAccumulator = joinHelper.new CandidateJoinAccumulator();
 
@@ -518,7 +518,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         discoveryUpgradeService.deactivate();
         clusterFormationFailureHelper.stop();
         closePrevotingAndElectionScheduler();
-        cancelActivePublication();
+        cancelActivePublication("become follower: " + method);
         preVoteCollector.update(getPreVoteResponse(), leaderNode);
 
         if (restartLeaderChecker) {
@@ -902,7 +902,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     @Override
                     public void run() {
                         synchronized (mutex) {
-                            publication.onTimeout();
+                            publication.cancel("timed out after " + publishTimeout);
                         }
                     }
 
@@ -958,10 +958,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         };
     }
 
-    private void cancelActivePublication() {
+    private void cancelActivePublication(String reason) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         if (currentPublication.isPresent()) {
-            currentPublication.get().onTimeout();
+            currentPublication.get().cancel(reason);
         }
     }
 

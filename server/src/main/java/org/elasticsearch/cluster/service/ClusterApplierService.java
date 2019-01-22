@@ -392,14 +392,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
             if (logger.isTraceEnabled()) {
                 logger.trace(() -> new ParameterizedMessage(
-                        "failed to execute cluster state applier in [{}], state:\nversion [{}], source [{}]\n{}{}{}",
-                        executionTime,
-                        previousClusterState.version(),
-                        task.source,
-                        previousClusterState.nodes(),
-                        previousClusterState.routingTable(),
-                        previousClusterState.getRoutingNodes()),
-                    e);
+                        "failed to execute cluster state applier in [{}], state:\nversion [{}], source [{}]\n{}",
+                        executionTime, previousClusterState.version(), task.source, previousClusterState), e);
             }
             warnAboutSlowTaskIfNeeded(executionTime, task.source);
             task.listener.onFailure(task.source, e);
@@ -407,10 +401,10 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         }
 
         if (previousClusterState == newClusterState) {
-            task.listener.onSuccess(task.source);
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
             logger.debug("processing [{}]: took [{}] no change in cluster state", task.source, executionTime);
             warnAboutSlowTaskIfNeeded(executionTime, task.source);
+            task.listener.onSuccess(task.source);
         } else {
             if (logger.isTraceEnabled()) {
                 logger.trace("cluster state updated, source [{}]\n{}", task.source, newClusterState);
@@ -424,20 +418,19 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                     executionTime, newClusterState.version(),
                     newClusterState.stateUUID());
                 warnAboutSlowTaskIfNeeded(executionTime, task.source);
+                task.listener.onSuccess(task.source);
             } catch (Exception e) {
                 TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
-                final long version = newClusterState.version();
-                final String stateUUID = newClusterState.stateUUID();
-                final String fullState = newClusterState.toString();
-                logger.warn(() -> new ParameterizedMessage(
-                        "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}",
-                        executionTime,
-                        version,
-                        stateUUID,
-                        task.source,
-                        fullState),
-                    e);
-                // TODO: do we want to call updateTask.onFailure here?
+                if (logger.isTraceEnabled()) {
+                    logger.warn(() -> new ParameterizedMessage(
+                            "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}",
+                            executionTime, newClusterState.version(), newClusterState.stateUUID(), task.source, newClusterState), e);
+                } else {
+                    logger.warn(() -> new ParameterizedMessage(
+                            "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]",
+                            executionTime, newClusterState.version(), newClusterState.stateUUID(), task.source), e);
+                }
+                task.listener.onFailure(task.source, e);
             }
         }
     }
@@ -454,17 +447,14 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             }
         }
 
+        logger.trace("connecting to nodes of cluster state with version {}", newClusterState.version());
         nodeConnectionsService.connectToNodes(newClusterState.nodes());
 
-        logger.debug("applying cluster state version {}", newClusterState.version());
-        try {
-            // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
-            if (clusterChangedEvent.state().blocks().disableStatePersistence() == false && clusterChangedEvent.metaDataChanged()) {
-                final Settings incomingSettings = clusterChangedEvent.state().metaData().settings();
-                clusterSettings.applySettings(incomingSettings);
-            }
-        } catch (Exception ex) {
-            logger.warn("failed to apply cluster settings", ex);
+        // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
+        if (clusterChangedEvent.state().blocks().disableStatePersistence() == false && clusterChangedEvent.metaDataChanged()) {
+            logger.debug("applying settings from cluster state with version {}", newClusterState.version());
+            final Settings incomingSettings = clusterChangedEvent.state().metaData().settings();
+            clusterSettings.applySettings(incomingSettings);
         }
 
         logger.debug("apply cluster state with version {}", newClusterState.version());
@@ -476,18 +466,12 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         state.set(newClusterState);
 
         callClusterStateListeners(clusterChangedEvent);
-
-        task.listener.onSuccess(task.source);
     }
 
     private void callClusterStateAppliers(ClusterChangedEvent clusterChangedEvent) {
         clusterStateAppliers.forEach(applier -> {
-            try {
-                logger.trace("calling [{}] with change to version [{}]", applier, clusterChangedEvent.state().version());
-                applier.applyClusterState(clusterChangedEvent);
-            } catch (Exception ex) {
-                logger.warn("failed to notify ClusterStateApplier", ex);
-            }
+            logger.trace("calling [{}] with change to version [{}]", applier, clusterChangedEvent.state().version());
+            applier.applyClusterState(clusterChangedEvent);
         });
     }
 

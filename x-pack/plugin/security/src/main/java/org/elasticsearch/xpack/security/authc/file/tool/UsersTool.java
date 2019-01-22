@@ -230,6 +230,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
                 throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
             final Hasher hasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(env.settings()));
+            users = new HashMap<>(users); // make modifiable
             users.put(username, hasher.hash(new SecureString(password)));
             FileUserPasswdStore.writeFile(users, file);
 

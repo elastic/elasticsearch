@@ -1028,6 +1028,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         TOO_MANY_BUCKETS_EXCEPTION(MultiBucketConsumerService.TooManyBucketsException.class,
                                    MultiBucketConsumerService.TooManyBucketsException::new, 149,
             Version.V_6_2_0),
+        // SnapshotInProgressException was introduced after CoordinationStateRejectedException (id = 150),
+        // which was not backported from 7.0.
         SNAPSHOT_IN_PROGRESS_EXCEPTION(org.elasticsearch.snapshots.SnapshotInProgressException.class,
             org.elasticsearch.snapshots.SnapshotInProgressException::new, 151, Version.V_6_7_0);
 

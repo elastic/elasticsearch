@@ -153,7 +153,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
-// -Dtests.seed=45B12C2784692942
 public class SnapshotsServiceTests extends ESTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;
@@ -266,7 +265,8 @@ public class SnapshotsServiceTests extends ESTestCase {
                             }))));
 
         runUntil(() -> {
-            final SnapshotsInProgress snapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+            final SnapshotsInProgress snapshotsInProgress = testClusterNodes.randomMasterNode()
+                .clusterService.state().custom(SnapshotsInProgress.TYPE);
             return snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty();
         }, TimeUnit.MINUTES.toMillis(20L));
 

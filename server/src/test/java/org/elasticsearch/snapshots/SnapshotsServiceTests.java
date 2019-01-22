@@ -125,7 +125,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
@@ -241,7 +240,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                                     scheduleNow(this::disconnectRandomDataNode);
                                 }
                                 if (randomBoolean()) {
-                                    scheduleClearDisruptionNow();
+                                    scheduleNow(() -> testClusterNodes.clearNetworkDisruptions());
                                 }
                                 masterAdminClient.cluster().prepareCreateSnapshot(repoName, snapshotName)
                                     .execute(assertNoFailureListener(() -> {
@@ -253,12 +252,9 @@ public class SnapshotsServiceTests extends ESTestCase {
                                             scheduleNow(this::disconnectOrRestartMasterNode);
                                         }
                                         if (disconnectedMaster || randomBoolean()) {
-                                            deterministicTaskQueue.scheduleAt(
-                                                deterministicTaskQueue.getCurrentTimeMillis()
-                                                    + randomLongBetween(0L, TimeUnit.MINUTES.toMillis(10L)),
-                                                () -> testClusterNodes.clearNetworkDisruptions());
+                                            scheduleSoon(() -> testClusterNodes.clearNetworkDisruptions());
                                         } else if (randomBoolean()) {
-                                            scheduleClearDisruptionNow();
+                                            scheduleNow(() -> testClusterNodes.clearNetworkDisruptions());
                                         }
                                         createdSnapshot.set(true);
                                     }));
@@ -271,9 +267,10 @@ public class SnapshotsServiceTests extends ESTestCase {
         }, TimeUnit.MINUTES.toMillis(20L));
 
         assertTrue(createdSnapshot.get());
-        SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+        final TestClusterNode randomMaster = testClusterNodes.randomMasterNode();
+        SnapshotsInProgress finalSnapshotsInProgress = randomMaster.clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertThat(finalSnapshotsInProgress.entries(), empty());
-        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        final Repository repository = randomMaster.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
     }
@@ -363,8 +360,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                                                     if (shardRouting.unassigned()
                                                         && shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.NODE_LEFT) {
                                                         if (masterNodeCount > 1) {
-                                                            scheduleNow(
-                                                                () -> testClusterNodes.stopNode(masterNode));
+                                                            scheduleNow(() -> testClusterNodes.stopNode(masterNode));
                                                         }
                                                         testClusterNodes.randomDataNodeSafe().client.admin().cluster()
                                                             .prepareCreateSnapshot(repoName, snapshotName)
@@ -381,10 +377,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                                                                         index, shardRouting.shardId().id(), otherNode.node.getName(), true)
                                                                 ), noopListener()));
                                                     } else {
-                                                        deterministicTaskQueue.scheduleAt(
-                                                            deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(0, 100L),
-                                                            this
-                                                        );
+                                                        scheduleSoon(this);
                                                     }
                                                 }
                                             ));
@@ -415,10 +408,6 @@ public class SnapshotsServiceTests extends ESTestCase {
         final Repository repository = masterNode.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
         assertThat(snapshotIds, either(hasSize(1)).or(hasSize(0)));
-    }
-
-    private void scheduleClearDisruptionNow() {
-        scheduleNow(() -> testClusterNodes.clearNetworkDisruptions());
     }
 
     private void disconnectOrRestartDataNode() {
@@ -484,6 +473,10 @@ public class SnapshotsServiceTests extends ESTestCase {
     private void setupTestCluster(int masterNodes, int dataNodes) {
         testClusterNodes = new TestClusterNodes(masterNodes, dataNodes);
         startCluster();
+    }
+
+    private void scheduleSoon(Runnable runnable) {
+        deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(0, 100L), runnable);
     }
 
     private void scheduleNow(Runnable runnable) {
@@ -567,7 +560,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                     try {
                         return newMasterNode(nodeName);
                     } catch (IOException e) {
-                        throw new UncheckedIOException(e);
+                        throw new AssertionError(e);
                     }
                 });
             }
@@ -576,7 +569,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                     try {
                         return newDataNode(nodeName);
                     } catch (IOException e) {
-                        throw new UncheckedIOException(e);
+                        throw new AssertionError(e);
                     }
                 });
             }
@@ -758,8 +751,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                         boolean forceExecution, TransportRequestHandler<T> actualHandler) {
                         // TODO: Remove this hack once recoveries are async and can be used in these tests
                         if (action.startsWith("internal:index/shard/recovery")) {
-                            return (request, channel, task) -> deterministicTaskQueue.scheduleAt(
-                                deterministicTaskQueue.getCurrentTimeMillis() + 20L,
+                            return (request, channel, task) -> scheduleSoon(
                                 new AbstractRunnable() {
                                     @Override
                                     protected void doRun() throws Exception {
@@ -911,16 +903,15 @@ public class SnapshotsServiceTests extends ESTestCase {
             final ClusterState oldState = this.clusterService.state();
             stop();
             testClusterNodes.nodes.remove(node.getName());
-            deterministicTaskQueue.scheduleAt(randomFrom(0L, deterministicTaskQueue.getCurrentTimeMillis()), () -> {
+            scheduleSoon(() -> {
                 try {
-                    final TestClusterNode restartedNode =
-                        new TestClusterNode(
-                            new DiscoveryNode(node.getName(), node.getId(), node.getAddress(), emptyMap(),
-                                node.getRoles(), Version.CURRENT), disruption);
+                    final TestClusterNode restartedNode = new TestClusterNode(
+                        new DiscoveryNode(node.getName(), node.getId(), node.getAddress(), emptyMap(),
+                            node.getRoles(), Version.CURRENT), disruption);
                     testClusterNodes.nodes.put(node.getName(), restartedNode);
                     restartedNode.start(oldState);
                 } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+                    throw new AssertionError(e);
                 }
             });
         }

@@ -346,7 +346,7 @@ public class PublicationTests extends ESTestCase {
         publication.pendingPublications.entrySet().stream().collect(shuffle()).forEach(e -> {
             if (e.getKey().equals(n2)) {
                 if (timeOut) {
-                    publication.onTimeout();
+                    publication.cancel("timed out");
                 } else {
                     e.getValue().onFailure(new TransportException(new Exception("dummy failure")));
                 }
@@ -407,7 +407,7 @@ public class PublicationTests extends ESTestCase {
             }
         });
 
-        publication.onTimeout();
+        publication.cancel("timed out");
         assertTrue(publication.completed);
         assertTrue(publication.committed);
         assertEquals(committingNodes, ackListener.await(0L, TimeUnit.SECONDS));

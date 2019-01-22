@@ -46,7 +46,7 @@ It can also be set on a per-index basis at index creation time:
 
 [source,js]
 ----
-PUT my_index?include_type_name=true
+PUT my_index
 {
    "settings": {
        "index.store.type": "smb_mmap_fs"

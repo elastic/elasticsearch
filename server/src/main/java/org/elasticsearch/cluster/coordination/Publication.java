@@ -49,7 +49,7 @@ public abstract class Publication {
 
     private Optional<ApplyCommitRequest> applyCommitRequest; // set when state is committed
     private boolean isCompleted; // set when publication is completed
-    private boolean timedOut; // set when publication timed out
+    private boolean cancelled; // set when publication is cancelled
 
     public Publication(PublishRequest publishRequest, AckListener ackListener, LongSupplier currentTimeSupplier) {
         this.publishRequest = publishRequest;
@@ -71,17 +71,17 @@ public abstract class Publication {
         publicationTargets.forEach(PublicationTarget::sendPublishRequest);
     }
 
-    public void onTimeout() {
+    public void cancel(String reason) {
         if (isCompleted) {
             return;
         }
 
-        assert timedOut == false;
-        timedOut = true;
+        assert cancelled == false;
+        cancelled = true;
         if (applyCommitRequest.isPresent() == false) {
-            logger.debug("onTimeout: [{}] timed out before committing", this);
+            logger.debug("cancel: [{}] cancelled before committing (reason: {})", this, reason);
             // fail all current publications
-            final Exception e = new ElasticsearchException("publication timed out before committing");
+            final Exception e = new ElasticsearchException("publication cancelled before committing: " + reason);
             publicationTargets.stream().filter(PublicationTarget::isActive).forEach(pt -> pt.setFailed(e));
         }
         onPossibleCompletion();
@@ -101,7 +101,7 @@ public abstract class Publication {
             return;
         }
 
-        if (timedOut == false) {
+        if (cancelled == false) {
             for (final PublicationTarget target : publicationTargets) {
                 if (target.isActive()) {
                     return;
@@ -125,8 +125,8 @@ public abstract class Publication {
     }
 
     // For assertions only: verify that this invariant holds
-    private boolean publicationCompletedIffAllTargetsInactiveOrTimedOut() {
-        if (timedOut == false) {
+    private boolean publicationCompletedIffAllTargetsInactiveOrCancelled() {
+        if (cancelled == false) {
             for (final PublicationTarget target : publicationTargets) {
                 if (target.isActive()) {
                     return isCompleted == false;
@@ -222,7 +222,7 @@ public abstract class Publication {
             state = PublicationTargetState.SENT_PUBLISH_REQUEST;
             Publication.this.sendPublishRequest(discoveryNode, publishRequest, new PublishResponseHandler());
             // TODO Can this ^ fail with an exception? Target should be failed if so.
-            assert publicationCompletedIffAllTargetsInactiveOrTimedOut();
+            assert publicationCompletedIffAllTargetsInactiveOrCancelled();
         }
 
         void handlePublishResponse(PublishResponse publishResponse) {
@@ -245,7 +245,7 @@ public abstract class Publication {
             state = PublicationTargetState.SENT_APPLY_COMMIT;
             assert applyCommitRequest.isPresent();
             Publication.this.sendApplyCommit(discoveryNode, applyCommitRequest.get(), new ApplyCommitResponseHandler());
-            assert publicationCompletedIffAllTargetsInactiveOrTimedOut();
+            assert publicationCompletedIffAllTargetsInactiveOrCancelled();
         }
 
         void setAppliedCommit() {
@@ -300,7 +300,7 @@ public abstract class Publication {
             public void onResponse(PublishWithJoinResponse response) {
                 if (isFailed()) {
                     logger.debug("PublishResponseHandler.handleResponse: already failed, ignoring response from [{}]", discoveryNode);
-                    assert publicationCompletedIffAllTargetsInactiveOrTimedOut();
+                    assert publicationCompletedIffAllTargetsInactiveOrCancelled();
                     return;
                 }
 
@@ -319,7 +319,7 @@ public abstract class Publication {
                 state = PublicationTargetState.WAITING_FOR_QUORUM;
                 handlePublishResponse(response.getPublishResponse());
 
-                assert publicationCompletedIffAllTargetsInactiveOrTimedOut();
+                assert publicationCompletedIffAllTargetsInactiveOrCancelled();
             }
 
             @Override
@@ -330,7 +330,7 @@ public abstract class Publication {
                 assert ((TransportException) e).getRootCause() instanceof Exception;
                 setFailed((Exception) exp.getRootCause());
                 onPossibleCommitFailure();
-                assert publicationCompletedIffAllTargetsInactiveOrTimedOut();
+                assert publicationCompletedIffAllTargetsInactiveOrCancelled();
             }
 
         }
@@ -346,7 +346,7 @@ public abstract class Publication {
                 }
                 setAppliedCommit();
                 onPossibleCompletion();
-                assert publicationCompletedIffAllTargetsInactiveOrTimedOut();
+                assert publicationCompletedIffAllTargetsInactiveOrCancelled();
             }
 
             @Override
@@ -357,7 +357,7 @@ public abstract class Publication {
                 assert ((TransportException) e).getRootCause() instanceof Exception;
                 setFailed((Exception) exp.getRootCause());
                 onPossibleCompletion();
-                assert publicationCompletedIffAllTargetsInactiveOrTimedOut();
+                assert publicationCompletedIffAllTargetsInactiveOrCancelled();
             }
         }
     }

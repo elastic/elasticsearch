@@ -131,6 +131,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
     /**
      * Test cluster join with issues in cluster state publishing *
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37685")
     public void testClusterJoinDespiteOfPublishingIssues() throws Exception {
         String masterNode = internalCluster().startMasterOnlyNode();
         String nonMasterNode = internalCluster().startDataOnlyNode();

@@ -55,7 +55,7 @@ without requiring basic authentication:
 [[security-api-keys]]
 === API Keys
 
-You can use the following API to create and invalidate API keys for access
+You can use the following APIs to create and invalidate API keys for access
 without requiring basic authentication:
 
 * <<security-api-create-api-key,Create API Key>>

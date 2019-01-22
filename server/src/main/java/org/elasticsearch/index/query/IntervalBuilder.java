@@ -275,10 +275,10 @@ public class IntervalBuilder {
             return null;
         }
 
-//        @Override
-//        public int minExtent() {
-//            return 0;
-//        }
+        @Override
+        public int minExtent() {
+            return 0;
+        }
 
         @Override
         public void extractTerms(String field, Set<Term> terms) {

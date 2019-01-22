@@ -10,9 +10,6 @@ Also see <<breaking-changes-6.6>>.
 [float]
 === Breaking changes
 
-Authentication::
-* Enhance Invalidate Token API {pull}35388[#35388] (issues: {issue}34556[#34556], {issue}35115[#35115])
-
 CCR::
 * [CCR] Change get autofollow patterns API response format {pull}36203[#36203] (issue: {issue}36049[#36049])
 

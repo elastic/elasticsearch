@@ -28,6 +28,8 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
@@ -69,6 +71,8 @@ public class UnsafeBootstrapMasterCommand extends EnvironmentAwareCommand {
             "last committed voting voting configuration is empty, cluster has never been bootstrapped?";
     static final String WRITE_METADATA_EXCEPTION_MSG = "exception occurred when writing new metadata to disk";
     static final String MASTER_NODE_BOOTSTRAPPED_MSG = "Master node was successfully bootstrapped";
+    static final Setting<String> UNSAFE_BOOTSTRAP =
+            ClusterService.USER_DEFINED_META_DATA.getConcreteSetting("cluster.metadata.unsafe-bootstrap");
 
     UnsafeBootstrapMasterCommand() {
         super("Unsafely bootstraps the master node if the majority of master eligible nodes is lost");
@@ -149,7 +153,12 @@ public class UnsafeBootstrapMasterCommand extends EnvironmentAwareCommand {
                 .lastCommittedConfiguration(new CoordinationMetaData.VotingConfiguration(Collections.singleton(nodeId)))
                 .build();
         terminal.println(Terminal.Verbosity.VERBOSE, "New coordination metadata is constructed " + newCoordinationMetaData);
+        Settings persistentSettings = Settings.builder()
+                .put(metaData.persistentSettings())
+                .put(UNSAFE_BOOTSTRAP.getKey(), true)
+                .build();
         MetaData newMetaData = MetaData.builder(metaData)
+                .persistentSettings(persistentSettings)
                 .coordinationMetaData(newCoordinationMetaData)
                 .build();
         writeNewMetaData(terminal, manifest, newMetaData, dataPaths);

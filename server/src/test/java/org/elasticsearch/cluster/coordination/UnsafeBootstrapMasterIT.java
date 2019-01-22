@@ -228,6 +228,7 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
             ClusterState state = dataNodeClient.admin().cluster().prepareState().setLocal(true)
                     .execute().actionGet().getState();
             assertFalse(state.blocks().hasGlobalBlockWithId(DiscoverySettings.NO_MASTER_BLOCK_ID));
+            assertTrue(state.metaData().persistentSettings().getAsBoolean(UnsafeBootstrapMasterCommand.UNSAFE_BOOTSTRAP.getKey(), false));
         });
 
         ensureGreen("test");

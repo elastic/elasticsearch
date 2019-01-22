@@ -60,7 +60,7 @@ public class PutRoleRequestTests extends ESTestCase {
 
         final BytesStreamOutput out = new BytesStreamOutput();
         if (randomBoolean()) {
-            final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, Version.CURRENT);
+            final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_7_0, Version.CURRENT);
             logger.info("Serializing with version {}", version);
             out.setVersion(version);
         }
@@ -75,7 +75,32 @@ public class PutRoleRequestTests extends ESTestCase {
         assertThat(copy.roleDescriptor(), equalTo(original.roleDescriptor()));
     }
 
-    public void testSerializationV63AndBefore() throws IOException {
+    public void testSerializationBetweenV64AndV66() throws IOException {
+        final PutRoleRequest original = buildRandomRequest();
+
+        final BytesStreamOutput out = new BytesStreamOutput();
+        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, Version.V_6_6_0);
+        out.setVersion(version);
+        original.writeTo(out);
+
+        final PutRoleRequest copy = new PutRoleRequest();
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
+        StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
+        in.setVersion(version);
+        copy.readFrom(in);
+
+        assertThat(copy.name(), equalTo(original.name()));
+        assertThat(copy.cluster(), equalTo(original.cluster()));
+        assertIndicesSerializedRestricted(copy.indices(), original.indices());
+        assertThat(copy.runAs(), equalTo(original.runAs()));
+        assertThat(copy.metadata(), equalTo(original.metadata()));
+        assertThat(copy.getRefreshPolicy(), equalTo(original.getRefreshPolicy()));
+
+        assertThat(copy.applicationPrivileges(), equalTo(original.applicationPrivileges()));
+        assertThat(copy.conditionalClusterPrivileges(), equalTo(original.conditionalClusterPrivileges()));
+    }
+
+    public void testSerializationV60AndV32() throws IOException {
         final PutRoleRequest original = buildRandomRequest();
 
         final BytesStreamOutput out = new BytesStreamOutput();

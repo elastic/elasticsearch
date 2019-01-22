@@ -203,7 +203,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
         ClusterState cs = getClusterStateWithMappingsWithMetaData(versionMix);
         String[] indices = new String[] { "version_54", "version_null", "version_bogus", "version_bogus2" };
-        assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
+        assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT));
     }
 
     private ClusterState getClusterStateWithMappingsWithMetaData(Map<String, Object> namesAndVersions) throws IOException {

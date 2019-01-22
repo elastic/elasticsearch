@@ -484,7 +484,7 @@ public class AutodetectProcessManager extends AbstractComponent {
 
         // Try adding the results doc mapping - this updates to the latest version if an old mapping is present
         ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
-            ElasticsearchMappings::resultsMapping, client, logger, clusterState, resultsMappingUpdateHandler);
+            ElasticsearchMappings::resultsMapping, client, clusterState, resultsMappingUpdateHandler);
     }
 
     private void createProcessAndSetRunning(ProcessContext processContext, Job job, AutodetectParams params, Consumer<Exception> handler) {

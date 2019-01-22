@@ -16,17 +16,10 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatterBuilder;
-import java.util.Locale;
 
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 
 public final class DateUtils {
-
-   public static final java.time.format.DateTimeFormatter ISO_DATE_ONLY = new DateTimeFormatterBuilder()
-        .parseCaseInsensitive()
-        .append(ISO_LOCAL_DATE)
-        .toFormatter(Locale.ROOT);
 
     // TODO: do we have a java.time based parser we can use instead?
     private static final DateTimeFormatter UTC_DATE_FORMATTER = ISODateTimeFormat.dateOptionalTimeParser().withZoneUTC();
@@ -118,6 +111,6 @@ public final class DateUtils {
     }
 
     public static String toDateString(ZonedDateTime date) {
-        return date.format(ISO_DATE_ONLY);
+        return date.format(ISO_LOCAL_DATE);
     }
 }

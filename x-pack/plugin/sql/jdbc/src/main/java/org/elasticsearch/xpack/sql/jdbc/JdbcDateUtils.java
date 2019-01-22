@@ -88,7 +88,7 @@ final class JdbcDateUtils {
         }
     }
 
-    private static long utcMillisRemoveTime(long l) {
+    static long utcMillisRemoveTime(long l) {
         return l - (l % DAY_IN_MILLIS);
     }
 

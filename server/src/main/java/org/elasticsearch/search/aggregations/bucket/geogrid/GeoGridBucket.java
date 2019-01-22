@@ -38,6 +38,7 @@ public class GeoGridBucket extends InternalMultiBucketAggregation.InternalBucket
 
     protected long geohashAsLong;
     protected long docCount;
+    protected long bucketOrd; // used internally to build InternalAggregations. not serialized.
     protected InternalAggregations aggregations;
 
     GeoGridBucket(long geohashAsLong, long docCount, InternalAggregations aggregations) {

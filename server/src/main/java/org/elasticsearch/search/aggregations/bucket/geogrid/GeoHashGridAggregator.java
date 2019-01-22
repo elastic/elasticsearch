@@ -95,17 +95,6 @@ public class GeoHashGridAggregator extends BucketsAggregator {
         };
     }
 
-    // private impl that stores a bucket ord. This allows for computing the aggregations lazily.
-    static class OrdinalBucket extends GeoGridBucket {
-
-        long bucketOrd;
-
-        OrdinalBucket() {
-            super(0, 0, null);
-        }
-
-    }
-
     @Override
     public InternalGeoHashGrid buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
@@ -113,21 +102,21 @@ public class GeoHashGridAggregator extends BucketsAggregator {
         consumeBucketsAndMaybeBreak(size);
 
         InternalGeoHashGrid.BucketPriorityQueue ordered = new InternalGeoHashGrid.BucketPriorityQueue(size);
-        OrdinalBucket spare = null;
+        GeoGridBucket spare = null;
         for (long i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
-                spare = new OrdinalBucket();
+                spare = new GeoGridBucket(0, 0, null);
             }
 
             spare.geohashAsLong = bucketOrds.get(i);
             spare.docCount = bucketDocCount(i);
             spare.bucketOrd = i;
-            spare = (OrdinalBucket) ordered.insertWithOverflow(spare);
+            spare = ordered.insertWithOverflow(spare);
         }
 
         final GeoGridBucket[] list = new GeoGridBucket[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
-            final OrdinalBucket bucket = (OrdinalBucket) ordered.pop();
+            final GeoGridBucket bucket = ordered.pop();
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }

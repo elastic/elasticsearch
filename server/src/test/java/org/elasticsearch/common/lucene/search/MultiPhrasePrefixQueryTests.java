@@ -43,22 +43,22 @@ public class MultiPhrasePrefixQueryTests extends ESTestCase {
         IndexReader reader = DirectoryReader.open(writer);
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery();
+        MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery("field");
         query.add(new Term("field", "aa"));
         assertThat(searcher.count(query), equalTo(1));
 
-        query = new MultiPhrasePrefixQuery();
+        query = new MultiPhrasePrefixQuery("field");
         query.add(new Term("field", "aaa"));
         query.add(new Term("field", "bb"));
         assertThat(searcher.count(query), equalTo(1));
 
-        query = new MultiPhrasePrefixQuery();
+        query = new MultiPhrasePrefixQuery("field");
         query.setSlop(1);
         query.add(new Term("field", "aaa"));
         query.add(new Term("field", "cc"));
         assertThat(searcher.count(query), equalTo(1));
 
-        query = new MultiPhrasePrefixQuery();
+        query = new MultiPhrasePrefixQuery("field");
         query.setSlop(1);
         query.add(new Term("field", "xxx"));
         assertThat(searcher.count(query), equalTo(0));

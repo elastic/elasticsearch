@@ -1208,20 +1208,21 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .field("unmapped_field")
             .lenient(true)
             .toQuery(createShardContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(new BooleanQuery.Builder().build(), query);
 
         // Unmapped prefix field
         query = new QueryStringQueryBuilder("unmapped_field:hello")
             .lenient(true)
             .toQuery(createShardContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(new BooleanQuery.Builder().build(), query);
 
         // Unmapped fields
         query = new QueryStringQueryBuilder("hello")
             .lenient(true)
             .field("unmapped_field")
+            .field("another_field")
             .toQuery(createShardContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(new BooleanQuery.Builder().build(), query);
     }
 
     public void testDefaultField() throws Exception {

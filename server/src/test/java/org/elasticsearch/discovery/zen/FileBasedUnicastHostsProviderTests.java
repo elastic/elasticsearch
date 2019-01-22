@@ -62,6 +62,7 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         super.setUp();
         threadPool = new TestThreadPool(FileBasedUnicastHostsProviderTests.class.getName());
         executorService = Executors.newSingleThreadExecutor();
+        createTransportSvc();
     }
 
     @After
@@ -77,8 +78,7 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         }
     }
 
-    @Before
-    public void createTransportSvc() {
+    private void createTransportSvc() {
         final MockNioTransport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool,
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,

@@ -40,7 +40,6 @@ public class CleanerService extends AbstractLifecycleComponent {
 
     CleanerService(Settings settings, ClusterSettings clusterSettings, XPackLicenseState licenseState, ThreadPool threadPool,
                    ExecutionScheduler executionScheduler) {
-        super(settings);
         this.licenseState = licenseState;
         this.threadPool = threadPool;
         this.executionScheduler = executionScheduler;

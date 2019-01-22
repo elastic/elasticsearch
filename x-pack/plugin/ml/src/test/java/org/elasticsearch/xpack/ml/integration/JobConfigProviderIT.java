@@ -186,23 +186,6 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteJobResponseHolder.get().getResult());
     }
 
-    public void testGetJobs() throws Exception {
-        putJob(createJob("nginx", null));
-        putJob(createJob("tomcat", null));
-        putJob(createJob("mysql", null));
-
-        List<String> jobsToGet = Arrays.asList("nginx", "tomcat", "unknown-job");
-
-        AtomicReference<List<Job.Builder>> jobsHolder = new AtomicReference<>();
-        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        blockingCall(actionListener -> jobConfigProvider.getJobs(jobsToGet, actionListener), jobsHolder, exceptionHolder);
-        assertNull(exceptionHolder.get());
-        assertNotNull(jobsHolder.get());
-        assertThat(jobsHolder.get(), hasSize(2));
-        List<String> foundIds = jobsHolder.get().stream().map(Job.Builder::getId).collect(Collectors.toList());
-        assertThat(foundIds, containsInAnyOrder("nginx", "tomcat"));
-    }
-
     public void testUpdateWithAValidationError() throws Exception {
         final String jobId = "bad-update-job";
 

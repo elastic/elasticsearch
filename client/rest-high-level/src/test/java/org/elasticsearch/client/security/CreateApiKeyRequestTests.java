@@ -55,8 +55,10 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         final String output = Strings.toString(builder);
         assertThat(output, equalTo(
                 "{\"name\":\"api-key\",\"role_descriptors\":{\"r1\":{\"applications\":[],\"cluster\":[\"all\"],\"indices\":[{\"names\":"
-                        + "[\"ind-x\"],\"privileges\":[\"all\"]}],\"metadata\":{},\"run_as\":[]},\"r2\":{\"applications\":[],\"cluster\":"
-                        + "[\"all\"],\"indices\":[{\"names\":[\"ind-y\"],\"privileges\":[\"all\"]}],\"metadata\":{},\"run_as\":[]}}}"));
+                        + "[\"ind-x\"],\"privileges\":[\"all\"],\"allow_restricted_indices\":false}],\"metadata\":{},\"run_as\":[]},"
+                        + "\"r2\":{\"applications\":[],\"cluster\":"
+                        + "[\"all\"],\"indices\":[{\"names\":[\"ind-y\"],\"privileges\":[\"all\"],\"allow_restricted_indices\":false}],"
+                        + "\"metadata\":{},\"run_as\":[]}}}"));
     }
 
     public void testEqualsHashCode() {

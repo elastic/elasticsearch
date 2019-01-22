@@ -371,7 +371,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                                                                 createdSnapshot.set(true);
                                                             }));
                                                         scheduleNow(
-                                                            () -> masterAdminClient.cluster().reroute(
+                                                            () -> testClusterNodes.randomMasterNode().client.admin().cluster().reroute(
                                                                 new ClusterRerouteRequest().add(
                                                                     new AllocateEmptyPrimaryAllocationCommand(
                                                                         index, shardRouting.shardId().id(), otherNode.node.getName(), true)

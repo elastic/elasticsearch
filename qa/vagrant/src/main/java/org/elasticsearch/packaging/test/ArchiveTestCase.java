@@ -318,4 +318,22 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
+    public void test110RepairIndexCliPackaging() {
+        assumeThat(installation, is(notNullValue()));
+
+        final Installation.Executables bin = installation.executables();
+        final Shell sh = new Shell();
+
+        Platforms.PlatformAction action = () -> {
+            final Result result = sh.run(bin.elasticsearchNode + " -h");
+            assertThat(result.stdout,
+                    containsString("A CLI tool to unsafely recover cluster in case of majority/all master nodes loss"));
+        };
+
+        if (distribution().equals(Distribution.DEFAULT_TAR) || distribution().equals(Distribution.DEFAULT_ZIP)) {
+            Platforms.onLinux(action);
+            Platforms.onWindows(action);
+        }
+    }
+
 }

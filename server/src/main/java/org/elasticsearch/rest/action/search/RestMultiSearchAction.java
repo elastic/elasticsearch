@@ -147,13 +147,14 @@ public class RestMultiSearchAction extends BaseRestHandler {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] types = Strings.splitStringByCommaToArray(request.param("type"));
         String searchType = request.param("search_type");
+        String ccsExecutionMode = request.param("ccs_execution_mode");
         String routing = request.param("routing");
 
         final Tuple<XContentType, BytesReference> sourceTuple = request.contentOrSourceParam();
         final XContent xContent = sourceTuple.v1().xContent();
         final BytesReference data = sourceTuple.v2();
         MultiSearchRequest.readMultiLineFormat(data, xContent, consumer, indices, indicesOptions, types, routing,
-                searchType, request.getXContentRegistry(), allowExplicitIndex);
+                searchType, ccsExecutionMode, request.getXContentRegistry(), allowExplicitIndex);
     }
 
     @Override

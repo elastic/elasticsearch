@@ -173,6 +173,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                            String[] types,
                                            String routing,
                                            String searchType,
+                                           String ccsExecutionMode,
                                            NamedXContentRegistry registry,
                                            boolean allowExplicitIndex) throws IOException {
         int from = 0;
@@ -205,6 +206,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             if (searchType != null) {
                 searchRequest.searchType(searchType);
             }
+            if (ccsExecutionMode != null) {
+                searchRequest.setCCSExecutionMode(ccsExecutionMode);
+            }
             IndicesOptions defaultOptions = searchRequest.indicesOptions();
             // now parse the action
             if (nextMarker - from > 0) {
@@ -226,6 +230,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             searchRequest.types(nodeStringArrayValue(value));
                         } else if ("search_type".equals(entry.getKey()) || "searchType".equals(entry.getKey())) {
                             searchRequest.searchType(nodeStringValue(value, null));
+                        } else if ("ccs_execution_mode".equals(entry.getKey()) || "ccsExecutionMode".equals(entry.getKey())) {
+                            searchRequest.setCCSExecutionMode(nodeStringValue(value, null));
                         } else if ("request_cache".equals(entry.getKey()) || "requestCache".equals(entry.getKey())) {
                             searchRequest.requestCache(nodeBooleanValue(value, entry.getKey()));
                         } else if ("preference".equals(entry.getKey())) {
@@ -326,6 +332,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         }
         if (request.searchType() != null) {
             xContentBuilder.field("search_type", request.searchType().name().toLowerCase(Locale.ROOT));
+        }
+        if (request.getCCSExecutionMode() != null) {
+            xContentBuilder.field("ccs_execution_mode", request.getCCSExecutionMode().toString());
         }
         if (request.requestCache() != null) {
             xContentBuilder.field("request_cache", request.requestCache());

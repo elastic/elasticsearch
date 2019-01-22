@@ -76,10 +76,15 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertNotSame(deserializedRequest, searchRequest);
     }
 
-    public void testClusterAliasSerialization() throws IOException {
+    public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
         Version version = VersionUtils.randomVersion(random());
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
+        if (version.before(Version.V_7_0_0)) {
+            assertEquals(SearchRequest.CCSExecutionMode.ONE_REQUEST_PER_SHARD, deserializedRequest.getCCSExecutionMode());
+        } else {
+            assertEquals(searchRequest.getCCSExecutionMode(), deserializedRequest.getCCSExecutionMode());
+        }
         if (version.before(Version.V_6_7_0)) {
             assertNull(deserializedRequest.getLocalClusterAlias());
             assertAbsoluteStartMillisIsCurrentTime(deserializedRequest);
@@ -97,6 +102,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertArrayEquals(new String[]{"index"}, searchRequest.indices());
             assertNull(searchRequest.getLocalClusterAlias());
             assertAbsoluteStartMillisIsCurrentTime(searchRequest);
+            assertEquals(SearchRequest.CCSExecutionMode.ONE_REQUEST_PER_SHARD, searchRequest.getCCSExecutionMode());
         }
     }
 
@@ -135,6 +141,9 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
         e = expectThrows(NullPointerException.class, () -> searchRequest.scroll((TimeValue)null));
         assertEquals("keepAlive must not be null", e.getMessage());
+
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> searchRequest.setCCSExecutionMode("whatever"));
+        assertEquals("unknown ccs_execution_mode: [whatever]", iae.getMessage());
     }
 
     public void testValidate() throws IOException {
@@ -219,6 +228,8 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         mutators.add(() -> mutation.searchType(randomValueOtherThan(searchRequest.searchType(),
             () -> randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH))));
         mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
+        mutators.add(() -> mutation.setCCSExecutionMode(randomValueOtherThan(searchRequest.getCCSExecutionMode(),
+            () -> randomFrom(SearchRequest.CCSExecutionMode.values()))));
         randomFrom(mutators).run();
         return mutation;
     }

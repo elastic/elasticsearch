@@ -67,6 +67,12 @@
           "type" : "boolean",
           "description" : "Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
           "default" : false
+        },
+        "ccs_execution_mode": {
+          "type" : "enum",
+          "options" : ["one_request_per_shard","one_request_per_cluster"],
+          "default" : "one_request_per_cluster",
+          "description" : "The cross-cluster search execution mode: fan out to all the shards or, when possible, send one search request to each remote cluster and perform local reduction"
         }
       }
     },

@@ -87,6 +87,9 @@ public class RandomSearchRequestGenerator {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.allowPartialSearchResults(true);
         if (randomBoolean()) {
+            searchRequest.setCCSExecutionMode(randomFrom(SearchRequest.CCSExecutionMode.values()));
+        }
+        if (randomBoolean()) {
             searchRequest.indices(generateRandomStringArray(10, 10, false, false));
         }
         if (randomBoolean()) {

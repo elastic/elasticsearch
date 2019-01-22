@@ -38,6 +38,7 @@ import org.elasticsearch.tasks.TaskId;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -91,6 +92,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     private int preFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE;
 
     private String[] types = Strings.EMPTY_ARRAY;
+
+    private CCSExecutionMode ccsExecutionMode;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
@@ -150,6 +153,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     private SearchRequest(SearchRequest searchRequest, String[] indices, String localClusterAlias, long absoluteStartMillis) {
         this.allowPartialSearchResults = searchRequest.allowPartialSearchResults;
         this.batchedReduceSize = searchRequest.batchedReduceSize;
+        this.ccsExecutionMode = searchRequest.ccsExecutionMode;
         this.indices = indices;
         this.indicesOptions = searchRequest.indicesOptions;
         this.maxConcurrentShardRequests = searchRequest.maxConcurrentShardRequests;
@@ -199,6 +203,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             localClusterAlias = null;
             absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
         }
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            ccsExecutionMode = in.readEnum(CCSExecutionMode.class);
+        }
     }
 
     @Override
@@ -224,6 +231,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             if (localClusterAlias != null) {
                 out.writeVLong(absoluteStartMillis);
             }
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeEnum(ccsExecutionMode);
         }
     }
 
@@ -299,6 +309,18 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     public SearchRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = Objects.requireNonNull(indicesOptions, "indicesOptions must not be null");
         return this;
+    }
+
+    public void setCCSExecutionMode(CCSExecutionMode ccsExecutionMode) {
+        this.ccsExecutionMode = Objects.requireNonNull(ccsExecutionMode, "ccsExecutionMode must not be null");
+    }
+
+    public void setCCSExecutionMode(String ccsExecutionMode) {
+        this.ccsExecutionMode = CCSExecutionMode.fromString(ccsExecutionMode);
+    }
+
+    public CCSExecutionMode getCCSExecutionMode() {
+        return this.ccsExecutionMode;
     }
 
     /**
@@ -592,14 +614,15 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 Objects.equals(indicesOptions, that.indicesOptions) &&
                 Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults) &&
                 Objects.equals(localClusterAlias, that.localClusterAlias) &&
-                absoluteStartMillis == that.absoluteStartMillis;
+                absoluteStartMillis == that.absoluteStartMillis &&
+                ccsExecutionMode == that.ccsExecutionMode;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
                 scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize,
-                allowPartialSearchResults, localClusterAlias, absoluteStartMillis);
+                allowPartialSearchResults, localClusterAlias, absoluteStartMillis, ccsExecutionMode);
     }
 
     @Override
@@ -619,6 +642,26 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 ", allowPartialSearchResults=" + allowPartialSearchResults +
                 ", localClusterAlias=" + localClusterAlias +
                 ", getOrCreateAbsoluteStartMillis=" + absoluteStartMillis +
+                ", ccsExecutionMode=" + ccsExecutionMode +
                 ", source=" + source + '}';
+    }
+
+    public enum CCSExecutionMode {
+        ONE_REQUEST_PER_SHARD,
+        PREFER_ONE_REQUEST_PER_CLUSTER;
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        public static CCSExecutionMode fromString(String executionMode) {
+            for (CCSExecutionMode value : CCSExecutionMode.values()) {
+                if (value.name().toLowerCase(Locale.ROOT).equals(executionMode)) {
+                    return value;
+                }
+            }
+            throw new IllegalArgumentException("unknown ccs_execution_mode: [" + executionMode + "]");
+        }
     }
 }

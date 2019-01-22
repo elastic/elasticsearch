@@ -87,12 +87,18 @@ public abstract class DataTypeConversion {
             }
         }
         if (left == DATETIME) {
-            if (right == DATE || DataTypes.isInterval(right)) {
+            if (right == DATE) {
+                return left;
+            }
+            if (DataTypes.isInterval(right)) {
                 return left;
             }
         }
         if (right == DATETIME) {
-            if (left == DATE || DataTypes.isInterval(left)) {
+            if (left == DATE) {
+                return right;
+            }
+            if (DataTypes.isInterval(left)) {
                 return right;
             }
         }

@@ -77,7 +77,8 @@ Instead one can rewrite the query to move the expression on the histogram _insid
 include-tagged::{sql-specs}/docs.csv-spec[histogramDateTimeExpression]
 ----
 
-[NOTE]
-When the histogram in SQL is applied on **DATE** type instead of **DATETIME**, then the interval specified is rounded to
-the nearest multiple of a day. E.g.: for `HISTOGRAM(CAST(birth_date AS DATE), INTERVAL '2 3:04' DAY TO MINUTE)`
-the interval actually used will be `INTERVAL 2 DAYS`.
+[IMPORTANT]
+When the histogram in SQL is applied on **DATE** type instead of **DATETIME**, the interval specified is truncated to
+the multiple of a day. E.g.: for `HISTOGRAM(CAST(birth_date AS DATE), INTERVAL '2 3:04' DAY TO MINUTE)` the interval
+actually used will be `INTERVAL '2' DAY`. If the interval specified is less than 1 day, e.g.:
+`HISTOGRAM(CAST(birth_date AS DATE), INTERVAL '20' HOUR)` then the interval used will be `INTERVAL '1' DAY`.

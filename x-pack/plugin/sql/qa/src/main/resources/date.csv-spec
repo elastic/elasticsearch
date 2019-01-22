@@ -58,19 +58,6 @@ SELECT birth_date, last_name FROM "test_emp" WHERE birth_date <= CAST('1955-01-2
 1952-04-19T00:00:00Z  |Peac
 ;
 
-
-// The date return can differ due to the randomized timezones (it's transformed to the JDBC client's timezone)
-dateAsGroupingKey-Ignore
-SELECT CAST(birth_date AS DATE) AS d, CAST(SUM(emp_no) AS INT) s FROM test_emp GROUP BY d ORDER BY d LIMIT 5;
-
- d:date     | s:i
-null        |100445
-1952-02-26  |10097
-1952-04-18  |10009
-1952-05-14  |10072
-1952-06-12  |10076
-;
-
 dateAndFunctionAsGroupingKey
 SELECT MONTH(CAST(birth_date AS DATE)) AS m, CAST(SUM(emp_no) AS INT) s FROM test_emp GROUP BY m ORDER BY m LIMIT 5;
 

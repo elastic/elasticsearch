@@ -198,6 +198,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: Invalid datetime field [ABS]. Use any datetime function.", error("SELECT EXTRACT(ABS FROM date) FROM test"));
     }
 
+    public void testSubtractFromInterval() {
+        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), indexResolution, new Verifier(new Metrics()));
+        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> analyzer.analyze(parser.createStatement(
+            "SELECT INTERVAL 1 MONTH - CAST('2000-01-01' AS DATETIME)"), true));
+        assertEquals("Cannot subtract a date from an interval; do you mean the reverse?",
+            e.getMessage());
+    }
+
     public void testMultipleColumns() {
         // xxx offset is that of the order by field
         assertEquals("1:43: Unknown column [xxx]\nline 1:8: Unknown column [xxx]",

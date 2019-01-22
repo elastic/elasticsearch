@@ -21,6 +21,7 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -117,5 +118,30 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(credentials.getAWSAccessKeyId(), is("access_key"));
         assertThat(credentials.getAWSSecretKey(), is("secret_key"));
         assertThat(credentials.getSessionToken(), is("session_token"));
+    }
+
+    public void testRefineWithRepoSettings() {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("s3.client.default.access_key", "access_key");
+        secureSettings.setString("s3.client.default.secret_key", "secret_key");
+        secureSettings.setString("s3.client.default.session_token", "session_token");
+        final S3ClientSettings baseSettings = S3ClientSettings.load(
+            Settings.builder().setSecureSettings(secureSettings).build()).get("default");
+
+        {
+            final S3ClientSettings refinedSettings = baseSettings.refine(new RepositoryMetaData("name", "type", Settings.EMPTY));
+            assertTrue(refinedSettings == baseSettings);
+        }
+
+        {
+            final String endpoint = "some.host";
+            final S3ClientSettings refinedSettings = baseSettings.refine(new RepositoryMetaData("name", "type",
+                Settings.builder().put("endpoint", endpoint).build()));
+            assertThat(refinedSettings.endpoint, is(endpoint));
+            S3BasicSessionCredentials credentials = (S3BasicSessionCredentials) refinedSettings.credentials;
+            assertThat(credentials.getAWSAccessKeyId(), is("access_key"));
+            assertThat(credentials.getAWSSecretKey(), is("secret_key"));
+            assertThat(credentials.getSessionToken(), is("session_token"));
+        }
     }
 }

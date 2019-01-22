@@ -150,6 +150,7 @@ final class S3ClientSettings {
      */
     S3ClientSettings refine(RepositoryMetaData metadata) {
         final Settings repoSettings = metadata.settings();
+        // Normalize settings to placeholder client settings prefix so that we can use the affix settings directly
         final Settings normalizedSettings =
             Settings.builder().put(repoSettings).normalizePrefix(PREFIX + PLACEHOLDER_CLIENT + '.').build();
         final String newEndpoint = getRepoSettingOrDefault(ENDPOINT_SETTING, normalizedSettings, endpoint);

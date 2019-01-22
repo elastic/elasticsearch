@@ -130,17 +130,13 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         if (logger.isTraceEnabled()) {
             logger.trace("I have been elected master, scheduling a ClusterInfoUpdateJob");
         }
-        try {
-            // Submit a job that will start after DEFAULT_STARTING_INTERVAL, and reschedule itself after running
-            threadPool.schedule(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
-            if (clusterService.state().getNodes().getDataNodes().size() > 1) {
-                // Submit an info update job to be run immediately
-                threadPool.executor(executorName()).execute(() -> maybeRefresh());
-            }
-        } catch (EsRejectedExecutionException ex) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Couldn't schedule cluster info update task - node might be shutting down", ex);
-            }
+
+        // Submit a job that will start after DEFAULT_STARTING_INTERVAL, and reschedule itself after running
+        threadPool.scheduleUnlessShuttingDown(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
+
+        if (clusterService.state().getNodes().getDataNodes().size() > 1) {
+            // Submit an info update job to be run immediately
+            threadPool.executor(executorName()).execute(() -> maybeRefresh());
         }
     }
 
@@ -223,11 +219,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
                             if (logger.isTraceEnabled()) {
                                 logger.trace("Scheduling next run for updating cluster info in: {}", updateFrequency.toString());
                             }
-                            try {
-                                threadPool.schedule(updateFrequency, executorName(), this);
-                            } catch (EsRejectedExecutionException ex) {
-                                logger.debug("Reschedule cluster info service was rejected", ex);
-                            }
+                            threadPool.scheduleUnlessShuttingDown(updateFrequency, executorName(), this);
                         }
                     }
                 });

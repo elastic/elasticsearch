@@ -30,7 +30,6 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.CommitStats;
@@ -95,17 +94,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                  Map<String, String> headers) {
         ShardFollowTask params = taskInProgress.getParams();
         Client followerClient = wrapClient(client, params.getHeaders());
-        BiConsumer<TimeValue, Runnable> scheduler = (delay, command) -> {
-            try {
-                threadPool.schedule(delay, Ccr.CCR_THREAD_POOL_NAME, command);
-            } catch (EsRejectedExecutionException e) {
-                if (e.isExecutorShutdown()) {
-                    logger.debug("couldn't schedule command, executor is shutting down", e);
-                } else {
-                    throw e;
-                }
-            }
-        };
+        BiConsumer<TimeValue, Runnable> scheduler = (delay, command) ->
+            threadPool.scheduleUnlessShuttingDown(delay, Ccr.CCR_THREAD_POOL_NAME, command);
 
         final String recordedLeaderShardHistoryUUID = getLeaderShardHistoryUUID(params);
         return new ShardFollowNodeTask(id, type, action, getDescription(taskInProgress), parentTaskId, headers, params,

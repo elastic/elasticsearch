@@ -16,39 +16,88 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatterBuilder;
+import java.util.Locale;
 
-public class DateUtils {
+import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
+
+public final class DateUtils {
+
+   public static final java.time.format.DateTimeFormatter ISO_DATE_ONLY = new DateTimeFormatterBuilder()
+        .parseCaseInsensitive()
+        .append(ISO_LOCAL_DATE)
+        .toFormatter(Locale.ROOT);
 
     // TODO: do we have a java.time based parser we can use instead?
     private static final DateTimeFormatter UTC_DATE_FORMATTER = ISODateTimeFormat.dateOptionalTimeParser().withZoneUTC();
 
-    public static ZoneId UTC = ZoneId.of("Z");
+    public static final ZoneId UTC = ZoneId.of("Z");
 
     private DateUtils() {}
 
+    /**
+     * Creates an date for SQL DATE type from the millis since epoch.
+     */
+    public static ZonedDateTime asDate(long millis) {
+        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC)
+            .withHour(0)
+            .withMinute(0)
+            .withSecond(0)
+            .withNano(0);
+    }
 
     /**
-     * Creates a date from the millis since epoch (thus the time-zone is UTC).
+     * Creates a datetime from the millis since epoch (thus the time-zone is UTC).
      */
-    public static ZonedDateTime of(long millis) {
+    public static ZonedDateTime asDateTime(long millis) {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC);
     }
 
     /**
-     * Creates a date from the millis since epoch then translates the date into the given timezone.
+     * Creates a datetime from the millis since epoch then translates the date into the given timezone.
      */
-    public static ZonedDateTime of(long millis, ZoneId id) {
+    public static ZonedDateTime asDateTime(long millis, ZoneId id) {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), id);
+    }
+
+    /**
+     * Parses the given string into a Date (SQL DATE type) using UTC as a default timezone.
+     */
+    public static ZonedDateTime asDate(String dateFormat) {
+        return asDate(UTC_DATE_FORMATTER.parseDateTime(dateFormat));
+    }
+
+    public static ZonedDateTime asDate(DateTime dateTime) {
+        LocalDateTime ldt = LocalDateTime.of(
+            dateTime.getYear(),
+            dateTime.getMonthOfYear(),
+            dateTime.getDayOfMonth(),
+            0,
+            0,
+            0,
+            0);
+
+        return ZonedDateTime.ofStrict(ldt,
+            ZoneOffset.ofTotalSeconds(dateTime.getZone().getOffset(dateTime) / 1000),
+            org.elasticsearch.common.time.DateUtils.dateTimeZoneToZoneId(dateTime.getZone()));
+    }
+
+    public static ZonedDateTime asDate(ZonedDateTime zdt) {
+        return zdt
+            .withHour(0)
+            .withMinute(0)
+            .withSecond(0)
+            .withNano(0);
     }
 
     /**
      * Parses the given string into a DateTime using UTC as a default timezone.
      */
-    public static ZonedDateTime of(String dateFormat) {
-        return of(UTC_DATE_FORMATTER.parseDateTime(dateFormat));
+    public static ZonedDateTime asDateTime(String dateFormat) {
+        return asDateTime(UTC_DATE_FORMATTER.parseDateTime(dateFormat));
     }
 
-    public static ZonedDateTime of(DateTime dateTime) {
+    public static ZonedDateTime asDateTime(DateTime dateTime) {
         LocalDateTime ldt = LocalDateTime.of(
                 dateTime.getYear(),
                 dateTime.getMonthOfYear(),
@@ -62,8 +111,13 @@ public class DateUtils {
                 ZoneOffset.ofTotalSeconds(dateTime.getZone().getOffset(dateTime) / 1000),
                 org.elasticsearch.common.time.DateUtils.dateTimeZoneToZoneId(dateTime.getZone()));
     }
+
     
     public static String toString(ZonedDateTime dateTime) {
         return StringUtils.toString(dateTime);
+    }
+
+    public static String toDateString(ZonedDateTime date) {
+        return date.format(ISO_DATE_ONLY);
     }
 }

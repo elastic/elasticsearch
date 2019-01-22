@@ -45,6 +45,7 @@ public enum DataType {
     // the precision is 23 (number of chars in ISO8601 with millis) + Z (the UTC timezone)
     // see https://github.com/elastic/elasticsearch/issues/30386#issuecomment-386807288
     DATETIME(              JDBCType.TIMESTAMP, Long.BYTES,        24,                24, false, false, true),
+    DATE(                  JDBCType.DATE,      Long.BYTES,        10,                10, false, false, true),
     //
     // specialized types
     //
@@ -102,7 +103,7 @@ public enum DataType {
         odbcToEs.put("SQL_LONGVARBINARY", BINARY);
 
         // Date
-        odbcToEs.put("SQL_DATE", DATETIME);
+        odbcToEs.put("SQL_DATE", DATE);
         odbcToEs.put("SQL_TIME", DATETIME);
         odbcToEs.put("SQL_TIMESTAMP", DATETIME);
 

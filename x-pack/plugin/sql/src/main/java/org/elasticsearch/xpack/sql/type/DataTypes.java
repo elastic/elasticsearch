@@ -8,10 +8,12 @@ package org.elasticsearch.xpack.sql.type;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.literal.Interval;
 
+import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.sql.type.DataType.BYTE;
+import static org.elasticsearch.xpack.sql.type.DataType.DATE;
 import static org.elasticsearch.xpack.sql.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.sql.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.sql.type.DataType.FLOAT;
@@ -66,6 +68,9 @@ public final class DataTypes {
         }
         if (value instanceof Short) {
             return SHORT;
+        }
+        if (value instanceof LocalDateTime) {
+            return DATE;
         }
         if (value instanceof ZonedDateTime) {
             return DATETIME;

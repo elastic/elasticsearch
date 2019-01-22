@@ -35,7 +35,7 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return Expressions.typeMustBeDate(field(), sourceText(), ParamOrdinal.DEFAULT);
+        return Expressions.typeMustBeDateOrDateTime(field(), sourceText(), ParamOrdinal.DEFAULT);
     }
 
     public ZoneId zoneId() {

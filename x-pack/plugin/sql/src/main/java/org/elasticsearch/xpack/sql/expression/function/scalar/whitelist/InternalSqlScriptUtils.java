@@ -361,7 +361,7 @@ public final class InternalSqlScriptUtils {
         }
         if (false == lenient) {
             if (dateTime instanceof Number) {
-                return DateUtils.of(((Number) dateTime).longValue());
+                return DateUtils.asDateTime(((Number) dateTime).longValue());
             }
     
             throw new SqlIllegalArgumentException("Invalid date encountered [{}]", dateTime);

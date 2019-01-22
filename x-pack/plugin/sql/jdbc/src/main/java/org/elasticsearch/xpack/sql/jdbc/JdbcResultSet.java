@@ -253,7 +253,10 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
                     return null;
                 }
                 return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asMillisSinceEpoch, Function.identity());
-            };
+            }
+            if (EsType.DATE == type) {
+                return JdbcDateUtils.asDate((String) val).getTime();
+            }
             return val == null ? null : (Long) val;
         } catch (ClassCastException cce) {
             throw new SQLException(

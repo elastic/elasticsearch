@@ -39,7 +39,7 @@ public class Histogram extends GroupingFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        TypeResolution resolution = Expressions.typeMustBeNumericOrDate(field(), "HISTOGRAM", ParamOrdinal.FIRST);
+        TypeResolution resolution = Expressions.typeMustBeNumericOrDateTimeOrDate(field(), "HISTOGRAM", ParamOrdinal.FIRST);
         if (resolution == TypeResolution.TYPE_RESOLVED) {
             // interval must be Literal interval
             if (field().dataType() == DataType.DATETIME) {

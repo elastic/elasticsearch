@@ -379,10 +379,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final List<AuditTrail> auditTrails = XPackSettings.AUDIT_ENABLED.get(settings)
                 ? Collections.singletonList(new LoggingAuditTrail(settings, clusterService, threadPool))
                 : Collections.emptyList();
-        if (XPackSettings.AUDIT_ENABLED.get(settings)) {
-            // the only audit trail is the logfile
-            auditTrails.add(new LoggingAuditTrail(settings, clusterService, threadPool));
-        }
         final AuditTrailService auditTrailService = new AuditTrailService(auditTrails, getLicenseState());
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
@@ -868,8 +864,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
             // .security index is not managed by using templates anymore
-             templates.remove(SECURITY_TEMPLATE_NAME);
-             templates.remove("security_audit_log");
+            templates.remove(SECURITY_TEMPLATE_NAME);
+            templates.remove("security_audit_log");
             return templates;
         };
     }

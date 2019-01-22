@@ -86,12 +86,11 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
             // either get to a step that isn't a cluster state step or a
             // cluster state wait step returns not completed
             while (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
-                nextStepKey = currentStep.getNextStepKey();
                 if (currentStep instanceof ClusterStateActionStep) {
                     // cluster state action step so do the action and
                     // move the cluster state to the next step
-                    logger.trace("[{}] performing cluster state action ({}) [{}], next: [{}]",
-                        index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey(), currentStep.getNextStepKey());
+                    logger.trace("[{}] performing cluster state action ({}) [{}]",
+                        index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey());
                     try {
                         state = ((ClusterStateActionStep) currentStep).performAction(index, state);
                     } catch (Exception exception) {
@@ -102,8 +101,14 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                     } else {
                         state = IndexLifecycleRunner.moveClusterStateToNextStep(index, state, currentStep.getKey(),
                             currentStep.getNextStepKey(), nowSupplier, false);
+                        // set here to make sure that the clusterProcessed knows to execute the
+                        // correct step if it an async action
+                        nextStepKey = currentStep.getNextStepKey();
                     }
                 } else {
+                    // set here to make sure that the clusterProcessed knows to execute the
+                    // correct step if it an async action
+                    nextStepKey = currentStep.getNextStepKey();
                     // cluster state wait step so evaluate the
                     // condition, if the condition is met move to the
                     // next step, if its not met return the current

@@ -15,17 +15,15 @@ If the following mapping configures the `percolator` field type for the
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "query": {
-                    "type": "percolator"
-                },
-                "field": {
-                    "type": "text"
-                }
+        "properties": {
+            "query": {
+                "type": "percolator"
+            },
+            "field": {
+                "type": "text"
             }
         }
     }
@@ -69,17 +67,15 @@ Lets take a look at the following index with a percolator field type:
 
 [source,js]
 --------------------------------------------------
-PUT index?include_type_name=true
+PUT index
 {
   "mappings": {
-    "_doc" : {
-      "properties": {
-        "query" : {
-          "type" : "percolator"
-        },
-        "body" : {
-          "type": "text"
-        }
+    "properties": {
+      "query" : {
+        "type" : "percolator"
+      },
+      "body" : {
+        "type": "text"
       }
     }
   }
@@ -117,17 +113,15 @@ to read your queries you need to reindex your queries into a new index on the cu
 
 [source,js]
 --------------------------------------------------
-PUT new_index?include_type_name=true
+PUT new_index
 {
   "mappings": {
-    "_doc" : {
-      "properties": {
-        "query" : {
-          "type" : "percolator"
-        },
-        "body" : {
-          "type": "text"
-        }
+    "properties": {
+      "query" : {
+        "type" : "percolator"
+      },
+      "body" : {
+        "type": "text"
       }
     }
   }
@@ -269,7 +263,7 @@ with these settings and mapping:
 
 [source,js]
 --------------------------------------------------
-PUT /test_index?include_type_name=true
+PUT /test_index
 {
   "settings": {
     "analysis": {
@@ -282,15 +276,13 @@ PUT /test_index?include_type_name=true
     }
   },
   "mappings": {
-    "_doc" : {
-      "properties": {
-        "query" : {
-          "type": "percolator"
-        },
-        "body" : {
-          "type": "text",
-          "analyzer": "my_analyzer" <1>
-        }
+    "properties": {
+      "query" : {
+        "type": "percolator"
+      },
+      "body" : {
+        "type": "text",
+        "analyzer": "my_analyzer" <1>
       }
     }
   }
@@ -442,7 +434,7 @@ Creating an index with custom analysis settings:
 
 [source,js]
 --------------------------------------------------
-PUT my_queries1?include_type_name=true
+PUT my_queries1
 {
   "settings": {
     "analysis": {
@@ -466,19 +458,17 @@ PUT my_queries1?include_type_name=true
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "query": {
-          "type": "percolator"
-        },
-        "my_field": {
-          "type": "text",
-          "fields": {
-            "prefix": { <3>
-              "type": "text",
-              "analyzer": "wildcard_prefix",
-              "search_analyzer": "standard"
-            }
+    "properties": {
+      "query": {
+        "type": "percolator"
+      },
+      "my_field": {
+        "type": "text",
+        "fields": {
+          "prefix": { <3>
+            "type": "text",
+            "analyzer": "wildcard_prefix",
+            "search_analyzer": "standard"
           }
         }
       }
@@ -595,7 +585,7 @@ before the `edge_ngram` token filter.
 
 [source,js]
 --------------------------------------------------
-PUT my_queries2?include_type_name=true
+PUT my_queries2
 {
   "settings": {
     "analysis": {
@@ -628,19 +618,17 @@ PUT my_queries2?include_type_name=true
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "query": {
-          "type": "percolator"
-        },
-        "my_field": {
-          "type": "text",
-          "fields": {
-            "suffix": {
-              "type": "text",
-              "analyzer": "wildcard_suffix",
-              "search_analyzer": "wildcard_suffix_search_time" <1>
-            }
+    "properties": {
+      "query": {
+        "type": "percolator"
+      },
+      "my_field": {
+        "type": "text",
+        "fields": {
+          "suffix": {
+            "type": "text",
+            "analyzer": "wildcard_suffix",
+            "search_analyzer": "wildcard_suffix_search_time" <1>
           }
         }
       }

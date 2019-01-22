@@ -38,12 +38,12 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.InboundMessage;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -113,13 +113,9 @@ public class NioTransportIT extends NioIntegTestCase {
         }
 
         @Override
-        protected String handleRequest(TcpChannel channel, String profileName,
-                                       StreamInput stream, long requestId, int messageLengthBytes, Version version,
-                                       InetSocketAddress remoteAddress, byte status) throws IOException {
-            String action = super.handleRequest(channel, profileName, stream, requestId, messageLengthBytes, version,
-                    remoteAddress, status);
+        protected void handleRequest(TcpChannel channel, InboundMessage.RequestMessage request, int messageLengthBytes) throws IOException {
+            super.handleRequest(channel, request, messageLengthBytes);
             channelProfileName = TransportSettings.DEFAULT_PROFILE;
-            return action;
         }
 
         @Override

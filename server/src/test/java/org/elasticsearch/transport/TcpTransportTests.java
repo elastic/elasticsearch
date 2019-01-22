@@ -37,7 +37,6 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -158,41 +157,12 @@ public class TcpTransportTests extends ESTestCase {
         assertEquals(102, addresses[2].getPort());
     }
 
-    public void testEnsureVersionCompatibility() {
-        TcpTransport.ensureVersionCompatibility(VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(),
-            Version.CURRENT), Version.CURRENT, randomBoolean());
-
-        final Version version = Version.fromString("7.0.0");
-        TcpTransport.ensureVersionCompatibility(Version.fromString("6.0.0"), version, true);
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () ->
-            TcpTransport.ensureVersionCompatibility(Version.fromString("6.0.0"), version, false));
-        assertEquals("Received message from unsupported version: [6.0.0] minimal compatible version is: ["
-            + version.minimumCompatibilityVersion() + "]", ise.getMessage());
-
-        // For handshake we are compatible with N-2
-        TcpTransport.ensureVersionCompatibility(Version.fromString("5.6.0"), version, true);
-        ise = expectThrows(IllegalStateException.class, () ->
-            TcpTransport.ensureVersionCompatibility(Version.fromString("5.6.0"), version, false));
-        assertEquals("Received message from unsupported version: [5.6.0] minimal compatible version is: ["
-                + version.minimumCompatibilityVersion() + "]", ise.getMessage());
-
-        ise = expectThrows(IllegalStateException.class, () ->
-            TcpTransport.ensureVersionCompatibility(Version.fromString("2.3.0"), version, true));
-        assertEquals("Received handshake message from unsupported version: [2.3.0] minimal compatible version is: ["
-            + version.minimumCompatibilityVersion() + "]", ise.getMessage());
-
-        ise = expectThrows(IllegalStateException.class, () ->
-            TcpTransport.ensureVersionCompatibility(Version.fromString("2.3.0"), version, false));
-        assertEquals("Received message from unsupported version: [2.3.0] minimal compatible version is: ["
-            + version.minimumCompatibilityVersion() + "]", ise.getMessage());
-    }
-
     @SuppressForbidden(reason = "Allow accessing localhost")
     public void testCompressRequestAndResponse() throws IOException {
         final boolean compressed = randomBoolean();
         Req request = new Req(randomRealisticUnicodeOfLengthBetween(10, 100));
         ThreadPool threadPool = new TestThreadPool(TcpTransportTests.class.getName());
-        AtomicReference<BytesReference> requestCaptor = new AtomicReference<>();
+        AtomicReference<BytesReference> messageCaptor = new AtomicReference<>();
         try {
             TcpTransport transport = new TcpTransport("test", Settings.EMPTY, Version.CURRENT, threadPool,
                 PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService(), null, null) {
@@ -204,7 +174,7 @@ public class TcpTransportTests extends ESTestCase {
 
                 @Override
                 protected FakeTcpChannel initiateChannel(DiscoveryNode node) throws IOException {
-                    return new FakeTcpChannel(false, requestCaptor);
+                    return new FakeTcpChannel(false);
                 }
 
                 @Override
@@ -219,7 +189,7 @@ public class TcpTransportTests extends ESTestCase {
                     int numConnections = profile.getNumConnections();
                     ArrayList<TcpChannel> fakeChannels = new ArrayList<>(numConnections);
                     for (int i = 0; i < numConnections; ++i) {
-                        fakeChannels.add(new FakeTcpChannel(false, requestCaptor));
+                        fakeChannels.add(new FakeTcpChannel(false, messageCaptor));
                     }
                     listener.onResponse(new NodeChannels(node, fakeChannels, profile, Version.CURRENT));
                     return () -> CloseableChannel.closeChannels(fakeChannels, false);
@@ -241,12 +211,12 @@ public class TcpTransportTests extends ESTestCase {
                 (request1, channel, task) -> channel.sendResponse(TransportResponse.Empty.INSTANCE), ThreadPool.Names.SAME,
                 true, true));
 
-            BytesReference reference = requestCaptor.get();
+            BytesReference reference = messageCaptor.get();
             assertNotNull(reference);
 
             AtomicReference<BytesReference> responseCaptor = new AtomicReference<>();
             InetSocketAddress address = new InetSocketAddress(InetAddress.getLocalHost(), 0);
-            FakeTcpChannel responseChannel = new FakeTcpChannel(true, address, address, responseCaptor);
+            FakeTcpChannel responseChannel = new FakeTcpChannel(true, address, address, "profile", responseCaptor);
             transport.messageReceived(reference.slice(6, reference.length() - 6), responseChannel);
 
 

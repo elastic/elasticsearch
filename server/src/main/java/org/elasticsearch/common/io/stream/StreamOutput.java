@@ -1038,14 +1038,18 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    /**
-     * Writes a list of strings
-     */
-    public void writeStringList(List<String> list) throws IOException {
+    public void writeStringCollection(final Collection<String> list) throws IOException {
         writeVInt(list.size());
         for (String string: list) {
             this.writeString(string);
         }
+    }
+
+    /**
+     * Writes a list of strings
+     */
+    public void writeStringList(List<String> list) throws IOException {
+        writeStringCollection(list);
     }
 
     /**

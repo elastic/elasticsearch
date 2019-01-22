@@ -300,7 +300,7 @@ public class DateRangeIT extends ESIntegTestCase {
     public void testSingleValueFieldWithDateMath() throws Exception {
         ZoneId timezone = randomZone();
         int timeZoneOffset = timezone.getRules().getOffset(date(2, 15).toInstant()).getTotalSeconds();
-        String suffix = timezone.normalized().equals(ZoneOffset.UTC) ? "Z" : timezone.getId();
+        String suffix = timezone.equals(ZoneOffset.UTC) ? "Z" : timezone.getId();
         long expectedFirstBucketCount = timeZoneOffset < 0 ? 3L : 2L;
 
         SearchResponse response = client().prepareSearch("idx")

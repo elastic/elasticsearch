@@ -304,11 +304,6 @@ public class RBACEngine implements AuthorizationEngine {
                 indicesAndAliases.add(aliasOrIndex);
             }
         }
-
-        if (Arrays.asList(role.names()).contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()) == false) {
-            // we should filter out all of the security indices from wildcards
-            indicesAndAliases.removeAll(SecurityIndexManager.indexNames());
-        }
         return Collections.unmodifiableList(indicesAndAliases);
     }
 

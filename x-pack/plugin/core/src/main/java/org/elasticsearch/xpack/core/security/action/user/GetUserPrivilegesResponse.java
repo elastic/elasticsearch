@@ -145,7 +145,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
                 return new FieldPermissionsDefinition.FieldGrantExcludeGroup(grant, exclude);
             }));
             queries = Collections.unmodifiableSet(in.readSet(StreamInput::readBytesReference));
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
                 this.allowRestrictedIndices = in.readBoolean();
             } else {
                 this.allowRestrictedIndices = false;
@@ -254,7 +254,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
                 output.writeOptionalStringArray(fields.getExcludedFields());
             });
             out.writeCollection(queries, StreamOutput::writeBytesReference);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
                 out.writeBoolean(allowRestrictedIndices);
             }
         }

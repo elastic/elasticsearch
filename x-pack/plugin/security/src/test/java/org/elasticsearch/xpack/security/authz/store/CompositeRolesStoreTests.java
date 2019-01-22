@@ -224,10 +224,17 @@ public class CompositeRolesStoreTests extends ESTestCase {
             return null;
         }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
+        final NativePrivilegeStore nativePrivilegeStore = mock(NativePrivilegeStore.class);
+        doAnswer((invocationOnMock) -> {
+            ActionListener<Collection<ApplicationPrivilegeDescriptor>> callback = null;
+            callback = (ActionListener<Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+            callback.onResponse(Collections.emptyList());
+            return null;
+        }).when(nativePrivilegeStore).getPrivileges(isA(Set.class), isA(Set.class), any(ActionListener.class));
 
         final CompositeRolesStore compositeRolesStore =
                 new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
-                        mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
+                        nativePrivilegeStore, Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
                         new XPackLicenseState(SECURITY_ENABLED_SETTINGS));
         verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
 
@@ -257,8 +264,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         if (getSuperuserRole && numberOfTimesToCall > 0) {
             // the superuser role was requested so we get the role descriptors again
             verify(reservedRolesStore, times(2)).accept(anySetOf(String.class), any(ActionListener.class));
+            verify(nativePrivilegeStore).getPrivileges(isA(Set.class),isA(Set.class), any(ActionListener.class));
         }
-        verifyNoMoreInteractions(fileRolesStore, reservedRolesStore, nativeRolesStore);
+        verifyNoMoreInteractions(fileRolesStore, reservedRolesStore, nativeRolesStore, nativePrivilegeStore);
     }
 
     public void testNegativeLookupsCacheDisabled() {

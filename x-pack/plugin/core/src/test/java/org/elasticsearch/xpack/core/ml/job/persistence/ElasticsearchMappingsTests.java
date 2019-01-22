@@ -144,52 +144,51 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         ClusterState cs = csBuilder.build();
         String[] indices = new String[] { "no_index" };
 
-        assertArrayEquals(new String[] { "no_index" }, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
+        assertArrayEquals(new String[] { "no_index" }, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT));
     }
 
     public void testMappingRequiresUpdateNullMapping() throws IOException {
         ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("null_mapping", null));
         String[] indices = new String[] { "null_index" };
-        assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
+        assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT));
     }
 
     public void testMappingRequiresUpdateNoVersion() throws IOException {
         ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("no_version_field", "NO_VERSION_FIELD"));
         String[] indices = new String[] { "no_version_field" };
-        assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
+        assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT));
     }
 
     public void testMappingRequiresUpdateRecentMappingVersion() throws IOException {
         ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_current", Version.CURRENT.toString()));
         String[] indices = new String[] { "version_current" };
-        assertArrayEquals(new String[] {}, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
+        assertArrayEquals(new String[] {}, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT));
     }
 
     public void testMappingRequiresUpdateMaliciousMappingVersion() throws IOException {
         ClusterState cs = getClusterStateWithMappingsWithMetaData(
             Collections.singletonMap("version_current", Collections.singletonMap("nested", "1.0")));
         String[] indices = new String[] { "version_nested" };
-        assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
+        assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT));
     }
 
     public void testMappingRequiresUpdateBogusMappingVersion() throws IOException {
         ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_bogus", "0.0"));
         String[] indices = new String[] { "version_bogus" };
-        assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
+        assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT));
     }
 
     public void testMappingRequiresUpdateNewerMappingVersion() throws IOException {
         ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_newer", Version.CURRENT));
         String[] indices = new String[] { "version_newer" };
-        assertArrayEquals(new String[] {}, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousVersion(),
-            logger));
+        assertArrayEquals(new String[] {}, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousVersion()));
     }
 
     public void testMappingRequiresUpdateNewerMappingVersionMinor() throws IOException {
         ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_newer_minor", Version.CURRENT));
         String[] indices = new String[] { "version_newer_minor" };
         assertArrayEquals(new String[] {},
-            ElasticsearchMappings.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousMinorVersion(), logger));
+            ElasticsearchMappings.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousMinorVersion()));
     }
 
 

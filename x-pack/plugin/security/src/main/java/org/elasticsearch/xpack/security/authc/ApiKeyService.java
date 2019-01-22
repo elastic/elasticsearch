@@ -36,7 +36,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -110,6 +112,10 @@ public class ApiKeyService {
             }
         }
     }, Setting.Property.NodeScope);
+    public static final Setting<TimeValue> DELETE_TIMEOUT = Setting.timeSetting("xpack.security.authc.api_key.delete.timeout",
+            TimeValue.MINUS_ONE, Property.NodeScope);
+    public static final Setting<TimeValue> DELETE_INTERVAL = Setting.timeSetting("xpack.security.authc.api_key.delete.interval",
+            TimeValue.timeValueHours(24L), Property.NodeScope);
 
     private final Clock clock;
     private final Client client;
@@ -118,6 +124,10 @@ public class ApiKeyService {
     private final Hasher hasher;
     private final boolean enabled;
     private final Settings settings;
+    private final ExpiredApiKeysRemover expiredApiKeysRemover;
+    private final TimeValue deleteInterval;
+
+    private volatile long lastExpirationRunMs;
 
     public ApiKeyService(Settings settings, Clock clock, Client client, SecurityIndexManager securityIndex, ClusterService clusterService) {
         this.clock = clock;
@@ -127,6 +137,8 @@ public class ApiKeyService {
         this.enabled = XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(settings);
         this.hasher = Hasher.resolve(PASSWORD_HASHING_ALGORITHM.get(settings));
         this.settings = settings;
+        this.deleteInterval = DELETE_INTERVAL.get(settings);
+        this.expiredApiKeysRemover = new ExpiredApiKeysRemover(settings, client);
     }
 
     /**
@@ -559,6 +571,7 @@ public class ApiKeyService {
      */
     private void indexInvalidation(Collection<String> apiKeyIds, ActionListener<InvalidateApiKeyResponse> listener,
                                    @Nullable InvalidateApiKeyResponse previousResult) {
+        maybeStartApiKeyRemover();
         if (apiKeyIds.isEmpty()) {
             listener.onFailure(new ElasticsearchSecurityException("No api key ids provided for invalidation"));
         } else {
@@ -650,4 +663,16 @@ public class ApiKeyService {
         return exception;
     }
 
+    boolean isExpirationInProgress() {
+        return expiredApiKeysRemover.isExpirationInProgress();
+    }
+
+    private void maybeStartApiKeyRemover() {
+        if (securityIndex.isAvailable()) {
+            if (client.threadPool().relativeTimeInMillis() - lastExpirationRunMs > deleteInterval.getMillis()) {
+                expiredApiKeysRemover.submit(client.threadPool());
+                lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
+            }
+        }
+    }
 }

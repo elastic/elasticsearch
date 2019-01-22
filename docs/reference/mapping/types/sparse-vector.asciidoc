@@ -20,17 +20,15 @@ Dimensions don't need to be in order.
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_vector": {
-          "type": "sparse_vector"
-        },
-        "my_text" : {
-          "type" : "keyword"
-        }
+    "properties": {
+      "my_vector": {
+        "type": "sparse_vector"
+      },
+      "my_text" : {
+        "type" : "keyword"
       }
     }
   }

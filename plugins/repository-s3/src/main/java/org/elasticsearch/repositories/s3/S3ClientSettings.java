@@ -44,7 +44,8 @@ final class S3ClientSettings {
     // prefix for s3 client settings
     private static final String PREFIX = "s3.client.";
 
-    private static final String DEFAULT_CLIENT = "default";
+    /** Placeholder client name for normalizing client settings in the repository settings. */
+    private static final String PLACEHOLDER_CLIENT = "placeholder";
 
     /** The access key (ie login id) for connecting to s3. */
     static final Setting.AffixSetting<SecureString> ACCESS_KEY_SETTING = Setting.affixKeySetting(PREFIX, "access_key",
@@ -150,7 +151,7 @@ final class S3ClientSettings {
     S3ClientSettings refine(RepositoryMetaData metadata) {
         final Settings repoSettings = metadata.settings();
         final Settings normalizedSettings =
-            Settings.builder().put(repoSettings).normalizePrefix(PREFIX + DEFAULT_CLIENT + '.').build();
+            Settings.builder().put(repoSettings).normalizePrefix(PREFIX + PLACEHOLDER_CLIENT + '.').build();
         final String newEndpoint = getRepoSettingOrDefault(ENDPOINT_SETTING, normalizedSettings, endpoint);
 
         final Protocol newProtocol = getRepoSettingOrDefault(PROTOCOL_SETTING, normalizedSettings, protocol);
@@ -307,8 +308,8 @@ final class S3ClientSettings {
     }
 
     private static <T> T getRepoSettingOrDefault(Setting.AffixSetting<T> setting, Settings normalizedSettings, T defaultValue) {
-        if (setting.getConcreteSettingForNamespace(DEFAULT_CLIENT).exists(normalizedSettings)) {
-            return getConfigValue(normalizedSettings, DEFAULT_CLIENT, setting);
+        if (setting.getConcreteSettingForNamespace(PLACEHOLDER_CLIENT).exists(normalizedSettings)) {
+            return getConfigValue(normalizedSettings, PLACEHOLDER_CLIENT, setting);
         }
         return defaultValue;
     }

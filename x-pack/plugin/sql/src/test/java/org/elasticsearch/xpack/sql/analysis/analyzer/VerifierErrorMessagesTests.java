@@ -378,7 +378,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testNotSupportedAggregateOnString() {
-        assertEquals("1:8: [MAX(keyword)] argument must be [numeric, datetime or date], found value [keyword] type [keyword]",
+        assertEquals("1:8: [MAX(keyword)] argument must be [date, datetime or numeric], found value [keyword] type [keyword]",
             error("SELECT MAX(keyword) FROM test"));
     }
 

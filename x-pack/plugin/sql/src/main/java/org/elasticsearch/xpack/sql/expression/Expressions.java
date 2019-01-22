@@ -172,11 +172,11 @@ public final class Expressions {
     }
 
     public static TypeResolution typeMustBeDate(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, DataType::isDate, operationName, paramOrd, "datetime, date");
+        return typeMustBe(e, DataType::isDate, operationName, paramOrd, "date", "datetime");
     }
 
     public static TypeResolution typeMustBeNumericOrDate(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, dt -> dt.isNumeric() || dt.isDate(), operationName, paramOrd, "numeric", "datetime", "date");
+        return typeMustBe(e, dt -> dt.isNumeric() || dt.isDate(), operationName, paramOrd, "date", "datetime", "numeric");
     }
 
     public static TypeResolution typeMustBe(Expression e,

@@ -556,7 +556,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             ActionListener<Void> getJobHandler = ActionListener.wrap(
                     response -> {
                         ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
-                                ElasticsearchMappings::stateMapping, client, logger, state, missingMappingsListener);
+                                ElasticsearchMappings::stateMapping, client, state, missingMappingsListener);
                     }, listener::onFailure
             );
 

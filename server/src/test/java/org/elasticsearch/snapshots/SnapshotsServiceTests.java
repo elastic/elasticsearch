@@ -28,6 +28,9 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryActi
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -179,6 +182,53 @@ public class SnapshotsServiceTests extends ESTestCase {
                         assertNoFailureListener(
                             () -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
                                 .execute(assertNoFailureListener(() -> createdSnapshot.set(true)))))));
+
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        assertTrue(createdSnapshot.get());
+        SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
+        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
+        assertThat(snapshotIds, hasSize(1));
+
+        final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
+        assertEquals(shards, snapshotInfo.successfulShards());
+        assertEquals(0, snapshotInfo.failedShards());
+    }
+
+    public void testConcurrentSnapshotCreateAndDelete() {
+        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+
+        String repoName = "repo";
+        String snapshotName = "snapshot";
+        final String index = "test";
+
+        final int shards = randomIntBetween(1, 10);
+
+        TestClusterNode masterNode =
+            testClusterNodes.currentMaster(testClusterNodes.nodes.values().iterator().next().clusterService.state());
+        final AtomicBoolean createdSnapshot = new AtomicBoolean();
+        masterNode.client.admin().cluster().preparePutRepository(repoName)
+            .setType(FsRepository.TYPE).setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
+            .execute(
+                assertNoFailureListener(
+                    () -> masterNode.client.admin().indices().create(
+                        new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL).settings(
+                            Settings.builder()
+                                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
+                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)),
+                        assertNoFailureListener(
+                            () -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                                .execute(assertNoFailureListener(
+                                    () -> masterNode.client.admin().cluster().deleteSnapshot(
+                                        new DeleteSnapshotRequest(repoName, snapshotName),
+                                        assertNoFailureListener(() -> masterNode.client.admin().cluster()
+                                            .prepareCreateSnapshot(repoName, snapshotName).execute(
+                                                assertNoFailureListener(() -> createdSnapshot.set(true))
+                                            )))))))));
 
         deterministicTaskQueue.runAllRunnableTasks();
 
@@ -512,6 +562,11 @@ public class SnapshotsServiceTests extends ESTestCase {
                 ));
             actions.put(CreateSnapshotAction.INSTANCE,
                 new TransportCreateSnapshotAction(
+                    transportService, clusterService, threadPool,
+                    snapshotsService, actionFilters, indexNameExpressionResolver
+                ));
+            actions.put(DeleteSnapshotAction.INSTANCE,
+                new TransportDeleteSnapshotAction(
                     transportService, clusterService, threadPool,
                     snapshotsService, actionFilters, indexNameExpressionResolver
                 ));

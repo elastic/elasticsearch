@@ -6,9 +6,12 @@
 
 package org.elasticsearch.xpack.ccr;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -114,6 +117,108 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
                 client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet().getFollowStats().getStatsResponses();
             assertThat(responseList.size(), equalTo(0));
         });
+    }
+
+    public void testFollowStatsApiResourceNotFound() throws Exception {
+        FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
+        FollowStatsAction.StatsResponses response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
+        assertThat(response.getStatsResponses().size(), equalTo(0));
+
+        statsRequest.setIndices(new String[] {"follower1"});
+        Exception e = expectThrows(ResourceNotFoundException.class,
+            () -> client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("No shard follow tasks for follower indices [follower1]"));
+
+        final String leaderIndexSettings = getIndexSettings(1, 0,
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("leader1").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureGreen("leader1");
+
+        PutFollowAction.Request followRequest = getPutFollowRequest("leader1", "follower1");
+        client().execute(PutFollowAction.INSTANCE, followRequest).get();
+
+        response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
+        assertThat(response.getStatsResponses().size(), equalTo(1));
+        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
+
+        statsRequest.setIndices(new String[] {"follower2"});
+        e = expectThrows(ResourceNotFoundException.class,
+            () -> client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("No shard follow tasks for follower indices [follower2]"));
+
+        assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower1")).actionGet());
+    }
+
+    public void testFollowStatsApiIncludeShardFollowStatsWithRemovedFollowerIndex() throws Exception {
+        final String leaderIndexSettings = getIndexSettings(1, 0,
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("leader1").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureGreen("leader1");
+
+        PutFollowAction.Request followRequest = getPutFollowRequest("leader1", "follower1");
+        client().execute(PutFollowAction.INSTANCE, followRequest).get();
+
+        FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
+        FollowStatsAction.StatsResponses response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
+        assertThat(response.getStatsResponses().size(), equalTo(1));
+        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
+
+        statsRequest = new FollowStatsAction.StatsRequest();
+        statsRequest.setIndices(new String[] {"follower1"});
+        response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
+        assertThat(response.getStatsResponses().size(), equalTo(1));
+        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
+
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest("follower1")).actionGet());
+
+        statsRequest = new FollowStatsAction.StatsRequest();
+        response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
+        assertThat(response.getStatsResponses().size(), equalTo(1));
+        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
+
+        statsRequest = new FollowStatsAction.StatsRequest();
+        statsRequest.setIndices(new String[] {"follower1"});
+        response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
+        assertThat(response.getStatsResponses().size(), equalTo(1));
+        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
+
+        assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower1")).actionGet());
+    }
+
+    public void testFollowStatsApiIncludeShardFollowStatsWithClosedFollowerIndex() throws Exception {
+        final String leaderIndexSettings = getIndexSettings(1, 0,
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("leader1").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureGreen("leader1");
+
+        PutFollowAction.Request followRequest = getPutFollowRequest("leader1", "follower1");
+        client().execute(PutFollowAction.INSTANCE, followRequest).get();
+
+        FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
+        FollowStatsAction.StatsResponses response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
+        assertThat(response.getStatsResponses().size(), equalTo(1));
+        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
+
+        statsRequest = new FollowStatsAction.StatsRequest();
+        statsRequest.setIndices(new String[] {"follower1"});
+        response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
+        assertThat(response.getStatsResponses().size(), equalTo(1));
+        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
+
+        assertAcked(client().admin().indices().close(new CloseIndexRequest("follower1")).actionGet());
+
+        statsRequest = new FollowStatsAction.StatsRequest();
+        response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
+        assertThat(response.getStatsResponses().size(), equalTo(1));
+        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
+
+        statsRequest = new FollowStatsAction.StatsRequest();
+        statsRequest.setIndices(new String[] {"follower1"});
+        response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
+        assertThat(response.getStatsResponses().size(), equalTo(1));
+        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
+
+        assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower1")).actionGet());
     }
 
 }

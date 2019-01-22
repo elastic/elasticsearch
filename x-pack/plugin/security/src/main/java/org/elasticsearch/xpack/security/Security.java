@@ -376,9 +376,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         components.add(securityContext.get());
 
         // audit trail service construction
-        final List<AuditTrail> auditTrails = XPackSettings.AUDIT_ENABLED.get(settings) ? 
-            Collections.singletonList(new LoggingAuditTrail(settings, clusterService, threadPool)) : 
-            Collections.emptyList();
+        final List<AuditTrail> auditTrails = XPackSettings.AUDIT_ENABLED.get(settings)
+                ? Collections.singletonList(new LoggingAuditTrail(settings, clusterService, threadPool))
+                : Collections.emptyList();
         if (XPackSettings.AUDIT_ENABLED.get(settings)) {
             // the only audit trail is the logfile
             auditTrails.add(new LoggingAuditTrail(settings, clusterService, threadPool));

@@ -15,9 +15,7 @@ file. For more information, see
 `xpack.security.audit.enabled`::
 Set to `true` to enable auditing on the node. The default value is `false`.
 This puts the auditing events in a dedicated file named `<clustername>_audit.log`
-on each node.
-+
-For more information, see <<configuring-logging-levels>>.
+on each node. For more information, see <<configuring-logging-levels>>.
 
 [[event-audit-settings]]
 ==== Audited Event Settings

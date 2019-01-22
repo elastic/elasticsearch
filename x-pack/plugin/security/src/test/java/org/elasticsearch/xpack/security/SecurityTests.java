@@ -189,6 +189,9 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(service);
         assertThat(service.getAuditTrails().stream().map(x -> x.name()).collect(Collectors.toList()),
                 containsInAnyOrder(IndexAuditTrail.NAME));
+        assertWarnings("The [index] audit type is deprecated and will be removed in 7.0",
+                "[xpack.security.audit.outputs] setting was deprecated in Elasticsearch and will be removed "
+                        + "in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testIndexAndLoggingAuditTrail() throws Exception {
@@ -200,6 +203,9 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(service);
         assertThat(service.getAuditTrails().stream().map(x -> x.name()).collect(Collectors.toList()),
                 containsInAnyOrder(LoggingAuditTrail.NAME, DeprecatedLoggingAuditTrail.NAME, IndexAuditTrail.NAME));
+        assertWarnings("The [index] audit type is deprecated and will be removed in 7.0",
+                "[xpack.security.audit.outputs] setting was deprecated in Elasticsearch and will be removed "
+                        + "in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testUnknownOutput() {
@@ -208,6 +214,8 @@ public class SecurityTests extends ESTestCase {
             .put(Security.AUDIT_OUTPUTS_SETTING.getKey(), "foo").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createComponents(settings));
         assertEquals("Unknown audit trail output [foo]", e.getMessage());
+        assertWarnings("[xpack.security.audit.outputs] setting was deprecated in Elasticsearch and will be removed "
+                        + "in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testHttpSettingDefaults() throws Exception {

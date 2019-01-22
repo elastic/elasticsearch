@@ -66,13 +66,15 @@ public class GetFieldMappingsResponse {
     }
 
 
-    /** returns the retrieved field mapping. The return map keys are index and field (as specified in the request). */
+     /**
+     * Returns the fields mapping. The return map keys are indexes and fields (as specified in the request).
+     */
     public Map<String, Map<String, FieldMappingMetaData>> mappings() {
         return mappings;
     }
 
     /**
-     * Returns the mappings of a specific field.
+     * Returns the mappings of a specific index and field.
      *
      * @param field field name as specified in the {@link GetFieldMappingsRequest}
      * @return FieldMappingMetaData for the requested field or null if not found.
@@ -101,8 +103,6 @@ public class GetFieldMappingsResponse {
     }
 
     public static class FieldMappingMetaData {
-        public static final FieldMappingMetaData NULL = new FieldMappingMetaData("", BytesArray.EMPTY);
-
         private static final ParseField FULL_NAME = new ParseField("full_name");
         private static final ParseField MAPPING = new ParseField("mapping");
 
@@ -134,13 +134,11 @@ public class GetFieldMappingsResponse {
             return fullName;
         }
 
-        /** Returns the mappings as a map. Note that the returned map has a single key which is always the field's {@link Mapper#name}. */
+        /**
+         * Returns the mappings as a map. Note that the returned map has a single key which is always the field's {@link Mapper#name}.
+         */
         public Map<String, Object> sourceAsMap() {
             return XContentHelper.convertToMap(source, true, XContentType.JSON).v2();
-        }
-
-        public boolean isNull() {
-            return NULL.fullName().equals(fullName) && NULL.source.length() == source.length();
         }
 
         //pkg-private for testing

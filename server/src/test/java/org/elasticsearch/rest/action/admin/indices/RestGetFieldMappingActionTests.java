@@ -42,10 +42,17 @@ public class RestGetFieldMappingActionTests extends RestActionTestCase {
 
     public void testIncludeTypeName() {
         Map<String, String> params = new HashMap<>();
-        params.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
+        String path;
+        if (randomBoolean()) {
+            params.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
+            path = "some_index/some_type/_mapping/field/some_field";
+        } else {
+            params.put(INCLUDE_TYPE_NAME_PARAMETER, "false");
+            path = "some_index/_mapping/field/some_field";
+        }
         RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.GET)
-            .withPath("some_index/some_type/_mapping/field/some_field")
+            .withPath(path)
             .withParams(params)
             .build();
         dispatchRequest(deprecatedRequest);

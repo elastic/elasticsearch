@@ -36,8 +36,6 @@ public class GetFieldMappingsRequest implements Validatable {
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
-    public GetFieldMappingsRequest() {}
-
     /**
      * Indicate whether the receiving node should operate based on local index information or forward requests,
      * where needed, to other nodes. If running locally, request will not raise errors if running locally &amp; missing indices.

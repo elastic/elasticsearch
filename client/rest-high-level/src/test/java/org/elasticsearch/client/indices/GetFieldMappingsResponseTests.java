@@ -53,17 +53,19 @@ public class GetFieldMappingsResponseTests extends ESTestCase {
 
     static GetFieldMappingsResponse createTestInstance() {
         Map<String, Map<String, FieldMappingMetaData>> mappings = new HashMap<>();
-        int indices = randomInt(10);
-        for(int i = 0; i < indices; i++) {
-            Map<String, FieldMappingMetaData> fieldMappings = new HashMap<>();
-            int fields = randomInt(10);
-            for(int k = 0; k < fields; k++) {
-                final String mapping = randomBoolean() ? "{\"type\":\"string\"}" : "{\"type\":\"keyword\"}";
-                FieldMappingMetaData metaData =
-                    new FieldMappingMetaData("my field", new BytesArray(mapping));
-                fieldMappings.put("field" + k, metaData);
+        // if mappings is empty, means that fields are not found
+        if (randomBoolean()) {
+            int indices = randomInt(10);
+            for (int i = 0; i < indices; i++) {
+                Map<String, FieldMappingMetaData> fieldMappings = new HashMap<>();
+                int fields = randomInt(10);
+                for (int k = 0; k < fields; k++) {
+                    final String mapping = randomBoolean() ? "{\"type\":\"string\"}" : "{\"type\":\"keyword\"}";
+                    FieldMappingMetaData metaData = new FieldMappingMetaData("my field", new BytesArray(mapping));
+                    fieldMappings.put(randomAlphaOfLength(8), metaData);
+                }
+                mappings.put(randomAlphaOfLength(8), fieldMappings);
             }
-            mappings.put("index" + i, fieldMappings);
         }
         return new GetFieldMappingsResponse(mappings);
     }

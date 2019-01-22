@@ -49,6 +49,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -224,7 +225,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 ConnectionProfile connectionProfile = this.remoteClusterConnectionProfiles.get(clusterAlias);
                 if (seedList.isEmpty()) { // with no seed nodes we just remove the connection
                     try {
-                        // TODO: Close will block!!!!!!!!!!!!!!!!
                         IOUtils.close(remote);
                     } catch (IOException e) {
                         logger.warn("failed to close remote cluster connections for cluster: " + clusterAlias, e);
@@ -237,8 +237,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                     remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, numRemoteConnections,
                         getNodePredicate(settings), proxyAddress);
                     remoteClusters.put(clusterAlias, remote);
-                } else if (remote.getConnectionManager().getConnectionProfile().equals(connectionProfile) == false) {
-                    // TODO: need to implement connection profile equals
+                } else if (connectionProfileChanged(remote.getConnectionManager().getConnectionProfile(), connectionProfile)) {
                     // New ConnectionProfile. Must tear down existing connection
                     try {
                         IOUtils.close(remote);
@@ -416,48 +415,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         clusterSettings.addAffixUpdateConsumer(SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -> {});
     }
 
-    private synchronized void updateRemoteClusterPingSchedule(String clusterAlias, TimeValue timeValue) {
-        ConnectionProfile oldProfile = remoteClusterConnectionProfiles.get(clusterAlias);
-        if (oldProfile != null) {
-            if (oldProfile.getPingInterval().equals(timeValue) == false) {
-                ConnectionProfile.Builder builder = new ConnectionProfile.Builder(oldProfile);
-                builder.setPingInterval(timeValue);
-                updateRemoteClusterConnectionProfile(clusterAlias, builder.build());
-            }
-        } else {
-            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(buildConnectionProfileFromSettings(clusterAlias));
-            builder.setPingInterval(timeValue);
-            updateRemoteClusterConnectionProfile(clusterAlias, builder.build());
-        }
-    }
-
-    private synchronized void updateRemoteClusterCompressionSetting(String clusterAlias, Boolean compressionEnabled) {
-        ConnectionProfile oldProfile = remoteClusterConnectionProfiles.get(clusterAlias);
-        if (oldProfile != null) {
-            if (oldProfile.getCompressionEnabled().equals(compressionEnabled) == false) {
-                ConnectionProfile.Builder builder = new ConnectionProfile.Builder(oldProfile);
-                builder.setCompressionEnabled(compressionEnabled);
-                updateRemoteClusterConnectionProfile(clusterAlias, builder.build());
-            }
-        } else {
-            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(buildConnectionProfileFromSettings(clusterAlias));
-            builder.setCompressionEnabled(compressionEnabled);
-            updateRemoteClusterConnectionProfile(clusterAlias, builder.build());
-        }
-    }
-
-    private synchronized void updateRemoteClusterConnectionProfile(String clusterAlias, ConnectionProfile connectionProfile) {
-        HashMap<String, ConnectionProfile> connectionProfiles = new HashMap<>(remoteClusterConnectionProfiles);
-        connectionProfiles.put(clusterAlias, connectionProfile);
-        this.remoteClusterConnectionProfiles = Collections.unmodifiableMap(connectionProfiles);
-        RemoteClusterConnection remoteClusterConnection = remoteClusters.get(clusterAlias);
-        if (remoteClusterConnection != null) {
-            String proxyAddress = remoteClusterConnection.getProxyAddress();
-            List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes = remoteClusterConnection.getSeedNodes();
-            updateRemoteClusters(Collections.singletonMap(clusterAlias, new Tuple<>(proxyAddress, seedNodes)), noopListener);
-        }
-    }
-
     synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
         RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
         if (remote != null) {
@@ -550,6 +507,11 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     public Stream<RemoteConnectionInfo> getRemoteConnectionInfos() {
         return remoteClusters.values().stream().map(RemoteClusterConnection::getConnectionInfo);
+    }
+
+    private boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
+        return Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled()) == false
+            || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false;
     }
 
     /**

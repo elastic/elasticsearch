@@ -477,7 +477,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     }
                 };
 
-                ConnectionManager delegate = new ConnectionManager(Settings.EMPTY, service.transport, threadPool);
+                ConnectionManager delegate = new ConnectionManager(Settings.EMPTY, service.transport);
                 StubbableConnectionManager connectionManager = new StubbableConnectionManager(delegate, Settings.EMPTY, service.transport,
                     threadPool);
 
@@ -1332,7 +1332,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     }
                 };
 
-                ConnectionManager delegate = new ConnectionManager(Settings.EMPTY, service.transport, threadPool);
+                ConnectionManager delegate = new ConnectionManager(Settings.EMPTY, service.transport);
                 StubbableConnectionManager connectionManager = new StubbableConnectionManager(delegate, Settings.EMPTY, service.transport,
                     threadPool);
 

@@ -362,7 +362,9 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(connectHandler, connectionManager);
+        IOUtils.close(connectHandler);
+        // In the ConnectionManager we wait on connections being closed.
+        threadPool.generic().execute(connectionManager::close);
     }
 
     public boolean isClosed() {
@@ -773,7 +775,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     }
 
     private static ConnectionManager createConnectionManager(ConnectionProfile connectionProfile, TransportService transportService) {
-        return new ConnectionManager(connectionProfile, transportService.transport, transportService.threadPool);
+        return new ConnectionManager(connectionProfile, transportService.transport);
     }
 
     ConnectionManager getConnectionManager() {

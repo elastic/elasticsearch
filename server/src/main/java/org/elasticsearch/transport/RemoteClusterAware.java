@@ -289,11 +289,13 @@ public abstract class RemoteClusterAware {
         updateRemoteCluster(clusterAlias, addresses, proxy, compress, pingSchedule);
     }
 
-    void updateRemoteCluster(String clusterAlias, Settings settings) {
+    private void updateRemoteCluster(String clusterAlias, Settings settings) {
         String proxy = REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(settings);
         List<String> addresses = REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
         Boolean compress = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
-        TimeValue pingSchedule = RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings);
+        TimeValue pingSchedule = RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE
+            .getConcreteSettingForNamespace(clusterAlias)
+            .get(settings);
 
         updateRemoteCluster(clusterAlias, addresses, proxy, compress, pingSchedule);
     }

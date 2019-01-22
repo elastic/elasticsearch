@@ -86,7 +86,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh().execute().actionGet();
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
         SearchResponse response = client().prepareSearch("test").setSize(0).execute().actionGet();
-        assertThat(response.getHits().getTotalHits(), equalTo((long) recCount));
+        assertThat(response.getHits().getTotalHits().value, equalTo((long) recCount));
 
         logger.info("checking all the fields are in the mappings");
 

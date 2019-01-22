@@ -35,7 +35,7 @@ public final class AuthenticateRequest implements Validatable {
     }
 
     public Request getRequest() {
-        return new Request(HttpGet.METHOD_NAME, "/_xpack/security/_authenticate");
+        return new Request(HttpGet.METHOD_NAME, "/_security/_authenticate");
     }
 
 }

@@ -58,6 +58,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -69,6 +70,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -114,6 +116,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -125,6 +128,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:

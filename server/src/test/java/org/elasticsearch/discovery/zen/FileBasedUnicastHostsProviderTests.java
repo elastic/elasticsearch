@@ -19,21 +19,22 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.nio.MockNioTransport;
 import org.junit.After;
 import org.junit.Before;
 
@@ -61,6 +62,7 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         super.setUp();
         threadPool = new TestThreadPool(FileBasedUnicastHostsProviderTests.class.getName());
         executorService = Executors.newSingleThreadExecutor();
+        createTransportSvc();
     }
 
     @After
@@ -76,12 +78,12 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         }
     }
 
-    @Before
-    public void createTransportSvc() {
-        final MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(),
+    private void createTransportSvc() {
+        final MockNioTransport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool,
+            new NetworkService(Collections.emptyList()),
+            PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            new NetworkService(Collections.emptyList())) {
+            new NoneCircuitBreakerService()) {
             @Override
             public BoundTransportAddress boundAddress() {
                 return new BoundTransportAddress(

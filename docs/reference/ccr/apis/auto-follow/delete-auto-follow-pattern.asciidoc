@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-delete-auto-follow-pattern]]
-=== Delete Auto-Follow Pattern API
+=== Delete auto-follow pattern API
 ++++
-<titleabbrev>Delete Auto-Follow Pattern</titleabbrev>
+<titleabbrev>Delete auto-follow pattern</titleabbrev>
 ++++
 
 beta[]
@@ -12,7 +12,8 @@ Delete auto-follow patterns.
 
 ==== Description
 
-This API deletes a configured auto-follow pattern collection.
+This API deletes a configured collection of
+{stack-ov}/ccr-auto-follow.html[auto-follow patterns].
 
 ==== Request
 
@@ -46,6 +47,12 @@ DELETE /_ccr/auto_follow/<auto_follow_pattern_name>
 ==== Path Parameters
 `auto_follow_pattern_name` (required)::
   (string) specifies the auto-follow pattern collection to delete
+
+==== Authorization
+
+If the {es} {security-features} are enabled, you must have `manage_ccr` cluster
+privileges on the cluster that contains the follower index. For more information,
+see {stack-ov}/security-privileges.html[Security privileges].
 
 ==== Example
 

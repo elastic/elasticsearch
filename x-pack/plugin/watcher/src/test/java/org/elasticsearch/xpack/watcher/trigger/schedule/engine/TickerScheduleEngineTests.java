@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
-import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
@@ -36,12 +35,13 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.daily;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.weekly;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Mockito.mock;
 
 public class TickerScheduleEngineTests extends ESTestCase {
 
-    private TriggerEngine engine;
+    private TickerScheduleTriggerEngine engine;
     protected ClockMock clock = ClockMock.frozen();
 
     @Before
@@ -49,7 +49,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
         engine = createEngine();
     }
 
-    private TriggerEngine createEngine() {
+    private TickerScheduleTriggerEngine createEngine() {
         Settings settings = Settings.EMPTY;
         // having a low value here speeds up the tests tremendously, we still want to run with the defaults every now and then
         if (usually()) {
@@ -252,6 +252,22 @@ public class TickerScheduleEngineTests extends ESTestCase {
 
         // ensure job was only called twice independent from its name
         assertThat(counter.get(), is(2));
+    }
+
+    public void testAddOnlyWithNewSchedule() {
+        engine.start(Collections.emptySet());
+
+        // add watch with schedule
+        Watch oncePerSecondWatch = createWatch("_id", interval("1s"));
+        engine.add(oncePerSecondWatch);
+        TickerScheduleTriggerEngine.ActiveSchedule activeSchedule = engine.getSchedules().get("_id");
+        engine.add(oncePerSecondWatch);
+        assertThat(engine.getSchedules().get("_id"), is(activeSchedule));
+
+        // add watch with same id but different watch
+        Watch oncePerMinuteWatch = createWatch("_id", interval("1m"));
+        engine.add(oncePerMinuteWatch);
+        assertThat(engine.getSchedules().get("_id"), not(is(activeSchedule)));
     }
 
     private Watch createWatch(String name, Schedule schedule) {

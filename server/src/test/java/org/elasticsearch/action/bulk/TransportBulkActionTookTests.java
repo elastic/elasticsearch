@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -92,7 +93,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
     private TransportBulkAction createAction(boolean controlled, AtomicLong expected) {
         CapturingTransport capturingTransport = new CapturingTransport();
-        TransportService transportService = capturingTransport.createCapturingTransportService(clusterService.getSettings(), threadPool,
+        TransportService transportService = capturingTransport.createTransportService(clusterService.getSettings(), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
@@ -178,7 +179,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
             bulkAction = Strings.replace(bulkAction, "\r\n", "\n");
         }
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         AtomicLong expected = new AtomicLong();
         TransportBulkAction action = createAction(controlled, expected);
         action.doExecute(null, bulkRequest, new ActionListener<BulkResponse>() {
@@ -200,6 +201,8 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
             }
         });
+        //This test's JSON contains outdated references to types
+        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     static class Resolver extends IndexNameExpressionResolver {

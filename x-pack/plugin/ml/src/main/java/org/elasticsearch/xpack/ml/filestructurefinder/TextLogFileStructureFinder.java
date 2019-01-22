@@ -155,7 +155,7 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
         int remainingLines = sampleLines.length;
         double differenceBetweenTwoHighestWeights = 0.0;
         for (String sampleLine : sampleLines) {
-            TimestampMatch match = TimestampFormatFinder.findFirstMatch(sampleLine, overrides.getTimestampFormat());
+            TimestampMatch match = TimestampFormatFinder.findFirstMatch(sampleLine, overrides.getTimestampFormat(), timeoutChecker);
             if (match != null) {
                 TimestampMatch pureMatch = new TimestampMatch(match.candidateIndex, "", match.jodaTimestampFormats,
                     match.javaTimestampFormats, match.simplePattern, match.grokPatternName, "");

@@ -22,6 +22,10 @@ package org.elasticsearch.discovery;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.coordination.Coordinator;
+import org.elasticsearch.cluster.coordination.FollowersChecker;
+import org.elasticsearch.cluster.coordination.JoinHelper;
+import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
@@ -42,7 +46,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -113,19 +117,32 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
         ensureStableCluster(numberOfNodes);
 
         // TODO: this is a temporary solution so that nodes will not base their reaction to a partition based on previous successful results
-        ZenPing zenPing = ((TestZenDiscovery) internalCluster().getInstance(Discovery.class)).getZenPing();
-        if (zenPing instanceof UnicastZenPing) {
-            ((UnicastZenPing) zenPing).clearTemporalResponses();
-        }
+        clearTemporalResponses();
         return nodes;
+    }
+
+    protected void clearTemporalResponses() {
+        final Discovery discovery = internalCluster().getInstance(Discovery.class);
+        if (discovery instanceof TestZenDiscovery) {
+            ZenPing zenPing = ((TestZenDiscovery) discovery).getZenPing();
+            if (zenPing instanceof UnicastZenPing) {
+                ((UnicastZenPing) zenPing).clearTemporalResponses();
+            }
+        }
     }
 
     static final Settings DEFAULT_SETTINGS = Settings.builder()
             .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
             .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // for hitting simulated network failures quickly
+            .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
+            .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), 1) // for hitting simulated network failures quickly
+            .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
+            .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1) // for hitting simulated network failures quickly
             .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
+            .put(JoinHelper.JOIN_TIMEOUT_SETTING.getKey(), "10s") // still long to induce failures but to long so test won't time out
             .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
-            .put(TransportService.TCP_CONNECT_TIMEOUT.getKey(), "10s") // Network delay disruption waits for the min between this
+            .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
+            .put(TransportSettings.CONNECT_TIMEOUT.getKey(), "10s") // Network delay disruption waits for the min between this
             // value and the time of disruption and does not recover immediately
             // when disruption is stop. We should make sure we recover faster
             // then the default of 30s, causing ensureGreen and friends to time out
@@ -155,8 +172,8 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
             assertNull("node [" + node + "] still has [" + nodes.getMasterNode() + "] as master", nodes.getMasterNode());
             if (expectedBlocks != null) {
                 for (ClusterBlockLevel level : expectedBlocks.levels()) {
-                    assertTrue("node [" + node + "] does have level [" + level + "] in it's blocks", state.getBlocks().hasGlobalBlock
-                            (level));
+                    assertTrue("node [" + node + "] does have level [" + level + "] in it's blocks",
+                        state.getBlocks().hasGlobalBlockWithLevel(level));
                 }
             }
         }, maxWaitTime.getMillis(), TimeUnit.MILLISECONDS);

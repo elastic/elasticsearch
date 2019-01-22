@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.similarity;
 
-import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.similarities.ClassicSimilarity;
+import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -51,7 +51,7 @@ public class LegacySimilarityTests extends ESSingleNodeTestCase {
         assertWarnings("The [classic] similarity is now deprecated in favour of BM25, which is generally "
                 + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
                 + "instead.");
-        assertThat(similarityService.getSimilarity("BM25").get(), instanceOf(BM25Similarity.class));
+        assertThat(similarityService.getSimilarity("BM25").get(), instanceOf(LegacyBM25Similarity.class));
         assertThat(similarityService.getSimilarity("boolean").get(), instanceOf(BooleanSimilarity.class));
         assertThat(similarityService.getSimilarity("default"), equalTo(null));
     }

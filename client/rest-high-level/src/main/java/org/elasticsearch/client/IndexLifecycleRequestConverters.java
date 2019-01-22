@@ -126,10 +126,9 @@ final class IndexLifecycleRequestConverters {
     }
 
     static Request explainLifecycle(ExplainLifecycleRequest explainLifecycleRequest) {
-        String[] indices = explainLifecycleRequest.indices() == null ? Strings.EMPTY_ARRAY : explainLifecycleRequest.indices();
         Request request = new Request(HttpGet.METHOD_NAME,
             new RequestConverters.EndpointBuilder()
-                .addCommaSeparatedPathParts(indices)
+                .addCommaSeparatedPathParts(explainLifecycleRequest.getIndices())
                 .addPathPartAsIs("_ilm")
                 .addPathPartAsIs("explain")
             .build());

@@ -85,6 +85,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         follow.getFollowRequest().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
         logger.info("--> follow params {}", Strings.toString(follow.getFollowRequest()));
         followerClient().execute(PutFollowAction.INSTANCE, follow).get();
+        disableDelayedAllocation("follower-index");
         ensureFollowerGreen("follower-index");
         awaitGlobalCheckpointAtLeast(followerClient(), new ShardId(resolveFollowerIndex("follower-index"), 0), between(30, 80));
         final ClusterState clusterState = getFollowerCluster().clusterService().state();
@@ -143,6 +144,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         followRequest.getFollowRequest().setMaxWriteRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
         followRequest.getFollowRequest().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+        disableDelayedAllocation("index2");
         logger.info("--> follow params {}", Strings.toString(followRequest.getFollowRequest()));
 
         int maxOpsPerRead = followRequest.getFollowRequest().getMaxReadRequestOperationCount();

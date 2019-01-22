@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -130,7 +130,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             valueFormat = new DocValueFormat.Decimal(format);
         }
         if (valueFormat instanceof DocValueFormat.DateTime && format != null) {
-            valueFormat = new DocValueFormat.DateTime(Joda.forPattern(format), tz != null ? tz : DateTimeZone.UTC);
+            valueFormat = new DocValueFormat.DateTime(DateFormatter.forPattern(format), tz != null ? tz : DateTimeZone.UTC);
         }
         return valueFormat;
     }

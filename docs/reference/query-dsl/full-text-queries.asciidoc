@@ -40,6 +40,11 @@ The queries in this group are:
     A simpler, more robust version of the `query_string` syntax suitable
     for exposing directly to users.
 
+<<query-dsl-intervals-query,`intervals` query>>::
+
+    A full text query that allows fine-grained control of the ordering and
+    proximity of matching terms
+
 include::match-query.asciidoc[]
 
 include::match-phrase-query.asciidoc[]
@@ -53,3 +58,5 @@ include::common-terms-query.asciidoc[]
 include::query-string-query.asciidoc[]
 
 include::simple-query-string-query.asciidoc[]
+
+include::intervals-query.asciidoc[]

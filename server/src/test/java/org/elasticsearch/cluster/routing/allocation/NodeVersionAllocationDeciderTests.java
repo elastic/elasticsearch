@@ -366,7 +366,9 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metaData(metaData)
             .routingTable(RoutingTable.builder().addAsRestore(metaData.index("test"),
-                new SnapshotRecoverySource(new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
+                new SnapshotRecoverySource(
+                    UUIDs.randomBase64UUID(),
+                    new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
                 Version.CURRENT, "test")).build())
             .nodes(DiscoveryNodes.builder().add(newNode).add(oldNode1).add(oldNode2)).build();
         AllocationDeciders allocationDeciders = new AllocationDeciders(Arrays.asList(
@@ -482,9 +484,11 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             newNode.node().getVersion() + "] to a node with older version [" + oldNode.node().getVersion() + "]"));
 
         final SnapshotRecoverySource newVersionSnapshot = new SnapshotRecoverySource(
+            UUIDs.randomBase64UUID(),
             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
             newNode.node().getVersion(), "test");
         final SnapshotRecoverySource oldVersionSnapshot = new SnapshotRecoverySource(
+            UUIDs.randomBase64UUID(),
             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
             oldNode.node().getVersion(), "test");
 

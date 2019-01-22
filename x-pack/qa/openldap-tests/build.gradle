@@ -23,10 +23,11 @@ task copyIdpTrust(type: Copy) {
 }
 if (project.rootProject.vagrantSupported) {
   project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpTrust)
-  test.dependsOn openLdapFixture
-  test.finalizedBy idpFixtureProject.halt
+  unitTest.dependsOn openLdapFixture
+  unitTest.finalizedBy idpFixtureProject.halt
 } else {
-  test.enabled = false
+    unitTest.enabled = false
+  testingConventions.enabled = false
 }
 
 namingConventions {

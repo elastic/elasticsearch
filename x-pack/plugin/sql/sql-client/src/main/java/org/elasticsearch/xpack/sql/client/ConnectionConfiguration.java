@@ -49,6 +49,8 @@ public class ConnectionConfiguration {
 
     public static final String PAGE_SIZE = "page.size";
     private static final String PAGE_SIZE_DEFAULT = "1000";
+    
+    public static final String CLIENT_ID = "client_id";
 
     // Auth
 
@@ -159,7 +161,7 @@ public class ConnectionConfiguration {
         if (knownOptions.contains(propertyName)) {
             return null;
         }
-        return "Unknown parameter [" + propertyName + "] ; did you mean " + StringUtils.findSimiliar(propertyName, knownOptions);
+        return "Unknown parameter [" + propertyName + "] ; did you mean " + StringUtils.findSimilar(propertyName, knownOptions);
     }
 
     protected <T> T parseValue(String key, String value, Function<String, T> parser) {

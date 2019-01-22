@@ -153,7 +153,7 @@ The following example uses the role mapping API to map `user@REALM` to the roles
 
 [source,js]
 --------------------------------------------------
-POST _xpack/security/role_mapping/kerbrolemapping
+POST /_security/role_mapping/kerbrolemapping
 {
   "roles" : [ "monitoring_user" ],
   "enabled": true,

@@ -7,50 +7,27 @@
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.StringJoiner;
 
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation.COALESCE;
 
-public class Coalesce extends ConditionalFunction {
+public class Coalesce extends ArbitraryConditionalFunction {
 
-    private DataType dataType = DataType.NULL;
-
-    public Coalesce(Location location, List<Expression> fields) {
-        super(location, fields);
+    public Coalesce(Source source, List<Expression> fields) {
+        super(source, fields, COALESCE);
     }
 
     @Override
-    protected NodeInfo<Coalesce> info() {
+    protected NodeInfo<? extends Coalesce> info() {
         return NodeInfo.create(this, Coalesce::new, children());
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Coalesce(location(), newChildren);
-    }
-
-    @Override
-    protected TypeResolution resolveType() {
-        for (Expression e : children()) {
-            dataType = DataTypeConversion.commonType(dataType, e.dataType());
-        }
-        return TypeResolution.TYPE_RESOLVED;
-    }
-
-    @Override
-    public DataType dataType() {
-        return dataType;
+        return new Coalesce(source(), newChildren);
     }
 
     @Override
@@ -63,36 +40,8 @@ public class Coalesce extends ConditionalFunction {
     }
 
     @Override
-    public boolean nullable() {
-        return false;
-    }
-
-    @Override
     public Object fold() {
         List<Expression> children = children();
         return children.isEmpty() ? null : children.get(0).fold();
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        List<ScriptTemplate> templates = new ArrayList<>();
-        for (Expression ex : children()) {
-            templates.add(asScript(ex));
-        }
-
-        StringJoiner template = new StringJoiner(",", "{sql}.coalesce([", "])");
-        ParamsBuilder params = paramsBuilder();
-
-        for (ScriptTemplate scriptTemplate : templates) {
-            template.add(scriptTemplate.template());
-            params.script(scriptTemplate.params());
-        }
-
-        return new ScriptTemplate(template.toString(), params.build(), dataType);
-    }
-
-    @Override
-    protected Pipe makePipe() {
-        return new CoalescePipe(location(), this, Expressions.pipe(children()));
     }
 }

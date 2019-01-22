@@ -54,7 +54,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -160,20 +159,6 @@ public class IndicesService extends AbstractLifecycleComponent
     public static final String INDICES_SHARDS_CLOSED_TIMEOUT = "indices.shards_closed_timeout";
     public static final Setting<TimeValue> INDICES_CACHE_CLEAN_INTERVAL_SETTING =
         Setting.positiveTimeSetting("indices.cache.cleanup_interval", TimeValue.timeValueMinutes(1), Property.NodeScope);
-    private static final boolean ENFORCE_MAX_SHARDS_PER_NODE;
-
-    static {
-        final String ENFORCE_SHARD_LIMIT_KEY = "es.enforce_max_shards_per_node";
-        final String enforceMaxShardsPerNode = System.getProperty(ENFORCE_SHARD_LIMIT_KEY);
-        if (enforceMaxShardsPerNode == null) {
-            ENFORCE_MAX_SHARDS_PER_NODE = false;
-        } else if ("true".equals(enforceMaxShardsPerNode)) {
-            ENFORCE_MAX_SHARDS_PER_NODE = true;
-        } else {
-            throw new IllegalArgumentException(ENFORCE_SHARD_LIMIT_KEY + " may only be unset or set to [true] but was [" +
-                enforceMaxShardsPerNode + "]");
-        }
-    }
 
     /**
      * The node's settings.
@@ -220,7 +205,6 @@ public class IndicesService extends AbstractLifecycleComponent
                           ScriptService scriptService, Client client, MetaStateService metaStateService,
                           Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
                           Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories) {
-        super(settings);
         this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -601,10 +585,14 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     @Override
-    public IndexShard createShard(ShardRouting shardRouting, RecoveryState recoveryState, PeerRecoveryTargetService recoveryTargetService,
-                                  PeerRecoveryTargetService.RecoveryListener recoveryListener, RepositoriesService repositoriesService,
-                                  Consumer<IndexShard.ShardFailure> onShardFailure,
-                                  Consumer<ShardId> globalCheckpointSyncer) throws IOException {
+    public IndexShard createShard(
+            final ShardRouting shardRouting,
+            final RecoveryState recoveryState,
+            final PeerRecoveryTargetService recoveryTargetService,
+            final PeerRecoveryTargetService.RecoveryListener recoveryListener,
+            final RepositoriesService repositoriesService,
+            final Consumer<IndexShard.ShardFailure> onShardFailure,
+            final Consumer<ShardId> globalCheckpointSyncer) throws IOException {
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer);
@@ -613,15 +601,11 @@ public class IndicesService extends AbstractLifecycleComponent
             (type, mapping) -> {
                 assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS:
                     "mapping update consumer only required by local shards recovery";
-                try {
-                    client.admin().indices().preparePutMapping()
-                        .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
-                        .setType(type)
-                        .setSource(mapping.source().string(), XContentType.JSON)
-                        .get();
-                } catch (IOException ex) {
-                    throw new ElasticsearchException("failed to stringify mapping source", ex);
-                }
+                client.admin().indices().preparePutMapping()
+                    .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
+                    .setType(type)
+                    .setSource(mapping.source().string(), XContentType.JSON)
+                    .get();
             }, this);
         return indexShard;
     }
@@ -1217,7 +1201,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         // if now in millis is used (or in the future, a more generic "isDeterministic" flag
         // then we can't cache based on "now" key within the search request, as it is not deterministic
-        if (context.getQueryShardContext().isCachable() == false) {
+        if (context.getQueryShardContext().isCacheable() == false) {
             return false;
         }
         return true;
@@ -1236,9 +1220,9 @@ public class IndicesService extends AbstractLifecycleComponent
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
         boolean[] loadedFromCache = new boolean[] { true };
-        BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(), () -> {
-            return "Shard: " + request.shardId() + "\nSource:\n" + request.source();
-        }, out -> {
+        BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(),
+            () -> "Shard: " + request.shardId() + "\nSource:\n" + request.source(),
+            out -> {
             queryPhase.execute(context);
             try {
                 context.queryResult().writeToNoId(out);
@@ -1405,11 +1389,10 @@ public class IndicesService extends AbstractLifecycleComponent
      *
      * @param newShards         The number of shards to be added by this operation
      * @param state             The current cluster state
-     * @param deprecationLogger The logger to use for deprecation warnings
      * @return If present, an error message to be given as the reason for failing
      * an operation. If empty, a sign that the operation is valid.
      */
-    public static Optional<String> checkShardLimit(int newShards, ClusterState state, DeprecationLogger deprecationLogger) {
+    public static Optional<String> checkShardLimit(int newShards, ClusterState state) {
         Settings theseSettings = state.metaData().settings();
         int nodeCount = state.getNodes().getDataNodes().size();
 
@@ -1425,13 +1408,7 @@ public class IndicesService extends AbstractLifecycleComponent
         if ((currentOpenShards + newShards) > maxShardsInCluster) {
             String errorMessage = "this action would add [" + newShards + "] total shards, but this cluster currently has [" +
                 currentOpenShards + "]/[" + maxShardsInCluster + "] maximum shards open";
-            if (ENFORCE_MAX_SHARDS_PER_NODE) {
-                return Optional.of(errorMessage);
-            } else {
-                deprecationLogger.deprecated("In a future major version, this request will fail because {}. Before upgrading, " +
-                        "reduce the number of shards in your cluster or adjust the cluster setting [{}].",
-                    errorMessage, MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey());
-            }
+            return Optional.of(errorMessage);
         }
         return Optional.empty();
     }

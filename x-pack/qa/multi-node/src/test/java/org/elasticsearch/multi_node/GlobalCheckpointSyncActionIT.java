@@ -73,7 +73,7 @@ public class GlobalCheckpointSyncActionIT extends ESRestTestCase {
                     builder.field("foo", i);
                 }
                 builder.endObject();
-                Request indexRequest = new Request("PUT", "/test-index/test-type/" + i);
+                Request indexRequest = new Request("PUT", "/test-index/_doc/" + i);
                 indexRequest.setJsonEntity(Strings.toString(builder));
                 client().performRequest(indexRequest);
             }

@@ -1,7 +1,7 @@
 ---
 "Test valid detector":
   - do:
-      xpack.ml.validate_detector:
+      ml.validate_detector:
         body:  >
           {
             "function":"count",
@@ -13,7 +13,7 @@
 "Test invalid detector":
   - do:
       catch: /field_name must be set when the 'mean' function is used/
-      xpack.ml.validate_detector:
+      ml.validate_detector:
         body:  >
           {
             "function":"mean",

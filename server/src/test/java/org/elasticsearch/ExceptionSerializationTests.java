@@ -32,6 +32,7 @@ import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.coordination.CoordinationStateRejectedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IllegalShardRoutingStateException;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -77,6 +78,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
@@ -795,7 +797,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(137, org.elasticsearch.indices.TypeMissingException.class);
         ids.put(138, null);
         ids.put(139, null);
-        ids.put(140, org.elasticsearch.discovery.Discovery.FailedToCommitClusterStateException.class);
+        ids.put(140, org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException.class);
         ids.put(141, org.elasticsearch.index.query.QueryShardException.class);
         ids.put(142, ShardStateAction.NoLongerPrimaryShardException.class);
         ids.put(143, org.elasticsearch.script.ScriptException.class);
@@ -805,6 +807,8 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(147, org.elasticsearch.env.ShardLockObtainFailedException.class);
         ids.put(148, UnknownNamedObjectException.class);
         ids.put(149, MultiBucketConsumerService.TooManyBucketsException.class);
+        ids.put(150, CoordinationStateRejectedException.class);
+        ids.put(151, SnapshotInProgressException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

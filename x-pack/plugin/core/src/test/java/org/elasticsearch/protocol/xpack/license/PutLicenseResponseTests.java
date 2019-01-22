@@ -77,11 +77,6 @@ public class PutLicenseResponseTests extends
     }
 
     @Override
-    protected PutLicenseResponse doParseInstance(XContentParser parser) throws IOException {
-        return PutLicenseResponse.fromXContent(parser);
-    }
-
-    @Override
     protected PutLicenseResponse createBlankInstance() {
         return new PutLicenseResponse();
     }
@@ -120,5 +115,4 @@ public class PutLicenseResponseTests extends
     private LicensesStatus mutateStatus(LicensesStatus status) {
         return randomValueOtherThan(status, () -> randomFrom(LicensesStatus.values()));
     }
-
 }

@@ -53,7 +53,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -101,7 +100,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
  */
 public class MetaDataCreateIndexService {
     private static final Logger logger = LogManager.getLogger(MetaDataCreateIndexService.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
 
@@ -602,7 +600,7 @@ public class MetaDataCreateIndexService {
                                       final boolean forbidPrivateIndexSettings) throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
 
-        Optional<String> shardAllocation = checkShardLimit(settings, clusterState, deprecationLogger);
+        Optional<String> shardAllocation = checkShardLimit(settings, clusterState);
         shardAllocation.ifPresent(validationErrors::add);
 
         if (validationErrors.isEmpty() == false) {
@@ -617,14 +615,13 @@ public class MetaDataCreateIndexService {
      *
      * @param settings The settings of the index to be created.
      * @param clusterState The current cluster state.
-     * @param deprecationLogger The logger to use to emit a deprecation warning, if appropriate.
      * @return If present, an error message to be used to reject index creation. If empty, a signal that this operation may be carried out.
      */
-    static Optional<String> checkShardLimit(Settings settings, ClusterState clusterState, DeprecationLogger deprecationLogger) {
+    static Optional<String> checkShardLimit(Settings settings, ClusterState clusterState) {
         int shardsToCreate = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings)
             * (1 + IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings));
 
-        return IndicesService.checkShardLimit(shardsToCreate, clusterState, deprecationLogger);
+        return IndicesService.checkShardLimit(shardsToCreate, clusterState);
     }
 
     List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {

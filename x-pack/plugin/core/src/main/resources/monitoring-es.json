@@ -1028,6 +1028,17 @@
             },
             "time_since_last_read_millis": {
               "type": "long"
+            },
+            "fatal_exception": {
+              "type": "object",
+              "properties": {
+                "type" : {
+                  "type": "keyword"
+                },
+                "reason": {
+                  "type": "text"
+                }
+              }
             }
           }
         },
@@ -1048,6 +1059,9 @@
                 "leader_index": {
                   "type": "keyword"
                 },
+                "timestamp": {
+                  "type": "long"
+                },
                 "auto_follow_exception": {
                   "type": "object",
                   "properties": {
@@ -1058,6 +1072,20 @@
                       "type": "text"
                     }
                   }
+                }
+              }
+            },
+            "auto_followed_clusters": {
+              "type": "nested",
+              "properties": {
+                "cluster_name": {
+                  "type": "keyword"
+                },
+                "time_since_last_check_millis": {
+                  "type": "long"
+                },
+                "last_seen_metadata_version": {
+                  "type": "long"
                 }
               }
             }

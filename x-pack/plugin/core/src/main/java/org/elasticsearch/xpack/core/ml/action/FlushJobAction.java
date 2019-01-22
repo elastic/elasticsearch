@@ -36,7 +36,12 @@ public class FlushJobAction extends Action<FlushJobAction.Response> {
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends JobTaskRequest<Request> implements ToXContentObject {
@@ -73,6 +78,25 @@ public class FlushJobAction extends Action<FlushJobAction.Response> {
         private String skipTime;
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            calcInterim = in.readBoolean();
+            start = in.readOptionalString();
+            end = in.readOptionalString();
+            advanceTime = in.readOptionalString();
+            skipTime = in.readOptionalString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeBoolean(calcInterim);
+            out.writeOptionalString(start);
+            out.writeOptionalString(end);
+            out.writeOptionalString(advanceTime);
+            out.writeOptionalString(skipTime);
         }
 
         public Request(String jobId) {
@@ -117,26 +141,6 @@ public class FlushJobAction extends Action<FlushJobAction.Response> {
 
         public void setSkipTime(String skipTime) {
             this.skipTime = skipTime;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            calcInterim = in.readBoolean();
-            start = in.readOptionalString();
-            end = in.readOptionalString();
-            advanceTime = in.readOptionalString();
-            skipTime = in.readOptionalString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeBoolean(calcInterim);
-            out.writeOptionalString(start);
-            out.writeOptionalString(end);
-            out.writeOptionalString(advanceTime);
-            out.writeOptionalString(skipTime);
         }
 
         @Override
@@ -195,27 +199,14 @@ public class FlushJobAction extends Action<FlushJobAction.Response> {
         private boolean flushed;
         private Date lastFinalizedBucketEnd;
 
-        public Response() {
-            super(null, null);
-        }
-
         public Response(boolean flushed, @Nullable Date lastFinalizedBucketEnd) {
             super(null, null);
             this.flushed = flushed;
             this.lastFinalizedBucketEnd = lastFinalizedBucketEnd;
         }
 
-        public boolean isFlushed() {
-            return flushed;
-        }
-
-        public Date getLastFinalizedBucketEnd() {
-            return lastFinalizedBucketEnd;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             flushed = in.readBoolean();
             lastFinalizedBucketEnd = new Date(in.readVLong());
         }
@@ -225,6 +216,14 @@ public class FlushJobAction extends Action<FlushJobAction.Response> {
             super.writeTo(out);
             out.writeBoolean(flushed);
             out.writeVLong(lastFinalizedBucketEnd.getTime());
+        }
+
+        public boolean isFlushed() {
+            return flushed;
+        }
+
+        public Date getLastFinalizedBucketEnd() {
+            return lastFinalizedBucketEnd;
         }
 
         @Override

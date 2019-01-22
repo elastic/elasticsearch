@@ -38,7 +38,7 @@ repositories {
     // the Wildfly distribution is not available via a repository, so we fake an Ivy repository on top of the download site
     ivy {
         url "http://download.jboss.org"
-        layout 'pattern', {
+        patternLayout {
             artifact 'wildfly/[revision]/[module]-[revision].[ext]'
         }
     }
@@ -211,9 +211,20 @@ if (!Os.isFamily(Os.FAMILY_WINDOWS)) {
 
 check.dependsOn(integTest)
 
-test.enabled = false
+unitTest.enabled = false
 
 dependencyLicenses.enabled = false
 dependenciesInfo.enabled = false
 
 thirdPartyAudit.enabled = false
+
+
+testingConventions {
+    naming.clear()
+    // We only have one "special" integration test here to connect to wildfly
+    naming {
+        IT {
+            baseClass 'org.apache.lucene.util.LuceneTestCase'
+        }
+    }
+}

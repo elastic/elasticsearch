@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Encapsulates the xcontent source
@@ -49,6 +50,13 @@ public class XContentSource implements ToXContent {
      */
     public XContentSource(XContentBuilder builder) {
         this(BytesReference.bytes(builder), builder.contentType());
+    }
+
+    /**
+     * @return The content type of the source
+     */
+    public XContentType getContentType() {
+        return contentType;
     }
 
     /**
@@ -133,4 +141,21 @@ public class XContentSource implements ToXContent {
         return data;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        XContentSource that = (XContentSource) o;
+        return Objects.equals(data(), that.data());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(data());
+    }
+
+    @Override
+    public String toString() {
+        return bytes.utf8ToString();
+    }
 }

@@ -23,7 +23,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -91,26 +90,16 @@ public class StartBasicResponse {
     private String acknowledgeMessage;
 
     public enum Status {
-        GENERATED_BASIC(true, null, RestStatus.OK),
-        ALREADY_USING_BASIC(false, "Operation failed: Current license is basic.", RestStatus.FORBIDDEN),
-        NEED_ACKNOWLEDGEMENT(false, "Operation failed: Needs acknowledgement.", RestStatus.OK);
+        GENERATED_BASIC(true, null),
+        ALREADY_USING_BASIC(false, "Operation failed: Current license is basic."),
+        NEED_ACKNOWLEDGEMENT(false, "Operation failed: Needs acknowledgement.");
 
         private final boolean isBasicStarted;
         private final String errorMessage;
-        private final RestStatus restStatus;
 
-        Status(boolean isBasicStarted, String errorMessage, RestStatus restStatus) {
+        Status(boolean isBasicStarted, String errorMessage) {
             this.isBasicStarted = isBasicStarted;
             this.errorMessage = errorMessage;
-            this.restStatus = restStatus;
-        }
-
-        String getErrorMessage() {
-            return errorMessage;
-        }
-
-        boolean isBasicStarted() {
-            return isBasicStarted;
         }
 
         static StartBasicResponse.Status fromErrorMessage(final String errorMessage) {
@@ -126,14 +115,11 @@ public class StartBasicResponse {
 
     private StartBasicResponse.Status status;
 
-    public StartBasicResponse() {
-    }
-
-    StartBasicResponse(StartBasicResponse.Status status) {
+    private StartBasicResponse(StartBasicResponse.Status status) {
         this(status, Collections.emptyMap(), null);
     }
 
-    StartBasicResponse(StartBasicResponse.Status status,
+    private StartBasicResponse(StartBasicResponse.Status status,
                               Map<String, String[]> acknowledgeMessages, String acknowledgeMessage) {
         this.status = status;
         this.acknowledgeMessages = acknowledgeMessages;
@@ -167,5 +153,4 @@ public class StartBasicResponse {
     public static StartBasicResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
-
 }

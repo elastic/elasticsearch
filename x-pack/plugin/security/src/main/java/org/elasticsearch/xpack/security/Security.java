@@ -76,6 +76,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -115,6 +116,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -244,6 +247,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -283,6 +287,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
     private final SetOnce<SecurityIndexManager> securityIndex = new SetOnce<>();
     private final SetOnce<IndexAuditTrail> indexAuditTrail = new SetOnce<>();
+    private final SetOnce<NioGroupFactory> groupFactory = new SetOnce<>();
     private final List<BootstrapCheck> bootstrapChecks;
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
 
@@ -296,7 +301,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         this.env = transportClientMode ? null : new Environment(settings, configPath);
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         if (enabled && transportClientMode == false) {
-            validateAutoCreateIndex(settings);
+            runStartupChecks(settings);
             // we load them all here otherwise we can't access secure settings since they are closed once the checks are
             // fetched
             final List<BootstrapCheck> checks = new ArrayList<>();
@@ -315,6 +320,12 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             this.bootstrapChecks = Collections.emptyList();
         }
         this.securityExtensions.addAll(extensions);
+
+    }
+
+    private static void runStartupChecks(Settings settings) {
+        validateAutoCreateIndex(settings);
+        validateRealmSettings(settings);
     }
 
     @Override
@@ -454,6 +465,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
                 anonymousUser, tokenService));
         components.add(authcService.get());
+        securityIndex.get().addIndexStateListener(authcService.get()::onSecurityIndexStateChange);
 
         final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(settings, client, securityIndex.get());
         components.add(privilegeStore);
@@ -634,6 +646,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
         Set<String> headers = new HashSet<>();
         headers.add(UsernamePasswordToken.BASIC_AUTH_HEADER);
+        if (XPackSettings.AUDIT_ENABLED.get(settings)) {
+            headers.add(AuditTrail.X_FORWARDED_FOR_HEADER);
+        }
         if (AuthenticationServiceField.RUN_AS_ENABLED.get(settings)) {
             headers.add(AuthenticationServiceField.RUN_AS_USER_HEADER);
         }
@@ -778,6 +793,40 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         return Collections.singletonMap(SetSecurityUserProcessor.TYPE, new SetSecurityUserProcessor.Factory(parameters.threadContext));
     }
 
+    /**
+     * Realm settings were changed in 7.0. This method validates that the settings in use on this node match the new style of setting.
+     * In 6.x a realm config would be
+     * <pre>
+     *   xpack.security.authc.realms.file1.type: file
+     *   xpack.security.authc.realms.file1.order: 0
+     * </pre>
+     * In 7.x this realm should be
+     * <pre>
+     *   xpack.security.authc.realms.file.file1.order: 0
+     * </pre>
+     * If confronted with an old style config, the ES Settings validation would simply fail with an error such as
+     * <em>unknown setting [xpack.security.authc.realms.file1.order]</em>. This validation method provides an error that is easier to
+     * understand and take action on.
+     */
+     static void validateRealmSettings(Settings settings) {
+        final Set<String> badRealmSettings = settings.keySet().stream()
+            .filter(k -> k.startsWith(RealmSettings.PREFIX))
+            .filter(key -> {
+                final String suffix = key.substring(RealmSettings.PREFIX.length());
+                // suffix-part, only contains a single '.'
+                return suffix.indexOf('.') == suffix.lastIndexOf('.');
+            })
+            .collect(Collectors.toSet());
+        if (badRealmSettings.isEmpty() == false) {
+            String sampleRealmSetting = RealmSettings.realmSettingPrefix(new RealmConfig.RealmIdentifier("file", "my_file")) + "order";
+            throw new IllegalArgumentException("Incorrect realm settings found. " +
+                "Realm settings have been changed to include the type as part of the setting key.\n" +
+                "For example '" + sampleRealmSetting + "'\n" +
+                "Found invalid config: " + Strings.collectionToDelimitedString(badRealmSettings, ", ") + "\n" +
+                "Please see the breaking changes documentation."
+            );
+        }
+    }
 
     static boolean indexAuditLoggingEnabled(Settings settings) {
         if (XPackSettings.AUDIT_ENABLED.get(settings)) {
@@ -889,20 +938,19 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     }
 
     @Override
-    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                                          PageCacheRecycler pageCacheRecycler,
+    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
                                                           CircuitBreakerService circuitBreakerService,
-                                                          NamedWriteableRegistry namedWriteableRegistry,
-                                                          NetworkService networkService) {
+                                                          NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
         if (transportClientMode || enabled == false) { // don't register anything if we are not enabled, or in transport client mode
             return Collections.emptyMap();
         }
 
+        IPFilter ipFilter = this.ipFilter.get();
         Map<String, Supplier<Transport>> transports = new HashMap<>();
         transports.put(SecurityField.NAME4, () -> new SecurityNetty4ServerTransport(settings, Version.CURRENT, threadPool,
-            networkService, bigArrays, namedWriteableRegistry, circuitBreakerService, ipFilter.get(), getSslService()));
-        transports.put(SecurityField.NIO, () -> new SecurityNioTransport(settings, Version.CURRENT, threadPool,
-            networkService, bigArrays, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, ipFilter.get(), getSslService()));
+            networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, ipFilter, getSslService()));
+        transports.put(SecurityField.NIO, () -> new SecurityNioTransport(settings, Version.CURRENT, threadPool, networkService,
+            pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, ipFilter, getSslService(), getNioGroupFactory(settings)));
 
         return Collections.unmodifiableMap(transports);
     }
@@ -922,7 +970,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         httpTransports.put(SecurityField.NAME4, () -> new SecurityNetty4HttpServerTransport(settings, networkService, bigArrays,
             ipFilter.get(), getSslService(), threadPool, xContentRegistry, dispatcher));
         httpTransports.put(SecurityField.NIO, () -> new SecurityNioHttpServerTransport(settings, networkService, bigArrays,
-            pageCacheRecycler, threadPool, xContentRegistry, dispatcher, ipFilter.get(), getSslService()));
+            pageCacheRecycler, threadPool, xContentRegistry, dispatcher, ipFilter.get(), getSslService(), getNioGroupFactory(settings)));
 
         return httpTransports;
     }
@@ -1076,5 +1124,15 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     @Override
     public void reloadSPI(ClassLoader loader) {
         securityExtensions.addAll(SecurityExtension.loadExtensions(loader));
+    }
+
+    private synchronized NioGroupFactory getNioGroupFactory(Settings settings) {
+         if (groupFactory.get() != null) {
+             assert groupFactory.get().getSettings().equals(settings) : "Different settings than originally provided";
+             return groupFactory.get();
+         } else {
+            groupFactory.set(new NioGroupFactory(settings, logger));
+            return groupFactory.get();
+         }
     }
 }

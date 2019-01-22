@@ -81,6 +81,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
                 .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE))
                 .filter(QueryBuilders.existsQuery(ForecastRequestStats.EXPIRY_TIME.getPreferredName())));
         source.size(MAX_FORECASTS);
+        source.trackTotalHits(true);
 
         SearchRequest searchRequest = new SearchRequest(RESULTS_INDEX_PATTERN);
         searchRequest.source(source);
@@ -123,7 +124,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         List<ForecastRequestStats> forecastsToDelete = new ArrayList<>();
 
         SearchHits hits = searchResponse.getHits();
-        if (hits.getTotalHits() > MAX_FORECASTS) {
+        if (hits.getTotalHits().value > MAX_FORECASTS) {
             LOGGER.info("More than [{}] forecasts were found. This run will only delete [{}] of them", MAX_FORECASTS, MAX_FORECASTS);
         }
 

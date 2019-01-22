@@ -38,11 +38,13 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         q:     company:cat
   - match: { hits.total: 1 }
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         q:     company:cow
   - match: { hits.total: 1 }
@@ -85,11 +87,13 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         q:     company:dog
   - match: { hits.total: 1 }
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         q:     company:cow
   - match: { hits.total: 1 }
@@ -131,11 +135,13 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         q:     company:cat
   - match: { hits.total: 1 }
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         q:     company:cow
   - match: { hits.total: 1 }
@@ -175,11 +181,13 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         q:     company:cat
   - match: { hits.total: 1 }
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         q:     company:cow
   - match: { hits.total: 1 }

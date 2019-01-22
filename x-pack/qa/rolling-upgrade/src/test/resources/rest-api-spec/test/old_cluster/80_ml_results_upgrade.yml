@@ -1,0 +1,120 @@
+---
+"Put job on the old cluster and post some data":
+
+  - do:
+      ml.put_job:
+        job_id: old-cluster-job-to-upgrade
+        body:  >
+          {
+            "description":"Cluster upgrade",
+            "analysis_config" : {
+                "bucket_span": "60s",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "50mb"
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+  - match: { job_id: old-cluster-job-to-upgrade }
+
+  - do:
+      ml.open_job:
+        job_id: old-cluster-job-to-upgrade
+
+  - do:
+      ml.post_data:
+        job_id: old-cluster-job-to-upgrade
+        body:
+          - airline: AAL
+            responsetime: 132.2046
+            sourcetype: post-data-job
+            time: 1403481600
+          - airline: JZA
+            responsetime: 990.4628
+            sourcetype: post-data-job
+            time: 1403481700
+  - match: { processed_record_count: 2 }
+
+  - do:
+      ml.close_job:
+        job_id: old-cluster-job-to-upgrade
+
+  - do:
+      ml.get_buckets:
+        job_id: old-cluster-job-to-upgrade
+  - match: { count: 1 }
+
+# Wait for indices to be fully allocated before
+# killing the node
+  - do:
+     cluster.health:
+       index: [".ml-state", ".ml-anomalies-shared"]
+       wait_for_status: green
+
+---
+"Put job on the old cluster with a custom index":
+  - do:
+      ml.put_job:
+        job_id: old-cluster-job-to-upgrade-custom
+        body:  >
+          {
+            "description":"Cluster upgrade",
+            "analysis_config" : {
+                "bucket_span": "60s",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "50mb"
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time",
+                "time_format":"epoch"
+            },
+            "results_index_name": "old-cluster-job-to-upgrade-custom"
+          }
+  - match: { job_id: old-cluster-job-to-upgrade-custom }
+
+  - do:
+      ml.open_job:
+        job_id: old-cluster-job-to-upgrade-custom
+
+  - do:
+      ml.post_data:
+        job_id: old-cluster-job-to-upgrade-custom
+        body:
+        - airline: AAL
+          responsetime: 132.2046
+          sourcetype: post-data-job
+          time: 1403481600
+        - airline: JZA
+          responsetime: 990.4628
+          sourcetype: post-data-job
+          time: 1403481700
+        - airline: JZA
+          responsetime: 423.0000
+          sourcetype: post-data-job
+          time: 1403481800
+  - match: { processed_record_count: 3 }
+
+  - do:
+      ml.close_job:
+        job_id: old-cluster-job-to-upgrade-custom
+
+  - do:
+      ml.get_buckets:
+        job_id: old-cluster-job-to-upgrade-custom
+  - match: { count: 3 }
+
+# Wait for indices to be fully allocated before
+# killing the node
+  - do:
+      cluster.health:
+        index: [".ml-state", ".ml-anomalies-old-cluster-job-to-upgrade-custom"]
+        wait_for_status: green
+

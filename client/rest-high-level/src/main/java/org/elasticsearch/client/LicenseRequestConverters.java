@@ -34,7 +34,7 @@ final class LicenseRequestConverters {
     private LicenseRequestConverters() {}
 
     static Request putLicense(PutLicenseRequest putLicenseRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_xpack", "license").build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_license").build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         RequestConverters.Params parameters = new RequestConverters.Params(request);
         parameters.withTimeout(putLicenseRequest.timeout());
@@ -47,7 +47,7 @@ final class LicenseRequestConverters {
     }
 
     static Request getLicense(GetLicenseRequest getLicenseRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_xpack", "license").build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_license").build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         RequestConverters.Params parameters = new RequestConverters.Params(request);
         parameters.withLocal(getLicenseRequest.isLocal());
@@ -55,7 +55,7 @@ final class LicenseRequestConverters {
     }
 
     static Request deleteLicense(DeleteLicenseRequest deleteLicenseRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_xpack", "license").build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_license").build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         RequestConverters.Params parameters = new RequestConverters.Params(request);
         parameters.withTimeout(deleteLicenseRequest.timeout());
@@ -64,7 +64,7 @@ final class LicenseRequestConverters {
     }
 
     static Request startTrial(StartTrialRequest startTrialRequest) {
-        final String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_xpack", "license", "start_trial").build();
+        final String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_license", "start_trial").build();
         final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
         RequestConverters.Params parameters = new RequestConverters.Params(request);
@@ -77,7 +77,7 @@ final class LicenseRequestConverters {
 
     static Request startBasic(StartBasicRequest startBasicRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack", "license", "start_basic")
+            .addPathPartAsIs("_license", "start_basic")
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         RequestConverters.Params parameters = new RequestConverters.Params(request);
@@ -90,10 +90,11 @@ final class LicenseRequestConverters {
     }
 
     static Request getLicenseTrialStatus() {
-        return new Request(HttpGet.METHOD_NAME, "/_xpack/license/trial_status");
+        return new Request(HttpGet.METHOD_NAME, "/_license/trial_status");
     }
 
     static Request getLicenseBasicStatus() {
-        return new Request(HttpGet.METHOD_NAME, "/_xpack/license/basic_status");
+        return new Request(HttpGet.METHOD_NAME, "/_license/basic_status");
     }
+
 }

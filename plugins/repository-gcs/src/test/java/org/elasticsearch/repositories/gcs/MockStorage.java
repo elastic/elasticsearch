@@ -81,6 +81,11 @@ class MockStorage implements Storage {
     }
 
     @Override
+    public Bucket lockRetentionPolicy(final BucketInfo bucket, final BucketTargetOption... options) {
+        return null;
+    }
+
+    @Override
     public Blob get(BlobId blob) {
         if (bucketName.equals(blob.getBucket())) {
             final byte[] bytes = blobs.get(blob.getName());

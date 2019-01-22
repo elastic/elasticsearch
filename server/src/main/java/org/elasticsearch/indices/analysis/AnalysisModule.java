@@ -212,8 +212,7 @@ public final class AnalysisModule {
             PreConfiguredTokenizer preConfigured;
             switch (tokenizer.getCachingStrategy()) {
             case ONE:
-                preConfigured = PreConfiguredTokenizer.singleton(name,
-                        () -> tokenizer.create(Version.CURRENT), null);
+                preConfigured = PreConfiguredTokenizer.singleton(name, () -> tokenizer.create(Version.CURRENT));
                 break;
             default:
                 throw new UnsupportedOperationException(

@@ -60,7 +60,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 1.0F), new DocValueFormat[0]);
             queryResult.size(1);
             FetchSearchResult fetchResult = new FetchSearchResult();
-            fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(42)}, 1, 1.0F));
+            fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(42)}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F));
             QueryFetchSearchResult fetchSearchResult = new QueryFetchSearchResult(queryResult, fetchResult);
             fetchSearchResult.setShardIndex(0);
             results.consumeResult(fetchSearchResult);
@@ -80,7 +80,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
         assertNotNull(responseRef.get());
-        assertEquals(numHits, responseRef.get().getHits().totalHits);
+        assertEquals(numHits, responseRef.get().getHits().getTotalHits().value);
         if (numHits != 0) {
             assertEquals(42, responseRef.get().getHits().getAt(0).docId());
         }
@@ -115,10 +115,12 @@ public class FetchSearchPhaseTests extends ESTestCase {
                                          SearchActionListener<FetchSearchResult> listener) {
                 FetchSearchResult fetchResult = new FetchSearchResult();
                 if (request.id() == 321) {
-                    fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(84)}, 1, 2.0F));
+                    fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(84)},
+                        new TotalHits(1, TotalHits.Relation.EQUAL_TO), 2.0F));
                 } else {
                     assertEquals(123, request.id());
-                    fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(42)}, 1, 1.0F));
+                    fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(42)},
+                        new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F));
                 }
                 listener.onResponse(fetchResult);
             }
@@ -135,7 +137,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
         assertNotNull(responseRef.get());
-        assertEquals(2, responseRef.get().getHits().totalHits);
+        assertEquals(2, responseRef.get().getHits().getTotalHits().value);
         assertEquals(84, responseRef.get().getHits().getAt(0).docId());
         assertEquals(42, responseRef.get().getHits().getAt(1).docId());
         assertEquals(0, responseRef.get().getFailedShards());
@@ -171,7 +173,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
                                          SearchActionListener<FetchSearchResult> listener) {
                 if (request.id() == 321) {
                     FetchSearchResult fetchResult = new FetchSearchResult();
-                    fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(84)}, 1, 2.0F));
+                    fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(84)},
+                        new TotalHits(1, TotalHits.Relation.EQUAL_TO), 2.0F));
                     listener.onResponse(fetchResult);
                 } else {
                     listener.onFailure(new MockDirectoryWrapper.FakeIOException());
@@ -191,7 +194,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
         assertNotNull(responseRef.get());
-        assertEquals(2, responseRef.get().getHits().totalHits);
+        assertEquals(2, responseRef.get().getHits().getTotalHits().value);
         assertEquals(84, responseRef.get().getHits().getAt(0).docId());
         assertEquals(1, responseRef.get().getFailedShards());
         assertEquals(1, responseRef.get().getSuccessfulShards());
@@ -225,7 +228,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
                                          SearchActionListener<FetchSearchResult> listener) {
                 new Thread(() -> {
                     FetchSearchResult fetchResult = new FetchSearchResult();
-                    fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit((int) (request.id()+1))}, 1, 100F));
+                    fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit((int) (request.id()+1))},
+                        new TotalHits(1, TotalHits.Relation.EQUAL_TO), 100F));
                     listener.onResponse(fetchResult);
                 }).start();
             }
@@ -245,7 +249,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         latch.await();
         mockSearchPhaseContext.assertNoFailure();
         assertNotNull(responseRef.get());
-        assertEquals(numHits, responseRef.get().getHits().totalHits);
+        assertEquals(numHits, responseRef.get().getHits().getTotalHits().value);
         assertEquals(Math.min(numHits, resultSetSize), responseRef.get().getHits().getHits().length);
         SearchHit[] hits = responseRef.get().getHits().getHits();
         for (int i = 0; i < hits.length; i++) {
@@ -291,10 +295,12 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     throw new RuntimeException("BOOM");
                 }
                 if (request.id() == 321) {
-                    fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(84)}, 1, 2.0F));
+                    fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(84)},
+                        new TotalHits(1, TotalHits.Relation.EQUAL_TO), 2.0F));
                 } else {
                     assertEquals(request, 123);
-                    fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(42)}, 1, 1.0F));
+                    fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(42)},
+                        new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F));
                 }
                 listener.onResponse(fetchResult);
             }
@@ -343,7 +349,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
                                          SearchActionListener<FetchSearchResult> listener) {
                 FetchSearchResult fetchResult = new FetchSearchResult();
                 if (request.id() == 321) {
-                    fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(84)}, 1, 2.0F));
+                    fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(84)},
+                        new TotalHits(1, TotalHits.Relation.EQUAL_TO), 2.0F));
                 } else {
                     fail("requestID 123 should not be fetched but was");
                 }
@@ -362,7 +369,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
         assertNotNull(responseRef.get());
-        assertEquals(2, responseRef.get().getHits().totalHits);
+        assertEquals(2, responseRef.get().getHits().getTotalHits().value);
         assertEquals(1, responseRef.get().getHits().getHits().length);
         assertEquals(84, responseRef.get().getHits().getAt(0).docId());
         assertEquals(0, responseRef.get().getFailedShards());

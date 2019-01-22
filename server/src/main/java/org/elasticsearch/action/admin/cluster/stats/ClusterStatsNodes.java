@@ -34,6 +34,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.PluginInfo;
@@ -59,6 +60,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
     private final FsInfo.Path fs;
     private final Set<PluginInfo> plugins;
     private final NetworkTypes networkTypes;
+    private final DiscoveryTypes discoveryTypes;
 
     ClusterStatsNodes(List<ClusterStatsNodeResponse> nodeResponses) {
         this.versions = new HashSet<>();
@@ -90,6 +92,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         this.process = new ProcessStats(nodeStats);
         this.jvm = new JvmStats(nodeInfos, nodeStats);
         this.networkTypes = new NetworkTypes(nodeInfos);
+        this.discoveryTypes = new DiscoveryTypes(nodeInfos);
     }
 
     public Counts getCounts() {
@@ -167,6 +170,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
         builder.startObject(Fields.NETWORK_TYPES);
         networkTypes.toXContent(builder, params);
         builder.endObject();
+
+        discoveryTypes.toXContent(builder, params);
         return builder;
     }
 
@@ -610,6 +615,31 @@ public class ClusterStatsNodes implements ToXContentFragment {
             return builder;
         }
 
+    }
+
+    static class DiscoveryTypes implements ToXContentFragment {
+
+        private final Map<String, AtomicInteger> discoveryTypes;
+
+        DiscoveryTypes(final List<NodeInfo> nodeInfos) {
+            final Map<String, AtomicInteger> discoveryTypes = new HashMap<>();
+            for (final NodeInfo nodeInfo : nodeInfos) {
+                final Settings settings = nodeInfo.getSettings();
+                final String discoveryType = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings);
+                discoveryTypes.computeIfAbsent(discoveryType, k -> new AtomicInteger()).incrementAndGet();
+            }
+            this.discoveryTypes = Collections.unmodifiableMap(discoveryTypes);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject("discovery_types");
+            for (final Map.Entry<String, AtomicInteger> entry : discoveryTypes.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue().get());
+            }
+            builder.endObject();
+            return builder;
+        }
     }
 
 }

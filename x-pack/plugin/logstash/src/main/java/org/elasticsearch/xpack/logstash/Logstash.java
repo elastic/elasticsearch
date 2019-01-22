@@ -28,7 +28,9 @@ import java.util.regex.Pattern;
  */
 public class Logstash extends Plugin implements ActionPlugin {
 
-    private static final String LOGSTASH_TEMPLATE_NAME = "logstash-index-template";
+    private static final String LOGSTASH_TEMPLATE_FILE_NAME = "logstash-management";
+    private static final String LOGSTASH_INDEX_TEMPLATE_NAME = ".logstash-management";
+    private static final String OLD_LOGSTASH_INDEX_NAME = "logstash-index-template";
     private static final String TEMPLATE_VERSION_PATTERN =
             Pattern.quote("${logstash.template.version}");
 
@@ -58,7 +60,8 @@ public class Logstash extends Plugin implements ActionPlugin {
 
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
-            TemplateUtils.loadTemplateIntoMap("/" + LOGSTASH_TEMPLATE_NAME + ".json", templates, LOGSTASH_TEMPLATE_NAME,
+            templates.keySet().removeIf(OLD_LOGSTASH_INDEX_NAME::equals);
+            TemplateUtils.loadTemplateIntoMap("/" + LOGSTASH_TEMPLATE_FILE_NAME + ".json", templates, LOGSTASH_INDEX_TEMPLATE_NAME,
                     Version.CURRENT.toString(), TEMPLATE_VERSION_PATTERN, LogManager.getLogger(Logstash.class));
             return templates;
         };

@@ -22,7 +22,6 @@ package org.elasticsearch.client.indexlifecycle;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.common.Strings;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -30,25 +29,20 @@ import java.util.Optional;
 
 /**
  * The request object used by the Explain Lifecycle API.
- *
- * Multiple indices may be queried in the same request using the
- * {@link #indices(String...)} method
  */
 public class ExplainLifecycleRequest extends TimedRequest {
 
-    private String[] indices = Strings.EMPTY_ARRAY;
+    private final String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
-    public ExplainLifecycleRequest() {
-        super();
-    }
-
-    public ExplainLifecycleRequest indices(String... indices) {
+    public ExplainLifecycleRequest(String... indices) {
+        if (indices.length == 0) {
+            throw new IllegalArgumentException("Must at least specify one index to explain");
+        }
         this.indices = indices;
-        return this;
     }
 
-    public String[] indices() {
+    public String[] getIndices() {
         return indices;
     }
 
@@ -60,7 +54,7 @@ public class ExplainLifecycleRequest extends TimedRequest {
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
-    
+
     @Override
     public Optional<ValidationException> validate() {
         return Optional.empty();
@@ -68,7 +62,7 @@ public class ExplainLifecycleRequest extends TimedRequest {
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(indices()), indicesOptions());
+        return Objects.hash(Arrays.hashCode(indices), indicesOptions);
     }
 
     @Override
@@ -80,13 +74,13 @@ public class ExplainLifecycleRequest extends TimedRequest {
             return false;
         }
         ExplainLifecycleRequest other = (ExplainLifecycleRequest) obj;
-        return Objects.deepEquals(indices(), other.indices()) &&
+        return Objects.deepEquals(getIndices(), other.getIndices()) &&
                 Objects.equals(indicesOptions(), other.indicesOptions());
     }
 
     @Override
     public String toString() {
-        return "ExplainLifecycleRequest [indices()=" + Arrays.toString(indices()) + ", indicesOptions()=" + indicesOptions() + "]";
+        return "ExplainLifecycleRequest [indices()=" + Arrays.toString(indices) + ", indicesOptions()=" + indicesOptions + "]";
     }
 
 }

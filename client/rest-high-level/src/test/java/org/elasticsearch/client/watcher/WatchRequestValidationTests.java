@@ -91,4 +91,10 @@ public class WatchRequestValidationTests extends ESTestCase {
             () -> new PutWatchRequest("foo", BytesArray.EMPTY, null));
         assertThat(exception.getMessage(), is("request body is missing"));
     }
+
+    public void testGetWatchInvalidWatchId()  {
+        ValidationException e = expectThrows(ValidationException.class,
+            () ->  new GetWatchRequest("id with whitespaces"));
+        assertThat(e.validationErrors(), hasItem("watch id contains whitespace"));
+    }
 }

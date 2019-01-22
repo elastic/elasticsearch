@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -39,6 +40,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeActionUtils;
@@ -50,12 +52,16 @@ import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
+import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateServiceUtils;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -73,11 +79,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.discovery.zen.NodeJoinController;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -91,8 +95,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
@@ -125,8 +132,8 @@ public class ClusterStateChanges {
     private final TransportClusterRerouteAction transportClusterRerouteAction;
     private final TransportCreateIndexAction transportCreateIndexAction;
 
-    private final ZenDiscovery.NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
-    private final NodeJoinController.JoinTaskExecutor joinTaskExecutor;
+    private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
+    private final JoinTaskExecutor joinTaskExecutor;
 
     public ClusterStateChanges(NamedXContentRegistry xContentRegistry, ThreadPool threadPool) {
         ClusterSettings clusterSettings = new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -180,8 +187,11 @@ public class ClusterStateChanges {
                 return indexMetaData;
             }
         };
+
+        TransportVerifyShardBeforeCloseAction transportVerifyShardBeforeCloseAction = new TransportVerifyShardBeforeCloseAction(SETTINGS,
+            transportService, clusterService, indicesService, threadPool, null, actionFilters, indexNameExpressionResolver);
         MetaDataIndexStateService indexStateService = new MetaDataIndexStateService(clusterService, allocationService,
-            metaDataIndexUpgradeService, indicesService, threadPool);
+            metaDataIndexUpgradeService, indicesService, threadPool, transportVerifyShardBeforeCloseAction);
         MetaDataDeleteIndexService deleteIndexService = new MetaDataDeleteIndexService(SETTINGS, clusterService, allocationService);
         MetaDataUpdateSettingsService metaDataUpdateSettingsService = new MetaDataUpdateSettingsService(clusterService,
             allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService, threadPool);
@@ -202,10 +212,8 @@ public class ClusterStateChanges {
         transportCreateIndexAction = new TransportCreateIndexAction(
             transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver);
 
-        ElectMasterService electMasterService = new ElectMasterService(SETTINGS);
-        nodeRemovalExecutor = new ZenDiscovery.NodeRemovalClusterStateTaskExecutor(allocationService, electMasterService,
-            s -> { throw new AssertionError("rejoin not implemented"); }, logger);
-        joinTaskExecutor = new NodeJoinController.JoinTaskExecutor(allocationService, electMasterService, logger);
+        nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
+        joinTaskExecutor = new JoinTaskExecutor(allocationService, logger);
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {
@@ -213,7 +221,15 @@ public class ClusterStateChanges {
     }
 
     public ClusterState closeIndices(ClusterState state, CloseIndexRequest request) {
-        return execute(transportCloseIndexAction, request, state);
+        final Index[] concreteIndices = Arrays.stream(request.indices())
+            .map(index -> state.metaData().index(index).getIndex()).toArray(Index[]::new);
+
+        final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
+        ClusterState newState = MetaDataIndexStateServiceUtils.addIndexClosedBlocks(concreteIndices, blockedIndices, state);
+
+        newState = MetaDataIndexStateServiceUtils.closeRoutingTable(newState, blockedIndices, blockedIndices.keySet().stream()
+            .collect(Collectors.toMap(Function.identity(), index -> new AcknowledgedResponse(true))));
+        return allocationService.reroute(newState, "indices closed");
     }
 
     public ClusterState openIndices(ClusterState state, OpenIndexRequest request) {
@@ -233,21 +249,23 @@ public class ClusterStateChanges {
     }
 
     public ClusterState addNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {
-        return runTasks(joinTaskExecutor, clusterState, nodes);
+        return runTasks(joinTaskExecutor, clusterState, nodes.stream().map(node -> new JoinTaskExecutor.Task(node, "dummy reason"))
+            .collect(Collectors.toList()));
     }
 
     public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
-        List<DiscoveryNode> joinNodes = new ArrayList<>();
-        joinNodes.add(NodeJoinController.BECOME_MASTER_TASK);
-        joinNodes.add(NodeJoinController.FINISH_ELECTION_TASK);
-        joinNodes.addAll(nodes);
+        List<JoinTaskExecutor.Task> joinNodes = new ArrayList<>();
+        joinNodes.add(JoinTaskExecutor.newBecomeMasterTask());
+        joinNodes.add(JoinTaskExecutor.newFinishElectionTask());
+        joinNodes.addAll(nodes.stream().map(node -> new JoinTaskExecutor.Task(node, "dummy reason"))
+            .collect(Collectors.toList()));
 
         return runTasks(joinTaskExecutor, clusterState, joinNodes);
     }
 
     public ClusterState removeNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {
         return runTasks(nodeRemovalExecutor, clusterState, nodes.stream()
-            .map(n -> new ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task(n, "dummy reason")).collect(Collectors.toList()));
+            .map(n -> new NodeRemovalClusterStateTaskExecutor.Task(n, "dummy reason")).collect(Collectors.toList()));
     }
 
     public ClusterState applyFailedShards(ClusterState clusterState, List<FailedShard> failedShards) {

@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-getting-started]]
-== Getting Started with {ccr}
+== Getting started with {ccr}
 
 beta[]
 
@@ -151,17 +151,24 @@ remote cluster.
     alias `leader`
 <2> This shows the number of nodes in the remote cluster the local cluster is
     connected to.
+    
+Alternatively, you can manage remote clusters on the
+*Management / Elasticsearch / Remote Clusters* page in {kib}:
+
+[role="screenshot"]
+image::ml/images/remote-clusters.jpg["The Remote Clusters page in {kib}"]
+
 
 [float]
 [[ccr-getting-started-leader-index]]
 === Creating a leader index
 
-Leader indices require special index settings to ensure that the operations that
-need to be replicated are available when the
-follower requests them from the leader. These settings are used to enable soft
-deletes on the leader index and to control how many soft deletes are retained. A
-_soft delete_ occurs whenever a document is deleted or updated. Soft deletes can
-be enabled only on new indices created on or after {es} 6.5.0. 
+Leader indices require a special index setting to ensure that the operations
+that need to be replicated are available when the follower requests them from
+the leader. This setting is used to control how many soft deletes are retained.
+A _soft delete_ occurs whenever a document is deleted or updated. Soft deletes
+can be enabled only on new indices created on or after {es} 6.5.0, and enabled
+by default on new indices created on or after {es} 7.0.0.
 
 In the following example, we will create a leader index in the remote cluster:
 
@@ -174,37 +181,34 @@ PUT /server-metrics
       "number_of_shards" : 1,
       "number_of_replicas" : 0,
       "soft_deletes" : {
-        "enabled" : true, <1>
         "retention" : {
-          "operations" : 1024 <2>
+          "operations" : 1024 <1>
         }
       }
     }
   },
   "mappings" : {
-    "metric" : {
-      "properties" : {
-        "@timestamp" : {
-          "type" : "date"
-        },
-        "accept" : {
-          "type" : "long"
-        },
-        "deny" : {
-          "type" : "long"
-        },
-        "host" : {
-          "type" : "keyword"
-        },
-        "response" : {
-          "type" : "float"
-        },
-        "service" : {
-          "type" : "keyword"
-        },
-        "total" : {
-          "type" : "long"
-        }
+    "properties" : {
+      "@timestamp" : {
+        "type" : "date"
+      },
+      "accept" : {
+        "type" : "long"
+      },
+      "deny" : {
+        "type" : "long"
+      },
+      "host" : {
+        "type" : "keyword"
+      },
+      "response" : {
+        "type" : "float"
+      },
+      "service" : {
+        "type" : "keyword"
+      },
+      "total" : {
+        "type" : "long"
       }
     }
   }
@@ -212,8 +216,7 @@ PUT /server-metrics
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
-<1> Enables soft deletes on the leader index.
-<2> Sets that up to 1024 soft deletes will be retained.
+<1> Sets that up to 1024 soft deletes will be retained.
 
 [float]
 [[ccr-getting-started-follower-index]]
@@ -274,11 +277,11 @@ POST /server-metrics-copy/_ccr/unfollow
 [[ccr-getting-started-auto-follow]]
 === Automatically create follower indices
 
-The auto-follow feature in {ccr} helps for time series use cases where you want
-to follow new indices that are periodically created in the remote cluster
-(such as daily Beats indices). Auto-following is configured using the
-{ref}/ccr-put-auto-follow-pattern.html[create auto-follow pattern API]. With an
-auto-follow pattern, you reference the
+The <<ccr-auto-follow,auto-follow>> feature in {ccr} helps for time series use
+cases where you want to follow new indices that are periodically created in the
+remote cluster (such as daily Beats indices). Auto-following is configured using
+the {ref}/ccr-put-auto-follow-pattern.html[create auto-follow pattern API]. With
+an auto-follow pattern, you reference the
 <<ccr-getting-started-remote-cluster,remote cluster>> that you connected your
 local cluster to. You must also specify a collection of  patterns that match the
 indices you want to automatically follow.
@@ -327,3 +330,9 @@ DELETE /_ccr/auto_follow/beats
 // TEST[continued]
 
 //////////////////////////
+
+Alternatively, you can manage auto-follow patterns on the
+*Management / Elasticsearch / Cross Cluster Replication* page in {kib}:
+
+[role="screenshot"]
+image::ml/images/auto-follow-patterns.jpg["The Auto-follow patterns page in {kib}"]

@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-get-follow-stats]]
-=== Get Follower Stats API
+=== Get follower stats API
 ++++
-<titleabbrev>Get Follower Stats</titleabbrev>
+<titleabbrev>Get follower stats</titleabbrev>
 ++++
 
 beta[]
@@ -47,7 +47,7 @@ GET /<index>/_ccr/stats
 // CONSOLE
 // TEST[s/<index>/follower_index/]
 
-==== Path Parmeters
+==== Path Parameters
 `index` ::
   (string) a comma-delimited list of index patterns
 
@@ -178,6 +178,12 @@ Continuing with the fields from `shards`:
   (object) an object representing a fatal exception that cancelled the following
   task; in this situation, the following task must be resumed manually with the
   <<ccr-post-resume-follow,resume follower API>>
+
+==== Authorization
+
+If the {es} {security-features} are enabled, you must have `monitor` cluster
+privileges on the cluster that contains the follower index. For more information,
+see {stack-ov}/security-privileges.html[Security privileges].
 
 ==== Example
 

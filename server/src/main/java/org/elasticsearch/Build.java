@@ -139,7 +139,7 @@ public class Build {
             // not running from the official elasticsearch jar file (unit tests, IDE, uber client jar, shadiness)
             shortHash = "Unknown";
             date = "Unknown";
-            version = "Unknown";
+            version = Version.CURRENT.toString();
             final String buildSnapshot = System.getProperty("build.snapshot");
             if (buildSnapshot != null) {
                 try {

@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 public class IndexLifecycleExplainResponse implements ToXContentObject {
 
@@ -58,14 +59,14 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
             (String) a[0],
             (boolean) a[1],
             (String) a[2],
-            (long) (a[3] == null ? -1L: a[3]),
+            (Long) a[3],
             (String) a[4],
             (String) a[5],
             (String) a[6],
             (String) a[7],
-            (long) (a[8] == null ? -1L: a[8]),
-            (long) (a[9] == null ? -1L: a[9]),
-            (long) (a[10] == null ? -1L: a[10]),
+            (Long) a[8],
+            (Long) a[9],
+            (Long) a[10],
             (BytesReference) a[11],
             (PhaseExecutionInfo) a[12]));
     static {
@@ -95,36 +96,44 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
     private final String action;
     private final String step;
     private final String failedStep;
-    private final long lifecycleDate;
-    private final long phaseTime;
-    private final long actionTime;
-    private final long stepTime;
+    private final Long lifecycleDate;
+    private final Long phaseTime;
+    private final Long actionTime;
+    private final Long stepTime;
     private final boolean managedByILM;
     private final BytesReference stepInfo;
     private final PhaseExecutionInfo phaseExecutionInfo;
 
-    public static IndexLifecycleExplainResponse newManagedIndexResponse(String index, String policyName, long lifecycleDate,
+    public static IndexLifecycleExplainResponse newManagedIndexResponse(String index, String policyName, Long lifecycleDate,
                                                                         String phase, String action, String step, String failedStep,
-                                                                        long phaseTime, long actionTime, long stepTime,
+                                                                        Long phaseTime, Long actionTime, Long stepTime,
                                                                         BytesReference stepInfo, PhaseExecutionInfo phaseExecutionInfo) {
         return new IndexLifecycleExplainResponse(index, true, policyName, lifecycleDate, phase, action, step, failedStep, phaseTime,
             actionTime, stepTime, stepInfo, phaseExecutionInfo);
     }
 
     public static IndexLifecycleExplainResponse newUnmanagedIndexResponse(String index) {
-        return new IndexLifecycleExplainResponse(index, false, null, -1L, null, null, null, null, -1L, -1L, -1L, null, null);
+        return new IndexLifecycleExplainResponse(index, false, null, null, null, null, null, null, null, null, null, null, null);
     }
 
-    private IndexLifecycleExplainResponse(String index, boolean managedByILM, String policyName, long lifecycleDate,
-                                          String phase, String action, String step, String failedStep, long phaseTime, long actionTime,
-                                          long stepTime, BytesReference stepInfo, PhaseExecutionInfo phaseExecutionInfo) {
+    private IndexLifecycleExplainResponse(String index, boolean managedByILM, String policyName, Long lifecycleDate,
+                                          String phase, String action, String step, String failedStep, Long phaseTime, Long actionTime,
+                                          Long stepTime, BytesReference stepInfo, PhaseExecutionInfo phaseExecutionInfo) {
         if (managedByILM) {
             if (policyName == null) {
                 throw new IllegalArgumentException("[" + POLICY_NAME_FIELD.getPreferredName() + "] cannot be null for managed index");
             }
+            // check to make sure that step details are either all null or all set.
+            long numNull = Stream.of(phase, action, step).filter(Objects::isNull).count();
+            if (numNull > 0 && numNull < 3) {
+                throw new IllegalArgumentException("managed index response must have complete step details [" +
+                    PHASE_FIELD.getPreferredName() + "=" + phase + ", " +
+                    ACTION_FIELD.getPreferredName() + "=" + action + ", " +
+                    STEP_FIELD.getPreferredName() + "=" + step + "]");
+            }
         } else {
-            if (policyName != null || lifecycleDate >= 0 || phase != null || action != null || step != null || failedStep != null
-                || phaseTime >= 0 || actionTime >= 0 || stepTime >= 0 || stepInfo != null || phaseExecutionInfo != null) {
+            if (policyName != null || lifecycleDate != null || phase != null || action != null || step != null || failedStep != null
+                || phaseTime != null || actionTime != null || stepTime != null || stepInfo != null || phaseExecutionInfo != null) {
                 throw new IllegalArgumentException(
                     "Unmanaged index response must only contain fields: [" + MANAGED_BY_ILM_FIELD + ", " + INDEX_FIELD + "]");
             }
@@ -203,13 +212,27 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
         builder.field(MANAGED_BY_ILM_FIELD.getPreferredName(), managedByILM);
         if (managedByILM) {
             builder.field(POLICY_NAME_FIELD.getPreferredName(), policyName);
-            builder.timeField(LIFECYCLE_DATE_MILLIS_FIELD.getPreferredName(), LIFECYCLE_DATE_FIELD.getPreferredName(), lifecycleDate);
-            builder.field(PHASE_FIELD.getPreferredName(), phase);
-            builder.timeField(PHASE_TIME_MILLIS_FIELD.getPreferredName(), PHASE_TIME_FIELD.getPreferredName(), phaseTime);
-            builder.field(ACTION_FIELD.getPreferredName(), action);
-            builder.timeField(ACTION_TIME_MILLIS_FIELD.getPreferredName(), ACTION_TIME_FIELD.getPreferredName(), actionTime);
-            builder.field(STEP_FIELD.getPreferredName(), step);
-            builder.timeField(STEP_TIME_MILLIS_FIELD.getPreferredName(), STEP_TIME_FIELD.getPreferredName(), stepTime);
+            if (lifecycleDate != null) {
+                builder.timeField(LIFECYCLE_DATE_MILLIS_FIELD.getPreferredName(), LIFECYCLE_DATE_FIELD.getPreferredName(), lifecycleDate);
+            }
+            if (phase != null) {
+                builder.field(PHASE_FIELD.getPreferredName(), phase);
+            }
+            if (phaseTime != null) {
+                builder.timeField(PHASE_TIME_MILLIS_FIELD.getPreferredName(), PHASE_TIME_FIELD.getPreferredName(), phaseTime);
+            }
+            if (action != null) {
+                builder.field(ACTION_FIELD.getPreferredName(), action);
+            }
+            if (actionTime != null) {
+                builder.timeField(ACTION_TIME_MILLIS_FIELD.getPreferredName(), ACTION_TIME_FIELD.getPreferredName(), actionTime);
+            }
+            if (step != null) {
+                builder.field(STEP_FIELD.getPreferredName(), step);
+            }
+            if (stepTime != null) {
+                builder.timeField(STEP_TIME_MILLIS_FIELD.getPreferredName(), STEP_TIME_FIELD.getPreferredName(), stepTime);
+            }
             if (Strings.hasLength(failedStep)) {
                 builder.field(FAILED_STEP_FIELD.getPreferredName(), failedStep);
             }

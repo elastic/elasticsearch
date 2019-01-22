@@ -84,7 +84,7 @@ public class WatcherUtilsTests extends ESTestCase {
             builder.endObject();
             return builder;
         };
-        Map<String, Object> result = WatcherUtils.responseToData(content);
+        Map<String, Object> result = WatcherUtils.responseToData(content, ToXContent.EMPTY_PARAMS);
         assertThat(result, equalTo(expected));
     }
 

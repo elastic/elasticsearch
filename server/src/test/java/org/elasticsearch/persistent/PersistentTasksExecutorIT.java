@@ -36,6 +36,7 @@ import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTask
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestTasksRequestBuilder;
 import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -45,6 +46,7 @@ import java.util.Objects;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
@@ -62,6 +64,11 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
 
     protected boolean ignoreExternalCluster() {
         return true;
+    }
+
+    @Before
+    public void resetNonClusterStateCondition() {
+        TestPersistentTasksExecutor.setNonClusterStateCondition(true);
     }
 
     @After
@@ -173,6 +180,42 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         assertEquals(removeFuture.get().getId(), taskId);
     }
 
+    public void testPersistentActionWithNonClusterStateCondition() throws Exception {
+        PersistentTasksClusterService persistentTasksClusterService =
+            internalCluster().getInstance(PersistentTasksClusterService.class, internalCluster().getMasterName());
+        // Speed up rechecks to a rate that is quicker than what settings would allow
+        persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueMillis(1));
+
+        TestPersistentTasksExecutor.setNonClusterStateCondition(false);
+
+        PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
+        PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
+        TestParams testParams = new TestParams("Blah");
+        persistentTasksService.sendStartRequest(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, testParams, future);
+        String taskId = future.get().getId();
+
+        assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks(),
+            empty());
+
+        TestPersistentTasksExecutor.setNonClusterStateCondition(true);
+
+        assertBusy(() -> {
+            // Wait for the task to start
+            assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks()
+                .size(), equalTo(1));
+        });
+        TaskInfo taskInfo = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
+            .get().getTasks().get(0);
+
+        // Verifying the the task can now be assigned
+        assertThat(taskInfo.getTaskId().getNodeId(), notNullValue());
+
+        // Remove the persistent task
+        PlainActionFuture<PersistentTask<?>> removeFuture = new PlainActionFuture<>();
+        persistentTasksService.sendRemoveRequest(taskId, removeFuture);
+        assertEquals(removeFuture.get().getId(), taskId);
+    }
+
     public void testPersistentActionStatusUpdate() throws Exception {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
         PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
@@ -277,8 +320,6 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             assertThat(client().admin().cluster().prepareCancelTasks().setTaskId(taskId)
                     .get().getTasks().size(), equalTo(1));
         }
-
-
     }
 
     private void assertNoRunningTasks() throws Exception {

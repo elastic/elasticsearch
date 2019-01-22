@@ -526,7 +526,10 @@ Which results in a sensible `total` like this one:
 ----------------------------------------------------------------
 {
   "hits": {
-    "total": 120
+    "total": {
+        "value": 120,
+        "relation": "eq"
+    }
   }
 }
 ----------------------------------------------------------------
@@ -567,7 +570,10 @@ Which results in a sensible `total` like this one:
 ----------------------------------------------------------------
 {
   "hits": {
-    "total": 120
+    "total": {
+        "value": 120,
+        "relation": "eq"
+    }
   }
 }
 ----------------------------------------------------------------
@@ -634,11 +640,9 @@ added a mapping value to pick up more fields from the data:
 PUT test
 {
   "mappings": {
-    "_doc": {
-      "dynamic": false,   <1>
-      "properties": {
-        "text": {"type": "text"}
-      }
+    "dynamic": false,   <1>
+    "properties": {
+      "text": {"type": "text"}
     }
   }
 }
@@ -653,7 +657,7 @@ POST test/_doc?refresh
   "text": "words words",
   "flag": "foo"
 }
-PUT test/_mapping/_doc   <2>
+PUT test/_mapping   <2>
 {
   "properties": {
     "text": {"type": "text"},
@@ -688,7 +692,10 @@ POST test/_search?filter_path=hits.total
 --------------------------------------------------
 {
   "hits" : {
-    "total" : 0
+    "total": {
+        "value": 0,
+        "relation": "eq"
+    }
   }
 }
 --------------------------------------------------
@@ -715,7 +722,10 @@ POST test/_search?filter_path=hits.total
 --------------------------------------------------
 {
   "hits" : {
-    "total" : 1
+    "total": {
+        "value": 1,
+        "relation": "eq"
+    }
   }
 }
 --------------------------------------------------

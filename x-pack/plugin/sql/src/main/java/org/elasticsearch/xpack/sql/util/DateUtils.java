@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.sql.util;
 
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
@@ -21,7 +22,7 @@ public class DateUtils {
     // TODO: do we have a java.time based parser we can use instead?
     private static final DateTimeFormatter UTC_DATE_FORMATTER = ISODateTimeFormat.dateOptionalTimeParser().withZoneUTC();
 
-    public static ZoneId UTC = ZoneId.of("UTC");
+    public static ZoneId UTC = ZoneId.of("Z");
 
     private DateUtils() {}
 
@@ -63,6 +64,6 @@ public class DateUtils {
     }
     
     public static String toString(ZonedDateTime dateTime) {
-        return org.elasticsearch.xpack.sql.proto.DateUtils.toString(dateTime);
+        return StringUtils.toString(dateTime);
     }
 }

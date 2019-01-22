@@ -41,11 +41,11 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
         final String date = new Date(randomNonNegativeLong()).toString();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_1, Version.CURRENT);
         Build build = new Build(
             Build.Flavor.UNKNOWN, Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(),
-            randomAlphaOfLength(12)
+            version.toString()
         );
-        Version version = VersionUtils.randomVersion(random());
         return new MainResponse(nodeName, version, clusterName, clusterUuid , build);
     }
 
@@ -75,13 +75,12 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
                 + "\"cluster_name\":\"clusterName\","
                 + "\"cluster_uuid\":\"" + clusterUUID + "\","
                 + "\"version\":{"
-                    + "\"number\":\"" + version.toString() + "\","
+                    + "\"number\":\"" + build.getQualifiedVersion() + "\","
                     + "\"build_flavor\":\"" + current.flavor().displayName() + "\","
                     + "\"build_type\":\"" + current.type().displayName() + "\","
                     + "\"build_hash\":\"" + current.shortHash() + "\","
                     + "\"build_date\":\"" + current.date() + "\","
                     + "\"build_snapshot\":" + current.isSnapshot() + ","
-                    + "\"qualified\":\"" + current.getQualifiedVersion() + "\","
                     + "\"lucene_version\":\"" + version.luceneVersion.toString() + "\","
                     + "\"minimum_wire_compatibility_version\":\"" + version.minimumCompatibilityVersion().toString() + "\","
                     + "\"minimum_index_compatibility_version\":\"" + version.minimumIndexCompatibilityVersion().toString() + "\"},"

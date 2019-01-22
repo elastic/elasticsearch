@@ -32,8 +32,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;
@@ -176,22 +174,8 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         if (window <= 0) {
             throw new IllegalArgumentException("[" + WINDOW.getPreferredName() + "] must be a positive, non-zero integer.");
         }
-        if (parent instanceof HistogramAggregatorFactory) {
-            HistogramAggregatorFactory histoParent = (HistogramAggregatorFactory) parent;
-            if (histoParent.minDocCount() != 0) {
-                throw new IllegalStateException("parent histogram of moving_function aggregation [" + name
-                    + "] must have min_doc_count of 0");
-            }
-        } else if (parent instanceof DateHistogramAggregatorFactory) {
-            DateHistogramAggregatorFactory histoParent = (DateHistogramAggregatorFactory) parent;
-            if (histoParent.minDocCount() != 0) {
-                throw new IllegalStateException("parent histogram of moving_function aggregation [" + name
-                    + "] must have min_doc_count of 0");
-            }
-        } else {
-            throw new IllegalStateException("moving_function aggregation [" + name
-                + "] must have a histogram or date_histogram as parent");
-        }
+        
+        validateSequentiallyOrderedParentAggs(parent, NAME, name);
     }
 
     @Override

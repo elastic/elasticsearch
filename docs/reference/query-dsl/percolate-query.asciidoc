@@ -16,15 +16,13 @@ Create an index with two fields:
 PUT /my-index
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "message": {
-                    "type": "text"
-                },
-                "query": {
-                    "type": "percolator"
-                }
-            }
+        "properties": {
+             "message": {
+                 "type": "text"
+             },
+             "query": {
+                 "type": "percolator"
+             }
         }
     }
 }
@@ -89,14 +87,17 @@ The above request will yield the following response:
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 0.5753642,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.26152915,
     "hits": [
       { <1>
         "_index": "my-index",
         "_type": "_doc",
         "_id": "1",
-        "_score": 0.5753642,
+        "_score": 0.26152915,
         "_source": {
           "query": {
             "match": {
@@ -237,14 +238,17 @@ GET /my-index/_search
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 1.5606477,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.7093853,
     "hits": [
       {
         "_index": "my-index",
         "_type": "_doc",
         "_id": "1",
-        "_score": 1.5606477,
+        "_score": 0.7093853,
         "_source": {
           "query": {
             "match": {
@@ -417,14 +421,17 @@ This will yield the following response.
     "failed": 0
   },
   "hits": {
-    "total": 2,
-    "max_score": 0.5753642,
+    "total" : {
+        "value": 2,
+        "relation": "eq"
+    },
+    "max_score": 0.26152915,
     "hits": [
       {
         "_index": "my-index",
         "_type": "_doc",
         "_id": "3",
-        "_score": 0.5753642,
+        "_score": 0.26152915,
         "_source": {
           "query": {
             "match": {
@@ -445,7 +452,7 @@ This will yield the following response.
         "_index": "my-index",
         "_type": "_doc",
         "_id": "4",
-        "_score": 0.5753642,
+        "_score": 0.26152915,
         "_source": {
           "query": {
             "match": {
@@ -522,14 +529,17 @@ The slightly different response:
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 1.5606477,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.7093853,
     "hits": [
       {
         "_index": "my-index",
         "_type": "_doc",
         "_id": "1",
-        "_score": 1.5606477,
+        "_score": 0.7093853,
         "_source": {
           "query": {
             "match": {
@@ -618,14 +628,17 @@ The above search request returns a response similar to this:
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 0.5753642,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.26152915,
     "hits": [
       {
         "_index": "my-index",
         "_type": "_doc",
         "_id": "1",
-        "_score": 0.5753642,
+        "_score": 0.26152915,
         "_source": {
           "query": {
             "match": {

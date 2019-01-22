@@ -19,17 +19,24 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.FingerprintFilter;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 import static org.elasticsearch.analysis.common.FingerprintAnalyzerProvider.DEFAULT_MAX_OUTPUT_SIZE;
 import static org.elasticsearch.analysis.common.FingerprintAnalyzerProvider.MAX_OUTPUT_SIZE;
 
 public class FingerprintTokenFilterFactory extends AbstractTokenFilterFactory {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER
+        = new DeprecationLogger(LogManager.getLogger(FingerprintTokenFilterFactory.class));
 
     private final char separator;
     private final int maxOutputSize;
@@ -45,6 +52,18 @@ public class FingerprintTokenFilterFactory extends AbstractTokenFilterFactory {
         TokenStream result = tokenStream;
         result = new FingerprintFilter(result, maxOutputSize, separator);
         return result;
+    }
+
+    @Override
+    public TokenFilterFactory getSynonymFilter() {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
+            throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
+        }
+        else {
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
+                + "] will not be usable to parse synonyms after v7.0");
+            return this;
+        }
     }
 
 }

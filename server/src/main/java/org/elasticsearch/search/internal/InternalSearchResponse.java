@@ -35,9 +35,12 @@ import java.io.IOException;
  * {@link SearchResponseSections} subclass that can be serialized over the wire.
  */
 public class InternalSearchResponse extends SearchResponseSections implements Writeable, ToXContentFragment {
-
     public static InternalSearchResponse empty() {
-        return new InternalSearchResponse(SearchHits.empty(), null, null, null, false, null, 1);
+        return empty(true);
+    }
+
+    public static InternalSearchResponse empty(boolean withTotalHits) {
+        return new InternalSearchResponse(SearchHits.empty(withTotalHits), null, null, null, false, null, 1);
     }
 
     public InternalSearchResponse(SearchHits hits, InternalAggregations aggregations, Suggest suggest,

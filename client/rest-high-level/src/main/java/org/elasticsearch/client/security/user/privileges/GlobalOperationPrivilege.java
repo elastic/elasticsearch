@@ -55,7 +55,7 @@ public class GlobalOperationPrivilege {
         this.category = Objects.requireNonNull(category);
         this.operation = Objects.requireNonNull(operation);
         if (privilege == null || privilege.isEmpty()) {
-            throw new IllegalArgumentException("Privileges cannot be empty or null");
+            throw new IllegalArgumentException("privileges cannot be empty or null");
         }
         this.privilege = Collections.unmodifiableMap(privilege);
     }
@@ -84,7 +84,7 @@ public class GlobalOperationPrivilege {
         if (this == o) {
             return true;
         }
-        if (o == null || (false == this instanceof GlobalOperationPrivilege)) {
+        if (false == (o instanceof GlobalOperationPrivilege)) {
             return false;
         }
         final GlobalOperationPrivilege that = (GlobalOperationPrivilege) o;

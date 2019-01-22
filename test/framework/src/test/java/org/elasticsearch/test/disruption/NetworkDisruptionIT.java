@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.disruption;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -34,6 +35,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36205")
 public class NetworkDisruptionIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

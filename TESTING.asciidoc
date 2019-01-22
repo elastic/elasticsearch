@@ -42,7 +42,7 @@ In order to start with a different distribution use the `-Drun.distribution` arg
 To for example start the open source distribution:
 
 -------------------------------------
-./gradlew run -Drun.distribution=oss-zip
+./gradlew run -Drun.distribution=oss
 -------------------------------------
 
 ==== License type
@@ -250,6 +250,9 @@ If you want to just run the precommit checks:
 ---------------------------------------------------------------------------
 ./gradlew precommit
 ---------------------------------------------------------------------------
+
+Some of these checks will require `docker-compose` installed for bringing up
+test fixtures. If it's not present those checks will be skipped automatically.
 
 == Testing the REST layer
 

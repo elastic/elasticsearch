@@ -14,6 +14,9 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.Objects;
 
+/**
+ * Updates the settings for an index.
+ */
 public class UpdateSettingsStep extends AsyncActionStep {
     public static final String NAME = "update-settings";
 

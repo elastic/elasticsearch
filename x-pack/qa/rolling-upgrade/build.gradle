@@ -7,7 +7,7 @@ import java.util.regex.Matcher
 
 // Apply the java plugin to this project so the sources can be edited in an IDE
 apply plugin: 'elasticsearch.build'
-test.enabled = false
+unitTest.enabled = false
 
 dependencies {
   // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
@@ -72,6 +72,13 @@ Project mainProject = project
 
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 
+forbiddenPatterns {
+  exclude '**/system_key'
+}
+
+// Tests are pushed down to subprojects 
+testingConventions.enabled = false 
+
 /**
  * Subdirectories of this project are test rolling upgrades with various
  * configuration options based on their name.
@@ -95,6 +102,10 @@ subprojects {
         srcDirs = ["${mainProject.projectDir}/src/test/resources"]
       }
     }
+  }
+
+  forbiddenPatterns {
+    exclude '**/system_key'
   }
 
   String outputDir = "${buildDir}/generated-resources/${project.name}"
@@ -146,8 +157,8 @@ subprojects {
       setting 'xpack.security.authc.token.enabled', 'true'
       setting 'xpack.security.audit.enabled', 'true'
       setting 'xpack.security.audit.outputs', 'index'
-      setting 'xpack.ssl.keystore.path', 'testnode.jks'
-      setting 'xpack.ssl.keystore.password', 'testnode'
+      setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
+      setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
       if (version.onOrAfter('7.0.0')) {
@@ -174,6 +185,25 @@ subprojects {
         }
         setting 'xpack.watcher.encrypt_sensitive_data', 'true'
       }
+
+      if (version.onOrAfter('6.6.0')) {
+        setting 'ccr.auto_follow.wait_for_metadata_timeout', '1s'
+      }
+
+      // Old versions of the code contain an invalid assertion that trips
+      // during tests.  Versions 5.6.9 and 6.2.4 have been fixed by removing
+      // the assertion, but this is impossible for released versions.
+      // However, released versions run without assertions, so end users won't
+      // be suffering the effects.  This argument effectively removes the
+      // incorrect assertion from the older versions used in the BWC tests.
+      if (version.before('5.6.9') || (version.onOrAfter('6.0.0') && version.before('6.2.4'))) {
+        jvmArgs '-da:org.elasticsearch.xpack.monitoring.exporter.http.HttpExportBulk'
+      }
+
+      systemProperty 'tests.rest.blacklist', [
+              'old_cluster/30_ml_jobs_crud/*',
+              'old_cluster/40_ml_datafeed_crud/*',
+      ].join(',')
     }
 
     Task oldClusterTestRunner = tasks.getByName("${baseName}#oldClusterTestRunner")
@@ -188,6 +218,7 @@ subprojects {
         clusterName = 'rolling-upgrade'
         otherUnicastHostAddresses = { getOtherUnicastHostAddresses() }
         minimumMasterNodes = { 2 }
+        autoSetInitialMasterNodes = false
         /* Override the data directory so the new node always gets the node we
         * just stopped's data directory. */
         dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }
@@ -199,8 +230,8 @@ subprojects {
         setting 'xpack.license.self_generated.type', 'trial'
         setting 'xpack.security.enabled', 'true'
         setting 'xpack.security.transport.ssl.enabled', 'true'
-        setting 'xpack.ssl.keystore.path', 'testnode.jks'
-        keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
+        setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
+        keystoreSetting 'xpack.security.transport.ssl.keystore.secure_password', 'testnode'
         setting 'node.attr.upgraded', 'true'
         setting 'xpack.security.authc.token.enabled', 'true'
         setting 'xpack.security.audit.enabled', 'true'
@@ -215,6 +246,11 @@ subprojects {
         if (version.before('6.0.0')) {
           keystoreSetting 'xpack.security.authc.token.passphrase', 'token passphrase'
         }
+
+        systemProperty 'tests.rest.blacklist', [
+                'mixed_cluster/30_ml_jobs_crud/*',
+                'mixed_cluster/40_ml_datafeed_crud/*',
+        ].join(',')
       }
     }
 
@@ -231,8 +267,8 @@ subprojects {
       // We only need to run these tests once so we may as well do it when we're two thirds upgraded
       systemProperty 'tests.rest.blacklist', [
           'mixed_cluster/10_basic/Start scroll in mixed cluster on upgraded node that we will continue after upgrade',
-          'mixed_cluster/30_ml_jobs_crud/Create a job in the mixed cluster and write some data',
-          'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed in mixed cluster',
+          'mixed_cluster/30_ml_jobs_crud/*',
+          'mixed_cluster/40_ml_datafeed_crud/*',
         ].join(',')
       finalizedBy "${baseName}#oldClusterTestCluster#node1.stop"
     }
@@ -248,6 +284,11 @@ subprojects {
       systemProperty 'tests.rest.suite', 'mixed_cluster'
       systemProperty 'tests.first_round', 'false'
       finalizedBy "${baseName}#oldClusterTestCluster#node2.stop"
+
+      systemProperty 'tests.rest.blacklist', [
+              'mixed_cluster/30_ml_jobs_crud/*',
+              'mixed_cluster/40_ml_datafeed_crud/*',
+      ].join(',')
     }
 
     Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
@@ -277,6 +318,11 @@ subprojects {
               systemProperty 'tests.rest.blacklist', '/20_security/Verify default password migration results in upgraded cluster'
           }
       }
+
+      systemProperty 'tests.rest.blacklist', [
+              'upgraded_cluster/30_ml_jobs_crud/*',
+              'upgraded_cluster/40_ml_datafeed_crud/*',
+      ].join(',')
     }
 
     Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
@@ -288,7 +334,7 @@ subprojects {
     }
   }
 
-  test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+    unitTest.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
   // basic integ tests includes testing bwc against the most recent version
   task integTest {

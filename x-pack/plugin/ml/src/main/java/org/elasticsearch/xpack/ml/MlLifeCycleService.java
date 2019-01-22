@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
@@ -16,7 +15,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManage
 
 import java.io.IOException;
 
-public class MlLifeCycleService extends AbstractComponent {
+public class MlLifeCycleService {
 
     private final Environment environment;
     private final DatafeedManager datafeedManager;

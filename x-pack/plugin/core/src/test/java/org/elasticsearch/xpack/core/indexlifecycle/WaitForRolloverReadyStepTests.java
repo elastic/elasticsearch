@@ -81,10 +81,10 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 });
                 break;
             case 3:
-                maxAge = TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test");
+                maxAge = randomValueOtherThan(maxAge, () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test"));
                 break;
             case 4:
-                maxDocs = randomNonNegativeLong();
+                maxDocs = randomValueOtherThan(maxDocs, () -> randomNonNegativeLong());
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
@@ -171,6 +171,63 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+    }
+
+    public void testPerformActionWithIndexingComplete() {
+        String alias = randomAlphaOfLength(5);
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
+            .putAlias(AliasMetaData.builder(alias).writeIndex(randomFrom(false, null)))
+            .settings(settings(Version.CURRENT)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                .put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, true))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        WaitForRolloverReadyStep step = createRandomInstance();
+
+        SetOnce<Boolean> conditionsMet = new SetOnce<>();
+        step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
+
+            @Override
+            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+                conditionsMet.set(complete);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("Unexpected method call", e);
+            }
+        });
+
+        assertEquals(true, conditionsMet.get());
+    }
+
+    public void testPerformActionWithIndexingCompleteStillWriteIndex() {
+        String alias = randomAlphaOfLength(5);
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
+            .putAlias(AliasMetaData.builder(alias).writeIndex(true))
+            .settings(settings(Version.CURRENT)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                .put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, true))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        WaitForRolloverReadyStep step = createRandomInstance();
+
+        SetOnce<Boolean> correctFailureCalled = new SetOnce<>();
+        step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
+
+            @Override
+            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+                throw new AssertionError("Should have failed with indexing_complete but index is not write index");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(e instanceof IllegalStateException);
+                correctFailureCalled.set(true);
+            }
+        });
+
+        assertEquals(true, correctFailureCalled.get());
     }
 
     public void testPerformActionNotComplete() {

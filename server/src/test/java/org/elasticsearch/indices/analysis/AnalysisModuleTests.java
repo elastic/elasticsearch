@@ -371,9 +371,6 @@ public class AnalysisModuleTests extends ESTestCase {
      * and that do not vary based on version at all.
      */
     public void testPluginPreConfiguredTokenizers() throws IOException {
-        boolean noVersionSupportsMultiTerm = randomBoolean();
-        boolean luceneVersionSupportsMultiTerm = randomBoolean();
-        boolean elasticsearchVersionSupportsMultiTerm = randomBoolean();
 
         // Simple tokenizer that always spits out a single token with some preconfigured characters
         final class FixedTokenizer extends Tokenizer {
@@ -409,16 +406,11 @@ public class AnalysisModuleTests extends ESTestCase {
                 @Override
                 public List<PreConfiguredTokenizer> getPreConfiguredTokenizers() {
                     return Arrays.asList(
-                        PreConfiguredTokenizer.singleton("no_version", () -> new FixedTokenizer("no_version"),
-                            noVersionSupportsMultiTerm ? () -> AppendTokenFilter.factoryForSuffix("no_version") : null),
+                        PreConfiguredTokenizer.singleton("no_version", () -> new FixedTokenizer("no_version")),
                         PreConfiguredTokenizer.luceneVersion("lucene_version",
-                            luceneVersion -> new FixedTokenizer(luceneVersion.toString()),
-                            luceneVersionSupportsMultiTerm ?
-                                luceneVersion -> AppendTokenFilter.factoryForSuffix(luceneVersion.toString()) : null),
+                            luceneVersion -> new FixedTokenizer(luceneVersion.toString())),
                         PreConfiguredTokenizer.elasticsearchVersion("elasticsearch_version",
-                            esVersion -> new FixedTokenizer(esVersion.toString()),
-                            elasticsearchVersionSupportsMultiTerm ?
-                                esVersion -> AppendTokenFilter.factoryForSuffix(esVersion.toString()) : null)
+                            esVersion -> new FixedTokenizer(esVersion.toString()))
                     );
                 }
             })).getAnalysisRegistry();

@@ -461,7 +461,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         final ShardStateMetaData newShardStateMetaData =
             new ShardStateMetaData(shardStateMetaData.primary, shardStateMetaData.indexUUID, newAllocationId);
 
-        ShardStateMetaData.FORMAT.write(newShardStateMetaData, shardStatePath);
+        ShardStateMetaData.FORMAT.writeAndCleanup(newShardStateMetaData, shardStatePath);
 
         terminal.println("");
         terminal.println("You should run the following command to allocate this shard:");

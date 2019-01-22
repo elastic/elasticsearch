@@ -19,12 +19,20 @@ public final class Comparisons {
         return i == null ? null : i.intValue() == 0;
     }
 
+    public static boolean nulleq(Object l, Object r) {
+        if (l == null && r == null) {
+            return true;
+        }
+        Integer i = compare(l, r);
+        return i == null ? false : i.intValue() == 0;
+    }
+
     static Boolean neq(Object l, Object r) {
         Integer i = compare(l, r);
         return i == null ? null : i.intValue() != 0;
     }
 
-    static Boolean lt(Object l, Object r) {
+    public static Boolean lt(Object l, Object r) {
         Integer i = compare(l, r);
         return i == null ? null : i.intValue() < 0;
     }
@@ -34,7 +42,7 @@ public final class Comparisons {
         return i == null ? null : i.intValue() <= 0;
     }
 
-    static Boolean gt(Object l, Object r) {
+    public static Boolean gt(Object l, Object r) {
         Integer i = compare(l, r);
         return i == null ? null : i.intValue() > 0;
     }

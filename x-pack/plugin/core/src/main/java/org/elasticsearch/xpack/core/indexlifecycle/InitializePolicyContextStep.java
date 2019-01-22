@@ -14,6 +14,9 @@ import org.elasticsearch.index.Index;
 
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
+/**
+ * Initializes the {@link LifecycleExecutionState} for an index. This should be the first Step called on an index.
+ */
 public final class InitializePolicyContextStep extends ClusterStateActionStep {
     public static final String INITIALIZATION_PHASE = "new";
     public static final StepKey KEY = new StepKey(INITIALIZATION_PHASE, "init", "init");

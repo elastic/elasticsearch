@@ -141,11 +141,11 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         request.addParameter("refresh", "true");
 
         StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_index\": \"test\", \"_type\": \"doc\", \"_id\":\"1\"}\n");
+        bulk.append("{\"index\":{\"_index\": \"test\", \"_id\":\"1\"}\n");
         bulk.append("{\"a\": 1, \"b\": 2, \"c\": 3}\n");
-        bulk.append("{\"index\":{\"_index\": \"test\", \"_type\": \"doc\", \"_id\":\"2\"}\n");
+        bulk.append("{\"index\":{\"_index\": \"test\", \"_id\":\"2\"}\n");
         bulk.append("{\"a\": 4, \"b\": 5, \"c\": 6}\n");
-        bulk.append("{\"index\":{\"_index\": \"bort\", \"_type\": \"doc\", \"_id\":\"1\"}\n");
+        bulk.append("{\"index\":{\"_index\": \"bort\", \"_id\":\"1\"}\n");
         bulk.append("{\"a\": \"test\"}\n");
         request.setJsonEntity(bulk.toString());
         client().performRequest(request);
@@ -391,9 +391,9 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
     public void testDescribeWorksAsAdmin() throws Exception {
         Map<String, List<String>> expected = new TreeMap<>();
-        expected.put("a", asList("BIGINT", "LONG"));
-        expected.put("b", asList("BIGINT", "LONG"));
-        expected.put("c", asList("BIGINT", "LONG"));
+        expected.put("a", asList("BIGINT", "long"));
+        expected.put("b", asList("BIGINT", "long"));
+        expected.put("c", asList("BIGINT", "long"));
         actions.expectDescribe(expected, null);
         createAuditLogAsserter()
             .expectSqlCompositeActionFieldCaps("test_admin", "test")
@@ -434,7 +434,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     public void testDescribeSingleFieldGranted() throws Exception {
         createUser("only_a", "read_test_a");
 
-        actions.expectDescribe(singletonMap("a", asList("BIGINT", "LONG")), "only_a");
+        actions.expectDescribe(singletonMap("a", asList("BIGINT", "long")), "only_a");
         createAuditLogAsserter()
             .expectSqlCompositeActionFieldCaps("only_a", "test")
             .assertLogs();
@@ -444,8 +444,8 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createUser("not_c", "read_test_a_and_b");
 
         Map<String, List<String>> expected = new TreeMap<>();
-        expected.put("a", asList("BIGINT", "LONG"));
-        expected.put("b", asList("BIGINT", "LONG"));
+        expected.put("a", asList("BIGINT", "long"));
+        expected.put("b", asList("BIGINT", "long"));
         actions.expectDescribe(expected, "not_c");
         createAuditLogAsserter()
             .expectSqlCompositeActionFieldCaps("not_c", "test")
@@ -476,7 +476,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     }
 
     protected static void createUser(String name, String role) throws IOException {
-        Request request = new Request("PUT", "/_xpack/security/user/" + name);
+        Request request = new Request("PUT", "/_security/user/" + name);
         XContentBuilder user = JsonXContent.contentBuilder().prettyPrint();
         user.startObject(); {
             user.field("password", "testpass");

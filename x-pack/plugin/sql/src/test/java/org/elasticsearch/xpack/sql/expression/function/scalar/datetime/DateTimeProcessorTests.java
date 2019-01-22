@@ -10,12 +10,11 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 
 import java.io.IOException;
-import java.util.TimeZone;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
+import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
 public class DateTimeProcessorTests extends AbstractWireSerializingTestCase<DateTimeProcessor> {
-    private static final TimeZone UTC = TimeZone.getTimeZone("UTC");
 
     public static DateTimeProcessor randomDateTimeProcessor() {
         return new DateTimeProcessor(randomFrom(DateTimeExtractor.values()), UTC);

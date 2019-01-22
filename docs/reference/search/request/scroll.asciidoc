@@ -125,6 +125,11 @@ TIP: Keeping older segments alive means that more file handles are needed.
 Ensure that you have configured your nodes to have ample free file handles.
 See <<file-descriptors>>.
 
+NOTE: To prevent against issues caused by having too many scrolls open, the
+user is not allowed to open scrolls past a certain limit. By default, the
+maximum number of open scrolls is 500. This limit can be updated with the
+`search.max_open_scroll_context` cluster setting.
+
 You can check how many search contexts are open with the
 <<cluster-nodes-stats,nodes stats API>>:
 

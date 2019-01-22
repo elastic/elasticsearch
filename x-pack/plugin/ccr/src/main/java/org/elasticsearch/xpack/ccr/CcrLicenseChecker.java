@@ -121,8 +121,9 @@ public final class CcrLicenseChecker {
                 client.getRemoteClusterClient(clusterAlias),
                 request,
                 onFailure,
-                leaderClusterState -> {
-                    IndexMetaData leaderIndexMetaData = leaderClusterState.getMetaData().index(leaderIndex);
+                remoteClusterStateResponse -> {
+                    ClusterState remoteClusterState = remoteClusterStateResponse.getState();
+                    IndexMetaData leaderIndexMetaData = remoteClusterState.getMetaData().index(leaderIndex);
                     if (leaderIndexMetaData == null) {
                         onFailure.accept(new IndexNotFoundException(leaderIndex));
                         return;
@@ -159,16 +160,23 @@ public final class CcrLicenseChecker {
             final String clusterAlias,
             final ClusterStateRequest request,
             final Consumer<Exception> onFailure,
-            final Consumer<ClusterState> leaderClusterStateConsumer) {
-        checkRemoteClusterLicenseAndFetchClusterState(
+            final Consumer<ClusterStateResponse> leaderClusterStateConsumer) {
+        try {
+            Client remoteClient = systemClient(client.getRemoteClusterClient(clusterAlias));
+            checkRemoteClusterLicenseAndFetchClusterState(
                 client,
                 clusterAlias,
-                systemClient(client.getRemoteClusterClient(clusterAlias)),
+                remoteClient,
                 request,
                 onFailure,
                 leaderClusterStateConsumer,
                 CcrLicenseChecker::clusterStateNonCompliantRemoteLicense,
                 e -> clusterStateUnknownRemoteLicense(clusterAlias, e));
+        } catch (Exception e) {
+            // client.getRemoteClusterClient(...) can fail with a IllegalArgumentException if remote
+            // connection is unknown
+            onFailure.accept(e);
+        }
     }
 
     /**
@@ -192,7 +200,7 @@ public final class CcrLicenseChecker {
             final Client remoteClient,
             final ClusterStateRequest request,
             final Consumer<Exception> onFailure,
-            final Consumer<ClusterState> leaderClusterStateConsumer,
+            final Consumer<ClusterStateResponse> leaderClusterStateConsumer,
             final Function<RemoteClusterLicenseChecker.LicenseCheck, ElasticsearchStatusException> nonCompliantLicense,
             final Function<Exception, ElasticsearchStatusException> unknownLicense) {
         // we have to check the license on the remote cluster
@@ -204,7 +212,7 @@ public final class CcrLicenseChecker {
                     public void onResponse(final RemoteClusterLicenseChecker.LicenseCheck licenseCheck) {
                         if (licenseCheck.isSuccess()) {
                             final ActionListener<ClusterStateResponse> clusterStateListener =
-                                    ActionListener.wrap(s -> leaderClusterStateConsumer.accept(s.getState()), onFailure);
+                                ActionListener.wrap(leaderClusterStateConsumer::accept, onFailure);
                             // following an index in remote cluster, so use remote client to fetch leader index metadata
                             remoteClient.admin().cluster().state(request, clusterStateListener);
                         } else {
@@ -320,7 +328,7 @@ public final class CcrLicenseChecker {
                 message.append(indices.length == 1 ? " index " : " indices ");
                 message.append(Arrays.toString(indices));
 
-                HasPrivilegesResponse.ResourcePrivileges resourcePrivileges = response.getIndexPrivileges().get(0);
+                HasPrivilegesResponse.ResourcePrivileges resourcePrivileges = response.getIndexPrivileges().iterator().next();
                 for (Map.Entry<String, Boolean> entry : resourcePrivileges.getPrivileges().entrySet()) {
                     if (entry.getValue() == false) {
                         message.append(", privilege for action [");

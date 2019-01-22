@@ -22,6 +22,7 @@ package org.elasticsearch.search.builder;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -68,6 +69,9 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
+import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
+import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
 /**
  * A search source builder allowing to easily build search source. Simple
@@ -110,7 +114,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField SEARCH_AFTER = new ParseField("search_after");
     public static final ParseField COLLAPSE = new ParseField("collapse");
     public static final ParseField SLICE = new ParseField("slice");
-    public static final ParseField ALL_FIELDS_FIELDS = new ParseField("all_fields");
 
     public static SearchSourceBuilder fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, true);
@@ -152,7 +155,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private boolean trackScores = false;
 
-    private boolean trackTotalHits = true;
+    private int trackTotalHitsUpTo = DEFAULT_TRACK_TOTAL_HITS_UP_TO;
 
     private SearchAfterBuilder searchAfterBuilder;
 
@@ -249,10 +252,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
         collapse = in.readOptionalWriteable(CollapseBuilder::new);
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            trackTotalHits = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            trackTotalHitsUpTo = in.readInt();
         } else {
-            trackTotalHits = true;
+            trackTotalHitsUpTo = in.readBoolean() ? TRACK_TOTAL_HITS_ACCURATE : TRACK_TOTAL_HITS_DISABLED;
         }
     }
 
@@ -312,8 +315,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeOptionalWriteable(sliceBuilder);
         out.writeOptionalWriteable(collapse);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            out.writeBoolean(trackTotalHits);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeInt(trackTotalHitsUpTo);
+        } else {
+            out.writeBoolean(trackTotalHitsUpTo > SearchContext.TRACK_TOTAL_HITS_DISABLED);
         }
     }
 
@@ -536,11 +541,24 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Indicates if the total hit count for the query should be tracked.
      */
     public boolean trackTotalHits() {
-        return trackTotalHits;
+        return trackTotalHitsUpTo == TRACK_TOTAL_HITS_ACCURATE;
     }
 
     public SearchSourceBuilder trackTotalHits(boolean trackTotalHits) {
-        this.trackTotalHits = trackTotalHits;
+        this.trackTotalHitsUpTo = trackTotalHits ? TRACK_TOTAL_HITS_ACCURATE : TRACK_TOTAL_HITS_DISABLED;
+        return this;
+    }
+
+    public int trackTotalHitsUpTo() {
+        return trackTotalHitsUpTo;
+    }
+
+    public SearchSourceBuilder trackTotalHitsUpTo(int trackTotalHitsUpTo) {
+        if (trackTotalHitsUpTo < TRACK_TOTAL_HITS_DISABLED) {
+            throw new IllegalArgumentException("[track_total_hits] parameter must be positive or equals to -1, " +
+                "got " + trackTotalHitsUpTo);
+        }
+        this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         return this;
     }
 
@@ -979,7 +997,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.terminateAfter = terminateAfter;
         rewrittenBuilder.timeout = timeout;
         rewrittenBuilder.trackScores = trackScores;
-        rewrittenBuilder.trackTotalHits = trackTotalHits;
+        rewrittenBuilder.trackTotalHitsUpTo = trackTotalHitsUpTo;
         rewrittenBuilder.version = version;
         rewrittenBuilder.collapse = collapse;
         return rewrittenBuilder;
@@ -1025,7 +1043,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (TRACK_SCORES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     trackScores = parser.booleanValue();
                 } else if (TRACK_TOTAL_HITS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    trackTotalHits = parser.booleanValue();
+                    if (token == XContentParser.Token.VALUE_BOOLEAN ||
+                        (token == XContentParser.Token.VALUE_STRING && Booleans.isBoolean(parser.text()))) {
+                        trackTotalHitsUpTo = parser.booleanValue() ? TRACK_TOTAL_HITS_ACCURATE : TRACK_TOTAL_HITS_DISABLED;
+                    } else {
+                        trackTotalHitsUpTo = parser.intValue();
+                    }
                 } else if (_SOURCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fetchSourceContext = FetchSourceContext.fromXContent(parser);
                 } else if (STORED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -1231,8 +1254,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(TRACK_SCORES_FIELD.getPreferredName(), true);
         }
 
-        if (trackTotalHits == false) {
-            builder.field(TRACK_TOTAL_HITS_FIELD.getPreferredName(), false);
+        if (trackTotalHitsUpTo != SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO) {
+            builder.field(TRACK_TOTAL_HITS_FIELD.getPreferredName(), trackTotalHitsUpTo);
         }
 
         if (searchAfterBuilder != null) {
@@ -1500,7 +1523,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return Objects.hash(aggregations, explain, fetchSourceContext, docValueFields, storedFieldsContext, from, highlightBuilder,
                 indexBoosts, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields, size,
                 sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version,
-                profile, extBuilders, collapse, trackTotalHits);
+                profile, extBuilders, collapse, trackTotalHitsUpTo);
     }
 
     @Override
@@ -1538,7 +1561,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 && Objects.equals(profile, other.profile)
                 && Objects.equals(extBuilders, other.extBuilders)
                 && Objects.equals(collapse, other.collapse)
-                && Objects.equals(trackTotalHits, other.trackTotalHits);
+                && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo);
     }
 
     @Override

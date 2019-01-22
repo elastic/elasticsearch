@@ -24,11 +24,13 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * The response for getting the cluster state.
@@ -40,14 +42,16 @@ public class ClusterStateResponse extends ActionResponse {
     // the total compressed size of the full cluster state, not just
     // the parts included in this response
     private ByteSizeValue totalCompressedSize;
+    private boolean waitForTimedOut = false;
 
     public ClusterStateResponse() {
     }
 
-    public ClusterStateResponse(ClusterName clusterName, ClusterState clusterState, long sizeInBytes) {
+    public ClusterStateResponse(ClusterName clusterName, ClusterState clusterState, long sizeInBytes, boolean waitForTimedOut) {
         this.clusterName = clusterName;
         this.clusterState = clusterState;
         this.totalCompressedSize = new ByteSizeValue(sizeInBytes);
+        this.waitForTimedOut = waitForTimedOut;
     }
 
     /**
@@ -75,11 +79,23 @@ public class ClusterStateResponse extends ActionResponse {
         return totalCompressedSize;
     }
 
+    /**
+     * Returns whether the request timed out waiting for a cluster state with a metadata version equal or
+     * higher than the specified metadata.
+     */
+    public boolean isWaitForTimedOut() {
+        return waitForTimedOut;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         clusterName = new ClusterName(in);
-        clusterState = ClusterState.readFrom(in, null);
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+            clusterState = in.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
+        } else {
+            clusterState = ClusterState.readFrom(in, null);
+        }
         if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             totalCompressedSize = new ByteSizeValue(in);
         } else {
@@ -89,19 +105,77 @@ public class ClusterStateResponse extends ActionResponse {
             // at which point the correct cluster state size will always be reported
             totalCompressedSize = new ByteSizeValue(0L);
         }
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+            waitForTimedOut = in.readBoolean();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         clusterName.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            clusterState.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+            out.writeOptionalWriteable(clusterState);
         } else {
-            ClusterModule.filterCustomsForPre63Clients(clusterState).writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+                clusterState.writeTo(out);
+            } else {
+                ClusterModule.filterCustomsForPre63Clients(clusterState).writeTo(out);
+            }
         }
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             totalCompressedSize.writeTo(out);
         }
+        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+            out.writeBoolean(waitForTimedOut);
+        }
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ClusterStateResponse response = (ClusterStateResponse) o;
+        return waitForTimedOut == response.waitForTimedOut &&
+            Objects.equals(clusterName, response.clusterName) &&
+            // Best effort. Only compare cluster state version and master node id,
+            // because cluster state doesn't implement equals()
+            Objects.equals(getVersion(clusterState), getVersion(response.clusterState)) &&
+            Objects.equals(getMasterNodeId(clusterState), getMasterNodeId(response.clusterState)) &&
+            Objects.equals(totalCompressedSize, response.totalCompressedSize);
+    }
+
+    @Override
+    public int hashCode() {
+        // Best effort. Only use cluster state version and master node id,
+        // because cluster state doesn't implement  hashcode()
+        return Objects.hash(
+            clusterName,
+            getVersion(clusterState),
+            getMasterNodeId(clusterState),
+            totalCompressedSize,
+            waitForTimedOut
+        );
+    }
+
+    private static String getMasterNodeId(ClusterState clusterState) {
+        if (clusterState == null) {
+            return null;
+        }
+        DiscoveryNodes nodes = clusterState.getNodes();
+        if (nodes != null) {
+            return nodes.getMasterNodeId();
+        } else {
+            return null;
+        }
+    }
+
+    private static Long getVersion(ClusterState clusterState) {
+        if (clusterState != null) {
+            return clusterState.getVersion();
+        } else {
+            return null;
+        }
+    }
+
 }

@@ -11,7 +11,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -115,7 +114,7 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     @Override
     protected Properties connectionProperties() {
         Properties connectionProperties = new Properties();
-        connectionProperties.setProperty(JdbcConfiguration.TIME_ZONE, "UTC");
+        connectionProperties.setProperty("timezone", "UTC");
         return connectionProperties;
     }
 

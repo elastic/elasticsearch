@@ -244,14 +244,14 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         watcherClient.preparePutWatch("_name1")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(searchInput(request).extractKeys("hits.total"))
+                        .input(searchInput(request).extractKeys("hits.total.value"))
                         .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L)))
                 .get();
         // in this watcher the condition will fail, because max_score isn't extracted, only total:
         watcherClient.preparePutWatch("_name2")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(searchInput(request).extractKeys("hits.total"))
+                        .input(searchInput(request).extractKeys("hits.total.value"))
                         .condition(new CompareCondition("ctx.payload.hits.max_score", CompareCondition.Op.GTE, 0L)))
                 .get();
 

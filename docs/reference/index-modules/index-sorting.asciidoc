@@ -23,11 +23,9 @@ PUT twitter
         }
     },
     "mappings": {
-        "_doc": {
-            "properties": {
-                "date": {
-                    "type": "date"
-                }
+        "properties": {
+            "date": {
+                "type": "date"
             }
         }
     }
@@ -51,15 +49,13 @@ PUT twitter
         }
     },
     "mappings": {
-        "_doc": {
-            "properties": {
-                "username": {
-                    "type": "keyword",
-                    "doc_values": true
-                },
-                "date": {
-                    "type": "date"
-                }
+        "properties": {
+            "username": {
+                "type": "keyword",
+                "doc_values": true
+            },
+            "date": {
+                "type": "date"
             }
         }
     }
@@ -127,11 +123,9 @@ PUT events
         }
     },
     "mappings": {
-        "doc": {
-            "properties": {
-                "timestamp": {
-                    "type": "date"
-                }
+        "properties": {
+            "timestamp": {
+                "type": "date"
             }
         }
     }
@@ -188,8 +182,7 @@ as soon as N documents have been collected per segment.
 --------------------------------------------------
 {
   "_shards": ...
-   "hits" : {
-      "total" : -1,     <1>
+   "hits" : {  <1>
       "max_score" : null,
       "hits" : []
   },

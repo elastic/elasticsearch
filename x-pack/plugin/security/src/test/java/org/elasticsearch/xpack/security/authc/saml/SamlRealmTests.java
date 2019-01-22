@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
+import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.hamcrest.Matchers;
@@ -64,6 +65,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -121,19 +123,20 @@ public class SamlRealmTests extends SamlTestCase {
         final Path path = getDataPath("idp1.xml");
         final String body = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
         final MockSecureSettings mockSecureSettings = new MockSecureSettings();
-        mockSecureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
+        mockSecureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
         final Settings settings = Settings.builder()
-            .put("xpack.ssl.key",
+            .put("xpack.security.http.ssl.key",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
-            .put("xpack.ssl.certificate",
+            .put("xpack.security.http.ssl.certificate",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
-            .put("xpack.ssl.certificate_authorities",
+            .put("xpack.security.http.ssl.certificate_authorities",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
             .put("path.home", createTempDir())
             .setSecureSettings(mockSecureSettings)
             .build();
         TestsSSLService sslService = new TestsSSLService(settings, TestEnvironment.newEnvironment(settings));
-        try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext(Settings.EMPTY), false)) {
+        try (MockWebServer proxyServer =
+                     new MockWebServer(sslService.sslContext("xpack.security.http.ssl"), false)) {
             proxyServer.start();
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));
@@ -628,6 +631,35 @@ public class SamlRealmTests extends SamlTestCase {
             assertThat(request.getSessionIndexes(), iterableWithSize(1));
             assertThat(request.getSessionIndexes().get(0).getSessionIndex(), equalTo(session));
         }
+    }
+
+    public void testCorrectRealmSelected() throws Exception {
+        final String acsUrl = "https://idp.test/saml/login";
+        final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
+        final EntityDescriptor idp = mockIdp();
+        final SpConfiguration sp = new SpConfiguration("<sp>", acsUrl, null, null, null, Collections.emptyList());
+        final SamlAuthenticator authenticator = mock(SamlAuthenticator.class);
+        final SamlLogoutRequestHandler logoutHandler = mock(SamlLogoutRequestHandler.class);
+        final Settings.Builder realmSettings = Settings.builder()
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), "uid")
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_PATH), "http://url.to/metadata")
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_ENTITY_ID), TEST_IDP_ENTITY_ID)
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_ACS), acsUrl);
+        final RealmConfig config = buildConfig(realmSettings.build());
+        final SamlRealm realm = buildRealm(config, roleMapper, authenticator, logoutHandler, idp, sp);
+        final Realms realms = mock(Realms.class);
+        when(realms.realm(REALM_NAME)).thenReturn(realm);
+        when(realms.stream()).thenAnswer(i -> Stream.of(realm));
+        final String emptyRealmName = randomBoolean() ? null : "";
+        assertThat(SamlRealm.findSamlRealms(realms, emptyRealmName, acsUrl).size(), equalTo(1));
+        assertThat(SamlRealm.findSamlRealms(realms, emptyRealmName, acsUrl).get(0), equalTo(realm));
+        assertThat(SamlRealm.findSamlRealms(realms, "my-saml", acsUrl).size(), equalTo(1));
+        assertThat(SamlRealm.findSamlRealms(realms, "my-saml", acsUrl).get(0), equalTo(realm));
+        assertThat(SamlRealm.findSamlRealms(realms, "my-saml", null).size(), equalTo(1));
+        assertThat(SamlRealm.findSamlRealms(realms, "my-saml", null).get(0), equalTo(realm));
+        assertThat(SamlRealm.findSamlRealms(realms, "my-saml", "https://idp.test:443/saml/login").size(), equalTo(0));
+        assertThat(SamlRealm.findSamlRealms(realms, "incorrect", acsUrl).size(), equalTo(0));
+        assertThat(SamlRealm.findSamlRealms(realms, "incorrect", "https://idp.test:443/saml/login").size(), equalTo(0));
     }
 
     private EntityDescriptor mockIdp() {

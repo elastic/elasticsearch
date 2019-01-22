@@ -162,7 +162,7 @@ the best practice is to combine them into a single rollup job which covers both 
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/rollup/job/combined
+PUT _rollup/job/combined
 {
     "index_pattern": "data-*",
     "rollup_index": "data_rollup",

@@ -59,6 +59,7 @@ import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.node.Node;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -192,7 +193,7 @@ public final class NodeEnvironment  implements Closeable {
                         final Environment environment,
                         final CheckedFunction<Path, Boolean, IOException> pathFunction) throws IOException {
             this.nodeId = nodeId;
-            nodePaths = new NodePath[environment.dataWithClusterFiles().length];
+            nodePaths = new NodePath[environment.dataFiles().length];
             locks = new Lock[nodePaths.length];
             try {
                 final Path[] dataPaths = environment.dataFiles();
@@ -285,7 +286,7 @@ public final class NodeEnvironment  implements Closeable {
                     Locale.ROOT,
                     "failed to obtain node locks, tried [%s] with lock id%s;" +
                         " maybe these locations are not writable or multiple nodes were started without increasing [%s] (was [%d])?",
-                    Arrays.toString(environment.dataWithClusterFiles()),
+                    Arrays.toString(environment.dataFiles()),
                     maxLocalStorageNodes == 1 ? " [0]" : "s [0--" + (maxLocalStorageNodes - 1) + "]",
                     MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
                     maxLocalStorageNodes);
@@ -305,6 +306,15 @@ public final class NodeEnvironment  implements Closeable {
 
             applySegmentInfosTrace(settings);
             assertCanWrite();
+
+            if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
+                ensureAtomicMoveSupported(nodePaths);
+            }
+
+            if (DiscoveryNode.isDataNode(settings) == false) {
+                ensureNoShardData(nodePaths);
+            }
+
             success = true;
         } finally {
             if (success == false) {
@@ -390,7 +400,7 @@ public final class NodeEnvironment  implements Closeable {
             metaData = new NodeMetaData(generateNodeId(settings));
         }
         // we write again to make sure all paths have the latest state file
-        NodeMetaData.FORMAT.write(metaData, paths);
+        NodeMetaData.FORMAT.writeAndCleanup(metaData, paths);
         return metaData;
     }
 
@@ -1003,8 +1013,7 @@ public final class NodeEnvironment  implements Closeable {
      * not supported by the filesystem. This test is executed on each of the data directories.
      * This method cleans up all files even in the case of an error.
      */
-    public void ensureAtomicMoveSupported() throws IOException {
-        final NodePath[] nodePaths = nodePaths();
+    private static void ensureAtomicMoveSupported(final NodePath[] nodePaths) throws IOException {
         for (NodePath nodePath : nodePaths) {
             assert Files.isDirectory(nodePath.path) : nodePath.path + " is not a directory";
             final Path src = nodePath.path.resolve(TEMP_FILE_NAME + ".tmp");
@@ -1025,6 +1034,38 @@ public final class NodeEnvironment  implements Closeable {
                 }
             }
         }
+    }
+
+    private void ensureNoShardData(final NodePath[] nodePaths) throws IOException {
+        List<Path> shardDataPaths = new ArrayList<>();
+        for (NodePath nodePath : nodePaths) {
+            Path indicesPath = nodePath.indicesPath;
+            if (Files.isDirectory(indicesPath)) {
+                try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(indicesPath)) {
+                    for (Path indexPath : indexStream) {
+                        if (Files.isDirectory(indexPath)) {
+                            try (Stream<Path> shardStream = Files.list(indexPath)) {
+                                shardStream.filter(this::isShardPath)
+                                    .map(Path::toAbsolutePath)
+                                    .forEach(shardDataPaths::add);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (shardDataPaths.isEmpty() == false) {
+            throw new IllegalStateException("Node is started with "
+                + Node.NODE_DATA_SETTING.getKey()
+                + "=false, but has shard data: "
+                + shardDataPaths);
+        }
+    }
+
+    private boolean isShardPath(Path path) {
+        return Files.isDirectory(path)
+            && path.getFileName().toString().chars().allMatch(Character::isDigit);
     }
 
     /**
@@ -1137,3 +1178,4 @@ public final class NodeEnvironment  implements Closeable {
         }
     }
 }
+

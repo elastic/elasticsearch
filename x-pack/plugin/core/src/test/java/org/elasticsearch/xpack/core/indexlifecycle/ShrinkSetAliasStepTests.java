@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
@@ -71,15 +72,33 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
     }
 
     public void testPerformAction() {
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+        AliasMetaData.Builder aliasBuilder = AliasMetaData.builder(randomAlphaOfLengthBetween(3, 10));
+        if (randomBoolean()) {
+            aliasBuilder.routing(randomAlphaOfLengthBetween(3, 10));
+        }
+        if (randomBoolean()) {
+            aliasBuilder.searchRouting(randomAlphaOfLengthBetween(3, 10));
+        }
+        if (randomBoolean()) {
+            aliasBuilder.indexRouting(randomAlphaOfLengthBetween(3, 10));
+        }
+        String aliasMetaDataFilter = randomBoolean() ? null : "{\"term\":{\"year\":2016}}";
+        aliasBuilder.filter(aliasMetaDataFilter);
+        aliasBuilder.writeIndex(randomBoolean());
+        AliasMetaData aliasMetaData = aliasBuilder.build();
+        IndexMetaData indexMetaData = indexMetaDataBuilder.putAlias(aliasMetaData).build();
         ShrinkSetAliasStep step = createRandomInstance();
 
         String sourceIndex = indexMetaData.getIndex().getName();
         String shrunkenIndex = step.getShrunkIndexPrefix() + sourceIndex;
         List<AliasActions> expectedAliasActions = Arrays.asList(
             IndicesAliasesRequest.AliasActions.removeIndex().index(sourceIndex),
-            IndicesAliasesRequest.AliasActions.add().index(shrunkenIndex).alias(sourceIndex));
+            IndicesAliasesRequest.AliasActions.add().index(shrunkenIndex).alias(sourceIndex),
+            IndicesAliasesRequest.AliasActions.add().index(shrunkenIndex).alias(aliasMetaData.alias())
+                .searchRouting(aliasMetaData.searchRouting()).indexRouting(aliasMetaData.indexRouting())
+                .filter(aliasMetaDataFilter).writeIndex(null));
         AdminClient adminClient = Mockito.mock(AdminClient.class);
         IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
 

@@ -27,10 +27,12 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -38,17 +40,24 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
 import java.util.Map;
+
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 
 /**
  * Service that can store task results.
@@ -67,14 +76,24 @@ public class TaskResultsService {
 
     public static final int TASK_RESULT_MAPPING_VERSION = 2;
 
+    /**
+     * The backoff policy to use when saving a task result fails. The total wait
+     * time is 600000 milliseconds, ten minutes.
+     */
+    static final BackoffPolicy STORE_BACKOFF_POLICY =
+            BackoffPolicy.exponentialBackoff(timeValueMillis(250), 14);
+
     private final Client client;
 
     private final ClusterService clusterService;
 
+    private final ThreadPool threadPool;
+
     @Inject
-    public TaskResultsService(Client client, ClusterService clusterService) {
-        this.client = client;
+    public TaskResultsService(Client client, ClusterService clusterService, ThreadPool threadPool) {
+        this.client = new OriginSettingClient(client, TASKS_ORIGIN);
         this.clusterService = clusterService;
+        this.threadPool = threadPool;
     }
 
     public void storeResult(TaskResult taskResult, ActionListener<Void> listener) {
@@ -153,6 +172,10 @@ public class TaskResultsService {
         } catch (IOException e) {
             throw new ElasticsearchException("Couldn't convert task result to XContent for [{}]", e, taskResult.getTask());
         }
+        doStoreResult(STORE_BACKOFF_POLICY.iterator(), index, listener);
+    }
+
+    private void doStoreResult(Iterator<TimeValue> backoff, IndexRequestBuilder index, ActionListener<Void> listener) {
         index.execute(new ActionListener<IndexResponse>() {
             @Override
             public void onResponse(IndexResponse indexResponse) {
@@ -161,7 +184,14 @@ public class TaskResultsService {
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(e);
+                if (false == (e instanceof EsRejectedExecutionException)
+                        || false == backoff.hasNext()) {
+                    listener.onFailure(e);
+                } else {
+                    TimeValue wait = backoff.next();
+                    logger.warn(() -> new ParameterizedMessage("failed to store task result, retrying in [{}]", wait), e);
+                    threadPool.schedule(wait, ThreadPool.Names.SAME, () -> doStoreResult(backoff, index, listener));
+                }
             }
         });
     }

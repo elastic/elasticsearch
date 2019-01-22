@@ -21,6 +21,7 @@ package org.elasticsearch.test.hamcrest;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
@@ -46,6 +47,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -71,6 +73,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -128,7 +132,7 @@ public class ElasticsearchAssertions {
      * @param builder the request builder
      */
     public static void assertBlocked(ActionRequestBuilder builder) {
-        assertBlocked(builder, null);
+        assertBlocked(builder, (ClusterBlock) null);
     }
 
     /**
@@ -154,9 +158,9 @@ public class ElasticsearchAssertions {
      * Executes the request and fails if the request has not been blocked by a specific {@link ClusterBlock}.
      *
      * @param builder the request builder
-     * @param expectedBlock the expected block
+     * @param expectedBlockId the expected block id
      */
-    public static void assertBlocked(ActionRequestBuilder builder, ClusterBlock expectedBlock) {
+    public static void assertBlocked(final ActionRequestBuilder builder, @Nullable final Integer expectedBlockId) {
         try {
             builder.get();
             fail("Request executed with success but a ClusterBlockException was expected");
@@ -164,17 +168,27 @@ public class ElasticsearchAssertions {
             assertThat(e.blocks().size(), greaterThan(0));
             assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
 
-            if (expectedBlock != null) {
+            if (expectedBlockId != null) {
                 boolean found = false;
                 for (ClusterBlock clusterBlock : e.blocks()) {
-                    if (clusterBlock.id() == expectedBlock.id()) {
+                    if (clusterBlock.id() == expectedBlockId) {
                         found = true;
                         break;
                     }
                 }
-                assertThat("Request should have been blocked by [" + expectedBlock + "] instead of " + e.blocks(), found, equalTo(true));
+                assertThat("Request should have been blocked by [" + expectedBlockId + "] instead of " + e.blocks(), found, equalTo(true));
             }
         }
+    }
+
+    /**
+     * Executes the request and fails if the request has not been blocked by a specific {@link ClusterBlock}.
+     *
+     * @param builder the request builder
+     * @param expectedBlock the expected block
+     */
+    public static void assertBlocked(final ActionRequestBuilder builder, @Nullable final ClusterBlock expectedBlock) {
+        assertBlocked(builder, expectedBlock != null ? expectedBlock.id() : null);
     }
 
     public static String formatShardStatus(BroadcastResponse response) {
@@ -237,8 +251,9 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertHitCount(SearchResponse countResponse, long expectedHitCount) {
-        if (countResponse.getHits().getTotalHits() != expectedHitCount) {
-            fail("Count is " + countResponse.getHits().getTotalHits() + " but " + expectedHitCount
+        final TotalHits totalHits = countResponse.getHits().getTotalHits();
+        if (totalHits.relation != TotalHits.Relation.EQUAL_TO || totalHits.value != expectedHitCount) {
+            fail("Count is " + totalHits + " but " + expectedHitCount
                     + " was expected. " + formatShardStatus(countResponse));
         }
     }
@@ -272,7 +287,7 @@ public class ElasticsearchAssertions {
     public static void assertSearchHit(SearchResponse searchResponse, int number, Matcher<SearchHit> matcher) {
         assertThat(number, greaterThan(0));
         assertThat("SearchHit number must be greater than 0", number, greaterThan(0));
-        assertThat(searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo((long) number));
+        assertThat(searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo((long) number));
         assertThat(searchResponse.getHits().getAt(number - 1), matcher);
     }
 
@@ -679,6 +694,23 @@ public class ElasticsearchAssertions {
                 }
             }
         }
+    }
+
+    /**
+     * Wait for a latch to countdown and provide a useful error message if it does not
+     * Often latches are called as <code>assertTrue(latch.await(1, TimeUnit.SECONDS));</code>
+     * In case of a failure this will just throw an assertion error without any further message
+     *
+     * @param latch    The latch to wait for
+     * @param timeout  The value of the timeout
+     * @param unit     The unit of the timeout
+     * @throws InterruptedException An exception if the waiting is interrupted
+     */
+    public static void awaitLatch(CountDownLatch latch, long timeout, TimeUnit unit) throws InterruptedException {
+        TimeValue timeValue = new TimeValue(timeout, unit);
+        String message = String.format(Locale.ROOT, "expected latch to be counted down after %s, but was not", timeValue);
+        boolean isCountedDown = latch.await(timeout, unit);
+        assertThat(message, isCountedDown, is(true));
     }
 
     /**

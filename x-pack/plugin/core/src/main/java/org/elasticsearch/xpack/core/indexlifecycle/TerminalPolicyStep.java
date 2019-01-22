@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+/**
+ * Signals that the policy for an index has been fully executed.
+ */
 public class TerminalPolicyStep extends Step {
     public static final String COMPLETED_PHASE = "completed";
     public static final StepKey KEY = new StepKey(COMPLETED_PHASE, "completed", "completed");

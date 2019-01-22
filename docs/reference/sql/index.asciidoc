@@ -12,7 +12,7 @@
 [partintro]
 --
 
-experimental[]
+beta[]
 
 X-Pack includes a SQL feature to execute SQL against Elasticsearch
 indices and return results in tabular format.
@@ -36,7 +36,7 @@ indices and return results in tabular format.
     SQL and print tabular results.
 <<sql-jdbc,JDBC>>::
     A JDBC driver for {es}.
-{sql-odbc}[ODBC]::
+<<sql-odbc,ODBC>>::
     An ODBC driver for {es}.
 <<sql-client-apps,Client Applications>>::
     Documentation for configuring various SQL/BI tools with {es-sql}.
@@ -45,6 +45,8 @@ indices and return results in tabular format.
     syntax.
 <<sql-functions,Functions and Operators>>::
     List of functions and operators supported.
+<<sql-limitations,Limitations>>::
+    {es-sql} current limitations.
 --
 
 include::overview.asciidoc[]
@@ -55,5 +57,6 @@ include::endpoints/index.asciidoc[]
 include::language/index.asciidoc[]
 include::functions/index.asciidoc[]
 include::appendix/index.asciidoc[]
+include::limitations.asciidoc[]
 
 :jdbc-tests!:

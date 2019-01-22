@@ -6,12 +6,22 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+
+import java.util.Collection;
+import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.startsWith;
 
 public class SqlDisabledIT extends AbstractSqlIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singletonList(XPackPlugin.class);
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -29,7 +39,7 @@ public class SqlDisabledIT extends AbstractSqlIntegTestCase {
                 .build();
     }
 
-    public void testSqlAction() throws Exception {
+    public void testSqlAction() {
         Throwable throwable = expectThrows(Throwable.class,
                 () -> new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SHOW tables").get());
         assertThat(throwable.getMessage(),

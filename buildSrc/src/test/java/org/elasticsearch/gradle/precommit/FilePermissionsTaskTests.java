@@ -19,7 +19,6 @@
 package org.elasticsearch.gradle.precommit;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.util.List;
@@ -32,12 +31,8 @@ import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
 
 public class FilePermissionsTaskTests extends GradleUnitTestCase {
-    @Rule
-    public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     public void testCheckPermissionsWhenAnExecutableFileExists() throws Exception {
         RandomizedTest.assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
@@ -93,11 +88,10 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
         assertEquals("done", result.get(0));
 
         file.delete();
-
     }
 
-    private Project createProject() throws IOException {
-        Project project = ProjectBuilder.builder().withProjectDir(temporaryFolder.newFolder()).build();
+    private Project createProject() {
+        Project project = ProjectBuilder.builder().build();
         project.getPlugins().apply(JavaPlugin.class);
         return project;
     }
@@ -105,4 +99,5 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
     private FilePermissionsTask createTask(Project project) {
         return project.getTasks().create("filePermissionsTask", FilePermissionsTask.class);
     }
+
 }

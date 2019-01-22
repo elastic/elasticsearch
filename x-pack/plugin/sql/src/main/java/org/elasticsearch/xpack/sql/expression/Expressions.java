@@ -35,7 +35,7 @@ public final class Expressions {
     private Expressions() {}
 
     public static NamedExpression wrapAsNamed(Expression exp) {
-        return exp instanceof NamedExpression ? (NamedExpression) exp : new Alias(exp.location(), exp.nodeName(), exp);
+        return exp instanceof NamedExpression ? (NamedExpression) exp : new Alias(exp.source(), exp.nodeName(), exp);
     }
 
     public static List<Attribute> asAttributes(List<? extends NamedExpression> named) {
@@ -70,13 +70,17 @@ public final class Expressions {
         return false;
     }
 
-    public static boolean nullable(List<? extends Expression> exps) {
+    public static boolean match(List<? extends Expression> exps, Predicate<? super Expression> predicate) {
         for (Expression exp : exps) {
-            if (exp.nullable()) {
+            if (predicate.test(exp)) {
                 return true;
             }
         }
         return false;
+    }
+
+    public static Nullability nullable(List<? extends Expression> exps) {
+        return Nullability.and(exps.stream().map(Expression::nullable).toArray(Nullability[]::new));
     }
 
     public static boolean foldable(List<? extends Expression> exps) {
@@ -155,7 +159,7 @@ public final class Expressions {
     }
 
     public static TypeResolution typeMustBeInteger(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, dt -> dt.isInteger, operationName, paramOrd, "integer");
+        return typeMustBe(e, DataType::isInteger, operationName, paramOrd, "integer");
     }
 
     public static TypeResolution typeMustBeNumeric(Expression e, String operationName, ParamOrdinal paramOrd) {
@@ -167,25 +171,25 @@ public final class Expressions {
     }
 
     public static TypeResolution typeMustBeDate(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, dt -> dt == DataType.DATE, operationName, paramOrd, "date");
+        return typeMustBe(e, dt -> dt == DataType.DATETIME, operationName, paramOrd, "date");
     }
 
     public static TypeResolution typeMustBeNumericOrDate(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, dt -> dt.isNumeric() || dt == DataType.DATE, operationName, paramOrd, "numeric", "date");
+        return typeMustBe(e, dt -> dt.isNumeric() || dt == DataType.DATETIME, operationName, paramOrd, "numeric", "date");
     }
 
     public static TypeResolution typeMustBe(Expression e,
-                                             Predicate<DataType> predicate,
-                                             String operationName,
-                                             ParamOrdinal paramOrd,
-                                             String... acceptedTypes) {
+                                            Predicate<DataType> predicate,
+                                            String operationName,
+                                            ParamOrdinal paramOrd,
+                                            String... acceptedTypes) {
         return predicate.test(e.dataType()) || DataTypes.isNull(e.dataType())?
             TypeResolution.TYPE_RESOLVED :
             new TypeResolution(format(Locale.ROOT, "[%s]%s argument must be [%s], found value [%s] type [%s]",
-                    operationName,
-                    paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : " " + paramOrd.name().toLowerCase(Locale.ROOT),
-                    Strings.arrayToDelimitedString(acceptedTypes, " or "),
-                    Expressions.name(e),
-                    e.dataType().esType));
+                operationName,
+                paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : " " + paramOrd.name().toLowerCase(Locale.ROOT),
+                Strings.arrayToDelimitedString(acceptedTypes, " or "),
+                Expressions.name(e),
+                e.dataType().esType));
     }
 }

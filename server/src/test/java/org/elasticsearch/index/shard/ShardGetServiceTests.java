@@ -20,6 +20,7 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -76,5 +77,31 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertEquals("foobar", testGet1.getFields().get(RoutingFieldMapper.NAME).getValue());
 
         closeShards(primary);
+    }
+
+    public void testTypelessGetForUpdate() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .build();
+        IndexMetaData metaData = IndexMetaData.builder("index")
+                .putMapping("some_type", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+                .settings(settings)
+                .primaryTerm(0, 1).build();
+        IndexShard shard = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
+        recoverShardFromStore(shard);
+        Engine.IndexResult indexResult = indexDoc(shard, "some_type", "0", "{\"foo\" : \"bar\"}");
+        assertTrue(indexResult.isCreated());
+
+        GetResult getResult = shard.getService().getForUpdate("some_type", "0", Versions.MATCH_ANY, VersionType.INTERNAL);
+        assertTrue(getResult.isExists());
+
+        getResult = shard.getService().getForUpdate("some_other_type", "0", Versions.MATCH_ANY, VersionType.INTERNAL);
+        assertFalse(getResult.isExists());
+
+        getResult = shard.getService().getForUpdate("_doc", "0", Versions.MATCH_ANY, VersionType.INTERNAL);
+        assertTrue(getResult.isExists());
+
+        closeShards(shard);
     }
 }

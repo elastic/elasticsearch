@@ -76,7 +76,7 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
         assertThat(ex.getMessage(), equalTo("Index [" + testIndex + "] cannot be upgraded"));
 
         SearchResponse searchResponse = client().prepareSearch(testIndex).get();
-        assertEquals(2L, searchResponse.getHits().getTotalHits());
+        assertEquals(2L, searchResponse.getHits().getTotalHits().value);
     }
 
     public void testInternalUpgradePrePostChecks() throws Exception {
@@ -123,7 +123,7 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
         assertThat(response.getCreated(), equalTo(2L));
 
         SearchResponse searchResponse = client().prepareSearch(testIndex).get();
-        assertEquals(2L, searchResponse.getHits().getTotalHits());
+        assertEquals(2L, searchResponse.getHits().getTotalHits().value);
 
         assertTrue(preUpgradeIsCalled.get());
         assertTrue(postUpgradeIsCalled.get());

@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.sql.plan.logical;
 import java.util.Collections;
 import java.util.List;
 
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 abstract class LeafPlan extends LogicalPlan {
 
-    protected LeafPlan(Location location) {
-        super(location, Collections.emptyList());
+    protected LeafPlan(Source source) {
+        super(source, Collections.emptyList());
     }
 
     @Override

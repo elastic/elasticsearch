@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.update;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.RoutingMissingException;
@@ -50,7 +51,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -106,7 +106,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     public static void resolveAndValidateRouting(MetaData metaData, String concreteIndex, UpdateRequest request) {
         request.routing((metaData.resolveWriteIndexRouting(request.routing(), request.index())));
         // Fail fast on the node that received the request, rather than failing when translating on the index or delete request.
-        if (request.routing() == null && metaData.routingRequired(concreteIndex, request.type())) {
+        if (request.routing() == null && metaData.routingRequired(concreteIndex)) {
             throw new RoutingMissingException(concreteIndex, request.type(), request.id());
         }
     }
@@ -185,8 +185,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
                                 Tuple<XContentType, Map<String, Object>> sourceAndContent =
                                         XContentHelper.convertToMap(upsertSourceBytes, true, upsertRequest.getContentType());
-                                update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(),
-                                    sourceAndContent.v2(), sourceAndContent.v1(), upsertSourceBytes));
+                                update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(),
+                                    response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(), sourceAndContent.v2(),
+                                    sourceAndContent.v1(), upsertSourceBytes));
                             } else {
                                 update.setGetResult(null);
                             }
@@ -205,7 +206,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(),
                                 response.getType(), response.getId(), response.getSeqNo(), response.getPrimaryTerm(),
                                 response.getVersion(), response.getResult());
-                            update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(),
+                            update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(),
+                                response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(),
                                 result.updatedSourceAsMap(), result.updateSourceContentType(), indexSourceBytes));
                             update.setForcedRefresh(response.forcedRefresh());
                             listener.onResponse(update);
@@ -216,10 +218,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 DeleteRequest deleteRequest = result.action();
                 client.bulk(toSingleItemBulkRequest(deleteRequest), wrapBulkResponse(
                         ActionListener.<DeleteResponse>wrap(response -> {
-                            UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(),
-                                response.getType(), response.getId(), response.getSeqNo(), response.getPrimaryTerm(),
-                                response.getVersion(), response.getResult());
-                            update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(),
+                            UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(),
+                                response.getId(), response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(),
+                                response.getResult());
+                            update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(),
+                                response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(),
                                 result.updatedSourceAsMap(), result.updateSourceContentType(), null));
                             update.setForcedRefresh(response.forcedRefresh());
                             listener.onResponse(update);

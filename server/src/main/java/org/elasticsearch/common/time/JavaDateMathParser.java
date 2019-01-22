@@ -20,6 +20,7 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 
 import java.time.DateTimeException;
 import java.time.DayOfWeek;
@@ -28,13 +29,11 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjusters;
-import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalQueries;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
@@ -47,24 +46,13 @@ import java.util.function.LongSupplier;
  */
 public class JavaDateMathParser implements DateMathParser {
 
-    // base fields which should be used for default parsing, when we round up
-    private static final Map<TemporalField, Long> ROUND_UP_BASE_FIELDS = new HashMap<>(6);
-    {
-        ROUND_UP_BASE_FIELDS.put(ChronoField.MONTH_OF_YEAR, 1L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.DAY_OF_MONTH, 1L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.HOUR_OF_DAY, 23L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.MINUTE_OF_HOUR, 59L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.SECOND_OF_MINUTE, 59L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.MILLI_OF_SECOND, 999L);
-    }
+    private final DateTimeFormatter formatter;
+    private final DateTimeFormatter roundUpFormatter;
 
-    private final DateFormatter formatter;
-    private final DateFormatter roundUpFormatter;
-
-    public JavaDateMathParser(DateFormatter formatter) {
+    public JavaDateMathParser(DateTimeFormatter formatter, DateTimeFormatter roundUpFormatter) {
         Objects.requireNonNull(formatter);
         this.formatter = formatter;
-        this.roundUpFormatter = formatter.parseDefaulting(ROUND_UP_BASE_FIELDS);
+        this.roundUpFormatter = roundUpFormatter;
     }
 
     @Override
@@ -220,7 +208,11 @@ public class JavaDateMathParser implements DateMathParser {
     }
 
     private long parseDateTime(String value, ZoneId timeZone, boolean roundUpIfNoTime) {
-        DateFormatter formatter = roundUpIfNoTime ? this.roundUpFormatter : this.formatter;
+        if (Strings.isNullOrEmpty(value)) {
+            throw new IllegalArgumentException("cannot parse empty date");
+        }
+
+        DateTimeFormatter formatter = roundUpIfNoTime ? this.roundUpFormatter : this.formatter;
         try {
             if (timeZone == null) {
                 return DateFormatters.toZonedDateTime(formatter.parse(value)).toInstant().toEpochMilli();

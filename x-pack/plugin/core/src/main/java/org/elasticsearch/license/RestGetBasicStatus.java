@@ -3,8 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.license;
 
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -16,9 +19,14 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetBasicStatus extends XPackRestHandler {
 
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetBasicStatus.class));
+
     RestGetBasicStatus(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(GET, URI_BASE + "/license/basic_status", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                GET, "/_license/basic_status", this,
+                GET, URI_BASE + "/license/basic_status", deprecationLogger);
     }
 
     @Override
@@ -28,6 +36,7 @@ public class RestGetBasicStatus extends XPackRestHandler {
 
     @Override
     public String getName() {
-        return "xpack_basic_status_action";
+        return "get_basic_status";
     }
+
 }

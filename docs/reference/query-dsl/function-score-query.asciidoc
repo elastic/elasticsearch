@@ -153,6 +153,9 @@ GET /_search
 // CONSOLE
 // TEST[setup:twitter]
 
+NOTE: Scores produced by the `script_score` function must be non-negative,
+otherwise an error will be thrown.
+
 On top of the different scripting field values and expression, the
 `_score` script parameter can be used to retrieve the score based on the
 wrapped query.
@@ -323,6 +326,9 @@ There are a number of options for the `field_value_factor` function:
  is an illegal operation, and an exception will be thrown. Be sure to limit the
  values of the field with a range filter to avoid this, or use `log1p` and
  `ln1p`.
+
+ NOTE: Scores produced by the `field_value_score` function must be non-negative,
+ otherwise an error will be thrown.
 
 [[function-decay]]
 ==== Decay functions

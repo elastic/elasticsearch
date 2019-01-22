@@ -797,6 +797,9 @@ public class InstallPluginCommandTests extends ESTestCase {
         MockTerminal terminal = new MockTerminal();
         installPlugin(terminal, true);
         assertThat(terminal.getOutput(), containsString("WARNING: plugin requires additional permissions"));
+        assertThat(terminal.getOutput(), containsString("-> Downloading"));
+        // No progress bar in batch mode
+        assertThat(terminal.getOutput(), not(containsString("100%")));
     }
 
     public void testQuietFlagDisabled() throws Exception {
@@ -852,7 +855,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Path pluginZip = createPlugin(name, pluginDir);
         InstallPluginCommand command = new InstallPluginCommand() {
             @Override
-            Path downloadZip(Terminal terminal, String urlString, Path tmpDir) throws IOException {
+            Path downloadZip(Terminal terminal, String urlString, Path tmpDir, boolean isBatch) throws IOException {
                 assertEquals(url, urlString);
                 Path downloadedPath = tmpDir.resolve("downloaded.zip");
                 Files.copy(pluginZip, downloadedPath);

@@ -61,7 +61,7 @@ public class FeatureVectorFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc1 = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc1 = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                             .startObject("field")
@@ -95,7 +95,7 @@ public class FeatureVectorFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(mapping, mapper.mappingSource().toString());
 
         MapperParsingException e = expectThrows(MapperParsingException.class,
-                () -> mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                () -> mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                         .bytes(XContentFactory.jsonBuilder()
                                 .startObject()
                                 .startObject("field")
@@ -107,7 +107,7 @@ public class FeatureVectorFieldMapperTests extends ESSingleNodeTestCase {
                 "START_ARRAY", e.getCause().getMessage());
 
         e = expectThrows(MapperParsingException.class,
-                () -> mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                () -> mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                         .bytes(XContentFactory.jsonBuilder()
                                 .startObject()
                                     .startArray("foo")

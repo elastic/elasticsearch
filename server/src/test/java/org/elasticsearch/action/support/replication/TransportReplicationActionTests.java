@@ -21,9 +21,11 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -55,7 +57,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -74,13 +76,13 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.nio.MockNioTransport;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -89,6 +91,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -100,6 +103,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singleton;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS;
@@ -108,9 +112,11 @@ import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.core.Is.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
@@ -161,7 +167,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
-        transportService = transport.createCapturingTransportService(clusterService.getSettings(), threadPool,
+        transportService = transport.createTransportService(clusterService.getSettings(), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -182,70 +188,157 @@ public class TransportReplicationActionTests extends ESTestCase {
         threadPool = null;
     }
 
-    <T> void assertListenerThrows(String msg, PlainActionFuture<T> listener, Class<?> klass) throws InterruptedException {
-        try {
-            listener.get();
-            fail(msg);
-        } catch (ExecutionException ex) {
-            assertThat(ex.getCause(), instanceOf(klass));
+    private <T> T assertListenerThrows(String msg, PlainActionFuture<?> listener, Class<T> klass) {
+        ExecutionException exception = expectThrows(ExecutionException.class, msg, listener::get);
+        assertThat(exception.getCause(), instanceOf(klass));
+        @SuppressWarnings("unchecked")
+        final T cause = (T) exception.getCause();
+        return cause;
+    }
+
+    private void setStateWithBlock(final ClusterService clusterService, final ClusterBlock block, final boolean globalBlock) {
+        final ClusterBlocks.Builder blocks = ClusterBlocks.builder();
+        if (globalBlock) {
+            blocks.addGlobalBlock(block);
+        } else {
+            blocks.addIndexBlock("index", block);
+        }
+        setState(clusterService, ClusterState.builder(clusterService.state()).blocks(blocks).build());
+    }
+
+    public void testBlocksInReroutePhase() throws Exception {
+        final ClusterBlock nonRetryableBlock =
+            new ClusterBlock(1, "non retryable", false, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
+        final ClusterBlock retryableBlock =
+            new ClusterBlock(1, "retryable", true, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
+
+        final boolean globalBlock = randomBoolean();
+        final TestAction action = new TestAction(Settings.EMPTY, "internal:testActionWithBlocks",
+            transportService, clusterService, shardStateAction, threadPool) {
+            @Override
+            protected ClusterBlockLevel globalBlockLevel() {
+                return globalBlock ? ClusterBlockLevel.WRITE : null;
+            }
+
+            @Override
+            protected ClusterBlockLevel indexBlockLevel() {
+                return globalBlock == false ? ClusterBlockLevel.WRITE : null;
+            }
+        };
+
+        setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary("index", true, 0));
+
+        {
+            setStateWithBlock(clusterService, nonRetryableBlock, globalBlock);
+
+            Request request = globalBlock ? new Request() : new Request().index("index");
+            PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+            ReplicationTask task = maybeTask();
+
+            TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, request, listener);
+            reroutePhase.run();
+
+            ClusterBlockException exception =
+                assertListenerThrows("primary action should fail operation", listener, ClusterBlockException.class);
+            assertThat(((ClusterBlockException) exception.unwrapCause()).blocks().iterator().next(), is(nonRetryableBlock));
+            assertPhase(task, "failed");
+        }
+        {
+            setStateWithBlock(clusterService, retryableBlock, globalBlock);
+
+            Request requestWithTimeout = (globalBlock ? new Request() : new Request().index("index")).timeout("5ms");
+            PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+            ReplicationTask task = maybeTask();
+
+            TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, requestWithTimeout, listener);
+            reroutePhase.run();
+
+            ClusterBlockException exception =
+                assertListenerThrows("failed to timeout on retryable block", listener, ClusterBlockException.class);
+            assertThat(((ClusterBlockException) exception.unwrapCause()).blocks().iterator().next(), is(retryableBlock));
+            assertPhase(task, "failed");
+            assertTrue(requestWithTimeout.isRetrySet.get());
+        }
+        {
+            setStateWithBlock(clusterService, retryableBlock, globalBlock);
+
+            Request request = globalBlock ? new Request() : new Request().index("index");
+            PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+            ReplicationTask task = maybeTask();
+
+            TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, request, listener);
+            reroutePhase.run();
+
+            assertFalse("primary phase should wait on retryable block", listener.isDone());
+            assertPhase(task, "waiting_for_retry");
+            assertTrue(request.isRetrySet.get());
+
+            setStateWithBlock(clusterService, nonRetryableBlock, globalBlock);
+
+            ClusterBlockException exception = assertListenerThrows("primary phase should fail operation when moving from a retryable " +
+                    "block to a non-retryable one", listener, ClusterBlockException.class);
+            assertThat(((ClusterBlockException) exception.unwrapCause()).blocks().iterator().next(), is(nonRetryableBlock));
+            assertIndexShardUninitialized();
+        }
+        {
+            Request requestWithTimeout = new Request().index("unknown").setShardId(new ShardId("unknown", "_na_", 0)).timeout("5ms");
+            PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+            ReplicationTask task = maybeTask();
+
+            TestAction testActionWithNoBlocks = new TestAction(Settings.EMPTY, "internal:testActionWithNoBlocks", transportService,
+                clusterService, shardStateAction, threadPool);
+            listener = new PlainActionFuture<>();
+            TestAction.ReroutePhase reroutePhase = testActionWithNoBlocks.new ReroutePhase(task, requestWithTimeout, listener);
+            reroutePhase.run();
+            assertListenerThrows("should fail with an IndexNotFoundException when no blocks", listener, IndexNotFoundException.class);
         }
     }
 
-    public void testBlocks() throws ExecutionException, InterruptedException {
-        Request request = new Request();
-        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
-        ReplicationTask task = maybeTask();
-        TestAction action = new TestAction(Settings.EMPTY, "internal:testActionWithBlocks",
-                transportService, clusterService, shardStateAction, threadPool) {
-            @Override
-            protected ClusterBlockLevel globalBlockLevel() {
-                return ClusterBlockLevel.WRITE;
-            }
-        };
+    public void testBlocksInPrimaryAction() {
+        final boolean globalBlock = randomBoolean();
 
-        ClusterBlocks.Builder block = ClusterBlocks.builder().addGlobalBlock(new ClusterBlock(1, "non retryable", false, true,
-            false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
+        final TestAction actionWithBlocks =
+            new TestAction(Settings.EMPTY, "internal:actionWithBlocks", transportService, clusterService, shardStateAction, threadPool) {
+                @Override
+                protected ClusterBlockLevel globalBlockLevel() {
+                    return globalBlock ? ClusterBlockLevel.WRITE : null;
+                }
+
+                @Override
+                protected ClusterBlockLevel indexBlockLevel() {
+                    return globalBlock == false ? ClusterBlockLevel.WRITE : null;
+                }
+            };
+
+        final String index = "index";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+        setState(clusterService, stateWithActivePrimary(index, true, randomInt(5)));
+
+        final ClusterBlocks.Builder block = ClusterBlocks.builder();
+        if (globalBlock) {
+            block.addGlobalBlock(new ClusterBlock(randomIntBetween(1, 16), "test global block", randomBoolean(), randomBoolean(),
+                randomBoolean(), RestStatus.BAD_REQUEST, ClusterBlockLevel.ALL));
+        } else {
+            block.addIndexBlock(index, new ClusterBlock(randomIntBetween(1, 16), "test index block", randomBoolean(), randomBoolean(),
+                randomBoolean(), RestStatus.FORBIDDEN, ClusterBlockLevel.READ_WRITE));
+        }
         setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
-        TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, request, listener);
-        reroutePhase.run();
-        assertListenerThrows("primary phase should fail operation", listener, ClusterBlockException.class);
-        assertPhase(task, "failed");
 
-        block = ClusterBlocks.builder()
-            .addGlobalBlock(new ClusterBlock(1, "retryable", true, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
-        setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
-        listener = new PlainActionFuture<>();
-        reroutePhase = action.new ReroutePhase(task, new Request().timeout("5ms"), listener);
-        reroutePhase.run();
-        assertListenerThrows("failed to timeout on retryable block", listener, ClusterBlockException.class);
-        assertPhase(task, "failed");
-        assertFalse(request.isRetrySet.get());
+        final ClusterState clusterState = clusterService.state();
+        final String targetAllocationID = clusterState.getRoutingTable().shardRoutingTable(shardId).primaryShard().allocationId().getId();
+        final long primaryTerm = clusterState.metaData().index(index).primaryTerm(shardId.id());
+        final Request request = new Request(shardId);
+        final ReplicationTask task = maybeTask();
+        final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
 
-        listener = new PlainActionFuture<>();
-        reroutePhase = action.new ReroutePhase(task, request = new Request(), listener);
-        reroutePhase.run();
-        assertFalse("primary phase should wait on retryable block", listener.isDone());
-        assertPhase(task, "waiting_for_retry");
-        assertTrue(request.isRetrySet.get());
+        final TransportReplicationAction.AsyncPrimaryAction asyncPrimaryActionWithBlocks =
+            actionWithBlocks.new AsyncPrimaryAction(request, targetAllocationID, primaryTerm, createTransportChannel(listener), task);
+        asyncPrimaryActionWithBlocks.run();
 
-        block = ClusterBlocks.builder().addGlobalBlock(new ClusterBlock(1, "non retryable", false, true, false,
-            RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
-        setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
-        assertListenerThrows("primary phase should fail operation when moving from a retryable block to a non-retryable one", listener,
-            ClusterBlockException.class);
-        assertIndexShardUninitialized();
-
-        action = new TestAction(Settings.EMPTY, "internal:testActionWithNoBlocks", transportService, clusterService, shardStateAction,
-            threadPool) {
-            @Override
-            protected ClusterBlockLevel globalBlockLevel() {
-                return null;
-            }
-        };
-        listener = new PlainActionFuture<>();
-        reroutePhase = action.new ReroutePhase(task, new Request().timeout("5ms"), listener);
-        reroutePhase.run();
-        assertListenerThrows("should fail with an IndexNotFoundException when no blocks checked", listener, IndexNotFoundException.class);
+        final ExecutionException exception = expectThrows(ExecutionException.class, listener::get);
+        assertThat(exception.getCause(), instanceOf(ClusterBlockException.class));
+        assertThat(exception.getCause(), hasToString(containsString("test " + (globalBlock ? "global" : "index") + " block")));
+        assertPhase(task, "finished");
     }
 
     public void assertIndexShardUninitialized() {
@@ -370,28 +463,22 @@ public class TransportReplicationActionTests extends ESTestCase {
     public void testClosedIndexOnReroute() throws InterruptedException {
         final String index = "test";
         // no replicas in oder to skip the replication part
-        setState(clusterService, new ClusterStateChanges(xContentRegistry(), threadPool).closeIndices(state(index, true,
-            ShardRoutingState.UNASSIGNED), new CloseIndexRequest(index)));
+        ClusterStateChanges clusterStateChanges = new ClusterStateChanges(xContentRegistry(), threadPool);
+        setState(clusterService, clusterStateChanges.closeIndices(
+            clusterStateChanges.createIndex(clusterService.state(), new CreateIndexRequest(index)),
+            new CloseIndexRequest(index)));
+        assertThat(clusterService.state().metaData().indices().get(index).getState(), equalTo(IndexMetaData.State.CLOSE));
         logger.debug("--> using initial state:\n{}", clusterService.state());
         Request request = new Request(new ShardId("test", "_na_", 0)).timeout("1ms");
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
 
-        ClusterBlockLevel indexBlockLevel = randomBoolean() ? ClusterBlockLevel.WRITE : null;
         TestAction action = new TestAction(Settings.EMPTY, "internal:testActionWithBlocks", transportService,
-                clusterService, shardStateAction, threadPool) {
-            @Override
-            protected ClusterBlockLevel indexBlockLevel() {
-                return indexBlockLevel;
-            }
-        };
+                clusterService, shardStateAction, threadPool);
         TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, request, listener);
         reroutePhase.run();
-        if (indexBlockLevel == ClusterBlockLevel.WRITE) {
-            assertListenerThrows("must throw block exception", listener, ClusterBlockException.class);
-        } else {
-            assertListenerThrows("must throw index closed exception", listener, IndexClosedException.class);
-        }
+        assertListenerThrows("must throw index closed exception", listener, IndexClosedException.class);
+
         assertPhase(task, "failed");
         assertFalse(request.isRetrySet.get());
     }
@@ -682,12 +769,12 @@ public class TransportReplicationActionTests extends ESTestCase {
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
 
 
-        final IndexShard shard = mock(IndexShard.class);
+        final IndexShard shard = mockIndexShard(shardId, clusterService);
         when(shard.getPendingPrimaryTerm()).thenReturn(primaryTerm);
         when(shard.routingEntry()).thenReturn(routingEntry);
         when(shard.isRelocatedPrimary()).thenReturn(false);
         IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().shardRoutingTable(shardId);
-        Set<String> inSyncIds = randomBoolean() ? Collections.singleton(routingEntry.allocationId().getId()) :
+        Set<String> inSyncIds = randomBoolean() ? singleton(routingEntry.allocationId().getId()) :
             clusterService.state().metaData().index(index).inSyncAllocationIds(0);
         when(shard.getReplicationGroup()).thenReturn(
             new ReplicationGroup(shardRoutingTable,
@@ -867,11 +954,11 @@ public class TransportReplicationActionTests extends ESTestCase {
             logger.debug("got exception:" , throwable);
             assertTrue(throwable.getClass() + " is not a retry exception", action.retryPrimaryException(throwable));
             if (wrongAllocationId) {
-                assertThat(throwable.getMessage(), containsString("expected aID [_not_a_valid_aid_] but found [" +
+                assertThat(throwable.getMessage(), containsString("expected allocation id [_not_a_valid_aid_] but found [" +
                     primary.allocationId().getId() + "]"));
             } else {
-                assertThat(throwable.getMessage(), containsString("expected aID [" + primary.allocationId().getId() + "] with term [" +
-                    requestTerm + "] but found [" + primaryTerm + "]"));
+                assertThat(throwable.getMessage(), containsString("expected allocation id [" + primary.allocationId().getId()
+                    + "] with term [" + requestTerm + "] but found [" + primaryTerm + "]"));
             }
         }
     }
@@ -978,8 +1065,9 @@ public class TransportReplicationActionTests extends ESTestCase {
         AtomicBoolean throwException = new AtomicBoolean(true);
         final ReplicationTask task = maybeTask();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        final Transport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-                new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()));
+        final Transport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool,
+            new NetworkService(Collections.emptyList()), PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
+            new NoneCircuitBreakerService());
         transportService = new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
@@ -1020,6 +1108,17 @@ public class TransportReplicationActionTests extends ESTestCase {
         // Assert that the request was retried, this time successful
         assertTrue("action should have been successfully called on retry but was not", calledSuccessfully.get());
         transportService.stop();
+    }
+
+    public void testIsRetryableClusterBlockException() {
+        final TestAction action = new TestAction(Settings.EMPTY, "internal:testIsRetryableClusterBlockException", transportService,
+            clusterService, shardStateAction, threadPool);
+        assertFalse(action.isRetryableClusterBlockException(randomRetryPrimaryException(new ShardId("index", "_na_", 0))));
+
+        final boolean retryable = randomBoolean();
+        ClusterBlock randomBlock = new ClusterBlock(randomIntBetween(1, 16), "test", retryable, randomBoolean(),
+            randomBoolean(), randomFrom(RestStatus.values()), EnumSet.of(randomFrom(ClusterBlockLevel.values())));
+        assertEquals(retryable, action.isRetryableClusterBlockException(new ClusterBlockException(singleton(randomBlock))));
     }
 
     private void assertConcreteShardRequest(TransportRequest capturedRequest, Request expectedRequest, AllocationId expectedAllocationId) {
@@ -1101,6 +1200,9 @@ public class TransportReplicationActionTests extends ESTestCase {
     }
 
     static class TestResponse extends ReplicationResponse {
+        TestResponse() {
+            setShardInfo(new ShardInfo());
+        }
     }
 
     private class TestAction extends TransportReplicationAction<Request, Request, TestResponse> {
@@ -1109,15 +1211,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         TestAction(Settings settings, String actionName, TransportService transportService,
                    ClusterService clusterService, ShardStateAction shardStateAction,
                    ThreadPool threadPool) {
-            super(settings, actionName, transportService, clusterService, mockIndicesService(clusterService), threadPool,
-                shardStateAction,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(),
-                Request::new, Request::new, ThreadPool.Names.SAME);
-        }
-
-        TestAction(Settings settings, String actionName, TransportService transportService,
-                   ClusterService clusterService, ShardStateAction shardStateAction,
-                   ThreadPool threadPool, boolean withDocumentFailureOnPrimary, boolean withDocumentFailureOnReplica) {
             super(settings, actionName, transportService, clusterService, mockIndicesService(clusterService), threadPool,
                 shardStateAction,
                 new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(),
@@ -1183,6 +1276,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     private IndexShard mockIndexShard(ShardId shardId, ClusterService clusterService) {
         final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.shardId()).thenReturn(shardId);
         doAnswer(invocation -> {
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[0];
             count.incrementAndGet();

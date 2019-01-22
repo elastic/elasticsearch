@@ -88,10 +88,10 @@ When putting stored scripts, support for storing them with the deprecated `templ
 now removed. Scripts must be stored using the `script` context as mentioned in the documentation.
 
 [float]
-==== Get Aliases API limitations when {security} is enabled removed
+==== Removed Get Aliases API limitations when {security-features} are enabled
 
 The behavior and response codes of the get aliases API no longer vary
-depending on whether {security} is enabled. Previously a
+depending on whether {security-features} are enabled. Previously a
 404 - NOT FOUND (IndexNotFoundException) could be returned in case the
 current user was not authorized for any alias. An empty response with
 status 200 - OK is now returned instead at all times.
@@ -107,3 +107,22 @@ object has been removed in favor of the top level `created` field.
 ==== Source filtering url parameters `_source_include` and `_source_exclude` have been removed
 
 The deprecated in 6.x url parameters are now removed. Use `_source_includes` and `_source_excludes` instead.
+
+[float]
+==== Multi Search Request metadata validation
+
+MultiSearchRequests issued through `_msearch` now validate all keys in the metadata section. Previously unknown keys were ignored
+while now an exception is thrown.
+
+[float]
+==== Deprecated graph endpoints removed
+
+The deprecated graph endpoints (those with `/_graph/_explore`) have been
+removed.
+
+
+[float]
+==== Deprecated `_termvector` endpoint removed
+
+The `_termvector` endpoint was deprecated in 2.0 and has now been removed.
+The endpoint `_termvectors` (plural) should be used instead.

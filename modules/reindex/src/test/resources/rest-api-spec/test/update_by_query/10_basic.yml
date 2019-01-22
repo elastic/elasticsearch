@@ -3,7 +3,7 @@
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -30,7 +30,7 @@
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -84,7 +84,7 @@
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -93,7 +93,7 @@
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      1
         body:    { "text": "test2" }
 
@@ -105,12 +105,12 @@
   - match: {version_conflicts: 1}
   - match: {batches: 1}
   - match: {failures.0.index:  test}
-  - match: {failures.0.type:   foo}
+  - match: {failures.0.type:   _doc}
   - match: {failures.0.id:     "1"}
   - match: {failures.0.status: 409}
   - match: {failures.0.cause.type:   version_conflict_engine_exception}
   # Use a regex so we don't mind if the current version isn't always 1. Sometimes it comes out 2.
-  - match: {failures.0.cause.reason: "/\\[foo\\]\\[1\\]:.version.conflict,.current.version.\\[\\d+\\].is.different.than.the.one.provided.\\[\\d+\\]/"}
+  - match: {failures.0.cause.reason: "/\\[_doc\\]\\[1\\]:.version.conflict,.current.version.\\[\\d+\\].is.different.than.the.one.provided.\\[\\d+\\]/"}
   - match: {failures.0.cause.shard:  /\d+/}
   - match: {failures.0.cause.index:  test}
   - gte: { took: 0 }
@@ -126,7 +126,7 @@
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -135,7 +135,7 @@
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      1
         body:    { "text": "test2" }
 
@@ -156,13 +156,13 @@
   - do:
       index:
         index:   twitter
-        type:    tweet
+        type:    _doc
         id:      1
         body:    { "user": "kimchy" }
   - do:
       index:
         index:   twitter
-        type:    tweet
+        type:    _doc
         id:      2
         body:    { "user": "junk" }
   - do:
@@ -186,13 +186,13 @@
   - do:
       index:
         index:  twitter
-        type:   tweet
+        type:   _doc
         id:     1
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        type:   tweet
+        type:   _doc
         id:     2
         body:   { "user": "kimchy" }
   - do:
@@ -220,17 +220,17 @@
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -246,7 +246,7 @@
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      1
         body:    {}
   - do:
@@ -260,7 +260,7 @@
   - do:
       get:
         index:   test
-        type:    foo
+        type:    _doc
         id:      1
   - match: { _source: {} }
   - match: { _version: 2 }

@@ -245,12 +245,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             }
         }
         // remove nodes that are not longer part of the data nodes set
-        for (Iterator<String> it = shardCache.keySet().iterator(); it.hasNext(); ) {
-            String nodeId = it.next();
-            if (nodes.nodeExists(nodeId) == false) {
-                it.remove();
-            }
-        }
+        shardCache.keySet().removeIf(nodeId -> !nodes.nodeExists(nodeId));
     }
 
     /**

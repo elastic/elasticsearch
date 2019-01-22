@@ -19,6 +19,7 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.analysis.MockTokenizer;
@@ -1614,7 +1615,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(QueryBuilders.matchQuery("text", "test"))
-            .highlighter(new HighlightBuilder().field("text")).execute().actionGet();
+            .highlighter(new HighlightBuilder().field("text")).get();
         // Mock tokenizer will throw an exception if it is resetted twice
         assertHitCount(response, 1L);
     }
@@ -2589,22 +2590,22 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         // Query string with a single field
         phraseBoostTestCaseForClauses(highlighterType, 100f,
                 queryStringQuery("highlight words together").field("field1"),
-                queryStringQuery("\"highlight words together\"").field("field1").autoGeneratePhraseQueries(true));
+                queryStringQuery("\"highlight words together\"").field("field1"));
 
         // Query string with a single field without dismax
         phraseBoostTestCaseForClauses(highlighterType, 100f,
                 queryStringQuery("highlight words together").field("field1"),
-                queryStringQuery("\"highlight words together\"").field("field1").autoGeneratePhraseQueries(true));
+                queryStringQuery("\"highlight words together\"").field("field1"));
 
         // Query string with more than one field
         phraseBoostTestCaseForClauses(highlighterType, 100f,
                 queryStringQuery("highlight words together").field("field1").field("field2"),
-                queryStringQuery("\"highlight words together\"").field("field1").field("field2").autoGeneratePhraseQueries(true));
+                queryStringQuery("\"highlight words together\"").field("field1").field("field2"));
 
         // Query string boosting the field
         phraseBoostTestCaseForClauses(highlighterType, 1f,
                 queryStringQuery("highlight words together").field("field1"),
-                queryStringQuery("\"highlight words together\"").field("field1", 100).autoGeneratePhraseQueries(true));
+                queryStringQuery("\"highlight words together\"").field("field1", 100));
     }
 
     private <P extends AbstractQueryBuilder<P>> void
@@ -2661,7 +2662,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             new SearchSourceBuilder().query(query)
                 .highlighter(new HighlightBuilder().field("*").highlighterType(highlighterType))).get();
         assertNoFailures(search);
-        assertThat(search.getHits().getTotalHits(), equalTo(1L));
+        assertThat(search.getHits().getTotalHits().value, equalTo(1L));
         assertThat(search.getHits().getAt(0).getHighlightFields().get("text").fragments().length, equalTo(1));
     }
 
@@ -2697,7 +2698,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchResponse search = client().prepareSearch().setSource(
             new SearchSourceBuilder().query(query).highlighter(new HighlightBuilder().highlighterType("plain").field("jd"))).get();
         assertNoFailures(search);
-        assertThat(search.getHits().getTotalHits(), equalTo(1L));
+        assertThat(search.getHits().getTotalHits().value, equalTo(1L));
     }
 
 
@@ -2724,7 +2725,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .query(QueryBuilders.matchQuery("keyword_field", "some text"))
                 .highlighter(new HighlightBuilder().field("*"))).get();
         assertNoFailures(search);
-        assertThat(search.getHits().getTotalHits(), equalTo(1L));
+        assertThat(search.getHits().getTotalHits().value, equalTo(1L));
         assertThat(search.getHits().getAt(0).getHighlightFields().get("keyword_field").getFragments()[0].string(),
                 equalTo("<em>some text</em>"));
     }
@@ -2832,7 +2833,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .get();
 
             assertSearchResponse(r1);
-            assertThat(r1.getHits().getTotalHits(), equalTo(1L));
+            assertThat(r1.getHits().getTotalHits().value, equalTo(1L));
             assertHighlight(r1, 0, "field", 0, 1,
                 equalTo("<x>hello</x> world"));
         }

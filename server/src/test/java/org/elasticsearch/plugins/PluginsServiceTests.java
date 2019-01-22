@@ -62,7 +62,10 @@ public class PluginsServiceTests extends ESTestCase {
     public static class AdditionalSettingsPlugin1 extends Plugin {
         @Override
         public Settings additionalSettings() {
-            return Settings.builder().put("foo.bar", "1").put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.MMAPFS.getSettingsKey()).build();
+            return Settings.builder()
+                .put("foo.bar", "1")
+                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.MMAPFS.getSettingsKey())
+                .build();
         }
     }
     public static class AdditionalSettingsPlugin2 extends Plugin {
@@ -75,7 +78,10 @@ public class PluginsServiceTests extends ESTestCase {
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
     static PluginsService newPluginsService(Settings settings, Class<? extends Plugin>... classpathPlugins) {
-        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile(), Arrays.asList(classpathPlugins));
+        return new PluginsService(
+            settings, null, null,
+            TestEnvironment.newEnvironment(settings).pluginsFile(), Arrays.asList(classpathPlugins)
+        );
     }
 
     public void testAdditionalSettings() {
@@ -87,7 +93,10 @@ public class PluginsServiceTests extends ESTestCase {
         Settings newSettings = service.updatedSettings();
         assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
         assertEquals("1", newSettings.get("foo.bar")); // added setting exists
-        assertEquals(IndexModule.Type.SIMPLEFS.getSettingsKey(), newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())); // does not override pre existing settings
+        assertEquals(
+            IndexModule.Type.SIMPLEFS.getSettingsKey(),
+            newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
+        ); // does not override pre existing settings
     }
 
     public void testAdditionalSettingsClash() {
@@ -228,8 +237,10 @@ public class PluginsServiceTests extends ESTestCase {
 
         final Path home = createTempDir();
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
-        final IllegalStateException e =
-                expectThrows(IllegalStateException.class, () -> newPluginsService(settings, MultiplePublicConstructorsPlugin.class));
+        final IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> newPluginsService(settings, MultiplePublicConstructorsPlugin.class)
+        );
         assertThat(e, hasToString(containsString("no unique public constructor")));
     }
 

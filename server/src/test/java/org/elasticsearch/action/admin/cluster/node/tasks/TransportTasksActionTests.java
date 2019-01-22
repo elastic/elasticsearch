@@ -191,15 +191,16 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
     static class TestTasksRequest extends BaseTasksRequest<TestTasksRequest> {
 
+        TestTasksRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        TestTasksRequest() {}
     }
 
     static class TestTasksResponse extends BaseTasksResponse {
 
         private List<TestTaskResponse> tasks;
-
-        TestTasksResponse() {
-            super(null, null);
-        }
 
         TestTasksResponse(List<TestTaskResponse> tasks, List<TaskOperationFailure> taskFailures,
                 List<? extends FailedNodeException> nodeFailures) {
@@ -207,9 +208,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        TestTasksResponse(StreamInput in) throws IOException {
+            super(in);
             int taskCount = in.readVInt();
             List<TestTaskResponse> builder = new ArrayList<>();
             for (int i = 0; i < taskCount; i++) {
@@ -236,19 +236,13 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         protected TestTasksAction(String actionName,
                 ClusterService clusterService, TransportService transportService) {
             super(actionName, clusterService, transportService, new ActionFilters(new HashSet<>()),
-                TestTasksRequest::new, TestTasksResponse::new,
-                    ThreadPool.Names.MANAGEMENT);
+                TestTasksRequest::new, TestTasksResponse::new, TestTaskResponse::new, ThreadPool.Names.MANAGEMENT);
         }
 
         @Override
         protected TestTasksResponse newResponse(TestTasksRequest request, List<TestTaskResponse> tasks,
                 List<TaskOperationFailure> taskOperationFailures, List<FailedNodeException> failedNodeExceptions) {
             return new TestTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
-        }
-
-        @Override
-        protected TestTaskResponse readTaskResponse(StreamInput in) throws IOException {
-            return new TestTaskResponse(in);
         }
 
     }

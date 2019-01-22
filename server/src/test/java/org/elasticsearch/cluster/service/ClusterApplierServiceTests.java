@@ -131,7 +131,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test3",
-                clusterApplierService.getClass().getCanonicalName(),
+                ClusterApplierService.class.getCanonicalName(),
                 Level.DEBUG,
                 "*processing [test3]: took [0s] no change in cluster state*"));
 

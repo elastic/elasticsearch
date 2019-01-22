@@ -75,6 +75,7 @@ SELECT CAST(emp_no AS BOOL) AS emp_no_cast FROM "test_emp" ORDER BY emp_no LIMIT
 
 //
 // SELECT with IS NULL and IS NOT NULL
+//
 isNullAndIsNotNull
 SELECT null IS NULL AS col1, null IS NOT NULL AS col2;
 isNullAndIsNotNullAndNegation
@@ -84,7 +85,9 @@ SELECT (null = 1) IS NULL AS col1, (null = 1) IS NOT NULL AS col2;
 isNullAndIsNotNullOverComparisonWithNegation
 SELECT NOT((null = 1) IS NULL) AS col1, NOT((null = 1) IS NOT NULL) AS col2;
 
-// with table columns
+//
+// SELECT with IS NULL and IS NOT NULL with table columns
+//
 isNullAndIsNotNull_onTableColumns
 SELECT languages IS NULL AS col1, languages IS NOT NULL AS col2 FROM "test_emp" WHERE emp_no IN (10018, 10019, 10020) ORDER BY emp_no;
 isNullAndIsNotNullAndNegation_onTableColumns
@@ -93,3 +96,21 @@ isNullAndIsNotNullOverComparison_onTableColumns
 SELECT (languages = 2) IS NULL AS col1, (languages = 2) IS NOT NULL AS col2 FROM test_emp WHERE emp_no IN (10018, 10019, 10020) ORDER BY emp_no;
 isNullAndIsNotNullOverComparisonWithNegation_onTableColumns
 SELECT NOT((languages = 2) IS NULL) AS col1, NOT((languages = 2) IS NOT NULL) AS col2 FROM test_emp WHERE emp_no IN (10018, 10019, 10020) ORDER BY emp_no;
+
+//
+// SELECT with functions locally evaluated
+//
+selectMathPI
+SELECT PI() AS pi;
+selectMathPIFromIndex
+SELECT PI() AS pi FROM test_emp LIMIT 3;
+selectMathPIFromIndexWithWhereEvaluatingToTrue
+SELECT PI() AS pi FROM test_emp WHERE ROUND(PI(),2)=3.14;
+selectMathPIFromIndexWithWhereEvaluatingToTrueAndWithLimit
+SELECT PI() AS pi FROM test_emp WHERE ROUND(PI(),2)=3.14 LIMIT 3;
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/35980
+selectMathPIFromIndexWithWhereEvaluatingToFalse-Ignore
+SELECT PI() AS pi FROM test_emp WHERE PI()=5;
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/35980
+selectMathPIFromIndexWithWhereEvaluatingToFalseAndWithLimit-Ignore
+SELECT PI() AS pi FROM test_emp WHERE PI()=5 LIMIT 3;

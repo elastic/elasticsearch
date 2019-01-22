@@ -301,13 +301,13 @@ public class MasterFaultDetection extends FaultDetection {
     }
 
     /** Thrown when a ping reaches the wrong node */
-    static class ThisIsNotTheMasterYouAreLookingForException extends IllegalStateException {
+    public static class ThisIsNotTheMasterYouAreLookingForException extends IllegalStateException {
 
-        ThisIsNotTheMasterYouAreLookingForException(String msg) {
+        public ThisIsNotTheMasterYouAreLookingForException(String msg) {
             super(msg);
         }
 
-        ThisIsNotTheMasterYouAreLookingForException() {
+        public ThisIsNotTheMasterYouAreLookingForException() {
         }
 
         @Override
@@ -401,7 +401,7 @@ public class MasterFaultDetection extends FaultDetection {
 
     public static class MasterPingRequest extends TransportRequest {
 
-        private DiscoveryNode sourceNode;
+        public DiscoveryNode sourceNode;
 
         private DiscoveryNode masterNode;
         private ClusterName clusterName;
@@ -409,7 +409,7 @@ public class MasterFaultDetection extends FaultDetection {
         public MasterPingRequest() {
         }
 
-        private MasterPingRequest(DiscoveryNode sourceNode, DiscoveryNode masterNode, ClusterName clusterName) {
+        public MasterPingRequest(DiscoveryNode sourceNode, DiscoveryNode masterNode, ClusterName clusterName) {
             this.sourceNode = sourceNode;
             this.masterNode = masterNode;
             this.clusterName = clusterName;
@@ -432,12 +432,12 @@ public class MasterFaultDetection extends FaultDetection {
         }
     }
 
-    private static class MasterPingResponseResponse extends TransportResponse {
+    public static class MasterPingResponseResponse extends TransportResponse {
 
-        private MasterPingResponseResponse() {
+        public MasterPingResponseResponse() {
         }
 
-        private MasterPingResponseResponse(StreamInput in) throws IOException {
+        public MasterPingResponseResponse(StreamInput in) throws IOException {
             super(in);
         }
     }

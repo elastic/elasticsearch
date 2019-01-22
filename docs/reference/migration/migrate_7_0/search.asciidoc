@@ -18,11 +18,13 @@
     now include entire geohash cell, instead of just geohash center.
 
 *   Attempts to generate multi-term phrase queries against non-text fields
-    with a custom analyzer will now throw an exception
+    with a custom analyzer will now throw an exception.
 
 *   An `envelope` crossing the dateline in a `geo_shape `query is now processed
     correctly when specified using REST API instead of having its left and
     right corners flipped.
+
+*   Attempts to set `boost` on inner span queries will now throw a parsing exception.
 
 [float]
 ==== Adaptive replica selection enabled by default
@@ -149,3 +151,57 @@ instead which is a more appropriate value for a scenario where scores are not av
 
 Setting a negative `boost` in a query, deprecated in 6x, are not allowed in this version.
 To deboost a specific query you can use a `boost` comprise between 0 and 1.
+
+[float]
+==== Negative scores are not allowed in Function Score Query
+
+Negative scores in the Function Score Query are deprecated in 6.x, and are
+not allowed in this version. If a negative score is produced as a result
+of computation (e.g. in `script_score` or `field_value_factor` functions),
+an error will be thrown.
+
+[float]
+==== The filter context has been removed
+
+The `filter` context has been removed from Elasticsearch's query builders,
+the distinction between queries and filters is now decided in Lucene depending
+on whether queries need to access score or not. As a result `bool` queries with
+`should` clauses that don't need to access the score will no longer set their
+`minimum_should_match` to 1. This behavior has been deprecated in the previous
+major version.
+
+[float]
+==== `hits.total` is now an object in the search response
+
+The total hits that match the search request is now returned as an object
+with a `value` and a `relation`. `value` indicates the number of hits that
+match and `relation` indicates whether the value is accurate (`eq`) or a lower bound
+(`gte`):
+
+```
+{
+    "hits": {
+        "total": {   <1>
+            "value": 1000,
+            "relation": "eq"
+        },
+        ...
+    }
+}
+```
+
+The "total" object in the response indicates that the query matches exactly 1000
+documents ("eq"). The `value` is always accurate (`"relation": "eq"`) when
+`track_total_hits` is set to true in the request.
+You can also retrieve `hits.total` as a number in the rest response by adding
+`rest_total_hits_as_int=true` in the request parameter of the search request.
+This parameter has been added to ease the transition to the new format and
+will be removed in the next major version (8.0).
+
+[float]
+==== `hits.total` is omitted in the response if `track_total_hits` is disabled (false)
+
+If `track_total_hits` is set to `false` in the search request the search response
+will set `hits.total` to null and the object will not be displayed in the rest
+layer. You can add `rest_total_hits_as_int=true` in the search request parameters
+to get the old format back (`"total": -1`).

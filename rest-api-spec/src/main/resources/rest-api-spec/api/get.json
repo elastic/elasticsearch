@@ -3,8 +3,8 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-get.html",
     "methods": ["GET"],
     "url": {
-      "path": "/{index}/{type}/{id}",
-      "paths": ["/{index}/{type}/{id}", "/{index}/_doc/{id}"],
+      "path": "/{index}/_doc/{id}",
+      "paths": ["/{index}/_doc/{id}", "/{index}/{type}/{id}"],
       "parts": {
         "id": {
           "type" : "string",

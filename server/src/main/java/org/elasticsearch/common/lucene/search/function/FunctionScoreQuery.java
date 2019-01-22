@@ -382,7 +382,7 @@ public class FunctionScoreQuery extends Query {
             }
             double factor = computeScore(docId, subQueryScore);
             float finalScore = scoreCombiner.combine(subQueryScore, factor, maxBoost);
-            if (finalScore == Float.NEGATIVE_INFINITY || Float.isNaN(finalScore)) {
+            if (finalScore < 0f || Float.isNaN(finalScore)) {
                 /*
                   These scores are invalid for score based {@link org.apache.lucene.search.TopDocsCollector}s.
                   See {@link org.apache.lucene.search.TopScoreDocCollector} for details.

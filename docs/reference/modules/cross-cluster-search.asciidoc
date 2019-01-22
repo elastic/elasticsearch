@@ -77,7 +77,10 @@ GET /cluster_one:twitter/_search
     "skipped": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 1,
     "hits": [
       {
@@ -139,7 +142,10 @@ will be prefixed with their remote cluster name:
     "skipped": 0
   },
   "hits": {
-    "total": 2,
+    "total" : {
+        "value": 2,
+        "relation": "eq"
+    },
     "max_score": 1,
     "hits": [
       {
@@ -228,7 +234,10 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
     "skipped": 1
   },
   "hits": {
-    "total": 2,
+    "total" : {
+        "value": 2,
+        "relation": "eq"
+    },
     "max_score": 1,
     "hits": [
       {

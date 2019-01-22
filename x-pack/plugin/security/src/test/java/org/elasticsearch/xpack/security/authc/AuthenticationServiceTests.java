@@ -12,12 +12,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequestBuilder;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetAction;
-import org.elasticsearch.action.get.MultiGetItemResponse;
-import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
-import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -26,9 +22,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -66,6 +62,7 @@ import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.Authenticator;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -87,24 +84,27 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
-import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockCheckTokenInvalidationFromId;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -135,6 +135,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     @SuppressForbidden(reason = "Allow accessing localhost")
     public void init() throws Exception {
         token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         message = new InternalMessage();
         remoteAddress = new InetSocketAddress(InetAddress.getLocalHost(), 100);
         message.remoteAddress(new TransportAddress(remoteAddress));
@@ -220,6 +221,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testTokenMissing() throws Exception {
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         Authenticator authenticator = service.createAuthenticator("_action", message, null, future);
         authenticator.extractToken((token) -> {
@@ -228,8 +230,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         });
 
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> future.actionGet());
-        assertThat(e.getMessage(), containsString("missing authentication token"));
-        verify(auditTrail).anonymousAccessDenied("_action", message);
+        assertThat(e.getMessage(), containsString("missing authentication credentials"));
+        verify(auditTrail).anonymousAccessDenied(reqId, "_action", message);
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -244,6 +246,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         } else {
             when(secondRealm.token(threadContext)).thenReturn(token);
         }
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         final AtomicBoolean completed = new AtomicBoolean(false);
         service.authenticate("_action", message, (User)null, ActionListener.wrap(result -> {
@@ -255,7 +258,135 @@ public class AuthenticationServiceTests extends ESTestCase {
             setCompletedToTrue(completed);
         }, this::logAndFail));
         assertTrue(completed.get());
-        verify(auditTrail).authenticationFailed(firstRealm.name(), token, "_action", message);
+        verify(auditTrail).authenticationFailed(reqId, firstRealm.name(), token, "_action", message);
+    }
+
+    public void testAuthenticateSmartRealmOrdering() {
+        User user = new User("_username", "r1");
+        when(firstRealm.supports(token)).thenReturn(true);
+        mockAuthenticate(firstRealm, token, null);
+        when(secondRealm.supports(token)).thenReturn(true);
+        mockAuthenticate(secondRealm, token, user);
+        when(secondRealm.token(threadContext)).thenReturn(token);
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        final AtomicBoolean completed = new AtomicBoolean(false);
+        service.authenticate("_action", message, (User)null, ActionListener.wrap(result -> {
+            assertThat(result, notNullValue());
+            assertThat(result.getUser(), is(user));
+            assertThat(result.getLookedUpBy(), is(nullValue()));
+            assertThat(result.getAuthenticatedBy(), is(notNullValue())); // TODO implement equals
+            assertThreadContextContainsAuthentication(result);
+            setCompletedToTrue(completed);
+        }, this::logAndFail));
+        assertTrue(completed.get());
+
+        completed.set(false);
+        service.authenticate("_action", message, (User)null, ActionListener.wrap(result -> {
+            assertThat(result, notNullValue());
+            assertThat(result.getUser(), is(user));
+            assertThat(result.getLookedUpBy(), is(nullValue()));
+            assertThat(result.getAuthenticatedBy(), is(notNullValue())); // TODO implement equals
+            assertThreadContextContainsAuthentication(result);
+            setCompletedToTrue(completed);
+        }, this::logAndFail));
+        verify(auditTrail).authenticationFailed(reqId, firstRealm.name(), token, "_action", message);
+        verify(auditTrail, times(2)).authenticationSuccess(reqId, secondRealm.name(), user, "_action", message);
+        verify(firstRealm, times(2)).name(); // used above one time
+        verify(secondRealm, times(3)).name(); // used above one time
+        verify(secondRealm, times(2)).type(); // used to create realm ref
+        verify(firstRealm, times(2)).token(threadContext);
+        verify(secondRealm, times(2)).token(threadContext);
+        verify(firstRealm).supports(token);
+        verify(secondRealm, times(2)).supports(token);
+        verify(firstRealm).authenticate(eq(token), any(ActionListener.class));
+        verify(secondRealm, times(2)).authenticate(eq(token), any(ActionListener.class));
+        verifyNoMoreInteractions(auditTrail, firstRealm, secondRealm);
+    }
+
+    public void testCacheClearOnSecurityIndexChange() {
+        long expectedInvalidation = 0L;
+        assertEquals(expectedInvalidation, service.getNumInvalidation());
+
+        // existing to no longer present
+        SecurityIndexManager.State previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        SecurityIndexManager.State currentState = dummyState(null);
+        service.onSecurityIndexStateChange(previousState, currentState);
+        assertEquals(++expectedInvalidation, service.getNumInvalidation());
+
+        // doesn't exist to exists
+        previousState = dummyState(null);
+        currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        service.onSecurityIndexStateChange(previousState, currentState);
+        assertEquals(++expectedInvalidation, service.getNumInvalidation());
+
+        // green or yellow to red
+        previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        currentState = dummyState(ClusterHealthStatus.RED);
+        service.onSecurityIndexStateChange(previousState, currentState);
+        assertEquals(expectedInvalidation, service.getNumInvalidation());
+
+        // red to non red
+        previousState = dummyState(ClusterHealthStatus.RED);
+        currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        service.onSecurityIndexStateChange(previousState, currentState);
+        assertEquals(++expectedInvalidation, service.getNumInvalidation());
+
+        // green to yellow or yellow to green
+        previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        currentState = dummyState(previousState.indexStatus == ClusterHealthStatus.GREEN ?
+            ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN);
+        service.onSecurityIndexStateChange(previousState, currentState);
+        assertEquals(expectedInvalidation, service.getNumInvalidation());
+    }
+
+    public void testAuthenticateSmartRealmOrderingDisabled() {
+        final Settings settings = Settings.builder()
+            .put(AuthenticationService.SUCCESS_AUTH_CACHE_ENABLED.getKey(), false)
+            .build();
+        service = new AuthenticationService(settings, realms, auditTrail,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(Settings.EMPTY),
+            tokenService);
+        User user = new User("_username", "r1");
+        when(firstRealm.supports(token)).thenReturn(true);
+        mockAuthenticate(firstRealm, token, null);
+        when(secondRealm.supports(token)).thenReturn(true);
+        mockAuthenticate(secondRealm, token, user);
+        when(secondRealm.token(threadContext)).thenReturn(token);
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        final AtomicBoolean completed = new AtomicBoolean(false);
+        service.authenticate("_action", message, (User)null, ActionListener.wrap(result -> {
+            assertThat(result, notNullValue());
+            assertThat(result.getUser(), is(user));
+            assertThat(result.getLookedUpBy(), is(nullValue()));
+            assertThat(result.getAuthenticatedBy(), is(notNullValue())); // TODO implement equals
+            assertThreadContextContainsAuthentication(result);
+            setCompletedToTrue(completed);
+        }, this::logAndFail));
+        assertTrue(completed.get());
+
+        completed.set(false);
+        service.authenticate("_action", message, (User)null, ActionListener.wrap(result -> {
+            assertThat(result, notNullValue());
+            assertThat(result.getUser(), is(user));
+            assertThat(result.getLookedUpBy(), is(nullValue()));
+            assertThat(result.getAuthenticatedBy(), is(notNullValue())); // TODO implement equals
+            assertThreadContextContainsAuthentication(result);
+            setCompletedToTrue(completed);
+        }, this::logAndFail));
+        verify(auditTrail, times(2)).authenticationFailed(reqId, firstRealm.name(), token, "_action", message);
+        verify(auditTrail, times(2)).authenticationSuccess(reqId, secondRealm.name(), user, "_action", message);
+        verify(firstRealm, times(3)).name(); // used above one time
+        verify(secondRealm, times(3)).name(); // used above one time
+        verify(secondRealm, times(2)).type(); // used to create realm ref
+        verify(firstRealm, times(2)).token(threadContext);
+        verify(secondRealm, times(2)).token(threadContext);
+        verify(firstRealm, times(2)).supports(token);
+        verify(secondRealm, times(2)).supports(token);
+        verify(firstRealm, times(2)).authenticate(eq(token), any(ActionListener.class));
+        verify(secondRealm, times(2)).authenticate(eq(token), any(ActionListener.class));
+        verifyNoMoreInteractions(auditTrail, firstRealm, secondRealm);
     }
 
     public void testAuthenticateFirstNotSupportingSecondSucceeds() throws Exception {
@@ -264,6 +395,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.supports(token)).thenReturn(true);
         mockAuthenticate(secondRealm, token, user);
         when(secondRealm.token(threadContext)).thenReturn(token);
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         final AtomicBoolean completed = new AtomicBoolean(false);
         service.authenticate("_action", message, (User)null, ActionListener.wrap(result -> {
@@ -272,7 +404,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThreadContextContainsAuthentication(result);
             setCompletedToTrue(completed);
         }, this::logAndFail));
-        verify(auditTrail).authenticationSuccess(secondRealm.name(), user, "_action", message);
+        verify(auditTrail).authenticationSuccess(reqId, secondRealm.name(), user, "_action", message);
         verifyNoMoreInteractions(auditTrail);
         verify(firstRealm, never()).authenticate(eq(token), any(ActionListener.class));
         assertTrue(completed.get());
@@ -334,6 +466,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     public void testAuthenticateTransportAnonymous() throws Exception {
         when(firstRealm.token(threadContext)).thenReturn(null);
         when(secondRealm.token(threadContext)).thenReturn(null);
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         try {
             authenticateBlocking("_action", message, null);
             fail("expected an authentication exception when trying to authenticate an anonymous message");
@@ -341,7 +474,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             // expected
             assertAuthenticationException(e);
         }
-        verify(auditTrail).anonymousAccessDenied("_action", message);
+        verify(auditTrail).anonymousAccessDenied(reqId, "_action", message);
     }
 
     public void testAuthenticateRestAnonymous()  throws Exception {
@@ -354,7 +487,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             // expected
             assertAuthenticationException(e);
         }
-        verify(auditTrail).anonymousAccessDenied(restRequest);
+        String reqId = expectAuditRequestId();
+        verify(auditTrail).anonymousAccessDenied(reqId, restRequest);
     }
 
     public void testAuthenticateTransportFallback() throws Exception {
@@ -369,6 +503,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testAuthenticateTransportDisabledUser() throws Exception {
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         User user = new User("username", new String[] { "r1", "r2" }, null, null, null, false);
         User fallback = randomBoolean() ? SystemUser.INSTANCE : null;
         when(firstRealm.token(threadContext)).thenReturn(token);
@@ -377,7 +512,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         ElasticsearchSecurityException e =
                 expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", message, fallback));
-        verify(auditTrail).authenticationFailed(token, "_action", message);
+        verify(auditTrail).authenticationFailed(reqId, token, "_action", message);
         verifyNoMoreInteractions(auditTrail);
         assertAuthenticationException(e);
     }
@@ -390,12 +525,14 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         ElasticsearchSecurityException e =
                 expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking(restRequest));
-        verify(auditTrail).authenticationFailed(token, restRequest);
+        String reqId = expectAuditRequestId();
+        verify(auditTrail).authenticationFailed(reqId, token, restRequest);
         verifyNoMoreInteractions(auditTrail);
         assertAuthenticationException(e);
     }
 
     public void testAuthenticateTransportSuccess() throws Exception {
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         User user = new User("username", "r1", "r2");
         User fallback = randomBoolean() ? SystemUser.INSTANCE : null;
         when(firstRealm.token(threadContext)).thenReturn(token);
@@ -410,7 +547,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             setCompletedToTrue(completed);
         }, this::logAndFail));
 
-        verify(auditTrail).authenticationSuccess(firstRealm.name(), user, "_action", message);
+        verify(auditTrail).authenticationSuccess(reqId, firstRealm.name(), user, "_action", message);
         verifyNoMoreInteractions(auditTrail);
         assertTrue(completed.get());
     }
@@ -428,7 +565,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThreadContextContainsAuthentication(authentication);
             setCompletedToTrue(completed);
         }, this::logAndFail));
-        verify(auditTrail).authenticationSuccess(firstRealm.name(), user1, restRequest);
+        String reqId = expectAuditRequestId();
+        verify(auditTrail).authenticationSuccess(reqId, firstRealm.name(), user1, restRequest);
         verifyNoMoreInteractions(auditTrail);
         assertTrue(completed.get());
     }
@@ -516,12 +654,13 @@ public class AuthenticationServiceTests extends ESTestCase {
     public void testAuthenticateTamperedUser() throws Exception {
         InternalMessage message = new InternalMessage();
         threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, "_signed_auth");
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         try {
             authenticateBlocking("_action", message, randomBoolean() ? SystemUser.INSTANCE : null);
         } catch (Exception e) {
             //expected
-            verify(auditTrail).tamperedRequest("_action", message);
+            verify(auditTrail).tamperedRequest(reqId, "_action", message);
             verifyNoMoreInteractions(auditTrail);
         }
     }
@@ -544,7 +683,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertThat(result, notNullValue());
         assertThat(result.getUser(), sameInstance((Object) anonymousUser));
         assertThreadContextContainsAuthentication(result);
-        verify(auditTrail).authenticationSuccess("__anonymous", new AnonymousUser(settings), request);
+        String reqId = expectAuditRequestId();
+        verify(auditTrail).authenticationSuccess(reqId, "__anonymous", new AnonymousUser(settings), request);
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -580,13 +720,14 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testRealmTokenThrowingException() throws Exception {
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         when(firstRealm.token(threadContext)).thenThrow(authenticationError("realm doesn't like tokens"));
         try {
             authenticateBlocking("_action", message, null);
             fail("exception should bubble out");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), is("realm doesn't like tokens"));
-            verify(auditTrail).authenticationFailed("_action", message);
+            verify(auditTrail).authenticationFailed(reqId, "_action", message);
         }
     }
 
@@ -597,25 +738,29 @@ public class AuthenticationServiceTests extends ESTestCase {
             fail("exception should bubble out");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), is("realm doesn't like tokens"));
-            verify(auditTrail).authenticationFailed(restRequest);
+            String reqId = expectAuditRequestId();
+            verify(auditTrail).authenticationFailed(reqId, restRequest);
         }
     }
 
     public void testRealmSupportsMethodThrowingException() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenThrow(authenticationError("realm doesn't like supports"));
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         try {
             authenticateBlocking("_action", message, null);
             fail("exception should bubble out");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), is("realm doesn't like supports"));
-            verify(auditTrail).authenticationFailed(token, "_action", message);
+            verify(auditTrail).authenticationFailed(reqId, token, "_action", message);
         }
     }
 
     public void testRealmSupportsMethodThrowingExceptionRest() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenThrow(authenticationError("realm doesn't like supports"));
         try {
@@ -623,12 +768,15 @@ public class AuthenticationServiceTests extends ESTestCase {
             fail("exception should bubble out");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), is("realm doesn't like supports"));
-            verify(auditTrail).authenticationFailed(token, restRequest);
+            String reqId = expectAuditRequestId();
+            verify(auditTrail).authenticationFailed(reqId, token, restRequest);
         }
     }
 
     public void testRealmAuthenticateTerminatingAuthenticationProcess() throws Exception {
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         final AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         final boolean terminateWithNoException = rarely();
@@ -663,28 +811,31 @@ public class AuthenticationServiceTests extends ESTestCase {
                 assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
             }
         }
-        verify(auditTrail).authenticationFailed(secondRealm.name(), token, "_action", message);
-        verify(auditTrail).authenticationFailed(token, "_action", message);
+        verify(auditTrail).authenticationFailed(reqId, secondRealm.name(), token, "_action", message);
+        verify(auditTrail).authenticationFailed(reqId, token, "_action", message);
         verifyNoMoreInteractions(auditTrail);
     }
 
     public void testRealmAuthenticateThrowingException() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         doThrow(authenticationError("realm doesn't like authenticate"))
             .when(secondRealm).authenticate(eq(token), any(ActionListener.class));
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         try {
             authenticateBlocking("_action", message, null);
             fail("exception should bubble out");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), is("realm doesn't like authenticate"));
-            verify(auditTrail).authenticationFailed(token, "_action", message);
+            verify(auditTrail).authenticationFailed(reqId, token, "_action", message);
         }
     }
 
     public void testRealmAuthenticateThrowingExceptionRest() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         doThrow(authenticationError("realm doesn't like authenticate"))
@@ -694,12 +845,14 @@ public class AuthenticationServiceTests extends ESTestCase {
             fail("exception should bubble out");
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.getMessage(), is("realm doesn't like authenticate"));
-            verify(auditTrail).authenticationFailed(token, restRequest);
+            String reqId = expectAuditRequestId();
+            verify(auditTrail).authenticationFailed(reqId, token, restRequest);
         }
     }
 
     public void testRealmLookupThrowingException() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
@@ -707,18 +860,20 @@ public class AuthenticationServiceTests extends ESTestCase {
         mockRealmLookupReturnsNull(firstRealm, "run_as");
         doThrow(authenticationError("realm doesn't want to lookup"))
             .when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         try {
             authenticateBlocking("_action", message, null);
             fail("exception should bubble out");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), is("realm doesn't want to lookup"));
-            verify(auditTrail).authenticationFailed(token, "_action", message);
+            verify(auditTrail).authenticationFailed(reqId, token, "_action", message);
         }
     }
 
     public void testRealmLookupThrowingExceptionRest() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
@@ -726,18 +881,19 @@ public class AuthenticationServiceTests extends ESTestCase {
         mockRealmLookupReturnsNull(firstRealm, "run_as");
         doThrow(authenticationError("realm doesn't want to lookup"))
                 .when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
-
         try {
             authenticateBlocking(restRequest);
             fail("exception should bubble out");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), is("realm doesn't want to lookup"));
-            verify(auditTrail).authenticationFailed(token, restRequest);
+            String reqId = expectAuditRequestId();
+            verify(auditTrail).authenticationFailed(reqId, token, restRequest);
         }
     }
 
     public void testRunAsLookupSameRealm() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
@@ -786,6 +942,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testRunAsLookupDifferentRealm() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
@@ -822,6 +979,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testRunAsWithEmptyRunAsUsernameRest() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         User user = new User("lookup user", new String[]{"user"});
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "");
         when(secondRealm.token(threadContext)).thenReturn(token);
@@ -832,15 +990,18 @@ public class AuthenticationServiceTests extends ESTestCase {
             authenticateBlocking(restRequest);
             fail("exception should be thrown");
         } catch (ElasticsearchException e) {
-            verify(auditTrail).runAsDenied(any(Authentication.class), eq(restRequest), eq(Role.EMPTY.names()));
+            String reqId = expectAuditRequestId();
+            verify(auditTrail).runAsDenied(eq(reqId), any(Authentication.class), eq(restRequest), eq(Role.EMPTY.names()));
             verifyNoMoreInteractions(auditTrail);
         }
     }
 
     public void testRunAsWithEmptyRunAsUsername() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         User user = new User("lookup user", new String[]{"user"});
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "");
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         mockAuthenticate(secondRealm, token, user);
@@ -849,7 +1010,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             authenticateBlocking("_action", message, null);
             fail("exception should be thrown");
         } catch (ElasticsearchException e) {
-            verify(auditTrail).runAsDenied(any(Authentication.class), eq("_action"), eq(message), eq(Role.EMPTY.names()));
+            verify(auditTrail).runAsDenied(eq(reqId), any(Authentication.class), eq("_action"), eq(message), eq(Role.EMPTY.names()));
             verifyNoMoreInteractions(auditTrail);
         }
     }
@@ -857,7 +1018,9 @@ public class AuthenticationServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testAuthenticateTransportDisabledRunAsUser() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         mockAuthenticate(secondRealm, token, new User("lookup user", new String[]{"user"}));
@@ -870,13 +1033,14 @@ public class AuthenticationServiceTests extends ESTestCase {
         User fallback = randomBoolean() ? SystemUser.INSTANCE : null;
         ElasticsearchSecurityException e =
                 expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", message, fallback));
-        verify(auditTrail).authenticationFailed(token, "_action", message);
+        verify(auditTrail).authenticationFailed(reqId, token, "_action", message);
         verifyNoMoreInteractions(auditTrail);
         assertAuthenticationException(e);
     }
 
     public void testAuthenticateRestDisabledRunAsUser() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
@@ -891,7 +1055,8 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         ElasticsearchSecurityException e =
                 expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking(restRequest));
-        verify(auditTrail).authenticationFailed(token, restRequest);
+        String reqId = expectAuditRequestId();
+        verify(auditTrail).authenticationFailed(reqId, token, restRequest);
         verifyNoMoreInteractions(auditTrail);
         assertAuthenticationException(e);
     }
@@ -907,8 +1072,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
         String token = tokenService.getUserTokenString(tokenFuture.get().v1());
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
-        mockGetTokenFromId(tokenFuture.get().v1(), client);
-        mockCheckTokenInvalidationFromId(tokenFuture.get().v1(), client);
+        mockGetTokenFromId(tokenFuture.get().v1(), false, client);
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
@@ -923,7 +1087,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             }, this::logAndFail));
         }
         assertTrue(completed.get());
-        verify(auditTrail).authenticationSuccess("realm", user, "_action", message);
+        verify(auditTrail).authenticationSuccess(anyString(), eq("realm"), eq(user), eq("_action"), same(message));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -973,7 +1137,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         // we need to use a latch here because the key computation goes async on another thread!
         latch.await();
         if (success.get()) {
-            verify(auditTrail).authenticationSuccess(firstRealm.name(), user, "_action", message);
+            final String realmName = firstRealm.name();
+            verify(auditTrail).authenticationSuccess(anyString(), eq(realmName), eq(user), eq("_action"), same(message));
         }
         verifyNoMoreInteractions(auditTrail);
     }
@@ -989,32 +1154,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             tokenService.createUserToken(expected, originatingAuth, tokenFuture, Collections.emptyMap(), true);
         }
         String token = tokenService.getUserTokenString(tokenFuture.get().v1());
-        mockGetTokenFromId(tokenFuture.get().v1(), client);
-        when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
-        doAnswer(invocationOnMock -> {
-            ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocationOnMock.getArguments()[1];
-            MultiGetResponse response = mock(MultiGetResponse.class);
-            MultiGetItemResponse[] responses = new MultiGetItemResponse[2];
-            when(response.getResponses()).thenReturn(responses);
-
-            final boolean newExpired = randomBoolean();
-            GetResponse oldGetResponse = mock(GetResponse.class);
-            when(oldGetResponse.isExists()).thenReturn(newExpired == false);
-            responses[0] = new MultiGetItemResponse(oldGetResponse, null);
-
-            GetResponse getResponse = mock(GetResponse.class);
-            responses[1] = new MultiGetItemResponse(getResponse, null);
-            when(getResponse.isExists()).thenReturn(newExpired);
-            if (newExpired) {
-                Map<String, Object> source = MapBuilder.<String, Object>newMapBuilder()
-                        .put("access_token", Collections.singletonMap("invalidated", true))
-                        .immutableMap();
-                when(getResponse.getSource()).thenReturn(source);
-            }
-            listener.onResponse(response);
-            return Void.TYPE;
-        }).when(client).multiGet(any(MultiGetRequest.class), any(ActionListener.class));
-
+        mockGetTokenFromId(tokenFuture.get().v1(), true, client);
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;
@@ -1087,6 +1227,12 @@ public class AuthenticationServiceTests extends ESTestCase {
         return future.actionGet();
     }
 
+    private String expectAuditRequestId() {
+        String reqId = AuditUtil.extractRequestId(threadContext);
+        assertThat(reqId, not(isEmptyOrNullString()));
+        return reqId;
+    }
+
     @SuppressWarnings("unchecked")
     private static void mockRealmLookupReturnsNull(Realm realm, String username) {
         doAnswer((i) -> {
@@ -1114,5 +1260,9 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     private void setCompletedToTrue(AtomicBoolean completed) {
         assertTrue(completed.compareAndSet(false, true));
+    }
+
+    private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
+        return new SecurityIndexManager.State(true, true, true, true, null, indexStatus);
     }
 }

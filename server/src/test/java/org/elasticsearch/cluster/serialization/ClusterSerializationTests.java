@@ -118,14 +118,15 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
                 ));
         if (includeRestore) {
             builder.putCustom(RestoreInProgress.TYPE,
-                new RestoreInProgress(
+                new RestoreInProgress.Builder().add(
                     new RestoreInProgress.Entry(
-                        new Snapshot("repo2", new SnapshotId("snap2", UUIDs.randomBase64UUID())),
+                        UUIDs.randomBase64UUID(), new Snapshot("repo2", new SnapshotId("snap2", UUIDs.randomBase64UUID())),
                         RestoreInProgress.State.STARTED,
                         Collections.singletonList("index_name"),
                         ImmutableOpenMap.of()
                     )
-                ));
+                ).build()
+            );
         }
 
         ClusterState clusterState = builder.incrementVersion().build();

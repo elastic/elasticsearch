@@ -103,6 +103,8 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
                             if (valueCount == 0) {
                                 // Brand new term, save into map
                                 map.put(BytesRef.deepCopyOf(bytes), 1L);
+                                circuitBreakerConsumer.accept(bytes.length + 8L); // size of term + 8 for counter
+
                                 long bucketOrdinal = bucketOrds.add(bytes);
                                 if (bucketOrdinal < 0) { // already seen
                                     throw new IllegalStateException("Term count is zero, but an ordinal for this " +
@@ -129,6 +131,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
                                     map.remove(bytes);
                                     bloom.put(bytes);
                                     numDeleted += 1;
+                                    circuitBreakerConsumer.accept(-(bytes.length + 8L)); // size of term + 8 for counter
 
                                     if (numDeleted > GC_THRESHOLD) {
                                         gcDeletedEntries(numDeleted);

@@ -34,6 +34,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U extends IncludeExclude.Filter>
     extends DeferableBucketAggregator {
@@ -51,6 +52,8 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U exte
     protected final DocValueFormat format;
     protected final T valuesSource;
     protected final U includeExclude;
+    protected final Consumer<Long> circuitBreakerConsumer;
+
 
     AbstractRareTermsAggregator(String name, AggregatorFactories factories, SearchContext context,
                                           Aggregator parent, List<PipelineAggregator> pipelineAggregators,
@@ -60,10 +63,12 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U exte
 
         // TODO review: should we expose the BF settings?  What's a good default?
         this.bloom = new BloomFilter(1000000, 0.03); // ~7mb
+        this.addRequestCircuitBreakerBytes(bloom.getSizeInBytes());
         this.maxDocCount = maxDocCount;
         this.format = format;
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
+        this. circuitBreakerConsumer = this::addRequestCircuitBreakerBytes;
         String scoringAgg = subAggsNeedScore();
         String nestedAgg = descendsFromNestedAggregator(parent);
         if (scoringAgg != null && nestedAgg != null) {

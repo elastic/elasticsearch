@@ -37,7 +37,6 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -51,6 +50,7 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryReques
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
+import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.common.Strings;
 
@@ -122,14 +122,25 @@ final class IndicesRequestConverters {
         return request;
     }
 
+
     static Request putMapping(PutMappingRequest putMappingRequest) throws IOException {
+        Request request = new Request(HttpPut.METHOD_NAME, RequestConverters.endpoint(putMappingRequest.indices(), "_mapping"));
+
+        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        parameters.withTimeout(putMappingRequest.timeout());
+        parameters.withMasterTimeout(putMappingRequest.masterNodeTimeout());
+        request.setEntity(RequestConverters.createEntity(putMappingRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request putMapping(org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest) throws IOException {
         // The concreteIndex is an internal concept, not applicable to requests made over the REST API.
         if (putMappingRequest.getConcreteIndex() != null) {
             throw new IllegalArgumentException("concreteIndex cannot be set on PutMapping requests made over the REST API");
         }
 
-        Request request = new Request(HttpPut.METHOD_NAME, RequestConverters.endpoint(putMappingRequest.indices(), "_mapping",
-            putMappingRequest.type()));
+        Request request = new Request(HttpPut.METHOD_NAME, RequestConverters.endpoint(putMappingRequest.indices(),
+            "_mapping", putMappingRequest.type()));
 
         RequestConverters.Params parameters = new RequestConverters.Params(request);
         parameters.withTimeout(putMappingRequest.timeout());
@@ -150,7 +161,6 @@ final class IndicesRequestConverters {
         parameters.withMasterTimeout(getMappingsRequest.masterNodeTimeout());
         parameters.withIndicesOptions(getMappingsRequest.indicesOptions());
         parameters.withLocal(getMappingsRequest.local());
-        parameters.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
 
         return request;
     }

@@ -19,21 +19,13 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.geo.GeoHashUtils;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -207,65 +199,5 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         return NAME;
     }
 
-    private static class CellValues extends AbstractSortingNumericDocValues {
-        private MultiGeoPointValues geoValues;
-        private int precision;
 
-        protected CellValues(MultiGeoPointValues geoValues, int precision) {
-            this.geoValues = geoValues;
-            this.precision = precision;
-        }
-
-        @Override
-        public boolean advanceExact(int docId) throws IOException {
-            if (geoValues.advanceExact(docId)) {
-                resize(geoValues.docValueCount());
-                for (int i = 0; i < docValueCount(); ++i) {
-                    GeoPoint target = geoValues.nextValue();
-                    values[i] = GeoHashUtils.longEncode(target.getLon(), target.getLat(),
-                            precision);
-                }
-                sort();
-                return true;
-            } else {
-                return false;
-            }
-        }
-    }
-
-    static class CellIdSource extends ValuesSource.Numeric {
-        private final ValuesSource.GeoPoint valuesSource;
-        private final int precision;
-
-        CellIdSource(ValuesSource.GeoPoint valuesSource, int precision) {
-            this.valuesSource = valuesSource;
-            //different GeoPoints could map to the same or different geohash cells.
-            this.precision = precision;
-        }
-
-        public int precision() {
-            return precision;
-        }
-
-        @Override
-        public boolean isFloatingPoint() {
-            return false;
-        }
-
-        @Override
-        public SortedNumericDocValues longValues(LeafReaderContext ctx) {
-            return new CellValues(valuesSource.geoPointValues(ctx), precision);
-        }
-
-        @Override
-        public SortedNumericDoubleValues doubleValues(LeafReaderContext ctx) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public SortedBinaryDocValues bytesValues(LeafReaderContext ctx) {
-            throw new UnsupportedOperationException();
-        }
-
-    }
 }

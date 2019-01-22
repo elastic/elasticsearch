@@ -50,7 +50,7 @@ public class LifecyclePolicyMetadataTests extends AbstractXContentTestCase<Lifec
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 
     @Override

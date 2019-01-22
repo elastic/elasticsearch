@@ -155,10 +155,19 @@ public class DeprecationLogger {
      * Regular expression to test if a string matches the RFC7234 specification for warning headers. This pattern assumes that the warn code
      * is always 299. Further, this pattern assumes that the warn agent represents a version of Elasticsearch including the build hash.
      */
-    public static Pattern WARNING_HEADER_PATTERN = Pattern.compile(
+    private static final Pattern WARNING_HEADER_PATTERN = Pattern.compile(
             "299 " + // warn code
                     "Elasticsearch-\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-(?:[a-f0-9]{7}|Unknown) " + // warn agent
-                    "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\""); // quoted warning value, captured
+                    "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\"( " + // quoted warning value, captured
+                    // quoted RFC 1123 date format
+                    "\"" + // opening quote
+                    "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
+                    "\\d{2} " + // 2-digit day
+                    "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month
+                    "\\d{4} " + // 4-digit year
+                    "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
+                    "GMT" + // GMT
+                    "\")?"); // closing quote (optional, since an older version can still send a warn-date)
 
     /**
      * Extracts the warning value from the value of a warning header that is formatted according to RFC 7234. That is, given a string

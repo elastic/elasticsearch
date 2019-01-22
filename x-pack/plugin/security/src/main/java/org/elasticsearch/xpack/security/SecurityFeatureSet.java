@@ -153,7 +153,6 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     static Map<String, Object> auditUsage(Settings settings) {
         Map<String, Object> map = new HashMap<>(2);
         map.put("enabled", XPackSettings.AUDIT_ENABLED.get(settings));
-        map.put("outputs", Security.AUDIT_OUTPUTS_SETTING.get(settings));
         return map;
     }
 

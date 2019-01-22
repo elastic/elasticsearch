@@ -269,12 +269,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             return false;
         }, TimeUnit.MINUTES.toMillis(20L));
 
-        testClusterNodes.clearNetworkDisruptions();
-        runUntil(() -> {
-            final List<Long> versions = testClusterNodes.nodes.values().stream()
-                .map(n -> n.clusterService.state().version()).distinct().collect(Collectors.toList());
-            return versions.size() == 1L;
-        }, TimeUnit.MINUTES.toMillis(20L));
+        clearDisruptionsAndAwaitSync();
 
         assertTrue(createdSnapshot.get());
         final TestClusterNode randomMaster = testClusterNodes.randomMasterNode()
@@ -409,12 +404,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             return false;
         }, TimeUnit.MINUTES.toMillis(20L));
 
-        testClusterNodes.clearNetworkDisruptions();
-        runUntil(() -> {
-            final List<Long> versions = testClusterNodes.nodes.values().stream()
-                .map(n -> n.clusterService.state().version()).distinct().collect(Collectors.toList());
-            return versions.size() == 1L;
-        }, TimeUnit.MINUTES.toMillis(20L));
+        clearDisruptionsAndAwaitSync();
 
         assertTrue(createdSnapshot.get());
         final SnapshotsInProgress finalSnapshotsInProgress = testClusterNodes.randomDataNodeSafe()
@@ -423,6 +413,15 @@ public class SnapshotsServiceTests extends ESTestCase {
         final Repository repository = masterNode.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
         assertThat(snapshotIds, either(hasSize(1)).or(hasSize(0)));
+    }
+
+    private void clearDisruptionsAndAwaitSync() {
+        testClusterNodes.clearNetworkDisruptions();
+        runUntil(() -> {
+            final List<Long> versions = testClusterNodes.nodes.values().stream()
+                .map(n -> n.clusterService.state().version()).distinct().collect(Collectors.toList());
+            return versions.size() == 1L;
+        }, TimeUnit.MINUTES.toMillis(20L));
     }
 
     private void disconnectOrRestartDataNode() {

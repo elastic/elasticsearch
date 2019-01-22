@@ -122,6 +122,7 @@ public final class InvalidateApiKeyResponse extends ActionResponse implements To
     static {
         PARSER.declareStringArray(constructorArg(), new ParseField("invalidated_api_keys"));
         PARSER.declareStringArray(constructorArg(), new ParseField("previously_invalidated_api_keys"));
+        // we parse error_count but ignore it while constructing response
         PARSER.declareInt(constructorArg(), new ParseField("error_count"));
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p),
                 new ParseField("error_details"));

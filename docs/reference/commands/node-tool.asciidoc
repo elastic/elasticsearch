@@ -79,10 +79,10 @@ that the tool was able to bootstrap master eligible node.
 them if you previously stopped them.
 8. Start more master eligible nodes to get desired level of fault-tolerance.
 
-[source, txt]
+[source,txt]
 ----
 $ ./bin/elasticsearch-node unsafe-bootstrap -v
------------------------------------------------------------------------
+
     WARNING: Elasticsearch MUST be stopped before running this tool.
 
 You should run this tool only if you've lost the majority of master eligible nodes.

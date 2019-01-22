@@ -261,13 +261,24 @@ public class SnapshotsServiceTests extends ESTestCase {
                             }))));
 
         runUntil(() -> {
-            final SnapshotsInProgress snapshotsInProgress = testClusterNodes.randomMasterNode()
-                .clusterService.state().custom(SnapshotsInProgress.TYPE);
-            return snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty();
+            final Optional<TestClusterNode> randomMaster = testClusterNodes.randomMasterNode();
+            if (randomMaster.isPresent()) {
+                final SnapshotsInProgress snapshotsInProgress = randomMaster.get().clusterService.state().custom(SnapshotsInProgress.TYPE);
+                return snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty();
+            }
+            return false;
+        }, TimeUnit.MINUTES.toMillis(20L));
+
+        testClusterNodes.clearNetworkDisruptions();
+        runUntil(() -> {
+            final List<Long> versions = testClusterNodes.nodes.values().stream()
+                .map(n -> n.clusterService.state().version()).distinct().collect(Collectors.toList());
+            return versions.size() == 1L;
         }, TimeUnit.MINUTES.toMillis(20L));
 
         assertTrue(createdSnapshot.get());
-        final TestClusterNode randomMaster = testClusterNodes.randomMasterNode();
+        final TestClusterNode randomMaster = testClusterNodes.randomMasterNode()
+            .orElseThrow(() -> new AssertionError("expected to find at least one active master node"));
         SnapshotsInProgress finalSnapshotsInProgress = randomMaster.clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertThat(finalSnapshotsInProgress.entries(), empty());
         final Repository repository = randomMaster.repositoriesService.repository(repoName);
@@ -371,7 +382,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                                                                 createdSnapshot.set(true);
                                                             }));
                                                         scheduleNow(
-                                                            () -> testClusterNodes.randomMasterNode().client.admin().cluster().reroute(
+                                                            () -> testClusterNodes.randomMasterNodeSafe().client.admin().cluster().reroute(
                                                                 new ClusterRerouteRequest().add(
                                                                     new AllocateEmptyPrimaryAllocationCommand(
                                                                         index, shardRouting.shardId().id(), otherNode.node.getName(), true)
@@ -389,9 +400,13 @@ public class SnapshotsServiceTests extends ESTestCase {
                             ))))));
 
         runUntil(() -> {
-            final SnapshotsInProgress snapshotsInProgress =
-                testClusterNodes.randomMasterNode().clusterService.state().custom(SnapshotsInProgress.TYPE);
-            return (snapshotsInProgress == null || snapshotsInProgress.entries().isEmpty()) && createdSnapshot.get();
+            final Optional<TestClusterNode> randomMaster = testClusterNodes.randomMasterNode();
+            if (randomMaster.isPresent()) {
+                final SnapshotsInProgress snapshotsInProgress =
+                    randomMaster.get().clusterService.state().custom(SnapshotsInProgress.TYPE);
+                return (snapshotsInProgress == null || snapshotsInProgress.entries().isEmpty()) && createdSnapshot.get();
+            }
+            return false;
         }, TimeUnit.MINUTES.toMillis(20L));
 
         testClusterNodes.clearNetworkDisruptions();
@@ -419,11 +434,13 @@ public class SnapshotsServiceTests extends ESTestCase {
     }
 
     private void disconnectOrRestartMasterNode() {
-        if (randomBoolean()) {
-            testClusterNodes.disconnectNode(testClusterNodes.randomMasterNode());
-        } else {
-            testClusterNodes.randomMasterNode().restart();
-        }
+        testClusterNodes.randomMasterNode().ifPresent(masterNode -> {
+            if (randomBoolean()) {
+                testClusterNodes.disconnectNode(masterNode);
+            } else {
+                masterNode.restart();
+            }
+        });
     }
 
     private void disconnectRandomDataNode() {
@@ -594,12 +611,15 @@ public class SnapshotsServiceTests extends ESTestCase {
                     Collections.singleton(role), Version.CURRENT), this::getDisruption);
         }
 
-        public TestClusterNode randomMasterNode() {
+        public TestClusterNode randomMasterNodeSafe() {
+            return randomMasterNode().orElseThrow(() -> new AssertionError("Expected to find at least one connected master node"));
+        }
+
+        public Optional<TestClusterNode> randomMasterNode() {
             // Select from sorted list of data-nodes here to not have deterministic behaviour
-            return randomFrom(
-                testClusterNodes.nodes.values().stream().filter(n -> n.node.isMasterNode())
-                    .sorted(Comparator.comparing(n -> n.node.getName())).collect(Collectors.toList())
-            );
+            final List<TestClusterNode> masterNodes = testClusterNodes.nodes.values().stream().filter(n -> n.node.isMasterNode())
+                .sorted(Comparator.comparing(n -> n.node.getName())).collect(Collectors.toList());
+            return masterNodes.isEmpty() ? Optional.empty() : Optional.of(randomFrom(masterNodes));
         }
 
         public void stopNode(TestClusterNode node) {

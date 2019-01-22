@@ -125,6 +125,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
 
     }
 
+    //used only in tests
     public SearchHit(int docId) {
         this(docId, null, null, null);
     }

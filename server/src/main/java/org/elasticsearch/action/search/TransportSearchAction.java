@@ -61,6 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -140,7 +141,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * to moving backwards due to NTP and other such complexities, etc.). There are also issues with
      * using a relative clock for reporting real time. Thus, we simply separate these two uses.
      */
-    static class SearchTimeProvider {
+    static final class SearchTimeProvider {
 
         private final long absoluteStartMillis;
         private final long relativeStartNanos;
@@ -170,12 +171,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return absoluteStartMillis;
         }
 
-        long getRelativeStartNanos() {
-            return relativeStartNanos;
-        }
-
-        long getRelativeCurrentNanos() {
-            return relativeCurrentNanosProvider.getAsLong();
+        long buildTookInMillis() {
+            return TimeUnit.NANOSECONDS.toMillis(relativeCurrentNanosProvider.getAsLong() - relativeStartNanos);
         }
     }
 

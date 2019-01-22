@@ -127,6 +127,9 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
                 "  maven {\n" +
                 "    url \"" + getLocalTestRepoPath()  + "\"\n" +
                 "  }\n" +
+                "  flatDir {\n" +
+                "    dir '" + getLocalTestDownloadsPath() + "'\n" +
+                "  }\n" +
                 luceneSnapshotRepo +
                 "}\n"
         );

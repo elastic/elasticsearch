@@ -16,7 +16,7 @@ task copyXPackPluginProps(type: Copy) { // wth is this?
 project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
 
 integTestCluster {
-  distribution 'zip'
+  distribution 'default'
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'

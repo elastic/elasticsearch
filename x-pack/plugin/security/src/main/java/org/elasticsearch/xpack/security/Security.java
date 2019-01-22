@@ -868,7 +868,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
             // .security index is not managed by using templates anymore
-            templates.remove(SECURITY_TEMPLATE_NAME);
+             templates.remove(SECURITY_TEMPLATE_NAME);
+             templates.remove("security_audit_log");
             return templates;
         };
     }

@@ -39,7 +39,7 @@ NOTE: While all parameters are optional, at least one of them is required.
 
 ==== Examples
 
-The following example invalidates the API key identified by specified `api_key_id` immediately:
+The following example invalidates the API key identified by specified `id` immediately:
 
 [source,js]
 --------------------------------------------------
@@ -50,13 +50,13 @@ DELETE /_security/api_key
 --------------------------------------------------
 // NOTCONSOLE
 
-whereas the following example invalidates the API key identified by specified `api_key_name` immediately:
+whereas the following example invalidates the API key identified by specified `name` immediately:
 
 [source,js]
 --------------------------------------------------
 DELETE /_security/api_key
 {
-  "name" : "movUJjPGRRC0PQ7+NW0eag"
+  "name" : "hadoop_myuser_key"
 }
 --------------------------------------------------
 // NOTCONSOLE

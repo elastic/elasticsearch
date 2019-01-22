@@ -18,16 +18,16 @@ field, and a `nested` field:
 PUT my_index
 {
   "mappings": {
-    "properties": {
-      "manager": { <1>
-        "properties": {
+    "properties": { <1>
+      "manager": {
+        "properties": { <2>
           "age":  { "type": "integer" },
           "name": { "type": "text"  }
         }
       },
-      "employees": { <2>
+      "employees": {
         "type": "nested",
-        "properties": {
+        "properties": { <3>
           "age":  { "type": "integer" },
           "name": { "type": "text"  }
         }
@@ -36,7 +36,7 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1 <3>
+PUT my_index/_doc/1 <4>
 {
   "region": "US",
   "manager": {
@@ -56,9 +56,10 @@ PUT my_index/_doc/1 <3>
 }
 --------------------------------------------------
 // CONSOLE
-<1> Properties under the `manager` object field.
-<2> Properties under the `employees` nested field.
-<3> An example document which corresponds to the above mapping.
+<1> Properties in the top-level mappings definition.
+<2> Properties under the `manager` object field.
+<3> Properties under the `employees` nested field.
+<4> An example document which corresponds to the above mapping.
 
 TIP: The `properties` setting is allowed to have different settings for fields
 of the same name in the same index.  New properties can be added to existing

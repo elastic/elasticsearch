@@ -44,14 +44,14 @@ An explicit mapping for the above document could look like this:
 PUT my_index
 {
   "mappings": {
-    "properties": {
+    "properties": { <1>
       "region": {
         "type": "keyword"
       },
-      "manager": { <1>
+      "manager": { <2>
         "properties": {
           "age":  { "type": "integer" },
-          "name": { <2>
+          "name": { <3>
             "properties": {
               "first": { "type": "text" },
               "last":  { "type": "text" }
@@ -64,8 +64,9 @@ PUT my_index
 }
 --------------------------------------------------
 // CONSOLE
-<1> The `manager` field is an inner `object` field.
-<2> The `manager.name` field is an inner `object` field within the `manager` field.
+<1> Properties in the top-level mappings definition.
+<2> The `manager` field is an inner `object` field.
+<3> The `manager.name` field is an inner `object` field within the `manager` field.
 
 You are not required to set the field `type` to `object` explicitly, as this is the default value.
 

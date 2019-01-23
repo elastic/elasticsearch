@@ -24,31 +24,29 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
-import org.elasticsearch.cluster.coordination.PublishWithJoinResponse;
+import org.elasticsearch.cluster.coordination.Coordinator;
+import org.elasticsearch.cluster.coordination.JoinHelper;
+import org.elasticsearch.cluster.coordination.JoinRequest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCustomMetaData;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BytesTransportRequest;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponseHandler;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.RemoteTransportException;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -149,11 +147,11 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
     }
 
     public void testHandleNodeJoin_incompatibleClusterState()
-            throws IOException, InterruptedException, ExecutionException, TimeoutException {
-        internalCluster().startMasterOnlyNode();
+            throws InterruptedException, ExecutionException, TimeoutException {
+        String masterNode = internalCluster().startMasterOnlyNode();
         String node1 = internalCluster().startNode();
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node1);
-        TransportService transportService = internalCluster().getInstance(TransportService.class, node1);
+        Coordinator coordinator = (Coordinator) internalCluster().getInstance(Discovery.class, masterNode);
         final ClusterState state = clusterService.state();
         MetaData.Builder mdBuilder = MetaData.builder(state.metaData());
         mdBuilder.putCustom(CustomMetaData.TYPE, new CustomMetaData("data"));
@@ -162,32 +160,25 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         final CompletableFuture<Throwable> future = new CompletableFuture<>();
         DiscoveryNode node = state.nodes().getLocalNode();
 
-        transportService.sendRequest(node, PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
-                new BytesTransportRequest(PublicationTransportHandler.serializeFullClusterState(stateWithCustomMetaData, Version.CURRENT),
-                        Version.CURRENT),
-                new TransportResponseHandler<PublishWithJoinResponse>() {
-                    @Override
-                    public void handleResponse(PublishWithJoinResponse response) {
-                        future.completeExceptionally(new AssertionError("handleResponse should not be called"));
-                    }
+        coordinator.sendValidateJoinRequest(stateWithCustomMetaData, new JoinRequest(node, Optional.empty()),
+                new JoinHelper.JoinCallback() {
+            @Override
+            public void onSuccess() {
+                future.completeExceptionally(new AssertionError("onSuccess should not be called"));
+            }
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        future.complete(exp.getCause());
-                    }
+            @Override
+            public void onFailure(Exception e) {
+                future.complete(e);
+            }
+        });
 
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
-                    }
+        Throwable t = future.get(10, TimeUnit.SECONDS);
 
-                    @Override
-                    public PublishWithJoinResponse read(StreamInput in) throws IOException {
-                        return new PublishWithJoinResponse(in);
-                    }
-                });
-
-        assertThat(future.get(10, TimeUnit.SECONDS).getMessage(), containsString("Unknown NamedWriteable"));
+        assertTrue(t instanceof IllegalStateException);
+        assertTrue(t.getCause() instanceof RemoteTransportException);
+        assertTrue(t.getCause().getCause() instanceof IllegalArgumentException);
+        assertThat(t.getCause().getCause().getMessage(), containsString("Unknown NamedWriteable"));
     }
 
     public static class CustomMetaData extends TestCustomMetaData {

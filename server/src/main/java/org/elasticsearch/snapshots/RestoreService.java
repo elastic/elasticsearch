@@ -232,7 +232,21 @@ public class RestoreService implements ClusterStateApplier {
                         if (restoreInProgress != null && restoreInProgress.isEmpty() == false) {
                             throw new ConcurrentSnapshotExecutionException(snapshot, "Restore process is already running in this cluster");
                         }
+                    } else if (restoreInProgress != null) {
+                        Set<String> concurrentIndexRestores = new HashSet<>();
+                        for (RestoreInProgress.Entry restore : restoreInProgress) {
+                            for (String index : restore.indices()) {
+                                if (indices.containsKey(index)) {
+                                    concurrentIndexRestores.add(index);
+                                }
+                            }
+                        }
+                        if (concurrentIndexRestores.isEmpty() == false) {
+                            throw new ConcurrentSnapshotExecutionException(snapshot, "Restore process for indices " +
+                                concurrentIndexRestores + " already running in this cluster. Cannot concurrently restore an index.");
+                        }
                     }
+
                     // Check if the snapshot to restore is currently being deleted
                     SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
                     if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
@@ -305,10 +319,11 @@ public class RestoreService implements ClusterStateApplier {
                                 mdBuilder.put(updatedIndexMetaData, true);
                                 renamedIndex = updatedIndexMetaData.getIndex();
                             } else {
-                                validateExistingIndex(currentIndexMetaData, snapshotIndexMetaData, renamedIndexName, partial);
-                                // Index exists and it's closed - open it in metadata and start recovery
+                                validateExistingIndex(currentIndexMetaData, snapshotIndexMetaData, renamedIndexName, partial,
+                                    request.restoreOpenIndex());
+                                // Index exists - ensure it is open in metadata and start recovery
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData)
-                                                                                    .state(IndexMetaData.State.OPEN);
+                                    .state(IndexMetaData.State.OPEN);
                                 indexMdBuilder.version(Math.max(snapshotIndexMetaData.getVersion(), currentIndexMetaData.getVersion() + 1));
                                 indexMdBuilder.mappingVersion(Math.max(snapshotIndexMetaData.getMappingVersion(),
                                                                         currentIndexMetaData.getMappingVersion() + 1));
@@ -440,12 +455,13 @@ public class RestoreService implements ClusterStateApplier {
                 }
 
                 private void validateExistingIndex(IndexMetaData currentIndexMetaData, IndexMetaData snapshotIndexMetaData,
-                                                   String renamedIndex, boolean partial) {
+                                                   String renamedIndex, boolean partial, boolean restoreOpenIndex) {
                     // Index exist - checking that it's closed
-                    if (currentIndexMetaData.getState() != IndexMetaData.State.CLOSE) {
+                    if (currentIndexMetaData.getState() != IndexMetaData.State.CLOSE && restoreOpenIndex == false) {
                         // TODO: Enable restore for open indices
                         throw new SnapshotRestoreException(snapshot, "cannot restore index [" + renamedIndex + "] because an open index " +
-                            "with same name already exists in the cluster. Either close or delete the existing index or restore the " +
+                            "with same name already exists in the cluster. Close or delete the existing index, submit the request " +
+                            "with restoreOpenIndex set to true in order to overwrite the existing index, or restore the " +
                             "index under a different name by providing a rename pattern and replacement name");
                     }
                     // Index exist - checking if it's partial restore

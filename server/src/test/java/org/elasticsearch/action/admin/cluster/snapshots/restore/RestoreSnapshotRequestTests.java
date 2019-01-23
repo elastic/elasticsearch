@@ -55,9 +55,11 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         if (randomBoolean()) {
             instance.renamePattern(randomUnicodeOfLengthBetween(1, 100));
         }
+
         if (randomBoolean()) {
             instance.renameReplacement(randomUnicodeOfLengthBetween(1, 100));
         }
+        instance.restoreOpenIndex(randomBoolean());
         instance.partial(randomBoolean());
         instance.includeAliases(randomBoolean());
 

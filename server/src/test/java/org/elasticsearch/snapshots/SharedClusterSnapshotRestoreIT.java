@@ -23,6 +23,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -95,6 +96,7 @@ import org.elasticsearch.script.StoredScriptsIT;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 
 import java.io.IOException;
 import java.nio.channels.SeekableByteChannel;
@@ -113,6 +115,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -142,6 +145,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -3702,6 +3706,180 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 unblockNode("repository", internalCluster().getMasterName());
             }
         }
+    }
+
+    public void testCannotRestoreOpenIndexIfParameterNotSet() throws Exception {
+        Client client = client();
+
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+            .setType("fs").setSettings(Settings.builder()
+                .put("location", randomRepoPath())));
+
+        createIndex("test-idx-1");
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index("test-idx-1", "_doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+        assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true).setIndices("test-idx-1").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+
+        logger.info("--> restore index with different name");
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
+            .setRenamePattern("(.+)").setRenameReplacement("$1-copy").setWaitForCompletion(true).execute().actionGet();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+        assertThat(client.prepareSearch("test-idx-1-copy").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+
+        logger.info("--> and try to restore this open index again");
+        expectThrows(SnapshotRestoreException.class, () -> client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
+            .setRenamePattern("(.+)").setRenameReplacement("$1-copy").setWaitForCompletion(true).execute().actionGet());
+    }
+
+    public void testCanRestoreOpenIndexIfParameterSet() throws Exception {
+        Client client = client();
+
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+            .setType("fs").setSettings(Settings.builder()
+                .put("location", randomRepoPath())));
+
+        createIndex("test-idx-1");
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index("test-idx-1", "_doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+        assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true).setIndices("test-idx-1").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+
+        logger.info("--> restore index with different name");
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
+            .setRenamePattern("(.+)").setRenameReplacement("$1-copy").setWaitForCompletion(true).execute().actionGet();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+        assertThat(client.prepareSearch("test-idx-1-copy").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+
+        // Index more documents
+        for (int i = 100; i < 200; i++) {
+            index("test-idx-1", "_doc", Integer.toString(i), "foo", "bar" + i);
+        }
+
+        logger.info("--> snapshot");
+        createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap2")
+            .setWaitForCompletion(true).setIndices("test-idx-1").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+
+        logger.info("--> and try to restore this open index again");
+        restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap2")
+            .setRenamePattern("(.+)").setRenameReplacement("$1-copy").setRestoreOpenIndex(true).setWaitForCompletion(true).execute().get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+        assertThat(client.prepareSearch("test-idx-1-copy").setSize(0).get().getHits().getTotalHits().value, equalTo(200L));
+    }
+
+    public void testCannotConcurrentlyRestoreSameIndex() throws Exception {
+        Client client = client();
+
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+            .setType("mock").setSettings(Settings.builder()
+                .put("location", randomRepoPath())));
+
+        createIndex("test-idx-1", "test-idx-2", "test-idx-3");
+        ensureGreen();
+
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true).setIndices("test-idx-1", "test-idx-2", "test-idx-3").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+
+        blockAllDataNodes("test-repo");
+
+        logger.info("--> restore index with different name");
+        ActionFuture<RestoreSnapshotResponse> restorefuture1 = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
+            .setIndices("test-idx-1", "test-idx-2", "test-idx-3").setRenamePattern("(.+)").setRenameReplacement("$1-copy")
+            .setWaitForCompletion(true).execute();
+
+        logger.info("--> concurrently restore index with another different name");
+        ActionFuture<RestoreSnapshotResponse> restorefuture2 = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
+            .setIndices("test-idx-3").setRenamePattern("(.+)").setRenameReplacement("$1-copy2")
+            .setWaitForCompletion(true).execute();
+
+        unblockAllDataNodes("test-repo");
+
+        assertThat(restorefuture1.get().getRestoreInfo().totalShards(), greaterThan(0));
+        assertThat(restorefuture2.get().getRestoreInfo().totalShards(), greaterThan(0));
+
+        cluster().wipeIndices("test-idx-1-copy", "test-idx-2-copy", "test-idx-3-copy", "test-idx-1-copy2");
+
+        blockAllDataNodes("test-repo");
+
+        AtomicReference<RestoreSnapshotResponse> responseReference = new AtomicReference<>();
+        AtomicReference<Throwable> exReference = new AtomicReference<>();
+
+        ActionListener<RestoreSnapshotResponse> listener = new ActionListener<RestoreSnapshotResponse>() {
+            @Override
+            public void onResponse(RestoreSnapshotResponse response) {
+                responseReference.set(response);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof RemoteTransportException) {
+                    exReference.set(((RemoteTransportException) e).getRootCause());
+                } else {
+                    exReference.set(e);
+                }
+            }
+        };
+
+        logger.info("--> restore index with different name");
+        client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setIndices("test-idx-1", "test-idx-2", "test-idx-3")
+            .setRestoreOpenIndex(true).setRenamePattern("(.+)").setRenameReplacement("$1-copy").setWaitForCompletion(true)
+            .execute(listener);
+
+        logger.info("--> restore index with same different name");
+        client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setIndices("test-idx-2", "test-idx-3")
+            .setRestoreOpenIndex(true).setRenamePattern("(.+)").setRenameReplacement("$1-copy").setWaitForCompletion(true)
+            .execute(listener);
+
+        assertBusy(() -> {
+            Throwable exception = exReference.get();
+            assertNotNull(exception);
+            assertThat(exception, instanceOf(ConcurrentSnapshotExecutionException.class));
+            assertThat(exception.getMessage(), not(containsString("test-idx-1")));
+            assertThat(exception.getMessage(), containsString("test-idx-2"));
+            assertThat(exception.getMessage(), containsString("test-idx-3"));
+        });
+
+        unblockAllDataNodes("test-repo");
+
+        assertBusy(() -> {
+            assertNotNull(responseReference.get());
+            assertThat(responseReference.get().getRestoreInfo().totalShards(), greaterThan(0));
+        });
     }
 
     private RepositoryData getRepositoryData(Repository repository) throws InterruptedException {

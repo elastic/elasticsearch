@@ -501,13 +501,13 @@ public class AuthorizationService {
         }
     }
 
-    private ElasticsearchSecurityException denial(String auditRequestId, Authentication authentication, String action, TransportRequest request,
-                                          AuthorizationInfo authzInfo) {
+    private ElasticsearchSecurityException denial(String auditRequestId, Authentication authentication, String action,
+                                                  TransportRequest request, AuthorizationInfo authzInfo) {
         return denial(auditRequestId, authentication, action, request, authzInfo, null);
     }
 
-    private ElasticsearchSecurityException denial(String auditRequestId, Authentication authentication, String action, TransportRequest request,
-                                          AuthorizationInfo authzInfo, Exception cause) {
+    private ElasticsearchSecurityException denial(String auditRequestId, Authentication authentication, String action,
+                                                  TransportRequest request, AuthorizationInfo authzInfo, Exception cause) {
         auditTrail.accessDenied(auditRequestId, authentication, action, request, authzInfo);
         return denialException(authentication, action, cause);
     }

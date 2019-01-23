@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -99,11 +98,12 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         out.writeVInt(shardSize);
     }
 
-    public GeoGridAggregationBuilder precision(int precision) {
-        // TODO
-        this.precision = GeoUtils.checkPrecisionRange(precision);
-        return this;
-    }
+    /**
+     * method to validate and set the precision value
+     * @param precision the precision to set for the aggregation
+     * @return the {@link GeoGridAggregationBuilder} builder
+     */
+    public abstract GeoGridAggregationBuilder precision(int precision);
 
     public int precision() {
         return precision;

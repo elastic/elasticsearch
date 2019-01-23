@@ -47,6 +47,12 @@ public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
         super(in);
     }
 
+    @Override
+    public GeoGridAggregationBuilder precision(int precision) {
+        this.precision = GeoUtils.checkPrecisionRange(precision);
+        return this;
+    }
+
     private GeoHashGridAggregationBuilder(GeoHashGridAggregationBuilder clone, AggregatorFactories.Builder factoriesBuilder,
                                           Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);

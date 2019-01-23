@@ -135,7 +135,7 @@ public class FollowersChecker {
             followerCheckers.keySet().removeIf(isUnknownNode);
             faultyNodes.removeIf(isUnknownNode);
 
-            for (final DiscoveryNode discoveryNode : discoveryNodes) {
+            discoveryNodes.mastersFirstStream().forEach(discoveryNode -> {
                 if (discoveryNode.equals(discoveryNodes.getLocalNode()) == false
                     && followerCheckers.containsKey(discoveryNode) == false
                     && faultyNodes.contains(discoveryNode) == false) {
@@ -144,7 +144,7 @@ public class FollowersChecker {
                     followerCheckers.put(discoveryNode, followerChecker);
                     followerChecker.start();
                 }
-            }
+            });
         }
     }
 

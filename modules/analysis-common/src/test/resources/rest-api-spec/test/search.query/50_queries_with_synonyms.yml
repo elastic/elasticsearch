@@ -290,7 +290,6 @@
   - do:
       index:
           index: test
-          type: test
           id: 2
           body:
             text: fast brown fox

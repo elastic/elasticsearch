@@ -178,7 +178,6 @@ setup:
   - do:
       index:
           index: test
-          type: test
           id: 7
           body:
             text: "WTFD!"
@@ -186,7 +185,6 @@ setup:
   - do:
       index:
           index: test
-          type: test
           id: 8
           body:
             text: "Weird Al's WHAT THE FUDGESICLE"

@@ -172,6 +172,12 @@ class ClusterFormationTasks {
 
     /** Adds a dependency on the given distribution */
     static void configureDistributionDependency(Project project, String distro, Configuration configuration, String elasticsearchVersion) {
+        if (distro.equals("integ-test-zip")) {
+            // short circuit integ test so it doesn't complicate the rest of the distribution setup below
+            project.dependencies.add(configuration.name,
+                    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${elasticsearchVersion}@zip")
+            return
+        }
         // TEMP HACK
         // The oss docs CI build overrides the distro on the command line. This hack handles backcompat until CI is updated.
         if (distro.equals('oss-zip')) {
@@ -181,14 +187,11 @@ class ClusterFormationTasks {
             distro = 'default'
         }
         // END TEMP HACK
-        if (['integ-test-zip', 'oss', 'default'].contains(distro) == false) {
+        if (['oss', 'default'].contains(distro) == false) {
             throw new GradleException("Unknown distribution: ${distro} in project ${project.path}")
         }
         Version version = Version.fromString(elasticsearchVersion)
         String group = "downloads.zip" // dummy group, does not matter except for integ-test-zip, it is ignored by the fake ivy repo
-        if (distro.equals("integ-test-zip")) {
-            group = "org.elasticsearch.distribution.integ-test-zip"
-        }
         String artifactName = 'elasticsearch'
         if (distro.equals('oss') && Version.fromString(elasticsearchVersion).onOrAfter('6.3.0')) {
             artifactName += '-oss'

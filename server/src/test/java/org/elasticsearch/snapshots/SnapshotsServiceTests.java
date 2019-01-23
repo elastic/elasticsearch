@@ -270,7 +270,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                 return snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty();
             }
             return false;
-        }, TimeUnit.MINUTES.toMillis(20L));
+        }, TimeUnit.MINUTES.toMillis(1L));
 
         clearDisruptionsAndAwaitSync();
 
@@ -409,7 +409,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                 return (snapshotsInProgress == null || snapshotsInProgress.entries().isEmpty()) && createdSnapshot.get();
             }
             return false;
-        }, TimeUnit.MINUTES.toMillis(20L));
+        }, TimeUnit.MINUTES.toMillis(1L));
 
         clearDisruptionsAndAwaitSync();
 
@@ -428,7 +428,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             final List<Long> versions = testClusterNodes.nodes.values().stream()
                 .map(n -> n.clusterService.state().version()).distinct().collect(Collectors.toList());
             return versions.size() == 1L;
-        }, TimeUnit.MINUTES.toMillis(20L));
+        }, TimeUnit.MINUTES.toMillis(1L));
     }
 
     private void disconnectOrRestartDataNode() {

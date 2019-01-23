@@ -138,8 +138,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             // tag::indices-exists-request
-            GetIndexRequest request = new GetIndexRequest();
-            request.indices("twitter"); // <1>
+            GetIndexRequest request = new GetIndexRequest("twitter"); // <1>
             // end::indices-exists-request
 
             IndicesOptions indicesOptions = IndicesOptions.strictExpand();
@@ -166,8 +165,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
 
         {
-            GetIndexRequest request = new GetIndexRequest();
-            request.indices("twitter");
+            GetIndexRequest request = new GetIndexRequest("twitter");
 
             // tag::indices-exists-execute-listener
             ActionListener<Boolean> listener = new ActionListener<Boolean>() {
@@ -1241,7 +1239,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
 
         // tag::get-index-request
-        GetIndexRequest request = new GetIndexRequest().indices("index"); // <1>
+        GetIndexRequest request = new GetIndexRequest("index"); // <1>
         // end::get-index-request
 
         // tag::get-index-request-indicesOptions

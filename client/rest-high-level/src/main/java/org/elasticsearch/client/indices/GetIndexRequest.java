@@ -19,49 +19,19 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.common.util.ArrayUtils;
-
-import java.io.IOException;
 
 /**
  * A request to retrieve information about an index.
  */
-public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
+public class GetIndexRequest extends TimedRequest {
+
     public enum Feature {
-        ALIASES((byte) 0),
-        MAPPINGS((byte) 1),
-        SETTINGS((byte) 2);
-
-        private static final Feature[] FEATURES = new Feature[Feature.values().length];
-
-        static {
-            for (Feature feature : Feature.values()) {
-                assert feature.id() < FEATURES.length && feature.id() >= 0;
-                FEATURES[feature.id] = feature;
-            }
-        }
-
-        private final byte id;
-
-        Feature(byte id) {
-            this.id = id;
-        }
-
-        public byte id() {
-            return id;
-        }
-
-        public static Feature fromId(byte id) {
-            if (id < 0 || id >= FEATURES.length) {
-                throw new IllegalArgumentException("No mapping for id [" + id + "]");
-            }
-            return FEATURES[id];
-        }
+        ALIASES,
+        MAPPINGS,
+        SETTINGS;
     }
 
     private static final Feature[] DEFAULT_FEATURES = new Feature[] { Feature.ALIASES, Feature.MAPPINGS, Feature.SETTINGS };
@@ -69,21 +39,42 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     private boolean humanReadable = false;
     private transient boolean includeDefaults = false;
 
-    public GetIndexRequest() {
+    private final String[] indices;
+    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
+    private boolean local = false;
 
+    public GetIndexRequest(String... indices) {
+        this.indices = indices;
     }
 
-    public GetIndexRequest(StreamInput in) throws IOException {
-        super(in);
-        int size = in.readVInt();
-        features = new Feature[size];
-        for (int i = 0; i < size; i++) {
-            features[i] = Feature.fromId(in.readByte());
-        }
-        humanReadable = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            includeDefaults = in.readBoolean();
-        }
+    /**
+     * The indices into which the mappings will be put.
+     */
+    public String[] indices() {
+        return indices;
+    }
+
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
+    }
+
+    public GetIndexRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
+        return this;
+    }
+
+    public final GetIndexRequest local(boolean local) {
+        this.local = local;
+        return this;
+    }
+
+    /**
+     * Return local information, do not retrieve the state from master node (default: false).
+     * @return <code>true</code> if local information is to be returned;
+     * <code>false</code> if information is to be retrieved from master node (default).
+     */
+    public final boolean local() {
+        return local;
     }
 
     public GetIndexRequest features(Feature... features) {
@@ -105,11 +96,6 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
 
     public Feature[] features() {
         return features;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     public GetIndexRequest humanReadable(boolean humanReadable) {
@@ -141,23 +127,4 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     public boolean includeDefaults() {
         return includeDefaults;
     }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(features.length);
-        for (Feature feature : features) {
-            out.writeByte(feature.id);
-        }
-        out.writeBoolean(humanReadable);
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeBoolean(includeDefaults);
-        }
-    }
-
 }

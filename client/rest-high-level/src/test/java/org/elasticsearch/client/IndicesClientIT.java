@@ -132,8 +132,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             String indexName = "test_index_exists_index_present";
             createIndex(indexName, Settings.EMPTY);
 
-            GetIndexRequest request = new GetIndexRequest();
-            request.indices(indexName);
+            GetIndexRequest request = new GetIndexRequest(indexName);
 
             boolean response = execute(
                 request,
@@ -147,8 +146,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         {
             String indexName = "non_existent_index";
 
-            GetIndexRequest request = new GetIndexRequest();
-            request.indices(indexName);
+            GetIndexRequest request = new GetIndexRequest(indexName);
 
             boolean response = execute(
                 request,
@@ -165,8 +163,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
             String nonExistentIndex = "oranges";
 
-            GetIndexRequest request = new GetIndexRequest();
-            request.indices(existingIndex, nonExistentIndex);
+            GetIndexRequest request = new GetIndexRequest(existingIndex, nonExistentIndex);
 
             boolean response = execute(
                 request,
@@ -362,8 +359,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         String mappings = "\"properties\":{\"field-1\":{\"type\":\"integer\"}}";
         createIndex(indexName, basicSettings, mappings);
 
-        GetIndexRequest getIndexRequest = new GetIndexRequest()
-            .indices(indexName).includeDefaults(false);
+        GetIndexRequest getIndexRequest = new GetIndexRequest(indexName).includeDefaults(false);
         GetIndexResponse getIndexResponse =
             execute(getIndexRequest, highLevelClient().indices()::get, highLevelClient().indices()::getAsync);
 
@@ -423,8 +419,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         String mappings = "\"properties\":{\"field-1\":{\"type\":\"integer\"}}";
         createIndex(indexName, basicSettings, mappings);
 
-        GetIndexRequest getIndexRequest = new GetIndexRequest()
-            .indices(indexName).includeDefaults(true);
+        GetIndexRequest getIndexRequest = new GetIndexRequest(indexName).includeDefaults(true);
         GetIndexResponse getIndexResponse =
             execute(getIndexRequest, highLevelClient().indices()::get, highLevelClient().indices()::getAsync);
 
@@ -446,7 +441,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         String nonExistentIndex = "index_that_doesnt_exist";
         assertFalse(indexExists(nonExistentIndex));
 
-        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(nonExistentIndex);
+        GetIndexRequest getIndexRequest = new GetIndexRequest(nonExistentIndex);
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
             () -> execute(getIndexRequest, highLevelClient().indices()::get, highLevelClient().indices()::getAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());

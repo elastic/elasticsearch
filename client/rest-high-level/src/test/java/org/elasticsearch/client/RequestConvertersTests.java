@@ -49,7 +49,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -1928,10 +1927,6 @@ public class RequestConvertersTests extends ESTestCase {
                 expectedParams.put("local", String.valueOf(local));
             }
         }
-    }
-
-    static void setRandomLocal(MasterNodeReadRequest<?> request, Map<String, String> expectedParams) {
-        setRandomLocal(request::local, expectedParams);
     }
 
     static void setRandomTimeout(TimedRequest request, TimeValue defaultTimeout, Map<String, String> expectedParams) {

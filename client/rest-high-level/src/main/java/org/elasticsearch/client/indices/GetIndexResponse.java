@@ -39,7 +39,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
- * A response for a get index action.
+ * A client side response for a get index action.
  */
 public class GetIndexResponse {
 
@@ -71,35 +71,16 @@ public class GetIndexResponse {
         }
     }
 
-    GetIndexResponse() {
-    }
-
-    public String[] indices() {
+    public String[] getIndices() {
         return indices;
     }
 
-    public String[] getIndices() {
-        return indices();
-    }
-
-    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings() {
+    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> getMappings() {
         return mappings;
     }
 
-    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> getMappings() {
-        return mappings();
-    }
-
-    public ImmutableOpenMap<String, List<AliasMetaData>> aliases() {
-        return aliases;
-    }
-
     public ImmutableOpenMap<String, List<AliasMetaData>> getAliases() {
-        return aliases();
-    }
-
-    public ImmutableOpenMap<String, Settings> settings() {
-        return settings;
+        return aliases;
     }
 
     /**
@@ -115,7 +96,7 @@ public class GetIndexResponse {
     }
 
     public ImmutableOpenMap<String, Settings> getSettings() {
-        return settings();
+        return settings;
     }
 
     /**

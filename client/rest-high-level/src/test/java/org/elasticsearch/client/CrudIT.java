@@ -1205,7 +1205,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals(docId, getResponse.getId());
         }
 
-        assertTrue(highLevelClient().indices().exists(new GetIndexRequest().indices(indexPattern, "index"), RequestOptions.DEFAULT));
+        assertTrue(highLevelClient().indices().exists(new GetIndexRequest(indexPattern, "index"), RequestOptions.DEFAULT));
     }
 
     public void testParamsEncode() throws IOException {

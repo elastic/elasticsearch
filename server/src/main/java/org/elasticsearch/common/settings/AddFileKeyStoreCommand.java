@@ -53,8 +53,7 @@ class AddFileKeyStoreCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        char[] password = null;
-        char[] passwordVerification = null;
+        char[] passphrase = null;
         try {
             KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
             if (keystore == null) {
@@ -63,21 +62,13 @@ class AddFileKeyStoreCommand extends EnvironmentAwareCommand {
                     terminal.println("Exiting without creating keystore.");
                     return;
                 }
-                password = terminal.readSecret("Enter passphrase for the elasticsearch keystore (empty for no passphrase): ");
-                passwordVerification = terminal.readSecret("Enter same passphrase again: ");
-                if (Arrays.equals(password, passwordVerification) == false) {
-                    throw new UserException(ExitCodes.DATA_ERROR, "Passphrases are not equal, exiting.");
-                }
                 keystore = KeyStoreWrapper.create();
-                keystore.save(env.configFile(), password);
+                passphrase = keystore.readPassphrase(terminal, true);
+                keystore.save(env.configFile(), passphrase);
                 terminal.println("Created elasticsearch keystore in " + env.configFile());
             } else {
-                if (keystore.hasPassword()) {
-                    password = terminal.readSecret("Enter passphrase for the elasticsearch keystore: ");
-                } else {
-                    password = new char[0];
-                }
-                keystore.decrypt(password);
+                passphrase = keystore.hasPassword() ? keystore.readPassphrase(terminal, false) : new char[0];
+                keystore.decrypt(passphrase);
             }
 
             List<String> argumentValues = arguments.values(options);
@@ -104,15 +95,12 @@ class AddFileKeyStoreCommand extends EnvironmentAwareCommand {
                     String.join(", ", argumentValues.subList(2, argumentValues.size())) + "] after filepath");
             }
             keystore.setFile(setting, Files.readAllBytes(file));
-            keystore.save(env.configFile(), password);
+            keystore.save(env.configFile(), passphrase);
         } catch (SecurityException e) {
             throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the passphrase was correct.");
         } finally {
-            if (null != password) {
-                Arrays.fill(password, '\u0000');
-            }
-            if (null != passwordVerification) {
-                Arrays.fill(passwordVerification, '\u0000');
+            if (null != passphrase) {
+                Arrays.fill(passphrase, '\u0000');
             }
         }
     }

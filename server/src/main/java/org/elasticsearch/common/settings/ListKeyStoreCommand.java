@@ -47,14 +47,10 @@ class ListKeyStoreCommand extends EnvironmentAwareCommand {
         if (keystore == null) {
             throw new UserException(ExitCodes.DATA_ERROR, "Elasticsearch keystore not found. Use 'create' command to create one.");
         }
-        char[] password;
-        if (keystore.hasPassword()) {
-            password = terminal.readSecret("Enter elasticsearch keystore passphrase (empty for no passphrase): ");
-        } else {
-            password = new char[0];
-        }
+        char[] passphrase;
+        passphrase = keystore.hasPassword() ? keystore.readPassphrase(terminal, false) : new char[0];
         try {
-            keystore.decrypt(password);
+            keystore.decrypt(passphrase);
             List<String> sortedEntries = new ArrayList<>(keystore.getSettingNames());
             Collections.sort(sortedEntries);
             for (String entry : sortedEntries) {
@@ -63,7 +59,7 @@ class ListKeyStoreCommand extends EnvironmentAwareCommand {
         } catch (SecurityException e) {
             throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the passphrase was correct.");
         } finally {
-            Arrays.fill(password, '\u0000');
+            Arrays.fill(passphrase, '\u0000');
         }
     }
 }

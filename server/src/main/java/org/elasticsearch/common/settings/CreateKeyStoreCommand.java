@@ -41,8 +41,7 @@ class CreateKeyStoreCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        char[] password = null;
-        char[] passwordVerification = null;
+        char[] passphrase = null;
         try {
             Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
             if (Files.exists(keystoreFile)) {
@@ -51,22 +50,15 @@ class CreateKeyStoreCommand extends EnvironmentAwareCommand {
                     return;
                 }
             }
-            password = terminal.readSecret("Enter passphrase (empty for no passphrase): ");
-            passwordVerification = terminal.readSecret("Enter same passphrase again: ");
-            if (Arrays.equals(password, passwordVerification) == false) {
-                throw new UserException(ExitCodes.DATA_ERROR, "Passphrases are not equal, exiting.");
-            }
             KeyStoreWrapper keystore = KeyStoreWrapper.create();
-            keystore.save(env.configFile(), password);
+            passphrase = keystore.readPassphrase(terminal, true);
+            keystore.save(env.configFile(), passphrase);
             terminal.println("Created elasticsearch keystore in " + env.configFile());
         } catch (SecurityException e) {
             throw new UserException(ExitCodes.IO_ERROR, "Error creating the elasticsearch keystore.", e);
         } finally {
-            if (null != password) {
-                Arrays.fill(password, '\u0000');
-            }
-            if (null != passwordVerification) {
-                Arrays.fill(passwordVerification, '\u0000');
+            if (null != passphrase) {
+                Arrays.fill(passphrase, '\u0000');
             }
         }
     }

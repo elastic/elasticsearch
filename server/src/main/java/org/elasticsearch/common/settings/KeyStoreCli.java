@@ -34,6 +34,7 @@ public class KeyStoreCli extends LoggingAwareMultiCommand {
         subcommands.put("add", new AddStringKeyStoreCommand());
         subcommands.put("add-file", new AddFileKeyStoreCommand());
         subcommands.put("remove", new RemoveSettingKeyStoreCommand());
+        subcommands.put("passwd", new ChangeKeyStorePassphraseCommand());
     }
 
     public static void main(String[] args) throws Exception {

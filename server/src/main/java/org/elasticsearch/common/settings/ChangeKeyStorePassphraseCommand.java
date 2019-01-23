@@ -19,51 +19,43 @@
 
 package org.elasticsearch.common.settings;
 
-import java.util.Arrays;
-import java.util.List;
-
 import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
-/**
- * A subcommand for the keystore cli to remove a setting.
- */
-class RemoveSettingKeyStoreCommand extends EnvironmentAwareCommand {
+import java.util.Arrays;
 
-    private final OptionSpec<String> arguments;
+public class ChangeKeyStorePassphraseCommand extends EnvironmentAwareCommand {
 
-    RemoveSettingKeyStoreCommand() {
-        super("Remove a setting from the keystore");
-        arguments = parser.nonOptions("setting names");
+
+    ChangeKeyStorePassphraseCommand() {
+        super("Changes the passphrase of a keystore");
     }
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        List<String> settings = arguments.values(options);
-        if (settings.isEmpty()) {
-            throw new UserException(ExitCodes.USAGE, "Must supply at least one setting to remove");
-        }
-
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
-        if (keystore == null) {
-            throw new UserException(ExitCodes.DATA_ERROR, "Elasticsearch keystore not found. Use 'create' command to create one.");
-        }
         char[] passphrase = null;
         try {
-            passphrase = keystore.hasPassword() ? keystore.readPassphrase(terminal, false) : new char[0];
-            keystore.decrypt(passphrase);
-            for (String setting : arguments.values(options)) {
-                if (keystore.getSettingNames().contains(setting) == false) {
-                    throw new UserException(ExitCodes.CONFIG, "Setting [" + setting + "] does not exist in the keystore.");
+            KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
+            if (keystore == null) {
+                if (terminal.promptYesNo("The elasticsearch keystore does not exist. Do you want to create it?", false) == false) {
+                    terminal.println("Exiting without creating keystore.");
+                    return;
                 }
-                keystore.remove(setting);
+                keystore = KeyStoreWrapper.create();
+                passphrase = keystore.readPassphrase(terminal, true);
+                keystore.save(env.configFile(), passphrase);
+                terminal.println("Created elasticsearch keystore in " + env.configFile());
+            } else {
+                passphrase = keystore.hasPassword() ? keystore.readPassphrase(terminal, false) : new char[0];
+                keystore.decrypt(passphrase);
+                passphrase = keystore.readPassphrase(terminal, true);
+                keystore.save(env.configFile(), passphrase);
+                terminal.println("Elasticsearch keystore passphrase changed successfully." + env.configFile());
             }
-            keystore.save(env.configFile(), passphrase);
         } catch (SecurityException e) {
             throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the passphrase was correct.");
         } finally {

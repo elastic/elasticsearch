@@ -65,6 +65,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Randomness;
 
@@ -509,6 +510,31 @@ public class KeyStoreWrapper implements SecureSettings {
             attrs.setPermissions(PosixFilePermissions.fromString("rw-rw----"));
         }
     }
+
+    /**
+     * Reads the keystore passphrase from the {@link Terminal}, prompting for verification where applicable and returns it as a
+     * {@code char[]}. The caller is responsible to clear the char array after use.
+     *
+     * @param terminal         the terminal to use for user inputs
+     * @param withVerification whether the user should be prompted for passphrase verification
+     * @return a char array with the passphrase the user entered
+     * @throws UserException If the user is prompted for verification and enters a different passphrase
+     */
+    char[] readPassphrase(Terminal terminal, boolean withVerification) throws UserException {
+        final char[] passphrase;
+        if (withVerification) {
+            passphrase = terminal.readSecret("Enter new passphrase for the elasticsearch keystore (empty for no passphrase): ");
+            char[] passphraseVerification = terminal.readSecret("Enter same passphrase again: ");
+            if (Arrays.equals(passphrase, passphraseVerification) == false) {
+                throw new UserException(ExitCodes.DATA_ERROR, "Passphrases are not equal, exiting.");
+            }
+            Arrays.fill(passphraseVerification, '\u0000');
+        } else {
+            passphrase = terminal.readSecret("Enter passphrase for the elasticsearch keystore : ");
+        }
+        return passphrase;
+    }
+
 
     /**
      * It is possible to retrieve the setting names even if the keystore is closed.

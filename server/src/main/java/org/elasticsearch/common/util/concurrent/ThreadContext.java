@@ -511,7 +511,7 @@ public final class ThreadContext implements Closeable, Writeable {
                 String key = entry.getKey();
                 final Set<String> existingValues = newResponseHeaders.get(key);
                 if (existingValues != null) {
-                    Set<String> newValues =
+                    final Set<String> newValues =
                             Stream.concat(entry.getValue().stream(), existingValues.stream()).collect(LINKED_HASH_SET_COLLECTOR);
                     newResponseHeaders.put(key, Collections.unmodifiableSet(newValues));
                 } else {

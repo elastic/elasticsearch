@@ -588,6 +588,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                     } else {
                         throw new IllegalArgumentException("malformed ignore_index_settings section, should be an array of strings");
                     }
+            } else if (name.equals("restore_open_index")) {
+                restoreOpenIndex(nodeBooleanValue(entry.getValue(), "restore_open_index"));
             } else {
                 if (IndicesOptions.isIndicesOptions(name) == false) {
                     throw new IllegalArgumentException("Unknown parameter " + name);
@@ -617,6 +619,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         }
         builder.field("include_global_state", includeGlobalState);
         builder.field("partial", partial);
+        builder.field("restore_open_index", restoreOpenIndex);
         builder.field("include_aliases", includeAliases);
         if (settings != null) {
             builder.startObject("settings");

@@ -180,11 +180,11 @@ public abstract class DataTypeConversion {
     }
 
     private static Conversion conversionToString(DataType from) {
-        if (from == DATETIME) {
-            return Conversion.DATETIME_TO_STRING;
-        }
         if (from == DATE) {
             return Conversion.DATE_TO_STRING;
+        }
+        if (from == DATETIME) {
+            return Conversion.DATETIME_TO_STRING;
         }
         return Conversion.OTHER_TO_STRING;
     }

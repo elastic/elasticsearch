@@ -278,6 +278,10 @@ final class QueryTranslator {
                             // date histogram
                             if (h.dataType().isDateBased()) {
                                 long intervalAsMillis = Intervals.inMillis(h.interval());
+
+                                // When the histogram in SQL is applied on DATE type instead of DATETIME, the interval
+                                // specified is truncated to the multiple of a day. If the interval specified is less
+                                // than 1 day, then the interval used will be `INTERVAL '1' DAY`.
                                 if (h.dataType() == DATE) {
                                     intervalAsMillis = DateUtils.minDayInterval(intervalAsMillis);
                                 }

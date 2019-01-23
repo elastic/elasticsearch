@@ -60,11 +60,13 @@ public class DataTypeConversionTests extends ESTestCase {
             Conversion conversion = conversionFor(DATE, to);
             assertNull(conversion.convert(null));
             assertEquals("1973-11-29", conversion.convert(DateUtils.asDateOnly(123456789101L)));
+            assertEquals("1966-02-02", conversion.convert(DateUtils.asDateOnly(-123456789101L)));
         }
         {
             Conversion conversion = conversionFor(DATETIME, to);
             assertNull(conversion.convert(null));
             assertEquals("1973-11-29T21:33:09.101Z", conversion.convert(asDateTime(123456789101L)));
+            assertEquals("1966-02-02T02:26:50.899Z", conversion.convert(asDateTime(-123456789101L)));
         }
     }
 
@@ -98,11 +100,13 @@ public class DataTypeConversionTests extends ESTestCase {
             Conversion conversion = conversionFor(DATE, to);
             assertNull(conversion.convert(null));
             assertEquals(123379200L, conversion.convert(DateUtils.asDateOnly(123456789101L)));
+            assertEquals(-123465600L, conversion.convert(DateUtils.asDateOnly(-123456789101L)));
         }
         {
             Conversion conversion = conversionFor(DATETIME, to);
             assertNull(conversion.convert(null));
             assertEquals(123456789L, conversion.convert(asDateTime(123456789101L)));
+            assertEquals(-123456790L, conversion.convert(asDateTime(-123456789101L)));
         }
         {
             Conversion conversion = conversionFor(KEYWORD, to);
@@ -141,6 +145,7 @@ public class DataTypeConversionTests extends ESTestCase {
             Conversion conversion = conversionFor(DATETIME, to);
             assertNull(conversion.convert(null));
             assertEquals(date(123456780000L), conversion.convert(asDateTime(123456789101L)));
+            assertEquals(date(-123456789101L), conversion.convert(asDateTime(-123456789101L)));
         }
         {
             Conversion conversion = conversionFor(KEYWORD, to);
@@ -148,6 +153,7 @@ public class DataTypeConversionTests extends ESTestCase {
 
             assertEquals(date(0L), conversion.convert("1970-01-01T00:10:01Z"));
             assertEquals(date(1483228800000L), conversion.convert("2017-01-01T00:11:00Z"));
+            assertEquals(date(-1672531200000L), conversion.convert("1917-01-01T00:11:00Z"));
             assertEquals(date(18000000L), conversion.convert("1970-01-01T03:10:20-05:00"));
 
             // double check back and forth conversion
@@ -187,12 +193,14 @@ public class DataTypeConversionTests extends ESTestCase {
             Conversion conversion = conversionFor(DATE, to);
             assertNull(conversion.convert(null));
             assertEquals(dateTime(123379200000L), conversion.convert(DateUtils.asDateOnly(123456789101L)));
+            assertEquals(dateTime(-123465600000L), conversion.convert(DateUtils.asDateOnly(-123456789101L)));
         }
         {
             Conversion conversion = conversionFor(KEYWORD, to);
             assertNull(conversion.convert(null));
 
             assertEquals(dateTime(1000L), conversion.convert("1970-01-01T00:00:01Z"));
+            assertEquals(dateTime(1483228800000L), conversion.convert("2017-01-01T00:00:00Z"));
             assertEquals(dateTime(1483228800000L), conversion.convert("2017-01-01T00:00:00Z"));
             assertEquals(dateTime(18000000L), conversion.convert("1970-01-01T00:00:00-05:00"));
 
@@ -231,11 +239,13 @@ public class DataTypeConversionTests extends ESTestCase {
             Conversion conversion = conversionFor(DATE, to);
             assertNull(conversion.convert(null));
             assertEquals(1.233792E8, (double) conversion.convert(DateUtils.asDateOnly(123456789101L)), 0);
+            assertEquals(-1.234656E8, (double) conversion.convert(DateUtils.asDateOnly(-123456789101L)), 0);
         }
         {
             Conversion conversion = conversionFor(DATETIME, to);
             assertNull(conversion.convert(null));
             assertEquals(1.23456789E8, (double) conversion.convert(asDateTime(123456789101L)), 0);
+            assertEquals(-1.2345679E8, (double) conversion.convert(asDateTime(-123456789101L)), 0);
         }
         {
             Conversion conversion = conversionFor(KEYWORD, to);
@@ -282,12 +292,14 @@ public class DataTypeConversionTests extends ESTestCase {
             Conversion conversion = conversionFor(DATE, to);
             assertNull(conversion.convert(null));
             assertEquals(true, conversion.convert(DateUtils.asDateOnly(123456789101L)));
+            assertEquals(true, conversion.convert(DateUtils.asDateOnly(-123456789101L)));
             assertEquals(false, conversion.convert(DateUtils.asDateOnly(0L)));
         }
         {
             Conversion conversion = conversionFor(DATETIME, to);
             assertNull(conversion.convert(null));
             assertEquals(true, conversion.convert(asDateTime(123456789101L)));
+            assertEquals(true, conversion.convert(asDateTime(-123456789101L)));
             assertEquals(false, conversion.convert(asDateTime(0L)));
         }
         {
@@ -329,11 +341,13 @@ public class DataTypeConversionTests extends ESTestCase {
             Conversion conversion = conversionFor(DATE, to);
             assertNull(conversion.convert(null));
             assertEquals(123379200, conversion.convert(DateUtils.asDateOnly(123456789101L)));
+            assertEquals(-123465600, conversion.convert(DateUtils.asDateOnly(-123456789101L)));
         }
         {
             Conversion conversion = conversionFor(DATETIME, to);
             assertNull(conversion.convert(null));
             assertEquals(123456789, conversion.convert(asDateTime(123456789101L)));
+            assertEquals(-123456790, conversion.convert(asDateTime(-123456789101L)));
         }
     }
 

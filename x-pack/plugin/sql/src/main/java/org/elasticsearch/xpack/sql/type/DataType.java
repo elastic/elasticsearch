@@ -41,11 +41,11 @@ public enum DataType {
     OBJECT(                JDBCType.STRUCT,    -1,                0,                 0,  false, false, false),
     NESTED(                JDBCType.STRUCT,    -1,                0,                 0,  false, false, false),
     BINARY(                JDBCType.VARBINARY, -1,                Integer.MAX_VALUE, 0,  false, false, false),
-    // since ODBC and JDBC interpret precision for Date as display size,
+    DATE(                  JDBCType.DATE,      Long.BYTES,        10,                10, false, false, true),
+    // since ODBC and JDBC interpret precision for Date as display size
     // the precision is 23 (number of chars in ISO8601 with millis) + Z (the UTC timezone)
     // see https://github.com/elastic/elasticsearch/issues/30386#issuecomment-386807288
     DATETIME(              JDBCType.TIMESTAMP, Long.BYTES,        24,                24, false, false, true),
-    DATE(                  JDBCType.DATE,      Long.BYTES,        10,                10, false, false, true),
     //
     // specialized types
     //

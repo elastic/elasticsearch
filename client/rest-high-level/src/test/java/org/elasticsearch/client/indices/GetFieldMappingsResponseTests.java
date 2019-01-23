@@ -61,8 +61,9 @@ public class GetFieldMappingsResponseTests extends ESTestCase {
                 int fields = randomInt(10);
                 for (int k = 0; k < fields; k++) {
                     final String mapping = randomBoolean() ? "{\"type\":\"string\"}" : "{\"type\":\"keyword\"}";
-                    FieldMappingMetaData metaData = new FieldMappingMetaData("my field", new BytesArray(mapping));
-                    fieldMappings.put(randomAlphaOfLength(8), metaData);
+                    final String fieldName = randomAlphaOfLength(8);
+                    FieldMappingMetaData metaData = new FieldMappingMetaData(fieldName, new BytesArray(mapping));
+                    fieldMappings.put(fieldName, metaData);
                 }
                 mappings.put(randomAlphaOfLength(8), fieldMappings);
             }

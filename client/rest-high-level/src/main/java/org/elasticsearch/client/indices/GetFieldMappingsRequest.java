@@ -26,7 +26,7 @@ import org.elasticsearch.common.Strings;
 /** Request the mappings of specific fields */
 public class GetFieldMappingsRequest implements Validatable {
 
-    protected boolean local = false;
+    private boolean local = false;
 
     private String[] fields = Strings.EMPTY_ARRAY;
 

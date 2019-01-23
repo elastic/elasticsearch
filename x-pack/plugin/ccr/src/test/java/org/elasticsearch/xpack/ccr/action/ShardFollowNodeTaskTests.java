@@ -310,7 +310,10 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         assertThat(task.isStopped(), is(true));
         ShardFollowNodeTaskStatus status = task.getStatus();
-        assertThat(status.fallenBehindLeaderShard(), is(true));
+        // need a more robust approach to avoid the scenario where an outstanding request
+        // can trigger another restore while the shard was restored already.
+        // https://github.com/elastic/elasticsearch/pull/37562#discussion_r250009367
+        assertThat("noop for now", status.fallenBehindLeaderShard(), is(false));
         assertThat(status.outstandingReadRequests(), equalTo(1));
         assertThat(status.outstandingWriteRequests(), equalTo(0));
         assertThat(status.failedReadRequests(), equalTo(1L));

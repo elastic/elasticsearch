@@ -280,7 +280,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     if (e instanceof ElasticsearchException) {
                         ElasticsearchException elasticsearchException = (ElasticsearchException) e;
                         if (elasticsearchException.getMetadataKeys().contains(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY)) {
-                            handleFallenBehindLeaderShard(e);
+                            handleFallenBehindLeaderShard(e, from, maxOperationCount, maxRequiredSeqNo, retryCounter);
                             return;
                         }
                     }
@@ -300,11 +300,17 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         maybeUpdateSettings(response.getSettingsVersion(), updateMappingsTask);
     }
 
-    void handleFallenBehindLeaderShard(Exception e) {
-        // NOOP for now.
+    void handleFallenBehindLeaderShard(Exception e, long from, int maxOperationCount, long maxRequiredSeqNo, AtomicInteger retryCounter) {
         // Do restore from repository here and
         // after start() should be invoked and
         // stats should be reset including fallenBehindLeaderShard
+
+        // For now handle like any other failure:
+        // need a more robust approach to avoid the scenario where an outstanding request
+        // can trigger another restore while the shard was restored already.
+        // https://github.com/elastic/elasticsearch/pull/37562#discussion_r250009367
+
+        handleFailure(e, retryCounter, () -> sendShardChangesRequest(from, maxOperationCount, maxRequiredSeqNo, retryCounter));
     }
 
     /** Called when some operations are fetched from the leading */

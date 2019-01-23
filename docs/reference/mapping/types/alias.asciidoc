@@ -7,21 +7,19 @@ and selected other APIs like <<search-field-caps, field capabilities>>.
 
 [source,js]
 --------------------------------
-PUT trips?include_type_name=true
+PUT trips
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "distance": {
-          "type": "long"
-        },
-        "route_length_miles": {
-          "type": "alias",
-          "path": "distance" // <1>
-        },
-        "transit_mode": {
-          "type": "keyword"
-        }
+    "properties": {
+      "distance": {
+        "type": "long"
+      },
+      "route_length_miles": {
+        "type": "alias",
+        "path": "distance" // <1>
+      },
+      "transit_mode": {
+        "type": "keyword"
       }
     }
   }

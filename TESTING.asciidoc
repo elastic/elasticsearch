@@ -631,3 +631,13 @@ inside `/etc/hosts`, e.g.:
 255.255.255.255 broadcasthost
 ::1             localhost ElasticMBP.local`
 ....
+
+== Benchmarking
+
+For changes that might affect the performance characteristics of Elasticsearch
+you should also run macrobenchmarks. We maintain a macrobenchmarking tool
+called https://github.com/elastic/rally[Rally]
+which you can use to measure the performance impact. It comes with a set of
+default benchmarks that we also
+https://elasticsearch-benchmarks.elastic.co/[run every night]. To get started,
+please see https://esrally.readthedocs.io/en/stable/[Rally's documentation].

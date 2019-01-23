@@ -34,7 +34,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -47,6 +46,7 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplat
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
@@ -171,7 +171,28 @@ final class IndicesRequestConverters {
         return request;
     }
 
-    static Request getFieldMapping(GetFieldMappingsRequest getFieldMappingsRequest) throws IOException {
+    static Request getFieldMapping(GetFieldMappingsRequest getFieldMappingsRequest) {
+        String[] indices = getFieldMappingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.indices();
+        String[] fields = getFieldMappingsRequest.fields() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.fields();
+
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addCommaSeparatedPathParts(indices)
+            .addPathPartAsIs("_mapping")
+            .addPathPartAsIs("field")
+            .addCommaSeparatedPathParts(fields)
+            .build();
+
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        parameters.withIndicesOptions(getFieldMappingsRequest.indicesOptions());
+        parameters.withIncludeDefaults(getFieldMappingsRequest.includeDefaults());
+        parameters.withLocal(getFieldMappingsRequest.local());
+
+        return request;
+    }
+
+    static Request getFieldMapping(org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest) {
         String[] indices = getFieldMappingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.indices();
         String[] types = getFieldMappingsRequest.types() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.types();
         String[] fields = getFieldMappingsRequest.fields() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.fields();

@@ -73,6 +73,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -151,7 +152,8 @@ import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationExce
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAs;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
-import static org.hamcrest.Matchers.arrayContaining;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_SECURITY_INDEX;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -797,7 +799,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
-    public void testNonXPackUserCannotExecuteOperationAgainstSecurityIndex() {
+    public void testGrantAllRestrictedUserCannotExecuteOperationAgainstSecurityIndices() {
         RoleDescriptor role = new RoleDescriptor("all access", new String[]{"all"},
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("*").privileges("all").build()}, null);
         final Authentication authentication = createAuthentication(new User("all_access_user", "all_access"));
@@ -805,29 +807,41 @@ public class AuthorizationServiceTests extends ESTestCase {
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.builder()
-            .put(new IndexMetaData.Builder(SECURITY_INDEX_NAME)
-                .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
-                .numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(new IndexMetaData.Builder(INTERNAL_SECURITY_INDEX)
+                    .putAlias(new AliasMetaData.Builder(SECURITY_INDEX_NAME).build())
+                    .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .build(),true)
             .build());
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         List<Tuple<String, TransportRequest>> requests = new ArrayList<>();
-        requests.add(new Tuple<>(BulkAction.NAME + "[s]",
-            new DeleteRequest(SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(UpdateAction.NAME,
-            new UpdateRequest(SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(BulkAction.NAME + "[s]",
-            new IndexRequest(SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(SECURITY_INDEX_NAME)));
-        requests.add(new Tuple<>(TermVectorsAction.NAME,
-            new TermVectorsRequest(SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(GetAction.NAME, new GetRequest(SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(TermVectorsAction.NAME,
-            new TermVectorsRequest(SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(IndicesAliasesAction.NAME, new IndicesAliasesRequest()
-            .addAliasAction(AliasActions.add().alias("security_alias").index(SECURITY_INDEX_NAME))));
         requests.add(
-            new Tuple<>(UpdateSettingsAction.NAME, new UpdateSettingsRequest().indices(SECURITY_INDEX_NAME)));
+                new Tuple<>(BulkAction.NAME + "[s]", new DeleteRequest(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX), "id")));
+        requests.add(new Tuple<>(UpdateAction.NAME, new UpdateRequest(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX), "id")));
+        requests.add(new Tuple<>(BulkAction.NAME + "[s]", new IndexRequest(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX))));
+        requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX))));
+        requests.add(new Tuple<>(TermVectorsAction.NAME,
+                new TermVectorsRequest(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX), "type", "id")));
+        requests.add(new Tuple<>(GetAction.NAME, new GetRequest(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX), "id")));
+        requests.add(new Tuple<>(IndicesAliasesAction.NAME, new IndicesAliasesRequest()
+            .addAliasAction(AliasActions.add().alias("security_alias").index(INTERNAL_SECURITY_INDEX))));
+        requests.add(new Tuple<>(UpdateSettingsAction.NAME,
+                new UpdateSettingsRequest().indices(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX))));
+        // cannot execute monitor operations
+        requests.add(new Tuple<>(IndicesStatsAction.NAME,
+                new IndicesStatsRequest().indices(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX))));
+        requests.add(
+                new Tuple<>(RecoveryAction.NAME, new RecoveryRequest().indices(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX))));
+        requests.add(new Tuple<>(IndicesSegmentsAction.NAME,
+                new IndicesSegmentsRequest().indices(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX))));
+        requests.add(new Tuple<>(GetSettingsAction.NAME,
+                new GetSettingsRequest().indices(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX))));
+        requests.add(new Tuple<>(IndicesShardStoresAction.NAME,
+                new IndicesShardStoresRequest().indices(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX))));
+        requests.add(new Tuple<>(UpgradeStatusAction.NAME,
+                new UpgradeStatusRequest().indices(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX))));
 
         for (Tuple<String, TransportRequest> requestTuple : requests) {
             String action = requestTuple.v1();
@@ -840,12 +854,12 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
 
         // we should allow waiting for the health of the index or any index if the user has this permission
-        ClusterHealthRequest request = new ClusterHealthRequest(SECURITY_INDEX_NAME);
+        ClusterHealthRequest request = new ClusterHealthRequest(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX));
         authorize(authentication, ClusterHealthAction.NAME, request);
         verify(auditTrail).accessGranted(requestId, authentication, ClusterHealthAction.NAME, request, new String[]{role.getName()});
 
         // multiple indices
-        request = new ClusterHealthRequest(SECURITY_INDEX_NAME, "foo", "bar");
+        request = new ClusterHealthRequest(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX, "foo", "bar");
         authorize(authentication, ClusterHealthAction.NAME, request);
         verify(auditTrail).accessGranted(requestId, authentication, ClusterHealthAction.NAME, request, new String[]{role.getName()});
         verifyNoMoreInteractions(auditTrail);
@@ -856,17 +870,24 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertEquals(IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_LIST, Arrays.asList(searchRequest.indices()));
     }
 
-    public void testGrantedNonXPackUserCanExecuteMonitoringOperationsAgainstSecurityIndex() {
-        RoleDescriptor role = new RoleDescriptor("all access", new String[]{"all"},
-            new IndicesPrivileges[]{IndicesPrivileges.builder().indices("*").privileges("all").build()}, null);
-        final Authentication authentication = createAuthentication(new User("all_access_user", "all_access"));
-        roleMap.put("all_access", role);
+    public void testMonitoringOperationsAgainstSecurityIndexRequireAllowRestricted() {
+        final RoleDescriptor restrictedMonitorRole = new RoleDescriptor("restricted_monitor", null,
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("monitor").build() }, null);
+        final RoleDescriptor unrestrictedMonitorRole = new RoleDescriptor("unrestricted_monitor", null, new IndicesPrivileges[] {
+                IndicesPrivileges.builder().indices("*").privileges("monitor").allowRestrictedIndices(true).build() }, null);
+        roleMap.put("restricted_monitor", restrictedMonitorRole);
+        roleMap.put("unrestricted_monitor", unrestrictedMonitorRole);
+        final Authentication restrictedUserAuthn = createAuthentication(new User("restricted_user", "restricted_monitor"));
+        final Authentication unrestrictedUserAuthn = createAuthentication(new User("unrestricted_user", "unrestricted_monitor"));
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.builder()
-            .put(new IndexMetaData.Builder(SECURITY_INDEX_NAME)
-                .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
-                .numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(new IndexMetaData.Builder(INTERNAL_SECURITY_INDEX)
+                    .putAlias(new AliasMetaData.Builder(SECURITY_INDEX_NAME).build())
+                    .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .build(), true)
             .build());
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
@@ -875,16 +896,18 @@ public class AuthorizationServiceTests extends ESTestCase {
         requests.add(new Tuple<>(RecoveryAction.NAME, new RecoveryRequest().indices(SECURITY_INDEX_NAME)));
         requests.add(new Tuple<>(IndicesSegmentsAction.NAME, new IndicesSegmentsRequest().indices(SECURITY_INDEX_NAME)));
         requests.add(new Tuple<>(GetSettingsAction.NAME, new GetSettingsRequest().indices(SECURITY_INDEX_NAME)));
-        requests.add(new Tuple<>(IndicesShardStoresAction.NAME,
-            new IndicesShardStoresRequest().indices(SECURITY_INDEX_NAME)));
-        requests.add(new Tuple<>(UpgradeStatusAction.NAME,
-            new UpgradeStatusRequest().indices(SECURITY_INDEX_NAME)));
+        requests.add(new Tuple<>(IndicesShardStoresAction.NAME, new IndicesShardStoresRequest().indices(SECURITY_INDEX_NAME)));
+        requests.add(new Tuple<>(UpgradeStatusAction.NAME, new UpgradeStatusRequest().indices(SECURITY_INDEX_NAME)));
 
         for (final Tuple<String, ? extends TransportRequest> requestTuple : requests) {
             final String action = requestTuple.v1();
             final TransportRequest request = requestTuple.v2();
-            authorize(authentication, action, request);
-            verify(auditTrail).accessGranted(requestId, authentication, action, request, new String[]{role.getName()});
+            assertThrowsAuthorizationException(() -> authorize(restrictedUserAuthn, action, request), action, "restricted_user");
+            verify(auditTrail).accessDenied(requestId, restrictedUserAuthn, action, request, new String[] { "restricted_monitor" });
+            verifyNoMoreInteractions(auditTrail);
+            authorize(unrestrictedUserAuthn, action, request);
+            verify(auditTrail).accessGranted(requestId, unrestrictedUserAuthn, action, request, new String[] { "unrestricted_monitor" });
+            verifyNoMoreInteractions(auditTrail);
         }
     }
 
@@ -894,34 +917,35 @@ public class AuthorizationServiceTests extends ESTestCase {
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.builder()
-            .put(new IndexMetaData.Builder(SECURITY_INDEX_NAME)
-                .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
-                .numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(new IndexMetaData.Builder(INTERNAL_SECURITY_INDEX)
+                    .putAlias(new AliasMetaData.Builder(SECURITY_INDEX_NAME).build())
+                    .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .build(), true)
             .build());
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         List<Tuple<String, TransportRequest>> requests = new ArrayList<>();
-        requests.add(new Tuple<>(DeleteAction.NAME,
-            new DeleteRequest(SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(DeleteAction.NAME, new DeleteRequest(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX), "id")));
         requests.add(new Tuple<>(BulkAction.NAME + "[s]",
-            createBulkShardRequest(SECURITY_INDEX_NAME, DeleteRequest::new)));
-        requests.add(new Tuple<>(UpdateAction.NAME,
-            new UpdateRequest(SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(IndexAction.NAME,
-            new IndexRequest(SECURITY_INDEX_NAME, "type", "id")));
+                createBulkShardRequest(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX), DeleteRequest::new)));
+        requests.add(new Tuple<>(UpdateAction.NAME, new UpdateRequest(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX), "id")));
+        requests.add(new Tuple<>(IndexAction.NAME, new IndexRequest(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX))));
         requests.add(new Tuple<>(BulkAction.NAME + "[s]",
-            createBulkShardRequest(SECURITY_INDEX_NAME, IndexRequest::new)));
-        requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(SECURITY_INDEX_NAME)));
+                createBulkShardRequest(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX), IndexRequest::new)));
+        requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX))));
         requests.add(new Tuple<>(TermVectorsAction.NAME,
-            new TermVectorsRequest(SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(GetAction.NAME, new GetRequest(SECURITY_INDEX_NAME, "type", "id")));
+                new TermVectorsRequest(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX), "type", "id")));
+        requests.add(new Tuple<>(GetAction.NAME, new GetRequest(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX), "type", "id")));
         requests.add(new Tuple<>(TermVectorsAction.NAME,
-            new TermVectorsRequest(SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(IndicesAliasesAction.NAME, new IndicesAliasesRequest()
-            .addAliasAction(AliasActions.add().alias("security_alias").index(SECURITY_INDEX_NAME))));
-        requests.add(new Tuple<>(ClusterHealthAction.NAME, new ClusterHealthRequest(SECURITY_INDEX_NAME)));
+                new TermVectorsRequest(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX), "type", "id")));
+        requests.add(new Tuple<>(IndicesAliasesAction.NAME,
+                new IndicesAliasesRequest().addAliasAction(AliasActions.add().alias("security_alias").index(INTERNAL_SECURITY_INDEX))));
+        requests.add(
+                new Tuple<>(ClusterHealthAction.NAME, new ClusterHealthRequest(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX))));
         requests.add(new Tuple<>(ClusterHealthAction.NAME,
-            new ClusterHealthRequest(SECURITY_INDEX_NAME, "foo", "bar")));
+                new ClusterHealthRequest(randomFrom(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX), "foo", "bar")));
 
         for (final Tuple<String, TransportRequest> requestTuple : requests) {
             final String action = requestTuple.v1();
@@ -939,9 +963,12 @@ public class AuthorizationServiceTests extends ESTestCase {
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.builder()
-            .put(new IndexMetaData.Builder(SECURITY_INDEX_NAME)
-                .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
-                .numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(new IndexMetaData.Builder(INTERNAL_SECURITY_INDEX)
+                    .putAlias(new AliasMetaData.Builder(SECURITY_INDEX_NAME).build())
+                    .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .build(), true)
             .build());
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
@@ -949,7 +976,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         SearchRequest request = new SearchRequest("_all");
         authorize(createAuthentication(superuser), action, request);
         verify(auditTrail).accessGranted(requestId, authentication, action, request, superuser.roles());
-        assertThat(request.indices(), arrayContaining(".security"));
+        assertThat(request.indices(), arrayContainingInAnyOrder(INTERNAL_SECURITY_INDEX, SECURITY_INDEX_NAME));
     }
 
     public void testAnonymousRolesAreAppliedToOtherUsers() {

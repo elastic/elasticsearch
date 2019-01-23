@@ -21,14 +21,12 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -37,8 +35,6 @@ import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -50,7 +46,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
 public class NoOpEngineTests extends EngineTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
@@ -59,7 +54,6 @@ public class NoOpEngineTests extends EngineTestCase {
         engine.close();
         final NoOpEngine engine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir));
         expectThrows(UnsupportedOperationException.class, () -> engine.syncFlush(null, null));
-        expectThrows(UnsupportedOperationException.class, () -> engine.ensureTranslogSynced(null));
         assertThat(engine.refreshNeeded(), equalTo(false));
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
         engine.close();
@@ -104,63 +98,6 @@ public class NoOpEngineTests extends EngineTestCase {
             }
         }
         noOpEngine.close();
-    }
-
-    public void testNoopEngineWithInvalidTranslogUUID() throws IOException {
-        IOUtils.close(engine, store);
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
-            int numDocs = scaledRandomIntBetween(10, 100);
-            try (InternalEngine engine = createEngine(config)) {
-                for (int i = 0; i < numDocs; i++) {
-                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
-                    engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
-                        System.nanoTime(), -1, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
-                    if (rarely()) {
-                        engine.flush();
-                    }
-                    globalCheckpoint.set(engine.getLocalCheckpoint());
-                }
-                flushAndTrimTranslog(engine);
-            }
-
-            final Path newTranslogDir = createTempDir();
-            // A new translog will have a different UUID than the existing store/noOp engine does
-            Translog newTranslog = createTranslog(newTranslogDir, () -> 1L);
-            newTranslog.close();
-
-            EngineCreationFailureException e = expectThrows(EngineCreationFailureException.class,
-                () -> new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, newTranslogDir)));
-            assertThat(e.getCause(), instanceOf(TranslogCorruptedException.class));
-        }
-    }
-
-    public void testNoopEngineWithNonZeroTranslogOperations() throws IOException {
-        IOUtils.close(engine, store);
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        try (Store store = createStore()) {
-            final MergePolicy mergePolicy = NoMergePolicy.INSTANCE;
-            EngineConfig config = config(defaultSettings, store, createTempDir(), mergePolicy, null, null, globalCheckpoint::get);
-            int numDocs = scaledRandomIntBetween(10, 100);
-            try (InternalEngine engine = createEngine(config)) {
-                for (int i = 0; i < numDocs; i++) {
-                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
-                    engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
-                        System.nanoTime(), -1, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
-                    if (rarely()) {
-                        engine.flush();
-                    }
-                    globalCheckpoint.set(engine.getLocalCheckpoint());
-                }
-                engine.syncTranslog();
-                engine.flushAndClose();
-                engine.close();
-
-                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new NoOpEngine(engine.engineConfig));
-                assertThat(e.getMessage(), is("Expected 0 translog operations but there were " + numDocs));
-            }
-        }
     }
 
     public void testNoOpEngineDocStats() throws Exception {

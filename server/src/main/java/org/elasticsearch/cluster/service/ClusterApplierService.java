@@ -390,11 +390,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             newClusterState = task.apply(previousClusterState);
         } catch (Exception e) {
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
-            if (logger.isTraceEnabled()) {
-                logger.trace(() -> new ParameterizedMessage(
-                        "failed to execute cluster state applier in [{}], state:\nversion [{}], source [{}]\n{}",
-                        executionTime, previousClusterState.version(), task.source, previousClusterState), e);
-            }
+            logger.trace(() -> new ParameterizedMessage(
+                "failed to execute cluster state applier in [{}], state:\nversion [{}], source [{}]\n{}",
+                executionTime, previousClusterState.version(), task.source, previousClusterState), e);
             warnAboutSlowTaskIfNeeded(executionTime, task.source);
             task.listener.onFailure(task.source, e);
             return;
@@ -407,8 +405,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             task.listener.onSuccess(task.source);
         } else {
             if (logger.isTraceEnabled()) {
-                logger.trace("cluster state updated, source [{}]\n{}", task.source, newClusterState);
-            } else if (logger.isDebugEnabled()) {
+                logger.debug("cluster state updated, version [{}], source [{}]\n{}", newClusterState.version(), task.source,
+                    newClusterState);
+            } else {
                 logger.debug("cluster state updated, version [{}], source [{}]", newClusterState.version(), task.source);
             }
             try {
@@ -422,11 +421,11 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             } catch (Exception e) {
                 TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
                 if (logger.isTraceEnabled()) {
-                    logger.warn(() -> new ParameterizedMessage(
+                    logger.warn(new ParameterizedMessage(
                             "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}",
                             executionTime, newClusterState.version(), newClusterState.stateUUID(), task.source, newClusterState), e);
                 } else {
-                    logger.warn(() -> new ParameterizedMessage(
+                    logger.warn(new ParameterizedMessage(
                             "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]",
                             executionTime, newClusterState.version(), newClusterState.stateUUID(), task.source), e);
                 }

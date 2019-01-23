@@ -1875,7 +1875,7 @@ public class CoordinatorTests extends ESTestCase {
                             + oldClusterState.version() + " to stale version " + newClusterState.version();
                         break;
                     case FAIL:
-                        throw new ElasticsearchException("cluster state application failed");
+                        throw new ElasticsearchException("simulated cluster state applier failure");
                 }
             });
         }

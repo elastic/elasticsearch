@@ -10,12 +10,13 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.ack.AckedRequest;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -34,9 +35,16 @@ public class SetUpgradeModeAction extends Action<AcknowledgedResponse> {
         return new AcknowledgedResponse();
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
         private boolean enabled;
+
+        private static final ParseField ENABLED = new ParseField("enabled");
+        public static final ConstructingObjectParser<Request, Void> PARSER =
+            new ConstructingObjectParser<>(NAME, a -> new Request((Boolean)a[0]));
+        static {
+            PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED);
+        }
 
         public Request(boolean enabled) {
             this.enabled = enabled;
@@ -85,6 +93,14 @@ public class SetUpgradeModeAction extends Action<AcknowledgedResponse> {
             }
             Request other = (Request) obj;
             return Objects.equals(enabled, other.enabled);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(ENABLED.getPreferredName(), enabled);
+            builder.endObject();
+            return builder;
         }
     }
 

@@ -48,7 +48,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
     public static final String TYPE = "ml";
     private static final ParseField JOBS_FIELD = new ParseField("jobs");
     private static final ParseField DATAFEEDS_FIELD = new ParseField("datafeeds");
-    private static final ParseField UPGRADE_MODE = new ParseField("upgrade_mode");
+    public static final ParseField UPGRADE_MODE = new ParseField("upgrade_mode");
 
     public static final MlMetadata EMPTY_METADATA = new MlMetadata(Collections.emptySortedMap(), Collections.emptySortedMap(), false);
     // This parser follows the pattern that metadata is parsed leniently (to allow for enhancements)

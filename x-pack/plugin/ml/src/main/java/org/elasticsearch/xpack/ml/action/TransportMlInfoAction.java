@@ -40,7 +40,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         Map<String, Object> info = new HashMap<>();
         info.put("defaults", defaults());
         info.put("limits", limits());
-        info.put("upgrade_mode", upgradeMode());
+        info.put(MlMetadata.UPGRADE_MODE.getPreferredName(), upgradeMode());
         listener.onResponse(new MlInfoAction.Response(info));
     }
 

@@ -54,7 +54,7 @@ public class DatafeedNodeSelector {
             String msg = "Unable to start datafeed [" + datafeedId +"] explanation [" + AWAITING_UPGRADE.getExplanation() + "]";
             LOGGER.debug(msg);
             Exception detail = new IllegalStateException(msg);
-            throw new ElasticsearchStatusException("Could not start datafeed as indices are being upgraded",
+            throw new ElasticsearchStatusException("Could not start datafeed [" + datafeedId +"] as indices are being upgraded",
                 RestStatus.TOO_MANY_REQUESTS, detail);
         }
         AssignmentFailure assignmentFailure = checkAssignment();

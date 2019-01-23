@@ -438,9 +438,6 @@ public class Node implements Closeable {
                                                  namedWriteableRegistry).stream())
                 .collect(Collectors.toList());
 
-            NodeAndClusterIdStateListener nodeAndClusterIdConverter = new NodeAndClusterIdStateListener();
-            clusterService.addListener(nodeAndClusterIdConverter);
-
             ActionModule actionModule = new ActionModule(false, settings, clusterModule.getIndexNameExpressionResolver(),
                 settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
                 threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService);
@@ -717,6 +714,8 @@ public class Node implements Closeable {
                 } catch (InterruptedException e) {
                     throw new ElasticsearchTimeoutException("Interrupted while waiting for initial discovery state");
                 }
+
+                NodeAndClusterIdStateListener.subscribeTo(observer);
             }
         }
 

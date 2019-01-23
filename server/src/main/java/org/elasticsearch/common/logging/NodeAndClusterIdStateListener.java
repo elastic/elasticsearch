@@ -21,27 +21,53 @@ package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.unit.TimeValue;
 
 /**
- *  The {@link NodeAndClusterIdStateListener} listens to cluster state changes and ONLY when receives the first update
- *  it sets the clusterUUID and nodeID in log4j pattern converter {@link NodeAndClusterIdConverter}
+ * The {@link NodeAndClusterIdStateListener} listens to cluster state changes and ONLY when receives the first update
+ * it sets the clusterUUID and nodeID in log4j pattern converter {@link NodeAndClusterIdConverter}
+ * Once the first update is received, it will automatically be de-registered from subsequent updates
  */
-public class NodeAndClusterIdStateListener implements ClusterStateListener {
+public class NodeAndClusterIdStateListener implements ClusterStateObserver.Listener {
     private final Logger logger = LogManager.getLogger(NodeAndClusterIdStateListener.class);
 
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        DiscoveryNode localNode = event.state().getNodes().getLocalNode();
-        String clusterUUID = event.state().getMetaData().clusterUUID();
-        String nodeId = localNode.getId();
+    private NodeAndClusterIdStateListener() {}
 
-        boolean wasSet = NodeAndClusterIdConverter.setOnce(nodeId, clusterUUID);
-
-        if (wasSet) {
-            logger.debug("Received first cluster state update. Setting nodeId=[{}] and clusterUuid=[{}]", nodeId, clusterUUID);
-        }
+    /**
+     * Subscribes for the first cluster state update where nodeId and clusterId is set.
+     */
+    public static void subscribeTo(ClusterStateObserver observer) {
+        observer.waitForNextChange(new NodeAndClusterIdStateListener(), NodeAndClusterIdStateListener::nodeIdAndClusterIdSet);
     }
+
+    private static boolean nodeIdAndClusterIdSet(ClusterState clusterState) {
+        return getNodeId(clusterState) != null && getClusterUUID(clusterState) != null;
+    }
+
+    private static String getClusterUUID(ClusterState state) {
+        return state.getMetaData().clusterUUID();
+    }
+
+    private static String getNodeId(ClusterState state) {
+        DiscoveryNode localNode = state.getNodes().getLocalNode();
+        return localNode.getId();
+    }
+
+    @Override
+    public void onNewClusterState(ClusterState state) {
+        String nodeId = getNodeId(state);
+        String clusterUUID = getClusterUUID(state);
+
+        NodeAndClusterIdConverter.setOnce(nodeId, clusterUUID);
+        logger.debug("Received first cluster state update. Setting nodeId=[{}] and clusterUuid=[{}]", nodeId, clusterUUID);
+    }
+
+    @Override
+    public void onClusterServiceClose() {}
+
+    @Override
+    public void onTimeout(TimeValue timeout) {}
 }

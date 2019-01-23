@@ -48,10 +48,10 @@ public class GetApiKeyResponseTests extends ESTestCase {
         assertThat(Strings.toString(builder), equalTo(
                 "{"
                 + "\"api_keys\":["
-                + "{\"id\":\"id-1\",\"name\":\"name1\",\"creation\":100000,\"invalidated\":false,"
-                + "\"username\":\"user-a\",\"realm\":\"realm-x\",\"expiration\":10000000},"
-                + "{\"id\":\"id-2\",\"name\":\"name2\",\"creation\":100000,\"invalidated\":true,"
-                + "\"username\":\"user-b\",\"realm\":\"realm-y\",\"expiration\":10000000}"
+                + "{\"id\":\"id-1\",\"name\":\"name1\",\"creation\":100000,\"expiration\":10000000,\"invalidated\":false,"
+                + "\"username\":\"user-a\",\"realm\":\"realm-x\"},"
+                + "{\"id\":\"id-2\",\"name\":\"name2\",\"creation\":100000,\"expiration\":10000000,\"invalidated\":true,"
+                + "\"username\":\"user-b\",\"realm\":\"realm-y\"}"
                 + "]"
                 + "}"));
     }

@@ -114,7 +114,8 @@ public final class GetApiKeyRequest extends ActionRequest {
         ActionRequestValidationException validationException = null;
         if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && Strings.hasText(apiKeyId) == false
                 && Strings.hasText(apiKeyName) == false) {
-            validationException = addValidationError("One of [api key id, api key name, username, realm name] must be specified", validationException);
+            validationException = addValidationError("One of [api key id, api key name, username, realm name] must be specified",
+                    validationException);
         }
         if (Strings.hasText(apiKeyId)) {
             if (Strings.hasText(apiKeyName) || Strings.hasText(realmName) || Strings.hasText(userName)) {

@@ -46,6 +46,7 @@ import java.util.Objects;
 
 public class UnsafeBootstrapMasterCommand extends EnvironmentAwareCommand {
 
+    private static final Logger logger = LogManager.getLogger(UnsafeBootstrapMasterCommand.class);
     private final NamedXContentRegistry namedXContentRegistry;
 
     static final String WARNING_MSG =
@@ -81,9 +82,6 @@ public class UnsafeBootstrapMasterCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        // We don't use classical "private static final Logger", because log4j2 initialization happens
-        // after UnsafeBootstrapMasterCommand instance creation.
-        final Logger logger = LogManager.getLogger(UnsafeBootstrapMasterCommand.class);
         showWarning(terminal);
         String text = terminal.readText("Confirm [y/N] ");
         if (text.equalsIgnoreCase("y") == false) {

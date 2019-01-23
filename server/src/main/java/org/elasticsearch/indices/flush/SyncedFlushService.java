@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -289,16 +288,14 @@ public class SyncedFlushService implements IndexEventListener {
         listener.onResponse(new ShardsSyncedFlushResult(shardId, existingSyncId, totalShards, results));
     }
 
-    final IndexShardRoutingTable getShardRoutingTable(ShardId shardId, ClusterState state) {
-        final IndexRoutingTable indexRoutingTable = state.routingTable().index(shardId.getIndexName());
-        if (indexRoutingTable == null) {
-            IndexMetaData index = state.getMetaData().index(shardId.getIndex());
-            if (index != null && index.getState() == IndexMetaData.State.CLOSE) {
-                throw new IndexClosedException(shardId.getIndex());
-            }
+    final IndexShardRoutingTable getShardRoutingTable(final ShardId shardId, final ClusterState state) {
+        final IndexMetaData indexMetaData = state.getMetaData().index(shardId.getIndex());
+        if (indexMetaData == null) {
             throw new IndexNotFoundException(shardId.getIndexName());
+        } else if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+            throw new IndexClosedException(shardId.getIndex());
         }
-        final IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId.id());
+        final IndexShardRoutingTable shardRoutingTable = state.routingTable().index(indexMetaData.getIndex()).shard(shardId.id());
         if (shardRoutingTable == null) {
             throw new ShardNotFoundException(shardId);
         }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.bootstrap.JavaVersion;
+
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.ResolverStyle;
@@ -99,6 +101,10 @@ class EpochTime {
             }
             fieldValues.put(ChronoField.INSTANT_SECONDS, seconds);
             fieldValues.put(ChronoField.NANO_OF_SECOND, nanos);
+            // if there is already a milli of second, we need to overwrite it
+            if (fieldValues.containsKey(ChronoField.MILLI_OF_SECOND)) {
+                fieldValues.put(ChronoField.MILLI_OF_SECOND, nanos / 1_000_000);
+            }
             return null;
         }
     };
@@ -106,7 +112,8 @@ class EpochTime {
     private static final EpochField NANOS_OF_MILLI = new EpochField(ChronoUnit.NANOS, ChronoUnit.MILLIS, ValueRange.of(0, 999_999)) {
         @Override
         public boolean isSupportedBy(TemporalAccessor temporal) {
-            return temporal.isSupported(ChronoField.NANO_OF_SECOND) && temporal.getLong(ChronoField.NANO_OF_SECOND) % 1_000_000 != 0;
+            return temporal.isSupported(ChronoField.INSTANT_SECONDS) && temporal.isSupported(ChronoField.NANO_OF_SECOND)
+                && temporal.getLong(ChronoField.NANO_OF_SECOND) % 1_000_000 != 0;
         }
         @Override
         public long getFrom(TemporalAccessor temporal) {
@@ -156,9 +163,20 @@ class EpochTime {
         builder -> builder.parseDefaulting(ChronoField.NANO_OF_SECOND, 999_999_999L),
         SECONDS_FORMATTER1, SECONDS_FORMATTER2, SECONDS_FORMATTER3);
 
-    static final DateFormatter MILLIS_FORMATTER = new JavaDateFormatter("epoch_millis", MILLISECONDS_FORMATTER3,
-        builder -> builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L),
-        MILLISECONDS_FORMATTER1, MILLISECONDS_FORMATTER2, MILLISECONDS_FORMATTER3);
+    static final DateFormatter MILLIS_FORMATTER = getEpochMillisFormatter();
+
+    private static DateFormatter getEpochMillisFormatter() {
+        // the third formatter fails under java 8 as a printer, so fall back to this one
+        final DateTimeFormatter printer;
+        if (JavaVersion.current().getVersion().get(0) == 8) {
+            printer = MILLISECONDS_FORMATTER1;
+        } else {
+            printer = MILLISECONDS_FORMATTER3;
+        }
+        return new JavaDateFormatter("epoch_millis", printer,
+            builder -> builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L),
+            MILLISECONDS_FORMATTER1, MILLISECONDS_FORMATTER2, MILLISECONDS_FORMATTER3);
+    }
 
     private abstract static class EpochField implements TemporalField {
 

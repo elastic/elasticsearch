@@ -29,7 +29,7 @@ import org.junit.Before;
 
 import java.util.Collection;
 
-public class FeatureMetaFieldMapperTests extends ESSingleNodeTestCase {
+public class RankFeatureMetaFieldMapperTests extends ESSingleNodeTestCase {
 
     IndexService indexService;
     DocumentMapperParser parser;
@@ -53,6 +53,6 @@ public class FeatureMetaFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
-        assertNotNull(mapper.metadataMapper(FeatureMetaFieldMapper.class));
+        assertNotNull(mapper.metadataMapper(RankFeatureMetaFieldMapper.class));
     }
 }

@@ -27,7 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperExtrasPlugin;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.FeatureQueryBuilder.ScoreFunction;
+import org.elasticsearch.index.query.RankFeatureQueryBuilder.ScoreFunction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -41,14 +41,14 @@ import java.util.List;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
 
-public class FeatureQueryBuilderTests extends AbstractQueryTestCase<FeatureQueryBuilder> {
+public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeatureQueryBuilder> {
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
-            "my_feature_field", "type=feature",
-            "my_negative_feature_field", "type=feature,positive_score_impact=false",
-            "my_feature_vector_field", "type=feature_vector"))), MapperService.MergeReason.MAPPING_UPDATE);
+            "my_feature_field", "type=rank_feature",
+            "my_negative_feature_field", "type=rank_feature,positive_score_impact=false",
+            "my_feature_vector_field", "type=rank_features"))), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     @Override
@@ -57,7 +57,7 @@ public class FeatureQueryBuilderTests extends AbstractQueryTestCase<FeatureQuery
     }
 
     @Override
-    protected FeatureQueryBuilder doCreateTestQueryBuilder() {
+    protected RankFeatureQueryBuilder doCreateTestQueryBuilder() {
         ScoreFunction function;
         boolean mayUseNegativeField = true;
         switch (random().nextInt(3)) {
@@ -87,11 +87,11 @@ public class FeatureQueryBuilderTests extends AbstractQueryTestCase<FeatureQuery
         }
 
         final String field = randomFrom(fields);
-        return new FeatureQueryBuilder(field, function);
+        return new RankFeatureQueryBuilder(field, function);
     }
 
     @Override
-    protected void doAssertLuceneQuery(FeatureQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(RankFeatureQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         Class<?> expectedClass = FeatureField.newSaturationQuery("", "", 1, 1).getClass();
         assertThat(query, either(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(expectedClass)));
     }
@@ -113,7 +113,8 @@ public class FeatureQueryBuilderTests extends AbstractQueryTestCase<FeatureQuery
                 "    }\n" +
                 "}";
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(query).toQuery(createShardContext()));
-        assertEquals("[feature] query only works on [feature] fields and features of [feature_vector] fields, not [text]", e.getMessage());
+        assertEquals("[rank_feature] query only works on [rank_feature] fields and features of [rank_features] fields, not [text]",
+            e.getMessage());
     }
 
     public void testIllegalCombination() throws IOException {

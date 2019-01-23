@@ -33,18 +33,18 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * This meta field only exists because feature fields index everything into a
+ * This meta field only exists because rank feature fields index everything into a
  * common _feature field and Elasticsearch has a custom codec that complains
  * when fields exist in the index and not in mappings.
  */
-public class FeatureMetaFieldMapper extends MetadataFieldMapper {
+public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_feature";
 
     public static final String CONTENT_TYPE = "_feature";
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new FeatureMetaFieldType();
+        public static final MappedFieldType FIELD_TYPE = new RankFeatureMetaFieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
@@ -58,16 +58,16 @@ public class FeatureMetaFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, FeatureMetaFieldMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder, RankFeatureMetaFieldMapper> {
 
         public Builder(MappedFieldType existing) {
             super(NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
         }
 
         @Override
-        public FeatureMetaFieldMapper build(BuilderContext context) {
+        public RankFeatureMetaFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            return new FeatureMetaFieldMapper(fieldType, context.indexSettings());
+            return new RankFeatureMetaFieldMapper(fieldType, context.indexSettings());
         }
     }
 
@@ -82,7 +82,7 @@ public class FeatureMetaFieldMapper extends MetadataFieldMapper {
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             if (fieldType != null) {
-                return new FeatureMetaFieldMapper(indexSettings, fieldType);
+                return new RankFeatureMetaFieldMapper(indexSettings, fieldType);
             } else {
                 return parse(NAME, Collections.emptyMap(), context)
                         .build(new BuilderContext(indexSettings, new ContentPath(1)));
@@ -90,18 +90,18 @@ public class FeatureMetaFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final class FeatureMetaFieldType extends MappedFieldType {
+    public static final class RankFeatureMetaFieldType extends MappedFieldType {
 
-        public FeatureMetaFieldType() {
+        public RankFeatureMetaFieldType() {
         }
 
-        protected FeatureMetaFieldType(FeatureMetaFieldType ref) {
+        protected RankFeatureMetaFieldType(RankFeatureMetaFieldType ref) {
             super(ref);
         }
 
         @Override
-        public FeatureMetaFieldType clone() {
-            return new FeatureMetaFieldType(this);
+        public RankFeatureMetaFieldType clone() {
+            return new RankFeatureMetaFieldType(this);
         }
 
         @Override
@@ -120,11 +120,11 @@ public class FeatureMetaFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private FeatureMetaFieldMapper(Settings indexSettings, MappedFieldType existing) {
+    private RankFeatureMetaFieldMapper(Settings indexSettings, MappedFieldType existing) {
         this(existing.clone(), indexSettings);
     }
 
-    private FeatureMetaFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
+    private RankFeatureMetaFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
         super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
     }
 

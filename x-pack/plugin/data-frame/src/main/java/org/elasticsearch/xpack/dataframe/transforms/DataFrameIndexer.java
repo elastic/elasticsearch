@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.transform;
+package org.elasticsearch.xpack.dataframe.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -14,20 +14,15 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
@@ -41,6 +36,8 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     private static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
     private static final Logger logger = LogManager.getLogger(DataFrameIndexer.class);
 
+    private Pivot pivot;
+
     public DataFrameIndexer(Executor executor, AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition) {
         super(executor, initialState, initialPosition, new DataFrameIndexerTransformStats());
     }
@@ -49,6 +46,9 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     @Override
     protected void onStartJob(long now) {
+        // for now a match all, to be replaced
+        QueryBuilder queryBuilder = new MatchAllQueryBuilder();
+        pivot = new Pivot(getConfig().getSource(), queryBuilder, getConfig().getPivotConfig());
     }
 
     @Override
@@ -68,11 +68,9 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
      */
     private Stream<IndexRequest> processBucketsToIndexRequests(CompositeAggregation agg) {
         final DataFrameTransformConfig transformConfig = getConfig();
-        String indexName = transformConfig.getDestinationIndex();
-        List<CompositeValuesSourceBuilder<?>> sources = transformConfig.getSourceConfig().getSources();
-        Collection<AggregationBuilder> aggregationBuilders = transformConfig.getAggregationConfig().getAggregatorFactories();
+        String indexName = transformConfig.getDestination();
 
-        return AggregationResultUtils.extractCompositeAggregationResults(agg, sources, aggregationBuilders, getStats()).map(document -> {
+        return pivot.extractResults(agg, getStats()).map(document -> {
             XContentBuilder builder;
             try {
                 builder = jsonBuilder();
@@ -88,31 +86,6 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     @Override
     protected SearchRequest buildSearchRequest() {
-        final Map<String, Object> position = getPosition();
-        final DataFrameTransformConfig transformConfig = getConfig();
-
-        QueryBuilder queryBuilder = new MatchAllQueryBuilder();
-        SearchRequest searchRequest = new SearchRequest(transformConfig.getIndexPattern());
-
-        List<CompositeValuesSourceBuilder<?>> sources = transformConfig.getSourceConfig().getSources();
-
-        CompositeAggregationBuilder compositeAggregation = new CompositeAggregationBuilder(COMPOSITE_AGGREGATION_NAME, sources);
-        compositeAggregation.size(1000);
-
-        if (position != null) {
-            compositeAggregation.aggregateAfter(position);
-        }
-
-        for (AggregationBuilder agg : transformConfig.getAggregationConfig().getAggregatorFactories()) {
-            compositeAggregation.subAggregation(agg);
-        }
-
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.aggregation(compositeAggregation);
-        sourceBuilder.size(0);
-        sourceBuilder.query(queryBuilder);
-        searchRequest.source(sourceBuilder);
-
-        return searchRequest;
+        return pivot.buildSearchRequest(getPosition());
     }
 }

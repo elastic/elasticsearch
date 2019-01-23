@@ -104,19 +104,19 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
     protected void createPivotReviewsTransform(String transformId, String dataFrameIndex) throws IOException {
         final Request createDataframeTransformRequest = new Request("PUT", DATAFRAME_ENDPOINT + transformId);
         createDataframeTransformRequest.setJsonEntity("{"
-                + " \"index_pattern\": \"reviews\","
-                + " \"destination_index\": \"" + dataFrameIndex + "\","
-                + " \"sources\": {"
-                + "   \"sources\": [ {"
+                + " \"source\": \"reviews\","
+                + " \"dest\": \"" + dataFrameIndex + "\","
+                + " \"pivot\": {"
+                + "   \"group_by\": [ {"
                 + "     \"reviewer\": {"
                 + "       \"terms\": {"
                 + "         \"field\": \"user_id\""
-                + " } } } ] },"
-                + " \"aggregations\": {"
-                + "   \"avg_rating\": {"
-                + "     \"avg\": {"
-                + "       \"field\": \"stars\""
-                + " } } }"
+                + " } } } ],"
+                + "   \"aggregations\": {"
+                + "     \"avg_rating\": {"
+                + "       \"avg\": {"
+                + "         \"field\": \"stars\""
+                + " } } } }"
                 + "}");
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));

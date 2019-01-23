@@ -117,7 +117,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
             // since we only change newBucket if we can add to it
             Bucket newBucket = bucket;
 
-            if (!(thisBucketValue == null || thisBucketValue.equals(Double.NaN))) {
+            if ((thisBucketValue == null || thisBucketValue.equals(Double.NaN)) == false) {
 
                 // Some models (e.g. HoltWinters) have certain preconditions that must be met
                 if (model.hasValue(values.size())) {
@@ -126,7 +126,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
                     List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
                         .map((p) -> (InternalAggregation) p)
                         .collect(Collectors.toList());
-                    aggs.add(new InternalSimpleValue(name(), movavg, formatter, new ArrayList<PipelineAggregator>(), metaData()));
+                    aggs.add(new InternalSimpleValue(name(), movavg, formatter, new ArrayList<>(), metaData()));
                     newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
                 }
 
@@ -153,10 +153,10 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
                     Bucket bucket = newBuckets.get(lastValidPosition + i + 1);
 
                     // Get the existing aggs in the bucket so we don't clobber data
-                    aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map((p) -> {
-                        return (InternalAggregation) p;
-                    }).collect(Collectors.toList());
-                    aggs.add(new InternalSimpleValue(name(), predictions[i], formatter, new ArrayList<PipelineAggregator>(), metaData()));
+                    aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
+                        .map((p) -> (InternalAggregation) p)
+                        .collect(Collectors.toList());
+                    aggs.add(new InternalSimpleValue(name(), predictions[i], formatter, new ArrayList<>(), metaData()));
 
                     Bucket newBucket = factory.createBucket(newKey, bucket.getDocCount(), new InternalAggregations(aggs));
 
@@ -166,7 +166,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
                 } else {
                     // Not seen before, create fresh
                     aggs = new ArrayList<>();
-                    aggs.add(new InternalSimpleValue(name(), predictions[i], formatter, new ArrayList<PipelineAggregator>(), metaData()));
+                    aggs.add(new InternalSimpleValue(name(), predictions[i], formatter, new ArrayList<>(), metaData()));
 
                     Bucket newBucket = factory.createBucket(newKey, 0, new InternalAggregations(aggs));
 

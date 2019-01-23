@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -62,6 +63,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
+            .put(ApiKeyService.DELETE_INTERVAL.getKey(), TimeValue.timeValueMillis(200L))
+            .put(ApiKeyService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5L))
             .build();
     }
 
@@ -71,7 +74,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     @After
-    public void wipeSecurityIndex() {
+    public void wipeSecurityIndex() throws InterruptedException {
+        // get the api key service and wait until api key expiration is not in progress!
+        for (ApiKeyService apiKeyService : internalCluster().getInstances(ApiKeyService.class)) {
+            final boolean done = awaitBusy(() -> apiKeyService.isExpirationInProgress() == false);
+            assertTrue(done);
+        }
         deleteSecurityIndex();
     }
 
@@ -257,6 +265,100 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 containsInAnyOrder(responses.stream().map(r -> r.getId()).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY)));
         assertThat(invalidateResponse.getPreviouslyInvalidatedApiKeys().size(), equalTo(0));
         assertThat(invalidateResponse.getErrors().size(), equalTo(0));
+    }
+
+    public void testInvalidatedApiKeysDeletedByRemover() throws Exception {
+        List<CreateApiKeyResponse> responses = createApiKeys(1, null);
+
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
+                .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
+        securityClient.invalidateApiKey(InvalidateApiKeyRequest.usingApiKeyId(responses.get(0).getId()), listener);
+        InvalidateApiKeyResponse invalidateResponse = listener.get();
+        assertThat(invalidateResponse.getInvalidatedApiKeys().size(), equalTo(1));
+        assertThat(invalidateResponse.getPreviouslyInvalidatedApiKeys().size(), equalTo(0));
+        assertThat(invalidateResponse.getErrors().size(), equalTo(0));
+        AtomicReference<String> docId = new AtomicReference<>();
+        assertBusy(() -> {
+            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                    .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", "api_key")))
+                    .setSize(1).setTerminateAfter(1).get();
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+            docId.set(searchResponse.getHits().getAt(0).getId());
+        });
+
+        AtomicBoolean deleteTriggered = new AtomicBoolean(false);
+        assertBusy(() -> {
+            if (deleteTriggered.compareAndSet(false, true)) {
+                securityClient.invalidateApiKey(InvalidateApiKeyRequest.usingApiKeyId(responses.get(0).getId()), listener);
+            }
+            client.admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_INDEX_NAME).get();
+            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                    .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", "api_key")))
+                    .setTerminateAfter(1).get();
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testExpiredApiKeysDeletedAfter1Week() throws Exception {
+        createApiKeys(1, null);
+        Instant created = Instant.now();
+
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
+                .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+
+        AtomicReference<String> docId = new AtomicReference<>();
+        assertBusy(() -> {
+            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                    .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", "api_key"))).setSize(1)
+                    .setTerminateAfter(1).get();
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+            docId.set(searchResponse.getHits().getAt(0).getId());
+        });
+
+        // hack doc to modify the expiration time to the week before
+        Instant weekBefore = created.minus(8L, ChronoUnit.DAYS);
+        assertTrue(Instant.now().isAfter(weekBefore));
+        client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "doc", docId.get())
+                .setDoc("expiration_time", weekBefore.toEpochMilli()).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        AtomicBoolean deleteTriggered = new AtomicBoolean(false);
+        assertBusy(() -> {
+            if (deleteTriggered.compareAndSet(false, true)) {
+                // just random api key invalidation so that it triggers expired keys remover
+                securityClient.invalidateApiKey(InvalidateApiKeyRequest.usingApiKeyId(randomAlphaOfLength(6)), new PlainActionFuture<>());
+            }
+            client.admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_INDEX_NAME).get();
+            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                    .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", "api_key")))
+                    .setTerminateAfter(1).get();
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testActiveApiKeysWithNoExpirationNeverGetDeletedByRemover() throws Exception {
+        List<CreateApiKeyResponse> responses = createApiKeys(1, null);
+
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
+                .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
+        securityClient.invalidateApiKey(InvalidateApiKeyRequest.usingApiKeyId(randomAlphaOfLength(7)), listener);
+        InvalidateApiKeyResponse invalidateResponse = listener.get();
+        assertThat(invalidateResponse.getInvalidatedApiKeys().size(), equalTo(0));
+        assertThat(invalidateResponse.getPreviouslyInvalidatedApiKeys().size(), equalTo(0));
+        assertThat(invalidateResponse.getErrors().size(), equalTo(1));
+        AtomicReference<String> docId = new AtomicReference<>();
+        assertBusy(() -> {
+            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                    .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", "api_key")))
+                    .setSize(1).setTerminateAfter(1).get();
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+            docId.set(searchResponse.getHits().getAt(0).getId());
+        });
+        assertThat(docId.get(), equalTo(responses.get(0).getId()));
     }
 
     public void testGetApiKeysForRealm() throws InterruptedException, ExecutionException {

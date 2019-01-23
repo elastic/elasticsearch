@@ -654,6 +654,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         settingsList.add(SecurityServerTransportInterceptor.TRANSPORT_TYPE_PROFILE_SETTING);
         settingsList.addAll(SSLConfigurationSettings.getProfileSettings());
         settingsList.add(ApiKeyService.PASSWORD_HASHING_ALGORITHM);
+        settingsList.add(ApiKeyService.DELETE_TIMEOUT);
+        settingsList.add(ApiKeyService.DELETE_INTERVAL);
 
         // hide settings
         settingsList.add(Setting.listSetting(SecurityField.setting("hide_settings"), Collections.emptyList(), Function.identity(),

@@ -140,7 +140,8 @@ The API returns the following results:
             "failed_write_requests" : 0,
             "operations_written" : 832,
             "read_exceptions" : [ ],
-            "time_since_last_read_millis" : 8
+            "time_since_last_read_millis" : 8,
+            "fallen_behind_leader_shard": false
           }
         ]
       }

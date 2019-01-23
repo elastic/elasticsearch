@@ -154,6 +154,12 @@ The `shards` array consists of objects containing the following fields:
 `indices[].shards[].read_exceptions`::
   (array) an array of objects representing failed reads
 
+`indices[].shards[].fallen_behind_leader_shard`::
+  (boolean) a boolean indicating that this shard has fallen behind too far with document based replication
+  If `true` is returned then in the background file based replication will get the follower shard back on
+  track and after that document based replication will resume. If `false` then document based replication
+  is keeping the follower shard in sync as expected.
+
 The `read_exceptions` array consists of objects containing the following
 fields:
 
@@ -231,7 +237,8 @@ The API returns the following results:
           "failed_write_requests" : 0,
           "operations_written" : 832,
           "read_exceptions" : [ ],
-          "time_since_last_read_millis" : 8
+          "time_since_last_read_millis" : 8,
+          "fallen_behind_leader_shard": false
         }
       ]
     }

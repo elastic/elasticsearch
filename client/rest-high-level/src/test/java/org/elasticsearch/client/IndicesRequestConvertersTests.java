@@ -37,7 +37,6 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -55,6 +54,7 @@ import org.elasticsearch.client.indices.RandomCreateIndexGenerator;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
+import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -273,8 +273,52 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Assert.assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
     }
 
-    public void testGetFieldMapping() throws IOException {
+    public void testGetFieldMapping() {
         GetFieldMappingsRequest getFieldMappingsRequest = new GetFieldMappingsRequest();
+
+        String[] indices = Strings.EMPTY_ARRAY;
+        if (ESTestCase.randomBoolean()) {
+            indices = RequestConvertersTests.randomIndicesNames(0, 5);
+            getFieldMappingsRequest.indices(indices);
+        } else if (ESTestCase.randomBoolean()) {
+            getFieldMappingsRequest.indices((String[]) null);
+        }
+
+        String[] fields = null;
+        if (ESTestCase.randomBoolean()) {
+            fields = new String[ESTestCase.randomIntBetween(1, 5)];
+            for (int i = 0; i < fields.length; i++) {
+                fields[i] = ESTestCase.randomAlphaOfLengthBetween(3, 10);
+            }
+            getFieldMappingsRequest.fields(fields);
+        } else if (ESTestCase.randomBoolean()) {
+            getFieldMappingsRequest.fields((String[]) null);
+        }
+
+        Map<String, String> expectedParams = new HashMap<>();
+        RequestConvertersTests.setRandomIndicesOptions(getFieldMappingsRequest::indicesOptions, getFieldMappingsRequest::indicesOptions,
+            expectedParams);
+        RequestConvertersTests.setRandomLocal(getFieldMappingsRequest::local, expectedParams);
+
+        Request request = IndicesRequestConverters.getFieldMapping(getFieldMappingsRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String index = String.join(",", indices);
+        if (Strings.hasLength(index)) {
+            endpoint.add(index);
+        }
+        endpoint.add("_mapping");
+        endpoint.add("field");
+        if (fields != null) {
+            endpoint.add(String.join(",", fields));
+        }
+        Assert.assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        Assert.assertThat(expectedParams, equalTo(request.getParameters()));
+        Assert.assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
+    }
+
+    public void testGetFieldMappingWithTypes() {
+        org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest =
+            new org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest();
 
         String[] indices = Strings.EMPTY_ARRAY;
         if (ESTestCase.randomBoolean()) {

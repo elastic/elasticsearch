@@ -41,8 +41,6 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -71,6 +69,8 @@ import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.GetFieldMappingsRequest;
+import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
@@ -94,6 +94,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
+import org.elasticsearch.rest.action.admin.indices.RestGetFieldMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutMappingAction;
 
 import java.io.IOException;
@@ -565,7 +566,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         GetFieldMappingsRequest getFieldMappingsRequest = new GetFieldMappingsRequest()
             .indices(indexName)
-            .types("_doc")
             .fields("field");
 
         GetFieldMappingsResponse getFieldMappingsResponse =
@@ -574,10 +574,46 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 highLevelClient().indices()::getFieldMappingAsync);
 
         final Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fieldMappingMap =
-            getFieldMappingsResponse.mappings().get(indexName).get("_doc");
+            getFieldMappingsResponse.mappings().get(indexName);
 
         final GetFieldMappingsResponse.FieldMappingMetaData metaData =
             new GetFieldMappingsResponse.FieldMappingMetaData("field",
+                new BytesArray("{\"field\":{\"type\":\"text\"}}"));
+        assertThat(fieldMappingMap, equalTo(Collections.singletonMap("field", metaData)));
+    }
+
+    public void testGetFieldMappingWithTypes() throws IOException {
+        String indexName = "test";
+        createIndex(indexName, Settings.EMPTY);
+
+        PutMappingRequest putMappingRequest = new PutMappingRequest(indexName);
+        XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
+        mappingBuilder.startObject().startObject("properties").startObject("field");
+        mappingBuilder.field("type", "text");
+        mappingBuilder.endObject().endObject().endObject();
+        putMappingRequest.source(mappingBuilder);
+
+        AcknowledgedResponse putMappingResponse =
+            execute(putMappingRequest, highLevelClient().indices()::putMapping, highLevelClient().indices()::putMappingAsync);
+        assertTrue(putMappingResponse.isAcknowledged());
+
+        org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest =
+            new org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest()
+            .indices(indexName)
+            .types("_doc")
+            .fields("field");
+
+        org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse getFieldMappingsResponse =
+            execute(getFieldMappingsRequest,
+                highLevelClient().indices()::getFieldMapping,
+                highLevelClient().indices()::getFieldMappingAsync,
+                expectWarnings(RestGetFieldMappingAction.TYPES_DEPRECATION_MESSAGE));
+
+        final Map<String, org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData>
+            fieldMappingMap = getFieldMappingsResponse.mappings().get(indexName).get("_doc");
+
+        final  org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData metaData =
+            new  org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData("field",
                 new BytesArray("{\"field\":{\"type\":\"text\"}}"));
         assertThat(fieldMappingMap, equalTo(Collections.singletonMap("field", metaData)));
     }
@@ -1246,7 +1282,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         createIndex(index, Settings.EMPTY);
 
         assertThat(dynamicSetting.getDefault(Settings.EMPTY), not(dynamicSettingValue));
-        UpdateSettingsRequest dynamicSettingRequest = new UpdateSettingsRequest();
+        UpdateSettingsRequest dynamicSettingRequest = new UpdateSettingsRequest(index);
         dynamicSettingRequest.settings(Settings.builder().put(dynamicSettingKey, dynamicSettingValue).build());
         AcknowledgedResponse response = execute(dynamicSettingRequest, highLevelClient().indices()::putSettings,
                 highLevelClient().indices()::putSettingsAsync);
@@ -1256,7 +1292,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(indexSettingsAsMap.get(dynamicSettingKey), equalTo(String.valueOf(dynamicSettingValue)));
 
         assertThat(staticSetting.getDefault(Settings.EMPTY), not(staticSettingValue));
-        UpdateSettingsRequest staticSettingRequest = new UpdateSettingsRequest();
+        UpdateSettingsRequest staticSettingRequest = new UpdateSettingsRequest(index);
         staticSettingRequest.settings(Settings.builder().put(staticSettingKey, staticSettingValue).build());
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(staticSettingRequest,
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
@@ -1276,7 +1312,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(indexSettingsAsMap.get(staticSettingKey), equalTo(staticSettingValue));
 
         assertThat(unmodifiableSetting.getDefault(Settings.EMPTY), not(unmodifiableSettingValue));
-        UpdateSettingsRequest unmodifiableSettingRequest = new UpdateSettingsRequest();
+        UpdateSettingsRequest unmodifiableSettingRequest = new UpdateSettingsRequest(index);
         unmodifiableSettingRequest.settings(Settings.builder().put(unmodifiableSettingKey, unmodifiableSettingValue).build());
         exception = expectThrows(ElasticsearchException.class, () -> execute(unmodifiableSettingRequest,
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));

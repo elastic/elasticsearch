@@ -225,7 +225,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
      * @return If no changes the argument {@code clusterState} is returned else
      *          a copy with the modified tasks
      */
-    public static ClusterState deassociateDeadNodes(ClusterState clusterState) {
+    public static ClusterState disassociateDeadNodes(ClusterState clusterState) {
         PersistentTasksCustomMetaData tasks = getPersistentTasksCustomMetaData(clusterState);
         if (tasks == null) {
             return clusterState;

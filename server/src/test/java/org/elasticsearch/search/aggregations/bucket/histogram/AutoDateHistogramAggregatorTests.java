@@ -33,6 +33,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -41,11 +42,13 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -59,17 +62,17 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     private static final String DATE_FIELD = "date";
     private static final String INSTANT_FIELD = "instant";
 
-    private static final List<DateTime> DATES_WITH_TIME = Arrays.asList(
-        new DateTime(2010, 3, 12, 1, 7, 45, DateTimeZone.UTC),
-        new DateTime(2010, 4, 27, 3, 43, 34, DateTimeZone.UTC),
-        new DateTime(2012, 5, 18, 4, 11, 0, DateTimeZone.UTC),
-        new DateTime(2013, 5, 29, 5, 11, 31, DateTimeZone.UTC),
-        new DateTime(2013, 10, 31, 8, 24, 5, DateTimeZone.UTC),
-        new DateTime(2015, 2, 13, 13, 9, 32, DateTimeZone.UTC),
-        new DateTime(2015, 6, 24, 13, 47, 43, DateTimeZone.UTC),
-        new DateTime(2015, 11, 13, 16, 14, 34, DateTimeZone.UTC),
-        new DateTime(2016, 3, 4, 17, 9, 50, DateTimeZone.UTC),
-        new DateTime(2017, 12, 12, 22, 55, 46, DateTimeZone.UTC));
+    private static final List<ZonedDateTime> DATES_WITH_TIME = Arrays.asList(
+        ZonedDateTime.of(2010, 3, 12, 1, 7, 45, 0, ZoneOffset.UTC),
+        ZonedDateTime.of(2010, 4, 27, 3, 43, 34, 0, ZoneOffset.UTC),
+        ZonedDateTime.of(2012, 5, 18, 4, 11, 0, 0, ZoneOffset.UTC),
+        ZonedDateTime.of(2013, 5, 29, 5, 11, 31, 0, ZoneOffset.UTC),
+        ZonedDateTime.of(2013, 10, 31, 8, 24, 5, 0, ZoneOffset.UTC),
+        ZonedDateTime.of(2015, 2, 13, 13, 9, 32, 0, ZoneOffset.UTC),
+        ZonedDateTime.of(2015, 6, 24, 13, 47, 43, 0, ZoneOffset.UTC),
+        ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC),
+        ZonedDateTime.of(2016, 3, 4, 17, 9, 50, 0, ZoneOffset.UTC),
+        ZonedDateTime.of(2017, 12, 12, 22, 55, 46, 0, ZoneOffset.UTC));
 
     private static final Query DEFAULT_QUERY = new MatchAllDocsQuery();
 
@@ -184,7 +187,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoDocs() throws IOException {
-        final List<DateTime> dates = Collections.emptyList();
+        final List<ZonedDateTime> dates = Collections.emptyList();
         final Consumer<AutoDateHistogramAggregationBuilder> aggregation = agg -> agg.setNumBuckets(10).field(DATE_FIELD);
 
         testSearchCase(DEFAULT_QUERY, dates, aggregation,
@@ -209,8 +212,10 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testIntervalYear() throws IOException {
-        final long start = new DateTime(DateTimeZone.UTC).withDate(2015, 1, 1).getMillis();
-        final long end = new DateTime(DateTimeZone.UTC).withDate(2017, 12, 31).getMillis();
+
+
+        final long start = LocalDate.of(2015, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+        final long end = LocalDate.of(2017, 12, 31).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
         final Query rangeQuery = LongPoint.newRangeQuery(INSTANT_FIELD, start, end);
         testSearchCase(rangeQuery, DATES_WITH_TIME,
             aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD),
@@ -228,8 +233,8 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         testSearchAndReduceCase(rangeQuery, DATES_WITH_TIME,
             aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD),
             histogram -> {
-                final DateTime startDate = new DateTime(2015, 1, 1, 0, 0, DateTimeZone.UTC);
-                final Map<DateTime, Integer> expectedDocCount = new HashMap<>();
+                final ZonedDateTime startDate = ZonedDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+                final Map<ZonedDateTime, Integer> expectedDocCount = new HashMap<>();
                 expectedDocCount.put(startDate, 3);
                 expectedDocCount.put(startDate.plusYears(1), 1);
                 expectedDocCount.put(startDate.plusYears(2), 1);
@@ -243,13 +248,13 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testIntervalMonth() throws IOException {
-        final List<DateTime> datesForMonthInterval = Arrays.asList(
-            new DateTime(2017, 1, 1, 0, 0, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 2, 0, 0, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 3, 0, 0, 0, DateTimeZone.UTC),
-            new DateTime(2017, 3, 4, 0, 0, 0, DateTimeZone.UTC),
-            new DateTime(2017, 3, 5, 0, 0, 0, DateTimeZone.UTC),
-            new DateTime(2017, 3, 6, 0, 0, 0, DateTimeZone.UTC));
+        final List<ZonedDateTime> datesForMonthInterval = Arrays.asList(
+            ZonedDateTime.of(2017, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 2, 0, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 3, 0, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 3, 4, 0, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 3, 5, 0, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 3, 6, 0, 0, 0, 0, ZoneOffset.UTC));
         testSearchCase(DEFAULT_QUERY, datesForMonthInterval,
             aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD), histogram -> {
                 final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -263,7 +268,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         testSearchAndReduceCase(DEFAULT_QUERY, datesForMonthInterval,
             aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD),
             histogram -> {
-                final Map<DateTime, Integer> expectedDocCount = new HashMap<>();
+                final Map<ZonedDateTime, Integer> expectedDocCount = new HashMap<>();
                 expectedDocCount.put(datesForMonthInterval.get(0).withDayOfMonth(1), 1);
                 expectedDocCount.put(datesForMonthInterval.get(1).withDayOfMonth(1), 2);
                 expectedDocCount.put(datesForMonthInterval.get(3).withDayOfMonth(1), 3);
@@ -287,15 +292,15 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testIntervalDay() throws IOException {
-        final List<DateTime> datesForDayInterval = Arrays.asList(
-            new DateTime(2017, 2, 1, 0, 0, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 2, 0, 0, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 2, 0, 0, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 3, 0, 0, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 3, 0, 0, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 3, 0, 0, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 5, 0, 0, 0, DateTimeZone.UTC));
-        final Map<DateTime, Integer> expectedDocCount = new HashMap<>();
+        final List<ZonedDateTime> datesForDayInterval = Arrays.asList(
+            ZonedDateTime.of(2017, 2, 1, 0, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 2, 0, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 2, 0, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 3, 0, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 3, 0, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 3, 0, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 5, 0, 0, 0, 0, ZoneOffset.UTC));
+        final Map<ZonedDateTime, Integer> expectedDocCount = new HashMap<>();
         expectedDocCount.put(datesForDayInterval.get(0), 1);
         expectedDocCount.put(datesForDayInterval.get(1), 2);
         expectedDocCount.put(datesForDayInterval.get(3), 3);
@@ -321,16 +326,16 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testIntervalDayWithTZ() throws IOException {
-        final List<DateTime> datesForDayInterval = Arrays.asList(
-            new DateTime(2017, 2, 1, 0, 0, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 2, 0, 0, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 2, 0, 0, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 3, 0, 0, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 3, 0, 0, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 3, 0, 0, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 5, 0, 0, 0, DateTimeZone.UTC));
+        final List<ZonedDateTime> datesForDayInterval = Arrays.asList(
+            ZonedDateTime.of(2017, 2, 1, 0, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 2, 0, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 2, 0, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 3, 0, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 3, 0, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 3, 0, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 5, 0, 0, 0, 0, ZoneOffset.UTC));
         testSearchCase(DEFAULT_QUERY, datesForDayInterval,
-            aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD).timeZone(DateTimeZone.forOffsetHours(-1)), histogram -> {
+            aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD).timeZone(ZoneOffset.ofHours(-1)), histogram -> {
                 final Map<String, Integer> expectedDocCount = new HashMap<>();
                 expectedDocCount.put("2017-01-31T23:00:00.000-01:00", 1);
                 expectedDocCount.put("2017-02-01T23:00:00.000-01:00", 2);
@@ -343,7 +348,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             });
         testSearchAndReduceCase(DEFAULT_QUERY, datesForDayInterval,
-            aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD).timeZone(DateTimeZone.forOffsetHours(-1)), histogram -> {
+            aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD).timeZone(ZoneOffset.ofHours(-1)), histogram -> {
                 final Map<String, Integer> expectedDocCount = new HashMap<>();
                 expectedDocCount.put("2017-01-31T00:00:00.000-01:00", 1);
                 expectedDocCount.put("2017-02-01T00:00:00.000-01:00", 2);
@@ -358,17 +363,17 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testIntervalHour() throws IOException {
-        final List<DateTime> datesForHourInterval = Arrays.asList(
-            new DateTime(2017, 2, 1, 9, 2, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 9, 35, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 10, 15, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 13, 6, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 14, 4, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 14, 5, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 15, 59, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 16, 6, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 16, 48, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 16, 59, 0, DateTimeZone.UTC));
+        final List<ZonedDateTime> datesForHourInterval = Arrays.asList(
+            ZonedDateTime.of(2017, 2, 1, 9, 2, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 9, 35, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 10, 15, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 13, 6, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 14, 4, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 14, 5, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 15, 59, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 16, 6, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 16, 48, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 16, 59, 0, 0, ZoneOffset.UTC));
         testSearchCase(DEFAULT_QUERY, datesForHourInterval,
             aggregation -> aggregation.setNumBuckets(8).field(DATE_FIELD),
             histogram -> {
@@ -384,13 +389,13 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         testSearchAndReduceCase(DEFAULT_QUERY, datesForHourInterval,
             aggregation -> aggregation.setNumBuckets(10).field(DATE_FIELD),
             histogram -> {
-                final Map<DateTime, Integer> expectedDocCount = new HashMap<>();
-                expectedDocCount.put(datesForHourInterval.get(0).withMinuteOfHour(0), 2);
-                expectedDocCount.put(datesForHourInterval.get(2).withMinuteOfHour(0), 1);
-                expectedDocCount.put(datesForHourInterval.get(3).withMinuteOfHour(0), 1);
-                expectedDocCount.put(datesForHourInterval.get(4).withMinuteOfHour(0), 2);
-                expectedDocCount.put(datesForHourInterval.get(6).withMinuteOfHour(0), 1);
-                expectedDocCount.put(datesForHourInterval.get(7).withMinuteOfHour(0), 3);
+                final Map<ZonedDateTime, Integer> expectedDocCount = new HashMap<>();
+                expectedDocCount.put(datesForHourInterval.get(0).withMinute(0), 2);
+                expectedDocCount.put(datesForHourInterval.get(2).withMinute(0), 1);
+                expectedDocCount.put(datesForHourInterval.get(3).withMinute(0), 1);
+                expectedDocCount.put(datesForHourInterval.get(4).withMinute(0), 2);
+                expectedDocCount.put(datesForHourInterval.get(6).withMinute(0), 1);
+                expectedDocCount.put(datesForHourInterval.get(7).withMinute(0), 3);
                 final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(8, buckets.size());
                 buckets.forEach(bucket ->
@@ -400,10 +405,10 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         testSearchAndReduceCase(DEFAULT_QUERY, datesForHourInterval,
             aggregation -> aggregation.setNumBuckets(6).field(DATE_FIELD),
             histogram -> {
-                final Map<DateTime, Integer> expectedDocCount = new HashMap<>();
-                expectedDocCount.put(datesForHourInterval.get(0).withMinuteOfHour(0), 3);
-                expectedDocCount.put(datesForHourInterval.get(0).plusHours(3).withMinuteOfHour(0), 3);
-                expectedDocCount.put(datesForHourInterval.get(0).plusHours(6).withMinuteOfHour(0), 4);
+                final Map<ZonedDateTime, Integer> expectedDocCount = new HashMap<>();
+                expectedDocCount.put(datesForHourInterval.get(0).withMinute(0), 3);
+                expectedDocCount.put(datesForHourInterval.get(0).plusHours(3).withMinute(0), 3);
+                expectedDocCount.put(datesForHourInterval.get(0).plusHours(6).withMinute(0), 4);
                 final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(expectedDocCount.size(), buckets.size());
                 buckets.forEach(bucket ->
@@ -413,22 +418,23 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testIntervalHourWithTZ() throws IOException {
-        final List<DateTime> datesForHourInterval = Arrays.asList(
-            new DateTime(2017, 2, 1, 9, 2, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 9, 35, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 10, 15, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 13, 6, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 14, 4, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 14, 5, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 15, 59, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 16, 6, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 16, 48, 0, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 16, 59, 0, DateTimeZone.UTC));
+        final List<ZonedDateTime> datesForHourInterval = Arrays.asList(
+            ZonedDateTime.of(2017, 2, 1, 9, 2, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 9, 35, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 10, 15, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 13, 6, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 14, 4, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 14, 5, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 15, 59, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 16, 6, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 16, 48, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 16, 59, 0, 0, ZoneOffset.UTC));
         testSearchCase(DEFAULT_QUERY, datesForHourInterval,
-            aggregation -> aggregation.setNumBuckets(8).field(DATE_FIELD).timeZone(DateTimeZone.forOffsetHours(-1)),
+            aggregation -> aggregation.setNumBuckets(8).field(DATE_FIELD).timeZone(ZoneOffset.ofHours(-1)),
             histogram -> {
                 final List<String> dateStrings = datesForHourInterval.stream()
-                    .map(dateTime -> dateTime.withZone(DateTimeZone.forOffsetHours(-1)).toString()).collect(Collectors.toList());
+                    .map(dateTime -> DateFormatter.forPattern("strict_date_time")
+                        .format(dateTime.withZoneSameInstant(ZoneOffset.ofHours(-1)))).collect(Collectors.toList());
                 final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(datesForHourInterval.size(), buckets.size());
                 for (int i = 0; i < buckets.size(); i++) {
@@ -439,7 +445,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             }
         );
         testSearchAndReduceCase(DEFAULT_QUERY, datesForHourInterval,
-            aggregation -> aggregation.setNumBuckets(10).field(DATE_FIELD).timeZone(DateTimeZone.forOffsetHours(-1)),
+            aggregation -> aggregation.setNumBuckets(10).field(DATE_FIELD).timeZone(ZoneOffset.ofHours(-1)),
             histogram -> {
                 final Map<String, Integer> expectedDocCount = new HashMap<>();
                 expectedDocCount.put("2017-02-01T08:00:00.000-01:00", 2);
@@ -458,10 +464,10 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testRandomSecondIntervals() throws IOException {
         final int length = 120;
-        final List<DateTime> dataset = new ArrayList<>(length);
-        final DateTime startDate = new DateTime(2017, 1, 1, 0, 0, 0, DateTimeZone.UTC);
+        final List<ZonedDateTime> dataset = new ArrayList<>(length);
+        final ZonedDateTime startDate = ZonedDateTime.of(2017, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         for (int i = 0; i < length; i++) {
-            final DateTime date = startDate.plusSeconds(i);
+            final ZonedDateTime date = startDate.plusSeconds(i);
             dataset.add(date);
         }
         final Map<Integer, Integer> bucketsToExpectedDocCountMap = new HashMap<>();
@@ -487,10 +493,10 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testRandomMinuteIntervals() throws IOException {
         final int length = 120;
-        final List<DateTime> dataset = new ArrayList<>(length);
-        final DateTime startDate = new DateTime(2017, 1, 1, 0, 0, DateTimeZone.UTC);
+        final List<ZonedDateTime> dataset = new ArrayList<>(length);
+        final ZonedDateTime startDate = ZonedDateTime.of(2017, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         for (int i = 0; i < length; i++) {
-            final DateTime date = startDate.plusMinutes(i);
+            final ZonedDateTime date = startDate.plusMinutes(i);
             dataset.add(date);
         }
         final Map<Integer, Integer> bucketsToExpectedDocCountMap = new HashMap<>();
@@ -516,10 +522,10 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testRandomHourIntervals() throws IOException {
         final int length = 72;
-        final List<DateTime> dataset = new ArrayList<>(length);
-        final DateTime startDate = new DateTime(2017, 1, 1, 0, 0, DateTimeZone.UTC);
+        final List<ZonedDateTime> dataset = new ArrayList<>(length);
+        final ZonedDateTime startDate = ZonedDateTime.of(2017, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         for (int i = 0; i < length; i++) {
-            final DateTime date = startDate.plusHours(i);
+            final ZonedDateTime date = startDate.plusHours(i);
             dataset.add(date);
         }
         final Map<Integer, Integer> bucketsToExpectedDocCountMap = new HashMap<>();
@@ -544,10 +550,10 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testRandomDayIntervals() throws IOException {
         final int length = 140;
-        final List<DateTime> dataset = new ArrayList<>(length);
-        final DateTime startDate = new DateTime(2017, 1, 1, 0, 0, DateTimeZone.UTC);
+        final List<ZonedDateTime> dataset = new ArrayList<>(length);
+        final ZonedDateTime startDate = ZonedDateTime.of(2017, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         for (int i = 0; i < length; i++) {
-            final DateTime date = startDate.plusDays(i);
+            final ZonedDateTime date = startDate.plusDays(i);
             dataset.add(date);
         }
         final int randomChoice = randomIntBetween(1, 3);
@@ -583,17 +589,17 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                     final int randomIndex = randomInt(2);
                     final Histogram.Bucket bucket = buckets.get(randomIndex);
                     assertEquals(startDate.plusMonths(randomIndex), bucket.getKey());
-                    assertEquals(startDate.plusMonths(randomIndex).dayOfMonth().getMaximumValue(), bucket.getDocCount());
+                    assertEquals(YearMonth.from(startDate.plusMonths(randomIndex)).lengthOfMonth(), bucket.getDocCount());
                 });
         }
     }
 
     public void testRandomMonthIntervals() throws IOException {
         final int length = 60;
-        final List<DateTime> dataset = new ArrayList<>(length);
-        final DateTime startDate = new DateTime(2017, 1, 1, 0, 0, DateTimeZone.UTC);
+        final List<ZonedDateTime> dataset = new ArrayList<>(length);
+        final ZonedDateTime startDate = ZonedDateTime.of(2017, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         for (int i = 0; i < length; i++) {
-            final DateTime date = startDate.plusMonths(i);
+            final ZonedDateTime date = startDate.plusMonths(i);
             dataset.add(date);
         }
         final Map<Integer, Integer> bucketsToExpectedDocCountMap = new HashMap<>();
@@ -617,10 +623,10 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testRandomYearIntervals() throws IOException {
         final int length = 300;
-        final List<DateTime> dataset = new ArrayList<>(length);
-        final DateTime startDate = new DateTime(2017, 1, 1, 0, 0, DateTimeZone.UTC);
+        final List<ZonedDateTime> dataset = new ArrayList<>(length);
+        final ZonedDateTime startDate = ZonedDateTime.of(2017, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         for (int i = 0; i < length; i++) {
-            final DateTime date = startDate.plusYears(i);
+            final ZonedDateTime date = startDate.plusYears(i);
             dataset.add(date);
         }
         final Map<Integer, Integer> bucketsToExpectedDocCountMap = new HashMap<>();
@@ -646,12 +652,12 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testIntervalMinute() throws IOException {
-        final List<DateTime> datesForMinuteInterval = Arrays.asList(
-            new DateTime(2017, 2, 1, 9, 2, 35, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 9, 2, 59, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 9, 15, 37, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 9, 16, 4, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 9, 16, 42, DateTimeZone.UTC));
+        final List<ZonedDateTime> datesForMinuteInterval = Arrays.asList(
+            ZonedDateTime.of(2017, 2, 1, 9, 2, 35, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 9, 2, 59, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 9, 15, 37, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 9, 16, 4, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 9, 16, 42, 0, ZoneOffset.UTC));
 
         testSearchCase(DEFAULT_QUERY, datesForMinuteInterval,
             aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD),
@@ -668,10 +674,10 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         testSearchAndReduceCase(DEFAULT_QUERY, datesForMinuteInterval,
             aggregation -> aggregation.setNumBuckets(15).field(DATE_FIELD),
             histogram -> {
-                final Map<DateTime, Integer> expectedDocCount = new HashMap<>();
-                expectedDocCount.put(datesForMinuteInterval.get(0).withSecondOfMinute(0), 2);
-                expectedDocCount.put(datesForMinuteInterval.get(2).withSecondOfMinute(0), 1);
-                expectedDocCount.put(datesForMinuteInterval.get(3).withSecondOfMinute(0), 2);
+                final Map<ZonedDateTime, Integer> expectedDocCount = new HashMap<>();
+                expectedDocCount.put(datesForMinuteInterval.get(0).withSecond(0), 2);
+                expectedDocCount.put(datesForMinuteInterval.get(2).withSecond(0), 1);
+                expectedDocCount.put(datesForMinuteInterval.get(3).withSecond(0), 2);
                 final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(15, buckets.size());
                 buckets.forEach(bucket ->
@@ -681,15 +687,15 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testIntervalSecond() throws IOException {
-        final List<DateTime> datesForSecondInterval = Arrays.asList(
-            new DateTime(2017, 2, 1, 0, 0, 5, 15, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 0, 0, 7, 299, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 0, 0, 7, 74, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 0, 0, 11, 688, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 0, 0, 11, 210, DateTimeZone.UTC),
-            new DateTime(2017, 2, 1, 0, 0, 11, 380, DateTimeZone.UTC));
-        final DateTime startDate = datesForSecondInterval.get(0).withMillisOfSecond(0);
-        final Map<DateTime, Integer> expectedDocCount = new HashMap<>();
+        final List<ZonedDateTime> datesForSecondInterval = Arrays.asList(
+            ZonedDateTime.of(2017, 2, 1, 0, 0, 5, 15, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 0, 0, 7, 299, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 0, 0, 7, 74, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 0, 0, 11, 688, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 0, 0, 11, 210, ZoneOffset.UTC),
+            ZonedDateTime.of(2017, 2, 1, 0, 0, 11, 380, ZoneOffset.UTC));
+        final ZonedDateTime startDate = datesForSecondInterval.get(0).withNano(0);
+        final Map<ZonedDateTime, Integer> expectedDocCount = new HashMap<>();
         expectedDocCount.put(startDate, 1);
         expectedDocCount.put(startDate.plusSeconds(2), 2);
         expectedDocCount.put(startDate.plusSeconds(6), 3);
@@ -712,19 +718,19 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    private void testSearchCase(final Query query, final List<DateTime> dataset,
+    private void testSearchCase(final Query query, final List<ZonedDateTime> dataset,
                                 final Consumer<AutoDateHistogramAggregationBuilder> configure,
                                 final Consumer<InternalAutoDateHistogram> verify) throws IOException {
         executeTestCase(false, query, dataset, configure, verify);
     }
 
-    private void testSearchAndReduceCase(final Query query, final List<DateTime> dataset,
+    private void testSearchAndReduceCase(final Query query, final List<ZonedDateTime> dataset,
                                          final Consumer<AutoDateHistogramAggregationBuilder> configure,
                                          final Consumer<InternalAutoDateHistogram> verify) throws IOException {
         executeTestCase(true, query, dataset, configure, verify);
     }
 
-    private void testBothCases(final Query query, final List<DateTime> dataset,
+    private void testBothCases(final Query query, final List<ZonedDateTime> dataset,
                                final Consumer<AutoDateHistogramAggregationBuilder> configure,
                                final Consumer<InternalAutoDateHistogram> verify) throws IOException {
         executeTestCase(false, query, dataset, configure, verify);
@@ -745,18 +751,18 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    private void executeTestCase(final boolean reduced, final Query query, final List<DateTime> dataset,
+    private void executeTestCase(final boolean reduced, final Query query, final List<ZonedDateTime> dataset,
                                  final Consumer<AutoDateHistogramAggregationBuilder> configure,
                                  final Consumer<InternalAutoDateHistogram> verify) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 final Document document = new Document();
-                for (final DateTime date : dataset) {
+                for (final ZonedDateTime date : dataset) {
                     if (frequently()) {
                         indexWriter.commit();
                     }
 
-                    final long instant = date.getMillis();
+                    final long instant = date.toInstant().toEpochMilli();
                     document.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
                     document.add(new LongPoint(INSTANT_FIELD, instant));
                     indexWriter.addDocument(document);

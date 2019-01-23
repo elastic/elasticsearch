@@ -155,6 +155,9 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
             tasks.forEach(task -> {
                 assertThat(result.executionResults.containsKey(task), is(true));
                 assertThat(((ClusterStateTaskExecutor.TaskResult) result.executionResults.get(task)).isSuccess(), is(true));
+
+                final IndexShardRoutingTable shardRoutingTable = result.resultingState.routingTable().shardRoutingTable(task.shardId);
+                assertThat(shardRoutingTable.getByAllocationId(task.allocationId).state(), is(ShardRoutingState.STARTED));
             });
         });
     }
@@ -178,6 +181,9 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
             tasks.forEach(task -> {
                 assertThat(result.executionResults.containsKey(task), is(true));
                 assertThat(((ClusterStateTaskExecutor.TaskResult) result.executionResults.get(task)).isSuccess(), is(true));
+
+                final IndexShardRoutingTable shardRoutingTable = result.resultingState.routingTable().shardRoutingTable(task.shardId);
+                assertThat(shardRoutingTable.getByAllocationId(task.allocationId).state(), is(ShardRoutingState.STARTED));
             });
         });
     }

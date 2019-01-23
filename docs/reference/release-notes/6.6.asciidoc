@@ -179,9 +179,6 @@ Distributed::
 * Check blocks while having index shard permit in TransportReplicationAction {pull}35332[#35332] (issue: {issue}33888[#33888])
 * Apply masterNodeTimeout to MasterNodeRequest transmission {pull}35235[#35235]
 
-Docs Infrastructure::
-* Small corrections to HLRC doc for _termvectors {pull}35221[#35221] (issue: {issue}33447[#33447])
-
 Engine::
 * Add sequence numbers based optimistic concurrency control support to Engine {pull}36467[#36467] (issues: {issue}10708[#10708], {issue}36148[#36148])
 * Require soft-deletes when access changes snapshot {pull}36446[#36446]
@@ -283,6 +280,7 @@ Java High Level REST Client::
 * Add delete rollup job support to HL REST Client {pull}34066[#34066] (issue: {issue}29827[#29827])
 * HLRC API for _termvectors {pull}33447[#33447] (issue: {issue}27205[#27205])
 * Add support for get license basic/trial status API {pull}33176[#33176] (issue: {issue}29827[#29827])
+* Small corrections to HLRC doc for _termvectors {pull}35221[#35221] (issue: {issue}33447[#33447])
 
 Java Low Level REST Client::
 * On retry timeout add root exception {pull}25576[#25576]

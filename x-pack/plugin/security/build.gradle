@@ -267,7 +267,19 @@ thirdPartyAudit {
         'net.sf.ehcache.Ehcache',
         'net.sf.ehcache.Element',
         // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
-        'org.slf4j.ext.EventData'
+        'org.slf4j.ext.EventData',
+        'javax.activation.ActivationDataFlavor',
+        'javax.activation.DataContentHandler',
+        'javax.activation.DataHandler',
+        'javax.activation.DataSource',
+        'javax.activation.FileDataSource',
+        'javax.activation.FileTypeMap',
+        'org.cryptomator.siv.SivMode',
+        'org.objectweb.asm.ClassWriter',
+        'org.objectweb.asm.Label',
+        'org.objectweb.asm.MethodVisitor',
+        'org.objectweb.asm.Type'
+
     )
 
     ignoreViolations (

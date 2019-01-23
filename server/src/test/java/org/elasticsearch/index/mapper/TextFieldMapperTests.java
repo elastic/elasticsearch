@@ -34,13 +34,19 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -52,6 +58,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
+import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.MatchQuery;
@@ -954,6 +961,127 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 () -> parser.parse("type", new CompressedXContent(badConfigMapping))
             );
             assertThat(e.getMessage(), containsString("Cannot set index_prefixes on unindexed field [field]"));
+        }
+    }
+
+    public void testFastPhrasePrefixes() throws IOException {
+        QueryShardContext queryShardContext = indexService.newQueryShardContext(
+            randomInt(20), null, () -> {
+                throw new UnsupportedOperationException();
+            }, null);
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+                .startObject("field")
+                    .field("type", "text")
+                    .field("analyzer", "my_stop_analyzer")
+                    .startObject("index_prefixes")
+                        .field("min_chars", 2)
+                        .field("max_chars", 10)
+                    .endObject()
+                .endObject()
+                .startObject("synfield")
+                    .field("type", "text")
+                    .field("analyzer", "standard")  // will be replaced with MockSynonymAnalyzer
+                    .field("index_phrases", true)
+                    .startObject("index_prefixes")
+                        .field("min_chars", 2)
+                        .field("max_chars", 10)
+                    .endObject()
+                .endObject()
+            .endObject()
+            .endObject().endObject());
+
+        queryShardContext.getMapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+
+        {
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "two words").toQuery(queryShardContext);
+            Query expected = new SpanNearQuery.Builder("field", true)
+                .addClause(new SpanTermQuery(new Term("field", "two")))
+                .addClause(new FieldMaskingSpanQuery(
+                    new SpanTermQuery(new Term("field._index_prefix", "words")), "field")
+                )
+                .build();
+            assertThat(q, equalTo(expected));
+        }
+
+        {
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "three words here").toQuery(queryShardContext);
+            Query expected = new SpanNearQuery.Builder("field", true)
+                .addClause(new SpanTermQuery(new Term("field", "three")))
+                .addClause(new SpanTermQuery(new Term("field", "words")))
+                .addClause(new FieldMaskingSpanQuery(
+                    new SpanTermQuery(new Term("field._index_prefix", "here")), "field")
+                )
+                .build();
+            assertThat(q, equalTo(expected));
+        }
+
+        {
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "two words").slop(1).toQuery(queryShardContext);
+            MultiPhrasePrefixQuery mpq = new MultiPhrasePrefixQuery("field");
+            mpq.setSlop(1);
+            mpq.add(new Term("field", "two"));
+            mpq.add(new Term("field", "words"));
+            assertThat(q, equalTo(mpq));
+        }
+
+        {
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "singleton").toQuery(queryShardContext);
+            assertThat(q, is(new SynonymQuery(new Term("field._index_prefix", "singleton"))));
+        }
+
+        {
+
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "sparkle a stopword").toQuery(queryShardContext);
+            Query expected = new SpanNearQuery.Builder("field", true)
+                .addClause(new SpanTermQuery(new Term("field", "sparkle")))
+                .addGap(1)
+                .addClause(new FieldMaskingSpanQuery(
+                    new SpanTermQuery(new Term("field._index_prefix", "stopword")), "field")
+                )
+                .build();
+            assertThat(q, equalTo(expected));
+        }
+
+        {
+            MatchQuery matchQuery = new MatchQuery(queryShardContext);
+            matchQuery.setAnalyzer(new MockSynonymAnalyzer());
+            Query q = matchQuery.parse(MatchQuery.Type.PHRASE_PREFIX, "synfield", "motor dogs");
+            Query expected = new SpanNearQuery.Builder("synfield", true)
+                .addClause(new SpanTermQuery(new Term("synfield", "motor")))
+                .addClause(
+                    new SpanOrQuery(
+                        new FieldMaskingSpanQuery(
+                            new SpanTermQuery(new Term("synfield._index_prefix", "dogs")), "synfield"
+                        ),
+                        new FieldMaskingSpanQuery(
+                            new SpanTermQuery(new Term("synfield._index_prefix", "dog")), "synfield"
+                        )
+                    )
+                )
+                .build();
+            assertThat(q, equalTo(expected));
+        }
+
+        {
+            MatchQuery matchQuery = new MatchQuery(queryShardContext);
+            matchQuery.setPhraseSlop(1);
+            matchQuery.setAnalyzer(new MockSynonymAnalyzer());
+            Query q = matchQuery.parse(MatchQuery.Type.PHRASE_PREFIX, "synfield", "two dogs");
+            MultiPhrasePrefixQuery mpq = new MultiPhrasePrefixQuery("synfield");
+            mpq.setSlop(1);
+            mpq.add(new Term("synfield", "two"));
+            mpq.add(new Term[] { new Term("synfield", "dogs"), new Term("synfield", "dog") });
+            assertThat(q, equalTo(mpq));
+        }
+
+        {
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "motor d").toQuery(queryShardContext);
+            MultiPhrasePrefixQuery mpq = new MultiPhrasePrefixQuery("field");
+            mpq.add(new Term("field", "motor"));
+            mpq.add(new Term("field", "d"));
+            assertThat(q, equalTo(mpq));
         }
     }
 }

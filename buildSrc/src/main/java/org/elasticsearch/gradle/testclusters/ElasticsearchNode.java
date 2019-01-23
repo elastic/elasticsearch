@@ -324,8 +324,9 @@ public class ElasticsearchNode {
         getConfPathSharedData().mkdirs();
         getConfPathLogs().mkdirs();
         LinkedHashMap<String, String> config = new LinkedHashMap<>();
-        config.put("cluster.name", "cluster-" + safeName(name));
-        config.put("node.name", "node-" + safeName(name));
+        String nodeName = safeName(name);
+        config.put("cluster.name",nodeName);
+        config.put("node.name", nodeName);
         config.put("path.repo", getConfPathRepo().getAbsolutePath());
         config.put("path.data", getConfPathData().getAbsolutePath());
         config.put("path.logs", getConfPathLogs().getAbsolutePath());
@@ -341,6 +342,9 @@ public class ElasticsearchNode {
         config.put("script.max_compilations_rate", "2048/1m");
         if (Version.fromString(version).getMajor() >= 6) {
             config.put("cluster.routing.allocation.disk.watermark.flood_stage", "1b");
+        }
+        if (Version.fromString(version).getMajor() >= 7) {
+            config.put("cluster.initial_master_nodes", "[" + nodeName + "]");
         }
         try {
             Files.write(

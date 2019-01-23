@@ -25,7 +25,9 @@ import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
-import org.joda.time.DateTimeZone;
+
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 public final class ValuesSourceParserHelper {
 
@@ -91,9 +93,9 @@ public final class ValuesSourceParserHelper {
         if (timezoneAware) {
             objectParser.declareField(ValuesSourceAggregationBuilder::timeZone, p -> {
                 if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return DateTimeZone.forID(p.text());
+                    return ZoneId.of(p.text());
                 } else {
-                    return DateTimeZone.forOffsetHours(p.intValue());
+                    return ZoneOffset.ofHours(p.intValue());
                 }
             }, ParseField.CommonFields.TIME_ZONE, ObjectParser.ValueType.LONG);
         }

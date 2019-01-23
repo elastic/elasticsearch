@@ -178,6 +178,7 @@ public class PublicationTests extends ESTestCase {
             discoveryNodes, singleNodeConfig, singleNodeConfig, 42L), ackListener, Collections.emptySet());
 
         assertThat(publication.pendingPublications.keySet(), equalTo(discoNodes));
+        assertThat(publication.completedNodes().size(), equalTo(0));
         assertTrue(publication.pendingCommits.isEmpty());
         AtomicBoolean processedNode1PublishResponse = new AtomicBoolean();
         boolean delayProcessingNode2PublishResponse = randomBoolean();
@@ -232,10 +233,12 @@ public class PublicationTests extends ESTestCase {
 
             assertFalse(publication.completed);
             assertFalse(publication.committed);
+            assertThat(publication.completedNodes(), containsInAnyOrder(n1, n3));
             publication.pendingCommits.get(n2).onResponse(TransportResponse.Empty.INSTANCE);
         }
 
         assertTrue(publication.completed);
+        assertThat(publication.completedNodes(), containsInAnyOrder(n1, n2, n3));
         assertTrue(publication.committed);
 
         assertThat(ackListener.await(0L, TimeUnit.SECONDS), containsInAnyOrder(n1, n2, n3));

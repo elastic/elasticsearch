@@ -24,8 +24,8 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
 
     private final String realmName;
     private final String userName;
-    private final String apiKeyId;
-    private final String apiKeyName;
+    private final String id;
+    private final String name;
 
     public InvalidateApiKeyRequest() {
         this(null, null, null, null);
@@ -35,16 +35,16 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         super(in);
         realmName = in.readOptionalString();
         userName = in.readOptionalString();
-        apiKeyId = in.readOptionalString();
-        apiKeyName = in.readOptionalString();
+        id = in.readOptionalString();
+        name = in.readOptionalString();
     }
 
-    private InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
-            @Nullable String apiKeyName) {
+    public InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String id,
+            @Nullable String name) {
         this.realmName = realmName;
         this.userName = userName;
-        this.apiKeyId = apiKeyId;
-        this.apiKeyName = apiKeyName;
+        this.id = id;
+        this.name = name;
     }
 
     public String getRealmName() {
@@ -55,12 +55,12 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         return userName;
     }
 
-    public String getApiKeyId() {
-        return apiKeyId;
+    public String getId() {
+        return id;
     }
 
-    public String getApiKeyName() {
-        return apiKeyName;
+    public String getName() {
+        return name;
     }
 
     /**
@@ -93,39 +93,39 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
 
     /**
      * Creates invalidate API key request for given api key id
-     * @param apiKeyId api key id
+     * @param id api key id
      * @return {@link InvalidateApiKeyRequest}
      */
-    public static InvalidateApiKeyRequest usingApiKeyId(String apiKeyId) {
-        return new InvalidateApiKeyRequest(null, null, apiKeyId, null);
+    public static InvalidateApiKeyRequest usingApiKeyId(String id) {
+        return new InvalidateApiKeyRequest(null, null, id, null);
     }
 
     /**
      * Creates invalidate api key request for given api key name
-     * @param apiKeyName api key name
+     * @param name api key name
      * @return {@link InvalidateApiKeyRequest}
      */
-    public static InvalidateApiKeyRequest usingApiKeyName(String apiKeyName) {
-        return new InvalidateApiKeyRequest(null, null, null, apiKeyName);
+    public static InvalidateApiKeyRequest usingApiKeyName(String name) {
+        return new InvalidateApiKeyRequest(null, null, null, name);
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && Strings.hasText(apiKeyId) == false
-                && Strings.hasText(apiKeyName) == false) {
+        if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && Strings.hasText(id) == false
+                && Strings.hasText(name) == false) {
             validationException = addValidationError("One of [api key id, api key name, username, realm name] must be specified",
                     validationException);
         }
-        if (Strings.hasText(apiKeyId)) {
-            if (Strings.hasText(apiKeyName) || Strings.hasText(realmName) || Strings.hasText(userName)) {
+        if (Strings.hasText(id)) {
+            if (Strings.hasText(name) || Strings.hasText(realmName) || Strings.hasText(userName)) {
                 validationException = addValidationError(
                         "api key name or username or realm name must not be specified when the api key id is specified",
                         validationException);
             }
         }
-        if (Strings.hasText(apiKeyName)) {
-            if (Strings.hasText(apiKeyId) || Strings.hasText(realmName) || Strings.hasText(userName)) {
+        if (Strings.hasText(name)) {
+            if (Strings.hasText(id) || Strings.hasText(realmName) || Strings.hasText(userName)) {
                 validationException = addValidationError(
                         "api key id or username or realm name must not be specified when the api key name is specified",
                         validationException);
@@ -139,8 +139,8 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         super.writeTo(out);
         out.writeOptionalString(realmName);
         out.writeOptionalString(userName);
-        out.writeOptionalString(apiKeyId);
-        out.writeOptionalString(apiKeyName);
+        out.writeOptionalString(id);
+        out.writeOptionalString(name);
     }
 
     @Override

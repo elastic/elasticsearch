@@ -9,17 +9,23 @@ package org.elasticsearch.xpack.core.security.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Response for invalidation of one or more API keys result.<br>
@@ -107,6 +113,23 @@ public final class InvalidateApiKeyResponse extends ActionResponse implements To
         out.writeStringList(invalidatedApiKeys);
         out.writeStringList(previouslyInvalidatedApiKeys);
         out.writeCollection(errors, StreamOutput::writeException);
+    }
+
+    static ConstructingObjectParser<InvalidateApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>("invalidate_api_key_response",
+            args -> {
+                return new InvalidateApiKeyResponse((List<String>) args[0], (List<String>) args[1], (List<ElasticsearchException>) args[3]);
+            });
+    static {
+        PARSER.declareStringArray(constructorArg(), new ParseField("invalidated_api_keys"));
+        PARSER.declareStringArray(constructorArg(), new ParseField("previously_invalidated_api_keys"));
+        // we parse error_count but ignore it while constructing response
+        PARSER.declareInt(constructorArg(), new ParseField("error_count"));
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p),
+                new ParseField("error_details"));
+    }
+
+    public static InvalidateApiKeyResponse fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
     }
 
     @Override

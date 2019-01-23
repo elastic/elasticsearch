@@ -15,6 +15,7 @@ import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 
 import java.io.IOException;
@@ -99,9 +100,11 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             assertNotNull(indexLevel);
             Map<String, Object> mappingsLevel = (Map<String, Object>) indexLevel.get("mappings");
             assertNotNull(mappingsLevel);
-            Map<String, Object> metaLevel = (Map<String, Object>) mappingsLevel.get("_meta");
+            Map<String, Object> typeLevel = (Map<String, Object>) mappingsLevel.get(ElasticsearchMappings.DOC_TYPE);
+            assertNotNull(typeLevel);
+            Map<String, Object> metaLevel = (Map<String, Object>) typeLevel.get("_meta");
             assertEquals(Collections.singletonMap("version", Version.CURRENT.toString()), metaLevel);
-            Map<String, Object> propertiesLevel = (Map<String, Object>) mappingsLevel.get("properties");
+            Map<String, Object> propertiesLevel = (Map<String, Object>) typeLevel.get("properties");
             assertNotNull(propertiesLevel);
             // TODO: as the years go by, the field we assert on here should be changed
             // to the most recent field we've added that is NOT of type "keyword"

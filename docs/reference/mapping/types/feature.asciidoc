@@ -6,18 +6,16 @@ documents in queries with a <<query-dsl-feature-query,`feature`>> query.
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "pagerank": {
-          "type": "feature" <1>
-        },
-        "url_length": {
-          "type": "feature",
-          "positive_score_impact": false <2>
-        }
+    "properties": {
+      "pagerank": {
+        "type": "feature" <1>
+      },
+      "url_length": {
+        "type": "feature",
+        "positive_score_impact": false <2>
       }
     }
   }

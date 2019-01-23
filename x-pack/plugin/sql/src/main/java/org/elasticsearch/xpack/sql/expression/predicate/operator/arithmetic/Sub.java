@@ -9,6 +9,9 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.type.DataTypes;
+
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
  * Subtraction function ({@code a - b}).

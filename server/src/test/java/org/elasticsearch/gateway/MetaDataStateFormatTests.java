@@ -408,6 +408,12 @@ public class MetaDataStateFormatTests extends ESTestCase {
             Path[] randomPaths = randomSubsetOf(randomIntBetween(1, paths.length), paths).toArray(new Path[0]);
             DummyState stateOnDisk = format.loadLatestState(logger, NamedXContentRegistry.EMPTY, randomPaths);
             assertTrue(possibleStates.contains(stateOnDisk));
+            if (possibleStates.size() > 1) {
+                //if there was a WriteStateException we need to override current state before we continue
+                newState = writeAndReadStateSuccessfully(format, paths);
+                possibleStates.clear();
+                possibleStates.add(newState);
+            }
         }
 
         writeAndReadStateSuccessfully(format, paths);

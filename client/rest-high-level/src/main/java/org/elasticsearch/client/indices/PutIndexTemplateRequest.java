@@ -87,6 +87,16 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     public PutIndexTemplateRequest() {
     }
+    
+    /**
+     * Ignores deprecation warnings. 
+     */
+    private static final DeprecationHandler DEPRECATION_HANDLER = new DeprecationHandler() {
+        @Override
+        public void usedDeprecatedName(String usedName, String modernName) {}
+        @Override
+        public void usedDeprecatedField(String usedName, String replacedWith) {}
+    };    
 
     /**
      * Constructs a new put index template request with the provided name.
@@ -404,7 +414,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     public PutIndexTemplateRequest aliases(BytesReference source) {
         // EMPTY is safe here because we never call namedObject
         try (XContentParser parser = XContentHelper
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
+                .createParser(NamedXContentRegistry.EMPTY, DEPRECATION_HANDLER, source)) {
             //move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {

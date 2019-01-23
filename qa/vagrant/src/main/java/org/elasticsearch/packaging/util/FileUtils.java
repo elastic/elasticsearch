@@ -69,6 +69,15 @@ public class FileUtils {
         }
     }
 
+    public static Path mktempDir(Path path) {
+        try {
+            return Files.createTempDirectory(path,"tmp");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
     public static Path mkdir(Path path) {
         try {
             return Files.createDirectories(path);

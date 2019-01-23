@@ -164,7 +164,7 @@
           "type" : "object",
           "enabled": false
         },
-        "scoped_role_descriptors" : {
+        "limited_by_role_descriptors" : {
           "type" : "object",
           "enabled": false
         },

@@ -61,8 +61,8 @@ public class IndicesAccessControl {
 
         public IndexAccessControl(boolean granted, FieldPermissions fieldPermissions, DocumentPermissions documentPermissions) {
             this.granted = granted;
-            this.fieldPermissions = fieldPermissions;
-            this.documentPermissions = documentPermissions;
+            this.fieldPermissions = (fieldPermissions == null) ? FieldPermissions.DEFAULT : fieldPermissions;
+            this.documentPermissions = (documentPermissions == null) ? DocumentPermissions.allowAll() : documentPermissions;
         }
 
         /**
@@ -88,18 +88,23 @@ public class IndicesAccessControl {
             return documentPermissions;
         }
 
-        public static IndexAccessControl scopedIndexAccessControl(IndexAccessControl indexAccessControl,
-                IndexAccessControl scopedByIndexAccessControl) {
+        /**
+         * Returns a instance of {@link IndexAccessControl} limited by given index access control
+         * field permissions and document permissions.
+         * @param limitedByIndexAccessControl {@link IndexAccessControl}
+         * @return {@link IndexAccessControl}
+         */
+        public IndexAccessControl limitIndexAccessControl(IndexAccessControl limitedByIndexAccessControl) {
             final boolean granted;
-            if (indexAccessControl.granted == indexAccessControl.granted) {
-                granted = indexAccessControl.granted;
+            if (this.granted == limitedByIndexAccessControl.granted) {
+                granted = this.granted;
             } else {
                 granted = false;
             }
-            FieldPermissions fieldPermissions = FieldPermissions.scopedFieldPermissions(indexAccessControl.fieldPermissions,
-                    scopedByIndexAccessControl.fieldPermissions);
-            DocumentPermissions documentPermissions = DocumentPermissions.scopedDocumentPermissions(
-                    indexAccessControl.getDocumentPermissions(), scopedByIndexAccessControl.getDocumentPermissions());
+            FieldPermissions fieldPermissions = getFieldPermissions().limitFieldPermissions(
+                    limitedByIndexAccessControl.fieldPermissions);
+            DocumentPermissions documentPermissions = getDocumentPermissions()
+                    .limitDocumentPermissions(limitedByIndexAccessControl.getDocumentPermissions());
             return new IndexAccessControl(granted, fieldPermissions, documentPermissions);
         }
 
@@ -113,23 +118,22 @@ public class IndicesAccessControl {
         }
     }
 
-    public static IndicesAccessControl scopedIndicesAccessControl(IndicesAccessControl indicesAccessControl,
-            IndicesAccessControl scopedByIndicesAccessControl) {
+    public IndicesAccessControl limitIndicesAccessControl(IndicesAccessControl limitedByIndicesAccessControl) {
         final boolean granted;
-        if (indicesAccessControl.granted == scopedByIndicesAccessControl.granted) {
-            granted = indicesAccessControl.granted;
+        if (this.granted == limitedByIndicesAccessControl.granted) {
+            granted = this.granted;
         } else {
             granted = false;
         }
-        Set<String> indexes = indicesAccessControl.indexPermissions.keySet();
-        Set<String> otherIndexes = scopedByIndicesAccessControl.indexPermissions.keySet();
+        Set<String> indexes = indexPermissions.keySet();
+        Set<String> otherIndexes = limitedByIndicesAccessControl.indexPermissions.keySet();
         Set<String> commonIndexes = Sets.intersection(indexes, otherIndexes);
 
         Map<String, IndexAccessControl> indexPermissions = new HashMap<>(commonIndexes.size());
         for (String index : commonIndexes) {
-            IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
-            IndexAccessControl otherIndexAccessControl = scopedByIndicesAccessControl.getIndexPermissions(index);
-            indexPermissions.put(index, IndexAccessControl.scopedIndexAccessControl(indexAccessControl, otherIndexAccessControl));
+            IndexAccessControl indexAccessControl = getIndexPermissions(index);
+            IndexAccessControl limitedByIndexAccessControl = limitedByIndicesAccessControl.getIndexPermissions(index);
+            indexPermissions.put(index, indexAccessControl.limitIndexAccessControl(limitedByIndexAccessControl));
         }
         return new IndicesAccessControl(granted, indexPermissions);
     }

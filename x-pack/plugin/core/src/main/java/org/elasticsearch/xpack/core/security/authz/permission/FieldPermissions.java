@@ -156,26 +156,25 @@ public final class FieldPermissions implements Accountable {
     }
 
     /**
-     * Returns scoped field permissions based on the given permissions.<br>
-     * If both have field level security then it takes an intersection of permitted fields.<br>
-     * If none of the permissions have field level security enabled, then returns all fields are accepted.
+     * Returns a field permissions instance where it is limited by the given field permissions.<br>
+     * If the current and the other field permissions have field level security then it takes
+     * an intersection of permitted fields.<br>
+     * If none of the permissions have field level security enabled, then returns permissions
+     * instance where all fields are allowed.
      *
-     * @param permissions {@link FieldPermissions}
-     * @param scopedByPermissions {@link FieldPermissions} used to scope the permissions for returned field permissions
+     * @param limitedBy {@link FieldPermissions} used to limit current field permissions
      * @return {@link FieldPermissions}
-     **/
-    public static FieldPermissions scopedFieldPermissions(FieldPermissions permissions, FieldPermissions scopedByPermissions) {
-        if (permissions != null && permissions.hasFieldLevelSecurity()
-                && scopedByPermissions != null && scopedByPermissions.hasFieldLevelSecurity()) {
-            Automaton permittedFieldsAutomaton = Automatons.intersectAndMinimize(
-                    permissions.getIncludeAutomaton(), scopedByPermissions.getIncludeAutomaton());
+     */
+    public FieldPermissions limitFieldPermissions(FieldPermissions limitedBy) {
+        if (hasFieldLevelSecurity() && limitedBy != null && limitedBy.hasFieldLevelSecurity()) {
+            Automaton permittedFieldsAutomaton = Automatons.intersectAndMinimize(getIncludeAutomaton(), limitedBy.getIncludeAutomaton());
             return new FieldPermissions(null, permittedFieldsAutomaton);
-        } else if (permissions.hasFieldLevelSecurity()) {
-            return permissions;
-        } else if (scopedByPermissions.hasFieldLevelSecurity()) {
-            return scopedByPermissions;
+        } else if (limitedBy != null && limitedBy.hasFieldLevelSecurity()) {
+            return new FieldPermissions(limitedBy.getFieldPermissionsDefinition(), limitedBy.getIncludeAutomaton());
+        } else if (hasFieldLevelSecurity()) {
+            return new FieldPermissions(getFieldPermissionsDefinition(), getIncludeAutomaton());
         }
-        return new FieldPermissions();
+        return FieldPermissions.DEFAULT;
     }
 
     /**

@@ -172,7 +172,7 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
         directory.close();
     }
 
-    public void testDLSWithScopedPermissions() throws Exception {
+    public void testDLSWithLimitedPermissions() throws Exception {
         ShardId shardId = new ShardId("_index", "_na_", 0);
         MapperService mapperService = mock(MapperService.class);
         ScriptService  scriptService = mock(ScriptService.class);
@@ -184,10 +184,10 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
         final Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(mock(User.class));
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
-        final boolean noScopedIndexPermissions = randomBoolean();
-        boolean restrictiveScopedIndexPermissions = false;
-        if (noScopedIndexPermissions == false) {
-            restrictiveScopedIndexPermissions = randomBoolean();
+        final boolean noFilteredIndexPermissions = randomBoolean();
+        boolean restrictiveLimitedIndexPermissions = false;
+        if (noFilteredIndexPermissions == false) {
+            restrictiveLimitedIndexPermissions = randomBoolean();
         }
         Set<BytesReference> queries = new HashSet<>();
         queries.add(new BytesArray("{\"terms\" : { \"f2\" : [\"fv22\"] } }"));
@@ -196,10 +196,10 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
                 FieldPermissions(),
                 DocumentPermissions.filteredBy(queries));
         queries = singleton(new BytesArray("{\"terms\" : { \"f1\" : [\"fv11\", \"fv21\", \"fv31\"] } }"));
-        if (restrictiveScopedIndexPermissions) {
+        if (restrictiveLimitedIndexPermissions) {
             queries = singleton(new BytesArray("{\"terms\" : { \"f1\" : [\"fv11\", \"fv31\"] } }"));
         }
-        IndicesAccessControl.IndexAccessControl scopedIndexAccessControl = new IndicesAccessControl.IndexAccessControl(true, new
+        IndicesAccessControl.IndexAccessControl limitedIndexAccessControl = new IndicesAccessControl.IndexAccessControl(true, new
                 FieldPermissions(),
                 DocumentPermissions.filteredBy(queries));
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
@@ -228,12 +228,12 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
                 IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
-                if (noScopedIndexPermissions) {
+                if (noFilteredIndexPermissions) {
                     return indicesAccessControl;
                 }
-                IndicesAccessControl scoped = new IndicesAccessControl(true,
-                        singletonMap("_index", scopedIndexAccessControl));
-                return IndicesAccessControl.scopedIndicesAccessControl(indicesAccessControl, scoped);
+                IndicesAccessControl limitedByIndicesAccessControl = new IndicesAccessControl(true,
+                        singletonMap("_index", limitedIndexAccessControl));
+                return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
             }
         };
 
@@ -268,10 +268,10 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
             actualDocIds.add(doc.doc);
         }
 
-        if (noScopedIndexPermissions) {
+        if (noFilteredIndexPermissions) {
             assertThat(actualDocIds, containsInAnyOrder(1, 2));
         } else {
-            if (restrictiveScopedIndexPermissions) {
+            if (restrictiveLimitedIndexPermissions) {
                 assertThat(actualDocIds, containsInAnyOrder(2));
             } else {
                 assertThat(actualDocIds, containsInAnyOrder(1, 2));

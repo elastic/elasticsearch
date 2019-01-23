@@ -43,18 +43,18 @@ import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
 
 /**
  * Stores document level permissions in the form queries that match all the accessible documents.<br>
- * The document level permissions may be scoped by another set of queries in that case the scoped
+ * The document level permissions may be limited by another set of queries in that case the limited
  * queries are used as an additional filter.
  */
 public final class DocumentPermissions {
     private final Set<BytesReference> queries;
-    private final Set<BytesReference> scopedByQueries;
+    private final Set<BytesReference> limitedByQueries;
 
     private static DocumentPermissions ALLOW_ALL = new DocumentPermissions();
 
     DocumentPermissions() {
         this.queries = null;
-        this.scopedByQueries = null;
+        this.limitedByQueries = null;
     }
 
     DocumentPermissions(Set<BytesReference> queries) {
@@ -66,22 +66,22 @@ public final class DocumentPermissions {
             throw new IllegalArgumentException("one of the queries or scoped queries must be provided");
         }
         this.queries = (queries != null) ? Collections.unmodifiableSet(queries) : queries;
-        this.scopedByQueries = (scopedByQueries != null) ? Collections.unmodifiableSet(scopedByQueries) : scopedByQueries;
+        this.limitedByQueries = (scopedByQueries != null) ? Collections.unmodifiableSet(scopedByQueries) : scopedByQueries;
     }
 
     public Set<BytesReference> getQueries() {
         return queries;
     }
 
-    public Set<BytesReference> getScopedQueries() {
-        return scopedByQueries;
+    public Set<BytesReference> getLimitedByQueries() {
+        return limitedByQueries;
     }
 
     /**
      * @return {@code true} if either queries or scoped queries are present for document level security else returns {@code false}
      */
     public boolean hasDocumentLevelPermissions() {
-        return queries != null || scopedByQueries != null;
+        return queries != null || limitedByQueries != null;
     }
 
     /**
@@ -103,19 +103,19 @@ public final class DocumentPermissions {
                                       DocumentPermissions documentPermissions) throws IOException {
         if (documentPermissions.hasDocumentLevelPermissions()) {
             BooleanQuery.Builder filter;
-            if (documentPermissions.queries != null && documentPermissions.scopedByQueries != null) {
+            if (documentPermissions.queries != null && documentPermissions.limitedByQueries != null) {
                 filter = new BooleanQuery.Builder();
                 BooleanQuery.Builder scopedFilter = new BooleanQuery.Builder();
-                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, documentPermissions.scopedByQueries, scopedFilter);
+                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, documentPermissions.limitedByQueries, scopedFilter);
                 filter.add(scopedFilter.build(), FILTER);
 
                 buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, documentPermissions.queries, filter);
             } else if (documentPermissions.queries != null) {
                 filter = new BooleanQuery.Builder();
                 buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, documentPermissions.queries, filter);
-            } else if (documentPermissions.scopedByQueries != null) {
+            } else if (documentPermissions.limitedByQueries != null) {
                 filter = new BooleanQuery.Builder();
-                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, documentPermissions.scopedByQueries, filter);
+                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, documentPermissions.limitedByQueries, filter);
             } else {
                 return null;
             }
@@ -240,25 +240,24 @@ public final class DocumentPermissions {
     }
 
     /**
-     * Create a scoped document permissions scoped by the queries
+     * Create a document permissions limited by the queries from other document permissions.
      *
-     * @param documentPermissions {@link DocumentPermissions} to be scoped
-     * @param scopedByDocumentPermissions {@link DocumentPermissions} used to scope the document level access
-     * @return scoped {@link DocumentPermissions}
+     * @param limitedByDocumentPermissions {@link DocumentPermissions} used to scope the document level access
+     * @return instance of {@link DocumentPermissions}
      */
-    public static DocumentPermissions scopedDocumentPermissions(DocumentPermissions documentPermissions,
-            DocumentPermissions scopedByDocumentPermissions) {
-        assert documentPermissions.scopedByQueries == null
-                && scopedByDocumentPermissions.scopedByQueries == null : "nested scoping for document permissions is not permitted";
-        if (documentPermissions.queries == null && scopedByDocumentPermissions.queries == null) {
+    public DocumentPermissions limitDocumentPermissions(
+            DocumentPermissions limitedByDocumentPermissions) {
+        assert limitedByQueries == null
+                && limitedByDocumentPermissions.limitedByQueries == null : "nested scoping for document permissions is not permitted";
+        if (queries == null && limitedByDocumentPermissions.queries == null) {
             return DocumentPermissions.allowAll();
         }
-        return new DocumentPermissions(documentPermissions.queries, scopedByDocumentPermissions.queries);
+        return new DocumentPermissions(queries, limitedByDocumentPermissions.queries);
     }
 
     @Override
     public String toString() {
-        return "DocumentPermissions [queries=" + queries + ", scopedByQueries=" + scopedByQueries + "]";
+        return "DocumentPermissions [queries=" + queries + ", scopedByQueries=" + limitedByQueries + "]";
     }
 
 }

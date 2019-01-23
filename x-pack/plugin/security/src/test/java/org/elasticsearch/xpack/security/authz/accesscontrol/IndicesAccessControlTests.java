@@ -28,40 +28,40 @@ public class IndicesAccessControlTests extends ESTestCase {
         assertNull(indicesAccessControl.getIndexPermissions(randomAlphaOfLengthBetween(3,20)));
     }
 
-    public void testScopedIndicesAccessControl() {
+    public void testSLimitedIndicesAccessControl() {
         IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, Collections.emptyMap());
-        IndicesAccessControl scopedByIndicesAccessControl = new IndicesAccessControl(true, Collections.emptyMap());
-        IndicesAccessControl result = IndicesAccessControl.scopedIndicesAccessControl(indicesAccessControl, scopedByIndicesAccessControl);
+        IndicesAccessControl limitedByIndicesAccessControl = new IndicesAccessControl(true, Collections.emptyMap());
+        IndicesAccessControl result = indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
         assertThat(result, is(notNullValue()));
         assertThat(result.isGranted(), is(true));
         assertThat(result.getIndexPermissions("_index"), is(nullValue()));
 
         indicesAccessControl = new IndicesAccessControl(true, Collections.emptyMap());
-        scopedByIndicesAccessControl = new IndicesAccessControl(false, Collections.emptyMap());
-        result = IndicesAccessControl.scopedIndicesAccessControl(indicesAccessControl, scopedByIndicesAccessControl);
+        limitedByIndicesAccessControl = new IndicesAccessControl(false, Collections.emptyMap());
+        result = indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
         assertThat(result, is(notNullValue()));
         assertThat(result.isGranted(), is(false));
         assertThat(result.getIndexPermissions("_index"), is(nullValue()));
 
         indicesAccessControl = new IndicesAccessControl(false, Collections.emptyMap());
-        scopedByIndicesAccessControl = new IndicesAccessControl(false, Collections.emptyMap());
-        result = IndicesAccessControl.scopedIndicesAccessControl(indicesAccessControl, scopedByIndicesAccessControl);
+        limitedByIndicesAccessControl = new IndicesAccessControl(false, Collections.emptyMap());
+        result = indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
         assertThat(result, is(notNullValue()));
         assertThat(result.isGranted(), is(false));
         assertThat(result.getIndexPermissions("_index"), is(nullValue()));
 
         indicesAccessControl = new IndicesAccessControl(true,
                 Collections.singletonMap("_index", new IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())));
-        scopedByIndicesAccessControl = new IndicesAccessControl(true, Collections.emptyMap());
-        result = IndicesAccessControl.scopedIndicesAccessControl(indicesAccessControl, scopedByIndicesAccessControl);
+        limitedByIndicesAccessControl = new IndicesAccessControl(true, Collections.emptyMap());
+        result = indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
         assertThat(result, is(notNullValue()));
         assertThat(result.getIndexPermissions("_index"), is(nullValue()));
 
         indicesAccessControl = new IndicesAccessControl(true,
                 Collections.singletonMap("_index", new IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())));
-        scopedByIndicesAccessControl = new IndicesAccessControl(true,
+        limitedByIndicesAccessControl = new IndicesAccessControl(true,
                 Collections.singletonMap("_index", new IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())));
-        result = IndicesAccessControl.scopedIndicesAccessControl(indicesAccessControl, scopedByIndicesAccessControl);
+        result = indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
         assertThat(result, is(notNullValue()));
         assertThat(result.getIndexPermissions("_index"), is(notNullValue()));
         assertThat(result.getIndexPermissions("_index").isGranted(), is(true));

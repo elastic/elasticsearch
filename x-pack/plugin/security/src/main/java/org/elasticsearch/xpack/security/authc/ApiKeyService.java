@@ -59,7 +59,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.authz.permission.ScopedRole;
+import org.elasticsearch.xpack.core.security.authz.permission.LimitedRole;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -96,7 +96,7 @@ public class ApiKeyService {
     private static final String TYPE = "doc";
     static final String API_KEY_ID_KEY = "_security_api_key_id";
     static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
-    static final String API_KEY_SCOPED_ROLE_DESCRIPTORS_KEY = "_security_api_key_scoped_role_descriptors";
+    static final String API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY = "_security_api_key_limited_by_role_descriptors";
     static final String API_KEY_ROLE_KEY = "_security_api_key_role";
 
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
@@ -193,8 +193,8 @@ public class ApiKeyService {
                         }
                         builder.endObject();
 
-                        // Save scoped_role_descriptors
-                        builder.startObject("scoped_role_descriptors");
+                        // Save limited_by_role_descriptors
+                        builder.startObject("limited_by_role_descriptors");
                         compositeRolesStore.getRoleDescriptors(Sets.newHashSet(authentication.getUser().roles()),
                                 ActionListener.wrap(rdSet -> {
                                     for (RoleDescriptor descriptor : rdSet) {
@@ -292,7 +292,7 @@ public class ApiKeyService {
         final String apiKeyId = (String) metadata.get(API_KEY_ID_KEY);
 
         final Map<String, Object> roleDescriptors = (Map<String, Object>) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
-        final Map<String, Object> authnRoleDescriptors = (Map<String, Object>) metadata.get(API_KEY_SCOPED_ROLE_DESCRIPTORS_KEY);
+        final Map<String, Object> authnRoleDescriptors = (Map<String, Object>) metadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY);
 
         if (roleDescriptors == null && authnRoleDescriptors == null) {
             listener.onFailure(new ElasticsearchSecurityException("no role descriptors found for API key"));
@@ -303,8 +303,8 @@ public class ApiKeyService {
             final List<RoleDescriptor> roleDescriptorList = parseRoleDescriptors(apiKeyId, roleDescriptors);
             final List<RoleDescriptor> authnRoleDescriptorsList = parseRoleDescriptors(apiKeyId, authnRoleDescriptors);
             rolesStore.buildAndCacheRoleFromDescriptors(roleDescriptorList, apiKeyId, ActionListener.wrap(role -> {
-                rolesStore.buildAndCacheRoleFromDescriptors(authnRoleDescriptorsList, apiKeyId, ActionListener.wrap(scopedByRole -> {
-                    Role finalRole = ScopedRole.createScopedRole(role, scopedByRole);
+                rolesStore.buildAndCacheRoleFromDescriptors(authnRoleDescriptorsList, apiKeyId, ActionListener.wrap(limitedByRole -> {
+                    Role finalRole = LimitedRole.createLimitedRole(role, limitedByRole);
                     listener.onResponse(finalRole);
                 }, listener::onFailure));
             }, listener::onFailure));
@@ -360,13 +360,13 @@ public class ApiKeyService {
                     final String principal = Objects.requireNonNull((String) creator.get("principal"));
                     final Map<String, Object> metadata = (Map<String, Object>) creator.get("metadata");
                     final Map<String, Object> roleDescriptors = (Map<String, Object>) source.get("role_descriptors");
-                    final Map<String, Object> scopedRoleDescriptors = (Map<String, Object>) source.get("scoped_role_descriptors");
+                    final Map<String, Object> limitedByRoleDescriptors = (Map<String, Object>) source.get("limited_by_role_descriptors");
                     final String[] roleNames = (roleDescriptors != null) ? roleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY)
-                            : scopedRoleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY);
+                            : limitedByRoleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY);
                     final User apiKeyUser = new User(principal, roleNames, null, null, metadata, true);
                     final Map<String, Object> authResultMetadata = new HashMap<>();
                     authResultMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY, roleDescriptors);
-                    authResultMetadata.put(API_KEY_SCOPED_ROLE_DESCRIPTORS_KEY, scopedRoleDescriptors);
+                    authResultMetadata.put(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleDescriptors);
                     authResultMetadata.put(API_KEY_ID_KEY, credentials.getId());
                     listener.onResponse(AuthenticationResult.success(apiKeyUser, authResultMetadata));
                 } else {

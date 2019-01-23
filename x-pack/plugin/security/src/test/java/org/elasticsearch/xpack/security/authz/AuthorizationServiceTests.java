@@ -117,7 +117,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivile
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.authz.permission.ScopedRole;
+import org.elasticsearch.xpack.core.security.authz.permission.LimitedRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
@@ -1495,7 +1495,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 .build();
         final Role scopedByRole = Role.builder("scoped-role")
                 .cluster(Collections.singleton(ClusterPrivilegeName.MANAGE_SECURITY), Collections.emptyList()).build();
-        final Role role = ScopedRole.createScopedRole(fromRole, scopedByRole);
+        final Role role = LimitedRole.createLimitedRole(fromRole, scopedByRole);
 
         AuditUtil.getOrGenerateRequestId(threadContext);
         final Authentication authentication = createAuthentication(new User("test api key user", "api_key"), AuthenticationType.API_KEY);

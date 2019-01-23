@@ -8,52 +8,70 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.IndexAccessControl;
+import org.hamcrest.core.IsSame;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Matchers.same;
 
 public class FieldPermissionsTests extends ESTestCase {
 
     public void testFieldPermissionsIntersection() throws IOException {
 
-        FieldPermissions fieldPermissions1 = new FieldPermissions(
+        final FieldPermissions fieldPermissions = FieldPermissions.DEFAULT;
+        final FieldPermissions fieldPermissions1 = new FieldPermissions(
                 fieldPermissionDef(new String[] { "f1", "f2", "f3*" }, new String[] { "f3" }));
-        FieldPermissions fieldPermissions2 = new FieldPermissions(
+        final FieldPermissions fieldPermissions2 = new FieldPermissions(
                 fieldPermissionDef(new String[] { "f1", "f3*", "f4" }, new String[] { "f3" }));
 
-        IndexAccessControl permissions = new IndexAccessControl(true, fieldPermissions1, DocumentPermissions.allowAll());
-        IndexAccessControl filteredPermissions = new IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll());
-        IndexAccessControl indexAccessControl = IndexAccessControl.scopedIndexAccessControl(permissions, filteredPermissions);
-        CharacterRunAutomaton automaton = new CharacterRunAutomaton(indexAccessControl.getFieldPermissions().getIncludeAutomaton());
-        assertThat(automaton.run("f1"), is(true));
-        assertThat(automaton.run("f2"), is(true));
-        assertThat(automaton.run("f3"), is(false));
-        assertThat(automaton.run("f31"), is(true));
-        assertThat(automaton.run("f4"), is(false));
+        {
+            FieldPermissions result = fieldPermissions.limitFieldPermissions(randomFrom(new FieldPermissions(), null));
+            assertThat(result, is(notNullValue()));
+            assertThat(result, IsSame.sameInstance(FieldPermissions.DEFAULT));
+        }
 
-        permissions = new IndexAccessControl(true, fieldPermissions1, DocumentPermissions.allowAll());
-        filteredPermissions = new IndexAccessControl(true, fieldPermissions2, DocumentPermissions.allowAll());
-        indexAccessControl = IndexAccessControl.scopedIndexAccessControl(permissions, filteredPermissions);
-        automaton = new CharacterRunAutomaton(indexAccessControl.getFieldPermissions().getIncludeAutomaton());
-        assertThat(automaton.run("f1"), is(true));
-        assertThat(automaton.run("f2"), is(false));
-        assertThat(automaton.run("f3"), is(false));
-        assertThat(automaton.run("f31"), is(true));
-        assertThat(automaton.run("f4"), is(false));
+        {
+            FieldPermissions result = fieldPermissions1.limitFieldPermissions(new FieldPermissions());
+            assertThat(result, is(notNullValue()));
+            assertThat(result, not(same(fieldPermissions)));
+            assertThat(result, not(same(fieldPermissions1)));
+            CharacterRunAutomaton automaton = new CharacterRunAutomaton(result.getIncludeAutomaton());
+            assertThat(automaton.run("f1"), is(true));
+            assertThat(automaton.run("f2"), is(true));
+            assertThat(automaton.run("f3"), is(false));
+            assertThat(automaton.run("f31"), is(true));
+            assertThat(automaton.run("f4"), is(false));
+        }
 
-        permissions = new IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll());
-        ;
-        filteredPermissions = new IndexAccessControl(true, fieldPermissions2, DocumentPermissions.allowAll());
-        indexAccessControl = IndexAccessControl.scopedIndexAccessControl(permissions, filteredPermissions);
-        automaton = new CharacterRunAutomaton(indexAccessControl.getFieldPermissions().getIncludeAutomaton());
-        assertThat(automaton.run("f1"), is(true));
-        assertThat(automaton.run("f2"), is(false));
-        assertThat(automaton.run("f3"), is(false));
-        assertThat(automaton.run("f31"), is(true));
-        assertThat(automaton.run("f4"), is(true));
-        assertThat(automaton.run("f5"), is(false));
+        {
+            FieldPermissions result = fieldPermissions1.limitFieldPermissions(fieldPermissions2);
+            assertThat(result, is(notNullValue()));
+            assertThat(result, not(same(fieldPermissions1)));
+            assertThat(result, not(same(fieldPermissions2)));
+            CharacterRunAutomaton automaton = new CharacterRunAutomaton(result.getIncludeAutomaton());
+            assertThat(automaton.run("f1"), is(true));
+            assertThat(automaton.run("f2"), is(false));
+            assertThat(automaton.run("f3"), is(false));
+            assertThat(automaton.run("f31"), is(true));
+            assertThat(automaton.run("f4"), is(false));
+        }
+
+        {
+            FieldPermissions result = fieldPermissions.limitFieldPermissions(fieldPermissions2);
+            assertThat(result, is(notNullValue()));
+            assertThat(result, not(same(fieldPermissions1)));
+            assertThat(result, not(same(fieldPermissions2)));
+            CharacterRunAutomaton automaton = new CharacterRunAutomaton(result.getIncludeAutomaton());
+            assertThat(automaton.run("f1"), is(true));
+            assertThat(automaton.run("f2"), is(false));
+            assertThat(automaton.run("f3"), is(false));
+            assertThat(automaton.run("f31"), is(true));
+            assertThat(automaton.run("f4"), is(true));
+            assertThat(automaton.run("f5"), is(false));
+        }
     }
 
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {

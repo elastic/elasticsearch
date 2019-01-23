@@ -150,7 +150,7 @@ public final class Sets {
         Objects.requireNonNull(set2);
         final Set<T> left;
         final Set<T> right;
-        if ((set1.size() < set2.size())) {
+        if (set1.size() < set2.size()) {
             left = set1;
             right = set2;
         } else {

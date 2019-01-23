@@ -15,16 +15,20 @@ import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
-public class ScopedRoleTests extends ESTestCase {
+public class LimitedRoleTests extends ESTestCase {
 
-    public void testRoleConstructorWithScopedRole() {
+    public void testRoleConstructorWithLimitedRole() {
         Role fromRole = Role.builder("a-role").build();
-        Role scopedByRole = Role.builder("scoped-role").build();
-        Role role = ScopedRole.createScopedRole(fromRole, scopedByRole);
+        Role limitedByRole = Role.builder("limited-role").build();
+        Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
         assertNotNull(role);
+
+        NullPointerException npe = expectThrows(NullPointerException.class, () -> LimitedRole.createLimitedRole(fromRole, null));
+        assertThat(npe.getMessage(), containsString("limited by role is required to create limited role"));
     }
 
     public void testCheckClusterAction() {
@@ -32,20 +36,21 @@ public class ScopedRoleTests extends ESTestCase {
                 .build();
         assertThat(fromRole.checkClusterAction("cluster:admin/xpack/security/x", mock(TransportRequest.class)), is(true));
         {
-            Role scopedByRole = Role.builder("scoped-role")
+            Role limitedByRole = Role.builder("limited-role")
                     .cluster(Collections.singleton(ClusterPrivilegeName.ALL), Collections.emptyList()).build();
-            assertThat(scopedByRole.checkClusterAction("cluster:admin/xpack/security/x", mock(TransportRequest.class)), is(true));
-            assertThat(scopedByRole.checkClusterAction("cluster:other-action", mock(TransportRequest.class)), is(true));
-            Role role = ScopedRole.createScopedRole(fromRole, scopedByRole);
+            assertThat(limitedByRole.checkClusterAction("cluster:admin/xpack/security/x", mock(TransportRequest.class)), is(true));
+            assertThat(limitedByRole.checkClusterAction("cluster:other-action", mock(TransportRequest.class)), is(true));
+            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
             assertThat(role.checkClusterAction("cluster:admin/xpack/security/x", mock(TransportRequest.class)), is(true));
             assertThat(role.checkClusterAction("cluster:other-action", mock(TransportRequest.class)), is(false));
         }
         {
-            Role scopedByRole = Role.builder("scoped-role")
+            Role limitedByRole = Role.builder("limited-role")
                     .cluster(Collections.singleton(ClusterPrivilegeName.MONITOR), Collections.emptyList()).build();
-            assertThat(scopedByRole.checkClusterAction("cluster:monitor/me", mock(TransportRequest.class)), is(true));
-            Role role = ScopedRole.createScopedRole(fromRole, scopedByRole);
+            assertThat(limitedByRole.checkClusterAction("cluster:monitor/me", mock(TransportRequest.class)), is(true));
+            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
             assertThat(role.checkClusterAction("cluster:monitor/me", mock(TransportRequest.class)), is(false));
+            assertThat(role.checkClusterAction("cluster:admin/xpack/security/x", mock(TransportRequest.class)), is(false));
         }
     }
 
@@ -55,17 +60,17 @@ public class ScopedRoleTests extends ESTestCase {
         assertThat(fromRole.checkIndicesAction(CreateIndexAction.NAME), is(false));
 
         {
-            Role scopedByRole = Role.builder("scoped-role").add(IndexPrivilege.ALL, "ind-1").build();
-            assertThat(scopedByRole.checkIndicesAction(SearchAction.NAME), is(true));
-            assertThat(scopedByRole.checkIndicesAction(CreateIndexAction.NAME), is(true));
-            Role role = ScopedRole.createScopedRole(fromRole, scopedByRole);
+            Role limitedByRole = Role.builder("limited-role").add(IndexPrivilege.ALL, "ind-1").build();
+            assertThat(limitedByRole.checkIndicesAction(SearchAction.NAME), is(true));
+            assertThat(limitedByRole.checkIndicesAction(CreateIndexAction.NAME), is(true));
+            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
             assertThat(role.checkIndicesAction(SearchAction.NAME), is(true));
             assertThat(role.checkIndicesAction(CreateIndexAction.NAME), is(false));
         }
         {
-            Role scopedByRole = Role.builder("scoped-role").add(IndexPrivilege.NONE, "ind-1").build();
-            assertThat(scopedByRole.checkIndicesAction(SearchAction.NAME), is(false));
-            Role role = ScopedRole.createScopedRole(fromRole, scopedByRole);
+            Role limitedByRole = Role.builder("limited-role").add(IndexPrivilege.NONE, "ind-1").build();
+            assertThat(limitedByRole.checkIndicesAction(SearchAction.NAME), is(false));
+            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
             assertThat(role.checkIndicesAction(SearchAction.NAME), is(false));
             assertThat(role.checkIndicesAction(CreateIndexAction.NAME), is(false));
         }
@@ -78,20 +83,20 @@ public class ScopedRoleTests extends ESTestCase {
         assertThat(fromRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-2"), is(false));
 
         {
-            Role scopedByRole = Role.builder("scoped-role").add(IndexPrivilege.READ, "ind-1", "ind-2").build();
-            assertThat(scopedByRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-1"), is(true));
-            assertThat(scopedByRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-11"), is(false));
-            assertThat(scopedByRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-2"), is(true));
-            Role role = ScopedRole.createScopedRole(fromRole, scopedByRole);
+            Role limitedByRole = Role.builder("limited-role").add(IndexPrivilege.READ, "ind-1", "ind-2").build();
+            assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-1"), is(true));
+            assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-11"), is(false));
+            assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-2"), is(true));
+            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
             assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test("ind-1"), is(true));
             assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test("ind-11"), is(false));
             assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test("ind-2"), is(false));
         }
         {
-            Role scopedByRole = Role.builder("scoped-role").add(IndexPrivilege.READ, "ind-*").build();
-            assertThat(scopedByRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-1"), is(true));
-            assertThat(scopedByRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-2"), is(true));
-            Role role = ScopedRole.createScopedRole(fromRole, scopedByRole);
+            Role limitedByRole = Role.builder("limited-role").add(IndexPrivilege.READ, "ind-*").build();
+            assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-1"), is(true));
+            assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-2"), is(true));
+            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
             assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test("ind-1"), is(true));
             assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test("ind-2"), is(false));
         }

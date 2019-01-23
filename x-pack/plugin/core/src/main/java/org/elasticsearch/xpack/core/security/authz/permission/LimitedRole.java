@@ -10,35 +10,37 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
 /**
- * A {@link Role} scoped by another role.<br>
- * The effective permissions returned on {@link #authorize(String, Set, MetaData, FieldPermissionsCache)} call would be scoped by the
+ * A {@link Role} limited by another role.<br>
+ * The effective permissions returned on {@link #authorize(String, Set, MetaData, FieldPermissionsCache)} call would be limited by the
  * provided role.
  */
-public final class ScopedRole extends Role {
-    private final Role scopedBy;
+public final class LimitedRole extends Role {
+    private final Role limitedBy;
 
-    ScopedRole(String[] names, ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application,
-            RunAsPermission runAs, Role scopedBy) {
+    LimitedRole(String[] names, ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application,
+            RunAsPermission runAs, Role limitedBy) {
         super(names, cluster, indices, application, runAs);
-        this.scopedBy = scopedBy;
+        assert limitedBy != null : "limiting role is required";
+        this.limitedBy = limitedBy;
     }
 
-    public Role scopedBy() {
-        return scopedBy;
+    public Role limitedBy() {
+        return limitedBy;
     }
 
     @Override
     public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases, MetaData metaData,
             FieldPermissionsCache fieldPermissionsCache) {
         IndicesAccessControl indicesAccessControl = super.authorize(action, requestedIndicesOrAliases, metaData, fieldPermissionsCache);
-        IndicesAccessControl scopedByIndicesAccessControl = scopedBy.authorize(action, requestedIndicesOrAliases, metaData,
+        IndicesAccessControl limitedByIndicesAccessControl = limitedBy.authorize(action, requestedIndicesOrAliases, metaData,
                 fieldPermissionsCache);
 
-        return IndicesAccessControl.scopedIndicesAccessControl(indicesAccessControl, scopedByIndicesAccessControl);
+        return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
     }
 
     /**
@@ -47,9 +49,7 @@ public final class ScopedRole extends Role {
      */
     public Predicate<String> allowedIndicesMatcher(String action) {
         Predicate<String> predicate = indices().allowedIndicesMatcher(action);
-        if (scopedBy != null) {
-            predicate = predicate.and(scopedBy.indices().allowedIndicesMatcher(action));
-        }
+        predicate = predicate.and(limitedBy.indices().allowedIndicesMatcher(action));
         return predicate;
     }
 
@@ -62,11 +62,7 @@ public final class ScopedRole extends Role {
      */
     @Override
     public boolean checkIndicesAction(String action) {
-        boolean allowed = super.checkIndicesAction(action);
-        if (allowed && scopedBy != null) {
-            allowed = scopedBy.checkIndicesAction(action);
-        }
-        return allowed;
+        return super.checkIndicesAction(action) && limitedBy.checkIndicesAction(action);
     }
 
     /**
@@ -78,22 +74,19 @@ public final class ScopedRole extends Role {
      * @return {@code true} if action is allowed else returns {@code false}
      */
     public boolean checkClusterAction(String action, TransportRequest request) {
-        boolean allowed = super.checkClusterAction(action, request);
-        if (allowed && scopedBy != null) {
-            allowed = scopedBy.checkClusterAction(action, request);
-        }
-        return allowed;
+        return super.checkClusterAction(action, request) && limitedBy.checkClusterAction(action, request);
     }
 
     /**
-     * Create a new role defined by given role and the scoped role.
+     * Create a new role defined by given role and the limited role.
      *
      * @param fromRole existing role {@link Role}
-     * @param scopedByRole restrict the newly formed role to the permissions defined by this scoped {@link Role}
-     * @return {@link ScopedRole}
+     * @param limitedByRole restrict the newly formed role to the permissions defined by this limited {@link Role}
+     * @return {@link LimitedRole}
      */
-    public static ScopedRole createScopedRole(Role fromRole, Role scopedByRole) {
-        return new ScopedRole(fromRole.names(), fromRole.cluster(), fromRole.indices(), fromRole.application(), fromRole.runAs(),
-                scopedByRole);
+    public static LimitedRole createLimitedRole(Role fromRole, Role limitedByRole) {
+        Objects.requireNonNull(limitedByRole, "limited by role is required to create limited role");
+        return new LimitedRole(fromRole.names(), fromRole.cluster(), fromRole.indices(), fromRole.application(), fromRole.runAs(),
+                limitedByRole);
     }
 }

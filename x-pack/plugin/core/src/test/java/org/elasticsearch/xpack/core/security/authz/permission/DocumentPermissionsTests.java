@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -47,10 +48,18 @@ public class DocumentPermissionsTests extends ESTestCase {
         assertThat(documentPermissions2, is(notNullValue()));
         assertThat(documentPermissions2.hasDocumentLevelPermissions(), is(true));
 
-        final DocumentPermissions documentPermissions3 = DocumentPermissions
-                .scopedDocumentPermissions(documentPermissions1, documentPermissions2);
+        final DocumentPermissions documentPermissions3 = documentPermissions1.limitDocumentPermissions(documentPermissions2);
         assertThat(documentPermissions3, is(notNullValue()));
         assertThat(documentPermissions3.hasDocumentLevelPermissions(), is(true));
+
+        final DocumentPermissions documentPermissions4 = DocumentPermissions.allowAll()
+                .limitDocumentPermissions(DocumentPermissions.allowAll());
+        assertThat(documentPermissions4, is(notNullValue()));
+        assertThat(documentPermissions4.hasDocumentLevelPermissions(), is(false));
+
+        AssertionError ae = expectThrows(AssertionError.class,
+                () -> DocumentPermissions.allowAll().limitDocumentPermissions(documentPermissions3));
+        assertThat(ae.getMessage(), containsString("nested scoping for document permissions is not permitted"));
     }
 
     public void testVerifyRoleQuery() throws Exception {

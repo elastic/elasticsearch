@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.authz.permission.ScopedRole;
+import org.elasticsearch.xpack.core.security.authz.permission.LimitedRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -114,7 +114,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         Map<String, Object> sourceMap = new HashMap<>();
         sourceMap.put("api_key_hash", new String(hash));
         sourceMap.put("role_descriptors", Collections.singletonMap("a role", Collections.singletonMap("cluster", "all")));
-        sourceMap.put("scoped_role_descriptors", Collections.singletonMap("scoped role", Collections.singletonMap("cluster", "all")));
+        sourceMap.put("limited_by_role_descriptors", Collections.singletonMap("limited role", Collections.singletonMap("cluster", "all")));
         Map<String, Object> creatorMap = new HashMap<>();
         creatorMap.put("principal", "test_user");
         creatorMap.put("metadata", Collections.emptyMap());
@@ -132,8 +132,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.getUser().roles(), arrayContaining("a role"));
         assertThat(result.getUser().metadata(), is(Collections.emptyMap()));
         assertThat(result.getMetadata().get(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(sourceMap.get("role_descriptors")));
-        assertThat(result.getMetadata().get(ApiKeyService.API_KEY_SCOPED_ROLE_DESCRIPTORS_KEY),
-                equalTo(sourceMap.get("scoped_role_descriptors")));
+        assertThat(result.getMetadata().get(ApiKeyService.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+                equalTo(sourceMap.get("limited_by_role_descriptors")));
 
         sourceMap.put("expiration_time", Clock.systemUTC().instant().plus(1L, ChronoUnit.HOURS).toEpochMilli());
         future = new PlainActionFuture<>();
@@ -145,8 +145,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.getUser().roles(), arrayContaining("a role"));
         assertThat(result.getUser().metadata(), is(Collections.emptyMap()));
         assertThat(result.getMetadata().get(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(sourceMap.get("role_descriptors")));
-        assertThat(result.getMetadata().get(ApiKeyService.API_KEY_SCOPED_ROLE_DESCRIPTORS_KEY),
-                equalTo(sourceMap.get("scoped_role_descriptors")));
+        assertThat(result.getMetadata().get(ApiKeyService.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+                equalTo(sourceMap.get("limited_by_role_descriptors")));
 
         sourceMap.put("expiration_time", Clock.systemUTC().instant().minus(1L, ChronoUnit.HOURS).toEpochMilli());
         future = new PlainActionFuture<>();
@@ -185,7 +185,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         authMetadata.put(ApiKeyService.API_KEY_ID_KEY, randomAlphaOfLength(12));
         authMetadata.put(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY,
             Collections.singletonMap(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap));
-        authMetadata.put(ApiKeyService.API_KEY_SCOPED_ROLE_DESCRIPTORS_KEY,
+        authMetadata.put(ApiKeyService.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
                 Collections.singletonMap(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap));
 
         final Authentication authentication = new Authentication(new User("joe"), new RealmRef("apikey", "apikey", "node"), null,
@@ -228,19 +228,19 @@ public class ApiKeyServiceTests extends ESTestCase {
         authMetadata.put(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY,
                 (emptyApiKeyRoleDescriptor) ? null : Collections.singletonMap("a role", roleARDMap));
 
-        final RoleDescriptor scopedRoleDescriptor = new RoleDescriptor("scoped role", new String[] { "all" },
+        final RoleDescriptor limitedRoleDescriptor = new RoleDescriptor("limited role", new String[] { "all" },
                 new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build() },
                 null);
-        Map<String, Object> scopedRdMap;
+        Map<String, Object> limitedRdMap;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            scopedRdMap = XContentHelper.convertToMap(XContentType.JSON.xContent(),
-                BytesReference.bytes(scopedRoleDescriptor
+            limitedRdMap = XContentHelper.convertToMap(XContentType.JSON.xContent(),
+                BytesReference.bytes(limitedRoleDescriptor
                     .toXContent(builder, ToXContent.EMPTY_PARAMS, true))
                     .streamInput(),
                 false);
         }
-        authMetadata.put(ApiKeyService.API_KEY_SCOPED_ROLE_DESCRIPTORS_KEY, Collections.singletonMap("scoped role", scopedRdMap));
+        authMetadata.put(ApiKeyService.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, Collections.singletonMap("limited role", limitedRdMap));
 
         final Authentication authentication = new Authentication(new User("joe"), new RealmRef("apikey", "apikey", "node"), null,
                 Version.CURRENT, AuthenticationType.API_KEY, authMetadata);
@@ -265,7 +265,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             } else if (descriptors.iterator().next().getName().equals("a role")) {
                 CompositeRolesStore.buildRoleFromDescriptors(descriptors, new FieldPermissionsCache(Settings.EMPTY),
                         privilegesStore, ActionListener.wrap(r -> listener.onResponse(r), listener::onFailure));
-            } else if (descriptors.iterator().next().getName().equals("scoped role")) {
+            } else if (descriptors.iterator().next().getName().equals("limited role")) {
                 CompositeRolesStore.buildRoleFromDescriptors(descriptors, new FieldPermissionsCache(Settings.EMPTY),
                         privilegesStore, ActionListener.wrap(r -> listener.onResponse(r), listener::onFailure));
             } else {
@@ -281,13 +281,13 @@ public class ApiKeyServiceTests extends ESTestCase {
         Role role = roleFuture.get();
         if (emptyApiKeyRoleDescriptor) {
             assertThat(role, instanceOf(Role.class));
-            assertThat(role.names(), arrayContaining("scoped role"));
+            assertThat(role.names(), arrayContaining("limited role"));
         } else {
-            assertThat(role, instanceOf(ScopedRole.class));
-            ScopedRole scopedRole = (ScopedRole) role;
-            assertThat(scopedRole.names(), arrayContaining("a role"));
-            assertThat(scopedRole.scopedBy(), is(notNullValue()));
-            assertThat(scopedRole.scopedBy().names(), arrayContaining("scoped role"));
+            assertThat(role, instanceOf(LimitedRole.class));
+            LimitedRole limitedRole = (LimitedRole) role;
+            assertThat(limitedRole.names(), arrayContaining("a role"));
+            assertThat(limitedRole.limitedBy(), is(notNullValue()));
+            assertThat(limitedRole.limitedBy().names(), arrayContaining("limited role"));
         }
     }
 }

@@ -28,8 +28,8 @@ import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * The {@link NodeAndClusterIdStateListener} listens to cluster state changes and ONLY when receives the first update
- * it sets the clusterUUID and nodeID in log4j pattern converter {@link NodeAndClusterIdConverter}
- * Once the first update is received, it will automatically be de-registered from subsequent updates
+ * it sets the clusterUUID and nodeID in log4j pattern converter {@link NodeAndClusterIdConverter}.
+ * Once the first update is received, it will automatically be de-registered from subsequent updates.
  */
 public class NodeAndClusterIdStateListener implements ClusterStateObserver.Listener {
     private final Logger logger = LogManager.getLogger(NodeAndClusterIdStateListener.class);
@@ -37,13 +37,15 @@ public class NodeAndClusterIdStateListener implements ClusterStateObserver.Liste
     private NodeAndClusterIdStateListener() {}
 
     /**
-     * Subscribes for the first cluster state update where nodeId and clusterId is set.
+     * Subscribes for the first cluster state update where nodeId and clusterId is present
+     * and sets these values in {@link NodeAndClusterIdConverter}
+     * @param observer - the observer that the listener subscribes for update
      */
-    public static void subscribeTo(ClusterStateObserver observer) {
-        observer.waitForNextChange(new NodeAndClusterIdStateListener(), NodeAndClusterIdStateListener::nodeIdAndClusterIdSet);
+    public static void getAndSetNodeIdAndClusterId(ClusterStateObserver observer) {
+        observer.waitForNextChange(new NodeAndClusterIdStateListener(), NodeAndClusterIdStateListener::isNodeAndClusterIdPresent);
     }
 
-    private static boolean nodeIdAndClusterIdSet(ClusterState clusterState) {
+    private static boolean isNodeAndClusterIdPresent(ClusterState clusterState) {
         return getNodeId(clusterState) != null && getClusterUUID(clusterState) != null;
     }
 
@@ -61,8 +63,8 @@ public class NodeAndClusterIdStateListener implements ClusterStateObserver.Liste
         String nodeId = getNodeId(state);
         String clusterUUID = getClusterUUID(state);
 
-        NodeAndClusterIdConverter.setOnce(nodeId, clusterUUID);
-        logger.debug("Received first cluster state update. Setting nodeId=[{}] and clusterUuid=[{}]", nodeId, clusterUUID);
+        logger.debug("Received cluster state update. Setting nodeId=[{}] and clusterUuid=[{}]", nodeId, clusterUUID);
+        NodeAndClusterIdConverter.setNodeIdAndClusterId(nodeId, clusterUUID);
     }
 
     @Override

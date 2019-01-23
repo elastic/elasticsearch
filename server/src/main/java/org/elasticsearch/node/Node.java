@@ -715,8 +715,8 @@ public class Node implements Closeable {
                     throw new ElasticsearchTimeoutException("Interrupted while waiting for initial discovery state");
                 }
 
-                NodeAndClusterIdStateListener.subscribeTo(observer);
             }
+            NodeAndClusterIdStateListener.getAndSetNodeIdAndClusterId(observer);
         }
 
         injector.getInstance(HttpServerTransport.class).start();

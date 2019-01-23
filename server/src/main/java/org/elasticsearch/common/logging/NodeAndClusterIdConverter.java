@@ -27,7 +27,6 @@ import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.apache.lucene.util.SetOnce;
 
 import java.util.Locale;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Pattern converter to format the node_and_cluster_id variable into JSON fields <code>node.id</code> and <code>cluster.uuid</code>.
@@ -51,12 +50,12 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
 
     /**
      * Updates only once the clusterID and nodeId.
-     * Note: Should only be called once. Subsequent executions will throw {@link org.apache.lucene.util.SetOnce.AlreadySetException}.
+     * Subsequent executions will throw {@link org.apache.lucene.util.SetOnce.AlreadySetException}.
      *
      * @param nodeId      a nodeId received from cluster state update
      * @param clusterUUID a clusterId received from cluster state update
      */
-    public static void setOnce(String nodeId, String clusterUUID) {
+    public static void setNodeIdAndClusterId(String nodeId, String clusterUUID) {
          nodeAndClusterId.set(formatIds(clusterUUID, nodeId));
     }
 

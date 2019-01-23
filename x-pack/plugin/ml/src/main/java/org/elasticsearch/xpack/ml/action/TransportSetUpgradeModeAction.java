@@ -19,8 +19,10 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -46,6 +48,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
+import static org.elasticsearch.xpack.core.ml.MlTasks.DATAFEED_TASK_NAME;
 import static org.elasticsearch.xpack.core.ml.MlTasks.JOB_TASK_ID_PREFIX;
 
 public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<SetUpgradeModeAction.Request, AcknowledgedResponse> {
@@ -81,7 +84,7 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
         throws Exception {
 
         if (request.isEnabled() == MlMetadata.getMlMetadata(state).isUpgradeMode()) {
-            listener.onResponse(new AcknowledgedResponse(false));
+            listener.onResponse(new AcknowledgedResponse(true));
             return;
         }
 
@@ -91,10 +94,9 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
             String msg = "Attempted to set [upgrade_mode] to [" +
                 request.isEnabled() + "] from [" + MlMetadata.getMlMetadata(state).isUpgradeMode() +
                 "] while previous request was processing.";
-            logger.warn(msg);
             Exception detail = new IllegalStateException(msg);
             listener.onFailure(new ElasticsearchStatusException(
-                "Cannot change [upgrade_mode] previous request is still being processed. Try again later",
+                "Cannot change [upgrade_mode]. Previous request is still being processed.",
                 RestStatus.TOO_MANY_REQUESTS,
                 detail));
         }
@@ -114,11 +116,15 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
             final Collection<PersistentTask<?>> allJobTasks =
                 tasksCustomMetaData.findTasks(MlTasks.JOB_TASK_NAME, task -> true);
 
-            // <4> We have unassignd the tasks, respond to the listener.
+            // <4> We have unassigned the tasks, respond to the listener.
             ActionListener<List<PersistentTask<?>>> unassignPersistentTasksListener = ActionListener.wrap(
                 unassigndPersistentTasks -> {
-                    //TODO wait on what condition?
-                    wrappedListener.onResponse(new AcknowledgedResponse(true));
+                    // TODO Is there some other besides the datafeeds fully stopping?
+                    awaitCondition(
+                        () -> client.admin().cluster().prepareListTasks().setActions(DATAFEED_TASK_NAME + "[c]").get().getTasks().isEmpty(),
+                        "datafeed tasks to fully stop.",
+                        request.timeout(),
+                        wrappedListener);
                 },
                 wrappedListener::onFailure
             );
@@ -162,7 +168,10 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                             .collect(Collectors.toList());
                         GetJobsStatsAction.Request jobStatsRequest =
                             new GetJobsStatsAction.Request(Strings.collectionToCommaDelimitedString(jobIdsRestarted));
-                        waitForJobsToBeAssigned(jobStatsRequest, request, wrappedListener);
+                        awaitCondition(() -> jobsAwaitingUpgrade(jobStatsRequest),
+                            "jobs to be reassigned to nodes.",
+                            request.timeout(),
+                            wrappedListener);
                     }
                 },
                 wrappedListener::onFailure
@@ -261,32 +270,31 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
         isolateDatafeedsExecutor.execute(listener);
     }
 
-    // We wait for all ML jobs to change their assignment from the AWAITING_UPGRADE assignment
-    private void waitForJobsToBeAssigned(GetJobsStatsAction.Request jobStatsRequest,
-                                         SetUpgradeModeAction.Request originalRequest,
-                                         ActionListener<AcknowledgedResponse> listener) {
+    private void awaitCondition(CheckedSupplier<Boolean, Exception> condition,
+                                String reason,
+                                TimeValue timeout,
+                                ActionListener<AcknowledgedResponse> listener) {
         threadPool.generic().execute(() -> {
             try {
                 long msWaited = 0;
                 long tick = 1;
-                boolean jobsAwaitingUpgrade = jobsAwaitingUpgrade(jobStatsRequest);
-                while (msWaited <= originalRequest.timeout().millis() && jobsAwaitingUpgrade) {
+                boolean done = condition.get();
+                while (msWaited <= timeout.millis() && done == false) {
                     Thread.sleep(tick);
                     msWaited += tick;
                     tick = Math.min(tick * 2, 1000L);
-                    jobsAwaitingUpgrade = jobsAwaitingUpgrade(jobStatsRequest);
+                    done = condition.get();
                 }
-                if (jobsAwaitingUpgrade) {
-                    listener.onFailure(new ElasticsearchTimeoutException("Timed out awaiting for jobs to be reassigned to " +
-                        "nodes after disabling upgrade_mode."));
-                } else {
+
+                if (done) {
                     listener.onResponse(new AcknowledgedResponse(true));
+                } else {
+                    listener.onFailure(new ElasticsearchTimeoutException("Timed out waiting for " + reason));
                 }
             } catch (InterruptedException e) {
                 listener.onFailure(e);
             } catch (Exception e) {
-                listener.onFailure(new ElasticsearchTimeoutException("Encountered unexpected error while waiting for jobs to " +
-                    "be reassigned to nodes after disabling upgrade_mode.", e));
+                listener.onFailure(new ElasticsearchTimeoutException("Encountered unexpected error while waiting for " + reason, e));
             }
         });
     }

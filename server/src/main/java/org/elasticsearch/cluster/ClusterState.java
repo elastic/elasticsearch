@@ -294,7 +294,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return coordinationMetaData().getVotingConfigExclusions();
     }
 
-    public int getMinimumMasterNodesOnPublishingMaster() { return minimumMasterNodesOnPublishingMaster; }
+    public int getMinimumMasterNodesOnPublishingMaster() {
+        return minimumMasterNodesOnPublishingMaster;
+    }
 
     // Used for testing and logging to determine how this cluster state was send over the wire
     public boolean wasReadFromDiff() {

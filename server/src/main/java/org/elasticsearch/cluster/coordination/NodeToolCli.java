@@ -24,7 +24,7 @@ import org.elasticsearch.cli.Terminal;
 public class NodeToolCli extends LoggingAwareMultiCommand {
 
     public NodeToolCli() {
-        super("A CLI tool to unsafely recover cluster in case of majority/all master nodes loss");
+        super("A CLI tool to unsafely recover a cluster after the permanent loss of too many master-eligible nodes");
         subcommands.put("unsafe-bootstrap", new UnsafeBootstrapMasterCommand());
     }
 

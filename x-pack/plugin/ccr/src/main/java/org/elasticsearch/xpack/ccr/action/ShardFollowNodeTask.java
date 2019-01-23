@@ -44,7 +44,6 @@ import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -92,7 +91,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private final LinkedHashMap<Long, Tuple<AtomicInteger, ElasticsearchException>> fetchExceptions;
 
     private volatile ElasticsearchException fatalException;
-    private final AtomicBoolean fallenBehindLeaderShard = new AtomicBoolean(false);
 
     ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
                         ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler, final LongSupplier relativeTimeProvider) {
@@ -513,7 +511,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     protected boolean isStopped() {
-        return fallenBehindLeaderShard.get() || fatalException != null || isCancelled() || isCompleted();
+        return fatalException != null || isCancelled() || isCompleted();
     }
 
     public ShardId getFollowShardId() {
@@ -562,8 +560,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                                 .collect(
                                         Collectors.toMap(Map.Entry::getKey, e -> Tuple.tuple(e.getValue().v1().get(), e.getValue().v2())))),
                 timeSinceLastFetchMillis,
-                fatalException,
-                fallenBehindLeaderShard.get());
+                fatalException);
     }
 
 }

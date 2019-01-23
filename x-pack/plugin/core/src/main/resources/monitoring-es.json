@@ -1039,9 +1039,6 @@
                   "type": "text"
                 }
               }
-            },
-            "fallen_behind_leader_shard": {
-              "type": "boolean"
             }
           }
         },

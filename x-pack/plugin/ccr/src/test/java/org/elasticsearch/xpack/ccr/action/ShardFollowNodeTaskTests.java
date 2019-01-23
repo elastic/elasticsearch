@@ -15,7 +15,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -286,40 +285,6 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(status.successfulReadRequests(), equalTo(1L));
         // the fetch failure has cleared
         assertThat(status.readExceptions().entrySet(), hasSize(0));
-        assertThat(status.lastRequestedSeqNo(), equalTo(63L));
-        assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));
-    }
-
-    public void testFallenBehindLeaderShard() {
-        ShardFollowTaskParams params = new ShardFollowTaskParams();
-        params.maxReadRequestOperationCount = 64;
-        params.maxOutstandingReadRequests = 1;
-        params.maxOutstandingWriteRequests = 1;
-        ShardFollowNodeTask task = createShardFollowTask(params);
-        startTask(task, 63, -1);
-
-        ElasticsearchException exception = new ElasticsearchException("no ops for you");
-        exception.addMetadata(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY);
-        readFailures.add(exception);
-        mappingVersions.add(1L);
-        leaderGlobalCheckpoints.add(63L);
-        maxSeqNos.add(63L);
-        responseSizes.add(64);
-        simulateResponse.set(true);
-        task.coordinateReads();
-
-        assertThat(task.isStopped(), is(true));
-        ShardFollowNodeTaskStatus status = task.getStatus();
-        // need a more robust approach to avoid the scenario where an outstanding request
-        // can trigger another restore while the shard was restored already.
-        // https://github.com/elastic/elasticsearch/pull/37562#discussion_r250009367
-        assertThat("noop for now", status.fallenBehindLeaderShard(), is(false));
-        assertThat(status.outstandingReadRequests(), equalTo(1));
-        assertThat(status.outstandingWriteRequests(), equalTo(0));
-        assertThat(status.failedReadRequests(), equalTo(1L));
-        assertThat(status.successfulReadRequests(), equalTo(0L));
-        assertThat(status.readExceptions().size(), equalTo(1));
-        assertThat(status.readExceptions().values().iterator().next().v2(), sameInstance(exception));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
         assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));
     }

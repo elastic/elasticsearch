@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ccr;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -63,7 +62,6 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     private static final ParseField READ_EXCEPTIONS = new ParseField("read_exceptions");
     private static final ParseField TIME_SINCE_LAST_READ_MILLIS_FIELD = new ParseField("time_since_last_read_millis");
     private static final ParseField FATAL_EXCEPTION = new ParseField("fatal_exception");
-    private static final ParseField FALLEN_BEHIND_LEADER_SHARD = new ParseField("fallen_behind_leader_shard");
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<ShardFollowNodeTaskStatus, Void> STATUS_PARSER =
@@ -100,8 +98,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                                             .stream()
                                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
                             (long) args[26],
-                            (ElasticsearchException) args[27],
-                            (boolean) args[28]));
+                            (ElasticsearchException) args[27]));
 
     public static final String READ_EXCEPTIONS_ENTRY_PARSER_NAME = "shard-follow-node-task-status-read-exceptions-entry";
 
@@ -141,7 +138,6 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         STATUS_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> ElasticsearchException.fromXContent(p),
                 FATAL_EXCEPTION);
-        STATUS_PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), FALLEN_BEHIND_LEADER_SHARD);
     }
 
     static final ParseField READ_EXCEPTIONS_ENTRY_FROM_SEQ_NO = new ParseField("from_seq_no");
@@ -325,12 +321,6 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         return fatalException;
     }
 
-    private final boolean fallenBehindLeaderShard;
-
-    public boolean fallenBehindLeaderShard() {
-        return fallenBehindLeaderShard;
-    }
-
     public ShardFollowNodeTaskStatus(
             final String remoteCluster,
             final String leaderIndex,
@@ -359,8 +349,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
             final long operationWritten,
             final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> readExceptions,
             final long timeSinceLastReadMillis,
-            final ElasticsearchException fatalException,
-            final boolean fallenBehindLeaderShard) {
+            final ElasticsearchException fatalException) {
         this.remoteCluster = remoteCluster;
         this.leaderIndex = leaderIndex;
         this.followerIndex = followerIndex;
@@ -389,7 +378,6 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         this.readExceptions = Objects.requireNonNull(readExceptions);
         this.timeSinceLastReadMillis = timeSinceLastReadMillis;
         this.fatalException = fatalException;
-        this.fallenBehindLeaderShard = fallenBehindLeaderShard;
     }
 
     public ShardFollowNodeTaskStatus(final StreamInput in) throws IOException {
@@ -422,11 +410,6 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                 new TreeMap<>(in.readMap(StreamInput::readVLong, stream -> Tuple.tuple(stream.readVInt(), stream.readException())));
         this.timeSinceLastReadMillis = in.readZLong();
         this.fatalException = in.readException();
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-            this.fallenBehindLeaderShard = in.readBoolean();
-        } else {
-            this.fallenBehindLeaderShard = false;
-        }
     }
 
     @Override
@@ -470,9 +453,6 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                 });
         out.writeZLong(timeSinceLastReadMillis);
         out.writeException(fatalException);
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-            out.writeBoolean(fallenBehindLeaderShard);
-        }
     }
 
     @Override
@@ -556,7 +536,6 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
             }
             builder.endObject();
         }
-        builder.field(FALLEN_BEHIND_LEADER_SHARD.getPreferredName(), fallenBehindLeaderShard);
         return builder;
     }
 
@@ -603,8 +582,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                 readExceptions.keySet().equals(that.readExceptions.keySet()) &&
                 getReadExceptionMessages(this).equals(getReadExceptionMessages(that)) &&
                 timeSinceLastReadMillis == that.timeSinceLastReadMillis &&
-                Objects.equals(fatalExceptionMessage, otherFatalExceptionMessage) &&
-                Objects.equals(fallenBehindLeaderShard, that.fallenBehindLeaderShard);
+                Objects.equals(fatalExceptionMessage, otherFatalExceptionMessage);
     }
 
     @Override
@@ -642,8 +620,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                 readExceptions.keySet(),
                 getReadExceptionMessages(this),
                 timeSinceLastReadMillis,
-                fatalExceptionMessage,
-                fallenBehindLeaderShard);
+                fatalExceptionMessage);
     }
 
     private static List<String> getReadExceptionMessages(final ShardFollowNodeTaskStatus status) {

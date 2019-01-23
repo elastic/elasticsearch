@@ -20,6 +20,7 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.SegmentInfos;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -78,7 +79,8 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             final long[] minimumRetainingSequenceNumbers = new long[length];
             for (int i = 0; i < length; i++) {
                 minimumRetainingSequenceNumbers[i] = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-                indexShard.addRetentionLease(Integer.toString(i), minimumRetainingSequenceNumbers[i], "test-" + i);
+                indexShard.addRetentionLease(
+                        Integer.toString(i), minimumRetainingSequenceNumbers[i], "test-" + i, ActionListener.wrap(() -> {}));
                 assertRetentionLeases(indexShard, i + 1, minimumRetainingSequenceNumbers, () -> 0L);
             }
 
@@ -103,7 +105,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
         try {
             final long[] retainingSequenceNumbers = new long[1];
             retainingSequenceNumbers[0] = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-            indexShard.addRetentionLease("0", retainingSequenceNumbers[0], "test-0");
+            indexShard.addRetentionLease("0", retainingSequenceNumbers[0], "test-0", ActionListener.wrap(() -> {}));
 
             {
                 final Collection<RetentionLease> retentionLeases = indexShard.getEngine().config().retentionLeasesSupplier().get();
@@ -150,7 +152,8 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             for (int i = 0; i < length; i++) {
                 minimumRetainingSequenceNumbers[i] = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
                 currentTimeMillis.set(TimeUnit.NANOSECONDS.toMillis(randomNonNegativeLong()));
-                indexShard.addRetentionLease(Integer.toString(i), minimumRetainingSequenceNumbers[i], "test-" + i);
+                indexShard.addRetentionLease(
+                        Integer.toString(i), minimumRetainingSequenceNumbers[i], "test-" + i, ActionListener.wrap(() -> {}));
             }
 
             currentTimeMillis.set(TimeUnit.NANOSECONDS.toMillis(Long.MAX_VALUE));

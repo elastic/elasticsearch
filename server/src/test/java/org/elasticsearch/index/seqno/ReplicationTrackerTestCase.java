@@ -48,7 +48,7 @@ public abstract class ReplicationTrackerTestCase extends ESTestCase  {
                 UNASSIGNED_SEQ_NO,
                 updatedGlobalCheckpoint,
                 currentTimeMillisSupplier,
-                leases -> {});
+                (leases, listener) -> {});
     }
 
     static IndexShardRoutingTable routingTable(final Set<AllocationId> initializingIds, final AllocationId primaryId) {

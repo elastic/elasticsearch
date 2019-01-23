@@ -26,10 +26,13 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -55,6 +58,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.seqno.RetentionLease;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
@@ -316,7 +320,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     public synchronized IndexShard createShard(
             final ShardRouting routing,
             final Consumer<ShardId> globalCheckpointSyncer,
-            final BiConsumer<ShardId, Collection<RetentionLease>> retentionLeaseSyncer) throws IOException {
+            final TriConsumer<ShardId, Collection<RetentionLease>, ActionListener<ReplicationResponse>> retentionLeaseSyncer) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
@@ -405,7 +409,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     searchOperationListeners,
                     indexingOperationListeners,
                     () -> globalCheckpointSyncer.accept(shardId),
-                    retentionLeases -> retentionLeaseSyncer.accept(shardId, retentionLeases),
+                    (retentionLeases, listener) -> retentionLeaseSyncer.accept(shardId, retentionLeases, listener),
                     circuitBreakerService);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

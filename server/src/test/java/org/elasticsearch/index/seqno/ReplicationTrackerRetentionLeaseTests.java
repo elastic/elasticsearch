@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -53,7 +54,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 () -> 0L,
-                leases -> {});
+                (leases, listener) -> {});
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
                 Collections.singleton(allocationId.getId()),
@@ -64,7 +65,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         final long[] minimumRetainingSequenceNumbers = new long[length];
         for (int i = 0; i < length; i++) {
             minimumRetainingSequenceNumbers[i] = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-            replicationTracker.addRetentionLease(Integer.toString(i), minimumRetainingSequenceNumbers[i], "test-" + i);
+            replicationTracker.addRetentionLease(
+                    Integer.toString(i), minimumRetainingSequenceNumbers[i], "test-" + i, ActionListener.wrap(() -> {}));
             assertRetentionLeases(replicationTracker, i + 1, minimumRetainingSequenceNumbers, () -> 0L);
         }
 
@@ -87,7 +89,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 () -> 0L,
-                leases -> {
+                (leases, listener) -> {
                     // we do not want to hold a lock on the replication tracker in the callback!
                     assertFalse(Thread.holdsLock(reference.get()));
                     invoked.set(true);
@@ -108,7 +110,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             final String id = randomAlphaOfLength(8);
             final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
             retentionLeases.put(id, retainingSequenceNumber);
-            replicationTracker.addRetentionLease(id, retainingSequenceNumber, "test");
+            replicationTracker.addRetentionLease(id, retainingSequenceNumber, "test", ActionListener.wrap(() -> {}));
             // assert that the new retention lease callback was invoked
             assertTrue(invoked.get());
             // reset the invocation marker so that we can assert the callback was not invoked when renewing the lease
@@ -133,7 +135,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 currentTimeMillis::get,
-                leases -> {});
+                (leases, listener) -> {});
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
                 Collections.singleton(allocationId.getId()),
@@ -142,7 +144,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         replicationTracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
         final long[] retainingSequenceNumbers = new long[1];
         retainingSequenceNumbers[0] = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-        replicationTracker.addRetentionLease("0", retainingSequenceNumbers[0], "test-0");
+        replicationTracker.addRetentionLease("0", retainingSequenceNumbers[0], "test-0", ActionListener.wrap(() -> {}));
 
         {
             final Collection<RetentionLease> retentionLeases = replicationTracker.getRetentionLeases();

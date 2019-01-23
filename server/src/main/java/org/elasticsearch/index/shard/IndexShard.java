@@ -40,6 +40,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -107,6 +108,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
@@ -266,7 +268,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final List<SearchOperationListener> searchOperationListener,
             final List<IndexingOperationListener> listeners,
             final Runnable globalCheckpointSyncer,
-            final Consumer<Collection<RetentionLease>> retentionLeaseSyncer,
+            final BiConsumer<Collection<RetentionLease>, ActionListener<ReplicationResponse>> retentionLeaseSyncer,
             final CircuitBreakerService circuitBreakerService) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -1900,13 +1902,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param id                      the identifier of the retention lease
      * @param retainingSequenceNumber the retaining sequence number
      * @param source                  the source of the retention lease
+     * @param listener                the callback when the retention lease is successfully added and synced to replicas
      * @return the new retention lease
      * @throws IllegalArgumentException if the specified retention lease already exists
      */
-    public RetentionLease addRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
+    public RetentionLease addRetentionLease(
+            final String id,
+            final long retainingSequenceNumber,
+            final String source,
+            final ActionListener<ReplicationResponse> listener) {
+        Objects.requireNonNull(listener);
         assert assertPrimaryMode();
         verifyNotClosed();
-        return replicationTracker.addRetentionLease(id, retainingSequenceNumber, source);
+        return replicationTracker.addRetentionLease(id, retainingSequenceNumber, source, listener);
     }
 
     /**

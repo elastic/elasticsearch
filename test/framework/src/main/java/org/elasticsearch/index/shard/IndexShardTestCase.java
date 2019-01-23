@@ -385,7 +385,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     Collections.emptyList(),
                     Arrays.asList(listeners),
                     globalCheckpointSyncer,
-                    leases -> {},
+                    (leases, listener) -> {},
                     breakerService);
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;

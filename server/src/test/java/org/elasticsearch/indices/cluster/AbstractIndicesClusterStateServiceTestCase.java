@@ -20,12 +20,14 @@
 package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
@@ -236,7 +238,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 final RepositoriesService repositoriesService,
                 final Consumer<IndexShard.ShardFailure> onShardFailure,
                 final Consumer<ShardId> globalCheckpointSyncer,
-                final BiConsumer<ShardId, Collection<RetentionLease>> retentionLeaseSyncer) throws IOException {
+                final TriConsumer<ShardId, Collection<RetentionLease>, ActionListener<ReplicationResponse>> retentionLeaseSyncer) throws IOException {
             failRandomly();
             MockIndexService indexService = indexService(recoveryState.getShardId().getIndex());
             MockIndexShard indexShard = indexService.createShard(shardRouting);

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
@@ -28,6 +30,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -56,20 +59,21 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
             final String id = randomValueOtherThanMany(currentRetentionLeases.keySet()::contains, () -> randomAlphaOfLength(8));
             final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
             final String source = randomAlphaOfLength(8);
-            currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source));
-            assertBusy(() -> {
-                // check current retention leases have been synced to all replicas
-                for (final ShardRouting replicaShard : clusterService().state().routingTable().index("index").shard(0).replicaShards()) {
-                    final String replicaShardNodeId = replicaShard.currentNodeId();
-                    final String replicaShardNodeName = clusterService().state().nodes().get(replicaShardNodeId).getName();
-                    final IndexShard replica = internalCluster()
-                            .getInstance(IndicesService.class, replicaShardNodeName)
-                            .getShardOrNull(new ShardId(resolveIndex("index"), 0));
-                    final Map<String, RetentionLease> retentionLeasesOnReplica =
-                            replica.getRetentionLeases().stream().collect(Collectors.toMap(RetentionLease::id, Function.identity()));
-                    assertThat(retentionLeasesOnReplica, equalTo(currentRetentionLeases));
-                }
-            });
+            final CountDownLatch latch = new CountDownLatch(1);
+            final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
+            currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source, listener));
+            latch.await();
+            // check current retention leases have been synced to all replicas
+            for (final ShardRouting replicaShard : clusterService().state().routingTable().index("index").shard(0).replicaShards()) {
+                final String replicaShardNodeId = replicaShard.currentNodeId();
+                final String replicaShardNodeName = clusterService().state().nodes().get(replicaShardNodeId).getName();
+                final IndexShard replica = internalCluster()
+                        .getInstance(IndicesService.class, replicaShardNodeName)
+                        .getShardOrNull(new ShardId(resolveIndex("index"), 0));
+                final Map<String, RetentionLease> retentionLeasesOnReplica =
+                        replica.getRetentionLeases().stream().collect(Collectors.toMap(RetentionLease::id, Function.identity()));
+                assertThat(retentionLeasesOnReplica, equalTo(currentRetentionLeases));
+            }
         }
     }
 

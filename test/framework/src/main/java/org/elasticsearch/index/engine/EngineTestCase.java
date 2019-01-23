@@ -642,7 +642,7 @@ public abstract class EngineTestCase extends ESTestCase {
             final CircuitBreakerService breakerService) {
         final IndexWriterConfig iwc = newIndexWriterConfig();
         final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
-        final Engine.EventListener listener = new Engine.EventListener() {}; // we don't need to notify anybody in this test
+        final Engine.EventListener eventListener = new Engine.EventListener() {}; // we don't need to notify anybody in this test
         final List<ReferenceManager.RefreshListener> extRefreshListenerList =
                 externalRefreshListener == null ? emptyList() : Collections.singletonList(externalRefreshListener);
         final List<ReferenceManager.RefreshListener> intRefreshListenerList =
@@ -652,7 +652,13 @@ public abstract class EngineTestCase extends ESTestCase {
         if (maybeGlobalCheckpointSupplier == null) {
             assert maybeRetentionLeasesSupplier == null;
             final ReplicationTracker replicationTracker = new ReplicationTracker(
-                    shardId, allocationId.getId(), indexSettings, SequenceNumbers.NO_OPS_PERFORMED, update -> {}, () -> 0L, leases -> {});
+                    shardId,
+                    allocationId.getId(),
+                    indexSettings,
+                    SequenceNumbers.NO_OPS_PERFORMED,
+                    update -> {},
+                    () -> 0L,
+                    (leases, listener) -> {});
             globalCheckpointSupplier = replicationTracker;
             retentionLeasesSupplier = replicationTracker::getRetentionLeases;
         } else {
@@ -671,7 +677,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 iwc.getAnalyzer(),
                 iwc.getSimilarity(),
                 new CodecService(null, logger),
-                listener,
+                eventListener,
                 IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(),
                 translogConfig,

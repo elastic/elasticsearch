@@ -47,6 +47,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
@@ -221,7 +222,8 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
             }
         };
 
-        action.updateRetentionLeaseForShard(indexShard.shardId(), retentionLeases);
+        // execution happens on the test thread, so no need to register an actual listener to callback
+        action.updateRetentionLeaseForShard(indexShard.shardId(), retentionLeases, ActionListener.wrap(() -> {}));
         assertTrue(invoked.get());
     }
 

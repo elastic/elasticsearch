@@ -87,9 +87,13 @@ public class RetentionLeaseSyncAction extends
                 ThreadPool.Names.MANAGEMENT);
     }
 
-    public void updateRetentionLeaseForShard(final ShardId shardId, final Collection<RetentionLease> retentionLeases) {
+    public void updateRetentionLeaseForShard(
+            final ShardId shardId,
+            final Collection<RetentionLease> retentionLeases,
+            final ActionListener<ReplicationResponse> listener) {
         Objects.requireNonNull(shardId);
         Objects.requireNonNull(retentionLeases);
+        Objects.requireNonNull(listener);
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             // we have to execute under the system context so that if security is enabled the sync is authorized
@@ -97,11 +101,12 @@ public class RetentionLeaseSyncAction extends
             execute(
                     new RetentionLeaseSyncAction.Request(shardId, retentionLeases),
                     ActionListener.wrap(
-                            r -> {},
+                            listener::onResponse,
                             e -> {
                                 if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
                                     getLogger().warn(new ParameterizedMessage("{} retention lease sync failed", shardId), e);
                                 }
+                                listener.onFailure(e);
                             }));
         }
     }

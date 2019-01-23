@@ -22,6 +22,8 @@ package org.elasticsearch.index.seqno;
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -44,6 +46,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -148,7 +151,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * A callback when a new retention lease is created. In practice, this callback invokes the retention lease sync action, to sync
      * retention leases to replicas.
      */
-    private final Consumer<Collection<RetentionLease>> onNewRetentionLease;
+    private final BiConsumer<Collection<RetentionLease>, ActionListener<ReplicationResponse>> onNewRetentionLease;
 
     /**
      * This set contains allocation IDs for which there is a thread actively waiting for the local checkpoint to advance to at least the
@@ -182,41 +185,21 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
-     * Adds a new or updates an existing retention lease.
-     *
-     * @param id                      the identifier of the retention lease
-     * @param retainingSequenceNumber the retaining sequence number
-     * @param source                  the source of the retention lease
-     *
-     * @return the new or updated retention lease
-     */
-    public RetentionLease addOrUpdateRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
-        final RetentionLease retentionLease;
-        final RetentionLease maybeExistingRetentionLease;
-        final Collection<RetentionLease> currentRetentionLeases;
-        synchronized (this) {
-            assert primaryMode;
-            retentionLease = new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source);
-            maybeExistingRetentionLease = retentionLeases.put(id, retentionLease);
-            currentRetentionLeases = retentionLeases.values();
-        }
-        if (maybeExistingRetentionLease == null) {
-            // this is a new retention lease, copy the current retention leases and callback; do not execute under lock!
-            onNewRetentionLease.accept(Collections.unmodifiableCollection(new ArrayList<>(currentRetentionLeases)));
-        }
-        return retentionLease;
-    }
-
-    /**
      * Adds a new retention lease.
      *
      * @param id                      the identifier of the retention lease
      * @param retainingSequenceNumber the retaining sequence number
      * @param source                  the source of the retention lease
+     * @param listener                the callback when the retention lease is successfully added and synced to replicas
      * @return the new retention lease
      * @throws IllegalArgumentException if the specified retention lease already exists
      */
-    public RetentionLease addRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
+    public RetentionLease addRetentionLease(
+            final String id,
+            final long retainingSequenceNumber,
+            final String source,
+            final ActionListener<ReplicationResponse> listener) {
+        Objects.requireNonNull(listener);
         final RetentionLease retentionLease;
         final Collection<RetentionLease> currentRetentionLeases;
         synchronized (this) {
@@ -228,7 +211,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             retentionLeases.put(id, retentionLease);
             currentRetentionLeases = retentionLeases.values();
         }
-        onNewRetentionLease.accept(Collections.unmodifiableCollection(new ArrayList<>(currentRetentionLeases)));
+        onNewRetentionLease.accept(Collections.unmodifiableCollection(new ArrayList<>(currentRetentionLeases)), listener);
         return retentionLease;
     }
 
@@ -520,7 +503,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             final long globalCheckpoint,
             final LongConsumer onGlobalCheckpointUpdated,
             final LongSupplier currentTimeMillisSupplier,
-            final Consumer<Collection<RetentionLease>> onNewRetentionLease) {
+            final BiConsumer<Collection<RetentionLease>, ActionListener<ReplicationResponse>> onNewRetentionLease) {
         super(shardId, indexSettings);
         assert globalCheckpoint >= SequenceNumbers.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
         this.shardAllocationId = allocationId;

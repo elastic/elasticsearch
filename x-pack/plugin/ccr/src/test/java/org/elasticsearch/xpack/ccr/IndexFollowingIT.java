@@ -555,14 +555,14 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         followRequest.setRemoteCluster("another_cluster");
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> followerClient().execute(PutFollowAction.INSTANCE, followRequest).actionGet());
-        assertThat(e.getMessage(), equalTo("unknown cluster alias [another_cluster]"));
+        assertThat(e.getMessage(), equalTo("no such remote cluster: [another_cluster]"));
         PutAutoFollowPatternAction.Request putAutoFollowRequest = new PutAutoFollowPatternAction.Request();
         putAutoFollowRequest.setName("name");
         putAutoFollowRequest.setRemoteCluster("another_cluster");
         putAutoFollowRequest.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
         e = expectThrows(IllegalArgumentException.class,
             () -> followerClient().execute(PutAutoFollowPatternAction.INSTANCE, putAutoFollowRequest).actionGet());
-        assertThat(e.getMessage(), equalTo("unknown cluster alias [another_cluster]"));
+        assertThat(e.getMessage(), equalTo("no such remote cluster: [another_cluster]"));
     }
 
     public void testLeaderIndexRed() throws Exception {

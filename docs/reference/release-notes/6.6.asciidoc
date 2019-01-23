@@ -137,6 +137,7 @@ Authentication::
 * Add Tests for findSamlRealm {pull}35905[#35905]
 * Add realm information for Authenticate API {pull}35648[#35648]
 * Formal support for "password_hash" in Put User {pull}35242[#35242] (issue: {issue}34729[#34729])
+* Enhance Invalidate Token API {pull}35388[#35388] (issues: {issue}34556[#34556], {issue}35115[#35115])
 
 Authorization::
 * Add origin_address to authentication_success {pull}36409[#36409]

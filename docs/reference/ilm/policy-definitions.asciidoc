@@ -652,7 +652,7 @@ regular index. In particular, the following conditions must be met:
 * The leader index must have `index.lifecycle.indexing_complete` set to `true`.
 This happens automatically if the leader index is rolled over using
 <<ilm-rollover-action,the Rollover action>>, or may be set manually using
-theIndex Settings API.
+the <<indices-update-settings,Index Settings API>>.
 * All operations performed on the leader index must have been replicated to the
 follower index. This ensures that no operations will be lost when the index is
 converted into a regular index.

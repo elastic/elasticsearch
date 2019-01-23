@@ -31,27 +31,27 @@ public class GroupConfig implements Writeable, ToXContentObject {
     private final SingleGroupSource<?> groupSource;
 
     public GroupConfig(final String destinationFieldName, final SingleGroupSource.Type groupType, final SingleGroupSource<?> groupSource) {
-        this.destinationFieldName = destinationFieldName;
-        this.groupType = groupType;
-        this.groupSource = groupSource;
+        this.destinationFieldName = Objects.requireNonNull(destinationFieldName);
+        this.groupType = Objects.requireNonNull(groupType);
+        this.groupSource = Objects.requireNonNull(groupSource);
     }
 
     public GroupConfig(StreamInput in) throws IOException {
         destinationFieldName = in.readString();
-        groupType = in.readEnum(SingleGroupSource.Type.class);
+        groupType = Type.fromId(in.readByte());
         switch (groupType) {
         case TERMS:
             groupSource = in.readOptionalWriteable(TermsGroupSource::new);
             break;
         default:
-            throw new IOException("Unknown group source");
+            throw new IOException("Unknown group type");
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(destinationFieldName);
-        out.writeEnum(groupType);
+        out.writeByte(groupType.getId());
         out.writeOptionalWriteable(groupSource);
     }
 

@@ -39,6 +39,15 @@ public abstract class SingleGroupSource<AB extends SingleGroupSource<AB>> implem
             return id;
         }
 
+        public static Type fromId(byte id) {
+            switch (id) {
+            case 0:
+                return TERMS;
+            default:
+                throw new IllegalArgumentException("unknown type");
+            }
+        }
+
         public String value() {
             return name().toLowerCase(Locale.ROOT);
         }

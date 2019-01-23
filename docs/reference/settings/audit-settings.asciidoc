@@ -22,9 +22,11 @@ file named `<clustername>_audit.log` on each node.
 +
 You can also specify `index`, which puts the auditing events in an {es} index
 that is prefixed with `.security_audit_log`. The index can reside on the same
-cluster or a separate cluster. deprecated[6.7.0, `logfile` will be the only audit
-option available in 7.0. A separate log file ingestion component should instead
-be used for indexing the audit trail.]
+cluster or a separate cluster. deprecated[6.7.0, The outputs setting will be
+removed in 7.0 as there will only be one supported output type (`logfile`).
+Users who wish to store their audit information in an Elasticsearch index
+should write to the log file output, and a use a file ingestion component to
+index it into Elasticsearch.]
 +
 For backwards compatibility reasons, if you use the logfile output type, a
 `<clustername>_access.log` file is also created. It contains the same

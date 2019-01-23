@@ -125,21 +125,19 @@ First, we create an index that stores term vectors, payloads etc. :
 
 [source,js]
 --------------------------------------------------
-PUT /twitter?include_type_name=true
+PUT /twitter
 { "mappings": {
-    "_doc": {
-      "properties": {
-        "text": {
-          "type": "text",
-          "term_vector": "with_positions_offsets_payloads",
-          "store" : true,
-          "analyzer" : "fulltext_analyzer"
-         },
-         "fullname": {
-          "type": "text",
-          "term_vector": "with_positions_offsets_payloads",
-          "analyzer" : "fulltext_analyzer"
-        }
+    "properties": {
+      "text": {
+        "type": "text",
+        "term_vector": "with_positions_offsets_payloads",
+        "store" : true,
+        "analyzer" : "fulltext_analyzer"
+       },
+       "fullname": {
+        "type": "text",
+        "term_vector": "with_positions_offsets_payloads",
+        "analyzer" : "fulltext_analyzer"
       }
     }
   },

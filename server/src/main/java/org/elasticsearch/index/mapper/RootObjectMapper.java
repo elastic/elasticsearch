@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -46,7 +45,7 @@ public class RootObjectMapper extends ObjectMapper {
         public static final DateFormatter[] DYNAMIC_DATE_TIME_FORMATTERS =
                 new DateFormatter[]{
                         DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
-                        Joda.getStrictStandardDateFormatter()
+                        DateFormatter.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis")
                 };
         public static final boolean DATE_DETECTION = true;
         public static final boolean NUMERIC_DETECTION = false;
@@ -55,8 +54,7 @@ public class RootObjectMapper extends ObjectMapper {
     public static class Builder extends ObjectMapper.Builder<Builder, RootObjectMapper> {
 
         protected Explicit<DynamicTemplate[]> dynamicTemplates = new Explicit<>(new DynamicTemplate[0], false);
-        protected Explicit<DateFormatter[]> dynamicDateTimeFormatters =
-            new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
+        protected Explicit<DateFormatter[]> dynamicDateTimeFormatters = new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
         protected Explicit<Boolean> dateDetection = new Explicit<>(Defaults.DATE_DETECTION, false);
         protected Explicit<Boolean> numericDetection = new Explicit<>(Defaults.NUMERIC_DETECTION, false);
 

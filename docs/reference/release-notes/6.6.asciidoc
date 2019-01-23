@@ -2,7 +2,7 @@
 [[release-notes-6.6.0]]
 == {es} version 6.6.0
 
-
+coming[6.6.0]
 Also see <<breaking-changes-6.6,Breaking changes in 6.6.>>.
 
 [[breaking-6.6.0]]
@@ -132,7 +132,7 @@ Audit::
 * Add "request.id" to file audit logs  {pull}35536[#35536]
 
 Authentication::
-* Invalidate Token API enhancements - HLRC {pull}36362[#36362] (issue: {issue}35388[#35388])
+* Invalidate Token API enhancements - HLRC {pull}36362[#36362]
 * Add DEBUG/TRACE logs for LDAP bind {pull}36028[#36028]
 * Add Tests for findSamlRealm {pull}35905[#35905]
 * Add realm information for Authenticate API {pull}35648[#35648]

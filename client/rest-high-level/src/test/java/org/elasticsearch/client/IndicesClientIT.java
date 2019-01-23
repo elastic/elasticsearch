@@ -1177,7 +1177,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         createIndex(index, Settings.EMPTY);
 
         assertThat(dynamicSetting.getDefault(Settings.EMPTY), not(dynamicSettingValue));
-        UpdateSettingsRequest dynamicSettingRequest = new UpdateSettingsRequest();
+        UpdateSettingsRequest dynamicSettingRequest = new UpdateSettingsRequest(index);
         dynamicSettingRequest.settings(Settings.builder().put(dynamicSettingKey, dynamicSettingValue).build());
         AcknowledgedResponse response = execute(dynamicSettingRequest, highLevelClient().indices()::putSettings,
                 highLevelClient().indices()::putSettingsAsync);
@@ -1187,7 +1187,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(indexSettingsAsMap.get(dynamicSettingKey), equalTo(String.valueOf(dynamicSettingValue)));
 
         assertThat(staticSetting.getDefault(Settings.EMPTY), not(staticSettingValue));
-        UpdateSettingsRequest staticSettingRequest = new UpdateSettingsRequest();
+        UpdateSettingsRequest staticSettingRequest = new UpdateSettingsRequest(index);
         staticSettingRequest.settings(Settings.builder().put(staticSettingKey, staticSettingValue).build());
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(staticSettingRequest,
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
@@ -1207,7 +1207,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(indexSettingsAsMap.get(staticSettingKey), equalTo(staticSettingValue));
 
         assertThat(unmodifiableSetting.getDefault(Settings.EMPTY), not(unmodifiableSettingValue));
-        UpdateSettingsRequest unmodifiableSettingRequest = new UpdateSettingsRequest();
+        UpdateSettingsRequest unmodifiableSettingRequest = new UpdateSettingsRequest(index);
         unmodifiableSettingRequest.settings(Settings.builder().put(unmodifiableSettingKey, unmodifiableSettingValue).build());
         exception = expectThrows(ElasticsearchException.class, () -> execute(unmodifiableSettingRequest,
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));

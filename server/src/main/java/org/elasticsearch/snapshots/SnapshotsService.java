@@ -1118,14 +1118,20 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                 .filter(s -> s.getName().equals(snapshotName))
                                                 .findFirst();
         // if nothing found by the same name, then look in the cluster state for current in progress snapshots
+        long repoGenId = repositoryData.getGenId();
         if (matchedEntry.isPresent() == false) {
-            matchedEntry = currentSnapshots(repositoryName, Collections.emptyList()).stream()
-                               .map(e -> e.snapshot().getSnapshotId()).filter(s -> s.getName().equals(snapshotName)).findFirst();
+            Optional<SnapshotsInProgress.Entry> matchedInProgress = currentSnapshots(repositoryName, Collections.emptyList()).stream()
+                               .filter(s -> s.snapshot().getSnapshotId().getName().equals(snapshotName)).findFirst();
+            if (matchedInProgress.isPresent()) {
+                matchedEntry = matchedInProgress.map(s -> s.snapshot().getSnapshotId());
+                // Derive repository generation if a snapshot is in progress because it will increment the generation when it finishes
+                repoGenId = matchedInProgress.get().getRepositoryStateId() + 1L;
+            }
         }
         if (matchedEntry.isPresent() == false) {
             throw new SnapshotMissingException(repositoryName, snapshotName);
         }
-        deleteSnapshot(new Snapshot(repositoryName, matchedEntry.get()), listener, repositoryData.getGenId(), immediatePriority);
+        deleteSnapshot(new Snapshot(repositoryName, matchedEntry.get()), listener, repoGenId, immediatePriority);
     }
 
     /**

@@ -366,6 +366,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         int from = 0;
         int length = data.length();
         byte marker = xContent.streamSeparator();
+        boolean typesDeprecationLogged = false;
         while (true) {
             int nextMarker = findNextMarker(marker, from, data, length);
             if (nextMarker == -1) {
@@ -427,7 +428,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                                 }
                                 index = parser.text();
                             } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {   
-                                deprecationLogger.deprecatedAndMaybeLog("bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);
+                                if (typesDeprecationLogged == false) {
+                                    deprecationLogger.deprecatedAndMaybeLog("bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);
+                                    typesDeprecationLogged = true;
+                                }
                                 type = parser.text();
                             } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                                 id = parser.text();

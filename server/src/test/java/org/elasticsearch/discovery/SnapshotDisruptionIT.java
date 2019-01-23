@@ -133,21 +133,7 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
         logger.info("--> waiting for disruption to start");
         assertTrue(disruptionStarted.await(1, TimeUnit.MINUTES));
 
-        logger.info("--> wait until the snapshot is done");
-        assertBusy(() -> {
-            ClusterState state = dataNodeClient().admin().cluster().prepareState().get().getState();
-            SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE);
-            SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
-            if (snapshots != null && snapshots.entries().size() > 0) {
-                logger.info("Current snapshot state [{}]", snapshots.entries().get(0).state());
-                fail("Snapshot is still running");
-            } else if (snapshotDeletionsInProgress != null && snapshotDeletionsInProgress.hasDeletionsInProgress()) {
-                logger.info("Current snapshot deletion state [{}]", snapshotDeletionsInProgress);
-                fail("Snapshot deletion is still running");
-            } else {
-                logger.info("Snapshot is no longer in the cluster state");
-            }
-        }, 1, TimeUnit.MINUTES);
+        assertAllSnapshotsCompleted();
 
         logger.info("--> verify that snapshot was successful or no longer exist");
         assertBusy(() -> {
@@ -177,14 +163,25 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
             }
         }
 
-        logger.info("--> verify that snapshot eventually will be created due to retries");
+        assertAllSnapshotsCompleted();
+    }
+
+    private void assertAllSnapshotsCompleted() throws Exception {
+        logger.info("--> wait until the snapshot is done");
         assertBusy(() -> {
-            try {
-                assertSnapshotExists("test-repo", "test-snap-2");
-            } catch (SnapshotMissingException ex) {
-                throw new AssertionError(ex);
+            ClusterState state = dataNodeClient().admin().cluster().prepareState().get().getState();
+            SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE);
+            SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+            if (snapshots != null && snapshots.entries().isEmpty() == false) {
+                logger.info("Current snapshot state [{}]", snapshots.entries().get(0).state());
+                fail("Snapshot is still running");
+            } else if (snapshotDeletionsInProgress != null && snapshotDeletionsInProgress.hasDeletionsInProgress()) {
+                logger.info("Current snapshot deletion state [{}]", snapshotDeletionsInProgress);
+                fail("Snapshot deletion is still running");
+            } else {
+                logger.info("Snapshot is no longer in the cluster state");
             }
-        }, 1, TimeUnit.MINUTES);
+        }, 1L, TimeUnit.MINUTES);
     }
 
     private void assertSnapshotExists(String repository, String snapshot) {

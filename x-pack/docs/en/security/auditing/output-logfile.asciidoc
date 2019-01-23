@@ -7,19 +7,43 @@ the `<clustername>_audit.log` file in the logs directory. To maintain
 compatibility with releases prior to 6.5.0, a `<clustername>_access.log` file
 is also generated. They differ in the output format but the contents
 are similar. For systems that are not ingesting the audit file for search or
-analytics it is strongly recommended to only keep the newer format.
-Turning off the deprecated output format can be achieved by disabling the logger
-in the `log4j2.properties` file (hint: there is a config comment
-about it).
-For more information, see {ref}/logging.html#configuring-logging-levels[configuring-logging].
+analytics it is strongly recommended to keep only the newer format.
+
+To turn off the deprecated output format, you can disable the logger in the
+`log4j2.properties` file: 
+
+[source, properties]
+--------------------------------------------------
+# change info to off
+# logger.xpack_security_audit_deprecated_logfile.level = info
+logger.xpack_security_audit_deprecated_logfile.level = off
+--------------------------------------------------
+
+Alternatively, use the
+{ref}/cluster-update-settings.html[cluster update settings API] to dynamically
+configure the logger:
+
+[source,js]
+--------------------------------------------------
+PUT /_cluster/settings
+{
+  "persistent": {
+    "logger.org.elasticsearch.xpack.security.audit.logfile.DeprecatedLoggingAuditTrail": "off"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+NOTE: If you overwrite the `log4j2.properties` and do not specify appenders for
+any of the audit trails, audit events are forwarded to the root appender, which
+by default points to the `elasticsearch.log` file.
 
 
 [float]
 [[audit-log-entry-format]]
 === Log entry format
 
-The log entries in the `<clustername>_audit.log` file 
-have the following format:
+The log entries in the `<clustername>_audit.log` file have the following format:
 
 - Each log entry is a one line JSON document and each one is printed on a separate line.
 - The fields of a log entry are ordered. However, if a field does not have a value it

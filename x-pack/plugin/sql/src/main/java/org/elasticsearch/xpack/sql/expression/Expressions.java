@@ -80,7 +80,7 @@ public final class Expressions {
     }
 
     public static Nullability nullable(List<? extends Expression> exps) {
-       return Nullability.and(exps.stream().map(Expression::nullable).toArray(Nullability[]::new));
+        return Nullability.and(exps.stream().map(Expression::nullable).toArray(Nullability[]::new));
     }
 
     public static boolean foldable(List<? extends Expression> exps) {
@@ -171,25 +171,25 @@ public final class Expressions {
     }
 
     public static TypeResolution typeMustBeDate(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, dt -> dt == DataType.DATE, operationName, paramOrd, "date");
+        return typeMustBe(e, dt -> dt == DataType.DATETIME, operationName, paramOrd, "date");
     }
 
     public static TypeResolution typeMustBeNumericOrDate(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, dt -> dt.isNumeric() || dt == DataType.DATE, operationName, paramOrd, "numeric", "date");
+        return typeMustBe(e, dt -> dt.isNumeric() || dt == DataType.DATETIME, operationName, paramOrd, "numeric", "date");
     }
 
     public static TypeResolution typeMustBe(Expression e,
-                                             Predicate<DataType> predicate,
-                                             String operationName,
-                                             ParamOrdinal paramOrd,
-                                             String... acceptedTypes) {
+                                            Predicate<DataType> predicate,
+                                            String operationName,
+                                            ParamOrdinal paramOrd,
+                                            String... acceptedTypes) {
         return predicate.test(e.dataType()) || DataTypes.isNull(e.dataType())?
             TypeResolution.TYPE_RESOLVED :
             new TypeResolution(format(Locale.ROOT, "[%s]%s argument must be [%s], found value [%s] type [%s]",
-                    operationName,
-                    paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : " " + paramOrd.name().toLowerCase(Locale.ROOT),
-                    Strings.arrayToDelimitedString(acceptedTypes, " or "),
-                    Expressions.name(e),
-                    e.dataType().esType));
+                operationName,
+                paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : " " + paramOrd.name().toLowerCase(Locale.ROOT),
+                Strings.arrayToDelimitedString(acceptedTypes, " or "),
+                Expressions.name(e),
+                e.dataType().esType));
     }
 }

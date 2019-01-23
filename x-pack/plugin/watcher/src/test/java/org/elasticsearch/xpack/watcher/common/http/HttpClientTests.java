@@ -81,7 +81,7 @@ public class HttpClientTests extends ESTestCase {
     }
 
     @After
-    public void shutdown() throws Exception {
+    public void shutdown() throws IOException {
         webServer.close();
         httpClient.close();
     }
@@ -179,30 +179,22 @@ public class HttpClientTests extends ESTestCase {
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.crt");
         Path keyPath = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.pem");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        Settings settings;
-        if (randomBoolean()) {
-            settings = Settings.builder()
-                .put("xpack.http.ssl.certificate_authorities", trustedCertPath)
-                .setSecureSettings(secureSettings)
-                .build();
-        } else {
-            settings = Settings.builder()
-                .put("xpack.ssl.certificate_authorities", trustedCertPath)
-                .setSecureSettings(secureSettings)
-                .build();
-        }
+        Settings settings = Settings.builder()
+            .put("xpack.http.ssl.certificate_authorities", trustedCertPath)
+            .setSecureSettings(secureSettings)
+            .build();
         try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null, mockClusterService())) {
             secureSettings = new MockSecureSettings();
             // We can't use the client created above for the server since it is only a truststore
-            secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
+            secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
             Settings settings2 = Settings.builder()
-                .put("xpack.ssl.key", keyPath)
-                .put("xpack.ssl.certificate", certPath)
+                .put("xpack.security.http.ssl.key", keyPath)
+                .put("xpack.security.http.ssl.certificate", certPath)
                 .setSecureSettings(secureSettings)
                 .build();
 
             TestsSSLService sslService = new TestsSSLService(settings2, environment);
-            testSslMockWebserver(client, sslService.sslContext(), false);
+            testSslMockWebserver(client, sslService.sslContext("xpack.security.http.ssl"), false);
         }
     }
 
@@ -210,40 +202,27 @@ public class HttpClientTests extends ESTestCase {
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.crt");
         Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.pem");
         Settings settings;
-        if (randomBoolean()) {
-            MockSecureSettings secureSettings = new MockSecureSettings();
-            Settings.Builder builder = Settings.builder()
-                .put("xpack.http.ssl.certificate_authorities", certPath);
-            if (inFipsJvm()) {
-                //Can't use TrustAllConfig in FIPS mode
-                builder.put("xpack.http.ssl.verification_mode", VerificationMode.CERTIFICATE);
-            } else {
-                builder.put("xpack.http.ssl.verification_mode", randomFrom(VerificationMode.NONE, VerificationMode.CERTIFICATE));
-            }
-            settings = builder.build();
+        Settings.Builder builder = Settings.builder()
+            .put("xpack.http.ssl.certificate_authorities", certPath);
+        if (inFipsJvm()) {
+            //Can't use TrustAllConfig in FIPS mode
+            builder.put("xpack.http.ssl.verification_mode", VerificationMode.CERTIFICATE);
         } else {
-            Settings.Builder builder = Settings.builder()
-                .put("xpack.ssl.certificate_authorities", certPath);
-            if (inFipsJvm()) {
-                //Can't use TrustAllConfig in FIPS mode
-                builder.put("xpack.ssl.verification_mode", VerificationMode.CERTIFICATE);
-            } else {
-                builder.put("xpack.ssl.verification_mode", randomFrom(VerificationMode.NONE, VerificationMode.CERTIFICATE));
-            }
-            settings = builder.build();
+            builder.put("xpack.http.ssl.verification_mode", randomFrom(VerificationMode.NONE, VerificationMode.CERTIFICATE));
         }
+        settings = builder.build();
         try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null, mockClusterService())) {
             MockSecureSettings secureSettings = new MockSecureSettings();
             // We can't use the client created above for the server since it only defines a truststore
-            secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode-no-subjaltname");
+            secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode-no-subjaltname");
             Settings settings2 = Settings.builder()
-                .put("xpack.ssl.key", keyPath)
-                .put("xpack.ssl.certificate", certPath)
+                .put("xpack.security.http.ssl.key", keyPath)
+                .put("xpack.security.http.ssl.certificate", certPath)
                 .setSecureSettings(secureSettings)
                 .build();
 
             TestsSSLService sslService = new TestsSSLService(settings2, environment);
-            testSslMockWebserver(client, sslService.sslContext(), false);
+            testSslMockWebserver(client, sslService.sslContext("xpack.security.http.ssl"), false);
         }
     }
 
@@ -251,16 +230,16 @@ public class HttpClientTests extends ESTestCase {
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.crt");
         Path keyPath = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.pem");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
+        secureSettings.setString("xpack.http.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-            .put("xpack.ssl.key", keyPath)
-            .put("xpack.ssl.certificate", certPath)
+            .put("xpack.http.ssl.key", keyPath)
+            .put("xpack.http.ssl.certificate", certPath)
             .setSecureSettings(secureSettings)
             .build();
 
         TestsSSLService sslService = new TestsSSLService(settings, environment);
         try (HttpClient client = new HttpClient(settings, sslService, null, mockClusterService())) {
-            testSslMockWebserver(client, sslService.sslContext(), true);
+            testSslMockWebserver(client, sslService.sslContext("xpack.http.ssl"), true);
         }
     }
 
@@ -387,19 +366,18 @@ public class HttpClientTests extends ESTestCase {
         // on top of that the proxy request is HTTPS but the real request is HTTP only
         MockSecureSettings serverSecureSettings = new MockSecureSettings();
         // We can't use the client created above for the server since it is only a truststore
-        serverSecureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
+        serverSecureSettings.setString("xpack.http.ssl.secure_key_passphrase", "testnode");
         Settings serverSettings = Settings.builder()
-            .put("xpack.ssl.key", keyPath)
-            .put("xpack.ssl.certificate", certPath)
+            .put("xpack.http.ssl.key", keyPath)
+            .put("xpack.http.ssl.certificate", certPath)
             .setSecureSettings(serverSecureSettings)
             .build();
         TestsSSLService sslService = new TestsSSLService(serverSettings, environment);
 
-        try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext(), false)) {
+        try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext(serverSettings.getByPrefix("xpack.http.ssl.")), false)) {
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
             proxyServer.start();
 
-            MockSecureSettings secureSettings = new MockSecureSettings();
             Settings settings = Settings.builder()
                     .put(HttpSettings.PROXY_HOST.getKey(), "localhost")
                     .put(HttpSettings.PROXY_PORT.getKey(), proxyServer.getPort())

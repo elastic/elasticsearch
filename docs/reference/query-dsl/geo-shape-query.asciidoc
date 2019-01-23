@@ -27,11 +27,9 @@ Given the following index:
 PUT /example
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "location": {
-                    "type": "geo_shape"
-                }
+        "properties": {
+            "location": {
+                "type": "geo_shape"
             }
         }
     }
@@ -102,11 +100,9 @@ shape:
 PUT /shapes
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "location": {
-                    "type": "geo_shape"
-                }
+        "properties": {
+            "location": {
+                "type": "geo_shape"
             }
         }
     }

@@ -75,14 +75,12 @@ queried independently of the others, with the <<query-dsl-nested-query,`nested` 
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "user": {
-          "type": "nested" <1>
-        }
+    "properties": {
+      "user": {
+        "type": "nested" <1>
       }
     }
   }

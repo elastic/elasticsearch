@@ -179,8 +179,7 @@ public class DiscoveryUpgradeService {
         }
 
         private boolean canBootstrap(Set<DiscoveryNode> discoveryNodes) {
-            return upgrading && 1 <= minimumMasterNodes
-                && minimumMasterNodes <= discoveryNodes.stream().filter(DiscoveryNode::isMasterNode).count();
+            return upgrading && minimumMasterNodes <= discoveryNodes.stream().filter(DiscoveryNode::isMasterNode).count();
         }
 
         void scheduleNextAttempt() {

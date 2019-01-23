@@ -226,7 +226,7 @@ public class InternalComposite
         }
     }
 
-    static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket
+    public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket
         implements CompositeAggregation.Bucket, KeyComparable<InternalBucket> {
 
         private final CompositeKey key;

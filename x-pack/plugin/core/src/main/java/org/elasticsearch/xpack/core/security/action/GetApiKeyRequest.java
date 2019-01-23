@@ -117,19 +117,15 @@ public final class GetApiKeyRequest extends ActionRequest {
             validationException = addValidationError("One of [api key id, api key name, username, realm name] must be specified",
                     validationException);
         }
-        if (Strings.hasText(apiKeyId)) {
-            if (Strings.hasText(apiKeyName) || Strings.hasText(realmName) || Strings.hasText(userName)) {
+        if (Strings.hasText(apiKeyId) || Strings.hasText(apiKeyName)) {
+            if (Strings.hasText(realmName) || Strings.hasText(userName)) {
                 validationException = addValidationError(
-                        "api key name or username or realm name must not be specified when the api key id is specified",
+                        "username or realm name must not be specified when the api key id or api key name is specified",
                         validationException);
             }
         }
-        if (Strings.hasText(apiKeyName)) {
-            if (Strings.hasText(apiKeyId) || Strings.hasText(realmName) || Strings.hasText(userName)) {
-                validationException = addValidationError(
-                        "api key id or username or realm name must not be specified when the api key name is specified",
-                        validationException);
-            }
+        if (Strings.hasText(apiKeyId) && Strings.hasText(apiKeyName)) {
+            validationException = addValidationError("only one of [api key id, api key name] can be specified", validationException);
         }
         return validationException;
     }

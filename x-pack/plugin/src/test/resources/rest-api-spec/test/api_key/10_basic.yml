@@ -87,24 +87,6 @@ teardown:
               "name": "my-api-key-1",
               "expiration": "1d",
               "role_descriptors": {
-                "role-a": {
-                  "cluster": ["all"],
-                  "index": [
-                    {
-                      "names": ["index-a"],
-                      "privileges": ["read"]
-                    }
-                  ]
-                },
-                "role-b": {
-                  "cluster": ["manage"],
-                  "index": [
-                    {
-                      "names": ["index-b"],
-                      "privileges": ["all"]
-                    }
-                  ]
-                }
               }
             }
   - match: { name: "my-api-key-1" }

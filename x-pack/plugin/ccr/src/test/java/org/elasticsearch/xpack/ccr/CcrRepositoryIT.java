@@ -238,9 +238,15 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
     }
 
     public void testRateLimitingIsEmployed() throws Exception {
+        boolean followerRateLimiting = randomBoolean();
+
         ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
         settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.RECOVERY_MAX_BYTES_PER_SECOND.getKey(), "10K"));
-        assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
+        if (followerRateLimiting) {
+            assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
+        } else {
+            assertAcked(leaderClient().admin().cluster().updateSettings(settingsRequest).actionGet());
+        }
 
         String leaderClusterRepoName = CcrRepository.NAME_PREFIX + "leader_cluster";
         String leaderIndex = "index1";
@@ -256,10 +262,14 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
 
         List<CcrRepository> repositories = new ArrayList<>();
+        List<CcrRestoreSourceService> restoreSources = new ArrayList<>();
 
         for (RepositoriesService repositoriesService : getFollowerCluster().getDataOrMasterNodeInstances(RepositoriesService.class)) {
             Repository repository = repositoriesService.repository(leaderClusterRepoName);
             repositories.add((CcrRepository) repository);
+        }
+        for (CcrRestoreSourceService restoreSource : getLeaderCluster().getDataOrMasterNodeInstances(CcrRestoreSourceService.class)) {
+            restoreSources.add(restoreSource);
         }
 
         logger.info("--> indexing some data");
@@ -282,12 +292,20 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
         future.actionGet();
 
-        assertTrue(repositories.stream().anyMatch(cr -> cr.getRestoreThrottleTimeInNanos() > 0));
+        if (followerRateLimiting) {
+            assertTrue(repositories.stream().anyMatch(cr -> cr.getRestoreThrottleTimeInNanos() > 0));
+        } else {
+            assertTrue(restoreSources.stream().anyMatch(cr -> cr.getThrottleTime() > 0));
+        }
 
         settingsRequest = new ClusterUpdateSettingsRequest();
         ByteSizeValue defaultValue = CcrSettings.RECOVERY_MAX_BYTES_PER_SECOND.getDefault(Settings.EMPTY);
         settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.RECOVERY_MAX_BYTES_PER_SECOND.getKey(), defaultValue));
-        assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
+        if (followerRateLimiting) {
+            assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
+        } else {
+            assertAcked(leaderClient().admin().cluster().updateSettings(settingsRequest).actionGet());
+        }
     }
 
     public void testFollowerMappingIsUpdated() throws IOException {

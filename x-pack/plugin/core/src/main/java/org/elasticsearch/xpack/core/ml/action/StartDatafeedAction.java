@@ -162,7 +162,7 @@ public class StartDatafeedAction extends Action<AcknowledgedResponse> {
             DateMathParser dateMathParser = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
 
             try {
-                return dateMathParser.parse(date, now);
+                return dateMathParser.parse(date, now).toEpochMilli();
             } catch (Exception e) {
                 String msg = Messages.getMessage(Messages.REST_INVALID_DATETIME_PARAMS, paramName.getPreferredName(), date);
                 throw new ElasticsearchParseException(msg, e);

@@ -119,26 +119,24 @@ default, but there will be no speed up on analysis for these fields.
 
 [source,js]
 --------------------------------------------------
-PUT /imdb?include_type_name=true
+PUT /imdb
 {
     "mappings": {
-        "movies": {
-            "properties": {
-                "title": {
-                    "type": "text",
-                    "term_vector": "yes"
-                },
-                "description": {
-                    "type": "text"
-                },
-                "tags": {
-                    "type": "text",
-                    "fields" : {
-                        "raw": {
-                            "type" : "text",
-                            "analyzer": "keyword",
-                            "term_vector" : "yes"
-                        }
+        "properties": {
+            "title": {
+                "type": "text",
+                "term_vector": "yes"
+            },
+            "description": {
+                "type": "text"
+            },
+            "tags": {
+                "type": "text",
+                "fields" : {
+                    "raw": {
+                        "type" : "text",
+                        "analyzer": "keyword",
+                        "term_vector" : "yes"
                     }
                 }
             }

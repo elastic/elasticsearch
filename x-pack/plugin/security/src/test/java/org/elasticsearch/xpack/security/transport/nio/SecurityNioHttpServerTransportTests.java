@@ -17,6 +17,7 @@ import org.elasticsearch.http.nio.NioHttpChannel;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -46,6 +47,7 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
     private SSLService sslService;
     private Environment env;
     private InetSocketAddress address = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
+    private NioGroupFactory nioGroupFactory;
 
     @Before
     public void createSSLService() {
@@ -67,10 +69,11 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(env.settings())
             .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
+        nioGroupFactory = new NioGroupFactory(settings, logger);
         sslService = new SSLService(settings, env);
         SecurityNioHttpServerTransport transport = new SecurityNioHttpServerTransport(settings,
             new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(PageCacheRecycler.class), mock(ThreadPool.class),
-            xContentRegistry(), new NullDispatcher(), mock(IPFilter.class), sslService);
+            xContentRegistry(), new NullDispatcher(), mock(IPFilter.class), sslService, nioGroupFactory);
         SecurityNioHttpServerTransport.SecurityHttpChannelFactory factory = transport.channelFactory();
         SocketChannel socketChannel = mock(SocketChannel.class);
         when(socketChannel.getRemoteAddress()).thenReturn(address);
@@ -88,9 +91,10 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
             .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
             .put("xpack.security.http.ssl.client_authentication", value).build();
         sslService = new SSLService(settings, env);
+        nioGroupFactory = new NioGroupFactory(settings, logger);
         SecurityNioHttpServerTransport transport = new SecurityNioHttpServerTransport(settings,
             new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(PageCacheRecycler.class), mock(ThreadPool.class),
-            xContentRegistry(), new NullDispatcher(), mock(IPFilter.class), sslService);
+            xContentRegistry(), new NullDispatcher(), mock(IPFilter.class), sslService, nioGroupFactory);
 
         SecurityNioHttpServerTransport.SecurityHttpChannelFactory factory = transport.channelFactory();
         SocketChannel socketChannel = mock(SocketChannel.class);
@@ -107,10 +111,11 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
             .put(env.settings())
             .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
             .put("xpack.security.http.ssl.client_authentication", value).build();
+        nioGroupFactory = new NioGroupFactory(settings, logger);
         sslService = new SSLService(settings, env);
         SecurityNioHttpServerTransport transport = new SecurityNioHttpServerTransport(settings,
             new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(PageCacheRecycler.class), mock(ThreadPool.class),
-            xContentRegistry(), new NullDispatcher(), mock(IPFilter.class), sslService);
+            xContentRegistry(), new NullDispatcher(), mock(IPFilter.class), sslService, nioGroupFactory);
 
         SecurityNioHttpServerTransport.SecurityHttpChannelFactory factory = transport.channelFactory();
         SocketChannel socketChannel = mock(SocketChannel.class);
@@ -128,9 +133,10 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
             .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
             .put("xpack.security.http.ssl.client_authentication", value).build();
         sslService = new SSLService(settings, env);
+        nioGroupFactory = new NioGroupFactory(settings, logger);
         SecurityNioHttpServerTransport transport = new SecurityNioHttpServerTransport(settings,
             new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(PageCacheRecycler.class), mock(ThreadPool.class),
-            xContentRegistry(), new NullDispatcher(), mock(IPFilter.class), sslService);
+            xContentRegistry(), new NullDispatcher(), mock(IPFilter.class), sslService, nioGroupFactory);
 
         SecurityNioHttpServerTransport.SecurityHttpChannelFactory factory = transport.channelFactory();
         SocketChannel socketChannel = mock(SocketChannel.class);
@@ -146,9 +152,10 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
             .put(env.settings())
             .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
         sslService = new SSLService(settings, env);
+        nioGroupFactory = new NioGroupFactory(settings, logger);
         SecurityNioHttpServerTransport transport = new SecurityNioHttpServerTransport(settings,
             new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(PageCacheRecycler.class), mock(ThreadPool.class),
-            xContentRegistry(), new NullDispatcher(), mock(IPFilter.class), sslService);
+            xContentRegistry(), new NullDispatcher(), mock(IPFilter.class), sslService, nioGroupFactory);
         SecurityNioHttpServerTransport.SecurityHttpChannelFactory factory = transport.channelFactory();
         SocketChannel socketChannel = mock(SocketChannel.class);
         when(socketChannel.getRemoteAddress()).thenReturn(address);
@@ -161,9 +168,10 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
             .put("xpack.security.http.ssl.supported_protocols", "TLSv1.2")
             .build();
         sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
+        nioGroupFactory = new NioGroupFactory(settings, logger);
         transport = new SecurityNioHttpServerTransport(settings,
             new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(PageCacheRecycler.class), mock(ThreadPool.class),
-            xContentRegistry(), new NullDispatcher(), mock(IPFilter.class), sslService);
+            xContentRegistry(), new NullDispatcher(), mock(IPFilter.class), sslService, nioGroupFactory);
         factory = transport.channelFactory();
         channel = factory.createChannel(mock(NioSelector.class), socketChannel);
         SSLEngine customEngine = SSLEngineUtils.getSSLEngine(channel);
@@ -183,11 +191,12 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
             .build();
         env = TestEnvironment.newEnvironment(settings);
         sslService = new SSLService(settings, env);
+        nioGroupFactory = new NioGroupFactory(settings, logger);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> new SecurityNioHttpServerTransport(settings,
                 new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(PageCacheRecycler.class), mock(ThreadPool.class),
-                xContentRegistry(), new NullDispatcher(), mock(IPFilter.class), sslService));
+                xContentRegistry(), new NullDispatcher(), mock(IPFilter.class), sslService, nioGroupFactory));
         assertThat(e.getMessage(), containsString("key must be provided"));
     }
 
@@ -202,8 +211,9 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
             .build();
         env = TestEnvironment.newEnvironment(settings);
         sslService = new SSLService(settings, env);
+        nioGroupFactory = new NioGroupFactory(settings, logger);
         SecurityNioHttpServerTransport transport = new SecurityNioHttpServerTransport(settings,
             new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(PageCacheRecycler.class), mock(ThreadPool.class),
-            xContentRegistry(), new NullDispatcher(), mock(IPFilter.class), sslService);
+            xContentRegistry(), new NullDispatcher(), mock(IPFilter.class), sslService, nioGroupFactory);
     }
 }

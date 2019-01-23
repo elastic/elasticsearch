@@ -2422,12 +2422,10 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
-                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long maxSeenAutoIdTimestamp,
-                                                    long maxSeqNoOfUpdatesOrDeletes) throws IOException {
-                    final long localCheckpoint = super.indexTranslogOperations(
-                        operations, totalTranslogOps, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes);
-                    assertFalse(replica.isSyncNeeded());
-                    return localCheckpoint;
+                public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long maxSeenAutoIdTimestamp,
+                                                    long maxSeqNoOfUpdatesOrDeletes, ActionListener<Long> listener){
+                    super.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes,
+                        ActionListener.runAfter(listener, () -> assertFalse(replica.isSyncNeeded())));
                 }
             }, true, true);
 
@@ -2531,13 +2529,14 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
-                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
-                                                    long maxAutoIdTimestamp, long maxSeqNoOfUpdatesOrDeletes) throws IOException {
-                    final long localCheckpoint = super.indexTranslogOperations(
-                        operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes);
-                    // Shard should now be active since we did recover:
-                    assertTrue(replica.isActive());
-                    return localCheckpoint;
+                public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long maxAutoIdTimestamp,
+                                                    long maxSeqNoOfUpdatesOrDeletes, ActionListener<Long> listener){
+                    super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes,
+                        ActionListener.wrap(checkpoint -> {
+                            listener.onResponse(checkpoint);
+                            // Shard should now be active since we did recover:
+                            assertTrue(replica.isActive());
+                        }, listener::onFailure));
                 }
             }, false, true);
 
@@ -2574,18 +2573,19 @@ public class IndexShardTests extends IndexShardTestCase {
             }) {
             // we're only checking that listeners are called when the engine is open, before there is no point
                 @Override
-                public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
-                    super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps);
+                public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
+                    super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, listener);
                     assertListenerCalled.accept(replica);
                 }
 
                 @Override
-                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
-                                                    long maxAutoIdTimestamp, long maxSeqNoOfUpdatesOrDeletes) throws IOException {
-                    final long localCheckpoint = super.indexTranslogOperations(
-                        operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes);
-                    assertListenerCalled.accept(replica);
-                    return localCheckpoint;
+                public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long maxAutoIdTimestamp,
+                                                    long maxSeqNoOfUpdatesOrDeletes, ActionListener<Long> listener)  {
+                    super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes,
+                        ActionListener.wrap(checkpoint -> {
+                            assertListenerCalled.accept(replica);
+                            listener.onResponse(checkpoint);
+                        }, listener::onFailure));
                 }
 
                 @Override
@@ -3126,7 +3126,6 @@ public class IndexShardTests extends IndexShardTestCase {
         private final String indexName;
 
         RestoreOnlyRepository(String indexName) {
-            super(Settings.EMPTY);
             this.indexName = indexName;
         }
 

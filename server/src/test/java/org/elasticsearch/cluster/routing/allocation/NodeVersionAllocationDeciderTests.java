@@ -392,7 +392,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     private ClusterState stabilize(ClusterState clusterState, AllocationService service) {
         logger.trace("RoutingNodes: {}", clusterState.getRoutingNodes());
 
-        clusterState = service.deassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = service.disassociateDeadNodes(clusterState, true, "reroute");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
         assertRecoveryNodeVersions(routingNodes);
 

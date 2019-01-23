@@ -159,7 +159,7 @@ public class ApiKeyService {
              * this check is best effort as there could be two nodes executing search and
              * then index concurrently allowing a duplicate name.
              */
-            findApiKeyForApiKeyName(request.getName(), false, false, ActionListener.wrap(apiKeyIds -> {
+            findApiKeyForApiKeyName(request.getName(), true, true, ActionListener.wrap(apiKeyIds -> {
                 if (apiKeyIds.isEmpty()) {
                     final Instant created = clock.instant();
                     final Instant expiration = getApiKeyExpiration(created, request);
@@ -550,7 +550,10 @@ public class ApiKeyService {
             boolQuery.filter(QueryBuilders.termQuery("api_key_invalidated", false));
         }
         if (filterOutExpiredKeys) {
-            boolQuery.filter(QueryBuilders.rangeQuery("expiration_time").lte(Instant.now().toEpochMilli()));
+            final BoolQueryBuilder expiredQuery = QueryBuilders.boolQuery();
+            expiredQuery.should(QueryBuilders.rangeQuery("expiration_time").lte(Instant.now().toEpochMilli()));
+            expiredQuery.should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")));
+            boolQuery.filter(expiredQuery);
         }
 
         final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)

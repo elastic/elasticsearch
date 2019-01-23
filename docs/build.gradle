@@ -36,7 +36,7 @@ buildRestTests.expectedUnconvertedCandidates = [
 ]
 
 integTestCluster {
-  if ("zip".equals(integTestCluster.distribution)) {
+  if ("default".equals(integTestCluster.distribution)) {
     setting 'xpack.license.self_generated.type', 'trial'
   }
 
@@ -525,6 +525,7 @@ for (int i = 0; i < 5; i++) {
 buildRestTests.setups['library'] = '''
   - do:
         indices.create:
+          include_type_name: true
           index: library
           body:
             settings:

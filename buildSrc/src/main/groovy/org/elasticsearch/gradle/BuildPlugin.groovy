@@ -407,9 +407,16 @@ class BuildPlugin implements Plugin<Project> {
                 if (messages.isEmpty() == false) {
                     throw new GradleException(messages.join('\n'))
                 }
+                rootProject.rootProject.ext.requiredJavaVersions = null // reset to null to indicate the pre-execution checks have executed
             }
+        } else if (rootProject.rootProject.requiredJavaVersions == null) {
+            // check directly if the version is present since we are already executing
+            if (rootProject.javaVersions.get(version) == null) {
+                throw new GradleException("JAVA${version}_HOME required to run task:\n${task}")
+            }
+        } else {
+            rootProject.requiredJavaVersions.get(version).add(task)
         }
-        rootProject.requiredJavaVersions.get(version).add(task)
     }
 
     /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
@@ -558,6 +565,12 @@ class BuildPlugin implements Plugin<Project> {
             repos.mavenLocal()
         }
         repos.jcenter()
+        repos.ivy {
+            url "https://artifacts.elastic.co/downloads"
+            patternLayout {
+                artifact "elasticsearch/[module]-[revision](-[classifier]).[ext]"
+            }
+        }
         repos.maven {
             name "elastic"
             url "https://artifacts.elastic.co/maven"

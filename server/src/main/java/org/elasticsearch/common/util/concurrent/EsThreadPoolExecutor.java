@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.common.SuppressForbidden;
+
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -48,6 +50,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         this(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, new EsAbortPolicy(), contextHolder);
     }
 
+    @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
     EsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
             BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, XRejectedExecutionHandler handler,
             ThreadContext contextHolder) {
@@ -89,11 +92,8 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     @Override
-    public void execute(final Runnable command) {
-        doExecute(wrapRunnable(command));
-    }
-
-    protected void doExecute(final Runnable command) {
+    public void execute(Runnable command) {
+        command = wrapRunnable(command);
         try {
             super.execute(command);
         } catch (EsRejectedExecutionException ex) {
@@ -115,6 +115,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     @Override
     protected void afterExecute(Runnable r, Throwable t) {
         super.afterExecute(r, t);
+        EsExecutors.rethrowErrors(unwrap(r));
         assert assertDefaultContext(r);
     }
 

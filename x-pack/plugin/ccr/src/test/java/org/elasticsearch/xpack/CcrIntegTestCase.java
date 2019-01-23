@@ -563,9 +563,11 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         clusterService.submitStateUpdateTask("remove-ccr-related-metadata", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
+                AutoFollowMetadata empty =
+                    new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
                 ClusterState.Builder newState = ClusterState.builder(currentState);
                 newState.metaData(MetaData.builder(currentState.getMetaData())
-                    .removeCustom(AutoFollowMetadata.TYPE)
+                    .putCustom(AutoFollowMetadata.TYPE, empty)
                     .removeCustom(PersistentTasksCustomMetaData.TYPE)
                     .build());
                 return newState.build();

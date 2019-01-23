@@ -75,7 +75,7 @@ public class UnsafeBootstrapMasterCommand extends EnvironmentAwareCommand {
             ClusterService.USER_DEFINED_META_DATA.getConcreteSetting("cluster.metadata.unsafe-bootstrap");
 
     UnsafeBootstrapMasterCommand() {
-        super("Unsafely bootstraps the master node if the majority of master eligible nodes is lost");
+        super("Forces the successful election of the current node after the permanent loss of the half or more master-eligible nodes");
         namedXContentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
     }
 

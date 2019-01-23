@@ -527,7 +527,6 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     + "\"version\":12,"
                     + "\"state_uuid\":\"_state_uuid\","
                     + "\"master_node\":\"_node\","
-                    + "\"minimum_master_nodes\":-1,"
                     + "\"nodes\":{"
                       + "\"_node_id\":{"
                         + "\"name\":\"_node_name\","

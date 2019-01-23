@@ -444,7 +444,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
         if (metrics.contains(Metric.MASTER_NODE)) {
             builder.field("master_node", nodes().getMasterNodeId());
-            builder.field("minimum_master_nodes", minimumMasterNodesOnPublishingMaster);
         }
 
         if (metrics.contains(Metric.BLOCKS)) {

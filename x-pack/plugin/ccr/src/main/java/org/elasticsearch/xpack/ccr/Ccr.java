@@ -45,6 +45,7 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
+import org.elasticsearch.xpack.ccr.action.RecoverFollowerAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor;
@@ -203,6 +204,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                     ClearCcrRestoreSessionAction.TransportDeleteCcrRestoreSessionAction.class),
                 new ActionHandler<>(GetCcrRestoreFileChunkAction.INSTANCE,
                     GetCcrRestoreFileChunkAction.TransportGetCcrRestoreFileChunkAction.class),
+                new ActionHandler<>(RecoverFollowerAction.INSTANCE,
+                    RecoverFollowerAction.TransportRecoverFollowerAction.class),
                 // stats action
                 new ActionHandler<>(FollowStatsAction.INSTANCE, TransportFollowStatsAction.class),
                 new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsAction.class),

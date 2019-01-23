@@ -115,8 +115,14 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         };
 
         final String recordedLeaderShardHistoryUUID = getLeaderShardHistoryUUID(params);
+        Runnable recoveryExecutor = () -> {
+            String followerIndex = params.getFollowShardId().getIndex().getName();
+            String leaderIndex = params.getLeaderShardId().getIndex().getName();
+            String remoteCluster = params.getRemoteCluster();
+            client.execute(RecoverFollowerAction.INSTANCE, new RecoverFollowerRequest(remoteCluster, leaderIndex, followerIndex));
+        };
         return new ShardFollowNodeTask(id, type, action, getDescription(taskInProgress), parentTaskId, headers, params,
-            scheduler, System::nanoTime) {
+            scheduler, System::nanoTime, recoveryExecutor) {
 
             @Override
             protected void innerUpdateMapping(long minRequiredMappingVersion, LongConsumer handler, Consumer<Exception> errorHandler) {

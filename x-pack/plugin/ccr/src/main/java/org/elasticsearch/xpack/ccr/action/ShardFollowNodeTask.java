@@ -89,11 +89,18 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo));
     private long bufferSizeInBytes = 0;
     private final LinkedHashMap<Long, Tuple<AtomicInteger, ElasticsearchException>> fetchExceptions;
+    private final Runnable recoveryExecutor;
 
     private volatile ElasticsearchException fatalException;
 
     ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
                         ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler, final LongSupplier relativeTimeProvider) {
+        this(id, type, action, description, parentTask, headers, params, scheduler, relativeTimeProvider, () -> {});
+    }
+
+    ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
+                        ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler, final LongSupplier relativeTimeProvider,
+                        Runnable recoveryExecutor) {
         super(id, type, action, description, parentTask, headers);
         this.params = params;
         this.scheduler = scheduler;
@@ -109,6 +116,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 return size() > params.getMaxOutstandingReadRequests();
             }
         };
+        this.recoveryExecutor = recoveryExecutor;
     }
 
     void start(
@@ -275,12 +283,16 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                         failedReadRequests++;
                         fetchExceptions.put(from, Tuple.tuple(retryCounter, ExceptionsHelper.convertToElastic(e)));
                     }
-                    if (e instanceof ElasticsearchException) {
-                        ElasticsearchException elasticsearchException = (ElasticsearchException) e;
+                    Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof ElasticsearchException) {
+                        ElasticsearchException elasticsearchException = (ElasticsearchException) cause;
                         if (elasticsearchException.getMetadataKeys().contains(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY)) {
                             handleFallenBehindLeaderShard(e, from, maxOperationCount, maxRequiredSeqNo, retryCounter);
                             return;
                         }
+                    } else if (cause.getMessage().contains("Not all operations between from_seqno")) {
+                        handleFallenBehindLeaderShard(e, from, maxOperationCount, maxRequiredSeqNo, retryCounter);
+                        return;
                     }
                     handleFailure(e, retryCounter, () -> sendShardChangesRequest(from, maxOperationCount, maxRequiredSeqNo, retryCounter));
                 });
@@ -307,7 +319,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         // can trigger another restore while the shard was restored already.
         // https://github.com/elastic/elasticsearch/pull/37562#discussion_r250009367
 
-        handleFailure(e, retryCounter, () -> sendShardChangesRequest(from, maxOperationCount, maxRequiredSeqNo, retryCounter));
+        recoveryExecutor.run();
     }
 
     /** Called when some operations are fetched from the leading */

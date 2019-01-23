@@ -386,6 +386,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                     builder.field(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0);
                     builder.field("index.number_of_shards", numberOfShards);
                     builder.field("index.number_of_replicas", numberOfReplicas);
+                    builder.field("index.soft_deletes.retention.operations", 0);
                     for (final Map.Entry<String, String> additionalSetting : additionalIndexSettings.entrySet()) {
                         builder.field(additionalSetting.getKey(), additionalSetting.getValue());
                     }

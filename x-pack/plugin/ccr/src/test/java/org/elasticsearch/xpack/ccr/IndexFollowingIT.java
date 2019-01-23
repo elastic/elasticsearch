@@ -14,10 +14,13 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
@@ -148,6 +151,78 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
         assertTotalNumberOfOptimizedIndexing(resolveFollowerIndex("index2"), numberOfPrimaryShards,
             firstBatchNumDocs + secondBatchNumDocs);
+        pauseFollow("index2");
+        assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), numberOfPrimaryShards);
+    }
+
+    public void testIndexFallBehind() throws Exception {
+        final int numberOfPrimaryShards = randomIntBetween(1, 3);
+        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureLeaderYellow("index1");
+
+        final int numDocs = randomIntBetween(2, 64);
+        logger.info("Indexing [{}] docs as first batch", numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
+            leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
+        }
+
+        final PutFollowAction.Request followRequest = putFollow("index1", "index2");
+        PutFollowAction.Response response = followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+        assertTrue(response.isFollowIndexCreated());
+        assertTrue(response.isFollowIndexShardsAcked());
+        assertTrue(response.isIndexFollowingStarted());
+
+        final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();
+        final ShardStats[] firstBatchShardStats =
+            leaderClient().admin().indices().prepareStats("index1").get().getIndex("index1").getShards();
+        for (final ShardStats shardStats : firstBatchShardStats) {
+            if (shardStats.getShardRouting().primary()) {
+                long value = shardStats.getStats().getIndexing().getTotal().getIndexCount() - 1;
+                firstBatchNumDocsPerShard.put(shardStats.getShardRouting().shardId(), value);
+            }
+        }
+
+        assertBusy(assertTask(numberOfPrimaryShards, firstBatchNumDocsPerShard));
+
+        for (int i = 0; i < numDocs; i++) {
+            assertBusy(assertExpectedDocumentRunnable(i));
+        }
+        assertTotalNumberOfOptimizedIndexing(resolveFollowerIndex("index2"), numberOfPrimaryShards, numDocs);
+        pauseFollow("index2");
+
+        for (int i = 0; i < numDocs; i++) {
+            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i * 2);
+            leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
+            leaderClient().admin().indices().flush(new FlushRequest("index1").force(true)).actionGet();
+        }
+        leaderClient().prepareDelete("index1", "doc", "1").get();
+        leaderClient().admin().indices().refresh(new RefreshRequest("index1")).actionGet();
+        ForceMergeRequest forceMergeRequest = new ForceMergeRequest("index1");
+        forceMergeRequest.maxNumSegments(1);
+        leaderClient().admin().indices().forceMerge(forceMergeRequest).actionGet();
+
+        followerClient().execute(ResumeFollowAction.INSTANCE, followRequest.getFollowRequest()).get();
+
+        final Map<ShardId, Long> secondBatchNumDocsPerShard = new HashMap<>();
+        final ShardStats[] secondBatchShardStats =
+            leaderClient().admin().indices().prepareStats("index1").get().getIndex("index1").getShards();
+        for (final ShardStats shardStats : secondBatchShardStats) {
+            if (shardStats.getShardRouting().primary()) {
+                long indexCount = shardStats.getStats().getIndexing().getTotal().getIndexCount();
+                long deleteCount = shardStats.getStats().getIndexing().getTotal().getDeleteCount();
+                final long value = deleteCount + indexCount - 1;
+                secondBatchNumDocsPerShard.put(shardStats.getShardRouting().shardId(), value);
+            }
+        }
+
+        assertBusy(assertTask(numberOfPrimaryShards, secondBatchNumDocsPerShard));
+
+        for (int i = 2; i < numDocs; i++) {
+            assertBusy(assertExpectedDocumentRunnable(i, i * 2));
+        }
         pauseFollow("index2");
         assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), numberOfPrimaryShards);
     }
@@ -969,9 +1044,13 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     }
 
     private CheckedRunnable<Exception> assertExpectedDocumentRunnable(final int value) {
+        return assertExpectedDocumentRunnable(value, value);
+    }
+
+    private CheckedRunnable<Exception> assertExpectedDocumentRunnable(final int key, final int value) {
         return () -> {
-            final GetResponse getResponse = followerClient().prepareGet("index2", "doc", Integer.toString(value)).get();
-            assertTrue("Doc with id [" + value + "] is missing", getResponse.isExists());
+            final GetResponse getResponse = followerClient().prepareGet("index2", "doc", Integer.toString(key)).get();
+            assertTrue("Doc with id [" + key + "] is missing", getResponse.isExists());
             assertTrue((getResponse.getSource().containsKey("f")));
             assertThat(getResponse.getSource().get("f"), equalTo(value));
         };

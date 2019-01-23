@@ -76,6 +76,8 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
         Job.Builder job = new Job.Builder(JOB_ID);
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(new DataDescription.Builder());
+        // Use a custom index because other rolling upgrade tests meddle with the shared index
+        job.setResultsIndexName("mappings-upgrade-test");
 
         Request putJob = new Request("PUT", "_xpack/ml/anomaly_detectors/" + JOB_ID);
         putJob.setJsonEntity(Strings.toString(job.build()));
@@ -96,7 +98,16 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
             Map<String, Object> responseLevel = entityAsMap(response);
             assertNotNull(responseLevel);
-            Map<String, Object> indexLevel = (Map<String, Object>) responseLevel.get(".ml-anomalies-shared");
+            Map<String, Object> indexLevel = null;
+            // The name of the concrete index underlying the results index alias may or may not have been changed
+            // by the upgrade process (depending on what other tests are being run and the order they're run in),
+            // so navigating to the next level of the tree must account for both cases
+            for (Map.Entry<String, Object> entry : responseLevel.entrySet()) {
+                if (entry.getKey().startsWith(".ml-anomalies-") && entry.getKey().contains("mappings-upgrade-test")) {
+                    indexLevel = (Map<String, Object>) entry.getValue();
+                    break;
+                }
+            }
             assertNotNull(indexLevel);
             Map<String, Object> mappingsLevel = (Map<String, Object>) indexLevel.get("mappings");
             assertNotNull(mappingsLevel);

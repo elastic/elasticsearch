@@ -40,10 +40,6 @@ public class TermsGroupSource extends SingleGroupSource<TermsGroupSource> {
     }
 
     public static TermsGroupSource fromXContent(final XContentParser parser, boolean ignoreUnknownFields) throws IOException {
-        if (ignoreUnknownFields) {
-            return LENIENT_PARSER.apply(parser, null);
-        }
-        // else
-        return PARSER.apply(parser, null);
+        return ignoreUnknownFields ? LENIENT_PARSER.apply(parser, null) : PARSER.apply(parser, null);
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,8 +53,8 @@ public class PivotConfig implements Writeable, ToXContentObject {
     }
 
     public PivotConfig(final List<GroupConfig> groups, final AggregationConfig aggregationConfig) {
-        this.groups = Objects.requireNonNull(groups);
-        this.aggregationConfig = Objects.requireNonNull(aggregationConfig);
+        this.groups = ExceptionsHelper.requireNonNull(groups, GROUP_BY.getPreferredName());
+        this.aggregationConfig = ExceptionsHelper.requireNonNull(aggregationConfig, AGGREGATIONS.getPreferredName());
     }
 
     public PivotConfig(StreamInput in) throws IOException {
@@ -74,7 +75,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
         builder.startObject();
         builder.field(CompositeAggregationBuilder.SOURCES_FIELD_NAME.getPreferredName());
         builder.startArray();
-        for (GroupConfig group:groups) {
+        for (GroupConfig group : groups) {
             group.toXContent(builder, params);
         }
         builder.endArray();
@@ -116,10 +117,6 @@ public class PivotConfig implements Writeable, ToXContentObject {
     }
 
     public static PivotConfig fromXContent(final XContentParser parser, boolean ignoreUnknownFields) throws IOException {
-        if (ignoreUnknownFields) {
-            return LENIENT_PARSER.apply(parser, null);
-        }
-        // else
-        return PARSER.apply(parser, null);
+        return ignoreUnknownFields ? LENIENT_PARSER.apply(parser, null) : PARSER.apply(parser, null);
     }
 }

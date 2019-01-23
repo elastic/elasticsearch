@@ -39,8 +39,8 @@ public class Pivot {
     private final String source;
 
     // objects for re-using
-    private CompositeAggregationBuilder cachedCompositeAggregation;
-    private SearchRequest cachedSearchRequest;
+    private final CompositeAggregationBuilder cachedCompositeAggregation;
+    private final SearchRequest cachedSearchRequest;
 
     public Pivot(String source, QueryBuilder query, PivotConfig config) {
         this.source = source;

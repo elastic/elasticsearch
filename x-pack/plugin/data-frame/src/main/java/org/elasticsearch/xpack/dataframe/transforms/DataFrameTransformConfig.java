@@ -67,7 +67,7 @@ public class DataFrameTransformConfig implements Writeable, ToXContentObject {
     }
 
     public static String documentId(String transformId) {
-        return "dataframe-" + transformId;
+        return "data_frame-" + transformId;
     }
 
     public DataFrameTransformConfig(final String id,
@@ -163,10 +163,7 @@ public class DataFrameTransformConfig implements Writeable, ToXContentObject {
 
     public static DataFrameTransformConfig fromXContent(final XContentParser parser, @Nullable final String optionalTransformId,
             boolean ignoreUnknownFields) throws IOException {
-        if (ignoreUnknownFields) {
-            return LENIENT_PARSER.apply(parser, optionalTransformId);
-        }
-        // else
-        return PARSER.apply(parser, optionalTransformId);
+
+        return ignoreUnknownFields ? LENIENT_PARSER.apply(parser, optionalTransformId) : PARSER.apply(parser, optionalTransformId);
     }
 }

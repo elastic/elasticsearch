@@ -125,7 +125,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     public AnalysisConfig(StreamInput in) throws IOException {
         bucketSpan = in.readTimeValue();
         categorizationFieldName = in.readOptionalString();
-        categorizationFilters = in.readBoolean() ? Collections.unmodifiableList(in.readList(StreamInput::readString)) : null;
+        categorizationFilters = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
             categorizationAnalyzerConfig = in.readOptionalWriteable(CategorizationAnalyzerConfig::new);
         } else {
@@ -134,7 +134,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         latency = in.readOptionalTimeValue();
         summaryCountFieldName = in.readOptionalString();
         detectors = Collections.unmodifiableList(in.readList(Detector::new));
-        influencers = Collections.unmodifiableList(in.readList(StreamInput::readString));
+        influencers = Collections.unmodifiableList(in.readStringList());
 
         // BWC for result_finalization_window and overlapping_buckets
         // TODO Remove in 7.0.0
@@ -168,7 +168,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         out.writeOptionalString(categorizationFieldName);
         if (categorizationFilters != null) {
             out.writeBoolean(true);
-            out.writeStringList(categorizationFilters);
+            out.writeStringCollection(categorizationFilters);
         } else {
             out.writeBoolean(false);
         }
@@ -178,7 +178,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         out.writeOptionalTimeValue(latency);
         out.writeOptionalString(summaryCountFieldName);
         out.writeList(detectors);
-        out.writeStringList(influencers);
+        out.writeStringCollection(influencers);
 
         // BWC for result_finalization_window and overlapping_buckets
         // TODO Remove in 7.0.0

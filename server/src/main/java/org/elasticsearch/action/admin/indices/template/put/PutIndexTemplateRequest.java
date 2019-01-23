@@ -462,7 +462,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         name = in.readString();
 
         if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            indexPatterns = in.readList(StreamInput::readString);
+            indexPatterns = in.readStringList();
         } else {
             indexPatterns = Collections.singletonList(in.readString());
         }
@@ -501,7 +501,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         out.writeString(cause);
         out.writeString(name);
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            out.writeStringList(indexPatterns);
+            out.writeStringCollection(indexPatterns);
         } else {
             out.writeString(indexPatterns.size() > 0 ? indexPatterns.get(0) : "");
         }

@@ -72,6 +72,7 @@ GET /cluster_one:twitter/_search
     "skipped": 0
   },
   "_clusters": {
+    "execution_mode": "one_request_per_cluster",
     "total": 1,
     "successful": 1,
     "skipped": 0
@@ -137,6 +138,7 @@ will be prefixed with their remote cluster name:
     "skipped": 0
   },
   "_clusters": {
+    "execution_mode": "one_request_per_cluster",
     "total": 2,
     "successful": 2,
     "skipped": 0
@@ -229,6 +231,7 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
     "skipped": 0
   },
   "_clusters": { <1>
+    "execution_mode": "one_request_per_cluster",
     "total": 3,
     "successful": 2,
     "skipped": 1
@@ -302,11 +305,12 @@ then reduced (and fetched, depending on the
 execution mode is beneficial whenever there is very low network latency between
 the coordinating node and the remote clusters involved.
 
-`one_request_per_cluster` is the default execution mode, but it does not
-support scroll requests, as well as requests where inner hits are requested
-as part of field collapsing, in which cases `one_request_per_shard` is
-automatically used instead. The <<search-request-body, search API>> supports
-the `ccs_execution_mode` parameter which allows to select the execution mode.
+By default `one_request_per_cluster` is used when possible, unless a scroll
+is provided, or unless inner hits are requested as part of field collapsing:
+The <<search-request-body, search API>> supports the `ccs_execution_mode`
+parameter which allows to select the execution mode if needed. The execution
+mode that was used for the request is returned as part of the `_clusters`
+section.
 
 Note that all the communication between the nodes, regardless of which cluster
 they belong to and the selected execution mode, happens through the

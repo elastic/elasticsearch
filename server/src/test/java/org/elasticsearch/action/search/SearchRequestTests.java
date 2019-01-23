@@ -26,10 +26,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -81,7 +83,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         Version version = VersionUtils.randomVersion(random());
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         if (version.before(Version.V_7_0_0)) {
-            assertEquals(SearchRequest.CCSExecutionMode.ONE_REQUEST_PER_SHARD, deserializedRequest.getCCSExecutionMode());
+            assertNull(deserializedRequest.getCCSExecutionMode());
         } else {
             assertEquals(searchRequest.getCCSExecutionMode(), deserializedRequest.getCCSExecutionMode());
         }
@@ -102,7 +104,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertArrayEquals(new String[]{"index"}, searchRequest.indices());
             assertNull(searchRequest.getLocalClusterAlias());
             assertAbsoluteStartMillisIsCurrentTime(searchRequest);
-            assertEquals(SearchRequest.CCSExecutionMode.ONE_REQUEST_PER_SHARD, searchRequest.getCCSExecutionMode());
+            assertNull(searchRequest.getCCSExecutionMode());
         }
     }
 
@@ -161,6 +163,9 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             searchRequest.requestCache(false);
             searchRequest.scroll(new TimeValue(1000));
             searchRequest.source().trackTotalHits(false);
+            if (searchRequest.getCCSExecutionMode() == CCSExecutionMode.ONE_REQUEST_PER_CLUSTER) {
+                searchRequest.setCCSExecutionMode(CCSExecutionMode.ONE_REQUEST_PER_SHARD);
+            }
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
@@ -173,6 +178,9 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             searchRequest.requestCache(false);
             searchRequest.scroll(new TimeValue(1000));
             searchRequest.source().from(10);
+            if (searchRequest.getCCSExecutionMode() == CCSExecutionMode.ONE_REQUEST_PER_CLUSTER) {
+                searchRequest.setCCSExecutionMode(CCSExecutionMode.ONE_REQUEST_PER_SHARD);
+            }
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
@@ -183,6 +191,9 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder().size(0));
             searchRequest.requestCache(false);
             searchRequest.scroll(new TimeValue(1000));
+            if (searchRequest.getCCSExecutionMode() == CCSExecutionMode.ONE_REQUEST_PER_CLUSTER) {
+                searchRequest.setCCSExecutionMode(CCSExecutionMode.ONE_REQUEST_PER_SHARD);
+            }
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
@@ -194,10 +205,35 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             searchRequest.source().addRescorer(new QueryRescorerBuilder(QueryBuilders.matchAllQuery()));
             searchRequest.requestCache(false);
             searchRequest.scroll(new TimeValue(1000));
+            if (searchRequest.getCCSExecutionMode() == CCSExecutionMode.ONE_REQUEST_PER_CLUSTER) {
+                searchRequest.setCCSExecutionMode(CCSExecutionMode.ONE_REQUEST_PER_SHARD);
+            }
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("using [rescore] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
+        }
+        {
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            searchRequest.scroll(new TimeValue(1000));
+            searchRequest.requestCache(false);
+            searchRequest.setCCSExecutionMode(CCSExecutionMode.ONE_REQUEST_PER_CLUSTER);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[ccs_execution_mode] cannot be [one_request_per_cluster] in a scroll context",
+                validationErrors.validationErrors().get(0));
+        }
+        {
+            SearchRequest searchRequest = createSearchRequest().source(
+                new SearchSourceBuilder().collapse(new CollapseBuilder("field").setInnerHits(new InnerHitBuilder())));
+            searchRequest.scroll((Scroll)null);
+            searchRequest.setCCSExecutionMode(CCSExecutionMode.ONE_REQUEST_PER_CLUSTER);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(validationErrors.validationErrors().toString(), 1, validationErrors.validationErrors().size());
+            assertEquals("[ccs_execution_mode] cannot be [one_request_per_cluster] " +
+                    "when inner hits are requested as part of field collapsing", validationErrors.validationErrors().get(0));
         }
     }
 
@@ -229,7 +265,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             () -> randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH))));
         mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
         mutators.add(() -> mutation.setCCSExecutionMode(randomValueOtherThan(searchRequest.getCCSExecutionMode(),
-            () -> randomFrom(SearchRequest.CCSExecutionMode.values()))));
+            () -> randomFrom(CCSExecutionMode.values()))));
         randomFrom(mutators).run();
         return mutation;
     }

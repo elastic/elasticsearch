@@ -38,7 +38,6 @@ import org.elasticsearch.tasks.TaskId;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -204,7 +203,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
         }
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            ccsExecutionMode = in.readEnum(CCSExecutionMode.class);
+            ccsExecutionMode = in.readOptionalEnum(CCSExecutionMode.class);
         }
     }
 
@@ -233,32 +232,46 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             }
         }
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeEnum(ccsExecutionMode);
+            out.writeOptionalEnum(ccsExecutionMode);
         }
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        final Scroll scroll = scroll();
-        if (source != null && source.trackTotalHits() == false && scroll != null) {
-            validationException =
-                addValidationError("disabling [track_total_hits] is not allowed in a scroll context", validationException);
+        boolean scroll = scroll() != null;
+        if (scroll) {
+            if (source != null) {
+                if (source.trackTotalHits() == false) {
+                    validationException =
+                        addValidationError("disabling [track_total_hits] is not allowed in a scroll context", validationException);
+                }
+                if (source.from() > 0) {
+                    validationException =
+                        addValidationError("using [from] is not allowed in a scroll context", validationException);
+                }
+                if (source.size() == 0) {
+                    validationException = addValidationError("[size] cannot be [0] in a scroll context", validationException);
+                }
+                if (source.rescores() != null && source.rescores().isEmpty() == false) {
+                    validationException =
+                        addValidationError("using [rescore] is not allowed in a scroll context", validationException);
+                }
+            }
+            if (requestCache != null && requestCache) {
+                validationException =
+                    addValidationError("[request_cache] cannot be used in a scroll context", validationException);
+            }
+            if (ccsExecutionMode == CCSExecutionMode.ONE_REQUEST_PER_CLUSTER) {
+                validationException = addValidationError("[ccs_execution_mode] cannot be [" + CCSExecutionMode.ONE_REQUEST_PER_CLUSTER +
+                    "] in a scroll context", validationException);
+            }
         }
-        if (source != null && source.from() > 0 && scroll != null) {
-            validationException =
-                addValidationError("using [from] is not allowed in a scroll context", validationException);
-        }
-        if (requestCache != null && requestCache && scroll != null) {
-            validationException =
-                addValidationError("[request_cache] cannot be used in a scroll context", validationException);
-        }
-        if (source != null && source.size() == 0 && scroll != null) {
-            validationException = addValidationError("[size] cannot be [0] in a scroll context", validationException);
-        }
-        if (source != null && source.rescores() != null && source.rescores().isEmpty() == false && scroll != null) {
-            validationException =
-                addValidationError("using [rescore] is not allowed in a scroll context", validationException);
+        boolean collapseWithInnerHits = source != null && source.collapse() != null && source.collapse().getInnerHits() != null
+            && source.collapse().getInnerHits().isEmpty() == false;
+        if (collapseWithInnerHits && ccsExecutionMode == CCSExecutionMode.ONE_REQUEST_PER_CLUSTER) {
+            validationException = addValidationError("[ccs_execution_mode] cannot be [" + CCSExecutionMode.ONE_REQUEST_PER_CLUSTER +
+                "] when inner hits are requested as part of field collapsing", validationException);
         }
         return validationException;
     }
@@ -311,14 +324,26 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         return this;
     }
 
+    /**
+     * Sets the execution mode (as a {@link CCSExecutionMode}) for cross-cluster search requests
+     */
     public void setCCSExecutionMode(CCSExecutionMode ccsExecutionMode) {
         this.ccsExecutionMode = Objects.requireNonNull(ccsExecutionMode, "ccsExecutionMode must not be null");
     }
 
+    /**
+     * Sets the execution mode (as a string) for cross-cluster search requests
+     */
     public void setCCSExecutionMode(String ccsExecutionMode) {
         this.ccsExecutionMode = CCSExecutionMode.fromString(ccsExecutionMode);
     }
 
+    /**
+     * Returns the execution mode for cross-cluster search request. When not set {@link CCSExecutionMode#ONE_REQUEST_PER_CLUSTER} is used
+     * whenever possible. In case a scroll is provided or inner hits are requested as part of field collapsing,
+     * {@link CCSExecutionMode#ONE_REQUEST_PER_SHARD} is used instead.
+     */
+    @Nullable
     public CCSExecutionMode getCCSExecutionMode() {
         return this.ccsExecutionMode;
     }
@@ -644,24 +669,5 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 ", getOrCreateAbsoluteStartMillis=" + absoluteStartMillis +
                 ", ccsExecutionMode=" + ccsExecutionMode +
                 ", source=" + source + '}';
-    }
-
-    public enum CCSExecutionMode {
-        ONE_REQUEST_PER_SHARD,
-        PREFER_ONE_REQUEST_PER_CLUSTER;
-
-        @Override
-        public String toString() {
-            return name().toLowerCase(Locale.ROOT);
-        }
-
-        public static CCSExecutionMode fromString(String executionMode) {
-            for (CCSExecutionMode value : CCSExecutionMode.values()) {
-                if (value.name().toLowerCase(Locale.ROOT).equals(executionMode)) {
-                    return value;
-                }
-            }
-            throw new IllegalArgumentException("unknown ccs_execution_mode: [" + executionMode + "]");
-        }
     }
 }

@@ -111,7 +111,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         return internalResponse.aggregations();
     }
 
-
     public Suggest getSuggest() {
         return internalResponse.suggest();
     }
@@ -323,6 +322,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                     int successful = -1;
                     int total = -1;
                     int skipped = -1;
+                    CCSExecutionMode executionMode = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
@@ -333,6 +333,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                                 total = parser.intValue();
                             } else if (Clusters.SKIPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 skipped = parser.intValue();
+                            } else if (Clusters.EXECUTION_MODE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                                executionMode = CCSExecutionMode.fromString(parser.text());
                             } else {
                                 parser.skipChildren();
                             }
@@ -340,7 +342,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                             parser.skipChildren();
                         }
                     }
-                    clusters = new Clusters(total, successful, skipped);
+                    clusters = new Clusters(total, successful, skipped, executionMode);
                 } else {
                     parser.skipChildren();
                 }
@@ -349,7 +351,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         SearchResponseSections searchResponseSections = new SearchResponseSections(hits, aggs, suggest, timedOut, terminatedEarly,
                 profile, numReducePhases);
         return new SearchResponse(searchResponseSections, scrollId, totalShards, successfulShards, skippedShards, tookInMillis,
-                failures.toArray(new ShardSearchFailure[failures.size()]), clusters);
+                failures.toArray(ShardSearchFailure.EMPTY_ARRAY), clusters);
     }
 
     @Override
@@ -407,18 +409,20 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      */
     public static class Clusters implements ToXContent, Writeable {
 
-        public static final Clusters EMPTY = new Clusters(0, 0, 0);
+        public static final Clusters EMPTY = new Clusters(0, 0, 0, CCSExecutionMode.ONE_REQUEST_PER_CLUSTER);
 
         static final ParseField _CLUSTERS_FIELD = new ParseField("_clusters");
         static final ParseField SUCCESSFUL_FIELD = new ParseField("successful");
         static final ParseField SKIPPED_FIELD = new ParseField("skipped");
         static final ParseField TOTAL_FIELD = new ParseField("total");
+        static final ParseField EXECUTION_MODE_FIELD = new ParseField("execution_mode");
 
         private final int total;
         private final int successful;
         private final int skipped;
+        private final CCSExecutionMode executionMode;
 
-        public Clusters(int total, int successful, int skipped) {
+        public Clusters(int total, int successful, int skipped, CCSExecutionMode executionMode) {
             assert total >= 0 && successful >= 0 && skipped >= 0
                     : "total: " + total + " successful: " + successful + " skipped: " + skipped;
             assert successful <= total && skipped == total - successful
@@ -426,12 +430,18 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             this.total = total;
             this.successful = successful;
             this.skipped = skipped;
+            this.executionMode = Objects.requireNonNull(executionMode);
         }
 
         private Clusters(StreamInput in) throws IOException {
             this.total = in.readVInt();
             this.successful = in.readVInt();
             this.skipped = in.readVInt();
+            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+                this.executionMode = in.readOptionalEnum(CCSExecutionMode.class);
+            } else {
+                this.executionMode = null;
+            }
         }
 
         @Override
@@ -439,12 +449,16 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             out.writeVInt(total);
             out.writeVInt(successful);
             out.writeVInt(skipped);
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+                out.writeOptionalEnum(executionMode);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (this != EMPTY) {
                 builder.startObject(_CLUSTERS_FIELD.getPreferredName());
+                builder.field(EXECUTION_MODE_FIELD.getPreferredName(), executionMode == null ? null : executionMode.toString());
                 builder.field(TOTAL_FIELD.getPreferredName(), total);
                 builder.field(SUCCESSFUL_FIELD.getPreferredName(), successful);
                 builder.field(SKIPPED_FIELD.getPreferredName(), skipped);
@@ -474,6 +488,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             return skipped;
         }
 
+        /**
+         * Returns the execution mode used for the execution of this cross-cluster search request
+         */
+        public CCSExecutionMode getExecutionMode() {
+            return executionMode;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -485,17 +506,19 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             Clusters clusters = (Clusters) o;
             return total == clusters.total &&
                     successful == clusters.successful &&
-                    skipped == clusters.skipped;
+                    skipped == clusters.skipped &&
+                    executionMode == clusters.executionMode;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(total, successful, skipped);
+            return Objects.hash(total, successful, skipped, executionMode);
         }
 
         @Override
         public String toString() {
-            return "Clusters{total=" + total + ", successful=" + successful + ", skipped=" + skipped + '}';
+            return "Clusters{execution_mode=" + executionMode + ", total=" + total +
+                ", successful=" + successful + ", skipped=" + skipped + '}';
         }
     }
 }

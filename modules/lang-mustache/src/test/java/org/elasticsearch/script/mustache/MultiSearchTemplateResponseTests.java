@@ -19,6 +19,7 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.search.CCSExecutionMode;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
@@ -50,7 +51,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
             int successfulShards = randomIntBetween(0, totalShards);
             int skippedShards = totalShards - successfulShards;
             InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-            SearchResponse.Clusters clusters = new SearchResponse.Clusters(totalShards, successfulShards, skippedShards);
+            SearchResponse.Clusters clusters = randomClusters();
             SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
             SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, totalShards,
                     successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters);
@@ -59,7 +60,14 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         }
         return new MultiSearchTemplateResponse(items, overallTookInMillis);
     }
-    
+
+    private static SearchResponse.Clusters randomClusters() {
+        int totalClusters = randomIntBetween(0, 10);
+        int successfulClusters = randomIntBetween(0, totalClusters);
+        int skippedClusters = totalClusters - successfulClusters;
+        CCSExecutionMode executionMode = randomFrom(CCSExecutionMode.values());
+        return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters, executionMode);
+    }
 
     private static  MultiSearchTemplateResponse createTestInstanceWithFailures() {
         int numItems = randomIntBetween(0, 128);
@@ -67,14 +75,13 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         MultiSearchTemplateResponse.Item[] items = new MultiSearchTemplateResponse.Item[numItems];
         for (int i = 0; i < numItems; i++) {
             if (randomBoolean()) {
-                // Creating a minimal response is OK, because SearchResponse self
-                // is tested elsewhere.
+                // Creating a minimal response is OK, because SearchResponse is tested elsewhere.
                 long tookInMillis = randomNonNegativeLong();
                 int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
                 int successfulShards = randomIntBetween(0, totalShards);
                 int skippedShards = totalShards - successfulShards;
                 InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-                SearchResponse.Clusters clusters = new SearchResponse.Clusters(totalShards, successfulShards, skippedShards);
+                SearchResponse.Clusters clusters = randomClusters();
                 SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
                 SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, totalShards,
                         successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters);
@@ -133,6 +140,5 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, Strings.EMPTY_ARRAY,
                 getRandomFieldsExcludeFilterWhenResultHasErrors(), this::createParser, this::doParseInstance,
                 this::assertEqualInstances, assertToXContentEquivalence, ToXContent.EMPTY_PARAMS);
-    }    
-
+    }
 }

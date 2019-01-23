@@ -32,7 +32,6 @@ import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRe
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -1901,20 +1900,20 @@ public class RequestConvertersTests extends ESTestCase {
         return indicesOptions;
     }
 
-    static void setRandomIncludeDefaults(GetIndexRequest request, Map<String, String> expectedParams) {
+    static void setRandomIncludeDefaults(Consumer<Boolean> setter, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             boolean includeDefaults = randomBoolean();
-            request.includeDefaults(includeDefaults);
+            setter.accept(includeDefaults);
             if (includeDefaults) {
                 expectedParams.put("include_defaults", String.valueOf(includeDefaults));
             }
         }
     }
 
-    static void setRandomHumanReadable(GetIndexRequest request, Map<String, String> expectedParams) {
+    static void setRandomHumanReadable(Consumer<Boolean> setter, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             boolean humanReadable = randomBoolean();
-            request.humanReadable(humanReadable);
+            setter.accept(humanReadable);
             if (humanReadable) {
                 expectedParams.put("human", String.valueOf(humanReadable));
             }

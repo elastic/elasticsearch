@@ -34,7 +34,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -48,6 +47,7 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplat
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
@@ -133,6 +133,12 @@ final class IndicesRequestConverters {
         return request;
     }
 
+
+    /**
+     * converter for the legacy server-side {@link org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest} that still supports
+     * types
+     */
+    @Deprecated
     static Request putMapping(org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest) throws IOException {
         // The concreteIndex is an internal concept, not applicable to requests made over the REST API.
         if (putMappingRequest.getConcreteIndex() != null) {
@@ -317,6 +323,28 @@ final class IndicesRequestConverters {
         return request;
     }
 
+    /**
+     * converter for the legacy server-side {@link org.elasticsearch.action.admin.indices.get.GetIndexRequest} that
+     * still supports types
+     */
+    @Deprecated
+    static Request getIndex(org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest) {
+        String[] indices = getIndexRequest.indices() == null ? Strings.EMPTY_ARRAY : getIndexRequest.indices();
+
+        String endpoint = RequestConverters.endpoint(indices);
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withIndicesOptions(getIndexRequest.indicesOptions());
+        params.withLocal(getIndexRequest.local());
+        params.withIncludeDefaults(getIndexRequest.includeDefaults());
+        params.withHuman(getIndexRequest.humanReadable());
+        params.withMasterTimeout(getIndexRequest.masterNodeTimeout());
+        params.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
+
+        return request;
+    }
+
     static Request getIndex(GetIndexRequest getIndexRequest) {
         String[] indices = getIndexRequest.indices() == null ? Strings.EMPTY_ARRAY : getIndexRequest.indices();
 
@@ -330,6 +358,28 @@ final class IndicesRequestConverters {
         params.withHuman(getIndexRequest.humanReadable());
         params.withMasterTimeout(getIndexRequest.masterNodeTimeout());
 
+        return request;
+    }
+
+    /**
+     * converter for the legacy server-side {@link org.elasticsearch.action.admin.indices.get.GetIndexRequest} that
+     * still supports types
+     */
+    @Deprecated
+    static Request indicesExist(org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest) {
+        // this can be called with no indices as argument by transport client, not via REST though
+        if (getIndexRequest.indices() == null || getIndexRequest.indices().length == 0) {
+            throw new IllegalArgumentException("indices are mandatory");
+        }
+        String endpoint = RequestConverters.endpoint(getIndexRequest.indices(), "");
+        Request request = new Request(HttpHead.METHOD_NAME, endpoint);
+
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withLocal(getIndexRequest.local());
+        params.withHuman(getIndexRequest.humanReadable());
+        params.withIndicesOptions(getIndexRequest.indicesOptions());
+        params.withIncludeDefaults(getIndexRequest.includeDefaults());
+        params.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
         return request;
     }
 

@@ -27,7 +27,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -48,6 +47,7 @@ import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.MultiTermVectorsResponse;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsResponse;
+import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -68,9 +68,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestDeleteAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
+import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.rest.action.document.RestUpdateAction;
-import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -1079,7 +1079,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         };
 
         try (BulkProcessor processor = BulkProcessor.builder(
-                (request, bulkListener) -> highLevelClient().bulkAsync(request, 
+                (request, bulkListener) -> highLevelClient().bulkAsync(request,
                         RequestOptions.DEFAULT, bulkListener), listener)
                 .setConcurrentRequests(0)
                 .setBulkSize(new ByteSizeValue(5, ByteSizeUnit.GB))

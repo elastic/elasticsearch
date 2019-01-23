@@ -35,8 +35,6 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
-import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
@@ -60,6 +58,8 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRespon
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.GetIndexRequest;
+import org.elasticsearch.client.indices.GetIndexResponse;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
@@ -507,6 +507,41 @@ public final class IndicesClient {
     }
 
     /**
+     * Retrieve information about one or more indexes
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-index.html">
+     * Indices Get Index API on elastic.co</a>
+     * @param getIndexRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
+     * {@link #get(GetIndexRequest, RequestOptions)} should be used instead, which accepts a new request object.
+     */
+    @Deprecated
+    public org.elasticsearch.action.admin.indices.get.GetIndexResponse get(
+            org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(getIndexRequest, IndicesRequestConverters::getIndex, options,
+                org.elasticsearch.action.admin.indices.get.GetIndexResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Retrieve information about one or more indexes
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-index.html">
+     * Indices Get Index API on elastic.co</a>
+     * @param getIndexRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
+     * {@link #getAsync(GetIndexRequest, RequestOptions, ActionListener)} should be used instead, which accepts a new request object.
+     */
+    @Deprecated
+    public void getAsync(org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest, RequestOptions options,
+            ActionListener<org.elasticsearch.action.admin.indices.get.GetIndexResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(getIndexRequest, IndicesRequestConverters::getIndex, options,
+                org.elasticsearch.action.admin.indices.get.GetIndexResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Force merge one or more indices using the Force Merge API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-forcemerge.html">
      * Force Merge API on elastic.co</a>
@@ -619,6 +654,51 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      */
     public void existsAsync(GetIndexRequest request, RequestOptions options, ActionListener<Boolean> listener) {
+        restHighLevelClient.performRequestAsync(
+                request,
+                IndicesRequestConverters::indicesExist,
+                options,
+                RestHighLevelClient::convertExistsResponse,
+                listener,
+                Collections.emptySet()
+        );
+    }
+
+    /**
+     * Checks if the index (indices) exists or not.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
+     * Indices Exists API on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
+     * {@link #exists(GetIndexRequest, RequestOptions)} should be used instead, which accepts a new request object.
+     */
+    @Deprecated
+    public boolean exists(org.elasticsearch.action.admin.indices.get.GetIndexRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequest(
+            request,
+            IndicesRequestConverters::indicesExist,
+            options,
+            RestHighLevelClient::convertExistsResponse,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously checks if the index (indices) exists or not.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
+     * Indices Exists API on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
+     * {@link #existsAsync(GetIndexRequest, RequestOptions, ActionListener)} should be used instead, which accepts a new request object.
+     */
+    @Deprecated
+    public void existsAsync(org.elasticsearch.action.admin.indices.get.GetIndexRequest request, RequestOptions options,
+            ActionListener<Boolean> listener) {
         restHighLevelClient.performRequestAsync(
                 request,
                 IndicesRequestConverters::indicesExist,

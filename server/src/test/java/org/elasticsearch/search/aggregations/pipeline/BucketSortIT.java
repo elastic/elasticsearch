@@ -31,9 +31,9 @@ import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -132,10 +132,10 @@ public class BucketSortIT extends ESIntegTestCase {
         assertThat(histogram, notNullValue());
         // These become our baseline
         List<? extends Histogram.Bucket> timeBuckets = histogram.getBuckets();
-        DateTime previousKey = (DateTime) timeBuckets.get(0).getKey();
+        ZonedDateTime previousKey = (ZonedDateTime) timeBuckets.get(0).getKey();
         for (Histogram.Bucket timeBucket : timeBuckets) {
-            assertThat(previousKey, lessThanOrEqualTo((DateTime) timeBucket.getKey()));
-            previousKey = (DateTime) timeBucket.getKey();
+            assertThat(previousKey, lessThanOrEqualTo((ZonedDateTime) timeBucket.getKey()));
+            previousKey = (ZonedDateTime) timeBucket.getKey();
         }
 
         // Now let's test using size

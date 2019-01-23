@@ -297,7 +297,7 @@ For instance, when testing you may want to base64 encode username and password f
     - transform_and_set:  { login_creds: "#base64EncodeCredentials(user,password)" }   # stash the base64 encoded credentials of `response.user` and `response.password` as `login_creds`
     - do:
         headers:
-            Authorization: Basic ${login_creds} # replace `$loginc_creds` with the stashed value
+            Authorization: Basic ${login_creds} # replace `$login_creds` with the stashed value
         get:
             index: test
             type:  test

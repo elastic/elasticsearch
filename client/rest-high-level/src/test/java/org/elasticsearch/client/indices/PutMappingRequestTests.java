@@ -19,12 +19,14 @@
 
 package org.elasticsearch.client.indices;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37654")
 public class PutMappingRequestTests extends AbstractXContentTestCase<PutMappingRequest> {
 
     @Override

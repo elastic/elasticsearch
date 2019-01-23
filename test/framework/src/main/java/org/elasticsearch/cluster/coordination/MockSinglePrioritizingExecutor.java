@@ -56,7 +56,7 @@ public class MockSinglePrioritizingExecutor extends PrioritizedEsThreadPoolExecu
     // Override awaitTermination to not get blocked on termination condition
     @Override
     public boolean awaitTermination(long timeout, TimeUnit unit) {
-        return true;
+        return false;
     }
 
     private static final class KillWorkerError extends Error {

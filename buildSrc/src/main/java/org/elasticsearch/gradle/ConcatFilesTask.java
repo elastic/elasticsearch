@@ -80,6 +80,10 @@ public class ConcatFilesTask extends DefaultTask {
         Files.write(target.toPath(), uniqueLines, Charset.forName(encoding));
     }
 
+    public void setTarget(File target) {
+        this.target = target;
+    }
+
     @OutputFile
     public File getTarget() {
         return target;

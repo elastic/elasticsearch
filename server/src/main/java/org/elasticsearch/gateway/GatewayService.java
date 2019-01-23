@@ -95,7 +95,6 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                           final ThreadPool threadPool,
                           final TransportNodesListGatewayMetaState listGatewayMetaState,
                           final IndicesService indicesService, final Discovery discovery) {
-        super(settings);
         this.allocationService = allocationService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;

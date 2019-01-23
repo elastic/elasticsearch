@@ -383,12 +383,11 @@ setup:
       reason: Field aliases were introduced in 6.4.0.
   - do:
       indices.put_mapping:
+        include_type_name: false
         index: test
-        type: test
         body:
-          test:
-            properties:
-              group_alias: { type: alias, path: numeric_group }
+          properties:
+            group_alias: { type: alias, path: numeric_group }
   - do:
       search:
         rest_total_hits_as_int: true
@@ -406,3 +405,57 @@ setup:
   - match: { hits.hits.1.inner_hits.sub_hits.hits.total: 3}
   - match: { hits.hits.2.fields.group_alias: [25] }
   - match: { hits.hits.2.inner_hits.sub_hits.hits.total: 2}
+
+---
+"field collapsing, inner_hits and seq_no":
+
+  - skip:
+      version: " - 6.99.0"
+      reason:  "sequence numbers introduced in 7.0.0"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: numeric_group, inner_hits: {
+            name: sub_hits, seq_no_primary_term: true, size: 2, sort: [{ sort: asc }]
+          } }
+          sort: [{ sort: desc }]
+
+  - match: { hits.total: 6 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0.fields.numeric_group: [3] }
+  - match: { hits.hits.0.sort: [36] }
+  - match: { hits.hits.0._id: "6" }
+  - match: { hits.hits.0.inner_hits.sub_hits.hits.total: 1 }
+  - length: { hits.hits.0.inner_hits.sub_hits.hits.hits: 1 }
+  - match: { hits.hits.0.inner_hits.sub_hits.hits.hits.0._id: "6" }
+  - gte: { hits.hits.0.inner_hits.sub_hits.hits.hits.0._seq_no: 0 }
+  - gte: { hits.hits.0.inner_hits.sub_hits.hits.hits.0._primary_term: 1 }
+  - match: { hits.hits.1._index: test }
+  - match: { hits.hits.1.fields.numeric_group: [1] }
+  - match: { hits.hits.1.sort: [24] }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.total: 3 }
+  - length: { hits.hits.1.inner_hits.sub_hits.hits.hits: 2 }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.0._id: "2" }
+  - gte: { hits.hits.1.inner_hits.sub_hits.hits.hits.0._seq_no: 0 }
+  - gte: { hits.hits.1.inner_hits.sub_hits.hits.hits.0._primary_term: 1 }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.1._id: "1" }
+  - gte: { hits.hits.1.inner_hits.sub_hits.hits.hits.1._seq_no: 0 }
+  - gte: { hits.hits.1.inner_hits.sub_hits.hits.hits.1._primary_term: 1 }
+  - match: { hits.hits.2._index: test }
+  - match: { hits.hits.2._type: test }
+  - match: { hits.hits.2.fields.numeric_group: [25] }
+  - match: { hits.hits.2.sort: [10] }
+  - match: { hits.hits.2._id: "4" }
+  - match: { hits.hits.2.inner_hits.sub_hits.hits.total: 2 }
+  - length: { hits.hits.2.inner_hits.sub_hits.hits.hits: 2 }
+  - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.0._id: "5" }
+  - gte: { hits.hits.2.inner_hits.sub_hits.hits.hits.0._seq_no: 0 }
+  - gte: { hits.hits.2.inner_hits.sub_hits.hits.hits.0._primary_term: 1 }
+  - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._id: "4" }
+  - gte: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._seq_no: 0 }
+  - gte: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._primary_term: 1 }

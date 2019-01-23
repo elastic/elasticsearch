@@ -18,16 +18,20 @@
  */
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ActionListenerTests extends ESTestCase {
 
@@ -200,5 +204,17 @@ public class ActionListenerTests extends ESTestCase {
             assertThat(onResponseTimes.get(), equalTo(0));
             assertThat(onFailureTimes.get(), equalTo(1));
         }
+    }
+
+    public void testCompleteWith() {
+        PlainActionFuture<Integer> onResponseListener = new PlainActionFuture<>();
+        ActionListener.completeWith(onResponseListener, () -> 100);
+        assertThat(onResponseListener.isDone(), equalTo(true));
+        assertThat(onResponseListener.actionGet(), equalTo(100));
+
+        PlainActionFuture<Integer> onFailureListener = new PlainActionFuture<>();
+        ActionListener.completeWith(onFailureListener, () -> { throw new IOException("not found"); });
+        assertThat(onFailureListener.isDone(), equalTo(true));
+        assertThat(expectThrows(ExecutionException.class, onFailureListener::get).getCause(), instanceOf(IOException.class));
     }
 }

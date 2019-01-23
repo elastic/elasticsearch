@@ -103,13 +103,11 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     protected static final String TESTNODE_CERT = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt";
     protected static RealmConfig realmConfig;
     protected static List<RoleMappingEntry> roleMappings;
-    protected static boolean useGlobalSSL;
 
     @BeforeClass
     public static void setupRealm() {
         realmConfig = randomFrom(RealmConfig.values());
         roleMappings = realmConfig.selectRoleMappings(ESTestCase::randomBoolean);
-        useGlobalSSL = randomBoolean();
         LogManager.getLogger(AbstractAdLdapRealmTestCase.class).info(
                 "running test with realm configuration [{}], with direct group to role mapping [{}]. Settings [{}]",
                 realmConfig, realmConfig.mapGroupsAsRoles, realmConfig.settings);
@@ -128,13 +126,13 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         Settings.Builder builder = Settings.builder();
         // don't use filter since it returns a prefixed secure setting instead of mock!
         Settings settingsToAdd = super.nodeSettings(nodeOrdinal);
-        builder.put(settingsToAdd.filter(k -> k.startsWith("xpack.ssl.") == false), false);
+        builder.put(settingsToAdd.filter(k -> k.startsWith("xpack.transport.security.ssl.") == false), false);
         MockSecureSettings mockSecureSettings = (MockSecureSettings) Settings.builder().put(settingsToAdd).getSecureSettings();
         if (mockSecureSettings != null) {
             MockSecureSettings filteredSecureSettings = new MockSecureSettings();
             builder.setSecureSettings(filteredSecureSettings);
             for (String secureSetting : mockSecureSettings.getSettingNames()) {
-                if (secureSetting.startsWith("xpack.ssl.") == false) {
+                if (secureSetting.startsWith("xpack.transport.security.ssl.") == false) {
                     SecureString secureString = mockSecureSettings.getString(secureSetting);
                     if (secureString == null) {
                         final byte[] fileBytes;
@@ -216,25 +214,6 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
                 .collect(Collectors.toList());
     }
 
-    @Override
-    protected Settings transportClientSettings() {
-        if (useGlobalSSL) {
-            Path key = getDataPath(TESTNODE_KEY);
-            Path cert = getDataPath(TESTNODE_CERT);
-            Settings.Builder builder = Settings.builder()
-                    .put(super.transportClientSettings().filter((s) -> s.startsWith("xpack.ssl.") == false));
-            addSslSettingsForKeyPair(builder, key, "testnode", cert, getNodeTrustedCertificates());
-            return builder.build();
-        } else {
-            return super.transportClientSettings();
-        }
-    }
-
-    @Override
-    protected boolean transportSSLEnabled() {
-        return useGlobalSSL;
-    }
-
     protected final void configureFileRoleMappings(Settings.Builder builder, List<RoleMappingEntry> mappings) {
         String content = getRoleMappingContent(RoleMappingEntry::getFileContent, mappings).stream().collect(Collectors.joining("\n"));
         Path nodeFiles = createTempDir();
@@ -310,11 +289,11 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
 
     private void addSslSettingsForKeyPair(Settings.Builder builder, Path key, String keyPassphrase, Path cert,
                                           List<String> certificateAuthorities) {
-        builder.put("xpack.ssl.key", key)
-            .put("xpack.ssl.key_passphrase", keyPassphrase)
-            .put("xpack.ssl.verification_mode", "certificate")
-            .put("xpack.ssl.certificate", cert)
-            .putList("xpack.ssl.certificate_authorities", certificateAuthorities);
+        builder.put("xpack.transport.security.ssl.key", key)
+            .put("xpack.transport.security.ssl.key_passphrase", keyPassphrase)
+            .put("xpack.transport.security.ssl.verification_mode", "certificate")
+            .put("xpack.transport.security.ssl.certificate", cert)
+            .putList("xpack.transport.security.ssl.certificate_authorities", certificateAuthorities);
     }
 
     /**
@@ -462,11 +441,8 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
                 .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".order", order)
                 .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".hostname_verification", false)
                 .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".unmapped_groups_as_roles", mapGroupsAsRoles)
-                .put(this.settings);
-            if (useGlobalSSL == false) {
-                builder.putList(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".ssl.certificate_authorities", certificateAuthorities);
-            }
-
+                .put(this.settings)
+                .putList(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".ssl.certificate_authorities", certificateAuthorities);
             return builder.build();
         }
 

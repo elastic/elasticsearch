@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -83,13 +82,6 @@ public class In extends ScalarFunction {
             return null;
         }
         return InProcessor.apply(value.fold(), Foldables.valuesOf(list, value.dataType()));
-    }
-
-    @Override
-    public String name() {
-        StringJoiner sj = new StringJoiner(", ", " IN (", ")");
-        list.forEach(e -> sj.add(Expressions.name(e)));
-        return Expressions.name(value) + sj.toString();
     }
 
     @Override

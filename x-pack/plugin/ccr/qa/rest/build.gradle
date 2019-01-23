@@ -12,7 +12,7 @@ task restTest(type: RestIntegTestTask) {
 }
 
 restTestCluster {
-    distribution 'zip'
+    distribution 'default'
     // Disable assertions in FollowingEngineAssertions, otherwise an AssertionError is thrown before
     // indexing a document directly in a follower index. In a rest test we like to test the exception
     // that is thrown in production when indexing a document directly in a follower index.

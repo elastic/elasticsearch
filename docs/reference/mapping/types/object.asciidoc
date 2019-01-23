@@ -44,19 +44,17 @@ An explicit mapping for the above document could look like this:
 PUT my_index
 {
   "mappings": {
-    "_doc": { <1>
-      "properties": {
-        "region": {
-          "type": "keyword"
-        },
-        "manager": { <2>
-          "properties": {
-            "age":  { "type": "integer" },
-            "name": { <3>
-              "properties": {
-                "first": { "type": "text" },
-                "last":  { "type": "text" }
-              }
+    "properties": { <1>
+      "region": {
+        "type": "keyword"
+      },
+      "manager": { <2>
+        "properties": {
+          "age":  { "type": "integer" },
+          "name": { <3>
+            "properties": {
+              "first": { "type": "text" },
+              "last":  { "type": "text" }
             }
           }
         }
@@ -66,7 +64,7 @@ PUT my_index
 }
 --------------------------------------------------
 // CONSOLE
-<1> The mapping type is a type of object, and has a `properties` field.
+<1> Properties in the top-level mappings definition.
 <2> The `manager` field is an inner `object` field.
 <3> The `manager.name` field is an inner `object` field within the `manager` field.
 

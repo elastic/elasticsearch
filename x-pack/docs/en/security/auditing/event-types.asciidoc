@@ -118,6 +118,9 @@ common ones):
                         This is URL encoded.
 `url.query`       ::    The query part of the URL (after "?", if present) of the
                         REST request associated with this event. This is URL encoded.
+`request.method`  ::    The HTTP method of the REST request associated with this
+                        event. It is one of GET, POST, PUT, DELETE, OPTIONS,
+                        HEAD, PATCH, TRACE and CONNECT.
 `request.body`    ::    The full content of the REST request associated with this
                         event, if enabled. This contains the query body. The body
                         is escaped according to the JSON RFC 4627.

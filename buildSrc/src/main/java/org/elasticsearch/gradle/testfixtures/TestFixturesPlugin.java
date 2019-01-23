@@ -62,7 +62,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
             Task preProcessFixture = project.getTasks().create("preProcessFixture");
             buildFixture.dependsOn(preProcessFixture);
             Task postProcessFixture = project.getTasks().create("postProcessFixture");
-            buildFixture.dependsOn(postProcessFixture);
 
             if (dockerComposeSupported(project) == false) {
                 preProcessFixture.setEnabled(false);
@@ -83,7 +82,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
             buildFixture.dependsOn(tasks.getByName("composeUp"));
             tasks.getByName("composeUp").mustRunAfter(preProcessFixture);
-            postProcessFixture.dependsOn("composeUp");
+            postProcessFixture.dependsOn(buildFixture);
 
             configureServiceInfoForTask(
                 postProcessFixture,

@@ -276,7 +276,6 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
             assertTrue("document is missing cluster_uuid field", Strings.hasText((String) source.get("cluster_uuid")));
             assertTrue("document is missing timestamp field", Strings.hasText(timestamp));
             assertTrue("document is missing type field", Strings.hasText(type));
-            assertEquals("document _type is 'doc'", "doc", hit.getType());
 
             @SuppressWarnings("unchecked")
             Map<String, Object> docSource = (Map<String, Object>) source.get("doc");

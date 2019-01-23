@@ -217,7 +217,7 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
         if (nbDocs > 0) {
             final StringBuilder requestBody = new StringBuilder();
             for (int n = 0; n < nbDocs; n++) {
-                requestBody.append("{\"index\":{\"_type\":\"_doc\"}}\n");
+                requestBody.append("{\"index\":{}}\n");
                 requestBody.append("{\"field\":").append(n).append("}\n");
             }
             requestBody.append("\n");

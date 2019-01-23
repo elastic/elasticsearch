@@ -158,7 +158,6 @@
     "add_to_alerts_index": {
       "index": {
         "index": ".monitoring-alerts-6",
-        "doc_type": "doc"
       }
     },
     "send_email_to_admin": {

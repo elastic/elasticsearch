@@ -142,7 +142,6 @@ class HttpExportBulk extends ExportBulk {
                     builder.startObject("index");
                     {
                         builder.field("_index", index);
-                        builder.field("_type", "doc");
                         if (id != null) {
                             builder.field("_id", id);
                         }
@@ -162,7 +161,7 @@ class HttpExportBulk extends ExportBulk {
             // Adds final bulk separator
             out.write(xContent.streamSeparator());
 
-            logger.trace("added index request [index={}, type={}, id={}]", index, doc.getType(), id);
+            logger.trace("http exporter [{}] - added index request [index={}, id={}]", name, index, id);
 
             return BytesReference.toBytes(out.bytes());
         } catch (Exception e) {

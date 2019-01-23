@@ -81,12 +81,10 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
                 .field("index.number_of_replicas", 0)
             .endObject()
             .startObject("mappings")
-                .startObject("doc")
-                    .startObject("_meta")
-                        .field("test", true)
-                    .endObject()
-                    .field("enabled", false)
+                .startObject("_meta")
+                    .field("test", true)
                 .endObject()
+                    .field("enabled", false)
             .endObject();
 
         if (version != null) {

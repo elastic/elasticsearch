@@ -82,7 +82,11 @@ public class DiscoveryUpgradeService {
     public static final Setting<Boolean> ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING =
         Setting.boolSetting("discovery.zen.unsafe_rolling_upgrades_enabled", true, Setting.Property.NodeScope);
 
-    private static final ElectMasterService permissiveElectMasterService = new ElectMasterService(Settings.EMPTY);
+    /**
+     * Dummy {@link ElectMasterService} that is only used to choose the best 6.x master from the discovered nodes, ignoring the
+     * `minimum_master_nodes` setting.
+     */
+    private static final ElectMasterService electMasterService = new ElectMasterService(Settings.EMPTY);
 
     private final TransportService transportService;
     private final BooleanSupplier isBootstrappedSupplier;
@@ -239,7 +243,7 @@ public class DiscoveryUpgradeService {
                             // If the only Zen1 nodes left are stale, and we can bootstrap, maybe we should bootstrap?
                             // Do we ever need to elect a freshly-started Zen1 node?
                             if (isRunning()) {
-                                final MasterCandidate electedMaster = permissiveElectMasterService.electMaster(masterCandidates);
+                                final MasterCandidate electedMaster = electMasterService.electMaster(masterCandidates);
                                 logger.debug("elected {}, sending join", electedMaster);
                                 joinHelper.sendJoinRequest(electedMaster.getNode(), Optional.empty(),
                                     JoiningRound.this::scheduleNextAttempt);

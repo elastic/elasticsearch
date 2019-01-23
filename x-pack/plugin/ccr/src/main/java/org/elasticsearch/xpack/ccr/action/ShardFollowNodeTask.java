@@ -301,14 +301,10 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     void handleFallenBehindLeaderShard(Exception e) {
-        if (fallenBehindLeaderShard.compareAndSet(false, true)) {
-            LOGGER.warn(new ParameterizedMessage("{} shard follow task has fallen behind the leader shard {} that it is following",
-                params.getFollowShardId(), params.getLeaderShardId()), e);
-
-            // Do restore from repository here and
-            // after start() should be invoked and
-            // stats should be reset including fallenBehindLeaderShard
-        }
+        // NOOP for now.
+        // Do restore from repository here and
+        // after start() should be invoked and
+        // stats should be reset including fallenBehindLeaderShard
     }
 
     /** Called when some operations are fetched from the leading */

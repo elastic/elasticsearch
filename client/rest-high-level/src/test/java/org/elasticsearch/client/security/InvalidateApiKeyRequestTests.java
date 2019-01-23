@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class InvalidateApiKeyRequestTests extends ESTestCase {

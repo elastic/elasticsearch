@@ -792,7 +792,8 @@ public final class SecurityClient {
      * @return the response from the invalidate api key call
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public InvalidateApiKeyResponse invalidateApiKey(final InvalidateApiKeyRequest request, final RequestOptions options) throws IOException {
+    public InvalidateApiKeyResponse invalidateApiKey(final InvalidateApiKeyRequest request, final RequestOptions options)
+            throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::invalidateApiKey, options,
                 InvalidateApiKeyResponse::fromXContent, emptySet());
     }
@@ -807,7 +808,7 @@ public final class SecurityClient {
      * @param listener the listener to be notified upon request completion
      */
     public void invalidateApiKeyAsync(final InvalidateApiKeyRequest request, final RequestOptions options,
-            final ActionListener<InvalidateApiKeyResponse> listener) {
+                                      final ActionListener<InvalidateApiKeyResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::invalidateApiKey, options,
                 InvalidateApiKeyResponse::fromXContent, listener, emptySet());
     }

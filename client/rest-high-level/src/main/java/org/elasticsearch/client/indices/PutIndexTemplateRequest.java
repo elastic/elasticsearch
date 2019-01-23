@@ -211,7 +211,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * @param xContentType The type of content contained within the source
      */
     public PutIndexTemplateRequest mapping(String source, XContentType xContentType) {
-        return mapping(MapperService.SINGLE_MAPPING_NAME, source, xContentType);
+        internalMapping(MapperService.SINGLE_MAPPING_NAME, XContentHelper.convertToMap(new BytesArray(source), true, xContentType).v2());
+        return this;
     }    
 
     /**
@@ -244,7 +245,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * @param xContentType the source content type
      */
     public PutIndexTemplateRequest mapping(BytesReference source, XContentType xContentType) {
-        return mapping(MapperService.SINGLE_MAPPING_NAME, source, xContentType);
+        internalMapping(MapperService.SINGLE_MAPPING_NAME, XContentHelper.convertToMap(source, true, xContentType).v2());
+        return this;
     } 
     
     /**
@@ -274,15 +276,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
-    }
-
-    /**
-     * A specialized simplified mapping source method, takes the form of simple properties definition:
-     * ("field1", "type=string,store=true").
-     */
-    public PutIndexTemplateRequest mapping(Object... source) {
-        return mapping(MapperService.SINGLE_MAPPING_NAME, source);
-    }    
+    }   
     
     public Map<String, String> mappings() {
         return this.mappings;

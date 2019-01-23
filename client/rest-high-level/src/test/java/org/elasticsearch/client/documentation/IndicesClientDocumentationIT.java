@@ -2142,12 +2142,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             //end::put-template-request-mappings-xcontent
             assertTrue(client.indices().putTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
         }
-        {
-            //tag::put-template-request-mappings-shortcut
-            request.mapping("message", "type=text"); // <1>
-            //end::put-template-request-mappings-shortcut
-            assertTrue(client.indices().putTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
-        }
 
         // tag::put-template-request-aliases
         request.alias(new Alias("twitter_alias").filter(QueryBuilders.termQuery("user", "kimchy")));  // <1>

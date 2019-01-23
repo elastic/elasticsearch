@@ -79,7 +79,7 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
         }
         if (randomBoolean()) {
             try {
-                request.mapping("doc", XContentFactory.jsonBuilder().startObject()
+                request.mapping(XContentFactory.jsonBuilder().startObject()
                     .startObject("properties")
                     .startObject("field-" + randomInt()).field("type", randomFrom("keyword", "text")).endObject()
                     .endObject().endObject());

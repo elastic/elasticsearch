@@ -1528,11 +1528,13 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     public void testCRUDIndexTemplateWithTypes() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
-        PutIndexTemplateRequest putTemplate1 = new PutIndexTemplateRequest().name("template-1")
+        org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplate1 = 
+            new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest().name("template-1")
             .patterns(Arrays.asList("pattern-1", "name-1")).alias(new Alias("alias-1"));
         assertThat(execute(putTemplate1, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged(),
             equalTo(true));
-        PutIndexTemplateRequest putTemplate2 = new PutIndexTemplateRequest().name("template-2")
+        org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplate2 = 
+            new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest().name("template-2")
             .patterns(Arrays.asList("pattern-2", "name-2"))
             .mapping("custom_doc_type", "name", "type=text")
             .settings(Settings.builder().put("number_of_shards", "2").put("number_of_replicas", "0"));
@@ -1617,7 +1619,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             equalTo(true));
         PutIndexTemplateRequest putTemplate2 = new PutIndexTemplateRequest().name("template-2")
             .patterns(Arrays.asList("pattern-2", "name-2"))
-            .mapping("custom_doc_type", "name", "type=text")
+            .mapping("{properities: { \"name\": { \"type\": \"text\" }}", XContentType.JSON)
             .settings(Settings.builder().put("number_of_shards", "2").put("number_of_replicas", "0"));
         assertThat(execute(putTemplate2, client.indices()::putTemplate, client.indices()::putTemplateAsync, 
                 expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE))

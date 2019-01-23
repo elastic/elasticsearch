@@ -58,13 +58,6 @@ include-tagged::{doc-tests-file}[{api}-request-mappings-xcontent]
 <1> Mapping source provided as an `XContentBuilder` object, the Elasticsearch
 built-in helpers to generate JSON content
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-request-mappings-shortcut]
---------------------------------------------------
-<1> Mapping source provided as `Object` key-pairs, which gets converted to
-JSON format
-
 ==== Aliases
 The aliases of the template will define aliasing to the index whose name matches the
 template's patterns. A placeholder `{index}` can be used in an alias of a template.

@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
@@ -83,6 +85,7 @@ public class OpenIdConnectRealm extends Realm {
     private final ClaimParser mailAttribute;
     private final Boolean populateUserMetadata;
     private final UserRoleMapper roleMapper;
+    private DelegatedAuthorizationSupport delegatedRealms;
 
 
     public OpenIdConnectRealm(RealmConfig config, SSLService sslService, NativeRoleMappingStore roleMapper) {
@@ -114,6 +117,14 @@ public class OpenIdConnectRealm extends Realm {
     }
 
     @Override
+    public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {
+        if (delegatedRealms != null) {
+            throw new IllegalStateException("Realm has already been initialized");
+        }
+        delegatedRealms = new DelegatedAuthorizationSupport(realms, config, licenseState);
+    }
+
+    @Override
     public boolean supports(AuthenticationToken token) {
         return token instanceof OpenIdConnectToken;
     }
@@ -127,8 +138,12 @@ public class OpenIdConnectRealm extends Realm {
     public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult> listener) {
         if (token instanceof OpenIdConnectToken) {
             OpenIdConnectToken oidcToken = (OpenIdConnectToken) token;
-            JWTClaimsSet claims = openIdConnectAuthenticator.authenticate(oidcToken);
-            buildUserFromClaims(claims, listener);
+            try {
+                JWTClaimsSet claims = openIdConnectAuthenticator.authenticate(oidcToken);
+                buildUserFromClaims(claims, listener);
+            } catch (ElasticsearchException e) {
+                listener.onResponse(AuthenticationResult.unsuccessful("Failed to authenticate user", e));
+            }
         } else {
             listener.onResponse(AuthenticationResult.notHandled());
         }
@@ -148,6 +163,12 @@ public class OpenIdConnectRealm extends Realm {
                 principalAttribute + "not found in " + claims.toJSONObject(), null));
             return;
         }
+
+        if (delegatedRealms.hasDelegation()) {
+            delegatedRealms.resolve(principal, authResultListener);
+            return;
+        }
+
         final Map<String, Object> userMetadata = new HashMap<>();
         if (populateUserMetadata) {
             Map<String, Object> claimsMap = claims.getClaims();
@@ -310,14 +331,16 @@ public class OpenIdConnectRealm extends Realm {
                                 values = Collections.singletonList((String) claimValueObject);
                             } else if (claimValueObject instanceof List == false) {
                                 throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
-                                    + " expects a claim with String or a String Array value but found a " + claimValueObject.getClass().getName());
+                                    + " expects a claim with String or a String Array value but found a "
+                                    + claimValueObject.getClass().getName());
                             } else {
                                 values = (List<String>) claimValueObject;
                             }
                             return values.stream().map(s -> {
                                 final Matcher matcher = regex.matcher(s);
                                 if (matcher.find() == false) {
-                                    logger.debug("OpenID Connect Claim [{}] is [{}], which does not match [{}]", claimName, s, regex.pattern());
+                                    logger.debug("OpenID Connect Claim [{}] is [{}], which does not match [{}]",
+                                        claimName, s, regex.pattern());
                                     return null;
                                 }
                                 final String value = matcher.group(1);
@@ -340,7 +363,8 @@ public class OpenIdConnectRealm extends Realm {
                                 return Collections.singletonList((String) claimValueObject);
                             } else if (claimValueObject instanceof List == false) {
                                 throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
-                                    + " expects a claim with String or a String Array value but found a " + claimValueObject.getClass().getName());
+                                    + " expects a claim with String or a String Array value but found a "
+                                    + claimValueObject.getClass().getName());
                             }
                             return (List<String>) claimValueObject;
                         });

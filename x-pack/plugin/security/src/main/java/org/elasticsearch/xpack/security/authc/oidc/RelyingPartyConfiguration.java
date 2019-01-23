@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc.oidc;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.oauth2.sdk.ResponseType;
 import com.nimbusds.oauth2.sdk.Scope;
-import com.nimbusds.oauth2.sdk.auth.Secret;
 import com.nimbusds.oauth2.sdk.id.ClientID;
 import org.elasticsearch.common.settings.SecureString;
 

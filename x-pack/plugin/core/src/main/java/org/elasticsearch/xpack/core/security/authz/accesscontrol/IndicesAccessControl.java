@@ -96,8 +96,8 @@ public class IndicesAccessControl {
          *
          * @param limitedByIndexAccessControl {@link IndexAccessControl}
          * @return {@link IndexAccessControl}
-         * @see {@link FieldPermissions#limitFieldPermissions(FieldPermissions)}
-         * @see {@link DocumentPermissions#limitDocumentPermissions(DocumentPermissions)}
+         * @see FieldPermissions#limitFieldPermissions(FieldPermissions)
+         * @see DocumentPermissions#limitDocumentPermissions(DocumentPermissions)
          */
         public IndexAccessControl limitIndexAccessControl(IndexAccessControl limitedByIndexAccessControl) {
             final boolean granted;

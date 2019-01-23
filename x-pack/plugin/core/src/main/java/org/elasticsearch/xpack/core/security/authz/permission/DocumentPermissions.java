@@ -94,7 +94,6 @@ public final class DocumentPermissions {
      * @param scriptService {@link ScriptService} for evaluating query templates
      * @param shardId {@link ShardId}
      * @param queryShardContextProvider {@link QueryShardContext}
-     * @param documentPermissions {@link DocumentPermissions} for which the filter would be generated
      * @return {@link BooleanQuery} for the filter
      * @throws IOException thrown if there is an exception during parsing
      */

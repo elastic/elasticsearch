@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 
 import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
@@ -35,8 +36,11 @@ import org.elasticsearch.env.Environment;
  */
 class CreateKeyStoreCommand extends EnvironmentAwareCommand {
 
+    private final OptionSpec<Void> noPassOption;
+
     CreateKeyStoreCommand() {
         super("Creates a new elasticsearch keystore");
+        this.noPassOption = parser.acceptsAll(Arrays.asList("n", "nopass"), "Creates an obfuscated (not passphrase protected) keystore");
     }
 
     @Override
@@ -51,7 +55,7 @@ class CreateKeyStoreCommand extends EnvironmentAwareCommand {
                 }
             }
             KeyStoreWrapper keystore = KeyStoreWrapper.create();
-            passphrase = keystore.readPassphrase(terminal, true);
+            passphrase = options.has(noPassOption) ? new char[0] : keystore.readPassphrase(terminal, true);
             keystore.save(env.configFile(), passphrase);
             terminal.println("Created elasticsearch keystore in " + env.configFile());
         } catch (SecurityException e) {

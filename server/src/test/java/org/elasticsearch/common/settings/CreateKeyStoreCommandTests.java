@@ -52,6 +52,18 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertThat(e.getMessage(), containsString("Passphrases are not equal, exiting"));
     }
 
+    public void testNotPromptForPassword() throws Exception {
+        execute("-n");
+        Path configDir = env.configFile();
+        assertNotNull(KeyStoreWrapper.load(configDir));
+    }
+
+    public void testNotPromptForPasswordFullOptionName() throws Exception {
+        execute("--nopass");
+        Path configDir = env.configFile();
+        assertNotNull(KeyStoreWrapper.load(configDir));
+    }
+
     public void testPosix() throws Exception {
         String passphrase = randomFrom("", "keystorepassphrase");
         terminal.addSecretInput(passphrase);

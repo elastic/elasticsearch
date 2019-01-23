@@ -336,7 +336,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             assertThat(tasks.size(), equalTo(0));
 
             // Verify that the task is STILL in internal cluster state
-            internalClusterHasSingleTask(taskId);
+            assertClusterStateHasTask(taskId);
         });
 
         // Allow it to be reassigned again to the same node
@@ -345,8 +345,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         // Verify it starts again
         waitForTaskToStart();
 
-        // Assert that we still have it in master state
-        internalClusterHasSingleTask(taskId);
+        assertClusterStateHasTask(taskId);
 
         // Complete or cancel the running task
         TaskInfo taskInfo = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
@@ -377,7 +376,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         });
     }
 
-    private static void internalClusterHasSingleTask(String taskId) {
+    private static void assertClusterStateHasTask(String taskId) {
         Collection<PersistentTask<?>> clusterTasks = ((PersistentTasksCustomMetaData) internalCluster()
             .clusterService()
             .state()

@@ -316,6 +316,8 @@ Supports also regular expressions with flag X for more readability (accepts whit
                    \d+    \s+  \d{2}:\d{2}:\d{2}  \s+  \d+    \s+  \n  $/
 ....
 
+**Note:** `$body` is used to refer to the last obtained response body as a string, while `''` refers to the parsed representation (parsed into a Map by the Java runner for instance). Having the raw string response is for example useful when testing cat APIs.
+
 === `lt` and `gt`
 
 Compares two numeric values, eg:

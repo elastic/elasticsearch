@@ -23,18 +23,16 @@ value from a script, you can disable doc values in order to save disk space:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "status_code": { <1>
-          "type":       "keyword"
-        },
-        "session_id": { <2>
-          "type":       "keyword",
-          "doc_values": false
-        }
+    "properties": {
+      "status_code": { <1>
+        "type":       "keyword"
+      },
+      "session_id": { <2>
+        "type":       "keyword",
+        "doc_values": false
       }
     }
   }

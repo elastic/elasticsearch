@@ -53,7 +53,7 @@ rewriting equivalent functions of your own, as these functions try
 to be the most efficient by using the internal mechanisms.
 
 ===== rational
-latexmath:[rational(value,k) = value/(k + value)]
+`rational(value,k) = value/(k + value)`
 
 [source,js]
 --------------------------------------------------
@@ -64,7 +64,7 @@ latexmath:[rational(value,k) = value/(k + value)]
 // NOTCONSOLE
 
 ===== sigmoid
-latexmath:[sigmoid(value, k, a) = value^a/ (k^a + value^a)]
+`sigmoid(value, k, a) = value^a/ (k^a + value^a)`
 
 [source,js]
 --------------------------------------------------

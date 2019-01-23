@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.xpack.sql.action.CliFormatter;
+import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
@@ -18,6 +18,8 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.CLI;
 
 public abstract class JdbcTestUtils {
 
@@ -131,7 +133,7 @@ public abstract class JdbcTestUtils {
             data.add(entry);
         }
 
-        CliFormatter formatter = new CliFormatter(cols, data);
+        BasicFormatter formatter = new BasicFormatter(cols, data, CLI);
         logger.info("\n" + formatter.formatWithHeader(cols, data));
     }
     

@@ -9,20 +9,18 @@ Assuming the following index mapping:
 
 [source,js]
 --------------------------------------------------
-PUT /my_index?include_type_name=true
+PUT /my_index
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "post_date": { "type": "date" },
-                "user": {
-                    "type": "keyword"
-                },
-                "name": {
-                    "type": "keyword"
-                },
-                "age": { "type": "integer" }
-            }
+        "properties": {
+            "post_date": { "type": "date" },
+            "user": {
+                "type": "keyword"
+            },
+            "name": {
+                "type": "keyword"
+            },
+            "age": { "type": "integer" }
         }
     }
 }

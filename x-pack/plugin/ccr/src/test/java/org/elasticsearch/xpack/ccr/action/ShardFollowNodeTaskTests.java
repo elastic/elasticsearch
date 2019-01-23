@@ -299,7 +299,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         startTask(task, 63, -1);
 
         ElasticsearchException exception = new ElasticsearchException("no ops for you");
-        exception.addMetadata(Ccr.FALLEN_BEHIND_LEADER_SHARD_METADATA_KEY);
+        exception.addMetadata(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY);
         readFailures.add(exception);
         mappingVersions.add(1L);
         leaderGlobalCheckpoints.add(63L);

@@ -120,7 +120,7 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), equalTo("Operations are no longer available for replicating. Maybe increase the retention setting " +
             "[index.soft_deletes.retention.operations]?"));
         assertThat(e.getMetadataKeys().size(), equalTo(1));
-        assertThat(e.getMetadata(Ccr.FALLEN_BEHIND_LEADER_SHARD_METADATA_KEY), notNullValue());
+        assertThat(e.getMetadata(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY), notNullValue());
     }
 
 }

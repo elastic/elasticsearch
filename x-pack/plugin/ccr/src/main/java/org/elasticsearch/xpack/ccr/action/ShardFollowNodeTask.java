@@ -279,7 +279,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     }
                     if (e instanceof ElasticsearchException) {
                         ElasticsearchException elasticsearchException = (ElasticsearchException) e;
-                        if (elasticsearchException.getMetadataKeys().contains(Ccr.FALLEN_BEHIND_LEADER_SHARD_METADATA_KEY)) {
+                        if (elasticsearchException.getMetadataKeys().contains(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY)) {
                             handleFallenBehindLeaderShard(e);
                             return;
                         }

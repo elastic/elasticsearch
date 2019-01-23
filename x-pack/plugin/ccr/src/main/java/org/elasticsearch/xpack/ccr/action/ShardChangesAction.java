@@ -402,7 +402,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                     // Make it easy to detect this error in ShardFollowNodeTask:
                     // (adding a metadata header instead of introducing a new exception that extends ElasticsearchException)
                     ElasticsearchException wrapper = new ElasticsearchException(message, e);
-                    wrapper.addMetadata(Ccr.FALLEN_BEHIND_LEADER_SHARD_METADATA_KEY);
+                    wrapper.addMetadata(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY);
                     listener.onFailure(wrapper);
                 } else {
                     listener.onFailure(e);

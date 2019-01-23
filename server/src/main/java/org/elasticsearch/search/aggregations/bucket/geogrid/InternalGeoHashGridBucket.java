@@ -25,22 +25,22 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 
 import java.io.IOException;
 
-public class GeoHashGridBucket extends InternalGeoGridBucket<GeoHashGridBucket> {
-    GeoHashGridBucket(long geohashAsLong, long docCount, InternalAggregations aggregations) {
+public class InternalGeoHashGridBucket extends InternalGeoGridBucket<InternalGeoHashGridBucket> {
+    InternalGeoHashGridBucket(long geohashAsLong, long docCount, InternalAggregations aggregations) {
         super(geohashAsLong, docCount, aggregations);
     }
 
     /**
      * Read from a stream.
      */
-    public GeoHashGridBucket(StreamInput in) throws IOException {
+    public InternalGeoHashGridBucket(StreamInput in) throws IOException {
         super(in);
     }
 
-
     @Override
-    GeoHashGridBucket buildBucket(InternalGeoGridBucket bucket, long geoHashAsLong, long docCount, InternalAggregations aggregations) {
-        return new GeoHashGridBucket(geoHashAsLong, docCount, aggregations);
+    InternalGeoHashGridBucket buildBucket(InternalGeoGridBucket bucket, long geoHashAsLong, long docCount,
+                                          InternalAggregations aggregations) {
+        return new InternalGeoHashGridBucket(geoHashAsLong, docCount, aggregations);
     }
 
     @Override

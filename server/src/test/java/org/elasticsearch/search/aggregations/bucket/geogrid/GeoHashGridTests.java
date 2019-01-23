@@ -31,7 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class GeoHashGridTests extends InternalMultiBucketAggregationTestCase<GeoHashGrid> {
+public class GeoHashGridTests extends InternalMultiBucketAggregationTestCase<InternalGeoHashGrid> {
 
     @Override
     protected int minNumberOfBuckets() {
@@ -44,10 +44,10 @@ public class GeoHashGridTests extends InternalMultiBucketAggregationTestCase<Geo
     }
 
     @Override
-    protected GeoHashGrid createTestInstance(String name,
-                                             List<PipelineAggregator> pipelineAggregators,
-                                             Map<String, Object> metaData,
-                                             InternalAggregations aggregations) {
+    protected InternalGeoHashGrid createTestInstance(String name,
+                                                     List<PipelineAggregator> pipelineAggregators,
+                                                     Map<String, Object> metaData,
+                                                     InternalAggregations aggregations) {
         int size = randomNumberOfBuckets();
         List<InternalGeoGridBucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -55,20 +55,20 @@ public class GeoHashGridTests extends InternalMultiBucketAggregationTestCase<Geo
             double longitude = randomDoubleBetween(-180.0, 180.0, false);
 
             long geoHashAsLong = GeoHashUtils.longEncode(longitude, latitude, 4);
-            buckets.add(new GeoHashGridBucket(geoHashAsLong, randomInt(IndexWriter.MAX_DOCS), aggregations));
+            buckets.add(new InternalGeoHashGridBucket(geoHashAsLong, randomInt(IndexWriter.MAX_DOCS), aggregations));
         }
-        return new GeoHashGrid(name, size, buckets, pipelineAggregators, metaData);
+        return new InternalGeoHashGrid(name, size, buckets, pipelineAggregators, metaData);
     }
 
     @Override
-    protected Writeable.Reader<GeoHashGrid> instanceReader() {
-        return GeoHashGrid::new;
+    protected Writeable.Reader<InternalGeoHashGrid> instanceReader() {
+        return InternalGeoHashGrid::new;
     }
 
     @Override
-    protected void assertReduced(GeoHashGrid reduced, List<GeoHashGrid> inputs) {
+    protected void assertReduced(InternalGeoHashGrid reduced, List<InternalGeoHashGrid> inputs) {
         Map<Long, List<InternalGeoGridBucket>> map = new HashMap<>();
-        for (GeoHashGrid input : inputs) {
+        for (InternalGeoHashGrid input : inputs) {
             for (InternalGeoGridBucket bucket : input.getBuckets()) {
                 List<InternalGeoGridBucket> buckets = map.get(bucket.geohashAsLong);
                 if (buckets == null) {
@@ -83,7 +83,7 @@ public class GeoHashGridTests extends InternalMultiBucketAggregationTestCase<Geo
             for (InternalGeoGridBucket bucket : entry.getValue()) {
                 docCount += bucket.docCount;
             }
-            expectedBuckets.add(new GeoHashGridBucket(entry.getKey(), docCount, InternalAggregations.EMPTY));
+            expectedBuckets.add(new InternalGeoHashGridBucket(entry.getKey(), docCount, InternalAggregations.EMPTY));
         }
         expectedBuckets.sort((first, second) -> {
             int cmp = Long.compare(second.docCount, first.docCount);
@@ -109,7 +109,7 @@ public class GeoHashGridTests extends InternalMultiBucketAggregationTestCase<Geo
     }
 
     @Override
-    protected GeoHashGrid mutateInstance(GeoHashGrid instance) {
+    protected InternalGeoHashGrid mutateInstance(InternalGeoHashGrid instance) {
         String name = instance.getName();
         int size = instance.getRequiredSize();
         List<InternalGeoGridBucket> buckets = instance.getBuckets();
@@ -122,7 +122,7 @@ public class GeoHashGridTests extends InternalMultiBucketAggregationTestCase<Geo
         case 1:
             buckets = new ArrayList<>(buckets);
             buckets.add(
-                    new GeoHashGridBucket(randomNonNegativeLong(), randomInt(IndexWriter.MAX_DOCS), InternalAggregations.EMPTY));
+                    new InternalGeoHashGridBucket(randomNonNegativeLong(), randomInt(IndexWriter.MAX_DOCS), InternalAggregations.EMPTY));
             break;
         case 2:
             size = size + between(1, 10);
@@ -138,7 +138,7 @@ public class GeoHashGridTests extends InternalMultiBucketAggregationTestCase<Geo
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new GeoHashGrid(name, size, buckets, pipelineAggregators, metaData);
+        return new InternalGeoHashGrid(name, size, buckets, pipelineAggregators, metaData);
     }
 
 }

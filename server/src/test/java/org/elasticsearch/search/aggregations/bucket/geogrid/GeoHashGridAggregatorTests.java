@@ -102,7 +102,7 @@ public class GeoHashGridAggregatorTests extends AggregatorTestCase {
     }
 
     private void testCase(Query query, String field, int precision, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<GeoHashGrid> verify) throws IOException {
+                          Consumer<InternalGeoHashGrid> verify) throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);
@@ -121,7 +121,7 @@ public class GeoHashGridAggregatorTests extends AggregatorTestCase {
         aggregator.preCollection();
         indexSearcher.search(query, aggregator);
         aggregator.postCollection();
-        verify.accept((GeoHashGrid) aggregator.buildAggregation(0L));
+        verify.accept((InternalGeoHashGrid) aggregator.buildAggregation(0L));
 
         indexReader.close();
         directory.close();

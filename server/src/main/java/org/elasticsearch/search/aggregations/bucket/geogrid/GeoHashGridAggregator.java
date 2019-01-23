@@ -31,7 +31,7 @@ import java.util.Map;
 /**
  * Aggregates data expressed as GeoHash longs (for efficiency's sake) but formats results as Geohash strings.
  */
-public class GeoHashGridAggregator extends GeoGridAggregator<GeoHashGrid> {
+public class GeoHashGridAggregator extends GeoGridAggregator<InternalGeoHashGrid> {
 
     GeoHashGridAggregator(String name, AggregatorFactories factories, CellIdSource valuesSource,
                           int requiredSize, int shardSize, SearchContext aggregationContext, Aggregator parent,
@@ -40,17 +40,17 @@ public class GeoHashGridAggregator extends GeoGridAggregator<GeoHashGrid> {
     }
 
     @Override
-    GeoHashGrid buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
-                                 List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new GeoHashGrid(name, requiredSize, buckets, pipelineAggregators, metaData);
+    InternalGeoHashGrid buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
+                                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        return new InternalGeoHashGrid(name, requiredSize, buckets, pipelineAggregators, metaData);
     }
 
     @Override
-    public GeoHashGrid buildEmptyAggregation() {
-        return new GeoHashGrid(name, requiredSize, Collections.emptyList(), pipelineAggregators(), metaData());
+    public InternalGeoHashGrid buildEmptyAggregation() {
+        return new InternalGeoHashGrid(name, requiredSize, Collections.emptyList(), pipelineAggregators(), metaData());
     }
 
     InternalGeoGridBucket newEmptyBucket() {
-        return new GeoHashGridBucket(0, 0, null);
+        return new InternalGeoHashGridBucket(0, 0, null);
     }
 }

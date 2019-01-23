@@ -151,7 +151,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
 
         if (requiredSize <= 0 || shardSize <= 0) {
             throw new ElasticsearchException(
-                    "parameters [required_size] and [shard_size] must be > 0 in geo-grid aggregation [" + name + "].");
+                    "parameters [required_size] and [shard_size] must be > 0 in " + getType() + " aggregation [" + name + "].");
         }
 
         if (shardSize < requiredSize) {

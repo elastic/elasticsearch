@@ -68,10 +68,6 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
         return geohashAsLong;
     }
 
-    long docCount() {
-        return docCount;
-    }
-
     @Override
     public long getDocCount() {
         return docCount;

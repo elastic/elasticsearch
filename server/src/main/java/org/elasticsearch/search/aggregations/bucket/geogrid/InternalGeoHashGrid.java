@@ -31,37 +31,37 @@ import java.util.Map;
  * All geohashes in a grid are of the same precision and held internally as a single long
  * for efficiency's sake.
  */
-public class GeoHashGrid extends InternalGeoGrid<GeoHashGridBucket> {
+public class InternalGeoHashGrid extends InternalGeoGrid<InternalGeoHashGridBucket> {
 
     private static final String NAME = "geohash_grid";
 
-    GeoHashGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    InternalGeoHashGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
+                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, requiredSize, buckets, pipelineAggregators, metaData);
     }
 
-    public GeoHashGrid(StreamInput in) throws IOException {
+    public InternalGeoHashGrid(StreamInput in) throws IOException {
         super(in);
     }
 
     @Override
     public InternalGeoGrid create(List<InternalGeoGridBucket> buckets) {
-        return null;
+        return new InternalGeoHashGrid(name, requiredSize, buckets, pipelineAggregators(), metaData);
     }
 
     @Override
     public InternalGeoGridBucket createBucket(InternalAggregations aggregations, InternalGeoGridBucket prototype) {
-        return new GeoHashGridBucket(prototype.geohashAsLong, prototype.docCount, aggregations);
+        return new InternalGeoHashGridBucket(prototype.geohashAsLong, prototype.docCount, aggregations);
     }
 
     @Override
     InternalGeoGrid create(String name, int requiredSize, List buckets, List list, Map metaData) {
-        return new GeoHashGrid(name, requiredSize, buckets, list, metaData);
+        return new InternalGeoHashGrid(name, requiredSize, buckets, list, metaData);
     }
 
     @Override
     Reader getBucketReader() {
-        return GeoHashGridBucket::new;
+        return InternalGeoHashGridBucket::new;
     }
 
     @Override

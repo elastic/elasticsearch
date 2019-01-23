@@ -168,7 +168,9 @@ public class UnsafeBootstrapMasterCommand extends EnvironmentAwareCommand {
         try {
             terminal.println(Terminal.Verbosity.VERBOSE, "Writing new global metadata to disk");
             long newGeneration = MetaData.FORMAT.write(newMetaData, dataPaths);
-            Manifest newManifest = new Manifest(manifest.getCurrentTerm(), manifest.getClusterStateVersion(), newGeneration,
+            long newCurrentTerm = manifest.getCurrentTerm() + 1;
+            terminal.println(Terminal.Verbosity.VERBOSE, "Incrementing currentTerm. New value is " + newCurrentTerm);
+            Manifest newManifest = new Manifest(newCurrentTerm, manifest.getClusterStateVersion(), newGeneration,
                     manifest.getIndexGenerations());
             terminal.println(Terminal.Verbosity.VERBOSE, "Writing new manifest file to disk");
             Manifest.FORMAT.writeAndCleanup(newManifest, dataPaths);

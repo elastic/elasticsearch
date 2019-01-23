@@ -451,9 +451,6 @@ final class IndicesRequestConverters {
         if (Strings.hasText(putIndexTemplateRequest.cause())) {
             params.putParam("cause", putIndexTemplateRequest.cause());
         }
-        if (putIndexTemplateRequest.isCustomTyped()) {
-            params.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
-        }
         request.setEntity(RequestConverters.createEntity(putIndexTemplateRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
     }

@@ -34,7 +34,11 @@ public final class DateUtils {
      * Creates an date for SQL DATE type from the millis since epoch.
      */
     public static ZonedDateTime asDateOnly(long millis) {
-        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC).toLocalDate().atStartOfDay(UTC);
+        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC)
+            .withHour(0)
+            .withMinute(0)
+            .withSecond(0)
+            .withNano(0);
     }
 
     /**
@@ -74,7 +78,11 @@ public final class DateUtils {
     }
 
     public static ZonedDateTime asDateOnly(ZonedDateTime zdt) {
-        return zdt.toLocalDate().atStartOfDay(zdt.getZone());
+        return zdt
+            .withHour(0)
+            .withMinute(0)
+            .withSecond(0)
+            .withNano(0);
     }
 
     /**

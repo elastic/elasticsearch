@@ -14,7 +14,7 @@ For instance the following example shows how to define a sort on a single field:
 
 [source,js]
 --------------------------------------------------
-PUT twitter?include_type_name=true
+PUT twitter
 {
     "settings" : {
         "index" : {
@@ -23,11 +23,9 @@ PUT twitter?include_type_name=true
         }
     },
     "mappings": {
-        "_doc": {
-            "properties": {
-                "date": {
-                    "type": "date"
-                }
+        "properties": {
+            "date": {
+                "type": "date"
             }
         }
     }
@@ -42,7 +40,7 @@ It is also possible to sort the index by more than one field:
 
 [source,js]
 --------------------------------------------------
-PUT twitter?include_type_name=true
+PUT twitter
 {
     "settings" : {
         "index" : {
@@ -51,15 +49,13 @@ PUT twitter?include_type_name=true
         }
     },
     "mappings": {
-        "_doc": {
-            "properties": {
-                "username": {
-                    "type": "keyword",
-                    "doc_values": true
-                },
-                "date": {
-                    "type": "date"
-                }
+        "properties": {
+            "username": {
+                "type": "keyword",
+                "doc_values": true
+            },
+            "date": {
+                "type": "date"
             }
         }
     }
@@ -118,7 +114,7 @@ For example, let's say we have an index that contains events sorted by a timesta
 
 [source,js]
 --------------------------------------------------
-PUT events?include_type_name=true
+PUT events
 {
     "settings" : {
         "index" : {
@@ -127,11 +123,9 @@ PUT events?include_type_name=true
         }
     },
     "mappings": {
-        "doc": {
-            "properties": {
-                "timestamp": {
-                    "type": "date"
-                }
+        "properties": {
+            "timestamp": {
+                "type": "date"
             }
         }
     }

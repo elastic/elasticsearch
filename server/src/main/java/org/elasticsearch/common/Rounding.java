@@ -19,9 +19,11 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
@@ -188,7 +190,7 @@ public abstract class Rounding implements Writeable {
 
         TimeUnitRounding(StreamInput in) throws IOException {
             unit = DateTimeUnit.resolve(in.readByte());
-            timeZone = ZoneId.of(in.readString());
+            timeZone = DateUtils.of(in.readString());
             unitRoundsToMidnight = unit.getField().getBaseUnit().getDuration().toMillis() > 60L * 60L * 1000L;
         }
 
@@ -367,8 +369,11 @@ public abstract class Rounding implements Writeable {
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeByte(unit.getId());
-            String tz = ZoneOffset.UTC.equals(timeZone) ? "UTC" : timeZone.getId(); // stay joda compatible
-            out.writeString(tz);
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+                out.writeString(timeZone.getId());
+            } else {
+                out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
+            }
         }
 
         @Override
@@ -417,7 +422,7 @@ public abstract class Rounding implements Writeable {
 
         TimeIntervalRounding(StreamInput in) throws IOException {
             interval = in.readVLong();
-            timeZone = ZoneId.of(in.readString());
+            timeZone = DateUtils.of(in.readString());
         }
 
         @Override
@@ -490,8 +495,11 @@ public abstract class Rounding implements Writeable {
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeVLong(interval);
-            String tz = ZoneOffset.UTC.equals(timeZone) ? "UTC" : timeZone.getId(); // stay joda compatible
-            out.writeString(tz);
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+                out.writeString(timeZone.getId());
+            } else {
+                out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
+            }
         }
 
         @Override

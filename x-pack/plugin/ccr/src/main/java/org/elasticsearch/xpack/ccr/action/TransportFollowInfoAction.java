@@ -84,8 +84,8 @@ public class TransportFollowInfoAction extends TransportMasterNodeReadAction<Fol
             if (ccrCustomData != null) {
                 Optional<ShardFollowTask> result;
                 if (persistentTasks != null) {
-                    result = persistentTasks.taskMap().values().stream()
-                        .map(persistentTask -> (ShardFollowTask) persistentTask.getParams())
+                    result = persistentTasks.findTasks(ShardFollowTask.NAME, task -> true).stream()
+                        .map(task -> (ShardFollowTask) task.getParams())
                         .filter(shardFollowTask -> index.equals(shardFollowTask.getFollowShardId().getIndexName()))
                         .findAny();
                 } else {

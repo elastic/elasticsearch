@@ -24,9 +24,9 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
+import org.apache.lucene.util.SetOnce;
 
 import java.util.Locale;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Pattern converter to format the node_and_cluster_id variable into JSON fields <code>node.id</code> and <code>cluster.uuid</code>.
@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeAndClusterIdConverter")
 @ConverterKeys({"node_and_cluster_id"})
 public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
-    private static final AtomicReference<String> nodeAndClusterId = new AtomicReference<>();
+    private static final SetOnce<String> nodeAndClusterId = new SetOnce<>();
 
     /**
      * Called by log4j2 to initialize this converter.
@@ -49,14 +49,14 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
     }
 
     /**
-     * Updates only once the clusterID and nodeId
+     * Updates only once the clusterID and nodeId.
+     * Subsequent executions will throw {@link org.apache.lucene.util.SetOnce.AlreadySetException}.
      *
      * @param nodeId      a nodeId received from cluster state update
      * @param clusterUUID a clusterId received from cluster state update
-     * @return true if the update was for the first time (successful) or false if for another calls (does not updates)
      */
-    public static boolean setOnce(String nodeId, String clusterUUID) {
-        return nodeAndClusterId.compareAndSet(null, formatIds(clusterUUID, nodeId));
+    public static void setNodeIdAndClusterId(String nodeId, String clusterUUID) {
+         nodeAndClusterId.set(formatIds(clusterUUID, nodeId));
     }
 
     /**

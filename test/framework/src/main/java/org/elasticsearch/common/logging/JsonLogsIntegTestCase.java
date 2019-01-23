@@ -67,6 +67,7 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
 
     public void testElementsPresentOnAllLinesOfLog() throws IOException {
         JsonLogLine firstLine = findFirstLine();
+        assertNotNull(firstLine);
 
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()))) {
             stream.limit(LINES_TO_CHECK)
@@ -102,6 +103,7 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
                     firstLine = jsonLogLine;
                 }
             }
+            assertNotNull(firstLine);
 
             //once the nodeId and clusterId are received, they should be the same on remaining lines
 

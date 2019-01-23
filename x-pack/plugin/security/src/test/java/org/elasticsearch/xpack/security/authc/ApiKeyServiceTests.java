@@ -28,10 +28,14 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.permission.LimitedRole;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.junit.After;
 import org.junit.Before;
 
@@ -45,7 +49,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -107,6 +114,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         Map<String, Object> sourceMap = new HashMap<>();
         sourceMap.put("api_key_hash", new String(hash));
         sourceMap.put("role_descriptors", Collections.singletonMap("a role", Collections.singletonMap("cluster", "all")));
+        sourceMap.put("limited_by_role_descriptors", Collections.singletonMap("limited role", Collections.singletonMap("cluster", "all")));
         Map<String, Object> creatorMap = new HashMap<>();
         creatorMap.put("principal", "test_user");
         creatorMap.put("metadata", Collections.emptyMap());
@@ -123,6 +131,9 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.getUser().principal(), is("test_user"));
         assertThat(result.getUser().roles(), arrayContaining("a role"));
         assertThat(result.getUser().metadata(), is(Collections.emptyMap()));
+        assertThat(result.getMetadata().get(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(sourceMap.get("role_descriptors")));
+        assertThat(result.getMetadata().get(ApiKeyService.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+                equalTo(sourceMap.get("limited_by_role_descriptors")));
 
         sourceMap.put("expiration_time", Clock.systemUTC().instant().plus(1L, ChronoUnit.HOURS).toEpochMilli());
         future = new PlainActionFuture<>();
@@ -133,6 +144,9 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.getUser().principal(), is("test_user"));
         assertThat(result.getUser().roles(), arrayContaining("a role"));
         assertThat(result.getUser().metadata(), is(Collections.emptyMap()));
+        assertThat(result.getMetadata().get(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(sourceMap.get("role_descriptors")));
+        assertThat(result.getMetadata().get(ApiKeyService.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+                equalTo(sourceMap.get("limited_by_role_descriptors")));
 
         sourceMap.put("expiration_time", Clock.systemUTC().instant().minus(1L, ChronoUnit.HOURS).toEpochMilli());
         future = new PlainActionFuture<>();
@@ -171,11 +185,11 @@ public class ApiKeyServiceTests extends ESTestCase {
         authMetadata.put(ApiKeyService.API_KEY_ID_KEY, randomAlphaOfLength(12));
         authMetadata.put(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY,
             Collections.singletonMap(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap));
+        authMetadata.put(ApiKeyService.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                Collections.singletonMap(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap));
 
         final Authentication authentication = new Authentication(new User("joe"), new RealmRef("apikey", "apikey", "node"), null,
             Version.CURRENT, AuthenticationType.API_KEY, authMetadata);
-        ApiKeyService service = new ApiKeyService(Settings.EMPTY, Clock.systemUTC(), null, null,
-            ClusterServiceUtils.createClusterService(threadPool));
         CompositeRolesStore rolesStore = mock(CompositeRolesStore.class);
         doAnswer(invocationOnMock -> {
             ActionListener<Role> listener = (ActionListener<Role>) invocationOnMock.getArguments()[2];
@@ -189,6 +203,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             }
             return Void.TYPE;
         }).when(rolesStore).buildAndCacheRoleFromDescriptors(any(Collection.class), any(String.class), any(ActionListener.class));
+        ApiKeyService service = new ApiKeyService(Settings.EMPTY, Clock.systemUTC(), null, null,
+                ClusterServiceUtils.createClusterService(threadPool), rolesStore);
 
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         service.getRoleForApiKey(authentication, rolesStore, roleFuture);
@@ -196,4 +212,82 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(role.names(), arrayContaining("superuser"));
     }
 
+    public void testGetRolesForApiKey() throws Exception {
+        Map<String, Object> authMetadata = new HashMap<>();
+        authMetadata.put(ApiKeyService.API_KEY_ID_KEY, randomAlphaOfLength(12));
+        boolean emptyApiKeyRoleDescriptor = randomBoolean();
+        final RoleDescriptor roleARoleDescriptor = new RoleDescriptor("a role", new String[] { "monitor" },
+                new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("monitor").build() },
+                null);
+        Map<String, Object> roleARDMap;
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            roleARDMap = XContentHelper.convertToMap(XContentType.JSON.xContent(),
+                    BytesReference.bytes(roleARoleDescriptor.toXContent(builder, ToXContent.EMPTY_PARAMS, true)).streamInput(), false);
+        }
+        authMetadata.put(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY,
+                (emptyApiKeyRoleDescriptor) ? null : Collections.singletonMap("a role", roleARDMap));
+
+        final RoleDescriptor limitedRoleDescriptor = new RoleDescriptor("limited role", new String[] { "all" },
+                new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build() },
+                null);
+        Map<String, Object> limitedRdMap;
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            limitedRdMap = XContentHelper.convertToMap(XContentType.JSON.xContent(),
+                BytesReference.bytes(limitedRoleDescriptor
+                    .toXContent(builder, ToXContent.EMPTY_PARAMS, true))
+                    .streamInput(),
+                false);
+        }
+        authMetadata.put(ApiKeyService.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, Collections.singletonMap("limited role", limitedRdMap));
+
+        final Authentication authentication = new Authentication(new User("joe"), new RealmRef("apikey", "apikey", "node"), null,
+                Version.CURRENT, AuthenticationType.API_KEY, authMetadata);
+
+        final NativePrivilegeStore privilegesStore = mock(NativePrivilegeStore.class);
+        doAnswer(i -> {
+                assertThat(i.getArguments().length, equalTo(3));
+                final Object arg2 = i.getArguments()[2];
+                assertThat(arg2, instanceOf(ActionListener.class));
+                ActionListener<Collection<ApplicationPrivilege>> listener = (ActionListener<Collection<ApplicationPrivilege>>) arg2;
+                listener.onResponse(Collections.emptyList());
+                return null;
+            }
+        ).when(privilegesStore).getPrivileges(any(Collection.class), any(Collection.class), any(ActionListener.class));
+
+        CompositeRolesStore rolesStore = mock(CompositeRolesStore.class);
+        doAnswer(invocationOnMock -> {
+            ActionListener<Role> listener = (ActionListener<Role>) invocationOnMock.getArguments()[2];
+            Collection<RoleDescriptor> descriptors = (Collection<RoleDescriptor>) invocationOnMock.getArguments()[0];
+            if (descriptors.size() != 1) {
+                listener.onFailure(new IllegalStateException("descriptors was empty!"));
+            } else if (descriptors.iterator().next().getName().equals("a role")) {
+                CompositeRolesStore.buildRoleFromDescriptors(descriptors, new FieldPermissionsCache(Settings.EMPTY),
+                        privilegesStore, ActionListener.wrap(r -> listener.onResponse(r), listener::onFailure));
+            } else if (descriptors.iterator().next().getName().equals("limited role")) {
+                CompositeRolesStore.buildRoleFromDescriptors(descriptors, new FieldPermissionsCache(Settings.EMPTY),
+                        privilegesStore, ActionListener.wrap(r -> listener.onResponse(r), listener::onFailure));
+            } else {
+                listener.onFailure(new IllegalStateException("unexpected role name " + descriptors.iterator().next().getName()));
+            }
+            return Void.TYPE;
+        }).when(rolesStore).buildAndCacheRoleFromDescriptors(any(Collection.class), any(String.class), any(ActionListener.class));
+        ApiKeyService service = new ApiKeyService(Settings.EMPTY, Clock.systemUTC(), null, null,
+                ClusterServiceUtils.createClusterService(threadPool), rolesStore);
+
+        PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
+        service.getRoleForApiKey(authentication, rolesStore, roleFuture);
+        Role role = roleFuture.get();
+        if (emptyApiKeyRoleDescriptor) {
+            assertThat(role, instanceOf(Role.class));
+            assertThat(role.names(), arrayContaining("limited role"));
+        } else {
+            assertThat(role, instanceOf(LimitedRole.class));
+            LimitedRole limitedRole = (LimitedRole) role;
+            assertThat(limitedRole.names(), arrayContaining("a role"));
+            assertThat(limitedRole.limitedBy(), is(notNullValue()));
+            assertThat(limitedRole.limitedBy().names(), arrayContaining("limited role"));
+        }
+    }
 }

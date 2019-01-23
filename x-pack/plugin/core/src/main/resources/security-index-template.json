@@ -164,6 +164,10 @@
           "type" : "object",
           "enabled": false
         },
+        "limited_by_role_descriptors" : {
+          "type" : "object",
+          "enabled": false
+        },
         "version" : {
           "type" : "integer"
         },

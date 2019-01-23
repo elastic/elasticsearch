@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import com.google.common.collect.Sets;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -61,6 +63,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.permission.LimitedRole;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -97,6 +100,7 @@ public class ApiKeyService {
     private static final String TYPE = "doc";
     static final String API_KEY_ID_KEY = "_security_api_key_id";
     static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
+    static final String API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY = "_security_api_key_limited_by_role_descriptors";
     static final String API_KEY_ROLE_KEY = "_security_api_key_role";
 
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
@@ -128,10 +132,12 @@ public class ApiKeyService {
     private final Settings settings;
     private final ExpiredApiKeysRemover expiredApiKeysRemover;
     private final TimeValue deleteInterval;
+    private final CompositeRolesStore compositeRolesStore;
 
     private volatile long lastExpirationRunMs;
 
-    public ApiKeyService(Settings settings, Clock clock, Client client, SecurityIndexManager securityIndex, ClusterService clusterService) {
+    public ApiKeyService(Settings settings, Clock clock, Client client, SecurityIndexManager securityIndex, ClusterService clusterService,
+            CompositeRolesStore compositeRolesStore) {
         this.clock = clock;
         this.client = client;
         this.securityIndex = securityIndex;
@@ -141,6 +147,7 @@ public class ApiKeyService {
         this.settings = settings;
         this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.expiredApiKeysRemover = new ExpiredApiKeysRemover(settings, client);
+        this.compositeRolesStore = compositeRolesStore;
     }
 
     /**
@@ -190,12 +197,27 @@ public class ApiKeyService {
                             }
                         }
 
+                        // Save role_descriptors
                         builder.startObject("role_descriptors");
-                        for (RoleDescriptor descriptor : request.getRoleDescriptors()) {
-                            builder.field(descriptor.getName(),
-                                    (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
+                        if (request.getRoleDescriptors() != null && request.getRoleDescriptors().isEmpty() == false) {
+                            for (RoleDescriptor descriptor : request.getRoleDescriptors()) {
+                                builder.field(descriptor.getName(),
+                                        (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
+                            }
                         }
                         builder.endObject();
+
+                        // Save limited_by_role_descriptors
+                        builder.startObject("limited_by_role_descriptors");
+                        compositeRolesStore.getRoleDescriptors(Sets.newHashSet(authentication.getUser().roles()),
+                                ActionListener.wrap(rdSet -> {
+                                    for (RoleDescriptor descriptor : rdSet) {
+                                        builder.field(descriptor.getName(),
+                                                (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
+                                    }
+                                }, listener::onFailure));
+                        builder.endObject();
+
                         builder.field("name", request.getName())
                             .field("version", version.id)
                             .startObject("creator")
@@ -284,7 +306,31 @@ public class ApiKeyService {
         final String apiKeyId = (String) metadata.get(API_KEY_ID_KEY);
 
         final Map<String, Object> roleDescriptors = (Map<String, Object>) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
-        final List<RoleDescriptor> roleDescriptorList = roleDescriptors.entrySet().stream()
+        final Map<String, Object> authnRoleDescriptors = (Map<String, Object>) metadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY);
+
+        if (roleDescriptors == null && authnRoleDescriptors == null) {
+            listener.onFailure(new ElasticsearchSecurityException("no role descriptors found for API key"));
+        } else if (roleDescriptors == null) {
+            final List<RoleDescriptor> authnRoleDescriptorsList = parseRoleDescriptors(apiKeyId, authnRoleDescriptors);
+            rolesStore.buildAndCacheRoleFromDescriptors(authnRoleDescriptorsList, apiKeyId, listener);
+        } else {
+            final List<RoleDescriptor> roleDescriptorList = parseRoleDescriptors(apiKeyId, roleDescriptors);
+            final List<RoleDescriptor> authnRoleDescriptorsList = parseRoleDescriptors(apiKeyId, authnRoleDescriptors);
+            rolesStore.buildAndCacheRoleFromDescriptors(roleDescriptorList, apiKeyId, ActionListener.wrap(role -> {
+                rolesStore.buildAndCacheRoleFromDescriptors(authnRoleDescriptorsList, apiKeyId, ActionListener.wrap(limitedByRole -> {
+                    Role finalRole = LimitedRole.createLimitedRole(role, limitedByRole);
+                    listener.onResponse(finalRole);
+                }, listener::onFailure));
+            }, listener::onFailure));
+        }
+
+    }
+
+    private List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, final Map<String, Object> roleDescriptors) {
+        if (roleDescriptors == null) {
+            return null;
+        }
+        return roleDescriptors.entrySet().stream()
             .map(entry -> {
                 final String name = entry.getKey();
                 final Map<String, Object> rdMap = (Map<String, Object>) entry.getValue();
@@ -299,9 +345,6 @@ public class ApiKeyService {
                     throw new UncheckedIOException(e);
                 }
             }).collect(Collectors.toList());
-
-        rolesStore.buildAndCacheRoleFromDescriptors(roleDescriptorList, apiKeyId, listener);
-
     }
 
     /**
@@ -331,10 +374,13 @@ public class ApiKeyService {
                     final String principal = Objects.requireNonNull((String) creator.get("principal"));
                     final Map<String, Object> metadata = (Map<String, Object>) creator.get("metadata");
                     final Map<String, Object> roleDescriptors = (Map<String, Object>) source.get("role_descriptors");
-                    final String[] roleNames = roleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY);
+                    final Map<String, Object> limitedByRoleDescriptors = (Map<String, Object>) source.get("limited_by_role_descriptors");
+                    final String[] roleNames = (roleDescriptors != null) ? roleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY)
+                            : limitedByRoleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY);
                     final User apiKeyUser = new User(principal, roleNames, null, null, metadata, true);
                     final Map<String, Object> authResultMetadata = new HashMap<>();
                     authResultMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY, roleDescriptors);
+                    authResultMetadata.put(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleDescriptors);
                     authResultMetadata.put(API_KEY_ID_KEY, credentials.getId());
                     listener.onResponse(AuthenticationResult.success(apiKeyUser, authResultMetadata));
                 } else {

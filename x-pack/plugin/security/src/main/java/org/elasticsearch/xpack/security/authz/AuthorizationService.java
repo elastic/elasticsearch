@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
@@ -198,8 +197,7 @@ public class AuthorizationService {
 
         // first, we'll check if the action is a cluster action. If it is, we'll only check it against the cluster permissions
         if (ClusterPrivilege.ACTION_MATCHER.test(action)) {
-            final ClusterPermission cluster = permission.cluster();
-            if (cluster.check(action, request) || checkSameUserPermissions(action, request, authentication)) {
+            if (permission.checkClusterAction(action, request) || checkSameUserPermissions(action, request, authentication)) {
                 putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
                 auditTrail.accessGranted(auditId, authentication, action, request, permission.names());
                 return;
@@ -219,7 +217,7 @@ public class AuthorizationService {
                     + ", " + request.getClass().getSimpleName() + " doesn't");
             }
             // we check if the user can execute the action, without looking at indices, which will be authorized at the shard level
-            if (permission.indices().check(action)) {
+            if (permission.checkIndicesAction(action)) {
                 auditTrail.accessGranted(auditId, authentication, action, request, permission.names());
                 return;
             }
@@ -230,7 +228,7 @@ public class AuthorizationService {
                     + ", " + request.getClass().getSimpleName() + " doesn't");
             }
             // we check if the user can execute the action, without looking at indices, which will be authorized at the shard level
-            if (permission.indices().check(action)) {
+            if (permission.checkIndicesAction(action)) {
                 auditTrail.accessGranted(auditId, authentication, action, request, permission.names());
                 return;
             }
@@ -241,7 +239,7 @@ public class AuthorizationService {
                 throw new IllegalStateException("originalRequest is not a proxy request: [" + originalRequest + "] but action: ["
                     + action + "] is a proxy action");
             }
-            if (permission.indices().check(action)) {
+            if (permission.checkIndicesAction(action)) {
                 auditTrail.accessGranted(auditId, authentication, action, request, permission.names());
                 return;
             } else {
@@ -265,7 +263,7 @@ public class AuthorizationService {
                 // if the action is a search scroll action, we first authorize that the user can execute the action for some
                 // index and if they cannot, we can fail the request early before we allow the execution of the action and in
                 // turn the shard actions
-                if (SearchScrollAction.NAME.equals(action) && permission.indices().check(action) == false) {
+                if (SearchScrollAction.NAME.equals(action) && permission.checkIndicesAction(action) == false) {
                     throw denial(auditId, authentication, action, request, permission.names());
                 } else {
                     // we store the request as a transient in the ThreadContext in case of a authorization failure at the shard
@@ -286,7 +284,7 @@ public class AuthorizationService {
 
         // If this request does not allow remote indices
         // then the user must have permission to perform this action on at least 1 local index
-        if (allowsRemoteIndices == false && permission.indices().check(action) == false) {
+        if (allowsRemoteIndices == false && permission.checkIndicesAction(action) == false) {
             throw denial(auditId, authentication, action, request, permission.names());
         }
 
@@ -299,7 +297,7 @@ public class AuthorizationService {
 
         // If this request does reference any remote indices
         // then the user must have permission to perform this action on at least 1 local index
-        if (resolvedIndices.getRemote().isEmpty() && permission.indices().check(action) == false) {
+        if (resolvedIndices.getRemote().isEmpty() && permission.checkIndicesAction(action) == false) {
             throw denial(auditId, authentication, action, request, permission.names());
         }
 

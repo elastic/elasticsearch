@@ -10,6 +10,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
@@ -25,8 +26,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 
-public final class Role {
+public class Role {
 
     public static final Role EMPTY = Role.builder("__empty").build();
 
@@ -43,6 +45,7 @@ public final class Role {
         this.application = Objects.requireNonNull(application);
         this.runAs = Objects.requireNonNull(runAs);
     }
+
 
     public String[] names() {
         return names;
@@ -70,6 +73,35 @@ public final class Role {
 
     public static Builder builder(RoleDescriptor rd, FieldPermissionsCache fieldPermissionsCache) {
         return new Builder(rd, fieldPermissionsCache);
+    }
+
+    /**
+     * @return A predicate that will match all the indices that this role
+     * has the privilege for executing the given action on.
+     */
+    public Predicate<String> allowedIndicesMatcher(String action) {
+        return indices().allowedIndicesMatcher(action);
+    }
+
+    /**
+     * Check if indices permissions allow for the given action
+     *
+     * @param action indices action
+     * @return {@code true} if action is allowed else returns {@code false}
+     */
+    public boolean checkIndicesAction(String action) {
+        return indices().check(action);
+    }
+
+    /**
+     * Check if cluster permissions allow for the given action
+     *
+     * @param action cluster action
+     * @param request {@link TransportRequest}
+     * @return {@code true} if action is allowed else returns {@code false}
+     */
+    public boolean checkClusterAction(String action, TransportRequest request) {
+        return cluster().check(action, request);
     }
 
     /**

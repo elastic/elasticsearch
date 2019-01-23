@@ -77,20 +77,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
             this.sslConfiguration = sslService.getSSLConfiguration(setting("transport.ssl."));
             Map<String, SSLConfiguration> profileConfiguration = getTransportProfileConfigurations(settings, sslService, sslConfiguration);
             this.profileConfiguration = Collections.unmodifiableMap(profileConfiguration);
-
-            TLSv1DeprecationHandler defaultTlsDeprecationHandler = new TLSv1DeprecationHandler(setting("transport.ssl."), settings, logger);
-            if (defaultTlsDeprecationHandler.shouldLogWarnings()) {
-                this.tlsDeprecation = new HashMap<>();
-                profileConfiguration.keySet().forEach(name -> {
-                    if (TransportSettings.DEFAULT_PROFILE.equals(name)) {
-                        tlsDeprecation.put(name, defaultTlsDeprecationHandler);
-                    } else {
-                        tlsDeprecation.put(name, new TLSv1DeprecationHandler(getTransportProfileSslPrefix(name), settings, logger));
-                    }
-                });
-            } else {
-                this.tlsDeprecation = Collections.emptyMap();
-            }
+            this.tlsDeprecation = buildTlsDeprecationHandlers(settings, profileConfiguration.keySet());
         } else {
             this.profileConfiguration = Collections.emptyMap();
             this.sslConfiguration = null;
@@ -98,8 +85,26 @@ public class SecurityNetty4Transport extends Netty4Transport {
         }
     }
 
-    private String getTransportProfileSslPrefix(String name) {
-        return "transport.profiles." + name + "." + setting("ssl");
+    // Package protected for testing
+    static Map<String, TLSv1DeprecationHandler> buildTlsDeprecationHandlers(Settings settings, Set<String> profileNames) {
+        TLSv1DeprecationHandler defaultTlsDeprecationHandler = new TLSv1DeprecationHandler(setting("transport.ssl."), settings, logger);
+        if (defaultTlsDeprecationHandler.shouldLogWarnings()) {
+            final Map<String, TLSv1DeprecationHandler> handlers = new HashMap<>();
+            profileNames.forEach(name -> {
+                if (TransportSettings.DEFAULT_PROFILE.equals(name)) {
+                    handlers.put(name, defaultTlsDeprecationHandler);
+                } else {
+                    handlers.put(name, new TLSv1DeprecationHandler(getTransportProfileSslPrefix(name) + ".", settings, logger));
+                }
+            });
+            return Collections.unmodifiableMap(handlers);
+        } else {
+            return Collections.emptyMap();
+        }
+    }
+
+    private static String getTransportProfileSslPrefix(String name) {
+        return "transport.profiles." + name + "." + setting("ssl") ;
     }
 
     public static Map<String, SSLConfiguration> getTransportProfileConfigurations(Settings settings, SSLService sslService,
@@ -107,7 +112,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
         Set<String> profileNames = settings.getGroups("transport.profiles.", true).keySet();
         Map<String, SSLConfiguration> profileConfiguration = new HashMap<>(profileNames.size() + 1);
         for (String profileName : profileNames) {
-            SSLConfiguration configuration = sslService.getSSLConfiguration("transport.profiles." + profileName + "." + setting("ssl"));
+            SSLConfiguration configuration = sslService.getSSLConfiguration(getTransportProfileSslPrefix(profileName));
             profileConfiguration.put(profileName, configuration);
         }
 

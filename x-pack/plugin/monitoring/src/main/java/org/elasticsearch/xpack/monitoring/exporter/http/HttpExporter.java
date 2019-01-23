@@ -476,8 +476,8 @@ public class HttpExporter extends Exporter {
     private static void configureSecurity(final RestClientBuilder builder, final Config config, final SSLService sslService) {
         final Setting<Settings> concreteSetting = SSL_SETTING.getConcreteSettingForNamespace(config.name());
         final Settings sslSettings = concreteSetting.get(config.settings());
-        final TLSv1DeprecationHandler tlsDeprecationHandler = new TLSv1DeprecationHandler(concreteSetting.getKey() + ".",
-            config.settings(), logger);
+        final TLSv1DeprecationHandler tlsDeprecationHandler = new TLSv1DeprecationHandler(concreteSetting.getKey(), config.settings(),
+            logger);
         final SSLIOSessionStrategy sslStrategy;
         if (SSLConfigurationSettings.withoutPrefix().getSecureSettingsInUse(sslSettings).isEmpty()) {
             // This configuration does not use secure settings, so it is possible that is has been dynamically updated.

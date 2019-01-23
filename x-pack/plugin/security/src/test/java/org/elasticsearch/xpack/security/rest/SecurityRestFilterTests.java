@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.ssl.TLSv1DeprecationHandler;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -61,7 +62,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         when(licenseState.isAuthAllowed()).thenReturn(true);
         restHandler = mock(RestHandler.class);
         filter = new SecurityRestFilter(licenseState,
-                new ThreadContext(Settings.EMPTY), authcService, restHandler, false, tlsDeprecationHandler);
+                new ThreadContext(Settings.EMPTY), authcService, restHandler, false, TLSv1DeprecationHandler.disabled());
     }
 
     public void testProcess() throws Exception {
@@ -138,7 +139,8 @@ public class SecurityRestFilterTests extends ESTestCase {
             callback.onResponse(new Authentication(XPackUser.INSTANCE, new RealmRef("test", "test", "t"), null));
             return Void.TYPE;
         }).when(authcService).authenticate(any(RestRequest.class), any(ActionListener.class));
-        filter = new SecurityRestFilter(licenseState, new ThreadContext(Settings.EMPTY), authcService, restHandler, false, tlsDeprecationHandler);
+        filter = new SecurityRestFilter(licenseState, new ThreadContext(Settings.EMPTY), authcService, restHandler, false,
+            TLSv1DeprecationHandler.disabled());
 
         filter.handleRequest(restRequest, channel, null);
 

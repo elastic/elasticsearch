@@ -46,6 +46,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -171,7 +172,7 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
             assertThat(exception.getMessage(), containsString("Cannot close indices that are being restored: [[restored]]"));
         }
         {
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            SnapshotInProgressException exception = expectThrows(SnapshotInProgressException.class, () -> {
                 ClusterState state = addSnapshotIndex("snapshotted", randomIntBetween(1, 3), randomIntBetween(0, 3), initialState);
                 if (randomBoolean()) {
                     state = addOpenedIndex("opened", randomIntBetween(1, 3), randomIntBetween(0, 3), state);

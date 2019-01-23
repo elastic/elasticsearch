@@ -101,4 +101,17 @@ if [ "$PACKAGE" = "deb" -a ! -f /etc/elasticsearch/elasticsearch.keystore ]; the
     md5sum /etc/elasticsearch/elasticsearch.keystore > /etc/elasticsearch/.elasticsearch.keystore.initial_md5sum
 fi
 
+# Special case for upgrading from pre 6.3 RPM to oss. RPM doesn't flag that as an upgrade
+if [ "$PACKAGE" = "rpm" ] ; then
+   # Save user, gropup and dirs to prevent "postrm" of old package from being disruptive.
+   mkdir /var/lib/rpm-state/elasticsearch/
+   id -u elasticsearch > /var/lib/rpm-state/elasticsearch/elasticsearch.user
+   id -g elasticsearch > /var/lib/rpm-state/elasticsearch/elasticsearch.group
+
+   mv /var/log/elasticsearch /var/log/elasticsearch.rpmsave
+   mv /usr/share/elasticsearch/plugins /usr/share/elasticsearch/plugins.rpmsave
+   mv /var/run/elasticsearch /var/run/elasticsearch.rpmsave
+   mv /var/lib/elasticsearch /var/lib/elasticsearch.rpmsave
+fi
+
 ${scripts.footer}

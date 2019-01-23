@@ -1,8 +1,35 @@
+if [ -f /var/lib/rpm-state/elasticsearch/elasticsearch.user ] ; then
+    # move everything back to place from after postinst
+    groupadd -g `cat /var/lib/rpm-state/elasticsearch/elasticsearch.group` elasticsearch
+    useradd -M -u `cat /var/lib/rpm-state/elasticsearch/elasticsearch.user` elasticsearch -g elasticsearch
+
+    mv /var/log/elasticsearch.rpmsave /var/log/elasticsearch
+    mv /usr/share/elasticsearch/plugins.rpmsave /usr/share/elasticsearch/plugins
+    mv /var/run/elasticsearch.rpmsave /var/run/elasticsearch
+    mv /var/lib/elasticsearch.rpmsave /var/lib/elasticsearch
+fi
+
 if [ ! -f /etc/elasticsearch/elasticsearch.keystore ]; then
     /usr/share/elasticsearch/bin/elasticsearch-keystore create
     chown root:elasticsearch /etc/elasticsearch/elasticsearch.keystore
     chmod 660 /etc/elasticsearch/elasticsearch.keystore
     md5sum /etc/elasticsearch/elasticsearch.keystore > /etc/elasticsearch/.elasticsearch.keystore.initial_md5sum
+fi
+
+if [ -f /var/lib/rpm-state/elasticsearch/elasticsearch.user ] ; then
+    rm -Rf /var/lib/rpm-state/elasticsearch
+    # pre-rm disables the service, undo
+        if command -v systemctl >/dev/null; then
+            systemctl daemon-reload
+            systemctl enable elasticsearch.service || true
+            systemctl start elasticsearch.service || true
+        elif [ -x /etc/init.d/elasticsearch ]; then
+            chkconfig --add elasticsearch
+            /etc/init.d/elasticsearch start || true
+        elif [ -x /etc/rc.d/init.d/elasticsearch ] ; then
+            chkconfig --add elasticsearch
+            /etc/rc.d/init.d/elasticsearch start || true
+    fi
 fi
 
 ${scripts.footer}

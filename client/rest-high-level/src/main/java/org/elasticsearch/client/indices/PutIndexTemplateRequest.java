@@ -529,7 +529,9 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 String val = entry.getValue();
                 Map<String, Object> mappingAsMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, val, true);
                 XContentBuilder mappingMinusTypeBuilder = XContentFactory.contentBuilder(XContentType.JSON);
-                mappingMinusTypeBuilder.map((Map<String, ?>) mappingAsMap.get(MapperService.SINGLE_MAPPING_NAME));
+                @SuppressWarnings("unchecked")
+                Map<String, Object> untypedMapping = (Map<String, Object>) mappingAsMap.get(MapperService.SINGLE_MAPPING_NAME);
+                mappingMinusTypeBuilder.map(untypedMapping);
                 mappingDef = BytesReference.bytes(mappingMinusTypeBuilder).utf8ToString();
                 try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION, mappingDef)) {

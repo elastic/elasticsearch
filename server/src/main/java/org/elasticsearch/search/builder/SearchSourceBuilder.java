@@ -243,7 +243,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             }
         }
         if (in.readBoolean()) {
-            stats = in.readList(StreamInput::readString);
+            stats = in.readStringList();
         }
         suggestBuilder = in.readOptionalWriteable(SuggestBuilder::new);
         terminateAfter = in.readVInt();
@@ -311,7 +311,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         boolean hasStats = stats != null;
         out.writeBoolean(hasStats);
         if (hasStats) {
-            out.writeStringList(stats);
+            out.writeStringCollection(stats);
         }
         out.writeOptionalWriteable(suggestBuilder);
         out.writeVInt(terminateAfter);

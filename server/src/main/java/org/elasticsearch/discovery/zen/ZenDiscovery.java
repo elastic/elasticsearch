@@ -73,7 +73,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -162,8 +161,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                         NamedWriteableRegistry namedWriteableRegistry, MasterService masterService, ClusterApplier clusterApplier,
                         ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider, AllocationService allocationService,
                         Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, GatewayMetaState gatewayMetaState) {
-        super(settings);
-        this.onJoinValidators = addBuiltInJoinValidators(onJoinValidators);
+        this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.masterService = masterService;
         this.clusterApplier = clusterApplier;
         this.transportService = transportService;
@@ -233,17 +231,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         if (clusterApplier instanceof ClusterApplierService) {
             ((ClusterApplierService) clusterApplier).addLowPriorityApplier(gatewayMetaState);
         }
-    }
-
-    static Collection<BiConsumer<DiscoveryNode,ClusterState>> addBuiltInJoinValidators(
-        Collection<BiConsumer<DiscoveryNode,ClusterState>> onJoinValidators) {
-        Collection<BiConsumer<DiscoveryNode, ClusterState>> validators = new ArrayList<>();
-        validators.add((node, state) -> {
-            JoinTaskExecutor.ensureNodesCompatibility(node.getVersion(), state.getNodes());
-            JoinTaskExecutor.ensureIndexCompatibility(node.getVersion(), state.getMetaData());
-        });
-        validators.addAll(onJoinValidators);
-        return Collections.unmodifiableCollection(validators);
     }
 
     // protected to allow overriding in tests

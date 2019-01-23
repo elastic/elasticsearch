@@ -3,8 +3,6 @@
 [[index-lifecycle-error-handling]]
 == Index lifecycle error handling
 
-beta[]
-
 During Index Lifecycle Management's execution of the policy for an index, it's
 possible for a step to encounter an error during its execution. When this
 happens, ILM will move the management state into an "error" step. This halts

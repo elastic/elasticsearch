@@ -37,7 +37,6 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -51,11 +50,14 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryReques
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
+import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
 import java.util.Locale;
+
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 final class IndicesRequestConverters {
 
@@ -103,6 +105,7 @@ final class IndicesRequestConverters {
         parameters.withTimeout(createIndexRequest.timeout());
         parameters.withMasterTimeout(createIndexRequest.masterNodeTimeout());
         parameters.withWaitForActiveShards(createIndexRequest.waitForActiveShards());
+        parameters.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
 
         request.setEntity(RequestConverters.createEntity(createIndexRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -119,18 +122,30 @@ final class IndicesRequestConverters {
         return request;
     }
 
+
     static Request putMapping(PutMappingRequest putMappingRequest) throws IOException {
+        Request request = new Request(HttpPut.METHOD_NAME, RequestConverters.endpoint(putMappingRequest.indices(), "_mapping"));
+
+        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        parameters.withTimeout(putMappingRequest.timeout());
+        parameters.withMasterTimeout(putMappingRequest.masterNodeTimeout());
+        request.setEntity(RequestConverters.createEntity(putMappingRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request putMapping(org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest) throws IOException {
         // The concreteIndex is an internal concept, not applicable to requests made over the REST API.
         if (putMappingRequest.getConcreteIndex() != null) {
             throw new IllegalArgumentException("concreteIndex cannot be set on PutMapping requests made over the REST API");
         }
 
-        Request request = new Request(HttpPut.METHOD_NAME, RequestConverters.endpoint(putMappingRequest.indices(), "_mapping",
-            putMappingRequest.type()));
+        Request request = new Request(HttpPut.METHOD_NAME, RequestConverters.endpoint(putMappingRequest.indices(),
+            "_mapping", putMappingRequest.type()));
 
         RequestConverters.Params parameters = new RequestConverters.Params(request);
         parameters.withTimeout(putMappingRequest.timeout());
         parameters.withMasterTimeout(putMappingRequest.masterNodeTimeout());
+        parameters.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
 
         request.setEntity(RequestConverters.createEntity(putMappingRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -146,6 +161,7 @@ final class IndicesRequestConverters {
         parameters.withMasterTimeout(getMappingsRequest.masterNodeTimeout());
         parameters.withIndicesOptions(getMappingsRequest.indicesOptions());
         parameters.withLocal(getMappingsRequest.local());
+
         return request;
     }
 
@@ -165,6 +181,8 @@ final class IndicesRequestConverters {
         parameters.withIndicesOptions(getFieldMappingsRequest.indicesOptions());
         parameters.withIncludeDefaults(getFieldMappingsRequest.includeDefaults());
         parameters.withLocal(getFieldMappingsRequest.local());
+        parameters.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
+
         return request;
     }
 
@@ -357,6 +375,7 @@ final class IndicesRequestConverters {
         if (Strings.hasText(putIndexTemplateRequest.cause())) {
             params.putParam("cause", putIndexTemplateRequest.cause());
         }
+        params.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
         request.setEntity(RequestConverters.createEntity(putIndexTemplateRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
@@ -395,6 +414,7 @@ final class IndicesRequestConverters {
         final RequestConverters.Params params = new RequestConverters.Params(request);
         params.withLocal(getIndexTemplatesRequest.isLocal());
         params.withMasterTimeout(getIndexTemplatesRequest.getMasterNodeTimeout());
+        params.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
         return request;
     }
 

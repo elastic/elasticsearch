@@ -20,17 +20,15 @@ package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutWatchResponse implements ToXContentObject {
+public class PutWatchResponse {
 
     private static final ObjectParser<PutWatchResponse, Void> PARSER
-        = new ObjectParser<>("x_pack_put_watch_response", PutWatchResponse::new);
+        = new ObjectParser<>("x_pack_put_watch_response", true, PutWatchResponse::new);
 
     static {
         PARSER.declareString(PutWatchResponse::setId, new ParseField("_id"));
@@ -88,15 +86,6 @@ public class PutWatchResponse implements ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(id, version, created);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
-            .field("_id", id)
-            .field("_version", version)
-            .field("created", created)
-            .endObject();
     }
 
     public static PutWatchResponse fromXContent(XContentParser parser) throws IOException {

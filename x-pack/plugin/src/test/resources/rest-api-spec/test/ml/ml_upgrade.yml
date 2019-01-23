@@ -1,0 +1,70 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: jobs-upgrade-results
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time"
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-jobs-upgrade-results
+        type:   doc
+        id:     "jobs-upgrade-results_1464739200000_1"
+        body:
+          {
+            "job_id": "jobs-upgrade-results",
+            "result_type": "bucket",
+            "timestamp": "2016-06-01T00:00:00Z",
+            "anomaly_score": 90.0,
+            "bucket_span":1
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.refresh:
+        index: .ml-anomalies-jobs-upgrade-results
+
+---
+"Upgrade results when there is nothing to upgrade":
+  - do:
+      ml.upgrade:
+        wait_for_completion: true
+
+  - match: { acknowledged: true }
+
+  - do:
+      indices.exists:
+        index: .ml-anomalies-shared
+
+  - is_true: ''
+---
+"Upgrade results when there is nothing to upgrade not waiting for results":
+  - do:
+      ml.upgrade:
+        wait_for_completion: false
+
+  - match: {task: '/.+:\d+/'}
+  - set: {task: task}
+
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $task
+  - match: {completed: true}
+  - match: {response.acknowledged: true}

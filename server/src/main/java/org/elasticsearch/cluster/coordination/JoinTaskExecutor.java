@@ -30,8 +30,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
@@ -183,7 +188,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             .blocks(currentState.blocks())
             .removeGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)).build();
         logger.trace("becomeMasterAndTrimConflictingNodes: {}", tmpState.nodes());
-        return ClusterState.builder(allocationService.deassociateDeadNodes(tmpState, false, "removed dead nodes on election"));
+        tmpState = PersistentTasksCustomMetaData.disassociateDeadNodes(tmpState);
+        return ClusterState.builder(allocationService.disassociateDeadNodes(tmpState, false, "removed dead nodes on election"));
     }
 
     @Override
@@ -258,5 +264,16 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             throw new IllegalStateException("node version [" + joiningNodeVersion + "] is not supported. " +
                 "All nodes in the cluster are of a higher major [" + clusterMajor + "].");
         }
+    }
+
+    public static Collection<BiConsumer<DiscoveryNode,ClusterState>> addBuiltInJoinValidators(
+        Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators) {
+        final Collection<BiConsumer<DiscoveryNode, ClusterState>> validators = new ArrayList<>();
+        validators.add((node, state) -> {
+            ensureNodesCompatibility(node.getVersion(), state.getNodes());
+            ensureIndexCompatibility(node.getVersion(), state.getMetaData());
+        });
+        validators.addAll(onJoinValidators);
+        return Collections.unmodifiableCollection(validators);
     }
 }

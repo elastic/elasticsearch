@@ -30,18 +30,16 @@ based or `pagerank`, `url_length` and the `sports` topic.
 PUT test
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "pagerank": {
-          "type": "feature"
-        },
-        "url_length": {
-          "type": "feature",
-          "positive_score_impact": false
-        },
-        "topics": {
-          "type": "feature_vector"
-        }
+    "properties": {
+      "pagerank": {
+        "type": "feature"
+      },
+      "url_length": {
+        "type": "feature",
+        "positive_score_impact": false
+      },
+      "topics": {
+        "type": "feature_vector"
       }
     }
   }

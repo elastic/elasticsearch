@@ -40,6 +40,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
+
 /**
  * Execution context passed across the REST tests.
  * Holds the REST client used to communicate with elasticsearch.
@@ -94,6 +96,14 @@ public class ClientYamlTestExecutionContext {
             if (stash.containsStashedValue(entry.getValue())) {
                 entry.setValue(stash.getValue(entry.getValue()).toString());
             }
+        }
+
+        // Although include_type_name defaults to false, there is a large number of typed index creations
+        // in REST tests that need to be manually converted to typeless calls. As a temporary measure, we
+        // specify include_type_name=true in indices.create calls, unless the parameter has been set otherwise.
+        // This workaround will be removed once we convert all index creations to be typeless.
+        if (apiName.equals("indices.create") && requestParams.containsKey(INCLUDE_TYPE_NAME_PARAMETER) == false) {
+            requestParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
         }
 
         HttpEntity entity = createEntity(bodies, requestHeaders);

@@ -114,7 +114,7 @@ public class PluginBuildPlugin extends BuildPlugin {
                 generatePOMTask.ext.pomFileName = "${project.archivesBaseName}-client-${project.versions.elasticsearch}.pom"
             }
         } else {
-            project.plugins.withType(MavenPublishPlugin).whenPluginAdded {
+            if (project.plugins.hasPlugin(MavenPublishPlugin)) {
                 project.publishing.publications.nebula(MavenPublication).artifactId(
                         project.pluginProperties.extension.name
                 )

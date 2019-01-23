@@ -115,3 +115,13 @@ documentation for more information.
     Limit for the number of unique dynamic scripts within a certain interval
     that are allowed to be compiled. Defaults to 75/5m, meaning 75 every 5 
     minutes.
+
+==== Operating Limits of Elasticsearch Clusters
+
+Every Elasticsearch cluster has a limit to the amount of data it can store. When this limit is exceeded, the cluster will become inoperable and every attempted data operation will fail with some kind of circuit-breaker exception. This is not just a question of having so much data stored on disk that every query becomes unacceptably slow: when the operational limit is exceeded, the cluster will be unable to perform any kind of query, ingestion or indexing operation. Every attempted user operation - and also many administrative operations will fail with circuit-breaker exceptions.
+
+Essentially the operating limit is reached when the amount of indexed data causes various internal data mapping structures to consume so much of the node’s memory that any additional operation would cause the node’s Java Virtual Machine (JVM) to crash with an out- of-memory condition. Circuit-breakers are tripped to prevent the JVM from reaching the out-of-memory point. When the cluster’s operating limit is reached every single attempted operation trips at least one circuit breaker , causing the operation to fail with a circuit-breaker exception. The elasticsearch logs may show thousands of circuit-breaking exceptions generated in a short period of time.
+
+The exact size of each cluster’s operational limit depends on several factors including the amount of RAM allocated to each node’s JVM, the amount of data stored in the cluster, the nature of index document keys, the number of shards in each index, the amount of field data mapped to fields in an index, and other factors. There is no way to exactly calculate a given cluster’s operational limit. As a general approximation: for nodes with 30 gigabyte (gb) JVM’s, a cluster’s operating limit will come at some point greater than 10 terabytes (tb) of indexed data per node.
+
+Customers with clusters having terabytes of data per node - and where the total index load is growing - should be especially aware that they may be approaching their cluster's operating limit. They may wish to check the value of various circuit breakers through node statistics calls.

@@ -78,7 +78,7 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
         return createTestInstance(randomBoolean());
     }
 
-    private GetIndexResponse createTestInstance(boolean randomTypeName) {
+    private static GetIndexResponse createTestInstance(boolean randomTypeName) {
         String[] indices = generateRandomStringArray(5, 5, false, false);
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliases = ImmutableOpenMap.builder();

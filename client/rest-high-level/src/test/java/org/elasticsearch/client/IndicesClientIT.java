@@ -368,8 +368,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertEquals("1", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_SHARDS));
         assertEquals("0", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_REPLICAS));
         assertNotNull(getIndexResponse.getMappings().get(indexName));
-        assertNotNull(getIndexResponse.getMappings().get(indexName).get("_doc"));
-        MappingMetaData mappingMetaData = getIndexResponse.getMappings().get(indexName).get("_doc");
+        assertNotNull(getIndexResponse.getMappings().get(indexName));
+        MappingMetaData mappingMetaData = getIndexResponse.getMappings().get(indexName);
         assertNotNull(mappingMetaData);
         assertEquals("_doc", mappingMetaData.type());
         assertEquals("{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}", mappingMetaData.source().string());
@@ -425,12 +425,12 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         assertNotNull(getIndexResponse.getSetting(indexName, "index.refresh_interval"));
         assertEquals(IndexSettings.DEFAULT_REFRESH_INTERVAL,
-            getIndexResponse.defaultSettings().get(indexName).getAsTime("index.refresh_interval", null));
+            getIndexResponse.getDefaultSettings().get(indexName).getAsTime("index.refresh_interval", null));
         assertEquals("1", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_SHARDS));
         assertEquals("0", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_REPLICAS));
         assertNotNull(getIndexResponse.getMappings().get(indexName));
-        assertNotNull(getIndexResponse.getMappings().get(indexName).get("_doc"));
-        Object o = getIndexResponse.getMappings().get(indexName).get("_doc").getSourceAsMap().get("properties");
+        assertNotNull(getIndexResponse.getMappings().get(indexName));
+        Object o = getIndexResponse.getMappings().get(indexName).getSourceAsMap().get("properties");
         assertThat(o, instanceOf(Map.class));
         assertThat(((Map<String, Object>) o).get("field-1"), instanceOf(Map.class));
         Map<String, Object> fieldMapping = (Map<String, Object>) ((Map<String, Object>) o).get("field-1");

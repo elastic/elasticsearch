@@ -34,7 +34,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -43,14 +42,14 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class GetIndexResponse {
 
-    private ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.of();
+    private ImmutableOpenMap<String, MappingMetaData> mappings = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, List<AliasMetaData>> aliases = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
     private String[] indices;
 
     GetIndexResponse(String[] indices,
-                     ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings,
+                     ImmutableOpenMap<String, MappingMetaData> mappings,
                      ImmutableOpenMap<String, List<AliasMetaData>> aliases,
                      ImmutableOpenMap<String, Settings> settings,
                      ImmutableOpenMap<String, Settings> defaultSettings) {
@@ -75,7 +74,7 @@ public class GetIndexResponse {
         return indices;
     }
 
-    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> getMappings() {
+    public ImmutableOpenMap<String, MappingMetaData> getMappings() {
         return mappings;
     }
 
@@ -88,10 +87,10 @@ public class GetIndexResponse {
      * defaults, this will contain a mapping of index name to {@link Settings} objects.
      * The returned {@link Settings} objects will contain only those settings taking
      * effect as defaults.  Any settings explicitly set on the index will be available
-     * via {@link #settings()}.
+     * via {@link #getSettings()}.
      * See also {@link GetIndexRequest#includeDefaults(boolean)}
      */
-    public ImmutableOpenMap<String, Settings> defaultSettings() {
+    public ImmutableOpenMap<String, Settings> getDefaultSettings() {
         return defaultSettings;
     }
 
@@ -133,18 +132,13 @@ public class GetIndexResponse {
         return indexAliases;
     }
 
-    private static ImmutableOpenMap<String, MappingMetaData> parseMappings(XContentParser parser) throws IOException {
-        ImmutableOpenMap.Builder<String, MappingMetaData> indexMappings = ImmutableOpenMap.builder();
-        Map<String, Object> map = parser.map();
-        if (map.isEmpty() == false) {
-            indexMappings.put(MapperService.SINGLE_MAPPING_NAME, new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, map));
-        }
-        return indexMappings.build();
+    private static MappingMetaData parseMappings(XContentParser parser) throws IOException {
+        return new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, parser.map());
     }
 
     private static IndexEntry parseIndexEntry(XContentParser parser) throws IOException {
         List<AliasMetaData> indexAliases = null;
-        ImmutableOpenMap<String, MappingMetaData> indexMappings = null;
+        MappingMetaData indexMappings = null;
         Settings indexSettings = null;
         Settings indexDefaultSettings = null;
         // We start at START_OBJECT since fromXContent ensures that
@@ -178,11 +172,10 @@ public class GetIndexResponse {
     // This is just an internal container to make stuff easier for returning
     private static class IndexEntry {
         List<AliasMetaData> indexAliases = new ArrayList<>();
-        ImmutableOpenMap<String, MappingMetaData> indexMappings = ImmutableOpenMap.of();
+        MappingMetaData indexMappings;
         Settings indexSettings = Settings.EMPTY;
         Settings indexDefaultSettings = Settings.EMPTY;
-        IndexEntry(List<AliasMetaData> indexAliases, ImmutableOpenMap<String, MappingMetaData> indexMappings,
-                   Settings indexSettings, Settings indexDefaultSettings) {
+        IndexEntry(List<AliasMetaData> indexAliases, MappingMetaData indexMappings, Settings indexSettings, Settings indexDefaultSettings) {
             if (indexAliases != null) this.indexAliases = indexAliases;
             if (indexMappings != null) this.indexMappings = indexMappings;
             if (indexSettings != null) this.indexSettings = indexSettings;
@@ -192,7 +185,7 @@ public class GetIndexResponse {
 
     public static GetIndexResponse fromXContent(XContentParser parser) throws IOException {
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliases = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> defaultSettings = ImmutableOpenMap.builder();
         List<String> indices = new ArrayList<>();

@@ -34,7 +34,7 @@ public class GetIndexRequest extends TimedRequest {
         SETTINGS;
     }
 
-    private static final Feature[] DEFAULT_FEATURES = new Feature[] { Feature.ALIASES, Feature.MAPPINGS, Feature.SETTINGS };
+    static final Feature[] DEFAULT_FEATURES = new Feature[] { Feature.ALIASES, Feature.MAPPINGS, Feature.SETTINGS };
     private Feature[] features = DEFAULT_FEATURES;
     private boolean humanReadable = false;
     private transient boolean includeDefaults = false;
@@ -127,4 +127,6 @@ public class GetIndexRequest extends TimedRequest {
     public boolean includeDefaults() {
         return includeDefaults;
     }
+
+
 }

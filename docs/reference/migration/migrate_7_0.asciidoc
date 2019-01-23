@@ -25,6 +25,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 * <<breaking_70_snapshotstats_changes>>
 * <<breaking_70_restclient_changes>>
 * <<breaking_70_low_level_restclient_changes>>
+* <<breaking_70_node_start>>
 
 [float]
 === Indices created before 7.0
@@ -58,3 +59,4 @@ include::migrate_7_0/scripting.asciidoc[]
 include::migrate_7_0/snapshotstats.asciidoc[]
 include::migrate_7_0/restclient.asciidoc[]
 include::migrate_7_0/low_level_restclient.asciidoc[]
+include::migrate_7_0/node_start.asciidoc[]

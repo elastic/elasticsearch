@@ -301,7 +301,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
-    public void test100RepairIndexCliPackaging() {
+    public void test100ElasticsearchShardCliPackaging() {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();
@@ -318,7 +318,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
-    public void test110RepairIndexCliPackaging() {
+    public void test110ElasticsearchNodeCliPackaging() {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();

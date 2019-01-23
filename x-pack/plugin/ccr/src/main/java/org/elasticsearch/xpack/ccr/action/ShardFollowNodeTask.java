@@ -299,9 +299,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     void handleFallenBehindLeaderShard(Exception e, long from, int maxOperationCount, long maxRequiredSeqNo, AtomicInteger retryCounter) {
-        // Do restore from repository here and
-        // after start() should be invoked and
-        // stats should be reset including fallenBehindLeaderShard
+        // Do restore from repository here and after that
+        // start() should be invoked and stats should be reset
 
         // For now handle like any other failure:
         // need a more robust approach to avoid the scenario where an outstanding request

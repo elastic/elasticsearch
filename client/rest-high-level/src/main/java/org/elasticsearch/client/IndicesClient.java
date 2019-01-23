@@ -42,7 +42,6 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsReques
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -64,6 +63,7 @@ import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
+import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.rest.RestStatus;
 
@@ -210,12 +210,35 @@ public final class IndicesClient {
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-mapping.html">
      * Put Mapping API on elastic.co</a>
-     * @deprecated Prefer {@link #putMapping(PutMappingRequest, RequestOptions)}
+     *
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The
+     * method {@link #putMapping(PutMappingRequest, RequestOptions)} should be used instead, which accepts a new
+     * request object, and also uses request options instead of headers.
      */
     @Deprecated
-    public AcknowledgedResponse putMapping(PutMappingRequest putMappingRequest, Header... headers) throws IOException {
+    public AcknowledgedResponse putMapping(org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest,
+                                           Header... headers) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(putMappingRequest, IndicesRequestConverters::putMapping,
                 AcknowledgedResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Updates the mappings on an index using the Put Mapping API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-mapping.html">
+     * Put Mapping API on elastic.co</a>
+     * @param putMappingRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     *
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
+     * {@link #putMapping(PutMappingRequest, RequestOptions)} should be used instead, which accepts a new request object.
+     */
+    @Deprecated
+    public AcknowledgedResponse putMapping(org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest,
+                                           RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(putMappingRequest, IndicesRequestConverters::putMapping, options,
+            AcknowledgedResponse::fromXContent, emptySet());
     }
 
     /**
@@ -237,13 +260,37 @@ public final class IndicesClient {
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-mapping.html">
      * Put Mapping API on elastic.co</a>
-     * @deprecated Prefer {@link #putMappingAsync(PutMappingRequest, RequestOptions, ActionListener)}
+     *
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The
+     * method {@link #putMappingAsync(PutMappingRequest, RequestOptions, ActionListener)} should be used instead,
+     * which accepts a new request object, and also uses request options instead of headers.
      */
     @Deprecated
-    public void putMappingAsync(PutMappingRequest putMappingRequest, ActionListener<AcknowledgedResponse> listener,
+    public void putMappingAsync(org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest,
+                                ActionListener<AcknowledgedResponse> listener,
                                 Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(putMappingRequest, IndicesRequestConverters::putMapping,
-                AcknowledgedResponse::fromXContent, listener, emptySet(), headers);
+            AcknowledgedResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously updates the mappings on an index using the Put Mapping API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-mapping.html">
+     * Put Mapping API on elastic.co</a>
+     * @param putMappingRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     *
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The
+     * method {@link #putMappingAsync(PutMappingRequest, RequestOptions, ActionListener)} should be used instead,
+     * which accepts a new request object.
+     */
+    @Deprecated
+    public void putMappingAsync(org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest,
+                                RequestOptions options,
+                                ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(putMappingRequest, IndicesRequestConverters::putMapping, options,
+            AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
     /**

@@ -632,8 +632,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                                                          masterNodes, electMasterService.minimumMasterNodes()));
                 return resultBuilder.build(currentState);
             } else {
-                ClusterState ptasksDisassociatedState = PersistentTasksCustomMetaData.deassociateDeadNodes(remainingNodesClusterState);
-                return resultBuilder.build(allocationService.deassociateDeadNodes(ptasksDisassociatedState, true, describeTasks(tasks)));
+                ClusterState ptasksDisassociatedState = PersistentTasksCustomMetaData.disassociateDeadNodes(remainingNodesClusterState);
+                return resultBuilder.build(allocationService.disassociateDeadNodes(ptasksDisassociatedState, true, describeTasks(tasks)));
             }
         }
 

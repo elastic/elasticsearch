@@ -50,12 +50,15 @@ abstract class DateTimeArithmeticOperation extends ArithmeticOperation {
                 if (function() == SUB && right().dataType().isDateBased() && DataTypes.isInterval(left().dataType())) {
                     throw new SqlIllegalArgumentException("Cannot subtract a date from an interval; do you mean the reverse?");
                 }
-                return TypeResolution.TYPE_RESOLVED;
+                return resolveWithIntervals();
             }
         }
 
         // fall-back to default checks
         return super.resolveType();
     }
-    
+
+    protected TypeResolution resolveWithIntervals() {
+        return TypeResolution.TYPE_RESOLVED;
+    }
 }

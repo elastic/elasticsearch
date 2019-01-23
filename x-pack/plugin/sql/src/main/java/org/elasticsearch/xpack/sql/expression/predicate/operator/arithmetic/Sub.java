@@ -28,4 +28,13 @@ public class Sub extends DateTimeArithmeticOperation {
     protected Sub replaceChildren(Expression newLeft, Expression newRight) {
         return new Sub(source(), newLeft, newRight);
     }
+
+    @Override
+    protected TypeResolution resolveWithIntervals() {
+        if (right().dataType().isDateBased() && DataTypes.isInterval(left().dataType())) {
+            return new TypeResolution(format(null, "Cannot subtract a {}[{}] from an interval[{}]; do you mean the reverse?",
+                right().dataType().esType, right().source().text(), left().source().text()));
+        }
+        return TypeResolution.TYPE_RESOLVED;
+    }
 }

@@ -946,10 +946,20 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a list of objects
+     * Reads a list of objects.
      */
-    public <T> List<T> readList(Writeable.Reader<T> reader) throws IOException {
+    public <T> List<T> readList(final Writeable.Reader<T> reader) throws IOException {
         return readCollection(reader, ArrayList::new);
+    }
+
+    /**
+     * Reads a list of strings. The list is expected to have been written using {@link StreamOutput#writeStringCollection(Collection)}.
+     *
+     * @return the list of strings
+     * @throws IOException if an I/O exception occurs reading the
+     */
+    public List<String> readStringList() throws IOException {
+        return readList(StreamInput::readString);
     }
 
     /**

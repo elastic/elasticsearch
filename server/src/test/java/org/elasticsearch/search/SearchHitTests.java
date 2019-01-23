@@ -89,6 +89,11 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
         if (randomBoolean()) {
             hit.version(randomLong());
         }
+
+        if (randomBoolean()) {
+            hit.version(randomNonNegativeLong());
+            hit.version(randomLongBetween(1, Long.MAX_VALUE));
+        }
         if (randomBoolean()) {
             hit.sortValues(SearchSortValuesTests.createTestItem(xContentType, transportSerialization));
         }

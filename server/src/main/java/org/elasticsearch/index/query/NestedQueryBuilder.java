@@ -383,6 +383,13 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             this.childObjectMapper = childObjectMapper;
         }
 
+        public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
+            assert seqNoAndPrimaryTerm() == false;
+            if (seqNoAndPrimaryTerm) {
+                throw new UnsupportedOperationException("nested documents are not assigned sequence numbers");
+            }
+        }
+
         @Override
         public TopDocs[] topDocs(SearchHit[] hits) throws IOException {
             Weight innerHitQueryWeight = createInnerHitQueryWeight();

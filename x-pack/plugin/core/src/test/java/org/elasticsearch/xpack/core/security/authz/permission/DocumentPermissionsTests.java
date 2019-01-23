@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
@@ -26,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -43,14 +45,18 @@ public class DocumentPermissionsTests extends ESTestCase {
         assertThat(documentPermissions1.hasDocumentLevelPermissions(), is(false));
         assertThat(DocumentPermissions.filter(null, null, null, null, documentPermissions1), is(nullValue()));
 
+        Set<BytesReference> queries = Collections.singleton(new BytesArray("{\"match_all\" : {}}"));
         final DocumentPermissions documentPermissions2 = DocumentPermissions
-                .filteredBy(Collections.singleton(new BytesArray("{\"match_all\" : {}}")));
+                .filteredBy(queries);
         assertThat(documentPermissions2, is(notNullValue()));
         assertThat(documentPermissions2.hasDocumentLevelPermissions(), is(true));
+        assertThat(documentPermissions2.getQueries(), equalTo(queries));
 
         final DocumentPermissions documentPermissions3 = documentPermissions1.limitDocumentPermissions(documentPermissions2);
         assertThat(documentPermissions3, is(notNullValue()));
         assertThat(documentPermissions3.hasDocumentLevelPermissions(), is(true));
+        assertThat(documentPermissions3.getQueries(), is(nullValue()));
+        assertThat(documentPermissions3.getLimitedByQueries(), equalTo(queries));
 
         final DocumentPermissions documentPermissions4 = DocumentPermissions.allowAll()
                 .limitDocumentPermissions(DocumentPermissions.allowAll());

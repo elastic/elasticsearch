@@ -828,8 +828,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         public PersistentTasksCustomMetaData.Assignment getAssignment(OpenJobAction.JobParams params, ClusterState clusterState) {
             // If the task parameters do not have a job field then the job
             // was first opened on a pre v6.6 node and has not been migrated
-
-            // TODO is eligible for migration check (all nodes are at the same version)
             if (params.getJob() == null) {
                 return AWAITING_MIGRATION;
             }

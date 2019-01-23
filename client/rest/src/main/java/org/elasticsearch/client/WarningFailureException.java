@@ -21,12 +21,38 @@ package org.elasticsearch.client;
 
 import java.io.IOException;
 
-public class WarningFailureException extends ResponseException {
+import static org.elasticsearch.client.ResponseException.buildMessage;
+
+/**
+ * This exception is used to indicate that one or more {@link Response#getWarnings()} exist
+ * and is typically used when the {@link RestClient} is set to fail by setting
+ * {@link RestClientBuilder#setStrictDeprecationMode(boolean)} to `true`.
+ */
+// This class extends RuntimeException in order to deal with wrapping that is done in FutureUtils on exception.
+// if the exception is not of type ElasticsearchException or RuntimeException it will be wrapped in a UncategorizedExecutionException
+public class WarningFailureException extends RuntimeException {
+
+    private Response response;
+
     public WarningFailureException(Response response) throws IOException {
-        super(response);
+        super(buildMessage(response));
+        this.response = response;
     }
 
-    public WarningFailureException(ResponseException e) throws IOException {
-        super(e);
+    /**
+     * Wrap a {@linkplain WarningFailureException} with another one with the current
+     * stack trace. This is used during synchronous calls so that the caller
+     * ends up in the stack trace of the exception thrown.
+     */
+    WarningFailureException(WarningFailureException e) {
+        super(e.getMessage(), e);
+        this.response = e.getResponse();
+    }
+
+    /**
+     * Returns the {@link Response} that caused this exception to be thrown.
+     */
+    public Response getResponse() {
+        return response;
     }
 }

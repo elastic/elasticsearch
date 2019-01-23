@@ -49,7 +49,7 @@ public class ResponseException extends IOException {
         this.response = e.getResponse();
     }
 
-    private static String buildMessage(Response response) throws IOException {
+    static String buildMessage(Response response) throws IOException {
         String message = String.format(Locale.ROOT,
             "method [%s], host [%s], URI [%s], status line [%s]",
             response.getRequestLine().getMethod(),

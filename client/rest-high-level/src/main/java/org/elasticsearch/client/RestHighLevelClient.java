@@ -1673,10 +1673,7 @@ public class RestHighLevelClient implements Closeable {
         ElasticsearchStatusException elasticsearchException;
         RestStatus restStatus = RestStatus.fromCode(response.getStatusLine().getStatusCode());
 
-        if (responseException instanceof WarningFailureException) {
-            elasticsearchException = new ElasticsearchStatusException("Warnings/Deprecations caused response to fail", restStatus,
-                responseException);
-        } else if (entity == null) {
+        if (entity == null) {
             elasticsearchException = new ElasticsearchStatusException(
                     responseException.getMessage(), restStatus, responseException);
         } else {

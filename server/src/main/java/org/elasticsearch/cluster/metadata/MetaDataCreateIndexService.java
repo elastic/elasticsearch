@@ -20,8 +20,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -53,6 +53,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -100,6 +101,12 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
  */
 public class MetaDataCreateIndexService {
     private static final Logger logger = LogManager.getLogger(MetaDataCreateIndexService.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(MetaDataCreateIndexService.class));
+
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] During index creation, an index " +
+        "template was triggered that contains a custom type. Index templates should no longer include a " +
+        "type name in the mappings, as types are deprecated and will be removed in the next major version.";
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
 
@@ -312,6 +319,12 @@ public class MetaDataCreateIndexService {
                 if (recoverFromIndex == null) {
                     // apply templates, merging the mappings into the request mapping if exists
                     for (IndexTemplateMetaData template : templates) {
+
+                        if (!template.isTypeless()) {
+                            deprecationLogger.deprecatedAndMaybeLog("trigger_template_with_types",
+                                TYPES_DEPRECATION_MESSAGE);
+                        }
+
                         templateNames.add(template.getName());
                         for (ObjectObjectCursor<String, CompressedXContent> cursor : template.mappings()) {
                             String mappingString = cursor.value.string();

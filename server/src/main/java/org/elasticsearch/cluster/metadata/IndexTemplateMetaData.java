@@ -154,6 +154,11 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         return this.aliases;
     }
 
+    public boolean isTypeless() {
+        return mappings.size() == 0 ||
+            (mappings.size()) == 1 && mappings.containsKey(MapperService.SINGLE_MAPPING_NAME);
+    }
+
     public static Builder builder(String name) {
         return new Builder(name);
     }

@@ -65,6 +65,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.TYPES_DEPRECATION_MESSAGE;
 import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasAllKeys;
 import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasKey;
 import static org.hamcrest.Matchers.containsString;
@@ -127,7 +128,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     public void testApplyDataFromTemplate() throws Exception {
         addMatchingTemplate(builder -> builder
                 .putAlias(AliasMetaData.builder("alias1"))
-                .putMapping("mapping1", createMapping())
+                .putMapping("_doc", createMapping())
                 .settings(Settings.builder().put("key1", "value1"))
         );
 
@@ -135,7 +136,7 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         assertThat(result.metaData().index("test").getAliases(), hasKey("alias1"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("value1"));
-        assertThat(getMappingsFromResponse(), Matchers.hasKey("mapping1"));
+        assertThat(getMappingsFromResponse(), Matchers.hasKey("_doc"));
     }
 
     public void testApplyDataFromRequest() throws Exception {
@@ -162,7 +163,7 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         addMatchingTemplate(builder -> builder
                     .putAlias(AliasMetaData.builder("alias1").searchRouting("fromTpl").build())
-                    .putMapping("mapping1", tplMapping)
+                    .putMapping("_doc", tplMapping)
                     .settings(Settings.builder().put("key1", "tplValue"))
         );
 
@@ -233,6 +234,17 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         assertThat(result.getMetaData().index("test").getSettings().get(SETTING_NUMBER_OF_SHARDS), equalTo("12"));
         assertThat(result.metaData().index("test").getAliases().get("alias1").getSearchRouting(), equalTo("3"));
+    }
+
+    public void testTypesDeprecation() throws Exception {
+        addMatchingTemplate(builder -> builder
+            .putMapping("custom_type", "{}")
+            .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 10))
+        );
+
+        executeTask();
+        assertThat(getMappingsFromResponse(), Matchers.hasKey("custom_type"));
+        assertWarnings(TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testRequestStateOpen() throws Exception {

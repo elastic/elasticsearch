@@ -55,10 +55,11 @@ without requiring basic authentication:
 [[security-api-keys]]
 === API Keys
 
-You can use the following API to create API keys for access
+You can use the following APIs to create and invalidate API keys for access
 without requiring basic authentication:
 
 * <<security-api-create-api-key,Create API Key>>
+* <<security-api-invalidate-api-key,Invalidate API Key>>
 
 [float]
 [[security-user-apis]]
@@ -98,3 +99,4 @@ include::security/has-privileges.asciidoc[]
 include::security/invalidate-tokens.asciidoc[]
 include::security/ssl.asciidoc[]
 include::security/create-api-keys.asciidoc[]
+include::security/invalidate-api-keys.asciidoc[]

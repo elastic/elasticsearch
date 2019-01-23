@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigu
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -100,7 +99,7 @@ public class DiscoveryUpgradeService {
     @Nullable // null if no active joining round
     private volatile JoiningRound joiningRound;
 
-    public DiscoveryUpgradeService(Settings settings, ClusterSettings clusterSettings, TransportService transportService,
+    public DiscoveryUpgradeService(Settings settings, TransportService transportService,
                                    BooleanSupplier isBootstrappedSupplier, JoinHelper joinHelper,
                                    Supplier<Iterable<DiscoveryNode>> peersSupplier,
                                    Consumer<VotingConfiguration> initialConfigurationConsumer) {

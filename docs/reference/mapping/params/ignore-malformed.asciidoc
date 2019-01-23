@@ -14,18 +14,16 @@ For example:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "number_one": {
-          "type": "integer",
-          "ignore_malformed": true
-        },
-        "number_two": {
-          "type": "integer"
-        }
+    "properties": {
+      "number_one": {
+        "type": "integer",
+        "ignore_malformed": true
+      },
+      "number_two": {
+        "type": "integer"
       }
     }
   }
@@ -61,21 +59,19 @@ allow to ignore malformed content globally across all mapping types.
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "settings": {
     "index.mapping.ignore_malformed": true <1>
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "number_one": { <1>
-          "type": "byte"
-        },
-        "number_two": {
-          "type": "integer",
-          "ignore_malformed": false <2>
-        }
+    "properties": {
+      "number_one": { <1>
+        "type": "byte"
+      },
+      "number_two": {
+        "type": "integer",
+        "ignore_malformed": false <2>
       }
     }
   }

@@ -789,9 +789,11 @@ public final class ThreadContext implements Closeable, Writeable {
         public BinaryOperator<Set<T>> combiner() {
             return (left, right) -> {
                 if (left.size() < right.size()) {
-                    right.addAll(left); return right;
+                    right.addAll(left);
+                    return right;
                 } else {
-                    left.addAll(right); return left;
+                    left.addAll(right);
+                    return left;
                 }
             };
         }

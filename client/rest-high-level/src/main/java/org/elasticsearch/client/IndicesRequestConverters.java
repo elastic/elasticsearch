@@ -417,11 +417,8 @@ final class IndicesRequestConverters {
     }
 
     /**
-     * 
-     * @param putIndexTemplateRequest old form of PutIndexTemplateRequest that allows types in mappings
-     * @return
-     * @throws IOException
-     * @deprecated Use (@link {@link #putTemplate(PutIndexTemplateRequest)} instead
+     * @deprecated This uses the old form of PutIndexTemplateRequest which uses types. 
+     * Use (@link {@link #putTemplate(PutIndexTemplateRequest)} instead
      */
     @Deprecated
     static Request putTemplate(org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putIndexTemplateRequest) 

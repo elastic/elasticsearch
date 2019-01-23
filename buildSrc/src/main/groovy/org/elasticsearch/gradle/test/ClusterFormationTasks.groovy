@@ -195,6 +195,7 @@ class ClusterFormationTasks {
         }
         String snapshotProject = distro == 'oss' ? 'oss-zip' : 'zip'
         Object dependency
+        boolean internalBuild = project.hasProperty('bwcVersions')
         VersionCollection.UnreleasedVersionInfo unreleasedInfo = null
         if (project.hasProperty('bwcVersions')) {
             // NOTE: leniency is needed for external plugin authors using build-tools. maybe build the version compat info into build-tools?
@@ -202,7 +203,7 @@ class ClusterFormationTasks {
         }
         if (unreleasedInfo != null) {
             dependency = project.dependencies.project(path: ":distribution:bwc:${unreleasedInfo.gradleProjectName}", configuration: snapshotProject)
-        } else if (elasticsearchVersion.equals(VersionProperties.elasticsearch)) {
+        } else if (internalBuild && elasticsearchVersion.equals(VersionProperties.elasticsearch)) {
             dependency = project.dependencies.project(path: ":distribution:archives:${snapshotProject}")
         } else {
             dependency = "${group}:${artifactName}:${elasticsearchVersion}@zip"

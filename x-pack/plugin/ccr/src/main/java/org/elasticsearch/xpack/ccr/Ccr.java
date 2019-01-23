@@ -116,6 +116,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     public static final String CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY = "leader_index_name";
     public static final String CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY = "remote_cluster_name";
 
+    public static final String REQUESTED_OPS_MISSING_METADATA_KEY = "es.requested_operations_missing";
+
     private final boolean enabled;
     private final Settings settings;
     private final CcrLicenseChecker ccrLicenseChecker;

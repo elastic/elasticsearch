@@ -95,7 +95,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         CreateIndexResponse response = highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         assertThat(response.isAcknowledged(), is(true));
 
-        PutFollowRequest putFollowRequest = new PutFollowRequest("local_cluster", "leader", "follower");
+        PutFollowRequest putFollowRequest = new PutFollowRequest("local_cluster", "leader", "follower", true);
         PutFollowResponse putFollowResponse = execute(putFollowRequest, ccrClient::putFollow, ccrClient::putFollowAsync);
         assertThat(putFollowResponse.isFollowIndexCreated(), is(true));
         assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));

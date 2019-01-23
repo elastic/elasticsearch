@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.ccr.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -28,10 +29,10 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.FOLLOWER_INDEX_FIELD;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_READ_REQUEST_OPERATION_COUNT;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_READ_REQUEST_SIZE;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_OUTSTANDING_READ_REQUESTS;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_OUTSTANDING_WRITE_REQUESTS;
+import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_READ_REQUEST_OPERATION_COUNT;
+import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_READ_REQUEST_SIZE;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_RETRY_DELAY_FIELD;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_BUFFER_COUNT;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_BUFFER_SIZE;
@@ -105,7 +106,8 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
                 ObjectParser.ValueType.STRING);
         }
 
-        public static Request fromXContent(final XContentParser parser, final String followerIndex) throws IOException {
+        public static Request fromXContent(final XContentParser parser, final String followerIndex, boolean waitForRestore)
+            throws IOException {
             Request request = PARSER.parse(parser, followerIndex);
             if (followerIndex != null) {
                 if (request.getFollowRequest().getFollowerIndex() == null) {
@@ -116,11 +118,13 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
                     }
                 }
             }
+            request.setWaitForRestore(waitForRestore);
             return request;
         }
 
         private String remoteCluster;
         private String leaderIndex;
+        private boolean waitForRestore;
         private ResumeFollowAction.Request followRequest;
 
         public Request() {
@@ -140,6 +144,14 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
         public void setLeaderIndex(String leaderIndex) {
             this.leaderIndex = leaderIndex;
+        }
+
+        public boolean getWaitForRestore() {
+            return waitForRestore;
+        }
+
+        public void setWaitForRestore(boolean waitForRestore) {
+            this.waitForRestore = waitForRestore;
         }
 
         public ResumeFollowAction.Request getFollowRequest() {
@@ -176,6 +188,12 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             super(in);
             remoteCluster = in.readString();
             leaderIndex = in.readString();
+            // TODO: Update after backport
+            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+                waitForRestore = in.readBoolean();
+            } else {
+                waitForRestore = true;
+            }
             followRequest = new ResumeFollowAction.Request(in);
         }
 
@@ -184,6 +202,10 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             super.writeTo(out);
             out.writeString(remoteCluster);
             out.writeString(leaderIndex);
+            // TODO: Update after backport
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+                out.writeBoolean(waitForRestore);
+            }
             followRequest.writeTo(out);
         }
 
@@ -206,12 +228,13 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             Request request = (Request) o;
             return Objects.equals(remoteCluster, request.remoteCluster) &&
                 Objects.equals(leaderIndex, request.leaderIndex) &&
+                Objects.equals(waitForRestore, request.waitForRestore) &&
                 Objects.equals(followRequest, request.followRequest);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(remoteCluster, leaderIndex, followRequest);
+            return Objects.hash(remoteCluster, leaderIndex, waitForRestore, followRequest);
         }
     }
 

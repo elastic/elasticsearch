@@ -33,6 +33,7 @@
   - do:
       ccr.follow:
         index: bar
+        wait_for_restore: true
         body:
           remote_cluster: local
           leader_index: foo

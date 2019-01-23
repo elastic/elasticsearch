@@ -11,6 +11,13 @@
           "required": true,
           "description": "The name of the follower index"
         }
+      },
+      "params": {
+        "wait_for_restore": {
+          "type": "boolean",
+          "description": "Should this request wait until the follower has been restored before returning",
+          "default": false
+        }
       }
     },
     "body": {

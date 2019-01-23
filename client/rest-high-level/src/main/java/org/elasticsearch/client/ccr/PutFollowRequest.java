@@ -36,11 +36,17 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
     private final String remoteCluster;
     private final String leaderIndex;
     private final String followerIndex;
+    private final boolean waitForRestore;
 
     public PutFollowRequest(String remoteCluster, String leaderIndex, String followerIndex) {
+        this(remoteCluster, leaderIndex, followerIndex, false);
+    }
+
+    public PutFollowRequest(String remoteCluster, String leaderIndex, String followerIndex, boolean waitForRestore) {
         this.remoteCluster = Objects.requireNonNull(remoteCluster, "remoteCluster");
         this.leaderIndex = Objects.requireNonNull(leaderIndex, "leaderIndex");
         this.followerIndex = Objects.requireNonNull(followerIndex, "followerIndex");
+        this.waitForRestore = waitForRestore;
     }
 
     @Override
@@ -66,13 +72,18 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
         return followerIndex;
     }
 
+    public boolean getWaitForRestore() {
+        return waitForRestore;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (!super.equals(o)) return false;
         PutFollowRequest that = (PutFollowRequest) o;
-        return Objects.equals(remoteCluster, that.remoteCluster) &&
+        return waitForRestore == that.waitForRestore &&
+            Objects.equals(remoteCluster, that.remoteCluster) &&
             Objects.equals(leaderIndex, that.leaderIndex) &&
             Objects.equals(followerIndex, that.followerIndex);
     }
@@ -83,7 +94,7 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
             super.hashCode(),
             remoteCluster,
             leaderIndex,
-            followerIndex
-        );
+            followerIndex,
+            waitForRestore);
     }
 }

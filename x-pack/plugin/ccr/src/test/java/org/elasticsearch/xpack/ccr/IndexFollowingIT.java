@@ -93,15 +93,18 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderYellow("index1");
 
-        final PutFollowAction.Request followRequest = putFollow("index1", "index2");
-        followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
-
         final int firstBatchNumDocs = randomIntBetween(2, 64);
         logger.info("Indexing [{}] docs as first batch", firstBatchNumDocs);
         for (int i = 0; i < firstBatchNumDocs; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
             leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
+
+        final PutFollowAction.Request followRequest = putFollow("index1", "index2");
+        PutFollowAction.Response response = followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+        assertTrue(response.isFollowIndexCreated());
+        assertTrue(response.isFollowIndexShardsAcked());
+        assertTrue(response.isIndexFollowingStarted());
 
         final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();
         final ShardStats[] firstBatchShardStats =
@@ -147,6 +150,117 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             firstBatchNumDocs + secondBatchNumDocs);
         pauseFollow("index2");
         assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), numberOfPrimaryShards);
+    }
+
+    public void testFollowIndexWithConcurrentMappingChanges() throws Exception {
+        final int numberOfPrimaryShards = randomIntBetween(1, 3);
+        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureLeaderYellow("index1");
+
+        final int firstBatchNumDocs = randomIntBetween(2, 64);
+        logger.info("Indexing [{}] docs as first batch", firstBatchNumDocs);
+        for (int i = 0; i < firstBatchNumDocs; i++) {
+            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
+            leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
+        }
+
+        AtomicBoolean isRunning = new AtomicBoolean(true);
+
+        // Concurrently index new docs with mapping changes
+        Thread thread = new Thread(() -> {
+            int docID = 10000;
+            char[] chars = "abcdeghijklmnopqrstuvwxyz".toCharArray();
+            for (char c : chars) {
+                if (isRunning.get() == false) {
+                    break;
+                }
+                final String source;
+                long valueToPutInDoc = randomLongBetween(0, 50000);
+                if (randomBoolean()) {
+                    source = String.format(Locale.ROOT, "{\"%c\":%d}", c, valueToPutInDoc);
+                } else {
+                    source = String.format(Locale.ROOT, "{\"%c\":\"%d\"}", c, valueToPutInDoc);
+                }
+                for (int i = 1; i < 10; i++) {
+                    if (isRunning.get() == false) {
+                        break;
+                    }
+                    leaderClient().prepareIndex("index1", "doc", Long.toString(docID++)).setSource(source, XContentType.JSON).get();
+                    if (rarely()) {
+                        leaderClient().admin().indices().prepareFlush("index1").setForce(true).get();
+                    }
+                }
+                leaderClient().admin().indices().prepareFlush("index1").setForce(true).setWaitIfOngoing(true).get();
+            }
+        });
+        thread.start();
+
+        final PutFollowAction.Request followRequest = putFollow("index1", "index2", false);
+        followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+
+        ensureFollowerGreen("index2");
+
+        for (int i = 0; i < firstBatchNumDocs; i++) {
+            assertBusy(assertExpectedDocumentRunnable(i));
+        }
+
+        final int secondBatchNumDocs = randomIntBetween(2, 64);
+        logger.info("Indexing [{}] docs as second batch", secondBatchNumDocs);
+        for (int i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
+            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
+            leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
+        }
+
+        for (int i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
+            assertBusy(assertExpectedDocumentRunnable(i));
+        }
+
+        isRunning.set(false);
+        thread.join();
+    }
+
+    public void testFollowIndexWithoutWaitForComplete() throws Exception {
+        final int numberOfPrimaryShards = randomIntBetween(1, 3);
+        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureLeaderYellow("index1");
+
+        final int firstBatchNumDocs = randomIntBetween(2, 64);
+        logger.info("Indexing [{}] docs as first batch", firstBatchNumDocs);
+        for (int i = 0; i < firstBatchNumDocs; i++) {
+            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
+            leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
+        }
+
+        final PutFollowAction.Request followRequest = putFollow("index1", "index2", false);
+        PutFollowAction.Response response = followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+
+        assertFalse(response.isFollowIndexCreated());
+        assertFalse(response.isFollowIndexShardsAcked());
+        assertFalse(response.isIndexFollowingStarted());
+
+        ensureFollowerGreen(true, "index2");
+
+        final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();
+        final ShardStats[] firstBatchShardStats =
+            leaderClient().admin().indices().prepareStats("index1").get().getIndex("index1").getShards();
+        for (final ShardStats shardStats : firstBatchShardStats) {
+            if (shardStats.getShardRouting().primary()) {
+                long value = shardStats.getStats().getIndexing().getTotal().getIndexCount() - 1;
+                firstBatchNumDocsPerShard.put(shardStats.getShardRouting().shardId(), value);
+            }
+        }
+
+        assertBusy(assertTask(numberOfPrimaryShards, firstBatchNumDocsPerShard));
+
+        for (int i = 0; i < firstBatchNumDocs; i++) {
+            assertBusy(assertExpectedDocumentRunnable(i));
+        }
+        assertTotalNumberOfOptimizedIndexing(resolveFollowerIndex("index2"), numberOfPrimaryShards, firstBatchNumDocs);
+        pauseFollow("index2");
     }
 
     public void testSyncMappings() throws Exception {

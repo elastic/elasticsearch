@@ -31,7 +31,7 @@ POST /follower_index/_ccr/pause_follow
 
 [source,js]
 --------------------------------------------------
-PUT /<follower_index>/_ccr/follow
+PUT /<follower_index>/_ccr/follow?wait_for_restore=true
 {
   "remote_cluster" : "<remote_cluster>",
   "leader_index" : "<leader_index>"
@@ -42,6 +42,10 @@ PUT /<follower_index>/_ccr/follow
 // TEST[s/<follower_index>/follower_index/]
 // TEST[s/<remote_cluster>/remote_cluster/]
 // TEST[s/<leader_index>/leader_index/]
+
+The `wait_for_restore` parameter specifies whether or not the request should return immediately after following
+initialization (default) or wait for the follower to be restored from the remote leader index. Restoring from a
+remote index requires transferring all the remote lucene segment files to the follower index.
 
 ==== Path Parameters
 
@@ -73,7 +77,7 @@ This example creates a follower index named `follower_index`:
 
 [source,js]
 --------------------------------------------------
-PUT /follower_index/_ccr/follow
+PUT /follower_index/_ccr/follow?wait_for_restore=true
 {
   "remote_cluster" : "remote_cluster",
   "leader_index" : "leader_index",

@@ -38,8 +38,8 @@ public class NodeAndClusterIdStateListener implements ClusterStateObserver.Liste
 
     /**
      * Subscribes for the first cluster state update where nodeId and clusterId is present
-     * and sets these values in {@link NodeAndClusterIdConverter}
-     * @param observer - the observer that the listener subscribes for update
+     * and sets these values in {@link NodeAndClusterIdConverter}.
+     * @param observer - the observer that the listener subscribes for an update.
      */
     public static void getAndSetNodeIdAndClusterId(ClusterStateObserver observer) {
         observer.waitForNextChange(new NodeAndClusterIdStateListener(), NodeAndClusterIdStateListener::isNodeAndClusterIdPresent);

@@ -7,8 +7,11 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.sql.type.DataTypes;
+
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
  * Subtraction function ({@code a - b}).
@@ -27,5 +30,14 @@ public class Sub extends DateTimeArithmeticOperation {
     @Override
     protected Sub replaceChildren(Expression newLeft, Expression newRight) {
         return new Sub(source(), newLeft, newRight);
+    }
+
+    @Override
+    protected TypeResolution resolveWithIntervals() {
+        if (right().dataType().isDateBased() && DataTypes.isInterval(left().dataType())) {
+            return new TypeResolution(format(null, "Cannot subtract a {}[{}] from an interval[{}]; do you mean the reverse?",
+                right().dataType().esType, right().source().text(), left().source().text()));
+        }
+        return TypeResolution.TYPE_RESOLVED;
     }
 }

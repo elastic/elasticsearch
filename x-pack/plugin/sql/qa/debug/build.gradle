@@ -1,0 +1,14 @@
+description = 'IDE Debugging for SQL'
+
+dependencies {
+  testCompile project(path: ":client:transport")
+  testCompile project(path: ":modules:aggs-matrix-stats")
+  testCompile project(path: xpackModule('sql'))
+  testCompile project(path: xpackModule('core'))
+}
+
+forbiddenApisTest.enabled = false
+namingConventions.enabled = false
+integTest.enabled = false
+testingConventions.enabled = false
+

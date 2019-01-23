@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.tree.Source;
@@ -15,7 +14,6 @@ import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation.SUB;
 
 abstract class DateTimeArithmeticOperation extends ArithmeticOperation {
 
@@ -47,15 +45,15 @@ abstract class DateTimeArithmeticOperation extends ArithmeticOperation {
             if (DataTypeConversion.commonType(l, r) == null) {
                 return new TypeResolution(format("[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
             } else {
-                if (function() == SUB && right().dataType().isDateBased() && DataTypes.isInterval(left().dataType())) {
-                    throw new SqlIllegalArgumentException("Cannot subtract a date from an interval; do you mean the reverse?");
-                }
-                return TypeResolution.TYPE_RESOLVED;
+                return resolveWithIntervals();
             }
         }
 
         // fall-back to default checks
         return super.resolveType();
     }
-    
+
+    protected TypeResolution resolveWithIntervals() {
+        return TypeResolution.TYPE_RESOLVED;
+    }
 }

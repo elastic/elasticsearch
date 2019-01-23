@@ -36,14 +36,18 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
+import java.util.function.BinaryOperator;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -508,7 +512,8 @@ public final class ThreadContext implements Closeable, Writeable {
                 String key = entry.getKey();
                 final Set<String> existingValues = newResponseHeaders.get(key);
                 if (existingValues != null) {
-                    Set<String> newValues = Stream.concat(entry.getValue().stream(), existingValues.stream()).collect(Collectors.toSet());
+                    Set<String> newValues =
+                            Stream.concat(entry.getValue().stream(), existingValues.stream()).collect(LINKED_HASH_SET_COLLECTOR);
                     newResponseHeaders.put(key, Collections.unmodifiableSet(newValues));
                 } else {
                     newResponseHeaders.put(key, entry.getValue());
@@ -546,8 +551,7 @@ public final class ThreadContext implements Closeable, Writeable {
                     return this;
                 }
                 // preserve insertion order
-                final LinkedHashSet<String> newValues = new LinkedHashSet<>(existingValues);
-                newValues.add(value);
+                final Set<String> newValues = Stream.concat(existingValues.stream(), Stream.of(value)).collect(LINKED_HASH_SET_COLLECTOR);
                 newResponseHeaders = new HashMap<>(responseHeaders);
                 newResponseHeaders.put(key, Collections.unmodifiableSet(newValues));
             } else {
@@ -767,4 +771,43 @@ public final class ThreadContext implements Closeable, Writeable {
             return in;
         }
     }
+
+    private static Collector<String, Set<String>, Set<String>> LINKED_HASH_SET_COLLECTOR = new LinkedHashSetCollector<>();
+
+    static class LinkedHashSetCollector<T> implements Collector<T, Set<T>, Set<T>> {
+        @Override
+        public Supplier<Set<T>> supplier() {
+            return LinkedHashSet::new;
+        }
+
+        @Override
+        public BiConsumer<Set<T>, T> accumulator() {
+            return Set::add;
+        }
+
+        @Override
+        public BinaryOperator<Set<T>> combiner() {
+            return (left, right) -> {
+                if (left.size() < right.size()) {
+                    right.addAll(left); return right;
+                } else {
+                    left.addAll(right); return left;
+                }
+            };
+        }
+
+        @Override
+        public Function<Set<T>, Set<T>> finisher() {
+            return Function.identity();
+        }
+
+        private static final Set<Characteristics> CHARACTERISTICS =
+                Collections.unmodifiableSet(EnumSet.of(Collector.Characteristics.IDENTITY_FINISH));
+
+        @Override
+        public Set<Characteristics> characteristics() {
+            return CHARACTERISTICS;
+        }
+    }
+
 }

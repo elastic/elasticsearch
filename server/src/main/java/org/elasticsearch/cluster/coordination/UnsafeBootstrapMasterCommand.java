@@ -53,10 +53,10 @@ public class UnsafeBootstrapMasterCommand extends EnvironmentAwareCommand {
             "\n" +
             "    WARNING: Elasticsearch MUST be stopped before running this tool.\n" +
             "\n" +
-            "You should run this tool only if you've lost the majority of master eligible nodes.\n" +
-            "If you have a backup, restore from the backup instead.\n" +
-            "Running this tool should be the last resort.\n" +
-            "Running this tool may cause arbitrary data loss and may render your cluster completely non functional.\n" +
+            "You should run this tool only if you have permanently lost half\n" +
+            "or more of the master-eligible nodes, and you cannot restore the cluster\n" +
+            "from a snapshot. This tool can result in arbitrary data loss and " +
+            "should be the last resort.\n" +
             "Do you accept this risk?\n";
     static final String ABORTED_BY_USER_MSG = "aborted by user";
     static final String NOT_MASTER_NODE_MSG = "unsafe-bootstrap tool can only be run on master eligible node";

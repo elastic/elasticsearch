@@ -328,6 +328,18 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         deterministicTaskQueue.runAllTasks();
     }
 
+    public void testDoesNotBootstrapsIfLocalNodeNotInInitialMasterNodes() {
+        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(Settings.builder().putList(
+            INITIAL_MASTER_NODES_SETTING.getKey(), otherNode1.getName(), otherNode2.getName()).build(),
+            transportService, () ->
+            Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()), () -> false, vc -> {
+            throw new AssertionError("should not be called");
+        });
+        transportService.start();
+        clusterBootstrapService.onFoundPeersUpdated();
+        deterministicTaskQueue.runAllTasks();
+    }
+
     public void testDoesNotBootstrapsIfNotConfigured() {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey()).build(), transportService,

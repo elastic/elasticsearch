@@ -63,6 +63,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
         directory.close();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37743")
     public void testRandom() throws Exception {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);

@@ -89,10 +89,15 @@ public class IndicesAccessControl {
         }
 
         /**
-         * Returns a instance of {@link IndexAccessControl} limited by given index access control
-         * field permissions and document permissions.
+         * Returns a instance of {@link IndexAccessControl}, where the privileges for {@code this} object are constrained by the privileges
+         * contained in the provided parameter.<br>
+         * Allowed fields for this index permission would be an intersection of allowed fields.<br>
+         * Allowed documents for this index permission would be an intersection of allowed documents.<br>
+         *
          * @param limitedByIndexAccessControl {@link IndexAccessControl}
          * @return {@link IndexAccessControl}
+         * @see {@link FieldPermissions#limitFieldPermissions(FieldPermissions)}
+         * @see {@link DocumentPermissions#limitDocumentPermissions(DocumentPermissions)}
          */
         public IndexAccessControl limitIndexAccessControl(IndexAccessControl limitedByIndexAccessControl) {
             final boolean granted;
@@ -118,6 +123,13 @@ public class IndicesAccessControl {
         }
     }
 
+    /**
+     * Returns a instance of {@link IndicesAccessControl}, where the privileges for {@code this}
+     * object are constrained by the privileges contained in the provided parameter.<br>
+     *
+     * @param limitedByIndicesAccessControl {@link IndicesAccessControl}
+     * @return {@link IndicesAccessControl}
+     */
     public IndicesAccessControl limitIndicesAccessControl(IndicesAccessControl limitedByIndicesAccessControl) {
         final boolean granted;
         if (this.granted == limitedByIndicesAccessControl.granted) {

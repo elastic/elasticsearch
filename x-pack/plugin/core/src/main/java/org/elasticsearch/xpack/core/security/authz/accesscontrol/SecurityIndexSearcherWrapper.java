@@ -100,8 +100,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
             DirectoryReader wrappedReader = reader;
             DocumentPermissions documentPermissions = permissions.getDocumentPermissions();
             if (documentPermissions != null && documentPermissions.hasDocumentLevelPermissions()) {
-                BooleanQuery filterQuery = DocumentPermissions.filter(getUser(), scriptService, shardId, queryShardContextProvider,
-                        documentPermissions);
+                BooleanQuery filterQuery = documentPermissions.filter(getUser(), scriptService, shardId, queryShardContextProvider);
                 if (filterQuery != null) {
                     wrappedReader = DocumentSubsetReader.wrap(wrappedReader, bitsetFilterCache, new ConstantScoreQuery(filterQuery));
                 }

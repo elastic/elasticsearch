@@ -87,8 +87,8 @@ public final class DocumentPermissions {
     /**
      * Creates a {@link BooleanQuery} to be used as filter to restrict access to documents.<br>
      * Document permission queries are used to create an boolean query.<br>
-     * If the document permissions are scoped, then there is an additional filter added restricting access to documents only allowed by the
-     * scoped queries.
+     * If the document permissions are limited, then there is an additional filter added restricting access to documents only allowed by the
+     * limited queries.
      *
      * @param user authenticated {@link User}
      * @param scriptService {@link ScriptService} for evaluating query templates
@@ -98,24 +98,23 @@ public final class DocumentPermissions {
      * @return {@link BooleanQuery} for the filter
      * @throws IOException thrown if there is an exception during parsing
      */
-    public static BooleanQuery filter(User user, ScriptService scriptService, ShardId shardId,
-                                      Function<ShardId, QueryShardContext> queryShardContextProvider,
-                                      DocumentPermissions documentPermissions) throws IOException {
-        if (documentPermissions.hasDocumentLevelPermissions()) {
+    public BooleanQuery filter(User user, ScriptService scriptService, ShardId shardId,
+                                      Function<ShardId, QueryShardContext> queryShardContextProvider) throws IOException {
+        if (hasDocumentLevelPermissions()) {
             BooleanQuery.Builder filter;
-            if (documentPermissions.queries != null && documentPermissions.limitedByQueries != null) {
+            if (queries != null && limitedByQueries != null) {
                 filter = new BooleanQuery.Builder();
                 BooleanQuery.Builder scopedFilter = new BooleanQuery.Builder();
-                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, documentPermissions.limitedByQueries, scopedFilter);
+                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, limitedByQueries, scopedFilter);
                 filter.add(scopedFilter.build(), FILTER);
 
-                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, documentPermissions.queries, filter);
-            } else if (documentPermissions.queries != null) {
+                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, queries, filter);
+            } else if (queries != null) {
                 filter = new BooleanQuery.Builder();
-                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, documentPermissions.queries, filter);
-            } else if (documentPermissions.limitedByQueries != null) {
+                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, queries, filter);
+            } else if (limitedByQueries != null) {
                 filter = new BooleanQuery.Builder();
-                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, documentPermissions.limitedByQueries, filter);
+                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, limitedByQueries, filter);
             } else {
                 return null;
             }
@@ -240,9 +239,10 @@ public final class DocumentPermissions {
     }
 
     /**
-     * Create a document permissions limited by the queries from other document permissions.
+     * Create a document permissions, where the permissions for {@code this} are
+     * limited by the queries from other document permissions.<br>
      *
-     * @param limitedByDocumentPermissions {@link DocumentPermissions} used to scope the document level access
+     * @param limitedByDocumentPermissions {@link DocumentPermissions} used to limit the document level access
      * @return instance of {@link DocumentPermissions}
      */
     public DocumentPermissions limitDocumentPermissions(

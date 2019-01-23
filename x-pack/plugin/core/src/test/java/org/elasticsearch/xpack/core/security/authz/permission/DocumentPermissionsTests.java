@@ -43,7 +43,7 @@ public class DocumentPermissionsTests extends ESTestCase {
         final DocumentPermissions documentPermissions1 = DocumentPermissions.allowAll();
         assertThat(documentPermissions1, is(notNullValue()));
         assertThat(documentPermissions1.hasDocumentLevelPermissions(), is(false));
-        assertThat(DocumentPermissions.filter(null, null, null, null, documentPermissions1), is(nullValue()));
+        assertThat(documentPermissions1.filter(null, null, null, null, documentPermissions1), is(nullValue()));
 
         Set<BytesReference> queries = Collections.singleton(new BytesArray("{\"match_all\" : {}}"));
         final DocumentPermissions documentPermissions2 = DocumentPermissions

@@ -19,7 +19,7 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
 
     public static DataFrameTransformConfig randomDataFrameTransformConfig() {
         return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-                randomAlphaOfLengthBetween(1, 10), PivotConfigTests.randomPivotConfig());
+                randomAlphaOfLengthBetween(1, 10), QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
     }
 
     @Before

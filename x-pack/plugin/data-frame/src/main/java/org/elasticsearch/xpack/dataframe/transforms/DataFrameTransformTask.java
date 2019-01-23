@@ -265,6 +265,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                             DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_LOAD_TRANSFORM_CONFIGURATION, transformId), e);
                 }
             }
+
+            // todo: set job into failed state
+            if (transformConfig.isValid() == false) {
+                throw new RuntimeException(
+                        DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_INVALID, transformId));
+            }
+
             return super.maybeTriggerAsyncJob(now);
         }
 

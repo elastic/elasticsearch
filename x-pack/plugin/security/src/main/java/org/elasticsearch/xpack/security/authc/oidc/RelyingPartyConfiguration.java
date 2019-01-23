@@ -5,38 +5,59 @@
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
-import java.util.List;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.oauth2.sdk.ResponseType;
+import com.nimbusds.oauth2.sdk.Scope;
+import com.nimbusds.oauth2.sdk.auth.Secret;
+import com.nimbusds.oauth2.sdk.id.ClientID;
+import org.elasticsearch.common.settings.SecureString;
+
+import java.net.URI;
 import java.util.Objects;
 
 /**
  * A Class that contains all the OpenID Connect Relying Party configuration
  */
 public class RelyingPartyConfiguration {
-    private final String clientId;
-    private final String redirectUri;
-    private final String responseType;
-    private final List<String> requestedScopes;
+    private final ClientID clientId;
+    private final SecureString clientSecret;
+    private final URI redirectUri;
+    private final ResponseType responseType;
+    private final Scope requestedScope;
+    private final JWSAlgorithm signatureVerificationAlgorithm;
 
-    public RelyingPartyConfiguration(String clientId, String redirectUri, String responseType, List<String> requestedScopes) {
+    public RelyingPartyConfiguration(ClientID clientId, SecureString clientSecret, URI redirectUri, ResponseType responseType,
+                                     Scope requestedScope,
+                                     JWSAlgorithm algorithm) {
         this.clientId = Objects.requireNonNull(clientId, "clientId must be provided");
+        this.clientSecret = Objects.requireNonNull(clientSecret, "clientSecret must be provided");
         this.redirectUri = Objects.requireNonNull(redirectUri, "redirectUri must be provided");
         this.responseType = Objects.requireNonNull(responseType, "responseType must be provided");
-        this.requestedScopes = Objects.requireNonNull(requestedScopes, "responseType must be provided");
+        this.requestedScope = Objects.requireNonNull(requestedScope, "responseType must be provided");
+        this.signatureVerificationAlgorithm = Objects.requireNonNull(algorithm, "algorithm must be provided");
     }
 
-    public String getClientId() {
+    public ClientID getClientId() {
         return clientId;
     }
 
-    public String getRedirectUri() {
+    public SecureString getClientSecret() {
+        return clientSecret;
+    }
+
+    public URI getRedirectUri() {
         return redirectUri;
     }
 
-    public String getResponseType() {
+    public ResponseType getResponseType() {
         return responseType;
     }
 
-    public List<String> getRequestedScopes() {
-        return requestedScopes;
+    public Scope getRequestedScope() {
+        return requestedScope;
+    }
+
+    public JWSAlgorithm getSignatureVerificationAlgorithm() {
+        return signatureVerificationAlgorithm;
     }
 }

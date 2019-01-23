@@ -113,7 +113,7 @@ public final class InternalRealms {
         map.put(PkiRealmSettings.TYPE, config -> new PkiRealm(config, resourceWatcherService, nativeRoleMappingStore));
         map.put(SamlRealmSettings.TYPE, config -> SamlRealm.create(config, sslService, resourceWatcherService, nativeRoleMappingStore));
         map.put(KerberosRealmSettings.TYPE, config -> new KerberosRealm(config, nativeRoleMappingStore, threadPool));
-        map.put(OpenIdConnectRealmSettings.TYPE, config -> new OpenIdConnectRealm(config));
+        map.put(OpenIdConnectRealmSettings.TYPE, config -> new OpenIdConnectRealm(config, sslService, nativeRoleMappingStore));
         return Collections.unmodifiableMap(map);
     }
 

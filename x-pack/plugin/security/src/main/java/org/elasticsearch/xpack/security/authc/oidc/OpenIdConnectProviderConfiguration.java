@@ -5,8 +5,11 @@
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
+import com.nimbusds.oauth2.sdk.id.Issuer;
 import org.elasticsearch.common.Nullable;
 
+import java.net.URI;
+import java.net.URL;
 import java.util.Objects;
 
 /**
@@ -14,37 +17,43 @@ import java.util.Objects;
  */
 public class OpenIdConnectProviderConfiguration {
     private final String providerName;
-    private final String authorizationEndpoint;
-    private final String tokenEndpoint;
-    private final String userinfoEndpoint;
-    private final String issuer;
+    private final URI authorizationEndpoint;
+    private final URI tokenEndpoint;
+    private final URI userinfoEndpoint;
+    private final Issuer issuer;
+    private final URL jwkSetUrl;
 
-    public OpenIdConnectProviderConfiguration(String providerName, String issuer, String authorizationEndpoint,
-                                              @Nullable String tokenEndpoint, @Nullable String userinfoEndpoint) {
+    public OpenIdConnectProviderConfiguration(String providerName, Issuer issuer, URL jwkSetUrl, URI authorizationEndpoint,
+                                              URI tokenEndpoint, @Nullable URI userinfoEndpoint) {
         this.providerName = Objects.requireNonNull(providerName, "OP Name must be provided");
         this.authorizationEndpoint = Objects.requireNonNull(authorizationEndpoint, "Authorization Endpoint must be provided");
-        this.tokenEndpoint = tokenEndpoint;
+        this.tokenEndpoint = Objects.requireNonNull(tokenEndpoint, "Token Endpoint must be provided");
         this.userinfoEndpoint = userinfoEndpoint;
         this.issuer = Objects.requireNonNull(issuer, "OP Issuer must be provided");
+        this.jwkSetUrl = Objects.requireNonNull(jwkSetUrl, "jwkSetUrl must be provided");
     }
 
     public String getProviderName() {
         return providerName;
     }
 
-    public String getAuthorizationEndpoint() {
+    public URI getAuthorizationEndpoint() {
         return authorizationEndpoint;
     }
 
-    public String getTokenEndpoint() {
+    public URI getTokenEndpoint() {
         return tokenEndpoint;
     }
 
-    public String getUserinfoEndpoint() {
+    public URI getUserinfoEndpoint() {
         return userinfoEndpoint;
     }
 
-    public String getIssuer() {
+    public Issuer getIssuer() {
         return issuer;
+    }
+
+    public URL getJwkSetUrl() {
+        return jwkSetUrl;
     }
 }

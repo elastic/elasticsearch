@@ -40,21 +40,26 @@ public class OpenIdConnectRealmTests extends ESTestCase {
     public void testIncorrectResponseTypeThrowsError() {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "hybrid");
-        SettingsException exception = expectThrows(SettingsException.class, () -> {
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
             new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
         });
-        assertThat(exception.getMessage(), Matchers.containsString("value can only be code or id_token"));
+        assertThat(exception.getMessage(), Matchers.containsString("[xpack.security.authc.realms.oidc.oidc1-realm.rp.response_type]." +
+            " Allowed values are [code, id_token]"));
     }
 
     public void testMissingAuthorizationEndpointThrowsError() {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
@@ -65,10 +70,94 @@ public class OpenIdConnectRealmTests extends ESTestCase {
             Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT)));
     }
 
+    public void testInvalidAuthorizationEndpointThrowsError() {
+        final Settings.Builder settingsBuilder = Settings.builder()
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "this is not a URI")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
+        });
+        assertThat(exception.getMessage(),
+            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT)));
+    }
+
+    public void testMissingTokenEndpointThrowsError() {
+        final Settings.Builder settingsBuilder = Settings.builder()
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
+        SettingsException exception = expectThrows(SettingsException.class, () -> {
+            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
+        });
+        assertThat(exception.getMessage(),
+            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT)));
+    }
+
+    public void testInvalidTokenEndpointThrowsError() {
+        final Settings.Builder settingsBuilder = Settings.builder()
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "This is not a uri")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
+        });
+        assertThat(exception.getMessage(),
+            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT)));
+    }
+
+    public void testMissingJwksUrlThrowsError() {
+        final Settings.Builder settingsBuilder = Settings.builder()
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
+        });
+        assertThat(exception.getMessage(),
+            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL)));
+    }
+
+    public void testInvalidJwksUrlThrowsError() {
+        final Settings.Builder settingsBuilder = Settings.builder()
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "this is not a url")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "This is not a uri")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
+        });
+        assertThat(exception.getMessage(),
+            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL)));
+    }
+
     public void testMissingIssuerThrowsError() {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
@@ -82,7 +171,9 @@ public class OpenIdConnectRealmTests extends ESTestCase {
     public void testMissingNameTypeThrowsError() {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
@@ -96,7 +187,9 @@ public class OpenIdConnectRealmTests extends ESTestCase {
     public void testMissingRedirectUriThrowsError() {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
@@ -110,8 +203,10 @@ public class OpenIdConnectRealmTests extends ESTestCase {
     public void testMissingClientIdThrowsError() {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
         SettingsException exception = expectThrows(SettingsException.class, () -> {
@@ -124,8 +219,10 @@ public class OpenIdConnectRealmTests extends ESTestCase {
     public void testBuilidingAuthenticationRequest() {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com/cb")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code")
@@ -136,16 +233,18 @@ public class OpenIdConnectRealmTests extends ESTestCase {
         final String state = response.getState();
         final String nonce = response.getNonce();
         assertThat(response.getAuthenticationRequestUrl(),
-            equalTo("https://op.example.com/login?response_type=code&scope=openid+scope1+scope2&client_id=rp-my&state=" + state
-                + "&nonce=" + nonce + "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb"));
+            equalTo("https://op.example.com/login?scope=openid+scope1+scope2&response_type=code" +
+                "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb&state=" + state + "&nonce=" + nonce + "&client_id=rp-my"));
     }
 
 
     public void testBuilidingAuthenticationRequestWithDefaultScope() {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com/cb")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
@@ -153,8 +252,8 @@ public class OpenIdConnectRealmTests extends ESTestCase {
         final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri();
         final String state = response.getState();
         final String nonce = response.getNonce();
-        assertThat(response.getAuthenticationRequestUrl(), equalTo("https://op.example.com/login?response_type=code&scope=openid"
-            + "&client_id=rp-my&state=" + state + "&nonce=" + nonce + "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb"));
+        assertThat(response.getAuthenticationRequestUrl(), equalTo("https://op.example.com/login?scope=openid&response_type=code" +
+            "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb&state=" + state + "&nonce=" + nonce + "&client_id=rp-my"));
     }
 
     private RealmConfig buildConfig(Settings realmSettings) {

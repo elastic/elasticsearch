@@ -103,6 +103,11 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
                 sortField = new SortedNumericSortField(fieldName, SortField.Type.DOUBLE, reverse, selectorType);
                 break;
 
+            case DATE_NANOSECONDS:
+                assert !numericType.isFloatingPoint();
+                sortField = new SortedNanosecondsNumericSortField(fieldName, reverse, selectorType);
+                break;
+
             default:
                 assert !numericType.isFloatingPoint();
                 sortField = new SortedNumericSortField(fieldName, SortField.Type.LONG, reverse, selectorType);

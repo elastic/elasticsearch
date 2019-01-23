@@ -24,11 +24,17 @@ import org.joda.time.DateTimeZone;
 
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.common.time.DateUtils.toInstant;
+import static org.elasticsearch.common.time.DateUtils.toLong;
+import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class DateUtilsTests extends ESTestCase {
     private static final Set<String> IGNORE = new HashSet<>(Arrays.asList(
@@ -50,5 +56,54 @@ public class DateUtilsTests extends ESTestCase {
             // roundtrip does not throw either
             assertNotNull(DateUtils.zoneIdToDateTimeZone(zoneId));
         }
+    }
+
+    public void testInstantToLong() {
+        assertThat(toLong(Instant.EPOCH), is(0L));
+
+        Instant instant = createRandomInstant();
+        long timeSinceEpochInNanos = instant.getEpochSecond() * 1_000_000_000 + instant.getNano();
+        assertThat(toLong(instant), is(timeSinceEpochInNanos));
+    }
+
+    public void testInstantToLongMin() {
+        Instant tooEarlyInstant = ZonedDateTime.parse("1677-09-21T00:12:43.145224191Z").toInstant();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> toLong(tooEarlyInstant));
+        assertThat(e.getMessage(), containsString("is before"));
+    }
+
+    public void testInstantToLongMax() {
+        Instant tooEarlyInstant = ZonedDateTime.parse("2262-04-11T23:47:16.854775808Z").toInstant();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> toLong(tooEarlyInstant));
+        assertThat(e.getMessage(), containsString("is after"));
+    }
+
+    public void testLongToInstant() {
+        assertThat(toInstant(0), is(Instant.EPOCH));
+        assertThat(toInstant(-1), is(Instant.EPOCH.minusNanos(1)));
+        assertThat(toInstant(1), is(Instant.EPOCH.plusNanos(1)));
+
+        Instant instant = createRandomInstant();
+        long nowInNs = toLong(instant);
+        assertThat(toInstant(nowInNs), is(instant));
+
+        assertThat(toInstant(Long.MIN_VALUE),
+            is(ZonedDateTime.parse("1677-09-21T00:12:43.145224192Z").toInstant()));
+        assertThat(toInstant(Long.MAX_VALUE),
+            is(ZonedDateTime.parse("2262-04-11T23:47:16.854775807Z").toInstant()));
+    }
+
+    public void testNanosToMillis() {
+        assertThat(toMilliSeconds(0), is(Instant.EPOCH.toEpochMilli()));
+
+        Instant instant = createRandomInstant();
+        long nowInNs = toLong(instant);
+        assertThat(toMilliSeconds(nowInNs), is(instant.toEpochMilli()));
+    }
+
+    private Instant createRandomInstant() {
+        long seconds = randomLongBetween(0, Long.MAX_VALUE) / 1_000_000_000L;
+        long nanos = randomLongBetween(0, 999_999_999L);
+        return Instant.ofEpochSecond(seconds, nanos);
     }
 }

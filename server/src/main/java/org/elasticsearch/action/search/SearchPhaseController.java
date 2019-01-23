@@ -27,6 +27,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
@@ -35,6 +36,8 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.index.fielddata.plain.SortedNanosecondsNumericSortField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -249,17 +252,110 @@ public final class SearchPhaseController {
             CollapseTopFieldDocs firstTopDocs = (CollapseTopFieldDocs) topDocs;
             final Sort sort = new Sort(firstTopDocs.fields);
             final CollapseTopFieldDocs[] shardTopDocs = results.toArray(new CollapseTopFieldDocs[numShards]);
+            transformNanoToMilli(shardTopDocs, sort);
             mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs, setShardIndex);
         } else if (topDocs instanceof TopFieldDocs) {
             TopFieldDocs firstTopDocs = (TopFieldDocs) topDocs;
-            final Sort sort = new Sort(firstTopDocs.fields);
+            Sort sort = new Sort(firstTopDocs.fields);
             final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
+            transformNanoToMilli(shardTopDocs, sort);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs, setShardIndex);
         } else {
             final TopDocs[] shardTopDocs = results.toArray(new TopDocs[numShards]);
             mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs, setShardIndex);
         }
         return mergedTopDocs;
+    }
+
+    private static List<String> getDocIds(ScoreDoc[] scoreDocs) {
+        return Arrays.stream(scoreDocs)
+            .map(doc -> "id[" + doc.doc + "]/shard[" + doc.shardIndex + "]")
+            .collect(Collectors.toList());
+    }
+
+    static void transformNanoToMilli(TopFieldDocs[] shardTopDocs, Sort sort) {
+        for (int sortIdx = 0; sortIdx < shardTopDocs[0].fields.length; sortIdx++) {
+            final int idx = sortIdx;
+
+            boolean foundHits = false;
+            boolean foundNanosecondSort = false;
+            boolean foundRegularSort = false;
+            SortedNanosecondsNumericSortField nanoSecondsSortField = null;
+            SortField regularSortField = null;
+            for (TopFieldDocs docs : shardTopDocs) {
+                SortField sortField = docs.fields[idx];
+
+                if (docs.totalHits.value < 1) {
+                    continue;
+                }
+                foundHits = true;
+
+                // mixed mode detected, exit early
+                if (foundNanosecondSort && foundRegularSort) {
+                    break;
+                }
+
+                boolean isNanoSecondSortField = sortField instanceof SortedNanosecondsNumericSortField;
+                if (foundNanosecondSort == false && isNanoSecondSortField) {
+                    foundNanosecondSort = true;
+                    nanoSecondsSortField = (SortedNanosecondsNumericSortField) sortField;
+                    continue;
+                }
+
+                if (foundRegularSort == false && isNanoSecondSortField == false) {
+                    foundRegularSort = true;
+                    regularSortField = sortField;
+                }
+            }
+
+            // no hits, no work to do
+            if (foundHits == false) {
+                continue;
+            }
+
+            boolean mixedMode = foundNanosecondSort && foundRegularSort;
+            boolean isNanoSecondSortField = sort.getSort()[sortIdx] instanceof SortedNanosecondsNumericSortField;
+            if (mixedMode == false) {
+                // ensure that the sort[idx] is either a nanoseconds or a numeric sort depending on where the hits were
+                // no matter what the first position is
+                if (foundNanosecondSort && isNanoSecondSortField == false) {
+                    sort.getSort()[sortIdx] = nanoSecondsSortField;
+                } else if (foundRegularSort && isNanoSecondSortField) {
+                    sort.getSort()[sortIdx] = regularSortField;
+                }
+            } else {
+                // do the transformation for all shards
+                transformScoreToMilliseconds(shardTopDocs, sortIdx);
+
+                // only replace if the sort field is a nanosecond field, that is used by TopDocs.merge
+                if (isNanoSecondSortField) {
+                    sort.getSort()[sortIdx] = regularSortField;
+                }
+            }
+        }
+    }
+
+    private static void transformScoreToMilliseconds(TopFieldDocs[] topDocs, int idx) {
+        for (TopFieldDocs docs : topDocs) {
+            if (docs.fields[idx] instanceof SortedNanosecondsNumericSortField) {
+                for (ScoreDoc scoreDoc : docs.scoreDocs) {
+                    if (scoreDoc instanceof FieldDoc) {
+                        FieldDoc fieldDoc = (FieldDoc) scoreDoc;
+                        long nanos = (long) fieldDoc.fields[idx];
+                        long millis = DateUtils.toMilliSeconds(nanos);
+                        // in-place modification of the score
+                        fieldDoc.fields[idx] = millis;
+                    }
+                }
+                SortedNanosecondsNumericSortField sf = (SortedNanosecondsNumericSortField) docs.fields[idx];
+                SortField sortField = new SortedNumericSortField(sf.getField(), sf.getNumericType(), sf.getReverse(), sf.getSelector());
+                if (sf.getMissingValue() != null) {
+                    sortField.setMissingValue(sf.getMissingValue());
+                }
+
+                docs.fields[idx] = sortField;
+            }
+        }
     }
 
     private static void setShardIndex(TopDocs topDocs, int shardIndex) {

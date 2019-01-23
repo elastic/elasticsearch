@@ -1,0 +1,69 @@
+[[nanosecond]]
+=== Nanosecond datatype
+
+This datatype is an addition to the `date` datatype. However there is an
+important distinction between the two. The existing `date` datatype stores
+dates in millisecond resolution. The `nanosecond` data type stores dates
+in nanosecond resolution, which limits its range of dates from roughly
+1677 to 2262, as dates are still stored as a long representing nanoseconds
+since the epoch.
+
+Queries on nanoseconds are internally converted to range queries on this long
+representation, and the result of aggregations and stored fields is converted
+back to a string depending on the date format that is associated with the field.
+
+Date formats can be customised, but if no `format` is specified then it uses
+the default:
+
+    "strict_date_optional_time_nanos||epoch_millis"
+
+This means that it will accept dates with optional timestamps, which conform
+to the formats supported by
+<<strict-date-time,`strict_date_optional_time_nanos`>> or
+nanoseconds-since-the-epoch.
+
+For instance:
+
+[source,js]
+--------------------------------------------------
+PUT my_index?include_type_name=true
+{
+  "mappings": {
+    "_doc": {
+      "properties": {
+        "date": {
+          "type": "nanosecond" <1>
+        }
+      }
+    }
+  }
+}
+
+PUT my_index/_doc/1
+{ "date": "2015-01-01" } <2>
+
+PUT my_index/_doc/2
+{ "date": "2015-01-01T12:10:30.123456789Z" } <3>
+
+PUT my_index/_doc/3
+{ "date": 1420070400001000000 } <4>
+
+GET my_index/_search
+{
+  "sort": { "date": "asc"} <5>
+}
+--------------------------------------------------
+// CONSOLE
+<1> The `date` field uses the default `format`.
+<2> This document uses a plain date.
+<3> This document includes a time.
+<4> This document uses milliseconds-since-the-epoch.
+<5> Note that the `sort` values that are returned are all in milliseconds-since-the-epoch.
+
+You can also specify multiple date formats separated by `||`. Also the
+same mapping parameters as the `date` formatter can be used.
+
+NOTE: You can query across indices that have a date formatter and a
+nanosecond formatter. Internally the nanosecond based dates will be
+converted to milliseconds (thus losing precision) and then sorting will
+happen.

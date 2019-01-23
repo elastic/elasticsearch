@@ -56,7 +56,7 @@ abstract class AtomicLongFieldData implements AtomicNumericFieldData {
     public final ScriptDocValues<?> getLegacyFieldValues() {
         switch (numericType) {
             case DATE:
-                final ScriptDocValues.Dates realDV = new ScriptDocValues.Dates(getLongValues());
+                final ScriptDocValues.Dates realDV = new ScriptDocValues.Dates(getLongValues(), false);
                 return new ScriptDocValues<DateTime>() {
 
                     @Override
@@ -75,6 +75,26 @@ abstract class AtomicLongFieldData implements AtomicNumericFieldData {
                         realDV.setNextDocId(docId);
                     }
                 };
+            case DATE_NANOSECONDS:
+                final ScriptDocValues.Dates nanosDV = new ScriptDocValues.Dates(getLongValues(), true);
+                return new ScriptDocValues<JodaCompatibleZonedDateTime>() {
+
+                    @Override
+                    public int size() {
+                        return nanosDV.size();
+                    }
+
+                    @Override
+                    public JodaCompatibleZonedDateTime get(int index) {
+                        return nanosDV.get(index);
+                    }
+
+                    @Override
+                    public void setNextDocId(int docId) throws IOException {
+                        nanosDV.setNextDocId(docId);
+                    }
+                };
+
             default:
                 return getScriptValues();
         }
@@ -84,7 +104,9 @@ abstract class AtomicLongFieldData implements AtomicNumericFieldData {
     public final ScriptDocValues<?> getScriptValues() {
         switch (numericType) {
         case DATE:
-            return new ScriptDocValues.Dates(getLongValues());
+            return new ScriptDocValues.Dates(getLongValues(), false);
+        case DATE_NANOSECONDS:
+            return new ScriptDocValues.Dates(getLongValues(), true);
         case BOOLEAN:
             return new ScriptDocValues.Booleans(getLongValues());
         default:

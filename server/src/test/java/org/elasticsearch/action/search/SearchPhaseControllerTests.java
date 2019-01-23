@@ -22,7 +22,10 @@ package org.elasticsearch.action.search;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSelector;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
@@ -36,6 +39,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.fielddata.plain.SortedNanosecondsNumericSortField;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -63,6 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -70,6 +75,7 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
@@ -633,5 +639,81 @@ public class SearchPhaseControllerTests extends ESTestCase {
         assertEquals(SortField.Type.STRING, reduce.sortedTopDocs.sortFields[0].getType());
         assertEquals("field", reduce.sortedTopDocs.collapseField);
         assertArrayEquals(collapseValues, reduce.sortedTopDocs.collapseValues);
+    }
+
+    public void testTransformNanoToMilli() {
+        SortField nanosecondsNumericSortField =
+            new SortedNanosecondsNumericSortField("timestamp", randomBoolean(), SortedNumericSelector.Type.MAX);
+        SortField regularSortField = new SortedNumericSortField("timestamp", SortField.Type.LONG);
+
+        long dateAsNanos = randomLong();
+
+        FieldDoc[] nsFieldDocs = { new FieldDoc(0, Float.NaN, new Object[]{ dateAsNanos }) };
+        SortField[] nsSortFields = {nanosecondsNumericSortField};
+        TopFieldDocs firstTopDocs = new TopFieldDocs(new TotalHits(1, Relation.EQUAL_TO), nsFieldDocs, nsSortFields);
+
+        FieldDoc[] msFieldDocs = { new FieldDoc(0, Float.NaN, new Object[]{ 1 }) };
+        SortField[] msSortFields = {regularSortField};
+        TopFieldDocs secondTopDocs = new TopFieldDocs(new TotalHits(1, Relation.EQUAL_TO), msFieldDocs, msSortFields);
+
+        final TopFieldDocs[] docs;
+        if (randomBoolean()) {
+            docs = new TopFieldDocs[]{firstTopDocs, secondTopDocs};
+        } else {
+            docs = new TopFieldDocs[]{secondTopDocs, firstTopDocs};
+        }
+
+        Sort sort = new Sort(randomFrom(nanosecondsNumericSortField, regularSortField));
+        SearchPhaseController.transformNanoToMilli(docs, sort);
+
+        assertThat(nsFieldDocs[0].fields[0], instanceOf(Long.class));
+        assertThat(nsFieldDocs[0].fields[0], is(TimeUnit.NANOSECONDS.toMillis(dateAsNanos)));
+        assertThat(sort.getSort()[0], is(regularSortField));
+    }
+
+    // if there is only one type of fields, make sure the sort field is overwritten properly
+    public void testTransformNanoToMilliSortFieldIsSetCorrectly() {
+        boolean nanoSecondsOnly = randomBoolean();
+
+        SortField nanosecondsNumericSortField =
+            new SortedNanosecondsNumericSortField("timestamp", randomBoolean(), SortedNumericSelector.Type.MAX);
+        SortField regularSortField = new SortedNumericSortField("timestamp", SortField.Type.LONG);
+
+        // nanoseconds only
+        final TopFieldDocs[] docs;
+        final Sort sort;
+
+        if (nanoSecondsOnly) {
+            FieldDoc[] firstFieldDocs = { new FieldDoc(0, Float.NaN, new Object[]{ randomLong() }) };
+            SortField[] firstSortFields = {nanosecondsNumericSortField};
+            TopFieldDocs firstTopDocs = new TopFieldDocs(new TotalHits(1, Relation.EQUAL_TO), firstFieldDocs, firstSortFields);
+
+            FieldDoc[] secondFieldDocs = { new FieldDoc(0, Float.NaN, new Object[]{ randomLong() }) };
+            SortField[] secondSortFields = {nanosecondsNumericSortField};
+            TopFieldDocs secondTopDocs = new TopFieldDocs(new TotalHits(1, Relation.EQUAL_TO), secondFieldDocs, secondSortFields);
+
+            docs = new TopFieldDocs[]{firstTopDocs, secondTopDocs};
+            sort = new Sort(regularSortField);
+        // numeric sort only
+        } else {
+            FieldDoc[] firstFieldDocs = { new FieldDoc(0, Float.NaN, new Object[]{ randomLong() }) };
+            SortField[] firstSortFields = {regularSortField};
+            TopFieldDocs firstTopDocs = new TopFieldDocs(new TotalHits(1, Relation.EQUAL_TO), firstFieldDocs, firstSortFields);
+
+            FieldDoc[] secondFieldDocs = { new FieldDoc(0, Float.NaN, new Object[]{ randomLong() }) };
+            SortField[] secondSortFields = {regularSortField};
+            TopFieldDocs secondTopDocs = new TopFieldDocs(new TotalHits(1, Relation.EQUAL_TO), secondFieldDocs, secondSortFields);
+
+            docs = new TopFieldDocs[]{firstTopDocs, secondTopDocs};
+            sort = new Sort(nanosecondsNumericSortField);
+        }
+
+        SearchPhaseController.transformNanoToMilli(docs, sort);
+
+        if (nanoSecondsOnly) {
+            assertThat(sort.getSort()[0], is(nanosecondsNumericSortField));
+        } else {
+            assertThat(sort.getSort()[0], is(regularSortField));
+        }
     }
 }

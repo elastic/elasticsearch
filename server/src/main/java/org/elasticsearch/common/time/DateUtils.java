@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.joda.time.DateTimeZone;
 
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Collections;
@@ -76,5 +77,58 @@ public class DateUtils {
             return ZoneId.of(deprecatedId);
         }
         return ZoneId.of(zoneId).normalized();
+    }
+
+    private static final Instant MIN_NANOSECOND_INSTANT = Instant.parse("1677-09-21T00:12:43.145224192Z");
+    private static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
+
+    /**
+     * convert a java time instant to a long value which is stored in lucene
+     * the long value resembles the nanoseconds since the epoch
+     *
+     * @param instant the instant to convert
+     * @return        the nano seconds and seconds as a single long
+     */
+    public static long toLong(Instant instant) {
+        if (instant.isBefore(MIN_NANOSECOND_INSTANT)) {
+            throw new IllegalArgumentException("date[" + instant + "] is before 1677-09-21T00:12:43.145224192 and cannot be " +
+                "stored in nanosecond resolution");
+        }
+        if (instant.isAfter(MAX_NANOSECOND_INSTANT)) {
+            throw new IllegalArgumentException("date[" + instant + "] is after 2262-04-11T23:47:16.854775807 and cannot be " +
+                "stored in nanosecond resolution");
+        }
+        return instant.getEpochSecond() * 1_000_000_000 + instant.getNano();
+    }
+
+    /**
+     * convert a long value to a java time instant
+     * the long value resembles the nanoseconds since the epoch
+     *
+     * @param nanoSecondsSinceEpoch the nanoseconds since the epoch
+     * @return                      the instant resembling the specified date
+     */
+    public static Instant toInstant(long nanoSecondsSinceEpoch) {
+        if (nanoSecondsSinceEpoch == 0) {
+            return Instant.EPOCH;
+        }
+
+        long seconds = nanoSecondsSinceEpoch / 1_000_000_000;
+        long nanos = nanoSecondsSinceEpoch % 1_000_000_000;
+        return Instant.ofEpochSecond(seconds, nanos);
+    }
+
+    /**
+     * Convert a nanosecond timestamp in milliseconds
+     *
+     * @param nanoSecondsSinceEpoch the nanoseconds since the epoch
+     * @return                      the milliseconds since the epoch
+     */
+    public static long toMilliSeconds(long nanoSecondsSinceEpoch) {
+        if (nanoSecondsSinceEpoch == 0) {
+            return 0;
+        }
+
+        return nanoSecondsSinceEpoch / 1_000_000;
     }
 }

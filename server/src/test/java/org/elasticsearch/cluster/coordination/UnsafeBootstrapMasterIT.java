@@ -57,6 +57,10 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
         bootstrapNodeId = -1;
     }
 
+    /**
+     * Performs cluster bootstrap when node with id bootstrapNodeId is started.
+     * Any node of the batch could be selected as bootstrap target.
+     */
     @Override
     protected List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
         if (internalCluster().size() + allNodesSettings.size() == bootstrapNodeId) {
@@ -64,13 +68,19 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
             Collections.addAll(nodeNames, internalCluster().getNodeNames());
             allNodesSettings.forEach(settings -> nodeNames.add(Node.NODE_NAME_SETTING.get(settings)));
 
-            List<Settings> otherNodesSettings = allNodesSettings.subList(0, allNodesSettings.size() - 1);
-            Settings lastNodeSettings = allNodesSettings.get(allNodesSettings.size() - 1);
             List<Settings> newSettings = new ArrayList<>();
-            newSettings.addAll(otherNodesSettings);
-            newSettings.add(Settings.builder().put(lastNodeSettings)
-                    .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), nodeNames)
-                    .build());
+            int bootstrapIndex = randomInt(allNodesSettings.size() - 1);
+            for (int i = 0; i < allNodesSettings.size(); i++) {
+                Settings nodeSettings = allNodesSettings.get(i);
+                if (i == bootstrapIndex) {
+                    newSettings.add(Settings.builder().put(nodeSettings)
+                            .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), nodeNames)
+                            .build());
+                } else {
+                    newSettings.add(nodeSettings);
+                }
+            }
+
             return newSettings;
         }
         return allNodesSettings;

@@ -148,7 +148,7 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
         internalCluster().startNode(
                 Settings.builder()
                         .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                        .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "2s") //to ensure quick node startup
+                        .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup
                         .build());
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().setLocal(true)

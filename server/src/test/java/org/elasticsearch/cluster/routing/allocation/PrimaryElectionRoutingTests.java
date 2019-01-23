@@ -77,7 +77,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
             .add(newNode("node3")).remove("node1")).build();
         RoutingTable prevRoutingTable = clusterState.routingTable();
-        clusterState = strategy.deassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
         routingNodes = clusterState.getRoutingNodes();
         routingTable = clusterState.routingTable();
 
@@ -129,7 +129,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         String nodeIdToFail = clusterState.routingTable().index("test").shard(0).primaryShard().currentNodeId();
         String nodeIdRemaining = nodeIdToFail.equals("node1") ? "node2" : "node1";
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode(nodeIdRemaining))).build();
-        clusterState = allocation.deassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.shardsWithState(STARTED).size(), equalTo(1));

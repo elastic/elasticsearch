@@ -149,9 +149,14 @@ public class IndicesRequestConvertersTests extends ESTestCase {
 
     public void testDeprecatedIndicesExistEmptyIndices() {
         LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
-            -> IndicesRequestConverters.indicesExist(new GetIndexRequest()));
+            -> IndicesRequestConverters.indicesExist(new GetIndexRequest(Strings.EMPTY_ARRAY)));
         LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
             -> IndicesRequestConverters.indicesExist(new GetIndexRequest((String[]) null)));
+
+        LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
+                -> IndicesRequestConverters.indicesExist(new org.elasticsearch.action.admin.indices.get.GetIndexRequest()));
+        LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
+                -> IndicesRequestConverters.indicesExist(new org.elasticsearch.action.admin.indices.get.GetIndexRequest().indices(null)));
     }
 
     public void testCreateIndex() throws IOException {

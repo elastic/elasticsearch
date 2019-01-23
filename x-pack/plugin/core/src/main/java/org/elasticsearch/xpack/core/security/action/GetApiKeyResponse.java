@@ -32,7 +32,7 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
     }
 
     public GetApiKeyResponse(Collection<ApiKey> foundApiKeysInfo) {
-        Objects.requireNonNull(foundApiKeysInfo, "found_api_key_infos must be provided");
+        Objects.requireNonNull(foundApiKeysInfo, "found_api_keys_info must be provided");
         this.foundApiKeysInfo = foundApiKeysInfo.toArray(new ApiKey[0]);
     }
 

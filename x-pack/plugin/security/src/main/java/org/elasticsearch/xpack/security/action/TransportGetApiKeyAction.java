@@ -36,8 +36,10 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
             apiKeyService.getApiKeysForRealmAndUser(request.getRealmName(), request.getUserName(), listener);
         } else if (Strings.hasText(request.getApiKeyId())) {
             apiKeyService.getApiKeyForApiKeyId(request.getApiKeyId(), listener);
-        } else {
+        } else if (Strings.hasText(request.getApiKeyName())) {
             apiKeyService.getApiKeyForApiKeyName(request.getApiKeyName(), listener);
+        } else {
+            listener.onFailure(new IllegalArgumentException("One of [api key id, api key name, username, realm name] must be specified"));
         }
     }
 

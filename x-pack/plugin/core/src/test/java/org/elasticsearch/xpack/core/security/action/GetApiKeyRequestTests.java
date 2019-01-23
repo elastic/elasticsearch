@@ -16,7 +16,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 
 public class GetApiKeyRequestTests extends ESTestCase {
@@ -68,51 +70,37 @@ public class GetApiKeyRequestTests extends ESTestCase {
             }
         }
 
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream(); OutputStreamStreamOutput osso = new OutputStreamStreamOutput(bos)) {
-            Dummy d = new Dummy(new String[] { "realm", "user", "api-kid", "api-kname" });
-            d.writeTo(osso);
+        String[][] inputs = new String[][] {
+                { randomFrom(new String[] { null, "" }), randomFrom(new String[] { null, "" }), randomFrom(new String[] { null, "" }),
+                        randomFrom(new String[] { null, "" }) },
+                { randomFrom(new String[] { null, "" }), "user", "api-kid", "api-kname" },
+                { "realm", randomFrom(new String[] { null, "" }), "api-kid", "api-kname" },
+                { "realm", "user", "api-kid", randomFrom(new String[] { null, "" }) },
+                { randomFrom(new String[] { null, "" }), randomFrom(new String[] { null, "" }), "api-kid", "api-kname" } };
+        String[][] expectedErrorMessages = new String[][] { { "One of [api key id, api key name, username, realm name] must be specified" },
+                { "api key name or username or realm name must not be specified when the api key id is specified",
+                        "api key id or username or realm name must not be specified when the api key name is specified" },
+                { "api key name or username or realm name must not be specified when the api key id is specified",
+                        "api key id or username or realm name must not be specified when the api key name is specified" },
+                { "api key name or username or realm name must not be specified when the api key id is specified" },
+                { "api key name or username or realm name must not be specified when the api key id is specified",
+                        "api key id or username or realm name must not be specified when the api key name is specified" }, };
 
-            ByteArrayInputStream bis = new ByteArrayInputStream(bos.toByteArray());
-            InputStreamStreamInput issi = new InputStreamStreamInput(bis);
+        for (int caseNo = 0; caseNo < inputs.length; caseNo++) {
+            try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    OutputStreamStreamOutput osso = new OutputStreamStreamOutput(bos)) {
+                Dummy d = new Dummy(inputs[caseNo]);
+                d.writeTo(osso);
 
-            GetApiKeyRequest request = new GetApiKeyRequest(issi);
-            ActionRequestValidationException ve = request.validate();
-            assertNotNull(ve);
-            assertEquals(2, ve.validationErrors().size());
-            assertThat(ve.validationErrors().get(0),
-                    containsString("api key id must not be specified when username or realm name is specified"));
-            assertThat(ve.validationErrors().get(1),
-                    containsString("api key name must not be specified when username or realm name is specified"));
-        }
+                ByteArrayInputStream bis = new ByteArrayInputStream(bos.toByteArray());
+                InputStreamStreamInput issi = new InputStreamStreamInput(bis);
 
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream(); OutputStreamStreamOutput osso = new OutputStreamStreamOutput(bos)) {
-            Dummy d = new Dummy(new String[] { null, null, "api-kid", "api-kname" });
-            d.writeTo(osso);
-
-            ByteArrayInputStream bis = new ByteArrayInputStream(bos.toByteArray());
-            InputStreamStreamInput issi = new InputStreamStreamInput(bis);
-
-            GetApiKeyRequest request = new GetApiKeyRequest(issi);
-            ActionRequestValidationException ve = request.validate();
-            assertNotNull(ve);
-            assertEquals(1, ve.validationErrors().size());
-            assertThat(ve.validationErrors().get(0),
-                    containsString("api key name must not be specified when api key id is specified"));
-        }
-
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream(); OutputStreamStreamOutput osso = new OutputStreamStreamOutput(bos)) {
-            Dummy d = new Dummy(new String[] { "realm", null, null, "api-kname" });
-            d.writeTo(osso);
-
-            ByteArrayInputStream bis = new ByteArrayInputStream(bos.toByteArray());
-            InputStreamStreamInput issi = new InputStreamStreamInput(bis);
-
-            GetApiKeyRequest request = new GetApiKeyRequest(issi);
-            ActionRequestValidationException ve = request.validate();
-            assertNotNull(ve);
-            assertEquals(1, ve.validationErrors().size());
-            assertThat(ve.validationErrors().get(0),
-                    containsString("api key name must not be specified when username or realm name is specified"));
+                GetApiKeyRequest request = new GetApiKeyRequest(issi);
+                ActionRequestValidationException ve = request.validate();
+                assertNotNull(ve);
+                assertEquals(expectedErrorMessages[caseNo].length, ve.validationErrors().size());
+                assertThat(ve.validationErrors(), containsInAnyOrder(expectedErrorMessages[caseNo]));
+            }
         }
     }
 }

@@ -64,7 +64,7 @@ public final class GetApiKeyRequest extends ActionRequest {
     }
 
     /**
-     * Creates get api key request for given realm name
+     * Creates get API key request for given realm name
      * @param realmName realm name
      * @return {@link GetApiKeyRequest}
      */
@@ -114,18 +114,21 @@ public final class GetApiKeyRequest extends ActionRequest {
         ActionRequestValidationException validationException = null;
         if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && Strings.hasText(apiKeyId) == false
                 && Strings.hasText(apiKeyName) == false) {
-            validationException = addValidationError("One of [api key id, api key name, username, realm name] must be specified", null);
+            validationException = addValidationError("One of [api key id, api key name, username, realm name] must be specified", validationException);
         }
-        if (Strings.hasText(realmName) || Strings.hasText(userName)) {
-            if (Strings.hasText(apiKeyId)) {
-                validationException = addValidationError("api key id must not be specified when username or realm name is specified", null);
-            }
-            if (Strings.hasText(apiKeyName)) {
-                validationException = addValidationError("api key name must not be specified when username or realm name is specified",
+        if (Strings.hasText(apiKeyId)) {
+            if (Strings.hasText(apiKeyName) || Strings.hasText(realmName) || Strings.hasText(userName)) {
+                validationException = addValidationError(
+                        "api key name or username or realm name must not be specified when the api key id is specified",
                         validationException);
             }
-        } else if (Strings.hasText(apiKeyId) && Strings.hasText(apiKeyName)) {
-            validationException = addValidationError("api key name must not be specified when api key id is specified", null);
+        }
+        if (Strings.hasText(apiKeyName)) {
+            if (Strings.hasText(apiKeyId) || Strings.hasText(realmName) || Strings.hasText(userName)) {
+                validationException = addValidationError(
+                        "api key id or username or realm name must not be specified when the api key name is specified",
+                        validationException);
+            }
         }
         return validationException;
     }

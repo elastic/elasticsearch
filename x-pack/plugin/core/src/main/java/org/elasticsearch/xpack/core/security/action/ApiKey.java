@@ -85,13 +85,13 @@ public final class ApiKey implements ToXContentObject, Writeable {
         builder.startObject()
         .field("id", id)
         .field("name", name)
-        .field("creation", creation.toEpochMilli())
-        .field("invalidated", invalidated)
-        .field("username", username)
-        .field("realm", realm);
+        .field("creation", creation.toEpochMilli());
         if (expiration != null) {
             builder.field("expiration", expiration.toEpochMilli());
         }
+        builder.field("invalidated", invalidated)
+        .field("username", username)
+        .field("realm", realm);
         return builder.endObject();
     }
 

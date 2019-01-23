@@ -14,6 +14,9 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
@@ -356,6 +359,10 @@ public class SecurityClient {
 
     public void invalidateApiKey(InvalidateApiKeyRequest request, ActionListener<InvalidateApiKeyResponse> listener) {
         client.execute(InvalidateApiKeyAction.INSTANCE, request, listener);
+    }
+
+    public void getApiKey(GetApiKeyRequest request, ActionListener<GetApiKeyResponse> listener) {
+        client.execute(GetApiKeyAction.INSTANCE, request, listener);
     }
 
     public SamlAuthenticateRequestBuilder prepareSamlAuthenticate(byte[] xmlContent, List<String> validIds) {

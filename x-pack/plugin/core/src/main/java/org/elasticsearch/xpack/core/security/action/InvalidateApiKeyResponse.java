@@ -134,7 +134,7 @@ public final class InvalidateApiKeyResponse extends ActionResponse implements To
 
     @Override
     public String toString() {
-        return "ApiKeysInvalidationResult [invalidatedApiKeys=" + invalidatedApiKeys + ", previouslyInvalidatedApiKeys="
+        return "InvalidateApiKeyResponse [invalidatedApiKeys=" + invalidatedApiKeys + ", previouslyInvalidatedApiKeys="
                 + previouslyInvalidatedApiKeys + ", errors=" + errors + "]";
     }
 

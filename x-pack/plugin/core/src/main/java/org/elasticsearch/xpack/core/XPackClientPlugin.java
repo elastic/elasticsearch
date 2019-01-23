@@ -137,6 +137,7 @@ import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.SecuritySettings;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
@@ -317,6 +318,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 RefreshTokenAction.INSTANCE,
                 CreateApiKeyAction.INSTANCE,
                 InvalidateApiKeyAction.INSTANCE,
+                GetApiKeyAction.INSTANCE,
                 // upgrade
                 IndexUpgradeInfoAction.INSTANCE,
                 IndexUpgradeAction.INSTANCE,

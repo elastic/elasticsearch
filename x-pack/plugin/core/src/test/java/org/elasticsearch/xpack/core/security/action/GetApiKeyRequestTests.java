@@ -19,22 +19,22 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-public class InvalidateApiKeyRequestTests extends ESTestCase {
+public class GetApiKeyRequestTests extends ESTestCase {
 
     public void testRequestValidation() {
-        InvalidateApiKeyRequest request = InvalidateApiKeyRequest.usingApiKeyId(randomAlphaOfLength(5));
+        GetApiKeyRequest request = GetApiKeyRequest.usingApiKeyId(randomAlphaOfLength(5));
         ActionRequestValidationException ve = request.validate();
         assertNull(ve);
-        request = InvalidateApiKeyRequest.usingApiKeyName(randomAlphaOfLength(5));
+        request = GetApiKeyRequest.usingApiKeyName(randomAlphaOfLength(5));
         ve = request.validate();
         assertNull(ve);
-        request = InvalidateApiKeyRequest.usingRealmName(randomAlphaOfLength(5));
+        request = GetApiKeyRequest.usingRealmName(randomAlphaOfLength(5));
         ve = request.validate();
         assertNull(ve);
-        request = InvalidateApiKeyRequest.usingUserName(randomAlphaOfLength(5));
+        request = GetApiKeyRequest.usingUserName(randomAlphaOfLength(5));
         ve = request.validate();
         assertNull(ve);
-        request = InvalidateApiKeyRequest.usingRealmAndUserName(randomAlphaOfLength(5), randomAlphaOfLength(7));
+        request = GetApiKeyRequest.usingRealmAndUserName(randomAlphaOfLength(5), randomAlphaOfLength(7));
         ve = request.validate();
         assertNull(ve);
     }
@@ -83,7 +83,6 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
                 { "username or realm name must not be specified when the api key id or api key name is specified" },
                 { "only one of [api key id, api key name] can be specified" } };
 
-
         for (int caseNo = 0; caseNo < inputs.length; caseNo++) {
             try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
                     OutputStreamStreamOutput osso = new OutputStreamStreamOutput(bos)) {
@@ -93,7 +92,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
                 ByteArrayInputStream bis = new ByteArrayInputStream(bos.toByteArray());
                 InputStreamStreamInput issi = new InputStreamStreamInput(bis);
 
-                InvalidateApiKeyRequest request = new InvalidateApiKeyRequest(issi);
+                GetApiKeyRequest request = new GetApiKeyRequest(issi);
                 ActionRequestValidationException ve = request.validate();
                 assertNotNull(ve);
                 assertEquals(expectedErrorMessages[caseNo].length, ve.validationErrors().size());

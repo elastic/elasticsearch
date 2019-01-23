@@ -96,6 +96,7 @@ if (isEclipse) {
   projects << 'libs:secure-sm-tests'
   projects << 'libs:grok-tests'
   projects << 'libs:geo-tests'
+  projects << 'libs:ssl-config-tests'
 }
 
 include projects.toArray(new String[0])
@@ -134,7 +135,12 @@ if (isEclipse) {
   project(":libs:geo").projectDir = new File(rootProject.projectDir, 'libs/geo/src/main')
   project(":libs:geo").buildFileName = 'eclipse-build.gradle'
   project(":libs:geo-tests").projectDir = new File(rootProject.projectDir, 'libs/geo/src/test')
-  project(":libs:geo-tests").buildFileName = 'eclipse-build.gradle'}
+  project(":libs:geo-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:ssl-config").projectDir = new File(rootProject.projectDir, 'libs/ssl-config/src/main')
+  project(":libs:ssl-config").buildFileName = 'eclipse-build.gradle'
+  project(":libs:ssl-config-tests").projectDir = new File(rootProject.projectDir, 'libs/ssl-config/src/test')
+  project(":libs:ssl-config-tests").buildFileName = 'eclipse-build.gradle'
+}
 
 // look for extra plugins for elasticsearch
 File extraProjects = new File(rootProject.projectDir.parentFile, "${dirName}-extra")
@@ -146,3 +152,4 @@ if (extraProjects.exists()) {
 
 project(":libs:cli").name = 'elasticsearch-cli'
 project(":libs:geo").name = 'elasticsearch-geo'
+project(":libs:ssl-config").name = 'elasticsearch-ssl-config'

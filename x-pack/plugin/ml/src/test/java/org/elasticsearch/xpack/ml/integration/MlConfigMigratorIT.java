@@ -6,11 +6,16 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -49,6 +54,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
@@ -71,7 +78,13 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(nodeSettings(), new HashSet<>(Collections.singletonList(
                 MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION)));
+        MetaData metaData = mock(MetaData.class);
+        SortedMap<String, AliasOrIndex> aliasOrIndexSortedMap = new TreeMap<>();
+        when(metaData.getAliasAndIndexLookup()).thenReturn(aliasOrIndexSortedMap);
+        ClusterState clusterState = mock(ClusterState.class);
+        when(clusterState.getMetaData()).thenReturn(metaData);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.state()).thenReturn(clusterState);
     }
 
     public void testWriteConfigToIndex() throws InterruptedException {
@@ -136,6 +149,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
                 .metaData(metaData.putCustom(MlMetadata.TYPE, mlMetadata.build()))
                 .routingTable(routingTable.build())
                 .build();
+        when(clusterService.state()).thenReturn(clusterState);
 
         doAnswer(invocation -> {
                 ClusterStateUpdateTask listener = (ClusterStateUpdateTask) invocation.getArguments()[1];
@@ -180,6 +194,64 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         assertEquals("df-1", datafeedsHolder.get().get(0).getId());
     }
 
+    public void testExistingSnapshotDoesNotBlockMigration() throws InterruptedException {
+        // define the configs
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(buildJobBuilder("job-foo").build(), false);
+
+        MetaData.Builder metaData = MetaData.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        addMlConfigIndex(metaData, routingTable);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .metaData(metaData.putCustom(MlMetadata.TYPE, mlMetadata.build()))
+            .routingTable(routingTable.build())
+            .build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        // index a doc with the same Id as the config snapshot
+        PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client(), clusterService.state(), future);
+        future.actionGet();
+
+        IndexRequestBuilder indexRequest = client().prepareIndex(AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
+                ElasticsearchMappings.DOC_TYPE, "ml-config")
+                .setSource(Collections.singletonMap("a_field", "a_value"))
+                .setOpType(DocWriteRequest.OpType.CREATE)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        indexRequest.execute().actionGet();
+
+        doAnswer(invocation -> {
+            ClusterStateUpdateTask listener = (ClusterStateUpdateTask) invocation.getArguments()[1];
+            listener.clusterStateProcessed("source", mock(ClusterState.class), mock(ClusterState.class));
+            return null;
+        }).when(clusterService).submitStateUpdateTask(eq("remove-migrated-ml-configs"), any());
+
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        AtomicReference<Boolean> responseHolder = new AtomicReference<>();
+
+        // do the migration
+        MlConfigMigrator mlConfigMigrator = new MlConfigMigrator(nodeSettings(), client(), clusterService);
+        // writing the snapshot should fail because the doc already exists
+        // in which case the migration should continue
+        blockingCall(actionListener -> mlConfigMigrator.migrateConfigs(clusterState, actionListener),
+                responseHolder, exceptionHolder);
+
+        assertNull(exceptionHolder.get());
+        assertTrue(responseHolder.get());
+
+        // check the jobs have been migrated
+        AtomicReference<List<Job.Builder>> jobsHolder = new AtomicReference<>();
+        JobConfigProvider jobConfigProvider = new JobConfigProvider(client());
+        blockingCall(actionListener -> jobConfigProvider.expandJobs("*", true, true, actionListener),
+                jobsHolder, exceptionHolder);
+
+        assertNull(exceptionHolder.get());
+        assertThat(jobsHolder.get(), hasSize(1));
+        assertTrue(jobsHolder.get().get(0).build().getCustomSettings().containsKey(MlConfigMigrator.MIGRATED_FROM_VERSION));
+        assertEquals("job-foo", jobsHolder.get().get(0).build().getId());
+    }
+
     public void testMigrateConfigs_GivenLargeNumberOfJobsAndDatafeeds() throws InterruptedException {
         int jobCount = randomIntBetween(150, 201);
         int datafeedCount = randomIntBetween(150, jobCount);
@@ -202,6 +274,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
                 .metaData(metaData.putCustom(MlMetadata.TYPE, mlMetadata.build()))
                 .routingTable(routingTable.build())
                 .build();
+        when(clusterService.state()).thenReturn(clusterState);
 
         doAnswer(invocation -> {
             ClusterStateUpdateTask listener = (ClusterStateUpdateTask) invocation.getArguments()[1];

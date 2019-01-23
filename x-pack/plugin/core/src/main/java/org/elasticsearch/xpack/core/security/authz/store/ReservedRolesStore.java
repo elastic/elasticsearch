@@ -32,7 +32,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     public static final RoleDescriptor SUPERUSER_ROLE_DESCRIPTOR = new RoleDescriptor("superuser",
             new String[] { "all" },
             new RoleDescriptor.IndicesPrivileges[] {
-                    RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build()},
+                    RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(true).build()},
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder().application("*").privileges("*").resources("*").build()
             },
@@ -43,16 +43,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
 
     private static Map<String, RoleDescriptor> initializeReservedRoles() {
         return MapBuilder.<String, RoleDescriptor>newMapBuilder()
-                .put("superuser", new RoleDescriptor("superuser", new String[] { "all" },
-                        new RoleDescriptor.IndicesPrivileges[] {
-                                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build()},
-                        new String[] { "*" },
-                        MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("superuser", SUPERUSER_ROLE_DESCRIPTOR)
                 .put("transport_client", new RoleDescriptor("transport_client", new String[] { "transport_client" }, null, null,
                         MetadataUtils.DEFAULT_RESERVED_METADATA))
-                .put("kibana_user", new RoleDescriptor("kibana_user", null, new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*").privileges("manage", "read", "index", "delete")
-                            .build() }, new RoleDescriptor.ApplicationResourcePrivileges[] {
+                .put("kibana_user", new RoleDescriptor("kibana_user", null, null, new RoleDescriptor.ApplicationResourcePrivileges[] {
                         RoleDescriptor.ApplicationResourcePrivileges.builder()
                             .application("kibana-.kibana").resources("*").privileges("all").build() },
                         null, null,
@@ -82,8 +76,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             "monitor"
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
-                            RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("monitor").build(),
-                            RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*").privileges("read").build()
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices("*").privileges("monitor").allowRestrictedIndices(true).build(),
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices(".kibana*").privileges("read").build()
                         },
                         null,
                         null,
@@ -99,10 +95,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("kibana_dashboard_only_user", new RoleDescriptor(
                         "kibana_dashboard_only_user",
                         null,
-                        new RoleDescriptor.IndicesPrivileges[] {
-                            RoleDescriptor.IndicesPrivileges.builder()
-                                .indices(".kibana*").privileges("read", "view_index_metadata").build()
-                        },
+                        null,
                         new RoleDescriptor.ApplicationResourcePrivileges[] {
                             RoleDescriptor.ApplicationResourcePrivileges.builder()
                             .application("kibana-.kibana").resources("*").privileges("read").build() },

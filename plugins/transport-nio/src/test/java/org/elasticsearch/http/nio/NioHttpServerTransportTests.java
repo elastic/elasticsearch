@@ -55,6 +55,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.junit.After;
 import org.junit.Before;
 
@@ -202,7 +203,7 @@ public class NioHttpServerTransportTests extends ESTestCase {
             }
         };
         try (NioHttpServerTransport transport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler, threadPool,
-            xContentRegistry(), dispatcher)) {
+            xContentRegistry(), dispatcher, new NioGroupFactory(settings, logger))) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             try (NioHttpClient client = new NioHttpClient()) {
@@ -235,12 +236,12 @@ public class NioHttpServerTransportTests extends ESTestCase {
 
     public void testBindUnavailableAddress() {
         try (NioHttpServerTransport transport = new NioHttpServerTransport(Settings.EMPTY, networkService, bigArrays, pageRecycler,
-            threadPool, xContentRegistry(), new NullDispatcher())) {
+            threadPool, xContentRegistry(), new NullDispatcher(), new NioGroupFactory(Settings.EMPTY, logger))) {
             transport.start();
             TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             Settings settings = Settings.builder().put("http.port", remoteAddress.getPort()).build();
             try (NioHttpServerTransport otherTransport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler,
-                threadPool, xContentRegistry(), new NullDispatcher())) {
+                threadPool, xContentRegistry(), new NullDispatcher(), new NioGroupFactory(Settings.EMPTY, logger))) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, () -> otherTransport.start());
                 assertEquals("Failed to bind to [" + remoteAddress.getPort() + "]", bindHttpException.getMessage());
             }
@@ -284,7 +285,7 @@ public class NioHttpServerTransportTests extends ESTestCase {
         }
 
         try (NioHttpServerTransport transport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler,
-            threadPool, xContentRegistry(), dispatcher)) {
+            threadPool, xContentRegistry(), dispatcher, new NioGroupFactory(settings, logger))) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 

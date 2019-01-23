@@ -165,11 +165,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                                                                             int maxMachineMemoryPercent,
                                                                             MlMemoryTracker memoryTracker,
                                                                             Logger logger) {
-        if (job == null) {
-            logger.debug("[{}] select node job is null", jobId);
-        }
-
-        String resultsIndexName = job != null ? job.getResultsIndexName() : null;
+        String resultsIndexName = job.getResultsIndexName();
 
         List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(resultsIndexName, clusterState);
         if (unavailableIndices.size() != 0) {
@@ -231,24 +227,22 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 continue;
             }
 
-            if (job != null) {
-                if (jobHasRules(job) && node.getVersion().before(DetectionRule.VERSION_INTRODUCED)) {
-                    String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node) + "], because jobs using " +
-                            "custom_rules require a node of version [" + DetectionRule.VERSION_INTRODUCED + "] or higher";
-                    logger.trace(reason);
-                    reasons.add(reason);
-                    continue;
-                }
+            if (jobHasRules(job) && node.getVersion().before(DetectionRule.VERSION_INTRODUCED)) {
+                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node) + "], because jobs using " +
+                        "custom_rules require a node of version [" + DetectionRule.VERSION_INTRODUCED + "] or higher";
+                logger.trace(reason);
+                reasons.add(reason);
+                continue;
+            }
 
-                boolean jobConfigIsStoredInIndex = job.getJobVersion().onOrAfter(Version.V_6_6_0);
-                if (jobConfigIsStoredInIndex && node.getVersion().before(Version.V_6_6_0)) {
-                    String reason = "Not opening job [" + jobId + "] on node [" + nodeNameOrId(node)
-                            + "] version [" + node.getVersion() + "], because this node does not support " +
-                            "jobs of version [" + job.getJobVersion() + "]";
-                    logger.trace(reason);
-                    reasons.add(reason);
-                    continue;
-                }
+            boolean jobConfigIsStoredInIndex = job.getJobVersion().onOrAfter(Version.V_6_6_0);
+            if (jobConfigIsStoredInIndex && node.getVersion().before(Version.V_6_6_0)) {
+                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameOrId(node)
+                        + "] version [" + node.getVersion() + "], because this node does not support " +
+                        "jobs of version [" + job.getJobVersion() + "]";
+                logger.trace(reason);
+                reasons.add(reason);
+                continue;
             }
 
             long numberOfAssignedJobs = 0;

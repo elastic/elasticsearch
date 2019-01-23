@@ -16,7 +16,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -40,6 +42,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -67,6 +70,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE;
 
 /*
@@ -558,6 +562,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         private final AutodetectProcessManager autodetectProcessManager;
         private final MlMemoryTracker memoryTracker;
         private final Client client;
+        private final ClusterService clusterService;
 
         private volatile int maxConcurrentJobAllocations;
         private volatile int maxMachineMemoryPercent;
@@ -574,6 +579,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);
             this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
             this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
+            this.clusterService = clusterService;
             clusterService.getClusterSettings()
                     .addSettingsUpdateConsumer(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, this::setMaxConcurrentJobAllocations);
             clusterService.getClusterSettings()
@@ -589,6 +595,11 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             // was first opened on a pre v6.6 node and has not been migrated
             if (params.getJob() == null) {
                 return AWAITING_MIGRATION;
+            }
+
+            // If we are waiting for an upgrade to complete, we should not assign to a node
+            if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
+                return AWAITING_UPGRADE;
             }
 
             PersistentTasksCustomMetaData.Assignment assignment = selectLeastLoadedMlNode(params.getJobId(),
@@ -621,6 +632,10 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             // If we already know that we can't find an ml node because all ml nodes are running at capacity or
             // simply because there are no ml nodes in the cluster then we fail quickly here:
             PersistentTasksCustomMetaData.Assignment assignment = getAssignment(params, clusterState);
+            if (assignment.equals(AWAITING_UPGRADE)) {
+                throw makeCurrentlyBeingUpgradedException(logger, params.getJobId(), assignment.getExplanation());
+            }
+
             if (assignment.getExecutorNode() == null && assignment.equals(AWAITING_LAZY_ASSIGNMENT) == false) {
                 throw makeNoSuitableNodesException(logger, params.getJobId(), assignment.getExplanation());
             }
@@ -657,7 +672,9 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
                                                      PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask,
                                                      Map<String, String> headers) {
-             return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers);
+            JobTask task = new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers);
+            clusterService.addListener(task);
+            return task;
         }
 
         void setMaxConcurrentJobAllocations(int maxConcurrentJobAllocations) {
@@ -679,12 +696,13 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         }
     }
 
-    public static class JobTask extends AllocatedPersistentTask implements OpenJobAction.JobTaskMatcher {
+    public static class JobTask extends AllocatedPersistentTask implements OpenJobAction.JobTaskMatcher, ClusterStateListener {
 
         private static final Logger LOGGER = LogManager.getLogger(JobTask.class);
 
         private final String jobId;
         private volatile AutodetectProcessManager autodetectProcessManager;
+        private volatile boolean upgradeInProgress;
 
         JobTask(String jobId, long id, String type, String action, TaskId parentTask, Map<String, String> headers) {
             super(id, type, action, "job-" + jobId, parentTask, headers);
@@ -703,13 +721,17 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         }
 
         void killJob(String reason) {
-            autodetectProcessManager.killProcess(this, false, reason);
+            autodetectProcessManager.killProcess(this, false, reason, upgradeInProgress == false);
         }
 
         void closeJob(String reason) {
             autodetectProcessManager.closeJob(this, false, reason);
         }
 
+        @Override
+        public void clusterChanged(ClusterChangedEvent event) {
+            upgradeInProgress = MlMetadata.getMlMetadata(event.state()).isUpgradeMode();
+        }
     }
 
     /**
@@ -778,6 +800,14 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         logger.warn("[{}] {}", jobId, msg);
         Exception detail = new IllegalStateException(msg);
         return new ElasticsearchStatusException("Could not open job because no ML nodes with sufficient capacity were found",
+            RestStatus.TOO_MANY_REQUESTS, detail);
+    }
+
+    static ElasticsearchException makeCurrentlyBeingUpgradedException(Logger logger, String jobId, String explanation) {
+        String msg = "Could not open job as relevant indices are being upgraded [" + explanation + "]";
+        logger.warn("[{}] {}", jobId, msg);
+        Exception detail = new IllegalStateException(msg);
+        return new ElasticsearchStatusException("Could not open job as indices are being upgraded",
             RestStatus.TOO_MANY_REQUESTS, detail);
     }
 }

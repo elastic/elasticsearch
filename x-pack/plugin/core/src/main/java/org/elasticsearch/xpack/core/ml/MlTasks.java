@@ -24,8 +24,11 @@ public final class MlTasks {
     public static final String JOB_TASK_NAME = "xpack/ml/job";
     public static final String DATAFEED_TASK_NAME = "xpack/ml/datafeed";
 
-    private static final String JOB_TASK_ID_PREFIX = "job-";
-    private static final String DATAFEED_TASK_ID_PREFIX = "datafeed-";
+    public static final String JOB_TASK_ID_PREFIX = "job-";
+    public static final String DATAFEED_TASK_ID_PREFIX = "datafeed-";
+
+    public static final PersistentTasksCustomMetaData.Assignment AWAITING_UPGRADE =
+        new PersistentTasksCustomMetaData.Assignment(null, "persistent task is awaiting upgrade to be completed.");
 
     private MlTasks() {
     }

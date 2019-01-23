@@ -414,7 +414,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         assertTrue(closeStartedLatch.await(3, TimeUnit.SECONDS));
 
         // Kill the job in the current thread, which will be while the job is "closing"
-        manager.killProcess(jobTask, false, null);
+        manager.killProcess(jobTask, false, null, true);
         assertEquals(0, killLatch.getCount());
 
         // Assert close method was awoken by the kill
@@ -560,7 +560,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
 
-        manager.killProcess(jobTask, false, null);
+        manager.killProcess(jobTask, false, null, true);
 
         verify(jobTask).markAsCompleted();
     }

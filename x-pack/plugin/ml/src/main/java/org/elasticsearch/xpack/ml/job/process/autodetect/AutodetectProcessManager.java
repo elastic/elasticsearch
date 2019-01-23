@@ -174,13 +174,13 @@ public class AutodetectProcessManager {
         }
     }
 
-    public void killProcess(JobTask jobTask, boolean awaitCompletion, String reason) {
+    public void killProcess(JobTask jobTask, boolean awaitCompletion, String reason, boolean shouldFinish) {
         logger.trace("[{}] Killing process: awaitCompletion = [{}]; reason = [{}]", jobTask.getJobId(), awaitCompletion, reason);
         ProcessContext processContext = processByAllocation.remove(jobTask.getAllocationId());
         if (processContext != null) {
             processContext.newKillBuilder()
                     .setAwaitCompletion(awaitCompletion)
-                    .setFinish(true)
+                    .setFinish(shouldFinish)
                     .setReason(reason)
                     .kill();
         } else {

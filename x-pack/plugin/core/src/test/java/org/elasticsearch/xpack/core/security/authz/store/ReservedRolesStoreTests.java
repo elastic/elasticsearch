@@ -312,20 +312,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaUserRole.indices().allowedIndicesMatcher("indices:foo")
                 .test(randomAlphaOfLengthBetween(8, 24)), is(false));
 
-        Arrays.asList(".kibana", ".kibana-devnull").forEach((index) -> {
-            logger.info("index name [{}]", index);
-            assertThat(kibanaUserRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(false));
-            assertThat(kibanaUserRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(false));
-
-            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(true));
-            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(true));
-            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
-            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));
-            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
-            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
-            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(true));
-        });
-
         final String randomApplication = "kibana-" + randomAlphaOfLengthBetween(8, 24);
         assertThat(kibanaUserRole.application().grants(new ApplicationPrivilege(randomApplication, "app-random", "all"), "*"), is(false));
 
@@ -568,19 +554,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(dashboardsOnlyUserRole.cluster().check(MonitoringBulkAction.NAME, request), is(false));
 
         assertThat(dashboardsOnlyUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
-
-        final String index = ".kibana";
-        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(false));
-        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(false));
-
-        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));
-        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
-        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(false));
-        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
-
-        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(index), is(true));
-        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
-        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
 
         final String randomApplication = "kibana-" + randomAlphaOfLengthBetween(8, 24);
         assertThat(dashboardsOnlyUserRole.application().grants(new ApplicationPrivilege(randomApplication, "app-random", "all"), "*"),

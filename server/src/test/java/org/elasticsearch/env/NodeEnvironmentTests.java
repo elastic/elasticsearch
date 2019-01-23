@@ -31,6 +31,7 @@ import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -52,6 +53,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
 public class NodeEnvironmentTests extends ESTestCase {
@@ -468,6 +470,47 @@ public class NodeEnvironmentTests extends ESTestCase {
             final Path targetTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".target");
             assertFalse(targetTempFile + " should have been cleaned", Files.exists(targetTempFile));
         }
+    }
+
+    public void testEnsureNoShardData() throws IOException {
+        Settings settings = buildEnvSettings(Settings.EMPTY);
+        Index index = new Index("test", "testUUID");
+
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            for (Path path : env.indexPaths(index)) {
+                Files.createDirectories(path.resolve(MetaDataStateFormat.STATE_DIR_NAME));
+            }
+        }
+
+        // build settings using same path.data as original but with node.data=false
+        Settings noDataSettings = Settings.builder()
+            .put(settings)
+            .put(Node.NODE_DATA_SETTING.getKey(), false).build();
+
+        String shardDataDirName = Integer.toString(randomInt(10));
+        Path shardPath;
+
+        // test that we can create data=false env with only meta information
+        try (NodeEnvironment env = newNodeEnvironment(noDataSettings)) {
+            for (Path path : env.indexPaths(index)) {
+                Files.createDirectories(path.resolve(shardDataDirName));
+            }
+            shardPath = env.indexPaths(index)[0];
+        }
+
+        IllegalStateException ex = expectThrows(IllegalStateException.class,
+            "Must fail creating NodeEnvironment on a data path that has shard data if node.data=false",
+            () -> newNodeEnvironment(noDataSettings).close());
+
+        assertThat(ex.getMessage(),
+            containsString(shardPath.resolve(shardDataDirName).toAbsolutePath().toString()));
+        assertThat(ex.getMessage(),
+            startsWith("Node is started with "
+                + Node.NODE_DATA_SETTING.getKey()
+                + "=false, but has shard data"));
+
+        // test that we can create data=true env
+        newNodeEnvironment(settings).close();
     }
 
     /** Converts an array of Strings to an array of Paths, adding an additional child if specified */

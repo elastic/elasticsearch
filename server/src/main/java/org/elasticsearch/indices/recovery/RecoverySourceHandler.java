@@ -197,51 +197,51 @@ public class RecoverySourceHandler {
             assert requiredSeqNoRangeStart >= startingSeqNo : "requiredSeqNoRangeStart [" + requiredSeqNoRangeStart + "] is lower than ["
                 + startingSeqNo + "]";
 
-            final TimeValue prepareEngineTime;
-            try {
-                // For a sequence based recovery, the target can keep its local translog
-                prepareEngineTime = prepareTargetForTranslog(isSequenceNumberBasedRecovery == false,
-                    shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo));
-            } catch (final Exception e) {
-                throw new RecoveryEngineException(shard.shardId(), 1, "prepare target for translog failed", e);
-            }
-
-            /*
-             * add shard to replication group (shard will receive replication requests from this point on) now that engine is open.
-             * This means that any document indexed into the primary after this will be replicated to this replica as well
-             * make sure to do this before sampling the max sequence number in the next step, to ensure that we send
-             * all documents up to maxSeqNo in phase2.
-             */
-            runUnderPrimaryPermit(() -> shard.initiateTracking(request.targetAllocationId()),
-                shardId + " initiating tracking of " + request.targetAllocationId(), shard, cancellableThreads, logger);
-
-            final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
-            /*
-             * We need to wait for all operations up to the current max to complete, otherwise we can not guarantee that all
-             * operations in the required range will be available for replaying from the translog of the source.
-             */
-            cancellableThreads.execute(() -> shard.waitForOpsToComplete(endingSeqNo));
-
-            if (logger.isTraceEnabled()) {
-                logger.trace("all operations up to [{}] completed, which will be used as an ending sequence number", endingSeqNo);
-                logger.trace("snapshot translog for recovery; current size is [{}]",
-                    shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo));
-            }
-
-            final Translog.Snapshot phase2Snapshot = shard.getHistoryOperations("peer-recovery", startingSeqNo);
-            resources.add(phase2Snapshot);
-            // we can release the retention lock here because the snapshot itself will retain the required operations.
-            IOUtils.close(retentionLock);
-            // we have to capture the max_seen_auto_id_timestamp and the max_seq_no_of_updates to make sure that these values
-            // are at least as high as the corresponding values on the primary when any of these operations were executed on it.
-            final long maxSeenAutoIdTimestamp = shard.getMaxSeenAutoIdTimestamp();
-            final long maxSeqNoOfUpdatesOrDeletes = shard.getMaxSeqNoOfUpdatesOrDeletes();
+            final StepListener<TimeValue> prepareEngineStep = new StepListener<>();
+            // For a sequence based recovery, the target can keep its local translog
+            prepareTargetForTranslog(isSequenceNumberBasedRecovery == false,
+                shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo), prepareEngineStep);
             final StepListener<SendSnapshotResult> sendSnapshotStep = new StepListener<>();
-            phase2(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, phase2Snapshot, maxSeenAutoIdTimestamp,
-                maxSeqNoOfUpdatesOrDeletes, sendSnapshotStep);
-            sendSnapshotStep.whenComplete(
-                r -> IOUtils.close(phase2Snapshot),
-                e -> onFailure.accept(new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e)));
+            prepareEngineStep.whenComplete(prepareEngineTime -> {
+                /*
+                 * add shard to replication group (shard will receive replication requests from this point on) now that engine is open.
+                 * This means that any document indexed into the primary after this will be replicated to this replica as well
+                 * make sure to do this before sampling the max sequence number in the next step, to ensure that we send
+                 * all documents up to maxSeqNo in phase2.
+                 */
+                runUnderPrimaryPermit(() -> shard.initiateTracking(request.targetAllocationId()),
+                    shardId + " initiating tracking of " + request.targetAllocationId(), shard, cancellableThreads, logger);
+
+                final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
+                /*
+                 * We need to wait for all operations up to the current max to complete, otherwise we can not guarantee that all
+                 * operations in the required range will be available for replaying from the translog of the source.
+                 */
+                cancellableThreads.execute(() -> shard.waitForOpsToComplete(endingSeqNo));
+                if (logger.isTraceEnabled()) {
+                    logger.trace("all operations up to [{}] completed, which will be used as an ending sequence number", endingSeqNo);
+                    logger.trace("snapshot translog for recovery; current size is [{}]",
+                        shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo));
+                }
+                final Translog.Snapshot phase2Snapshot = shard.getHistoryOperations("peer-recovery", startingSeqNo);
+                resources.add(phase2Snapshot);
+                // we can release the retention lock here because the snapshot itself will retain the required operations.
+                retentionLock.close();
+                // we have to capture the max_seen_auto_id_timestamp and the max_seq_no_of_updates to make sure that these values
+                // are at least as high as the corresponding values on the primary when any of these operations were executed on it.
+                final long maxSeenAutoIdTimestamp = shard.getMaxSeenAutoIdTimestamp();
+                final long maxSeqNoOfUpdatesOrDeletes = shard.getMaxSeqNoOfUpdatesOrDeletes();
+                phase2(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, phase2Snapshot, maxSeenAutoIdTimestamp,
+                    maxSeqNoOfUpdatesOrDeletes, sendSnapshotStep);
+                sendSnapshotStep.whenComplete(
+                    r -> IOUtils.close(phase2Snapshot),
+                    e -> {
+                        IOUtils.closeWhileHandlingException(phase2Snapshot);
+                        onFailure.accept(new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e));
+                    });
+
+            }, onFailure);
+
             final StepListener<Void> finalizeStep = new StepListener<>();
             sendSnapshotStep.whenComplete(r -> finalizeRecovery(r.targetLocalCheckpoint, finalizeStep), onFailure);
 
@@ -251,7 +251,7 @@ public class RecoverySourceHandler {
                 final RecoveryResponse response = new RecoveryResponse(sendFileResult.phase1FileNames, sendFileResult.phase1FileSizes,
                     sendFileResult.phase1ExistingFileNames, sendFileResult.phase1ExistingFileSizes, sendFileResult.totalSize,
                     sendFileResult.existingTotalSize, sendFileResult.took.millis(), phase1ThrottlingWaitTime,
-                    prepareEngineTime.millis(), sendSnapshotResult.totalOperations, sendSnapshotResult.tookTime.millis());
+                    prepareEngineStep.result().millis(), sendSnapshotResult.totalOperations, sendSnapshotResult.tookTime.millis());
                 try {
                     wrappedListener.onResponse(response);
                 } finally {
@@ -484,16 +484,21 @@ public class RecoverySourceHandler {
         }
     }
 
-    TimeValue prepareTargetForTranslog(final boolean fileBasedRecovery, final int totalTranslogOps) throws IOException {
+    void prepareTargetForTranslog(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<TimeValue> listener) {
         StopWatch stopWatch = new StopWatch().start();
-        logger.trace("recovery [phase1]: prepare remote engine for translog");
+        final ActionListener<Void> wrappedListener = ActionListener.wrap(
+            nullVal -> {
+                stopWatch.stop();
+                final TimeValue tookTime = stopWatch.totalTime();
+                logger.trace("recovery [phase1]: remote engine start took [{}]", tookTime);
+                listener.onResponse(tookTime);
+            },
+            e -> listener.onFailure(new RecoveryEngineException(shard.shardId(), 1, "prepare target for translog failed", e)));
         // Send a request preparing the new shard's translog to receive operations. This ensures the shard engine is started and disables
         // garbage collection (not the JVM's GC!) of tombstone deletes.
-        cancellableThreads.executeIO(() -> recoveryTarget.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps));
-        stopWatch.stop();
-        final TimeValue tookTime = stopWatch.totalTime();
-        logger.trace("recovery [phase1]: remote engine start took [{}]", tookTime);
-        return tookTime;
+        logger.trace("recovery [phase1]: prepare remote engine for translog");
+        cancellableThreads.execute(() ->
+            recoveryTarget.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, wrappedListener));
     }
 
     /**

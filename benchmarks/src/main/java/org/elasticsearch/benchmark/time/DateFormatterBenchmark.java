@@ -55,4 +55,3 @@ public class DateFormatterBenchmark {
         return jodaFormatter.parse("1234567890");
     }
 }
-

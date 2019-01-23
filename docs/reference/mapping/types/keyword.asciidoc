@@ -15,14 +15,12 @@ Below is an example of a mapping for a keyword field:
 
 [source,js]
 --------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "tags": {
-          "type":  "keyword"
-        }
+    "properties": {
+      "tags": {
+        "type":  "keyword"
       }
     }
   }

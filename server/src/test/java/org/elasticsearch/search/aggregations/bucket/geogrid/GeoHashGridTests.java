@@ -31,6 +31,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class GeoHashGridTests extends InternalMultiBucketAggregationTestCase<InternalGeoHashGrid> {
 
     @Override
@@ -141,4 +143,8 @@ public class GeoHashGridTests extends InternalMultiBucketAggregationTestCase<Int
         return new InternalGeoHashGrid(name, size, buckets, pipelineAggregators, metaData);
     }
 
+    public void testCreateFromBuckets() {
+       InternalGeoHashGrid original = createTestInstance();
+       assertThat(original, equalTo(original.create(original.buckets)));
+    }
 }

@@ -771,7 +771,7 @@ public final class ThreadContext implements Closeable, Writeable {
         }
     }
 
-    private static Collector<String, Set<String>, Set<String>> LINKED_HASH_SET_COLLECTOR = new LinkedHashSetCollector<>();
+    private static final Collector<String, Set<String>, Set<String>> LINKED_HASH_SET_COLLECTOR = new LinkedHashSetCollector<>();
 
     private static class LinkedHashSetCollector<T> implements Collector<T, Set<T>, Set<T>> {
         @Override

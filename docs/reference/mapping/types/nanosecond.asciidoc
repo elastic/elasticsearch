@@ -46,7 +46,7 @@ PUT my_index/_doc/2
 { "date": "2015-01-01T12:10:30.123456789Z" } <3>
 
 PUT my_index/_doc/3
-{ "date": 1420070400001000000 } <4>
+{ "date": 1420070400 } <4>
 
 GET my_index/_search
 {

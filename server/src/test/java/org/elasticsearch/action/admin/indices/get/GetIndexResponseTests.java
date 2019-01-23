@@ -33,7 +33,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
@@ -75,10 +74,6 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
 
     @Override
     protected GetIndexResponse createTestInstance() {
-        return createTestInstance(randomBoolean());
-    }
-
-    private static GetIndexResponse createTestInstance(boolean randomTypeName) {
         String[] indices = generateRandomStringArray(5, 5, false, false);
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliases = ImmutableOpenMap.builder();
@@ -89,7 +84,7 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
         for (String index: indices) {
             // rarely have no types
             int typeCount = rarely() ? 0 : 1;
-            mappings.put(index, GetMappingsResponseTests.createMappingsForIndex(typeCount, randomTypeName));
+            mappings.put(index, GetMappingsResponseTests.createMappingsForIndex(typeCount, true));
 
             List<AliasMetaData> aliasMetaDataList = new ArrayList<>();
             int aliasesNum = randomIntBetween(0, 3);
@@ -110,11 +105,6 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
         return new GetIndexResponse(
             indices, mappings.build(), aliases.build(), settings.build(), defaultSettings.build()
         );
-    }
-
-    @Override
-    protected GetIndexResponse createXContextTestInstance(XContentType xContentType) {
-        return createTestInstance(true);
     }
 
     @Override

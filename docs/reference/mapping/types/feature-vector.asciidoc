@@ -11,14 +11,12 @@ one field to the mappings for each of them.
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "topics": {
-          "type": "feature_vector" <1>
-        }
+    "properties": {
+      "topics": {
+        "type": "feature_vector" <1>
       }
     }
   }

@@ -7,17 +7,15 @@ stored by default and is not searchable:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "name": {
-          "type": "text"
-        },
-        "blob": {
-          "type": "binary"
-        }
+    "properties": {
+      "name": {
+        "type": "text"
+      },
+      "blob": {
+        "type": "binary"
       }
     }
   }

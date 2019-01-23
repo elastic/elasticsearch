@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -187,6 +188,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             .blocks(currentState.blocks())
             .removeGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)).build();
         logger.trace("becomeMasterAndTrimConflictingNodes: {}", tmpState.nodes());
+        tmpState = PersistentTasksCustomMetaData.deassociateDeadNodes(tmpState);
         return ClusterState.builder(allocationService.deassociateDeadNodes(tmpState, false, "removed dead nodes on election"));
     }
 

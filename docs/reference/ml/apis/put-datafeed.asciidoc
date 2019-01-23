@@ -24,6 +24,8 @@ You must create a job before you create a {dfeed}.  You can associate only one
 
 `feed_id` (required)::
   (string) A numerical character string that uniquely identifies the {dfeed}.
+  This identifier can contain lowercase alphanumeric characters (a-z and 0-9),
+  hyphens, and underscores. It must start and end with alphanumeric characters.
 
 
 ==== Request Body

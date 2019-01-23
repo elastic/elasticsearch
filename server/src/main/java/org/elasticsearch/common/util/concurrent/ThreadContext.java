@@ -428,8 +428,8 @@ public final class ThreadContext implements Closeable, Writeable {
                     final LinkedHashSet<String> values = new LinkedHashSet<>(size);
                     for (int i = 0; i < size; i++) {
                         final String value = input.readString();
-                        final boolean exists = values.add(value);
-                        assert exists == false : value;
+                        final boolean added = values.add(value);
+                        assert added : value;
                     }
                     return values;
                 }

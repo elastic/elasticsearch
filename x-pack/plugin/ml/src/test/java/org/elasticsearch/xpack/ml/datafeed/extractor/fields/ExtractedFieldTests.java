@@ -8,9 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.fields;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
-import org.joda.time.DateTime;
 
 import java.util.Arrays;
 
@@ -98,16 +96,16 @@ public class ExtractedFieldTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.SOURCE));
     }
 
-    public void testValueGivenTimeField() {
+    public void testValueGivenStringTimeField() {
         final long millis = randomLong();
-        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", new DateTime(millis)).build();
+        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", Long.toString(millis)).build();
         final ExtractedField timeField = ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
         assertThat(timeField.value(hit), equalTo(new Object[] { millis }));
     }
 
-    public void testValueGivenStringTimeField() {
+    public void testValueGivenLongTimeField() {
         final long millis = randomLong();
-        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", Long.toString(millis)).build();
+        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", millis).build();
         final ExtractedField timeField = ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
         assertThat(timeField.value(hit), equalTo(new Object[] { millis }));
     }

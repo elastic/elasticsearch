@@ -19,7 +19,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
-
 import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -56,6 +55,7 @@ import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
 import org.elasticsearch.env.NodeEnvironment;
@@ -96,10 +96,10 @@ import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.BOO
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clusterState;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.setValue;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.value;
-import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.FOLLOWER;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.LEADER;
+import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.DEFAULT_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_DURATION_SETTING;
@@ -120,7 +120,6 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -748,7 +747,7 @@ public class CoordinatorTests extends ESTestCase {
             assertThat(nodeId + " should have found all peers", foundPeers, hasSize(cluster.size()));
         }
 
-        final ClusterNode bootstrapNode = cluster.getAnyNode();
+        final ClusterNode bootstrapNode = cluster.getAnyBootstrappableNode();
         bootstrapNode.applyInitialConfiguration();
         assertTrue(bootstrapNode.getId() + " has been bootstrapped", bootstrapNode.coordinator.isInitialConfigurationSet());
 
@@ -778,18 +777,28 @@ public class CoordinatorTests extends ESTestCase {
     public void testCannotSetInitialConfigurationWithoutQuorum() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5));
         final Coordinator coordinator = cluster.getAnyNode().coordinator;
-        final VotingConfiguration unknownNodeConfiguration = new VotingConfiguration(Collections.singleton("unknown-node"));
+        final VotingConfiguration unknownNodeConfiguration = new VotingConfiguration(
+            Sets.newHashSet(coordinator.getLocalNode().getId(), "unknown-node"));
         final String exceptionMessage = expectThrows(CoordinationStateRejectedException.class,
             () -> coordinator.setInitialConfiguration(unknownNodeConfiguration)).getMessage();
         assertThat(exceptionMessage,
             startsWith("not enough nodes discovered to form a quorum in the initial configuration [knownNodes=["));
-        assertThat(exceptionMessage,
-            endsWith("], VotingConfiguration{unknown-node}]"));
+        assertThat(exceptionMessage, containsString("unknown-node"));
         assertThat(exceptionMessage, containsString(coordinator.getLocalNode().toString()));
 
         // This is VERY BAD: setting a _different_ initial configuration. Yet it works if the first attempt will never be a quorum.
         assertTrue(coordinator.setInitialConfiguration(new VotingConfiguration(Collections.singleton(coordinator.getLocalNode().getId()))));
         cluster.stabilise();
+    }
+
+    public void testCannotSetInitialConfigurationWithoutLocalNode() {
+        final Cluster cluster = new Cluster(randomIntBetween(1, 5));
+        final Coordinator coordinator = cluster.getAnyNode().coordinator;
+        final VotingConfiguration unknownNodeConfiguration = new VotingConfiguration(Sets.newHashSet("unknown-node"));
+        final String exceptionMessage = expectThrows(CoordinationStateRejectedException.class,
+            () -> coordinator.setInitialConfiguration(unknownNodeConfiguration)).getMessage();
+        assertThat(exceptionMessage,
+            equalTo("local node is not part of initial configuration"));
     }
 
     public void testDiffBasedPublishing() {
@@ -1334,7 +1343,7 @@ public class CoordinatorTests extends ESTestCase {
                 assertThat("setting initial configuration may fail with disconnected nodes", disconnectedNodes, empty());
                 assertThat("setting initial configuration may fail with blackholed nodes", blackholedNodes, empty());
                 runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2, "discovery prior to setting initial configuration");
-                final ClusterNode bootstrapNode = getAnyMasterEligibleNode();
+                final ClusterNode bootstrapNode = getAnyBootstrappableNode();
                 bootstrapNode.applyInitialConfiguration();
             } else {
                 logger.info("setting initial configuration not required");
@@ -1405,8 +1414,10 @@ public class CoordinatorTests extends ESTestCase {
             return clusterNodes.stream().anyMatch(cn -> cn.getLocalNode().equals(node));
         }
 
-        ClusterNode getAnyMasterEligibleNode() {
-            return randomFrom(clusterNodes.stream().filter(n -> n.getLocalNode().isMasterNode()).collect(Collectors.toList()));
+        ClusterNode getAnyBootstrappableNode() {
+            return randomFrom(clusterNodes.stream().filter(n -> n.getLocalNode().isMasterNode())
+                .filter(n -> initialConfiguration.getNodeIds().contains(n.getLocalNode().getId()))
+                .collect(Collectors.toList()));
         }
 
         ClusterNode getAnyNode() {
@@ -1749,8 +1760,14 @@ public class CoordinatorTests extends ESTestCase {
                     Stream.generate(() -> BOOTSTRAP_PLACEHOLDER_PREFIX + UUIDs.randomBase64UUID(random()))
                         .limit((Math.max(initialConfiguration.getNodeIds().size(), 2) - 1) / 2)
                         .forEach(nodeIdsWithPlaceholders::add);
-                    final VotingConfiguration configurationWithPlaceholders = new VotingConfiguration(new HashSet<>(
-                        randomSubsetOf(initialConfiguration.getNodeIds().size(), nodeIdsWithPlaceholders)));
+                    final Set<String> nodeIds = new HashSet<>(
+                        randomSubsetOf(initialConfiguration.getNodeIds().size(), nodeIdsWithPlaceholders));
+                    // initial configuration should not have a place holder for local node
+                    if (initialConfiguration.getNodeIds().contains(localNode.getId()) && nodeIds.contains(localNode.getId()) == false) {
+                        nodeIds.remove(nodeIds.iterator().next());
+                        nodeIds.add(localNode.getId());
+                    }
+                    final VotingConfiguration configurationWithPlaceholders = new VotingConfiguration(nodeIds);
                     try {
                         coordinator.setInitialConfiguration(configurationWithPlaceholders);
                         logger.info("successfully set initial configuration to {}", configurationWithPlaceholders);

@@ -90,7 +90,7 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         out.writeString(terms);
         out.writeString(regex);
         out.writeLong(maxMatchingLength);
-        out.writeStringCollection(new ArrayList<>(examples));
+        out.writeStringCollection(examples);
         if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeOptionalString(grokPattern);
         }

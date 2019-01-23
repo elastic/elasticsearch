@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.junit.Before;
 
 import java.util.HashSet;
@@ -68,6 +69,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         for (InternalFilters.InternalBucket filter : response.getBuckets()) {
             assertEquals(filter.getDocCount(), 0);
         }
+        assertFalse(AggregationInspectionHelper.hasValue(response));
         indexReader.close();
         directory.close();
     }
@@ -129,6 +131,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             assertEquals(filters.getBucketByKey("bar").getDocCount(), 1);
             assertEquals(filters.getBucketByKey("same").getDocCount(), 1);
             assertEquals(filters.getBucketByKey("other").getDocCount(), 2);
+            assertTrue(AggregationInspectionHelper.hasValue(filters));
         }
 
         indexReader.close();
@@ -185,14 +188,22 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             List<InternalFilters.InternalBucket> buckets = response.getBuckets();
             assertEquals(buckets.size(), filters.length+1);
 
+            int sum = 0;
             for (InternalFilters.InternalBucket bucket : buckets) {
                 if ("other".equals(bucket.getKey())) {
                     assertEquals(bucket.getDocCount(), expectedOtherCount);
                 } else {
                     int index = Integer.parseInt(bucket.getKey());
                     assertEquals(bucket.getDocCount(), (long) expectedBucketCount[filterTerms[index]]);
+                    sum += expectedBucketCount[filterTerms[index]];
                 }
             }
+            if (sum > 0) {
+                assertTrue(AggregationInspectionHelper.hasValue(response));
+            } else {
+                assertFalse(AggregationInspectionHelper.hasValue(response));
+            }
+
         }
         indexReader.close();
         directory.close();

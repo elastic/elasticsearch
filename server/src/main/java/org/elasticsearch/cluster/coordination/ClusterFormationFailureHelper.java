@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -188,13 +189,22 @@ public class ClusterFormationFailureHelper {
         private String describeQuorum(VotingConfiguration votingConfiguration) {
             final Set<String> nodeIds = votingConfiguration.getNodeIds();
             assert nodeIds.isEmpty() == false;
+            final int requiredNodes = nodeIds.size() / 2 + 1;
+
+            final Set<String> realNodeIds = new HashSet<>(nodeIds);
+            realNodeIds.removeIf(ClusterBootstrapService::isBootstrapPlaceholder);
+            assert requiredNodes <= realNodeIds.size() : nodeIds;
 
             if (nodeIds.size() == 1) {
-                return "a node with id " + nodeIds;
+                return "a node with id " + realNodeIds;
             } else if (nodeIds.size() == 2) {
-                return "two nodes with ids " + nodeIds;
+                return "two nodes with ids " + realNodeIds;
             } else {
-                return "at least " + (nodeIds.size() / 2 + 1) + " nodes with ids from " + nodeIds;
+                if (requiredNodes < realNodeIds.size()) {
+                    return "at least " + requiredNodes + " nodes with ids from " + realNodeIds;
+                } else {
+                    return requiredNodes + " nodes with ids " + realNodeIds;
+                }
             }
         }
     }

@@ -111,7 +111,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             private final Map<Long, Integer> fromToSlot = new HashMap<>();
 
             @Override
-            protected void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler) {
+            protected void innerUpdateMapping(long minRequiredMappingVersion, LongConsumer handler, Consumer<Exception> errorHandler) {
                 handler.accept(mappingVersion);
             }
 

@@ -72,7 +72,11 @@ public class InboundMessageTests extends ESTestCase {
         assertEquals(compress, inboundMessage.isCompress());
         assertEquals(version, inboundMessage.getVersion());
         assertEquals(action, inboundMessage.getActionName());
-        assertEquals(new HashSet<>(Arrays.asList(features)), inboundMessage.getFeatures());
+        if (version.onOrAfter(Version.V_6_3_0)) {
+            assertEquals(new HashSet<>(Arrays.asList(features)), inboundMessage.getFeatures());
+        } else {
+            assertEquals(new HashSet<>(), inboundMessage.getFeatures());
+        }
         assertTrue(inboundMessage.isRequest());
         assertFalse(inboundMessage.isResponse());
         assertFalse(inboundMessage.isError());

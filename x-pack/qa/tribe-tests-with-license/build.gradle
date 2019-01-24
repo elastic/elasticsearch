@@ -24,7 +24,6 @@ dependencies {
 }
 
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-namingConventions.skipIntegTestInDisguise = true
 
 unitTest {
   /*

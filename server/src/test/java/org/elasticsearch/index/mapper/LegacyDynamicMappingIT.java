@@ -36,6 +36,7 @@ public class LegacyDynamicMappingIT extends ESIntegTestCase {
         return false;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37817")
     public void testMappingsPropagatedToMasterNodeImmediatelyMultiType() throws IOException {
         assertAcked(prepareCreate("index").setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)));
         // allows for multiple types

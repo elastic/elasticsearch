@@ -1431,3 +1431,22 @@
       ml.get_jobs:
         job_id: jobs-crud-reset-finished-time
   - is_false: jobs.0.finished_time
+
+---
+"Test close job with body params":
+  - do:
+      catch: missing
+      ml.close_job:
+        job_id: job-that-doesnot-exist*
+        body:  >
+          {
+            "allow_no_jobs" : false
+          }
+
+  - do:
+      ml.close_job:
+        job_id: job-that-doesnot-exist*
+        body:  >
+          {
+            "allow_no_jobs" : true
+          }

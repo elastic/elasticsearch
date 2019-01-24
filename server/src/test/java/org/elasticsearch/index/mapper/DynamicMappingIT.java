@@ -66,6 +66,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertTrue("Could not find [" + field + "] in " + typeMappingsMap.toString(), properties.containsKey(field));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37816")
     public void testMappingsPropagatedToMasterNodeImmediately() throws IOException {
         assertAcked(prepareCreate("index"));
 

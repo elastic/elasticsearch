@@ -237,6 +237,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
     public void testExpandRequestOptions() throws IOException {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         boolean version = randomBoolean();
+        final boolean seqNoAndTerm = randomBoolean();
 
         mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
             @Override
@@ -245,13 +246,14 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 assertTrue(request.requests().stream().allMatch((r) -> "foo".equals(r.preference())));
                 assertTrue(request.requests().stream().allMatch((r) -> "baz".equals(r.routing())));
                 assertTrue(request.requests().stream().allMatch((r) -> version == r.source().version()));
+                assertTrue(request.requests().stream().allMatch((r) -> seqNoAndTerm == r.source().seqNoAndPrimaryTerm()));
                 assertTrue(request.requests().stream().allMatch((r) -> postFilter.equals(r.source().postFilter())));
             }
         };
         mockSearchPhaseContext.getRequest().source(new SearchSourceBuilder()
             .collapse(
                 new CollapseBuilder("someField")
-                    .setInnerHits(new InnerHitBuilder().setName("foobarbaz").setVersion(version))
+                    .setInnerHits(new InnerHitBuilder().setName("foobarbaz").setVersion(version).setSeqNoAndPrimaryTerm(seqNoAndTerm))
             )
             .postFilter(QueryBuilders.existsQuery("foo")))
             .preference("foobar")

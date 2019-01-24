@@ -38,7 +38,8 @@ deletes in it. In Lucene, a document is not deleted from a segment, just marked
 as deleted. During a merge process of segments, a new segment is created that
 does not have those deletes. This flag allows to only merge segments that have
 deletes. Defaults to `false`.  Note that this won't override the
-`index.merge.policy.expunge_deletes_allowed` threshold.
+`index.merge.policy.expunge_deletes_allowed` threshold. Defaults to `10` % by 
+quantity, that can be changed by <<indices-update-settings,settings>>.
 
 `flush`::  Should a flush be performed after the forced merge. Defaults to
 `true`.

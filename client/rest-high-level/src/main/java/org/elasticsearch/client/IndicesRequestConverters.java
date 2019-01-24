@@ -133,6 +133,7 @@ final class IndicesRequestConverters {
         return request;
     }
 
+    @Deprecated
     static Request putMapping(org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest) throws IOException {
         // The concreteIndex is an internal concept, not applicable to requests made over the REST API.
         if (putMappingRequest.getConcreteIndex() != null) {
@@ -164,6 +165,7 @@ final class IndicesRequestConverters {
         return request;
     }
 
+    @Deprecated
     static Request getMappings(org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest getMappingsRequest) {
         String[] indices = getMappingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getMappingsRequest.indices();
         String[] types = getMappingsRequest.types() == null ? Strings.EMPTY_ARRAY : getMappingsRequest.types();
@@ -200,6 +202,7 @@ final class IndicesRequestConverters {
         return request;
     }
 
+    @Deprecated
     static Request getFieldMapping(org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest) {
         String[] indices = getFieldMappingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.indices();
         String[] types = getFieldMappingsRequest.types() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.types();

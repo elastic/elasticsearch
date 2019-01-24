@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.common.util.BloomFilter;
+import org.elasticsearch.common.util.ExactBloomFilter;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -47,7 +47,7 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U exte
     final long GC_THRESHOLD = 10;
 
     MergingBucketsDeferringCollector deferringCollector;
-    protected final BloomFilter bloom;
+    protected final ExactBloomFilter bloom;
     protected final long maxDocCount;
     protected final DocValueFormat format;
     protected final T valuesSource;
@@ -62,7 +62,7 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U exte
         super(name, factories, context, parent, pipelineAggregators, metaData);
 
         // TODO review: should we expose the BF settings?  What's a good default?
-        this.bloom = new BloomFilter(1000000, 0.03); // ~7mb
+        this.bloom = new ExactBloomFilter(1000000, 0.03, 7000); // ~7mb
         this.addRequestCircuitBreakerBytes(bloom.getSizeInBytes());
         this.maxDocCount = maxDocCount;
         this.format = format;

@@ -540,7 +540,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                             assertThat(terms.getBuckets().size(), equalTo(2));
                             for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
                                 InternalTopHits topHits = bucket.getAggregations().get("top_hits");
-                                assertThat(topHits.getHits().totalHits, equalTo(1L));
+                                assertThat(topHits.getHits(), equalTo(1L));
                                 assertThat(topHits.getHits().getMaxScore(), equalTo(Float.NaN));
                             }
                         }

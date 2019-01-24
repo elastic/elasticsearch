@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.BloomFilter;
+import org.elasticsearch.common.util.ExactBloomFilter;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -38,11 +38,11 @@ public abstract class InternalMappedRareTerms<A extends InternalTerms<A, B>, B e
     extends InternalMappedTerms<A,B> {
 
     final long maxDocCount;
-    final BloomFilter bloom;
+    final ExactBloomFilter bloom;
 
     InternalMappedRareTerms(String name, BucketOrder order, List<PipelineAggregator> pipelineAggregators,
                             Map<String, Object> metaData, DocValueFormat format,
-                            List<B> buckets, long maxDocCount, BloomFilter bloom) {
+                            List<B> buckets, long maxDocCount, ExactBloomFilter bloom) {
         // TODO is there a way to determine sum_other_doc_count and doc_count_error_upper_bound equivalents for rare based on bloom?
         super(name, order, 0, 1, pipelineAggregators, metaData, format, 0, false, 0, buckets, 0);
         this.maxDocCount = maxDocCount;
@@ -53,7 +53,7 @@ public abstract class InternalMappedRareTerms<A extends InternalTerms<A, B>, B e
         return maxDocCount;
     }
 
-    BloomFilter getBloom() {
+    ExactBloomFilter getBloom() {
         return bloom;
     }
 
@@ -63,7 +63,7 @@ public abstract class InternalMappedRareTerms<A extends InternalTerms<A, B>, B e
     InternalMappedRareTerms(StreamInput in, Bucket.Reader<B> bucketReader) throws IOException {
         super(in, bucketReader);
         maxDocCount = in.readLong();
-        bloom = new BloomFilter(in);
+        bloom = new ExactBloomFilter(in);
     }
 
     @Override
@@ -77,7 +77,7 @@ public abstract class InternalMappedRareTerms<A extends InternalTerms<A, B>, B e
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         Map<Object, List<B>> buckets = new HashMap<>();
         InternalTerms<A, B> referenceTerms = null;
-        BloomFilter bloomFilter = null;
+        ExactBloomFilter bloomFilter = null;
 
         for (InternalAggregation aggregation : aggregations) {
             // Unmapped rare terms don't have a bloom filter so we'll skip all this work
@@ -105,11 +105,11 @@ public abstract class InternalMappedRareTerms<A extends InternalTerms<A, B>, B e
                 bucketList.add(bucket);
             }
 
+            ExactBloomFilter otherBloom = ((InternalMappedRareTerms)aggregation).getBloom();
             if (bloomFilter == null) {
-                bloomFilter = BloomFilter.EmptyBloomFilter(((InternalMappedRareTerms)aggregation).getBloom().getNumBits(),
-                    ((InternalMappedRareTerms)aggregation).getBloom().getNumHashFunctions());
+                bloomFilter = new ExactBloomFilter(otherBloom);
             } else {
-                bloomFilter.merge(((InternalMappedRareTerms)aggregation).getBloom());
+                bloomFilter.merge(otherBloom);
             }
         }
 
@@ -129,7 +129,7 @@ public abstract class InternalMappedRareTerms<A extends InternalTerms<A, B>, B e
         return create(name, rare, 0, 0);
     }
 
-    public abstract boolean containsTerm(BloomFilter bloom, B bucket);
+    public abstract boolean containsTerm(ExactBloomFilter bloom, B bucket);
 
-    public abstract void addToBloom(BloomFilter bloom, B bucket);
+    public abstract void addToBloom(ExactBloomFilter bloom, B bucket);
 }

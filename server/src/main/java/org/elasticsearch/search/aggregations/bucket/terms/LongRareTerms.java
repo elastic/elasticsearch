@@ -20,15 +20,13 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.BloomFilter;
+import org.elasticsearch.common.util.ExactBloomFilter;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -40,7 +38,7 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongTe
 
     LongRareTerms(String name, BucketOrder order, List<PipelineAggregator> pipelineAggregators,
                          Map<String, Object> metaData, DocValueFormat format,
-                         List<LongTerms.Bucket> buckets, long maxDocCount, BloomFilter bloom) {
+                         List<LongTerms.Bucket> buckets, long maxDocCount, ExactBloomFilter bloom) {
         super(name, order, pipelineAggregators, metaData, format, buckets, maxDocCount, bloom);
     }
 
@@ -80,12 +78,12 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongTe
     }
 
     @Override
-    public boolean containsTerm(BloomFilter bloom, LongTerms.Bucket bucket) {
+    public boolean containsTerm(ExactBloomFilter bloom, LongTerms.Bucket bucket) {
         return bloom.mightContain((long) bucket.getKey());
     }
 
     @Override
-    public void addToBloom(BloomFilter bloom, LongTerms.Bucket bucket) {
+    public void addToBloom(ExactBloomFilter bloom, LongTerms.Bucket bucket) {
         bloom.put((long) bucket.getKey());
     }
 }

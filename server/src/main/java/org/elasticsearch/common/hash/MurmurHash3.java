@@ -21,6 +21,8 @@ package org.elasticsearch.common.hash;
 
 import org.elasticsearch.common.util.ByteUtils;
 
+import java.util.Objects;
+
 
 /**
  * MurmurHash3 hashing functions.
@@ -36,6 +38,24 @@ public enum MurmurHash3 {
         public long h1;
         /** higher 64 bits part **/
         public long h2;
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
+            Hash128 that = (Hash128) other;
+            return Objects.equals(this.h1, that.h1)
+                && Objects.equals(this.h2, that.h2);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(h1, h2);
+        }
     }
 
     private static long C1 = 0x87c37b91114253d5L;

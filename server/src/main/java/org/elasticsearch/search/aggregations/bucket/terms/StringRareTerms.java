@@ -19,7 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.BloomFilter;
+import org.elasticsearch.common.util.ExactBloomFilter;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -35,7 +35,7 @@ public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, St
 
     public StringRareTerms(String name, BucketOrder order, List<PipelineAggregator> pipelineAggregators,
                            Map<String, Object> metaData, DocValueFormat format,
-                           List<StringTerms.Bucket> buckets, long maxDocCount, BloomFilter bloom) {
+                           List<StringTerms.Bucket> buckets, long maxDocCount, ExactBloomFilter bloom) {
         super(name, order, pipelineAggregators, metaData, format, buckets, maxDocCount, bloom);
     }
 
@@ -74,12 +74,12 @@ public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, St
     }
 
     @Override
-    public boolean containsTerm(BloomFilter bloom, StringTerms.Bucket bucket) {
+    public boolean containsTerm(ExactBloomFilter bloom, StringTerms.Bucket bucket) {
         return bloom.mightContain(bucket.termBytes);
     }
 
     @Override
-    public void addToBloom(BloomFilter bloom, StringTerms.Bucket bucket) {
+    public void addToBloom(ExactBloomFilter bloom, StringTerms.Bucket bucket) {
         bloom.put(bucket.termBytes);
     }
 }

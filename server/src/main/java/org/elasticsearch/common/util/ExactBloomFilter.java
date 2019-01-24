@@ -28,12 +28,15 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 
 /**
- * A bloom filter. Inspired by Guava bloom filter implementation though with some optimizations.
+ * A bloom filter which keeps an exact set of values until a threshold is reached, then the values
+ * are replayed into a traditional bloom filter for approximate tracking
  */
-public class BloomFilter implements Writeable {
+public class ExactBloomFilter implements Writeable {
 
     // Some anecdotal sizing numbers:
     // expected insertions, false positive probability, bloom size, num hashes
@@ -55,9 +58,10 @@ public class BloomFilter implements Writeable {
     //  50m,  0.10, 228.5mb,  3 Hashes
 
     /**
-     * The bit set of the BloomFilter (not necessarily power of 2!)
+     * The bit set of the ExactBloomFilter (not necessarily power of 2!)
      */
-    private final BitArray bits;
+    BitArray bits;
+    Set<MurmurHash3.Hash128> hashedValues = new HashSet<>();
 
     /**
      * Number of hashes per element
@@ -65,111 +69,232 @@ public class BloomFilter implements Writeable {
     private final int numHashFunctions;
 
     /**
+     * The number of bits in the bloom
+     */
+    private long numBits;
+
+    /**
+     * The threshold (in bytes) before we convert the exact set into an approximate bloom filter
+     */
+    private final long threshold;
+
+    /**
+     * True if we are still tracking with a Set
+     */
+    private boolean setMode = true;
+
+    /**
      * Creates a bloom filter with the expected number
      * of insertions and expected false positive probability.
      *
      * @param expectedInsertions the number of expected insertions to the constructed
      * @param fpp                the desired false positive probability (must be positive and less than 1.0)
+     * @param threshold          number of bytes to record exactly before converting to Bloom filter
      */
-    public BloomFilter(int expectedInsertions, double fpp) {
-        this(expectedInsertions, fpp, -1);
-    }
+    public ExactBloomFilter(int expectedInsertions, double fpp, long threshold) {
+        if (threshold <= 0) {
+            throw new IllegalArgumentException("BloomFilter threshold must be a non-negative number");
+        }
 
-    /**
-     * Creates a bloom filter based on the expected number of insertions, expected false positive probability,
-     * and number of hash functions.
-     *
-     * @param expectedInsertions the number of expected insertions to the constructed
-     * @param fpp                the desired false positive probability (must be positive and less than 1.0)
-     * @param numHashFunctions   the number of hash functions to use (must be less than or equal to 255)
-     */
-    private BloomFilter(int expectedInsertions, double fpp, int numHashFunctions) {
         if (expectedInsertions == 0) {
             expectedInsertions = 1;
         }
+        this.threshold = threshold;
         /*
          * TODO(user): Put a warning in the javadoc about tiny fpp values,
          * since the resulting size is proportional to -log(p), but there is not
          * much of a point after all, e.g. optimalNumOfBits(1000, 0.0000000000000001) = 76680
          * which is less that 10kb. Who cares!
          */
-        long numBits = optimalNumOfBits(expectedInsertions, fpp);
+        this.numBits = optimalNumOfBits(expectedInsertions, fpp);
 
         // calculate the optimal number of hash functions
-        if (numHashFunctions == -1) {
-            numHashFunctions = optimalNumOfHashFunctions(expectedInsertions, numBits);
-        }
-
+        this.numHashFunctions = optimalNumOfHashFunctions(expectedInsertions, numBits);
         if (numHashFunctions > 255) {
             throw new IllegalArgumentException("BloomFilters with more than 255 hash functions are not allowed.");
         }
-
-        this.bits = new BitArray(numBits);
-        this.numHashFunctions = numHashFunctions;
     }
 
-    public static BloomFilter EmptyBloomFilter(long numBits, int numHashFunctions) {
-        return new BloomFilter(numBits, numHashFunctions);
+    /**
+     * Copy constructor.  The new Bloom will be an identical copy of the provided bloom
+     */
+    public ExactBloomFilter(ExactBloomFilter otherBloom) {
+        this.numHashFunctions = otherBloom.getNumHashFunctions();
+        this.threshold = otherBloom.getThreshold();
+        this.numBits = otherBloom.getNumBits();
+        this.setMode = otherBloom.setMode;
+        this.hashedValues = new HashSet<>(otherBloom.hashedValues);
+        if (otherBloom.bits != null) {
+            this.bits = new BitArray(otherBloom.numBits);
+            this.bits.putAll(otherBloom.bits);
+        }
     }
 
-    private BloomFilter(long numBits, int numHashFunctions) {
-        this.bits = new BitArray(numBits);
-        this.numHashFunctions = numHashFunctions;
-    }
-
-    public BloomFilter(StreamInput in) throws IOException {
-        this.bits = new BitArray(in);
+    public ExactBloomFilter(StreamInput in) throws IOException {
+        this.setMode = in.readBoolean();
+        if (setMode) {
+            this.hashedValues = in.readSet(in1 -> {
+                MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
+                hash.h1 = in1.readLong();
+                hash.h2 = in1.readLong();
+                return hash;
+            });
+        } else {
+            this.bits = new BitArray(in);
+        }
         this.numHashFunctions = in.readVInt();
+        this.threshold = in.readVLong();
+        this.numBits = in.readVLong();
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        bits.writeTo(out);
+        out.writeBoolean(setMode);
+        if (setMode) {
+            out.writeCollection(hashedValues, (out1, hash) -> {
+                out1.writeLong(hash.h1);
+                out1.writeLong(hash.h2);
+            });
+        } else {
+            bits.writeTo(out);
+        }
         out.writeVInt(numHashFunctions);
+        out.writeVLong(threshold);
+        out.writeVLong(numBits);
     }
 
-    public void merge(BloomFilter other) {
-        this.bits.putAll(other.bits);
+    /**
+     * Merge `other` bloom filter into this bloom.  After merging, this bloom's state will
+     * be the union of the two.  During the merging process, the internal Set may be upgraded
+     * to a Bloom if it goes over threshold
+     */
+    public void merge(ExactBloomFilter other) {
+        assert this.numBits == other.numBits;
+        if (setMode && other.setMode) {
+            // Both in sets, merge collections then see if we need to convert to bloom
+            hashedValues.addAll(other.hashedValues);
+            checkAndConvertToBloom();
+        } else if (setMode && other.setMode == false) {
+            // Other is in bloom mode, so we convert our set to a bloom then merge
+            convertToBloom();
+            this.bits.putAll(other.bits);
+        } else if (setMode == false && other.setMode) {
+            // we're in bloom mode, so convert other's set and merge
+            other.convertToBloom();
+            this.bits.putAll(other.bits);
+        } else {
+            this.bits.putAll(other.bits);
+        }
     }
 
     public boolean put(BytesRef value) {
-        return Hashing.put(value, numHashFunctions, bits);
+        MurmurHash3.Hash128 hash = MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, new MurmurHash3.Hash128());
+        return put(hash);
     }
 
     public boolean put(byte[] value) {
-        return Hashing.put(value, 0, value.length, numHashFunctions, bits);
+        MurmurHash3.Hash128 hash = MurmurHash3.hash128(value, 0, value.length, 0, new MurmurHash3.Hash128());
+        return put(hash);
     }
 
     public boolean put(long value) {
         return put(Numbers.longToBytes(value));
     }
 
-    public boolean mightContain(BytesRef value) {
-        return Hashing.mightContain(value, numHashFunctions, bits);
+    private boolean put(MurmurHash3.Hash128 hash) {
+        if (setMode) {
+            boolean newItem = hashedValues.add(hash);
+            checkAndConvertToBloom();
+            return newItem;
+        } else {
+            return putBloom(hash);
+        }
     }
 
-    private boolean mightContain(byte[] value) {
-        return Hashing.mightContain(value, 0, value.length, numHashFunctions, bits);
+    private boolean putBloom(MurmurHash3.Hash128 hash128) {
+        long bitSize = bits.bitSize();
+        boolean bitsChanged = false;
+        long combinedHash = hash128.h1;
+        for (int i = 0; i < numHashFunctions; i++) {
+            // Make the combined hash positive and indexable
+            bitsChanged |= bits.set((combinedHash & Long.MAX_VALUE) % bitSize);
+            combinedHash += hash128.h2;
+        }
+        return bitsChanged;
+    }
+
+    public boolean mightContain(BytesRef value) {
+        return mightContain(value.bytes, value.offset, value.length);
+    }
+
+    public boolean mightContain(byte[] value) {
+        return mightContain(value, 0, value.length);
     }
 
     public boolean mightContain(long value) {
         return mightContain(Numbers.longToBytes(value));
     }
 
-    public int getNumHashFunctions() {
+    private boolean mightContain(byte[] bytes, int offset, int length) {
+        MurmurHash3.Hash128 hash128 = MurmurHash3.hash128(bytes, offset, length, 0, new MurmurHash3.Hash128());
+
+        if (setMode) {
+            return hashedValues.contains(hash128);
+        } else {
+            long bitSize = bits.bitSize();
+            long combinedHash = hash128.h1;
+            for (int i = 0; i < numHashFunctions; i++) {
+                // Make the combined hash positive and indexable
+                if (!bits.get((combinedHash & Long.MAX_VALUE) % bitSize)) {
+                    return false;
+                }
+                combinedHash += hash128.h2;
+            }
+            return true;
+        }
+    }
+
+    private int getNumHashFunctions() {
         return this.numHashFunctions;
     }
 
-    public long getNumBits() {
-        return bits.bitSize();
+    private long getNumBits() {
+        return numBits;
     }
 
+    public long getThreshold() {
+        return threshold;
+    }
+
+    /**
+     * Get the approximate size of this datastructure.  Approximate because only the Set occupants
+     * are tracked, not the overhead of the Set itself.
+     */
     public long getSizeInBytes() {
-        return bits.ramBytesUsed();
+        long bytes = (hashedValues.size() * 16) + 8 + 4 + 1;
+        if (bits != null) {
+            bytes += bits.ramBytesUsed();
+        }
+        return bytes;
+    }
+
+    private void checkAndConvertToBloom() {
+        if (hashedValues.size() * 16 > threshold) {
+            convertToBloom();
+        }
+    }
+
+    private void convertToBloom() {
+        bits = new BitArray(numBits);
+        setMode = false;
+        for (MurmurHash3.Hash128 hash : hashedValues) {
+            putBloom(hash);
+        }
+        hashedValues.clear();
     }
 
     @Override
     public int hashCode() {
-        return bits.hashCode() + numHashFunctions;
+        return Objects.hash(numHashFunctions, hashedValues, bits, setMode, threshold, numBits);
     }
 
     @Override
@@ -181,10 +306,15 @@ public class BloomFilter implements Writeable {
             return false;
         }
 
-        final BloomFilter that = (BloomFilter) other;
+        final ExactBloomFilter that = (ExactBloomFilter) other;
         return Objects.equals(this.bits, that.bits)
-            && Objects.equals(this.numHashFunctions, that.numHashFunctions);
+            && Objects.equals(this.numHashFunctions, that.numHashFunctions)
+            && Objects.equals(this.threshold, that.threshold)
+            && Objects.equals(this.setMode, that.setMode)
+            && Objects.equals(this.hashedValues, that.hashedValues)
+            && Objects.equals(this.numBits, that.numBits);
     }
+
 
 
     /*
@@ -231,7 +361,6 @@ public class BloomFilter implements Writeable {
         return (long) (-n * Math.log(p) / (Math.log(2) * Math.log(2)));
     }
 
-    // Note: We use this instead of java.util.BitSet because we need access to the long[] data field
     static final class BitArray implements Writeable {
         private final long[] data;
         private final long bitSize;
@@ -326,43 +455,4 @@ public class BloomFilter implements Writeable {
         }
     }
 
-    private static class Hashing {
-
-        static boolean put(BytesRef value, int numHashFunctions, BitArray bits) {
-            return put(value.bytes, value.offset, value.length, numHashFunctions, bits);
-        }
-
-        static boolean put(byte[] bytes, int offset, int length, int numHashFunctions, BitArray bits) {
-            long bitSize = bits.bitSize();
-            MurmurHash3.Hash128 hash128 = MurmurHash3.hash128(bytes, offset, length, 0, new MurmurHash3.Hash128());
-
-            boolean bitsChanged = false;
-            long combinedHash = hash128.h1;
-            for (int i = 0; i < numHashFunctions; i++) {
-                // Make the combined hash positive and indexable
-                bitsChanged |= bits.set((combinedHash & Long.MAX_VALUE) % bitSize);
-                combinedHash += hash128.h2;
-            }
-            return bitsChanged;
-        }
-
-        static boolean mightContain(BytesRef value, int numHashFunctions, BitArray bits) {
-            return mightContain(value.bytes, value.offset, value.length, numHashFunctions, bits);
-        }
-
-        static boolean mightContain(byte[] bytes, int offset, int length, int numHashFunctions, BitArray bits) {
-            long bitSize = bits.bitSize();
-            MurmurHash3.Hash128 hash128 = MurmurHash3.hash128(bytes, offset, length, 0, new MurmurHash3.Hash128());
-
-            long combinedHash = hash128.h1;
-            for (int i = 0; i < numHashFunctions; i++) {
-                // Make the combined hash positive and indexable
-                if (!bits.get((combinedHash & Long.MAX_VALUE) % bitSize)) {
-                    return false;
-                }
-                combinedHash += hash128.h2;
-            }
-            return true;
-        }
-    }
 }

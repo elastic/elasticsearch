@@ -414,7 +414,8 @@ public class NodeJoinController {
 
         private final int minimumMasterNodesOnLocalNode;
 
-        public JoinTaskExecutor(Settings settings, AllocationService allocationService, ElectMasterService electMasterService, Logger logger) {
+        public JoinTaskExecutor(Settings settings, AllocationService allocationService, ElectMasterService electMasterService,
+                                Logger logger) {
             this.allocationService = allocationService;
             this.electMasterService = electMasterService;
             this.logger = logger;

@@ -59,8 +59,7 @@ public class LegacyGeoShapeFieldQueryTests extends GeoShapeQueryBuilderTests {
         } else {
             indexedShapeToReturn = shape;
             indexedShapeId = randomAlphaOfLengthBetween(3, 20);
-            indexedShapeType = randomAlphaOfLengthBetween(3, 20);
-            builder = new GeoShapeQueryBuilder(fieldName(), indexedShapeId, indexedShapeType);
+            builder = new GeoShapeQueryBuilder(fieldName(), indexedShapeId);
             if (randomBoolean()) {
                 indexedShapeIndex = randomAlphaOfLengthBetween(3, 20);
                 builder.indexedShapeIndex(indexedShapeIndex);

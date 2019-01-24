@@ -164,7 +164,7 @@ public class MembershipAction {
 
         public ValidateJoinRequest() {}
 
-        ValidateJoinRequest(ClusterState state) {
+        public ValidateJoinRequest(ClusterState state) {
             this.state = state;
         }
 
@@ -178,6 +178,10 @@ public class MembershipAction {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             this.state.writeTo(out);
+        }
+
+        public ClusterState getState() {
+            return state;
         }
     }
 

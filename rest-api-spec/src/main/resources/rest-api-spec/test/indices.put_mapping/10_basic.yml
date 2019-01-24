@@ -1,9 +1,8 @@
 ---
 "Test Create and update mapping":
-
   - skip:
       version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+      reason: include_type_name defaults to true before 7.0
   - do:
       indices.create:
         include_type_name: false
@@ -11,7 +10,6 @@
 
   - do:
       indices.put_mapping:
-        include_type_name: false
         index: test_index
         body:
           properties:
@@ -26,7 +24,6 @@
 
   - do:
       indices.get_mapping:
-        include_type_name: false
         index: test_index
   
   - match: {test_index.mappings.properties.text1.type:     text}
@@ -36,7 +33,6 @@
 
   - do:
       indices.put_mapping:
-        include_type_name: false
         index: test_index
         body:
           properties:
@@ -50,7 +46,6 @@
 
   - do:
       indices.get_mapping:
-        include_type_name: false
         index: test_index
   
   - match: {test_index.mappings.properties.text1.type:     text}
@@ -62,7 +57,7 @@
 
   - skip:
       version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+      reason: include_type_name defaults to true before 7.0
   - do:
       indices.create:
         include_type_name: false
@@ -70,31 +65,8 @@
   - do:
       catch: /illegal_argument_exception/
       indices.put_mapping:
-        include_type_name: false
         index: test_index
         body:
           properties:
             "":
               type:     keyword
-
----
-"PUT mapping with a type and include_type_name: false":
-
-  - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
-  - do:
-      indices.create:
-        index: index
-        include_type_name: false
-
-  - do:
-      catch: /illegal_argument_exception/
-      indices.put_mapping:
-        index: index
-        type: _doc
-        include_type_name: false
-        body:
-          properties:
-            bar:
-              type: float

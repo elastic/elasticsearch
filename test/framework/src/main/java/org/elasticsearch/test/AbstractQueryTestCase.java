@@ -379,7 +379,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Parses the query provided as bytes argument and compares it with the expected result provided as argument as a {@link QueryBuilder}
      */
-    private static void assertParsedQuery(XContentParser parser, QueryBuilder expectedQuery) throws IOException {
+    private void assertParsedQuery(XContentParser parser, QueryBuilder expectedQuery) throws IOException {
         QueryBuilder newQuery = parseQuery(parser);
         assertNotSame(newQuery, expectedQuery);
         assertEquals(expectedQuery, newQuery);
@@ -396,7 +396,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return parseQuery(parser);
     }
 
-    protected static QueryBuilder parseQuery(XContentParser parser) throws IOException {
+    protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
         QueryBuilder parseInnerQueryBuilder = parseInnerQueryBuilder(parser);
         assertNull(parser.nextToken());
         return parseInnerQueryBuilder;

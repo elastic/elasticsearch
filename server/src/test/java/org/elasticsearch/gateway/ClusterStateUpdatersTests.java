@@ -46,6 +46,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.MetaData.CLUSTER_READ_ONLY_BLOCK;
+import static org.elasticsearch.gateway.ClusterStateUpdaters.addStateNotRecoveredBlock;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.closeBadIndices;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.mixCurrentStateAndRecoveredState;
@@ -180,6 +181,24 @@ public class ClusterStateUpdatersTests extends ESTestCase {
 
         assertMetaDataEquals(initialState, newState);
         assertFalse(newState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
+    }
+
+    public void testAddStateNotRecoveredBlock() {
+        final MetaData.Builder metaDataBuilder = MetaData.builder()
+                .persistentSettings(Settings.builder().put("test", "test").build());
+        final IndexMetaData indexMetaData = createIndexMetaData("test", Settings.EMPTY);
+        metaDataBuilder.put(indexMetaData, false);
+
+        final ClusterState initialState = ClusterState
+                .builder(ClusterState.EMPTY_STATE)
+                .metaData(metaDataBuilder)
+                .build();
+        assertFalse(initialState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
+
+        final ClusterState newState = addStateNotRecoveredBlock(initialState);
+
+        assertMetaDataEquals(initialState, newState);
+        assertTrue(newState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
     }
 
     public void testCloseBadIndices() throws IOException {

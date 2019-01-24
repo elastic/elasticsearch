@@ -24,13 +24,9 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
-import org.gradle.api.tasks.options.Option
-import  org.gradle.util.GradleVersion
-import  org.gradle.util.DistributionLocator
+import org.gradle.util.GradleVersion
+import org.gradle.util.DistributionLocator
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
-import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-
-import java.util.function.Predicate
 
 plugins {
     id 'com.gradle.build-scan' version '2.0.2'
@@ -163,8 +159,8 @@ task verifyVersions {
  * the enabled state of every bwc task. It should be set back to true
  * after the backport of the backcompat code is complete.
  */
-final boolean bwc_tests_enabled = true
-final String bwc_tests_disabled_issue = "" /* place a PR link here when committing bwc changes */
+final boolean bwc_tests_enabled = false
+final String bwc_tests_disabled_issue = "backporting https://github.com/elastic/elasticsearch/pull/37639" /* place a PR link here when committing bwc changes */
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
@@ -225,14 +221,6 @@ allprojects {
     "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${version}": ':modules:lang-painless:spi',
     "org.elasticsearch.test:framework:${version}": ':test:framework',
     "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:archives:integ-test-zip',
-    "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:archives:zip',
-    "org.elasticsearch.distribution.zip:elasticsearch-oss:${version}": ':distribution:archives:oss-zip',
-    "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:archives:tar',
-    "org.elasticsearch.distribution.tar:elasticsearch-oss:${version}": ':distribution:archives:oss-tar',
-    "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:packages:rpm',
-    "org.elasticsearch.distribution.rpm:elasticsearch-oss:${version}": ':distribution:packages:oss-rpm',
-    "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:packages:deb',
-    "org.elasticsearch.distribution.deb:elasticsearch-oss:${version}": ':distribution:packages:oss-deb',
     "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
     "org.elasticsearch.xpack.test:feature-aware:${version}": ':x-pack:test:feature-aware',
     // for transport client
@@ -244,19 +232,6 @@ allprojects {
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
   ]
-  // substitute unreleased versions with projects that check out and build locally
-  bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unreleasedVersion ->
-    Version unreleased = unreleasedVersion.version
-    String snapshotProject = ":distribution:bwc:${unreleasedVersion.gradleProjectName}"
-    ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${unreleased}"] = snapshotProject
-    ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${unreleased}"] = snapshotProject
-    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${unreleased}"] = snapshotProject
-    if (unreleased.onOrAfter('6.3.0')) {
-      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch-oss:${unreleased}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch-oss:${unreleased}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch-oss:${unreleased}"] = snapshotProject
-    }
-  }
 
   /*
    * Gradle only resolve project substitutions during dependency resolution but
@@ -433,7 +408,7 @@ tasks.idea.doLast {
   ideaMarker.setText('', 'UTF-8')
 }
 if (System.getProperty('idea.active') != null && ideaMarker.exists() == false) {
-  throw new GradleException('You must run `gradle idea` from the root of elasticsearch before importing into IntelliJ')
+  throw new GradleException('You must run `./gradlew idea` from the root of elasticsearch before importing into IntelliJ')
 }
 
 // eclipse configuration

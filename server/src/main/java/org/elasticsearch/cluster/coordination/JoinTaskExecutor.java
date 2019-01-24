@@ -29,9 +29,16 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.ElectMasterService;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
@@ -40,6 +47,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     private final AllocationService allocationService;
 
     private final Logger logger;
+
+    private final int minimumMasterNodesOnLocalNode;
 
     public static class Task {
 
@@ -76,9 +85,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         private static final String FINISH_ELECTION_TASK_REASON = "_FINISH_ELECTION_";
     }
 
-    public JoinTaskExecutor(AllocationService allocationService, Logger logger) {
+    public JoinTaskExecutor(Settings settings, AllocationService allocationService, Logger logger) {
         this.allocationService = allocationService;
         this.logger = logger;
+        minimumMasterNodesOnLocalNode = ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
     }
 
     @Override
@@ -181,9 +191,12 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         // or removed by us above
         ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).blocks(ClusterBlocks.builder()
             .blocks(currentState.blocks())
-            .removeGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)).build();
+            .removeGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID))
+            .minimumMasterNodesOnPublishingMaster(minimumMasterNodesOnLocalNode)
+            .build();
         logger.trace("becomeMasterAndTrimConflictingNodes: {}", tmpState.nodes());
-        return ClusterState.builder(allocationService.deassociateDeadNodes(tmpState, false, "removed dead nodes on election"));
+        tmpState = PersistentTasksCustomMetaData.disassociateDeadNodes(tmpState);
+        return ClusterState.builder(allocationService.disassociateDeadNodes(tmpState, false, "removed dead nodes on election"));
     }
 
     @Override
@@ -258,5 +271,16 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             throw new IllegalStateException("node version [" + joiningNodeVersion + "] is not supported. " +
                 "All nodes in the cluster are of a higher major [" + clusterMajor + "].");
         }
+    }
+
+    public static Collection<BiConsumer<DiscoveryNode,ClusterState>> addBuiltInJoinValidators(
+        Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators) {
+        final Collection<BiConsumer<DiscoveryNode, ClusterState>> validators = new ArrayList<>();
+        validators.add((node, state) -> {
+            ensureNodesCompatibility(node.getVersion(), state.getNodes());
+            ensureIndexCompatibility(node.getVersion(), state.getMetaData());
+        });
+        validators.addAll(onJoinValidators);
+        return Collections.unmodifiableCollection(validators);
     }
 }

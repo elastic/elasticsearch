@@ -93,7 +93,9 @@ integTestRunner {
     'ml/validate/Test job config that is invalid only because of the job ID',
     'ml/validate_detector/Test invalid detector',
     'ml/delete_forecast/Test delete on _all forecasts not allow no forecasts',
-    'ml/delete_forecast/Test delete forecast on missing forecast'
+    'ml/delete_forecast/Test delete forecast on missing forecast',
+    'ml/ml_upgrade/Upgrade results when there is nothing to upgrade',
+    'ml/ml_upgrade/Upgrade results when there is nothing to upgrade not waiting for results'
   ].join(',')
 }
 

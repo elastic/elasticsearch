@@ -445,7 +445,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> assert that old settings are restored");
         GetSettingsResponse getSettingsResponse = client.admin().indices().prepareGetSettings("test-idx").execute().actionGet();
-        assertThat(getSettingsResponse.getSetting("test-idx", "index.refresh_interval"), equalTo("10000ms"));
+        assertThat(getSettingsResponse.getSetting("test-idx", "index.refresh_interval"), equalTo("10s"));
     }
 
     public void testEmptySnapshot() throws Exception {
@@ -1562,7 +1562,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> snapshot with closed index");
         assertBlocked(client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true)
-            .setIndices("test-idx", "test-idx-closed"), MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
+            .setIndices("test-idx", "test-idx-closed"), MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID);
     }
 
     public void testSnapshotSingleClosedIndex() throws Exception {
@@ -1580,7 +1580,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> snapshot");
         assertBlocked(client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
-                .setWaitForCompletion(true).setIndices("test-idx"), MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
+                .setWaitForCompletion(true).setIndices("test-idx"), MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID);
     }
 
     public void testRenameOnRestore() throws Exception {
@@ -2492,7 +2492,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         logger.info("--> delete index while non-partial snapshot is running");
                         client.admin().indices().prepareDelete("test-idx-1").get();
                         fail("Expected deleting index to fail during snapshot");
-                    } catch (IllegalArgumentException e) {
+                    } catch (SnapshotInProgressException e) {
                         assertThat(e.getMessage(), containsString("Cannot delete indices that are being snapshotted: [[test-idx-1/"));
                     }
                 } else {
@@ -2500,7 +2500,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         logger.info("--> close index while non-partial snapshot is running");
                         client.admin().indices().prepareClose("test-idx-1").get();
                         fail("Expected closing index to fail during snapshot");
-                    } catch (IllegalArgumentException e) {
+                    } catch (SnapshotInProgressException e) {
                         assertThat(e.getMessage(), containsString("Cannot close indices that are being snapshotted: [[test-idx-1/"));
                     }
                 }
@@ -3179,7 +3179,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
      *
      * See https://github.com/elastic/elasticsearch/issues/20876
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37005")
     public void testSnapshotCanceledOnRemovedShard() throws Exception {
         final int numPrimaries = 1;
         final int numReplicas = 1;
@@ -3244,7 +3243,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                     .put("location", repoPath)
                     .put("random_control_io_exception_rate", randomIntBetween(5, 20) / 100f)
                     // test that we can take a snapshot after a failed one, even if a partial index-N was written
-                    .put("allow_atomic_operations", false)
                     .put("random", randomAlphaOfLength(10))));
 
         logger.info("--> indexing some data");

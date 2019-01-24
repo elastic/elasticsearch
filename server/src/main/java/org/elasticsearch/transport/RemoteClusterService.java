@@ -24,8 +24,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
@@ -50,10 +48,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -174,13 +170,13 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     public static final Setting.AffixSetting<TimeValue> REMOTE_CLUSTER_PING_SCHEDULE = Setting.affixKeySetting(
             "cluster.remote.",
             "transport.ping_schedule",
-            key -> timeSetting(key, TransportSettings.PING_SCHEDULE, Setting.Property.NodeScope),
+            key -> timeSetting(key, TransportSettings.PING_SCHEDULE, Setting.Property.Dynamic, Setting.Property.NodeScope),
             REMOTE_CLUSTERS_SEEDS);
 
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_COMPRESS = Setting.affixKeySetting(
         "cluster.remote.",
         "transport.compress",
-        key -> boolSetting(key, TransportSettings.TRANSPORT_COMPRESS, Setting.Property.NodeScope),
+        key -> boolSetting(key, TransportSettings.TRANSPORT_COMPRESS, Setting.Property.Dynamic, Setting.Property.NodeScope),
         REMOTE_CLUSTERS_SEEDS);
 
     private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
@@ -287,7 +283,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                     String clusterAlias = entry.getKey();
                     List<String> originalIndices = entry.getValue();
                     originalIndicesMap.put(clusterAlias,
-                        new OriginalIndices(originalIndices.toArray(new String[originalIndices.size()]), indicesOptions));
+                        new OriginalIndices(originalIndices.toArray(new String[0]), indicesOptions));
                 }
             }
         } else {
@@ -303,53 +299,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return remoteClusters.containsKey(clusterName);
     }
 
-    public void collectSearchShards(IndicesOptions indicesOptions, String preference, String routing,
-                                    Map<String, OriginalIndices> remoteIndicesByCluster,
-                                    ActionListener<Map<String, ClusterSearchShardsResponse>> listener) {
-        final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
-        final Map<String, ClusterSearchShardsResponse> searchShardsResponses = new ConcurrentHashMap<>();
-        final AtomicReference<RemoteTransportException> transportException = new AtomicReference<>();
-        for (Map.Entry<String, OriginalIndices> entry : remoteIndicesByCluster.entrySet()) {
-            final String clusterName = entry.getKey();
-            RemoteClusterConnection remoteClusterConnection = remoteClusters.get(clusterName);
-            if (remoteClusterConnection == null) {
-                throw new IllegalArgumentException("no such remote cluster: " + clusterName);
-            }
-            final String[] indices = entry.getValue().indices();
-            ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices)
-                    .indicesOptions(indicesOptions).local(true).preference(preference)
-                    .routing(routing);
-            remoteClusterConnection.fetchSearchShards(searchShardsRequest,
-                    new ActionListener<ClusterSearchShardsResponse>() {
-                        @Override
-                        public void onResponse(ClusterSearchShardsResponse clusterSearchShardsResponse) {
-                            searchShardsResponses.put(clusterName, clusterSearchShardsResponse);
-                            if (responsesCountDown.countDown()) {
-                                RemoteTransportException exception = transportException.get();
-                                if (exception == null) {
-                                    listener.onResponse(searchShardsResponses);
-                                } else {
-                                    listener.onFailure(transportException.get());
-                                }
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            RemoteTransportException exception =
-                                    new RemoteTransportException("error while communicating with remote cluster [" + clusterName + "]", e);
-                            if (transportException.compareAndSet(null, exception) == false) {
-                                exception = transportException.accumulateAndGet(exception, (previous, current) -> {
-                                    current.addSuppressed(previous);
-                                    return current;
-                                });
-                            }
-                            if (responsesCountDown.countDown()) {
-                                listener.onFailure(exception);
-                            }
-                        }
-                    });
-        }
+    /**
+     * Returns the registered remote cluster names.
+     */
+    public Set<String> getRegisteredRemoteClusterNames() {
+        // remoteClusters is unmodifiable so its key set will be unmodifiable too
+        return remoteClusters.keySet();
     }
 
     /**
@@ -366,6 +321,13 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      */
     void ensureConnected(String clusterAlias, ActionListener<Void> listener) {
         getRemoteClusterConnection(clusterAlias).ensureConnected(listener);
+    }
+
+    /**
+     * Returns whether the cluster identified by the provided alias is configured to be skipped when unavailable
+     */
+    public boolean isSkipUnavailable(String clusterAlias) {
+        return getRemoteClusterConnection(clusterAlias).isSkipUnavailable();
     }
 
     public Transport.Connection getConnection(String cluster) {
@@ -391,7 +353,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         clusterSettings.addAffixUpdateConsumer(SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -> {});
     }
 
-    synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
+    private synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
         RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
         if (remote != null) {
             remote.updateSkipUnavailable(skipUnavailable);
@@ -502,5 +464,4 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     Collection<RemoteClusterConnection> getConnections() {
         return remoteClusters.values();
     }
-
 }

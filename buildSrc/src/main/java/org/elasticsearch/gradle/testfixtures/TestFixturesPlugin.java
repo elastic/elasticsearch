@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.testfixtures;
 import com.avast.gradle.dockercompose.ComposeExtension;
 import com.avast.gradle.dockercompose.DockerComposePlugin;
 import org.elasticsearch.gradle.precommit.JarHellTask;
+import org.elasticsearch.gradle.precommit.TestingConventionsTasks;
 import org.elasticsearch.gradle.precommit.ThirdPartyAuditTask;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Plugin;
@@ -95,9 +96,13 @@ public class TestFixturesPlugin implements Plugin<Project> {
             if (dockerComposeSupported(project) == false) {
                 project.getLogger().warn(
                     "Tests for {} require docker-compose at /usr/local/bin/docker-compose or /usr/bin/docker-compose " +
-                        "but none could not be found so these will be skipped", project.getPath()
+                        "but none could be found so these will be skipped", project.getPath()
                 );
                 tasks.withType(getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"), task ->
+                    task.setEnabled(false)
+                );
+                // conventions are not honored when the tasks are disabled
+                tasks.withType(TestingConventionsTasks.class, task ->
                     task.setEnabled(false)
                 );
                 return;

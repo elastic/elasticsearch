@@ -20,18 +20,16 @@ Below is an example of configuring a mapping with numeric fields:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "number_of_bytes": {
-          "type": "integer"
-        },
-        "time_in_seconds": {
-          "type": "float"
-        },
-        "price": {
-          "type": "scaled_float",
-          "scaling_factor": 100
-        }
+    "properties": {
+      "number_of_bytes": {
+        "type": "integer"
+      },
+      "time_in_seconds": {
+        "type": "float"
+      },
+      "price": {
+        "type": "scaled_float",
+        "scaling_factor": 100
       }
     }
   }

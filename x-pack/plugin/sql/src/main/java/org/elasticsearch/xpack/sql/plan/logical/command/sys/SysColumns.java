@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -44,8 +44,8 @@ public class SysColumns extends Command {
     private final LikePattern pattern;
     private final LikePattern columnPattern;
 
-    public SysColumns(Location location, String catalog, String index, LikePattern pattern, LikePattern columnPattern) {
-        super(location);
+    public SysColumns(Source source, String catalog, String index, LikePattern pattern, LikePattern columnPattern) {
+        super(source);
         this.catalog = catalog;
         this.index = index;
         this.pattern = pattern;

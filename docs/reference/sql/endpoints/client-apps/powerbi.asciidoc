@@ -45,7 +45,7 @@ tables will load a preview of the data within:
 .Pick table to load
 image:images/sql/odbc/apps_pbi_picktable.png[]
 
-Now tick the chosen table and click on the _Load_ button. Power BI will now load and anlyze the data, populating a list with the available
+Now tick the chosen table and click on the _Load_ button. Power BI will now load and analyze the data, populating a list with the available
 columns. These can now be used to build the desired visualisation:
 
 [[apps_pbi_loaded]]

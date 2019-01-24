@@ -342,6 +342,8 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
             holes = new org.apache.lucene.geo.Polygon[polygon.length - 1];
             for (int i = 0; i < holes.length; ++i) {
                 Coordinate[] coords = polygon[i+1];
+                //We do not have holes on the dateline as they get eliminated
+                //when breaking the polygon around it.
                 double[] x = new double[coords.length];
                 double[] y = new double[coords.length];
                 for (int c = 0; c < coords.length; ++c) {
@@ -357,7 +359,9 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         double[] x = new double[shell.length];
         double[] y = new double[shell.length];
         for (int i = 0; i < shell.length; ++i) {
-            x[i] = normalizeLon(shell[i].x);
+            //Lucene Tessellator treats different +180 and -180 and we should keep the sign.
+            //normalizeLon method excludes -180.
+            x[i] = Math.abs(shell[i].x) > 180 ? normalizeLon(shell[i].x) : shell[i].x;
             y[i] = normalizeLat(shell[i].y);
         }
 

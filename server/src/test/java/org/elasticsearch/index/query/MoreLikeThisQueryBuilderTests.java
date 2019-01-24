@@ -93,14 +93,20 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
     private Item generateRandomItem() {
         String index = randomBoolean() ? getIndex().getName() : null;
-        String type = "doc";
         // indexed item or artificial document
         Item item;
+
         if (randomBoolean()) {
-            item = new Item(index, type, randomAlphaOfLength(10));
+            item = randomBoolean()
+                ? new Item(index, randomAlphaOfLength(10))
+                : new Item(index, randomArtificialDoc());
         } else {
-            item = new Item(index, type, randomArtificialDoc());
+            String type = "doc";
+            item = randomBoolean()
+                ? new Item(index, type, randomAlphaOfLength(10))
+                : new Item(index, type, randomArtificialDoc());
         }
+
         // if no field is specified MLT uses all mapped fields for this item
         if (randomBoolean()) {
             item.fields(randomFrom(randomFields));
@@ -371,5 +377,17 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
         assertEquals(json, 2, parsed.fields().length);
         assertEquals(json, "and potentially some more text here as well", parsed.likeTexts()[0]);
+    }
+
+    @Override
+    protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
+        QueryBuilder query = super.parseQuery(parser);
+        assertThat(query, instanceOf(MoreLikeThisQueryBuilder.class));
+
+        MoreLikeThisQueryBuilder mltQuery = (MoreLikeThisQueryBuilder) query;
+        if (mltQuery.isTypeless() == false) {
+            assertWarnings(MoreLikeThisQueryBuilder.TYPES_DEPRECATION_MESSAGE);
+        }
+        return query;
     }
 }

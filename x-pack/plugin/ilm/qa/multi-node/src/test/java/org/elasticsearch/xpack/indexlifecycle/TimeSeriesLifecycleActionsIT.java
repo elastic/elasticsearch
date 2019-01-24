@@ -19,17 +19,22 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.FrozenEngine;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
+import org.elasticsearch.xpack.core.indexlifecycle.FreezeAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
+import org.elasticsearch.xpack.core.indexlifecycle.SetPriorityAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
@@ -354,6 +359,44 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         indexDocument();
     }
 
+    public void testDeleteDuringSnapshot() throws Exception {
+        // Create the repository before taking the snapshot.
+        Request request = new Request("PUT", "/_snapshot/repo");
+        request.setJsonEntity(Strings
+            .toString(JsonXContent.contentBuilder()
+                .startObject()
+                .field("type", "fs")
+                .startObject("settings")
+                .field("compress", randomBoolean())
+                .field("location", System.getProperty("tests.path.repo"))
+                .field("max_snapshot_bytes_per_sec", "256b")
+                .endObject()
+                .endObject()));
+        assertOK(client().performRequest(request));
+        // create delete policy
+        createNewSingletonPolicy("delete", new DeleteAction(), TimeValue.timeValueMillis(0));
+        // create index without policy
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        // index document so snapshot actually does something
+        indexDocument();
+        // start snapshot
+        request = new Request("PUT", "/_snapshot/repo/snapshot");
+        request.addParameter("wait_for_completion", "false");
+        request.setJsonEntity("{\"indices\": \"" + index + "\"}");
+        assertOK(client().performRequest(request));
+        // add policy and expect it to trigger delete immediately (while snapshot in progress)
+        updatePolicy(index, policy);
+        // assert that index was deleted
+        assertBusy(() -> assertFalse(indexExists(index)), 2, TimeUnit.MINUTES);
+        // assert that snapshot is still in progress and clean up
+        assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
+        assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
+        ResponseException e = expectThrows(ResponseException.class,
+            () -> client().performRequest(new Request("GET", "/_snapshot/repo/snapshot")));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+    }
+
     public void testReadOnly() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
@@ -423,6 +466,139 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         expectThrows(ResponseException.class, this::indexDocument);
     }
 
+    public void testShrinkDuringSnapshot() throws Exception {
+        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
+        // Create the repository before taking the snapshot.
+        Request request = new Request("PUT", "/_snapshot/repo");
+        request.setJsonEntity(Strings
+            .toString(JsonXContent.contentBuilder()
+                .startObject()
+                .field("type", "fs")
+                .startObject("settings")
+                .field("compress", randomBoolean())
+                .field("location", System.getProperty("tests.path.repo"))
+                .field("max_snapshot_bytes_per_sec", "256b")
+                .endObject()
+                .endObject()));
+        assertOK(client().performRequest(request));
+        // create delete policy
+        createNewSingletonPolicy("warm", new ShrinkAction(1), TimeValue.timeValueMillis(0));
+        // create index without policy
+        createIndexWithSettings(index, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            // required so the shrink doesn't wait on SetSingleNodeAllocateStep
+            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", "node-0"));
+        // index document so snapshot actually does something
+        indexDocument();
+        // start snapshot
+        request = new Request("PUT", "/_snapshot/repo/snapshot");
+        request.addParameter("wait_for_completion", "false");
+        request.setJsonEntity("{\"indices\": \"" + index + "\"}");
+        assertOK(client().performRequest(request));
+        // add policy and expect it to trigger shrink immediately (while snapshot in progress)
+        updatePolicy(index, policy);
+        // assert that index was shrunk and original index was deleted
+        assertBusy(() -> {
+            assertTrue(indexExists(shrunkenIndex));
+            assertTrue(aliasExists(shrunkenIndex, index));
+            Map<String, Object> settings = getOnlyIndexSettings(shrunkenIndex);
+            assertThat(getStepKeyForIndex(shrunkenIndex), equalTo(TerminalPolicyStep.KEY));
+            assertThat(settings.get(IndexMetaData.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(1)));
+            assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
+        }, 2, TimeUnit.MINUTES);
+        expectThrows(ResponseException.class, this::indexDocument);
+        // assert that snapshot succeeded
+        assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
+        assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
+        ResponseException e = expectThrows(ResponseException.class,
+            () -> client().performRequest(new Request("GET", "/_snapshot/repo/snapshot")));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+    }
+
+    public void testFreezeAction() throws Exception {
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        createNewSingletonPolicy("cold", new FreezeAction());
+        updatePolicy(index, policy);
+        assertBusy(() -> {
+            Map<String, Object> settings = getOnlyIndexSettings(index);
+            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
+            assertThat(settings.get(IndexSettings.INDEX_SEARCH_THROTTLED.getKey()), equalTo("true"));
+            assertThat(settings.get(FrozenEngine.INDEX_FROZEN.getKey()), equalTo("true"));
+        });
+    }
+
+    public void testFreezeDuringSnapshot() throws Exception {
+        // Create the repository before taking the snapshot.
+        Request request = new Request("PUT", "/_snapshot/repo");
+        request.setJsonEntity(Strings
+            .toString(JsonXContent.contentBuilder()
+                .startObject()
+                .field("type", "fs")
+                .startObject("settings")
+                .field("compress", randomBoolean())
+                .field("location", System.getProperty("tests.path.repo"))
+                .field("max_snapshot_bytes_per_sec", "256b")
+                .endObject()
+                .endObject()));
+        assertOK(client().performRequest(request));
+        // create delete policy
+        createNewSingletonPolicy("cold", new FreezeAction(), TimeValue.timeValueMillis(0));
+        // create index without policy
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        // index document so snapshot actually does something
+        indexDocument();
+        // start snapshot
+        request = new Request("PUT", "/_snapshot/repo/snapshot");
+        request.addParameter("wait_for_completion", "false");
+        request.setJsonEntity("{\"indices\": \"" + index + "\"}");
+        assertOK(client().performRequest(request));
+        // add policy and expect it to trigger delete immediately (while snapshot in progress)
+        updatePolicy(index, policy);
+        // assert that the index froze
+        assertBusy(() -> {
+            Map<String, Object> settings = getOnlyIndexSettings(index);
+            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
+            assertThat(settings.get(IndexSettings.INDEX_SEARCH_THROTTLED.getKey()), equalTo("true"));
+            assertThat(settings.get(FrozenEngine.INDEX_FROZEN.getKey()), equalTo("true"));
+        }, 2, TimeUnit.MINUTES);
+        // assert that snapshot is still in progress and clean up
+        assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
+        assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
+        ResponseException e = expectThrows(ResponseException.class,
+            () -> client().performRequest(new Request("GET", "/_snapshot/repo/snapshot")));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+    }
+
+    public void testSetPriority() throws Exception {
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.INDEX_PRIORITY_SETTING.getKey(), 100));
+        int priority = randomIntBetween(0, 99);
+        createNewSingletonPolicy("warm", new SetPriorityAction(priority));
+        updatePolicy(index, policy);
+        assertBusy(() -> {
+            Map<String, Object> settings = getOnlyIndexSettings(index);
+            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            assertThat(settings.get(IndexMetaData.INDEX_PRIORITY_SETTING.getKey()), equalTo(String.valueOf(priority)));
+        });
+    }
+
+    public void testSetNullPriority() throws Exception {
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.INDEX_PRIORITY_SETTING.getKey(), 100));
+        createNewSingletonPolicy("warm", new SetPriorityAction((Integer) null));
+        updatePolicy(index, policy);
+        assertBusy(() -> {
+            Map<String, Object> settings = getOnlyIndexSettings(index);
+            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            assertNull(settings.get(IndexMetaData.INDEX_PRIORITY_SETTING.getKey()));
+        });
+    }
+
     @SuppressWarnings("unchecked")
     public void testNonexistentPolicy() throws Exception {
         String indexPrefix = randomAlphaOfLengthBetween(5,15).toLowerCase(Locale.ROOT);
@@ -474,7 +650,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertEquals("policy [does_not_exist] does not exist", stepInfo.get("reason"));
             assertEquals("illegal_argument_exception", stepInfo.get("type"));
         });
-
     }
 
     public void testInvalidPolicyNames() throws UnsupportedEncodingException {
@@ -585,16 +760,21 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     private void createFullPolicy(TimeValue hotTime) throws IOException {
+        Map<String, LifecycleAction> hotActions = new HashMap<>();
+        hotActions.put(SetPriorityAction.NAME, new SetPriorityAction(100));
+        hotActions.put(RolloverAction.NAME,  new RolloverAction(null, null, 1L));
         Map<String, LifecycleAction> warmActions = new HashMap<>();
+        warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1));
         warmActions.put(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "node-1,node-2"), null, null));
         warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
+        Map<String, LifecycleAction> coldActions = new HashMap<>();
+        coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
+        coldActions.put(AllocateAction.NAME, new AllocateAction(0, singletonMap("_name", "node-3"), null, null));
         Map<String, Phase> phases = new HashMap<>();
-        phases.put("hot", new Phase("hot", hotTime, singletonMap(RolloverAction.NAME,
-            new RolloverAction(null, null, 1L))));
+        phases.put("hot", new Phase("hot", hotTime, hotActions));
         phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
-        phases.put("cold", new Phase("cold", TimeValue.ZERO, singletonMap(AllocateAction.NAME,
-            new AllocateAction(0, singletonMap("_name", "node-3"), null, null))));
+        phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
         phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction())));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         // PUT policy
@@ -715,5 +895,16 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         indexRequest.setEntity(new StringEntity("{\"a\": \"test\"}", ContentType.APPLICATION_JSON));
         Response response = client().performRequest(indexRequest);
         logger.info(response.getStatusLine());
+    }
+
+    private String getSnapshotState(String snapshot) throws IOException {
+        Response response = client().performRequest(new Request("GET", "/_snapshot/repo/" + snapshot));
+        Map<String, Object> responseMap;
+        try (InputStream is = response.getEntity().getContent()) {
+            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+        Map<String, Object> snapResponse = ((List<Map<String, Object>>) responseMap.get("snapshots")).get(0);
+        assertThat(snapResponse.get("snapshot"), equalTo(snapshot));
+        return (String) snapResponse.get("state");
     }
 }

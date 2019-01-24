@@ -113,8 +113,8 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                 waitForMetadataTimeOut = newWaitForTimeOut;
             }
         };
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(CcrSettings.CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT, updater);
-        waitForMetadataTimeOut = CcrSettings.CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT, updater);
+        waitForMetadataTimeOut = CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT.get(settings);
     }
 
     public synchronized AutoFollowStats getStats() {
@@ -246,6 +246,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
 
             };
             newAutoFollowers.put(remoteCluster, autoFollower);
+            LOGGER.info("starting auto follower for remote cluster [{}]", remoteCluster);
             autoFollower.start();
         }
 
@@ -256,16 +257,32 @@ public class AutoFollowCoordinator implements ClusterStateListener {
             boolean exist = autoFollowMetadata.getPatterns().values().stream()
                 .anyMatch(pattern -> pattern.getRemoteCluster().equals(remoteCluster));
             if (exist == false) {
+                LOGGER.info("removing auto follower for remote cluster [{}]", remoteCluster);
+                autoFollower.removed = true;
                 removedRemoteClusters.add(remoteCluster);
             } else if (autoFollower.remoteClusterConnectionMissing) {
-                LOGGER.info("Retrying auto follower [{}] after remote cluster connection was missing", remoteCluster);
+                LOGGER.info("retrying auto follower [{}] after remote cluster connection was missing", remoteCluster);
                 autoFollower.remoteClusterConnectionMissing = false;
                 autoFollower.start();
             }
         }
+        assert assertNoOtherActiveAutoFollower(newAutoFollowers);
         this.autoFollowers = autoFollowers
             .copyAndPutAll(newAutoFollowers)
             .copyAndRemoveAll(removedRemoteClusters);
+    }
+
+    private boolean assertNoOtherActiveAutoFollower(Map<String, AutoFollower> newAutoFollowers) {
+        for (AutoFollower newAutoFollower : newAutoFollowers.values()) {
+            AutoFollower previousInstance = autoFollowers.get(newAutoFollower.remoteCluster);
+            assert previousInstance == null || previousInstance.removed;
+        }
+        return true;
+    }
+
+
+    Map<String, AutoFollower> getAutoFollowers() {
+        return autoFollowers;
     }
 
     @Override
@@ -293,6 +310,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         private volatile long lastAutoFollowTimeInMillis = -1;
         private volatile long metadataVersion = 0;
         private volatile boolean remoteClusterConnectionMissing = false;
+        volatile boolean removed = false;
         private volatile CountDown autoFollowPatternsCountDown;
         private volatile AtomicArray<AutoFollowResult> autoFollowResults;
 
@@ -307,6 +325,17 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         }
 
         void start() {
+            if (removed) {
+                // This check exists to avoid two AutoFollower instances a single remote cluster.
+                // (If an auto follow pattern is deleted and then added back quickly enough then
+                // the old AutoFollower instance still sees that there is an auto follow pattern
+                // for the remote cluster it is tracking and will continue to operate, while in
+                // the meantime in updateAutoFollowers() method another AutoFollower instance has been
+                // started for the same remote cluster.)
+                LOGGER.info("AutoFollower instance for cluster [{}] has been removed", remoteCluster);
+                return;
+            }
+
             lastAutoFollowTimeInMillis = relativeTimeProvider.getAsLong();
             final ClusterState clusterState = followerClusterStateSupplier.get();
             final AutoFollowMetadata autoFollowMetadata = clusterState.metaData().custom(AutoFollowMetadata.TYPE);
@@ -328,6 +357,12 @@ public class AutoFollowCoordinator implements ClusterStateListener {
             this.autoFollowResults = new AtomicArray<>(patterns.size());
 
             getRemoteClusterState(remoteCluster, metadataVersion + 1, (remoteClusterStateResponse, remoteError) -> {
+                // Also check removed flag here, as it may take a while for this remote cluster state api call to return:
+                if (removed) {
+                    LOGGER.info("AutoFollower instance for cluster [{}] has been removed", remoteCluster);
+                    return;
+                }
+
                 if (remoteClusterStateResponse != null) {
                     assert remoteError == null;
                     if (remoteClusterStateResponse.isWaitForTimedOut()) {

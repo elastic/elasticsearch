@@ -107,6 +107,7 @@ final class DefaultSearchContext extends SearchContext {
     private ScrollContext scrollContext;
     private boolean explain;
     private boolean version = false; // by default, we don't return versions
+    private boolean seqAndPrimaryTerm = false;
     private StoredFieldsContext storedFields;
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
@@ -116,7 +117,7 @@ final class DefaultSearchContext extends SearchContext {
     private SortAndFormats sort;
     private Float minimumScore;
     private boolean trackScores = false; // when sorting, track scores as well...
-    private boolean trackTotalHits = true;
+    private int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
     private FieldDoc searchAfter;
     private CollapseContext collapse;
     private boolean lowLevelCancellation;
@@ -558,14 +559,14 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext trackTotalHits(boolean trackTotalHits) {
-        this.trackTotalHits = trackTotalHits;
+    public SearchContext trackTotalHitsUpTo(int trackTotalHitsUpTo) {
+        this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         return this;
     }
 
     @Override
-    public boolean trackTotalHits() {
-        return trackTotalHits;
+    public int trackTotalHitsUpTo() {
+        return trackTotalHitsUpTo;
     }
 
     @Override
@@ -717,6 +718,16 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public void version(boolean version) {
         this.version = version;
+    }
+
+    @Override
+    public boolean seqNoAndPrimaryTerm() {
+        return seqAndPrimaryTerm;
+    }
+
+    @Override
+    public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
+        this.seqAndPrimaryTerm = seqNoAndPrimaryTerm;
     }
 
     @Override

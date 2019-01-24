@@ -41,10 +41,9 @@ final class JdbcDateUtils {
         .appendFraction(MILLI_OF_SECOND, 3, 3, true)
         .appendOffsetId()
         .toFormatter(Locale.ROOT);
-    
+
     static long asMillisSinceEpoch(String date) {
-        ZonedDateTime zdt = ISO_WITH_MILLIS.parse(date, ZonedDateTime::from);
-        return zdt.toInstant().toEpochMilli();
+        return ISO_WITH_MILLIS.parse(date, ZonedDateTime::from).toInstant().toEpochMilli();
     }
     
     static Date asDate(String date) {
@@ -71,7 +70,7 @@ final class JdbcDateUtils {
         }
     }
 
-    private static long utcMillisRemoveTime(long l) {
+    static long utcMillisRemoveTime(long l) {
         return l - (l % DAY_IN_MILLIS);
     }
 

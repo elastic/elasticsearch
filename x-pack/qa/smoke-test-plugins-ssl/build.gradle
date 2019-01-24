@@ -1,6 +1,4 @@
-import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.test.NodeInfo
 
 import javax.net.ssl.HttpsURLConnection
@@ -59,16 +57,17 @@ integTestCluster {
   setting 'xpack.monitoring.collection.interval', '1s'
   setting 'xpack.monitoring.exporters._http.type', 'http'
   setting 'xpack.monitoring.exporters._http.enabled', 'false'
-  setting 'xpack.ssl.certificate_authorities', 'testnode.crt'
   setting 'xpack.monitoring.exporters._http.auth.username', 'monitoring_agent'
   setting 'xpack.monitoring.exporters._http.auth.password', 'x-pack-test-password'
   setting 'xpack.monitoring.exporters._http.ssl.verification_mode', 'full'
+  setting 'xpack.monitoring.exporters._http.ssl.certificate_authorities', 'testnode.crt'
 
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.http.ssl.enabled', 'true'
   setting 'xpack.security.http.ssl.key', 'testnode.pem'
   setting 'xpack.security.http.ssl.certificate', 'testnode.crt'
+  setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'
   keystoreSetting 'xpack.security.http.ssl.secure_key_passphrase', 'testnode'
 
   setting 'xpack.ilm.enabled', 'false'

@@ -75,8 +75,8 @@ import static java.util.Collections.unmodifiableMap;
 public class QueryShardContext extends QueryRewriteContext {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(QueryShardContext.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using the _type field " +
-        "in queries is deprecated, prefer to filter on a field instead.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using the _type field " +
+        "in queries and aggregations is deprecated, prefer to use a field instead.";
 
     private final ScriptService scriptService;
     private final IndexSettings indexSettings;

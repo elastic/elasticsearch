@@ -20,7 +20,7 @@ import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 
 import static org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Arithmetics.mod;
-import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
+import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY_TO_HOUR;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_HOUR;
@@ -77,7 +77,7 @@ public class BinaryArithmeticTests extends ESTestCase {
         assertEquals(interval(Duration.ofDays(1).plusHours(2), INTERVAL_DAY_TO_HOUR), L(x));
     }
 
-    public void testAddYearMonthIntervalToDate() {
+    public void testAddYearMonthIntervalToDateTime() {
         ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
         Literal l = L(now);
         TemporalAmount t = Period.ofYears(100).plusMonths(50);
@@ -86,7 +86,7 @@ public class BinaryArithmeticTests extends ESTestCase {
         assertEquals(L(now.plus(t)), L(x));
     }
 
-    public void testAddDayTimeIntervalToDate() {
+    public void testAddDayTimeIntervalToDateTime() {
         ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
         Literal l = L(now);
         TemporalAmount t = Duration.ofHours(2);
@@ -95,7 +95,7 @@ public class BinaryArithmeticTests extends ESTestCase {
         assertEquals(L(now.plus(t)), L(x));
     }
 
-    public void testAddDayTimeIntervalToDateReverse() {
+    public void testAddDayTimeIntervalToDateTimeReverse() {
         ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
         Literal l = L(now);
         TemporalAmount t = Duration.ofHours(2);
@@ -124,7 +124,7 @@ public class BinaryArithmeticTests extends ESTestCase {
         assertEquals(interval(Duration.ofDays(1).plusHours(8), INTERVAL_DAY_TO_HOUR), L(x));
     }
 
-    public void testSubYearMonthIntervalToDate() {
+    public void testSubYearMonthIntervalToDateTime() {
         ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
         Literal l = L(now);
         TemporalAmount t = Period.ofYears(100).plusMonths(50);
@@ -133,7 +133,7 @@ public class BinaryArithmeticTests extends ESTestCase {
         assertEquals(L(now.minus(t)), L(x));
     }
 
-    public void testSubYearMonthIntervalToDateIllegal() {
+    public void testSubYearMonthIntervalToDateTimeIllegal() {
         ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
         Literal l = L(now);
         TemporalAmount t = Period.ofYears(100).plusMonths(50);
@@ -148,7 +148,7 @@ public class BinaryArithmeticTests extends ESTestCase {
         assertEquals("Cannot compute [-] between [IntervalDayTime] [Integer]", expect.getMessage());
     }
 
-    public void testSubDayTimeIntervalToDate() {
+    public void testSubDayTimeIntervalToDateTime() {
         ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
         Literal l = L(now);
         TemporalAmount t = Duration.ofHours(2);

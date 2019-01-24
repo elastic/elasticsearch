@@ -29,48 +29,46 @@ subsequent examples:
 PUT /my_index
 {
   "mappings":{
-    "_doc":{
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        },
-        "aborted_count": {
-          "type": "long"
-        },
-        "another_field": {
-          "type": "keyword" <1>
-        },
-        "clientip": {
-          "type": "keyword"
-        },
-        "coords": {
-          "properties": {
-            "lat": {
-              "type": "keyword"
-            },
-            "lon": {
-              "type": "keyword"
-            }
+    "properties": {
+      "@timestamp": {
+        "type": "date"
+      },
+      "aborted_count": {
+        "type": "long"
+      },
+      "another_field": {
+        "type": "keyword" <1>
+      },
+      "clientip": {
+        "type": "keyword"
+      },
+      "coords": {
+        "properties": {
+          "lat": {
+            "type": "keyword"
+          },
+          "lon": {
+            "type": "keyword"
           }
-        },
-        "error_count": {
-          "type": "long"
-        },
-        "query": {
-          "type": "keyword"
-        },
-        "some_field": {
-          "type": "keyword"
-        },
-        "tokenstring1":{
-          "type":"keyword"
-        },
-        "tokenstring2":{
-          "type":"keyword"
-        },
-        "tokenstring3":{
-          "type":"keyword"
         }
+      },
+      "error_count": {
+        "type": "long"
+      },
+      "query": {
+        "type": "keyword"
+      },
+      "some_field": {
+        "type": "keyword"
+      },
+      "tokenstring1":{
+        "type":"keyword"
+      },
+      "tokenstring2":{
+        "type":"keyword"
+      },
+      "tokenstring3":{
+        "type":"keyword"
       }
     }
   }
@@ -127,7 +125,6 @@ PUT _ml/datafeeds/datafeed-test1
 {
   "job_id": "test1",
   "indices": ["my_index"],
-  "types": ["_doc"],
   "query": {
     "match_all": {
           "boost": 1
@@ -233,7 +230,6 @@ PUT _ml/datafeeds/datafeed-test2
 {
   "job_id": "test2",
   "indices": ["my_index"],
-  "types": ["_doc"],
   "query": {
     "match_all": {
           "boost": 1
@@ -482,7 +478,6 @@ PUT _ml/datafeeds/datafeed-test3
 {
   "job_id": "test3",
   "indices": ["my_index"],
-  "types": ["_doc"],
   "query": {
     "match_all": {
           "boost": 1
@@ -551,7 +546,6 @@ PUT _ml/datafeeds/datafeed-test4
 {
   "job_id": "test4",
   "indices": ["my_index"],
-  "types": ["_doc"],
   "query": {
     "match_all": {
           "boost": 1
@@ -573,7 +567,7 @@ GET _ml/datafeeds/datafeed-test4/_preview
 // TEST[skip:needs-licence]
 
 In {es}, location data can be stored in `geo_point` fields but this data type is
-not supported natively in {xpackml} analytics. This example of a script field
+not supported natively in {ml} analytics. This example of a script field
 transforms the data into an appropriate format. For more information,
 see <<ml-geo-functions>>.
 

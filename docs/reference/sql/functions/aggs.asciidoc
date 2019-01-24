@@ -53,10 +53,41 @@ COUNT(expression<1>)
 
 Returns the total number (count) of input values.
 
+In case of `COUNT(*)` or `COUNT(<literal>)`, _all_ values are considered (including `null` or missing ones).
+
+In case of `COUNT(<field_name>)` `null` values are not considered.
+
+
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[aggCountStar]
 --------------------------------------------------
+
+
+[[sql-functions-aggs-count-all]]
+===== `COUNT(ALL)`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+COUNT(ALL field_name<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> a field name
+
+*Output*: numeric value
+
+.Description:
+
+Returns the total number (count) of all _non-null_ input values. `COUNT(<field_name>)` and `COUNT(ALL <field_name>)` are equivalent.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[aggCountAll]
+--------------------------------------------------
+
 
 [[sql-functions-aggs-count-distinct]]
 ===== `COUNT(DISTINCT)`
@@ -75,7 +106,7 @@ COUNT(DISTINCT field_name<1>)
 
 .Description:
 
-Returns the total number of _distinct_ values in input values.
+Returns the total number of _distinct non-null_ values in input values.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -192,7 +223,7 @@ PERCENTILE(field_name<1>, numeric_exp<2>)
 *Input*:
 
 <1> a numeric field
-<2> a numeric expression
+<2> a numeric expression (must be a constant and not based on a field)
 
 *Output*: `double` numeric value
 
@@ -218,7 +249,7 @@ PERCENTILE_RANK(field_name<1>, numeric_exp<2>)
 *Input*:
 
 <1> a numeric field
-<2> a numeric expression
+<2> a numeric expression (must be a constant and not based on a field)
 
 *Output*: `double` numeric value
 

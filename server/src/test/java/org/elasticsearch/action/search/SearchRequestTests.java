@@ -83,7 +83,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         Version version = VersionUtils.randomVersion(random());
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         if (version.before(Version.V_7_0_0)) {
-            assertNull(deserializedRequest.getCCSReduceMode());
+            assertEquals(CCSReduceMode.AUTO, deserializedRequest.getCCSReduceMode());
         } else {
             assertEquals(searchRequest.getCCSReduceMode(), deserializedRequest.getCCSReduceMode());
         }
@@ -104,7 +104,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertArrayEquals(new String[]{"index"}, searchRequest.indices());
             assertNull(searchRequest.getLocalClusterAlias());
             assertAbsoluteStartMillisIsCurrentTime(searchRequest);
-            assertNull(searchRequest.getCCSReduceMode());
+            assertEquals(CCSReduceMode.AUTO, searchRequest.getCCSReduceMode());
         }
     }
 

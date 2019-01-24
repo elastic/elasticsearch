@@ -1865,8 +1865,8 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             searchRequest.setCCSReduceMode(randomFrom(CCSReduceMode.values()));
-            expectedParams.put("ccs_reduce_mode", searchRequest.getCCSReduceMode().toString());
         }
+        expectedParams.put("ccs_reduce_mode", searchRequest.getCCSReduceMode().toString());
     }
 
     static void setRandomIndicesOptions(Consumer<IndicesOptions> setter, Supplier<IndicesOptions> getter,

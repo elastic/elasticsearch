@@ -25,7 +25,26 @@ import java.util.Locale;
  * The reduce modes when executing a cross-cluster search request
  */
 public enum CCSReduceMode {
-    LOCAL, REMOTE;
+    /**
+     * The coordinating node sends one search shards request to each remote cluster to collect information about the remote indices
+     * involved and their shards. From then on, the search executes as if all shards were part of the same cluster, meaning that
+     * each shard will receive a shard search request, execute the query, after which reduction happens in one go and relevant documents
+     * are fetched from their shards. To be preferred when network latency is very low between the coordinating node and the remote
+     * clusters.
+     */
+    LOCAL,
+    /**
+     * The coordinating node sends one and only one search request to each cluster. Each cluster executes the search independently,
+     * performs non final reduction and returns `from` + `size` fetched hits to the coordinating node, which will perform a final
+     * reduction and merge the different search responses into one. To be preferred when there is network latency between the coordinating
+     * node and the remote clusters.
+     */
+    REMOTE,
+    /**
+     * Default mode. {@link #REMOTE} is used whenever possible. When a scroll is provided or inner hits are requested as part of field
+     * collapsing, {@link #LOCAL} is used instead.
+     */
+    AUTO;
 
     @Override
     public String toString() {

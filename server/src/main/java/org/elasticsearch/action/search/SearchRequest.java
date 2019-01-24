@@ -92,7 +92,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private CCSReduceMode ccsReduceMode;
+    private CCSReduceMode ccsReduceMode = CCSReduceMode.AUTO;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
@@ -203,7 +203,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
         }
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            ccsReduceMode = in.readOptionalEnum(CCSReduceMode.class);
+            ccsReduceMode = in.readEnum(CCSReduceMode.class);
         }
     }
 
@@ -232,7 +232,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             }
         }
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeOptionalEnum(ccsReduceMode);
+            out.writeEnum(ccsReduceMode);
         }
     }
 
@@ -339,11 +339,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
-     * Returns the reduce mode for cross-cluster search requests. When not set {@link CCSReduceMode#REMOTE} is used
-     * whenever possible; in case a scroll is provided or inner hits are requested as part of field collapsing,
-     * {@link CCSReduceMode#LOCAL} is used instead.
+     * Returns the reduce mode for cross-cluster search requests
      */
-    @Nullable
     public CCSReduceMode getCCSReduceMode() {
         return this.ccsReduceMode;
     }

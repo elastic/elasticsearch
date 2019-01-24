@@ -70,9 +70,9 @@
         },
         "ccs_reduce_mode": {
           "type" : "enum",
-          "options" : ["local","remote"],
-          "default" : "remote",
-          "description" : "The cross-cluster search reduce mode: fan out to all the shards and perform one local reduce or send one search request to each remote cluster and perform remote reduction in each cluster"
+          "options" : ["local","remote", "auto"],
+          "default" : "auto",
+          "description" : "The cross-cluster search reduce mode: fan out to all the shards and perform one local reduce or send one search request to each remote cluster and perform remote reduction in each cluster, or remote whenever possible"
         }
       }
     },

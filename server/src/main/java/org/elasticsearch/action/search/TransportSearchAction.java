@@ -202,15 +202,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (remoteClusterIndices.isEmpty()) {
                 executeLocalSearch(task, timeProvider, searchRequest, localIndices, clusterState, listener);
             } else {
-                CCSReduceMode executionMode = searchRequest.getCCSReduceMode();
-                if (executionMode == null) {
+                CCSReduceMode ccsReduceMode = searchRequest.getCCSReduceMode();
+                if (ccsReduceMode == CCSReduceMode.AUTO) {
                     boolean collapseWithInnerHits = source != null && source.collapse() != null && source.collapse().getInnerHits() != null
                         && source.collapse().getInnerHits().isEmpty() == false;
                     boolean scroll = searchRequest.scroll() != null;
-                    executionMode = collapseWithInnerHits || scroll ? CCSReduceMode.LOCAL
-                        : CCSReduceMode.REMOTE;
+                    ccsReduceMode = collapseWithInnerHits || scroll ? CCSReduceMode.LOCAL : CCSReduceMode.REMOTE;
                 }
-                if (executionMode == CCSReduceMode.LOCAL) {
+                if (ccsReduceMode == CCSReduceMode.LOCAL) {
                     AtomicInteger skippedClusters = new AtomicInteger(0);
                     collectSearchShards(searchRequest.indicesOptions(), searchRequest.preference(), searchRequest.routing(),
                         skippedClusters, remoteClusterIndices, remoteClusterService, threadPool,

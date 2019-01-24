@@ -284,7 +284,8 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
 [[ccs-reduce-mode]]
 === Reduce mode
 
-When searching across remote clusters, there are two possible reduce modes:
+When searching across remote clusters, the execution path may differ depending
+on the selected reduce mode:
 
 - `remote`: the coordinating node sends one search request to each cluster.
 Each cluster performs the search independently, reducing and fetching results
@@ -308,12 +309,14 @@ coordinating node. The `local` reduce mode is beneficial whenever there is very
  involved, as it treats all shards the same, at the cost of sending many
  requests to each remote cluster.
 
-By default `remote` is used whenever possible. In case a scroll is provided,
+- `auto`: `remote` is used whenever possible. In case a scroll is provided,
 or inner hits are requested as part of field collapsing, `local` is used
-instead. The <<search-request-body, search API>> supports the `ccs_reduce_mode`
+instead. This is the default reduce mode.
+
+The <<search-request-body, search API>> supports the `ccs_reduce_mode`
 parameter which allows to select the reduce mode if needed. The reduce mode
 that was used for a cross-cluster search request is returned as part of the
-`_clusters` section.
+`_clusters` section, which will either be `remote` or `local`.
 
 Note that all the communication between the nodes, regardless of which cluster
 they belong to and the selected reduce mode, happens through the

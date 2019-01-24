@@ -41,7 +41,8 @@ public enum DataType {
     OBJECT(                JDBCType.STRUCT,    -1,                0,                 0,  false, false, false),
     NESTED(                JDBCType.STRUCT,    -1,                0,                 0,  false, false, false),
     BINARY(                JDBCType.VARBINARY, -1,                Integer.MAX_VALUE, 0,  false, false, false),
-    // since ODBC and JDBC interpret precision for Date as display size,
+    DATE(                  JDBCType.DATE,      Long.BYTES,        10,                10, false, false, true),
+    // since ODBC and JDBC interpret precision for Date as display size
     // the precision is 23 (number of chars in ISO8601 with millis) + Z (the UTC timezone)
     // see https://github.com/elastic/elasticsearch/issues/30386#issuecomment-386807288
     DATETIME(              JDBCType.TIMESTAMP, Long.BYTES,        24,                24, false, false, true),
@@ -102,7 +103,7 @@ public enum DataType {
         odbcToEs.put("SQL_LONGVARBINARY", BINARY);
 
         // Date
-        odbcToEs.put("SQL_DATE", DATETIME);
+        odbcToEs.put("SQL_DATE", DATE);
         odbcToEs.put("SQL_TIME", DATETIME);
         odbcToEs.put("SQL_TIMESTAMP", DATETIME);
 
@@ -213,6 +214,10 @@ public enum DataType {
 
     public boolean isPrimitive() {
         return this != OBJECT && this != NESTED;
+    }
+
+    public boolean isDateBased() {
+        return this == DATE || this == DATETIME;
     }
     
     public static DataType fromOdbcType(String odbcType) {

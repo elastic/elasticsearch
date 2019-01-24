@@ -98,8 +98,8 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
 
     private void adaptBuildScriptForTest() throws IOException {
         // Add the local repo as a build script URL so we can pull in build-tools and apply the plugin under test
-        // we need to specify the exact version of build-tools because the esplugin plugin will add more repos, we want to get
-        // the version
+        // we need to specify the exact version of build-tools because gradle automatically adds its plugin portal
+        // which appears to mirror jcenter, opening us up to pulling a "later" version of build-tools
         writeBuildScript(
             "buildscript {\n" +
                 "    repositories {\n" +

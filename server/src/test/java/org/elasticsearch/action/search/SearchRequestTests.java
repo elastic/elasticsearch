@@ -237,6 +237,21 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testGetEffectiveCCSReduceMode() throws IOException {
+        SearchRequest searchRequest = createSearchRequest();
+        CCSReduceMode ccsReduceMode = randomFrom(CCSReduceMode.REMOTE, CCSReduceMode.LOCAL);
+        searchRequest.setCCSReduceMode(ccsReduceMode);
+        assertEquals(ccsReduceMode, searchRequest.getCCSReduceMode());
+        assertEquals(ccsReduceMode, searchRequest.getEffectiveCCSReduceMode());
+
+        searchRequest.setCCSReduceMode(CCSReduceMode.AUTO);
+        assertEquals(CCSReduceMode.AUTO, searchRequest.getCCSReduceMode());
+        boolean remoteReduce = searchRequest.scroll() == null && (searchRequest.source() == null
+            || searchRequest.source().collapse() == null || searchRequest.source().collapse().getInnerHits() == null
+            || searchRequest.source().collapse().getInnerHits().isEmpty());
+        assertEquals(remoteReduce ? CCSReduceMode.REMOTE : CCSReduceMode.LOCAL, searchRequest.getEffectiveCCSReduceMode());
+    }
+
     public void testCopyConstructor() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new);

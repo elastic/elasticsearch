@@ -202,13 +202,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (remoteClusterIndices.isEmpty()) {
                 executeLocalSearch(task, timeProvider, searchRequest, localIndices, clusterState, listener);
             } else {
-                CCSReduceMode ccsReduceMode = searchRequest.getCCSReduceMode();
-                if (ccsReduceMode == CCSReduceMode.AUTO) {
-                    boolean collapseWithInnerHits = source != null && source.collapse() != null && source.collapse().getInnerHits() != null
-                        && source.collapse().getInnerHits().isEmpty() == false;
-                    boolean scroll = searchRequest.scroll() != null;
-                    ccsReduceMode = collapseWithInnerHits || scroll ? CCSReduceMode.LOCAL : CCSReduceMode.REMOTE;
-                }
+                CCSReduceMode ccsReduceMode = searchRequest.getEffectiveCCSReduceMode();
                 if (ccsReduceMode == CCSReduceMode.LOCAL) {
                     AtomicInteger skippedClusters = new AtomicInteger(0);
                     collectSearchShards(searchRequest.indicesOptions(), searchRequest.preference(), searchRequest.routing(),
@@ -246,7 +240,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         source.size(from + size);
                         //TODO when searching only against a remote cluster, we could ask directly for the final number of results and let
                         //the remote cluster do a final reduction, yet that is not possible as we are providing a localClusterAlias which
-                        //will automatically make the local reduction non final
+                        //will automatically make the reduction non final
                     }
                     SearchResponseMerger searchResponseMerger = new SearchResponseMerger(from, size, trackTotalHitsUpTo,
                         timeProvider, searchService::createReduceContext);
@@ -260,15 +254,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         OriginalIndices indices = entry.getValue();
                         SearchRequest ccsSearchRequest = SearchRequest.withLocalReduction(searchRequest, indices.indices(),
                             clusterAlias, timeProvider.getAbsoluteStartMillis());
-                        ActionListener<SearchResponse> ccsListener = createCCSListener(skipUnavailable,
-                            e -> new RemoteTransportException("error while communicating with remote cluster [" + clusterAlias + "]", e),
-                            countDown, skippedClusters, exceptions, searchResponseMerger, totalClusters,  listener);
+                        ActionListener<SearchResponse> ccsListener = createCCSListener(clusterAlias, skipUnavailable, countDown,
+                            skippedClusters, exceptions, searchResponseMerger, totalClusters,  listener);
                         Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
                         remoteClusterClient.search(ccsSearchRequest, ccsListener);
                     }
                     if (localIndices != null) {
-                        ActionListener<SearchResponse> ccsListener = createCCSListener(false, e -> e, countDown, skippedClusters,
-                            exceptions, searchResponseMerger, totalClusters, listener);
+                        ActionListener<SearchResponse> ccsListener = createCCSListener(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                            false, countDown, skippedClusters, exceptions, searchResponseMerger, totalClusters, listener);
                         SearchRequest ccsLocalSearchRequest = SearchRequest.withLocalReduction(searchRequest, localIndices.indices(),
                             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, timeProvider.getAbsoluteStartMillis());
                         executeLocalSearch(task, timeProvider, ccsLocalSearchRequest, localIndices, clusterState, ccsListener);
@@ -289,7 +282,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                     ThreadPool threadPool, ActionListener<Map<String, ClusterSearchShardsResponse>> listener) {
         final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
         final Map<String, ClusterSearchShardsResponse> searchShardsResponses = new ConcurrentHashMap<>();
-        final AtomicReference<RemoteTransportException> transportException = new AtomicReference<>();
+        final AtomicReference<Exception> exceptions = new AtomicReference<>();
         for (Map.Entry<String, OriginalIndices> entry : remoteIndicesByCluster.entrySet()) {
             final String clusterAlias = entry.getKey();
             boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
@@ -297,96 +290,39 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             final String[] indices = entry.getValue().indices();
             ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices)
                 .indicesOptions(indicesOptions).local(true).preference(preference).routing(routing);
-            clusterClient.admin().cluster().searchShards(searchShardsRequest, new ActionListener<ClusterSearchShardsResponse>() {
+            clusterClient.admin().cluster().searchShards(searchShardsRequest,
+                new CCSActionListener<ClusterSearchShardsResponse, Map<String, ClusterSearchShardsResponse>>(
+                    clusterAlias, skipUnavailable, responsesCountDown, skippedClusters, exceptions, listener) {
                     @Override
-                    public void onResponse(ClusterSearchShardsResponse response) {
-                        searchShardsResponses.put(clusterAlias, response);
-                        maybeFinish();
+                    void cumulateResponse(ClusterSearchShardsResponse clusterSearchShardsResponse) {
+                        searchShardsResponses.put(clusterAlias, clusterSearchShardsResponse);
                     }
 
                     @Override
-                    public void onFailure(Exception e) {
-                        if (skipUnavailable) {
-                            skippedClusters.incrementAndGet();
-                        } else {
-                            RemoteTransportException exception =
-                                new RemoteTransportException("error while communicating with remote cluster [" + clusterAlias + "]", e);
-                            if (transportException.compareAndSet(null, exception) == false) {
-                                transportException.accumulateAndGet(exception, (previous, current) -> {
-                                    current.addSuppressed(previous);
-                                    return current;
-                                });
-                            }
-                        }
-                        maybeFinish();
-                    }
-
-                    private void maybeFinish() {
-                        if (responsesCountDown.countDown()) {
-                            RemoteTransportException exception = transportException.get();
-                            if (exception == null) {
-                                listener.onResponse(searchShardsResponses);
-                            } else {
-                                listener.onFailure(transportException.get());
-                            }
-                        }
+                    Map<String, ClusterSearchShardsResponse> getFinalResponse() {
+                        return searchShardsResponses;
                     }
                 }
             );
         }
     }
 
-    //TODO unify the two listeners?
-    private ActionListener<SearchResponse> createCCSListener(boolean skipUnavailable,
-                                                             Function<Exception, Exception> exceptionWrapper,
-                                                             CountDown countDown,
-                                                             AtomicInteger skippedClusters,
-                                                             AtomicReference<Exception> exceptions,
-                                                             SearchResponseMerger searchResponseMerger,
-                                                             int totalClusters,
+    private ActionListener<SearchResponse> createCCSListener(String clusterAlias, boolean skipUnavailable, CountDown countDown,
+                                                             AtomicInteger skippedClusters, AtomicReference<Exception> exceptions,
+                                                             SearchResponseMerger searchResponseMerger, int totalClusters,
                                                              ActionListener<SearchResponse> originalListener) {
-        return new ActionListener<SearchResponse>() {
+        return new CCSActionListener<SearchResponse, SearchResponse>(clusterAlias, skipUnavailable, countDown, skippedClusters,
+            exceptions, originalListener) {
             @Override
-            public void onResponse(SearchResponse searchResponse) {
+            void cumulateResponse(SearchResponse searchResponse) {
                 searchResponseMerger.add(searchResponse);
-                maybeFinish();
             }
 
             @Override
-            public void onFailure(Exception e) {
-                if (skipUnavailable) {
-                    skippedClusters.incrementAndGet();
-                } else {
-                    Exception exception = exceptionWrapper.apply(e);
-                    if (exceptions.compareAndSet(null, exception) == false) {
-                        exceptions.accumulateAndGet(exception, (previous, current) -> {
-                            current.addSuppressed(previous);
-                            return current;
-                        });
-                    }
-                }
-                maybeFinish();
-            }
-
-            private void maybeFinish() {
-                if (countDown.countDown()) {
-                    Exception exception = exceptions.get();
-                    if (exception == null) {
-                        SearchResponse.Clusters clusters = new SearchResponse.Clusters(totalClusters, searchResponseMerger.numResponses(),
-                            skippedClusters.get(), CCSReduceMode.REMOTE);
-                        SearchResponse response;
-                        try {
-                            //TODO test when merge breaks
-                            response = searchResponseMerger.getMergedResponse(clusters);
-                        } catch(Exception e) {
-                            originalListener.onFailure(e);
-                            return;
-                        }
-                        originalListener.onResponse(response);
-                    } else {
-                        originalListener.onFailure(exceptions.get());
-                    }
-                }
+            SearchResponse getFinalResponse() {
+                SearchResponse.Clusters clusters = new SearchResponse.Clusters(totalClusters, searchResponseMerger.numResponses(),
+                    skippedClusters.get(), CCSReduceMode.REMOTE);
+                return searchResponseMerger.getMergedResponse(clusters);
             }
         };
     }
@@ -606,5 +542,72 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 + "have a smaller number of larger shards. Update [" + SHARD_COUNT_LIMIT_SETTING.getKey()
                 + "] to a greater value if you really want to query that many shards at the same time.");
         }
+    }
+
+    private abstract static class CCSActionListener<Response, FinalResponse> implements ActionListener<Response> {
+
+        private final String clusterAlias;
+        private final boolean skipUnavailable;
+        private final CountDown countDown;
+        private final AtomicInteger skippedClusters;
+        private final AtomicReference<Exception> exceptions;
+        private final ActionListener<FinalResponse> originalListener;
+
+        CCSActionListener(String clusterAlias, boolean skipUnavailable, CountDown countDown, AtomicInteger skippedClusters,
+                          AtomicReference<Exception> exceptions, ActionListener<FinalResponse> originalListener) {
+            this.clusterAlias = clusterAlias;
+            this.skipUnavailable = skipUnavailable;
+            this.countDown = countDown;
+            this.skippedClusters = skippedClusters;
+            this.exceptions = exceptions;
+            this.originalListener = originalListener;
+        }
+
+        @Override
+        public final void onResponse(Response response) {
+            cumulateResponse(response);
+            maybeFinish();
+        }
+
+        abstract void cumulateResponse(Response response);
+
+        @Override
+        public final void onFailure(Exception e) {
+            if (skipUnavailable) {
+                skippedClusters.incrementAndGet();
+            } else {
+                Exception exception = e;
+                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {
+                    exception = new RemoteTransportException("error while communicating with remote cluster [" + clusterAlias + "]", e);
+                }
+                if (exceptions.compareAndSet(null, exception) == false) {
+                    exceptions.accumulateAndGet(exception, (previous, current) -> {
+                        current.addSuppressed(previous);
+                        return current;
+                    });
+                }
+            }
+            maybeFinish();
+        }
+
+        private void maybeFinish() {
+            if (countDown.countDown()) {
+                Exception exception = exceptions.get();
+                if (exception == null) {
+                    FinalResponse response;
+                    try {
+                        response = getFinalResponse();
+                    } catch(Exception e) {
+                        originalListener.onFailure(e);
+                        return;
+                    }
+                    originalListener.onResponse(response);
+                } else {
+                    originalListener.onFailure(exceptions.get());
+                }
+            }
+        }
+
+        abstract FinalResponse getFinalResponse();
     }
 }

@@ -345,6 +345,15 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         return this.ccsReduceMode;
     }
 
+    CCSReduceMode getEffectiveCCSReduceMode() {
+        if (ccsReduceMode == CCSReduceMode.AUTO) {
+            boolean collapseWithInnerHits = source != null && source.collapse() != null && source.collapse().getInnerHits() != null
+                && source.collapse().getInnerHits().isEmpty() == false;
+            return collapseWithInnerHits || scroll != null ? CCSReduceMode.LOCAL : CCSReduceMode.REMOTE;
+        }
+        return ccsReduceMode;
+    }
+
     /**
      * The document types to execute the search against. Defaults to be executed against
      * all types.

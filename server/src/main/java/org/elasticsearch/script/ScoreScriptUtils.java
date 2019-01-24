@@ -41,7 +41,7 @@ public final class ScoreScriptUtils {
 
     /****** STATIC FUNCTIONS that can be used by users for score calculations **/
 
-    public static double rational(double value, double k) {
+    public static double saturation(double value, double k) {
         return value/ (k + value);
     }
 

@@ -120,18 +120,19 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
         }
     }
 
-    List<File> artifactFiles = []
+    Map<String, File> artifactFiles = [:]
     List<String> projectDirs = []
-    for (String project : ['zip', 'deb', 'rpm']) {
+    List<String> projects = ['zip', 'deb', 'rpm']
+    for (String projectName : projects) {
         String baseDir = "distribution"
         if (bwcVersion.onOrAfter('6.3.0')) {
-            baseDir += project == 'zip' ? '/archives' : '/packages'
+            baseDir += projectName == 'zip' ? '/archives' : '/packages'
             // add oss variant first
-            projectDirs.add("${baseDir}/oss-${project}")
-            artifactFiles.add(file("${checkoutDir}/${baseDir}/oss-${project}/build/distributions/elasticsearch-oss-${bwcVersion}-SNAPSHOT.${project}"))
+            projectDirs.add("${baseDir}/oss-${projectName}")
+            artifactFiles.put("oss-" + projectName, file("${checkoutDir}/${baseDir}/oss-${projectName}/build/distributions/elasticsearch-oss-${bwcVersion}-SNAPSHOT.${projectName}"))
         }
-        projectDirs.add("${baseDir}/${project}")
-        artifactFiles.add(file("${checkoutDir}/${baseDir}/${project}/build/distributions/elasticsearch-${bwcVersion}-SNAPSHOT.${project}"))
+        projectDirs.add("${baseDir}/${projectName}")
+        artifactFiles.put(projectName, file("${checkoutDir}/${baseDir}/${projectName}/build/distributions/elasticsearch-${bwcVersion}-SNAPSHOT.${projectName}"))
     }
 
     task buildBwcVersion(type: Exec) {
@@ -187,7 +188,7 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
         standardOutput = new IndentingOutputStream(System.out, bwcVersion)
         errorOutput = new IndentingOutputStream(System.err, bwcVersion)
         doLast {
-            List missing = artifactFiles.grep { file ->
+            List missing = artifactFiles.values().grep { file ->
                 false == file.exists()
             }
             if (false == missing.empty) {
@@ -197,12 +198,16 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
         }
     }
 
-    artifacts {
-      for (File artifactFile : artifactFiles) {
-        String artifactName = artifactFile.name.contains('oss') ? 'elasticsearch-oss' : 'elasticsearch'
+    for (e in artifactFiles) {
+        String projectName = e.key
+        File artifactFile = e.value
+        String artifactFileName = artifactFile.name
+        String artifactName = artifactFileName.contains('oss') ? 'elasticsearch-oss' : 'elasticsearch'
         String suffix = artifactFile.toString()[-3..-1]
-        'default' file: artifactFile, name: artifactName, type: suffix, builtBy: buildBwcVersion
-      }
+        configurations.create(projectName)
+        artifacts {
+            it.add(projectName, [file: artifactFile, name: artifactName, type: suffix, builtBy: buildBwcVersion])
+        }
     }
     // make sure no dependencies were added to assemble; we want it to be a no-op
     assemble.dependsOn = []

@@ -24,11 +24,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -45,6 +47,7 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.Ccr;
+import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
@@ -68,16 +71,20 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final IndexScopedSettings indexScopedSettings;
+    private volatile TimeValue waitForMetadataTimeOut;
 
     public ShardFollowTasksExecutor(Client client,
                                     ThreadPool threadPool,
                                     ClusterService clusterService,
-                                    IndexScopedSettings indexScopedSettings) {
+                                    SettingsModule settingsModule) {
         super(ShardFollowTask.NAME, Ccr.CCR_THREAD_POOL_NAME);
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.indexScopedSettings = indexScopedSettings;
+        this.indexScopedSettings = settingsModule.getIndexScopedSettings();
+        this.waitForMetadataTimeOut = CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT.get(settingsModule.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT,
+            newVal -> this.waitForMetadataTimeOut = newVal);
     }
 
     @Override
@@ -102,33 +109,25 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             scheduler, System::nanoTime) {
 
             @Override
-            protected void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler) {
-                Index leaderIndex = params.getLeaderShardId().getIndex();
-                Index followIndex = params.getFollowShardId().getIndex();
-
-                ClusterStateRequest clusterStateRequest = CcrRequests.metaDataRequest(leaderIndex.getName());
-                CheckedConsumer<ClusterStateResponse, Exception> onResponse = clusterStateResponse -> {
-                    IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().getIndexSafe(leaderIndex);
-                    if (indexMetaData.getMappings().isEmpty()) {
-                        assert indexMetaData.getMappingVersion() == 1;
-                        handler.accept(indexMetaData.getMappingVersion());
-                        return;
-                    }
-
-                    assert indexMetaData.getMappings().size() == 1 : "expected exactly one mapping, but got [" +
-                        indexMetaData.getMappings().size() + "]";
-                    MappingMetaData mappingMetaData = indexMetaData.getMappings().iterator().next().value;
-
-                    PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followIndex.getName(), mappingMetaData);
-                    followerClient.admin().indices().putMapping(putMappingRequest, ActionListener.wrap(
-                        putMappingResponse -> handler.accept(indexMetaData.getMappingVersion()),
-                        errorHandler));
-                };
-                try {
-                    remoteClient(params).admin().cluster().state(clusterStateRequest, ActionListener.wrap(onResponse, errorHandler));
-                } catch (Exception e) {
-                    errorHandler.accept(e);
-                }
+            protected void innerUpdateMapping(long minRequiredMappingVersion, LongConsumer handler, Consumer<Exception> errorHandler) {
+                final Index followerIndex = params.getFollowShardId().getIndex();
+                getIndexMetadata(minRequiredMappingVersion, 0L, params, ActionListener.wrap(
+                    indexMetaData -> {
+                        if (indexMetaData.getMappings().isEmpty()) {
+                            assert indexMetaData.getMappingVersion() == 1;
+                            handler.accept(indexMetaData.getMappingVersion());
+                            return;
+                        }
+                        assert indexMetaData.getMappings().size() == 1 : "expected exactly one mapping, but got [" +
+                            indexMetaData.getMappings().size() + "]";
+                        MappingMetaData mappingMetaData = indexMetaData.getMappings().iterator().next().value;
+                        PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetaData);
+                        followerClient.admin().indices().putMapping(putMappingRequest, ActionListener.wrap(
+                            putMappingResponse -> handler.accept(indexMetaData.getMappingVersion()),
+                            errorHandler));
+                    },
+                    errorHandler
+                ));
             }
 
             @Override
@@ -245,6 +244,39 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     private Client remoteClient(ShardFollowTask params) {
         return wrapClient(client.getRemoteClusterClient(params.getRemoteCluster()), params.getHeaders());
+    }
+
+    private void getIndexMetadata(long minRequiredMappingVersion, long minRequiredMetadataVersion,
+                                  ShardFollowTask params, ActionListener<IndexMetaData> listener) {
+        final Index leaderIndex = params.getLeaderShardId().getIndex();
+        final ClusterStateRequest clusterStateRequest = CcrRequests.metaDataRequest(leaderIndex.getName());
+        if (minRequiredMetadataVersion > 0) {
+            clusterStateRequest.waitForMetaDataVersion(minRequiredMetadataVersion).waitForTimeout(waitForMetadataTimeOut);
+        }
+        try {
+            remoteClient(params).admin().cluster().state(clusterStateRequest, ActionListener.wrap(
+                r -> {
+                    // if wait_for_metadata_version timeout, the response is empty
+                    if (r.getState() == null) {
+                        assert minRequiredMetadataVersion > 0;
+                        getIndexMetadata(minRequiredMappingVersion, minRequiredMetadataVersion, params, listener);
+                        return;
+                    }
+                    final MetaData metaData = r.getState().metaData();
+                    final IndexMetaData indexMetaData = metaData.getIndexSafe(leaderIndex);
+                    if (indexMetaData.getMappingVersion() < minRequiredMappingVersion) {
+                        // ask for the next version.
+                        getIndexMetadata(minRequiredMappingVersion, metaData.version() + 1, params, listener);
+                    } else {
+                        assert metaData.version() >= minRequiredMetadataVersion : metaData.version() + " < " + minRequiredMetadataVersion;
+                        listener.onResponse(indexMetaData);
+                    }
+                },
+                listener::onFailure
+            ));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     interface FollowerStatsInfoHandler {

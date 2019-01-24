@@ -26,6 +26,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_STATS_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_TRANSLATE_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
 
 public abstract class RestSqlUsageTestCase extends ESRestTestCase {
@@ -226,7 +229,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
     
     private Map<String, Object> getStats() throws UnsupportedOperationException, IOException {
-        Request request = new Request("GET", "/_sql/stats");
+        Request request = new Request("GET", SQL_STATS_REST_ENDPOINT);
         Map<String, Object> responseAsMap;
         try (InputStream content = client().performRequest(request).getEntity().getContent()) {
             responseAsMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
@@ -236,7 +239,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
     
     private void runTranslate(String sql) throws IOException {
-        Request request = new Request("POST", "/_sql/translate");
+        Request request = new Request("POST", SQL_TRANSLATE_REST_ENDPOINT);
         if (randomBoolean()) {
             // We default to JSON but we force it randomly for extra coverage
             request.addParameter("format", "json");
@@ -255,9 +258,10 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         String mode = Mode.PLAIN.toString();
         if (clientType.equals(ClientType.JDBC.toString())) {
             mode = Mode.JDBC.toString();
-        }
-        if (clientType.startsWith(ClientType.ODBC.toString())) {
+        } else if (clientType.startsWith(ClientType.ODBC.toString())) {
             mode = Mode.ODBC.toString();
+        } else if (clientType.equals(ClientType.CLI.toString())) {
+            mode = Mode.CLI.toString();
         }
 
         runSql(mode, clientType, sql);
@@ -276,7 +280,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
     
     private void runSql(String mode, String restClient, String sql) throws IOException {
-        Request request = new Request("POST", "/_sql");
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability
         if (randomBoolean()) {

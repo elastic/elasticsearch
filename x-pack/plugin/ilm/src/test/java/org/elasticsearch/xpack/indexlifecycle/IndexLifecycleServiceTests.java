@@ -25,8 +25,10 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
@@ -67,6 +69,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     private DiscoveryNode masterNode;
     private IndicesAdminClient indicesClient;
     private long now;
+    private ThreadPool threadPool;
 
     @Before
     public void prepareServices() {
@@ -96,7 +99,9 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         when(adminClient.indices()).thenReturn(indicesClient);
         when(client.settings()).thenReturn(Settings.EMPTY);
 
-        indexLifecycleService = new IndexLifecycleService(Settings.EMPTY, client, clusterService, clock, () -> now, null);
+        threadPool = new TestThreadPool("test");
+        indexLifecycleService = new IndexLifecycleService(Settings.EMPTY, client, clusterService, threadPool,
+            clock, () -> now, null);
         Mockito.verify(clusterService).addListener(indexLifecycleService);
         Mockito.verify(clusterService).addStateApplier(indexLifecycleService);
     }
@@ -104,6 +109,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     @After
     public void cleanup() {
         indexLifecycleService.close();
+        threadPool.shutdownNow();
     }
 
 

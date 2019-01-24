@@ -91,7 +91,7 @@ public class WatcherDateTimeUtils {
     }
 
     public static DateTime parseDateMath(String valueString, DateTimeZone timeZone, final Clock clock) {
-        return new DateTime(dateMathParser.parse(valueString, clock::millis), timeZone);
+        return new DateTime(dateMathParser.parse(valueString, clock::millis).toEpochMilli(), timeZone);
     }
 
     public static DateTime parseDate(String fieldName, XContentParser parser, DateTimeZone timeZone) throws IOException {

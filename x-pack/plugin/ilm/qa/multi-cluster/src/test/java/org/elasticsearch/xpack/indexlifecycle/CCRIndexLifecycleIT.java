@@ -5,20 +5,34 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ccr.ESCCRRestTestCase;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.xpack.core.indexlifecycle.Phase;
+import org.elasticsearch.xpack.core.indexlifecycle.UnfollowAction;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -83,6 +97,77 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     // (this controls whether the follow engine is used)
                     assertThat(getIndexSetting(client(), indexName, "index.xpack.ccr.following_index"), nullValue());
                 });
+            }
+        } else {
+            fail("unexpected target cluster [" + targetCluster + "]");
+        }
+    }
+
+    public void testCCRUnfollowDuringSnapshot() throws Exception {
+        String indexName = "unfollow-test-index";
+        if ("leader".equals(targetCluster)) {
+            Settings indexSettings = Settings.builder()
+                .put("index.soft_deletes.enabled", true)
+                .put("index.number_of_shards", 2)
+                .put("index.number_of_replicas", 0)
+                .build();
+            createIndex(indexName, indexSettings);
+            ensureGreen(indexName);
+        } else if ("follow".equals(targetCluster)) {
+            createNewSingletonPolicy("unfollow-only", "hot", new UnfollowAction(), TimeValue.ZERO);
+            followIndex(indexName, indexName);
+
+            // Create the repository before taking the snapshot.
+            Request request = new Request("PUT", "/_snapshot/repo");
+            request.setJsonEntity(Strings
+                .toString(JsonXContent.contentBuilder()
+                    .startObject()
+                    .field("type", "fs")
+                    .startObject("settings")
+                    .field("compress", randomBoolean())
+                    .field("location", System.getProperty("tests.path.repo"))
+                    .field("max_snapshot_bytes_per_sec", "256b")
+                    .endObject()
+                    .endObject()));
+            assertOK(client().performRequest(request));
+
+            try (RestClient leaderClient = buildLeaderClient()) {
+                index(leaderClient, indexName, "1");
+                assertDocumentExists(leaderClient, indexName, "1");
+
+                updateIndexSettings(leaderClient, indexName, Settings.builder()
+                    .put("index.lifecycle.indexing_complete", true)
+                    .build());
+
+                // start snapshot
+                request = new Request("PUT", "/_snapshot/repo/snapshot");
+                request.addParameter("wait_for_completion", "false");
+                request.setJsonEntity("{\"indices\": \"" + indexName + "\"}");
+                assertOK(client().performRequest(request));
+
+                // add policy and expect it to trigger unfollow immediately (while snapshot in progress)
+                logger.info("--> starting unfollow");
+                updatePolicy(indexName, "unfollow-only");
+
+                assertBusy(() -> {
+                    // Ensure that 'index.lifecycle.indexing_complete' is replicated:
+                    assertThat(getIndexSetting(leaderClient, indexName, "index.lifecycle.indexing_complete"), equalTo("true"));
+                    assertThat(getIndexSetting(client(), indexName, "index.lifecycle.indexing_complete"), equalTo("true"));
+                    // ILM should have unfollowed the follower index, so the following_index setting should have been removed:
+                    // (this controls whether the follow engine is used)
+                    assertThat(getIndexSetting(client(), indexName, "index.xpack.ccr.following_index"), nullValue());
+                    // Following index should have the document
+                    assertDocumentExists(client(), indexName, "1");
+                    // ILM should have completed the unfollow
+                    assertILMPolicy(client(), indexName, "unfollow-only", "completed");
+                }, 2, TimeUnit.MINUTES);
+
+                // assert that snapshot succeeded
+                assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
+                assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
+                ResponseException e = expectThrows(ResponseException.class,
+                    () -> client().performRequest(new Request("GET", "/_snapshot/repo/snapshot")));
+                assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
             }
         } else {
             fail("unexpected target cluster [" + targetCluster + "]");
@@ -391,4 +476,35 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
     }
 
+    private void createNewSingletonPolicy(String policyName, String phaseName, LifecycleAction action, TimeValue after) throws IOException {
+        Phase phase = new Phase(phaseName, after, singletonMap(action.getWriteableName(), action));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, singletonMap(phase.getName(), phase));
+        XContentBuilder builder = jsonBuilder();
+        lifecyclePolicy.toXContent(builder, null);
+        final StringEntity entity = new StringEntity(
+            "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
+        Request request = new Request("PUT", "_ilm/policy/" + policyName);
+        request.setEntity(entity);
+        client().performRequest(request);
+    }
+
+    public static void updatePolicy(String indexName, String policy) throws IOException {
+
+        Request changePolicyRequest = new Request("PUT", "/" + indexName + "/_settings");
+        final StringEntity changePolicyEntity = new StringEntity("{ \"index.lifecycle.name\": \"" + policy + "\" }",
+            ContentType.APPLICATION_JSON);
+        changePolicyRequest.setEntity(changePolicyEntity);
+        assertOK(client().performRequest(changePolicyRequest));
+    }
+
+    private String getSnapshotState(String snapshot) throws IOException {
+        Response response = client().performRequest(new Request("GET", "/_snapshot/repo/" + snapshot));
+        Map<String, Object> responseMap;
+        try (InputStream is = response.getEntity().getContent()) {
+            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+        @SuppressWarnings("unchecked") Map<String, Object> snapResponse = ((List<Map<String, Object>>) responseMap.get("snapshots")).get(0);
+        assertThat(snapResponse.get("snapshot"), equalTo(snapshot));
+        return (String) snapResponse.get("state");
+    }
 }

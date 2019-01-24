@@ -18,25 +18,23 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.apache.lucene.util.PriorityQueue;
 
-import java.util.List;
+class BucketPriorityQueue<B extends InternalGeoGridBucket> extends PriorityQueue<B> {
 
-/**
- * A {@code geohash_grid} aggregation. Defines multiple buckets, each representing a cell in a geo-grid of a specific
- * precision.
- */
-public interface GeoHashGrid extends MultiBucketsAggregation {
-
-    /**
-     * A bucket that is associated with a {@code geohash_grid} cell. The key of the bucket is the {@code geohash} of the cell
-     */
-    interface Bucket extends MultiBucketsAggregation.Bucket {
+    BucketPriorityQueue(int size) {
+        super(size);
     }
 
-    /**
-     * @return  The buckets of this aggregation (each bucket representing a geohash grid cell)
-     */
     @Override
-    List<? extends Bucket> getBuckets();
+    protected boolean lessThan(InternalGeoGridBucket o1, InternalGeoGridBucket o2) {
+        int cmp = Long.compare(o2.getDocCount(), o1.getDocCount());
+        if (cmp == 0) {
+            cmp = o2.compareTo(o1);
+            if (cmp == 0) {
+                cmp = System.identityHashCode(o2) - System.identityHashCode(o1);
+            }
+        }
+        return cmp > 0;
+    }
 }

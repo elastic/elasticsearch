@@ -87,6 +87,13 @@ public class RetentionLeaseSyncAction extends
                 ThreadPool.Names.MANAGEMENT);
     }
 
+    /**
+     * Sync the specified retention leases for the specified shard. The callback is invoked when the sync succeeds or fails.
+     *
+     * @param shardId         the shard to sync
+     * @param retentionLeases the retention leases to sync
+     * @param listener        the callbak to invoke when the sync completes normally or abnormally
+     */
     public void updateRetentionLeaseForShard(
             final ShardId shardId,
             final Collection<RetentionLease> retentionLeases,

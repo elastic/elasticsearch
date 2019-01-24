@@ -174,7 +174,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("snapshot_user", new RoleDescriptor("snapshot_user", new String[] { "create_snapshot", GetRepositoriesAction.NAME },
                         new RoleDescriptor.IndicesPrivileges[] { RoleDescriptor.IndicesPrivileges.builder()
                                 .indices("*")
-                                .privileges(GetIndexAction.NAME)
+                                .privileges("view_index_metadata")
                                 .allowRestrictedIndices(true)
                                 .build() }, null, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
                 .immutableMap();

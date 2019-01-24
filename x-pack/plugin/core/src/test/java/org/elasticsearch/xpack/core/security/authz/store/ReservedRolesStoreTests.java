@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authz.store;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
@@ -178,6 +179,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(snapshotUserRole.cluster().check(SnapshotsStatusAction.NAME, request), is(true));
         assertThat(snapshotUserRole.cluster().check(GetSnapshotsAction.NAME, request), is(true));
 
+        assertThat(snapshotUserRole.cluster().check(PutRepositoryAction.NAME, request), is(false));
         assertThat(snapshotUserRole.cluster().check(GetIndexTemplatesAction.NAME, request), is(false));
         assertThat(snapshotUserRole.cluster().check(DeleteIndexTemplateAction.NAME, request), is(false));
         assertThat(snapshotUserRole.cluster().check(PutPipelineAction.NAME, request), is(false));

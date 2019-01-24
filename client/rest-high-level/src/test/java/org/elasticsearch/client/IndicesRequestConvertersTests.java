@@ -126,6 +126,13 @@ public class IndicesRequestConvertersTests extends ESTestCase {
             -> IndicesRequestConverters.indicesExist(new GetIndexRequest((String[]) null)));
     }
 
+    public void testIndicesExistEmptyIndicesWithTypes() {
+        LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
+                -> IndicesRequestConverters.indicesExist(new org.elasticsearch.action.admin.indices.get.GetIndexRequest()));
+        LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
+                -> IndicesRequestConverters.indicesExist(new org.elasticsearch.action.admin.indices.get.GetIndexRequest().indices(null)));
+    }
+
     public void testIndicesExistWithTypes() {
         String[] indices = RequestConvertersTests.randomIndicesNames(1, 10);
 
@@ -145,18 +152,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Assert.assertEquals("/" + String.join(",", indices), request.getEndpoint());
         Assert.assertThat(expectedParams, equalTo(request.getParameters()));
         Assert.assertNull(request.getEntity());
-    }
-
-    public void testDeprecatedIndicesExistEmptyIndices() {
-        LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
-            -> IndicesRequestConverters.indicesExist(new GetIndexRequest(Strings.EMPTY_ARRAY)));
-        LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
-            -> IndicesRequestConverters.indicesExist(new GetIndexRequest((String[]) null)));
-
-        LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
-                -> IndicesRequestConverters.indicesExist(new org.elasticsearch.action.admin.indices.get.GetIndexRequest()));
-        LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
-                -> IndicesRequestConverters.indicesExist(new org.elasticsearch.action.admin.indices.get.GetIndexRequest().indices(null)));
     }
 
     public void testCreateIndex() throws IOException {

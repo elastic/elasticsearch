@@ -273,7 +273,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
 
         public AutoFollowPattern(StreamInput in) throws IOException {
             remoteCluster = in.readString();
-            leaderIndexPatterns = in.readList(StreamInput::readString);
+            leaderIndexPatterns = in.readStringList();
             followIndexPattern = in.readOptionalString();
             maxReadRequestOperationCount = in.readOptionalVInt();
             maxReadRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
@@ -350,7 +350,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(remoteCluster);
-            out.writeStringList(leaderIndexPatterns);
+            out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexPattern);
             out.writeOptionalVInt(maxReadRequestOperationCount);
             out.writeOptionalWriteable(maxReadRequestSize);

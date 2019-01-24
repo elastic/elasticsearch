@@ -317,7 +317,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
 
     public void testDisassociateDeadNodes_givenNoPersistentTasks() {
         ClusterState originalState = ClusterState.builder(new ClusterName("persistent-tasks-tests")).build();
-        ClusterState returnedState = PersistentTasksCustomMetaData.deassociateDeadNodes(originalState);
+        ClusterState returnedState = PersistentTasksCustomMetaData.disassociateDeadNodes(originalState);
         assertThat(originalState, sameInstance(returnedState));
     }
 
@@ -337,7 +337,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
                 .nodes(nodes)
                 .metaData(MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()))
                 .build();
-        ClusterState returnedState = PersistentTasksCustomMetaData.deassociateDeadNodes(originalState);
+        ClusterState returnedState = PersistentTasksCustomMetaData.disassociateDeadNodes(originalState);
         assertThat(originalState, sameInstance(returnedState));
 
         PersistentTasksCustomMetaData originalTasks = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(originalState);
@@ -363,7 +363,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
                 .nodes(nodes)
                 .metaData(MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()))
                 .build();
-        ClusterState returnedState = PersistentTasksCustomMetaData.deassociateDeadNodes(originalState);
+        ClusterState returnedState = PersistentTasksCustomMetaData.disassociateDeadNodes(originalState);
         assertThat(originalState, not(sameInstance(returnedState)));
 
         PersistentTasksCustomMetaData originalTasks = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(originalState);

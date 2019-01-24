@@ -16,11 +16,13 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -153,7 +155,10 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     static Map<String, Object> auditUsage(Settings settings) {
         Map<String, Object> map = new HashMap<>(2);
         map.put("enabled", XPackSettings.AUDIT_ENABLED.get(settings));
-        map.put("outputs", Security.AUDIT_OUTPUTS_SETTING.get(settings));
+        if (XPackSettings.AUDIT_ENABLED.get(settings)) {
+            // the only available output type is "logfile", but the optputs=<list> is to keep compatibility with previous reporting format
+            map.put("outputs", Arrays.asList(LoggingAuditTrail.NAME));
+        }
         return map;
     }
 

@@ -19,14 +19,12 @@
 package org.elasticsearch.cluster.coordination;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
-
 import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -48,13 +46,13 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
 import org.elasticsearch.env.NodeEnvironment;
@@ -82,22 +80,23 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clusterState;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.setValue;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.value;
-import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.FOLLOWER;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.LEADER;
+import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.DEFAULT_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_DURATION_SETTING;
@@ -118,14 +117,12 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -726,70 +723,6 @@ public class CoordinatorTests extends ESTestCase {
 //        assertTrue("expected ack from " + follower1, ackCollector.hasAckedSuccessfully(follower1));
     }
 
-    public void testDiscoveryOfPeersTriggersNotification() {
-        final Cluster cluster = new Cluster(randomIntBetween(2, 5));
-
-        // register a listener and then deregister it again to show that it is not called after deregistration
-        try (Releasable ignored = cluster.getAnyNode().coordinator.withDiscoveryListener(ActionListener.wrap(() -> {
-            throw new AssertionError("should not be called");
-        }))) {
-            // do nothing
-        }
-
-        final long startTimeMillis = cluster.deterministicTaskQueue.getCurrentTimeMillis();
-        final ClusterNode bootstrapNode = cluster.getAnyNode();
-        final AtomicBoolean hasDiscoveredAllPeers = new AtomicBoolean();
-        assertFalse(bootstrapNode.coordinator.getFoundPeers().iterator().hasNext());
-        try (Releasable ignored = bootstrapNode.coordinator.withDiscoveryListener(
-            new ActionListener<Iterable<DiscoveryNode>>() {
-                @Override
-                public void onResponse(Iterable<DiscoveryNode> discoveryNodes) {
-                    int peerCount = 0;
-                    for (final DiscoveryNode discoveryNode : discoveryNodes) {
-                        peerCount++;
-                    }
-                    assertThat(peerCount, lessThan(cluster.size()));
-                    if (peerCount == cluster.size() - 1 && hasDiscoveredAllPeers.get() == false) {
-                        hasDiscoveredAllPeers.set(true);
-                        final long elapsedTimeMillis = cluster.deterministicTaskQueue.getCurrentTimeMillis() - startTimeMillis;
-                        logger.info("--> {} discovered {} peers in {}ms", bootstrapNode.getId(), cluster.size() - 1, elapsedTimeMillis);
-                        assertThat(elapsedTimeMillis, lessThanOrEqualTo(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2));
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new AssertionError("unexpected", e);
-                }
-            })) {
-            cluster.runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2 + randomLongBetween(0, 60000), "discovery phase");
-        }
-
-        assertTrue(hasDiscoveredAllPeers.get());
-
-        final AtomicBoolean receivedAlreadyBootstrappedException = new AtomicBoolean();
-        try (Releasable ignored = bootstrapNode.coordinator.withDiscoveryListener(
-            new ActionListener<Iterable<DiscoveryNode>>() {
-                @Override
-                public void onResponse(Iterable<DiscoveryNode> discoveryNodes) {
-                    // ignore
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof ClusterAlreadyBootstrappedException) {
-                        receivedAlreadyBootstrappedException.set(true);
-                    } else {
-                        throw new AssertionError("unexpected", e);
-                    }
-                }
-            })) {
-
-            cluster.stabilise();
-        }
-        assertTrue(receivedAlreadyBootstrappedException.get());
-    }
-
     public void testSettingInitialConfigurationTriggersElection() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5));
         cluster.runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2 + randomLongBetween(0, 60000), "initial discovery phase");
@@ -811,7 +744,7 @@ public class CoordinatorTests extends ESTestCase {
             assertThat(nodeId + " should have found all peers", foundPeers, hasSize(cluster.size()));
         }
 
-        final ClusterNode bootstrapNode = cluster.getAnyNode();
+        final ClusterNode bootstrapNode = cluster.getAnyBootstrappableNode();
         bootstrapNode.applyInitialConfiguration();
         assertTrue(bootstrapNode.getId() + " has been bootstrapped", bootstrapNode.coordinator.isInitialConfigurationSet());
 
@@ -841,18 +774,28 @@ public class CoordinatorTests extends ESTestCase {
     public void testCannotSetInitialConfigurationWithoutQuorum() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5));
         final Coordinator coordinator = cluster.getAnyNode().coordinator;
-        final VotingConfiguration unknownNodeConfiguration = new VotingConfiguration(Collections.singleton("unknown-node"));
+        final VotingConfiguration unknownNodeConfiguration = new VotingConfiguration(
+            Sets.newHashSet(coordinator.getLocalNode().getId(), "unknown-node"));
         final String exceptionMessage = expectThrows(CoordinationStateRejectedException.class,
             () -> coordinator.setInitialConfiguration(unknownNodeConfiguration)).getMessage();
         assertThat(exceptionMessage,
             startsWith("not enough nodes discovered to form a quorum in the initial configuration [knownNodes=["));
-        assertThat(exceptionMessage,
-            endsWith("], VotingConfiguration{unknown-node}]"));
+        assertThat(exceptionMessage, containsString("unknown-node"));
         assertThat(exceptionMessage, containsString(coordinator.getLocalNode().toString()));
 
         // This is VERY BAD: setting a _different_ initial configuration. Yet it works if the first attempt will never be a quorum.
         assertTrue(coordinator.setInitialConfiguration(new VotingConfiguration(Collections.singleton(coordinator.getLocalNode().getId()))));
         cluster.stabilise();
+    }
+
+    public void testCannotSetInitialConfigurationWithoutLocalNode() {
+        final Cluster cluster = new Cluster(randomIntBetween(1, 5));
+        final Coordinator coordinator = cluster.getAnyNode().coordinator;
+        final VotingConfiguration unknownNodeConfiguration = new VotingConfiguration(Sets.newHashSet("unknown-node"));
+        final String exceptionMessage = expectThrows(CoordinationStateRejectedException.class,
+            () -> coordinator.setInitialConfiguration(unknownNodeConfiguration)).getMessage();
+        assertThat(exceptionMessage,
+            equalTo("local node is not part of initial configuration"));
     }
 
     public void testDiffBasedPublishing() {
@@ -1271,12 +1214,8 @@ public class CoordinatorTests extends ESTestCase {
                         }
                     } else if (rarely()) {
                         final ClusterNode clusterNode = getAnyNode();
-                        clusterNode.onNode(
-                            () -> {
-                                logger.debug("----> [runRandomly {}] applying initial configuration {} to {}",
-                                    thisStep, initialConfiguration, clusterNode.getId());
-                                clusterNode.coordinator.setInitialConfiguration(initialConfiguration);
-                            }).run();
+                        logger.debug("----> [runRandomly {}] applying initial configuration on {}", step, clusterNode.getId());
+                        clusterNode.applyInitialConfiguration();
                     } else {
                         if (deterministicTaskQueue.hasDeferredTasks() && randomBoolean()) {
                             deterministicTaskQueue.advanceTime();
@@ -1401,7 +1340,7 @@ public class CoordinatorTests extends ESTestCase {
                 assertThat("setting initial configuration may fail with disconnected nodes", disconnectedNodes, empty());
                 assertThat("setting initial configuration may fail with blackholed nodes", blackholedNodes, empty());
                 runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2, "discovery prior to setting initial configuration");
-                final ClusterNode bootstrapNode = getAnyMasterEligibleNode();
+                final ClusterNode bootstrapNode = getAnyBootstrappableNode();
                 bootstrapNode.applyInitialConfiguration();
             } else {
                 logger.info("setting initial configuration not required");
@@ -1472,8 +1411,10 @@ public class CoordinatorTests extends ESTestCase {
             return clusterNodes.stream().anyMatch(cn -> cn.getLocalNode().equals(node));
         }
 
-        ClusterNode getAnyMasterEligibleNode() {
-            return randomFrom(clusterNodes.stream().filter(n -> n.getLocalNode().isMasterNode()).collect(Collectors.toList()));
+        ClusterNode getAnyBootstrappableNode() {
+            return randomFrom(clusterNodes.stream().filter(n -> n.getLocalNode().isMasterNode())
+                .filter(n -> initialConfiguration.getNodeIds().contains(n.getLocalNode().getId()))
+                .collect(Collectors.toList()));
         }
 
         ClusterNode getAnyNode() {
@@ -1803,11 +1744,24 @@ public class CoordinatorTests extends ESTestCase {
 
             void applyInitialConfiguration() {
                 onNode(() -> {
+                    final Set<String> nodeIdsWithPlaceholders = new HashSet<>(initialConfiguration.getNodeIds());
+                    Stream.generate(() -> BOOTSTRAP_PLACEHOLDER_PREFIX + UUIDs.randomBase64UUID(random()))
+                        .limit((Math.max(initialConfiguration.getNodeIds().size(), 2) - 1) / 2)
+                        .forEach(nodeIdsWithPlaceholders::add);
+                    final Set<String> nodeIds = new HashSet<>(
+                        randomSubsetOf(initialConfiguration.getNodeIds().size(), nodeIdsWithPlaceholders));
+                    // initial configuration should not have a place holder for local node
+                    if (initialConfiguration.getNodeIds().contains(localNode.getId()) && nodeIds.contains(localNode.getId()) == false) {
+                        nodeIds.remove(nodeIds.iterator().next());
+                        nodeIds.add(localNode.getId());
+                    }
+                    final VotingConfiguration configurationWithPlaceholders = new VotingConfiguration(nodeIds);
                     try {
-                        coordinator.setInitialConfiguration(initialConfiguration);
-                        logger.info("successfully set initial configuration to {}", initialConfiguration);
+                        coordinator.setInitialConfiguration(configurationWithPlaceholders);
+                        logger.info("successfully set initial configuration to {}", configurationWithPlaceholders);
                     } catch (CoordinationStateRejectedException e) {
-                        logger.info(new ParameterizedMessage("failed to set initial configuration to {}", initialConfiguration), e);
+                        logger.info(new ParameterizedMessage("failed to set initial configuration to {}",
+                            configurationWithPlaceholders), e);
                     }
                 }).run();
             }

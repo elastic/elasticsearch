@@ -98,6 +98,14 @@ SELECT CAST(SUM(salary) AS DOUBLE) FROM test_emp;
 4824855.0
 ;
 
+aggregateWithUpCastAsFloat
+SELECT CAST(SUM(salary) AS FLOAT) FROM test_emp;
+
+  CAST(SUM(salary) AS FLOAT)
+-----------------------------
+4824855.0
+;
+
 aggregateWithCastNumericToString
 SELECT CAST(AVG(salary) AS VARCHAR) FROM test_emp;
 
@@ -215,7 +223,7 @@ SELECT HISTOGRAM(salary, 5000) AS h FROM test_emp GROUP BY h;
 70000  
 ;
 
-histogramDate
+histogramDateTime
 schema::h:ts|c:l
 SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) as c FROM test_emp GROUP BY h;
 
@@ -239,7 +247,7 @@ null                |10
          
 ;
 
-histogramDateWithCountAndOrder
+histogramDateTimeWithCountAndOrder
 schema::h:ts|c:l
 SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
 
@@ -262,7 +270,7 @@ SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) as c FROM test_emp 
 null                |10   
 ;
 
-histogramDateWithMonthOnTop
+histogramDateTimeWithMonthOnTop
 schema::h:i|c:l
 SELECT HISTOGRAM(MONTH(birth_date), 2) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
 
@@ -278,7 +286,7 @@ SELECT HISTOGRAM(MONTH(birth_date), 2) AS h, COUNT(*) as c FROM test_emp GROUP B
 null           |10    
 ;
 
-histogramDateWithYearOnTop
+histogramDateTimeWithYearOnTop
 schema::h:i|c:l
 SELECT HISTOGRAM(YEAR(birth_date), 2) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
        h       |       c       

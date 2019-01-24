@@ -6,6 +6,77 @@ setup:
     reason: "script score query was introduced in 7.0.0"
 
 ---
+"Math functions":
+    - do:
+        indices.create:
+            index: test
+            body:
+                settings:
+                    number_of_shards: 2
+                mappings:
+                    _doc:
+                        properties:
+                            dval:
+                                type: double
+    - do:
+        index:
+            index: test
+            type: _doc
+            id: d1
+            body: {"dval": 10}
+    - do:
+        index:
+            index: test
+            type: _doc
+            id: d2
+            body: {"dval": 100}
+    - do:
+        index:
+            index: test
+            type: _doc
+            id: d3
+            body: {"dval": 1000}
+
+    - do:
+        indices.refresh: {}
+
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            index: test
+            body:
+                query:
+                    script_score:
+                        query: {match_all: {} }
+                        script:
+                            source: "saturation(doc['dval'].value, params.k)"
+                            params:
+                                k : 100
+    - match: { hits.total: 3 }
+    - match: { hits.hits.0._id: d3 }
+    - match: { hits.hits.1._id: d2 }
+    - match: { hits.hits.2._id: d1 }
+
+
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            index: test
+            body:
+                query:
+                    script_score:
+                        query: {match_all: {} }
+                        script:
+                            source: "sigmoid(doc['dval'].value, params.k, params.a)"
+                            params:
+                                k: 100
+                                a: 2
+    - match: { hits.total: 3 }
+    - match: { hits.hits.0._id: d3 }
+    - match: { hits.hits.1._id: d2 }
+    - match: { hits.hits.2._id: d1 }
+
+---
 "Random functions":
     - do:
         indices.create:

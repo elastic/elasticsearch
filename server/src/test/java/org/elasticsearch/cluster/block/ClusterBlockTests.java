@@ -65,7 +65,7 @@ public class ClusterBlockTests extends ESTestCase {
     public void testBwcSerialization() throws Exception {
         for (int runs = 0; runs < randomIntBetween(5, 20); runs++) {
             // Generate a random cluster block in version < 7.0.0
-            final Version version = randomVersionBetween(random(), Version.V_6_0_0, getPreviousVersion(Version.V_7_0_0));
+            final Version version = randomVersionBetween(random(), Version.V_6_0_0, getPreviousVersion(Version.V_6_7_0));
             final ClusterBlock expected = randomClusterBlock(version);
             assertNull(expected.uuid());
 
@@ -84,7 +84,7 @@ public class ClusterBlockTests extends ESTestCase {
 
             // Serialize to node in version < 7.0.0
             final BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(randomVersionBetween(random(), Version.V_6_0_0, getPreviousVersion(Version.V_7_0_0)));
+            out.setVersion(randomVersionBetween(random(), Version.V_6_0_0, getPreviousVersion(Version.V_6_7_0)));
             expected.writeTo(out);
 
             // Deserialize and check the cluster block
@@ -171,7 +171,7 @@ public class ClusterBlockTests extends ESTestCase {
     }
 
     private ClusterBlock randomClusterBlock(final Version version) {
-        final String uuid = (version.onOrAfter(Version.V_7_0_0) && randomBoolean()) ? UUIDs.randomBase64UUID() : null;
+        final String uuid = (version.onOrAfter(Version.V_6_7_0) && randomBoolean()) ? UUIDs.randomBase64UUID() : null;
         final List<ClusterBlockLevel> levels = Arrays.asList(ClusterBlockLevel.values());
         return new ClusterBlock(randomInt(), uuid, "cluster block #" + randomInt(), randomBoolean(), randomBoolean(), randomBoolean(),
             randomFrom(RestStatus.values()), copyOf(randomSubsetOf(randomIntBetween(1, levels.size()), levels)));

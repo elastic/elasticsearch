@@ -35,9 +35,12 @@ public final class DeprecationMap implements Map<String, Object> {
 
     private final Map<String, String> deprecations;
 
-    public DeprecationMap(Map<String, Object> delegate, Map<String, String> deprecations) {
+    private final String logKeyPrefix;
+
+    public DeprecationMap(Map<String, Object> delegate, Map<String, String> deprecations, String logKeyPrefix) {
         this.delegate = delegate;
         this.deprecations = deprecations;
+        this.logKeyPrefix = logKeyPrefix;
     }
 
     @Override
@@ -64,7 +67,7 @@ public final class DeprecationMap implements Map<String, Object> {
     public Object get(final Object key) {
         String deprecationMessage = deprecations.get(key);
         if (deprecationMessage != null) {
-            deprecationLogger.deprecated(deprecationMessage);
+            deprecationLogger.deprecatedAndMaybeLog(logKeyPrefix + "_" + key, deprecationMessage);
         }
         return delegate.get(key);
     }

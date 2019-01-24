@@ -18,13 +18,13 @@ SELECT gender g FROM "test_emp" WHERE emp_no < 10020 GROUP BY g ORDER BY gender;
 groupByOnTextOnAliasOrderDesc
 SELECT gender g FROM "test_emp" WHERE emp_no < 10020 GROUP BY g ORDER BY g DESC;
 
-groupByOnDate
+groupByOnDateTime
 SELECT birth_date b FROM "test_emp" GROUP BY birth_date ORDER BY birth_date DESC;
-groupByOnDateWithWhereClause
+groupByOnDateTimeWithWhereClause
 SELECT birth_date b FROM "test_emp" WHERE emp_no < 10020 GROUP BY birth_date ORDER BY birth_date DESC;
-groupByOnDateWithWhereAndLimit
+groupByOnDateTimeWithWhereAndLimit
 SELECT birth_date b FROM "test_emp" WHERE emp_no < 10020 GROUP BY birth_date ORDER BY birth_date DESC LIMIT 1;
-groupByOnDateOnAlias
+groupByOnDateTimeOnAlias
 SELECT birth_date b FROM "test_emp" WHERE emp_no < 10020 GROUP BY b ORDER BY birth_date DESC;
 
 groupByOnNumber
@@ -62,13 +62,13 @@ SELECT gender g, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY g, l 
 groupByMultiOnTextOnAliasOrderDesc
 SELECT gender g, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY g, l ORDER BY g, l ASC;
 
-groupByMultiOnDate
+groupByMultiOnDateTime
 SELECT birth_date b, languages l FROM "test_emp" GROUP BY birth_date, languages ORDER BY birth_date DESC, languages;
-groupByMultiOnDateWithWhereClause
+groupByMultiOnDateTimeWithWhereClause
 SELECT birth_date b, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY birth_date, languages ORDER BY birth_date DESC, languages;
-groupByMultiOnDateWithWhereAndLimit
+groupByMultiOnDateTimeWithWhereAndLimit
 SELECT birth_date b, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY birth_date, languages ORDER BY birth_date DESC, languages LIMIT 1;
-groupByMultiOnDateOnAlias
+groupByMultiOnDateTimeOnAlias
 SELECT birth_date b, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY b, l ORDER BY birth_date DESC, languages;
 
 groupByMultiAddScalar
@@ -248,7 +248,7 @@ aggMinWithCastAndFilter
 SELECT gender g, CAST(MIN(emp_no) AS SMALLINT) m, COUNT(1) c FROM "test_emp" WHERE emp_no < 10020 GROUP BY gender ORDER BY gender;
 aggMinWithAlias
 SELECT gender g, MIN(emp_no) m FROM "test_emp" GROUP BY g ORDER BY gender;
-aggMinOnDate
+aggMinOnDateTime
 SELECT gender, MIN(birth_date) m FROM "test_emp" GROUP BY gender ORDER BY gender;
 
 // Conditional MIN
@@ -304,7 +304,7 @@ aggMaxAndCountWithFilterAndLimit
 SELECT gender g, MAX(emp_no) m, COUNT(1) c FROM "test_emp" WHERE emp_no > 10000 GROUP BY gender ORDER BY gender LIMIT 1;
 aggMaxWithAlias
 SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g ORDER BY gender;
-aggMaxOnDate
+aggMaxOnDateTime
 SELECT gender, MAX(birth_date) m FROM "test_emp" GROUP BY gender ORDER BY gender;
 aggAvgAndMaxWithLikeFilter
 SELECT CAST(AVG(salary) AS LONG) AS avg, CAST(SUM(salary) AS LONG) AS s FROM "test_emp" WHERE first_name LIKE 'G%';
@@ -482,9 +482,9 @@ selectCountWhereIsNull
 SELECT COUNT(*) count FROM test_emp WHERE first_name IS NULL;
 selectLanguagesCountWithNullsAndGroupByLanguage
 SELECT languages l, COUNT(*) c FROM test_emp GROUP BY languages ORDER BY languages;
-selectHireDateGroupByHireDate
+selectHireDateTimeGroupByHireDateTime
 SELECT hire_date HD, COUNT(*) c FROM test_emp GROUP BY hire_date ORDER BY hire_date DESC;
-selectHireDateGroupByHireDate
+selectHireDateTimeGroupByHireDateTime
 SELECT hire_date HD, COUNT(*) c FROM test_emp GROUP BY hire_date ORDER BY hire_date DESC;
 selectSalaryGroupBySalary
 SELECT salary, COUNT(*) c FROM test_emp GROUP BY salary ORDER BY salary DESC;

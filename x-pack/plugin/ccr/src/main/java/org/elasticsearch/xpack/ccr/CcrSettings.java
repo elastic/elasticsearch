@@ -30,11 +30,17 @@ public final class CcrSettings {
             Setting.boolSetting("index.xpack.ccr.following_index", false, Property.IndexScope, Property.InternalIndex);
 
     /**
-     * Dynamic node setting for specifying the wait_for_timeout that the auto follow coordinator should be using.
+     * Dynamic node setting for specifying the wait_for_timeout that the auto follow coordinator and shard follow task should be using.
      */
-    public static final Setting<TimeValue> CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT = Setting.timeSetting(
-        "ccr.auto_follow.wait_for_metadata_timeout", TimeValue.timeValueSeconds(60), Property.NodeScope, Property.Dynamic);
+    public static final Setting<TimeValue> CCR_WAIT_FOR_METADATA_TIMEOUT = Setting.timeSetting(
+        "ccr.wait_for_metadata_timeout", TimeValue.timeValueSeconds(60), Property.NodeScope, Property.Dynamic);
 
+    /**
+     * Dynamic node setting for specifying the wait_for_timeout that the auto follow coordinator should be using.
+     * TODO: Deprecate and remove this setting
+     */
+    private static final Setting<TimeValue> CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT = Setting.timeSetting(
+        "ccr.auto_follow.wait_for_metadata_timeout", CCR_WAIT_FOR_METADATA_TIMEOUT, Property.NodeScope, Property.Dynamic);
 
     /**
      * Max bytes a node can recover per second.
@@ -62,7 +68,8 @@ public final class CcrSettings {
                 CCR_FOLLOWING_INDEX_SETTING,
                 RECOVERY_MAX_BYTES_PER_SECOND,
                 INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
-                CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT);
+                CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT,
+                CCR_WAIT_FOR_METADATA_TIMEOUT);
     }
 
     private final CombinedRateLimiter ccrRateLimiter;

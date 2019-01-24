@@ -170,7 +170,7 @@ public class EscapedFunctionsTests extends ESTestCase {
 
     public void testDateLiteral() {
         Literal l = dateLiteral("2012-01-01");
-        assertThat(l.dataType(), is(DataType.DATETIME));
+        assertThat(l.dataType(), is(DataType.DATE));
     }
 
     public void testDateLiteralValidation() {

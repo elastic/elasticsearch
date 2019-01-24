@@ -231,7 +231,7 @@ public class DeprecationLogger {
             while (iterator.hasNext()) {
                 try {
                     final ThreadContext next = iterator.next();
-                    next.addResponseHeader("Warning", warningHeaderValue, DeprecationLogger::extractWarningValueFromWarningHeader);
+                    next.addResponseHeader("Warning", warningHeaderValue);
                 } catch (final IllegalStateException e) {
                     // ignored; it should be removed shortly
                 }

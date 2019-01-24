@@ -636,7 +636,7 @@ public final class Verifier {
                     for (Expression value : in.list()) {
                         if (areTypesCompatible(dt, value.dataType()) == false) {
                             localFailures.add(fail(value, "expected data type [%s], value provided is of type [%s]",
-                                dt, value.dataType()));
+                                dt.esType, value.dataType().esType));
                             return;
                         }
                     }
@@ -657,7 +657,7 @@ public final class Verifier {
                         } else {
                             if (areTypesCompatible(dt, child.dataType()) == false) {
                                 localFailures.add(fail(child, "expected data type [%s], value provided is of type [%s]",
-                                    dt, child.dataType()));
+                                    dt.esType, child.dataType().esType));
                                 return;
                             }
                         }

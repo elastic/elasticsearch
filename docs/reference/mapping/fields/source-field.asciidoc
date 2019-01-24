@@ -13,13 +13,11 @@ within the index. For this reason, it can be disabled as follows:
 
 [source,js]
 --------------------------------------------------
-PUT tweets?include_type_name=true
+PUT tweets
 {
   "mappings": {
-    "_doc": {
-      "_source": {
-        "enabled": false
-      }
+    "_source": {
+      "enabled": false
     }
   }
 }
@@ -85,20 +83,18 @@ as follows:
 
 [source,js]
 --------------------------------------------------
-PUT logs?include_type_name=true
+PUT logs
 {
   "mappings": {
-    "_doc": {
-      "_source": {
-        "includes": [
-          "*.count",
-          "meta.*"
-        ],
-        "excludes": [
-          "meta.description",
-          "meta.other.*"
-        ]
-      }
+    "_source": {
+      "includes": [
+        "*.count",
+        "meta.*"
+      ],
+      "excludes": [
+        "meta.description",
+        "meta.other.*"
+      ]
     }
   }
 }

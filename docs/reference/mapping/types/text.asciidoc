@@ -17,14 +17,12 @@ Below is an example of a mapping for a text field:
 
 [source,js]
 --------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "full_name": {
-          "type":  "text"
-        }
+    "properties": {
+      "full_name": {
+        "type":  "text"
       }
     }
   }

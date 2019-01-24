@@ -35,11 +35,11 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.joda.time.DateTime;
-import org.joda.time.chrono.ISOChronology;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -66,7 +66,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
     public ExpiredForecastsRemover(Client client, ThreadPool threadPool) {
         this.client = Objects.requireNonNull(client);
         this.threadPool = Objects.requireNonNull(threadPool);
-        this.cutoffEpochMs = DateTime.now(ISOChronology.getInstance()).getMillis();
+        this.cutoffEpochMs = Instant.now(Clock.systemDefaultZone()).toEpochMilli();
     }
 
     @Override

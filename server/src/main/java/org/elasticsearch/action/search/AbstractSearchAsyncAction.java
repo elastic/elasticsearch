@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.Nullable;
@@ -43,7 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -70,7 +70,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Object shardFailuresMutex = new Object();
     private final AtomicInteger successfulOps = new AtomicInteger();
     private final AtomicInteger skippedOps = new AtomicInteger();
-    private final TransportSearchAction.SearchTimeProvider timeProvider;
+    private final SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
 
     AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
@@ -79,7 +79,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                                         Map<String, Set<String>> indexRoutings,
                                         Executor executor, SearchRequest request,
                                         ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
-                                        TransportSearchAction.SearchTimeProvider timeProvider, long clusterStateVersion,
+                                        SearchTimeProvider timeProvider, long clusterStateVersion,
                                         SearchTask task, SearchPhaseResults<Result> resultConsumer, int maxConcurrentRequestsPerNode,
                                         SearchResponse.Clusters clusters) {
         super(name, request, shardsIts, logger, maxConcurrentRequestsPerNode, executor);
@@ -103,8 +103,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * Builds how long it took to execute the search.
      */
     long buildTookInMillis() {
-        return TimeUnit.NANOSECONDS.toMillis(
-                timeProvider.getRelativeCurrentNanos() - timeProvider.getRelativeStartNanos());
+        return timeProvider.buildTookInMillis();
     }
 
     /**

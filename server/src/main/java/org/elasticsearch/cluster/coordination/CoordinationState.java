@@ -485,7 +485,8 @@ public class CoordinationState {
                 }
                 metaDataBuilder.coordinationMetaData(coordinationMetaData);
             }
-            if (lastAcceptedState.metaData().clusterUUIDCommitted() == false) {
+            if (lastAcceptedState.metaData().clusterUUID().equals(MetaData.UNKNOWN_CLUSTER_UUID) == false &&
+                lastAcceptedState.metaData().clusterUUIDCommitted() == false) {
                 if (metaDataBuilder == null) {
                     metaDataBuilder = MetaData.builder(lastAcceptedState.metaData());
                 }

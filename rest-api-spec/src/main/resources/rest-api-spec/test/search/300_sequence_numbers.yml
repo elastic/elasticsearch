@@ -24,10 +24,6 @@ setup:
 
 ---
 "sequence numbers are returned if requested from body":
-  - skip:
-      version: " - 6.99.99"
-      reason: sequence numbers were added in 7.0.0
-
   - do:
       search:
         index: _all
@@ -43,10 +39,6 @@ setup:
 
 ---
 "sequence numbers are returned if requested from url":
-  - skip:
-      version: " - 6.99.99"
-      reason: sequence numbers were added in 7.0.0
-
   - do:
       search:
         index: _all

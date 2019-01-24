@@ -46,8 +46,7 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
         if (randomBoolean()) {
             columns = new ArrayList<>(columnCount);
             for (int i = 0; i < columnCount; i++) {
-                columns.add(new ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
-                        randomInt(), randomInt(25)));
+                columns.add(new ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), randomInt(25)));
             }
         }
 
@@ -96,7 +95,6 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
                 assertEquals(columnInfo.name(), columnMap.get("name"));
                 assertEquals(columnInfo.esType(), columnMap.get("type"));
                 assertEquals(columnInfo.displaySize(), columnMap.get("display_size"));
-                assertEquals(columnInfo.jdbcType(), columnMap.get("jdbc_type"));
             }
         } else {
             assertNull(rootMap.get("columns"));

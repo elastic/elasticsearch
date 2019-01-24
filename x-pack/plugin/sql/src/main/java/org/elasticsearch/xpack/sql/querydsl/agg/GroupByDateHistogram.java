@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
@@ -15,7 +14,7 @@ import java.time.ZoneId;
 import java.util.Objects;
 
 /**
- * GROUP BY key based on histograms on date fields.
+ * GROUP BY key based on histograms on date/datetime fields.
  */
 public class GroupByDateHistogram extends GroupByKey {
 
@@ -42,7 +41,7 @@ public class GroupByDateHistogram extends GroupByKey {
     protected CompositeValuesSourceBuilder<?> createSourceBuilder() {
         return new DateHistogramValuesSourceBuilder(id())
                 .interval(interval)
-                .timeZone(DateUtils.zoneIdToDateTimeZone(zoneId));
+                .timeZone(zoneId);
     }
 
     @Override

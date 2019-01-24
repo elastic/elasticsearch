@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.notification.hipchat;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
@@ -43,7 +44,9 @@ public class UserAccountTests extends ESTestCase {
         Settings.Builder sb = Settings.builder();
 
         String authToken = randomAlphaOfLength(50);
-        sb.put(UserAccount.AUTH_TOKEN_SETTING, authToken);
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(UserAccount.SECURE_AUTH_TOKEN_SETTING.getKey(), authToken);
+        sb.setSecureSettings(secureSettings);
 
         String host = HipChatServer.DEFAULT.host();
         if (randomBoolean()) {
@@ -111,16 +114,18 @@ public class UserAccountTests extends ESTestCase {
             new UserAccount("_name", sb.build(), HipChatServer.DEFAULT, mock(HttpClient.class), mock(Logger.class));
             fail("Expected SettingsException");
         } catch (SettingsException e) {
-            assertThat(e.getMessage(), is("hipchat account [_name] missing required [auth_token] setting"));
+            assertThat(e.getMessage(), is("hipchat account [_name] missing required [secure_auth_token] secure setting"));
         }
     }
 
     public void testSend() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(IntegrationAccount.SECURE_AUTH_TOKEN_SETTING.getKey(), "_token");
         UserAccount account = new UserAccount("_name", Settings.builder()
                 .put("host", "_host")
                 .put("port", "443")
-                .put("auth_token", "_token")
+                .setSecureSettings(secureSettings)
                 .build(), HipChatServer.DEFAULT, httpClient, mock(Logger.class));
 
         HipChatMessage.Format format = randomFrom(HipChatMessage.Format.values());
@@ -240,9 +245,11 @@ public class UserAccountTests extends ESTestCase {
     }
 
     public void testColorIsOptional() throws Exception {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(IntegrationAccount.SECURE_AUTH_TOKEN_SETTING.getKey(), "awesome-auth-token");
         Settings settings = Settings.builder()
                 .put("user", "testuser")
-                .put("auth_token", "awesome-auth-token")
+                .setSecureSettings(secureSettings)
                 .build();
         UserAccount userAccount = createUserAccount(settings);
 
@@ -256,9 +263,11 @@ public class UserAccountTests extends ESTestCase {
     }
 
     public void testFormatIsOptional() throws Exception {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(IntegrationAccount.SECURE_AUTH_TOKEN_SETTING.getKey(), "awesome-auth-token");
         Settings settings = Settings.builder()
                 .put("user", "testuser")
-                .put("auth_token", "awesome-auth-token")
+                .setSecureSettings(secureSettings)
                 .build();
         UserAccount userAccount = createUserAccount(settings);
 
@@ -272,9 +281,11 @@ public class UserAccountTests extends ESTestCase {
     }
 
     public void testRoomNameIsUrlEncoded() throws Exception {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(IntegrationAccount.SECURE_AUTH_TOKEN_SETTING.getKey(), "awesome-auth-token");
         Settings settings = Settings.builder()
                 .put("user", "testuser")
-                .put("auth_token", "awesome-auth-token")
+                .setSecureSettings(secureSettings)
                 .build();
         HipChatServer hipChatServer = mock(HipChatServer.class);
         HttpClient httpClient = mock(HttpClient.class);

@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -86,7 +87,7 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
         return allNodesSettings;
     }
 
-    private void executeCommand(Environment environment, boolean abort) throws Exception {
+    private MockTerminal executeCommand(Environment environment, boolean abort) throws Exception {
         final UnsafeBootstrapMasterCommand command = new UnsafeBootstrapMasterCommand();
         final MockTerminal terminal = new MockTerminal();
         final OptionParser parser = new OptionParser();
@@ -105,22 +106,19 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
             command.execute(terminal, options, environment);
             assertThat(terminal.getOutput(), containsString(UnsafeBootstrapMasterCommand.MASTER_NODE_BOOTSTRAPPED_MSG));
         } finally {
-            assertThat(terminal.getOutput(), containsString(UnsafeBootstrapMasterCommand.WARNING_MSG));
+            assertThat(terminal.getOutput(), containsString(UnsafeBootstrapMasterCommand.STOP_WARNING_MSG));
         }
+
+        return terminal;
     }
 
-    private void executeCommand(Environment environment) throws Exception {
-        executeCommand(environment, false);
+    private MockTerminal executeCommand(Environment environment) throws Exception {
+        return executeCommand(environment, false);
     }
 
     private void expectThrows(ThrowingRunnable runnable, String message) {
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, runnable);
         assertThat(ex.getMessage(), containsString(message));
-    }
-
-    public void testAbortedByUser() {
-        final Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
-        expectThrows(() -> executeCommand(environment, true), UnsafeBootstrapMasterCommand.ABORTED_BY_USER_MSG);
     }
 
     public void testNotMasterEligible() {
@@ -201,6 +199,18 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
         expectThrows(() -> executeCommand(environment), UnsafeBootstrapMasterCommand.NO_GLOBAL_METADATA_MSG);
     }
 
+    public void testAbortedByUser() throws IOException {
+        bootstrapNodeId = 1;
+        internalCluster().startNode(Settings.builder()
+                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
+                .build());
+        ensureStableCluster(1);
+        internalCluster().stopRandomDataNode();
+
+        Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
+        expectThrows(() -> executeCommand(environment, true), UnsafeBootstrapMasterCommand.ABORTED_BY_USER_MSG);
+    }
+
     public void test3MasterNodes2Failed() throws Exception {
         bootstrapNodeId = 3;
         List<String> masterNodes = internalCluster().startMasterOnlyNodes(3, Settings.builder()
@@ -226,9 +236,15 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
         final Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
         expectThrows(() -> executeCommand(environment), UnsafeBootstrapMasterCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG);
 
+        NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodes.get(0)));
 
-        executeCommand(environment);
+        MockTerminal terminal = executeCommand(environment);
+
+        MetaData metaData = MetaData.FORMAT.loadLatestState(logger, xContentRegistry(), nodeEnvironment.nodeDataPaths());
+        assertThat(terminal.getOutput(), containsString(
+                String.format(Locale.ROOT, UnsafeBootstrapMasterCommand.CLUSTER_STATE_TERM_VERSION_MSG_FORMAT,
+                        metaData.coordinationMetaData().term(), metaData.version())));
 
         internalCluster().startMasterOnlyNode(Settings.builder()
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)

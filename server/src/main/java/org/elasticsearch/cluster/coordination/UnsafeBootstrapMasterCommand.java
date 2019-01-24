@@ -42,6 +42,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Objects;
 
 public class UnsafeBootstrapMasterCommand extends EnvironmentAwareCommand {
@@ -49,16 +50,23 @@ public class UnsafeBootstrapMasterCommand extends EnvironmentAwareCommand {
     private static final Logger logger = LogManager.getLogger(UnsafeBootstrapMasterCommand.class);
     private final NamedXContentRegistry namedXContentRegistry;
 
-    static final String WARNING_MSG =
-            "-----------------------------------------------------------------------\n" +
+    static final String STOP_WARNING_MSG =
+            "--------------------------------------------------------------------------\n" +
             "\n" +
-            "    WARNING: Elasticsearch MUST be stopped before running this tool.\n" +
+            "    WARNING: Elasticsearch MUST be stopped before running this tool." +
+            "\n";
+    static final String CLUSTER_STATE_TERM_VERSION_MSG_FORMAT =
+            "Current node cluster state (term, version) pair is (%s, %s)";
+    static final String CONFIRMATION_MSG =
+            "--------------------------------------------------------------------------\n" +
             "\n" +
             "You should run this tool only if you have permanently lost half\n" +
             "or more of the master-eligible nodes, and you cannot restore the cluster\n" +
-            "from a snapshot. This tool can result in arbitrary data loss and " +
+            "from a snapshot. This tool can result in arbitrary data loss and\n" +
             "should be the last resort.\n" +
-            "Do you accept this risk?\n";
+            "If you have multiple survived master eligible nodes, consider running\n" +
+            "this tool on the node with the highest cluster state (term, version) pair.\n" +
+            "Do you want to proceed?\n";
     static final String ABORTED_BY_USER_MSG = "aborted by user";
     static final String NOT_MASTER_NODE_MSG = "unsafe-bootstrap tool can only be run on master eligible node";
     static final String FAILED_TO_OBTAIN_NODE_LOCK_MSG = "failed to lock node's directory, is Elasticsearch still running?";
@@ -82,11 +90,7 @@ public class UnsafeBootstrapMasterCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        showWarning(terminal);
-        String text = terminal.readText("Confirm [y/N] ");
-        if (text.equalsIgnoreCase("y") == false) {
-            throw new ElasticsearchException(ABORTED_BY_USER_MSG);
-        }
+        terminal.println(STOP_WARNING_MSG);
 
         Settings settings = env.settings();
         terminal.println(Terminal.Verbosity.VERBOSE, "Checking node.master setting");
@@ -144,6 +148,14 @@ public class UnsafeBootstrapMasterCommand extends EnvironmentAwareCommand {
                 coordinationMetaData.getLastCommittedConfiguration().isEmpty()) {
             throw new ElasticsearchException(EMPTY_LAST_COMMITTED_VOTING_CONFIG_MSG);
         }
+        terminal.println(String.format(Locale.ROOT, CLUSTER_STATE_TERM_VERSION_MSG_FORMAT, coordinationMetaData.term(),
+                metaData.version()));
+
+        terminal.println(CONFIRMATION_MSG);
+        String text = terminal.readText("Confirm [y/N] ");
+        if (text.equalsIgnoreCase("y") == false) {
+            throw new ElasticsearchException(ABORTED_BY_USER_MSG);
+        }
 
         CoordinationMetaData newCoordinationMetaData = CoordinationMetaData.builder(coordinationMetaData)
                 .clearVotingConfigExclusions()
@@ -179,9 +191,5 @@ public class UnsafeBootstrapMasterCommand extends EnvironmentAwareCommand {
             MetaData.FORMAT.cleanupOldFiles(manifest.getGlobalGeneration(), dataPaths);
             throw new ElasticsearchException(WRITE_METADATA_EXCEPTION_MSG, e);
         }
-    }
-
-    private void showWarning(Terminal terminal) {
-        terminal.println(WARNING_MSG);
     }
 }

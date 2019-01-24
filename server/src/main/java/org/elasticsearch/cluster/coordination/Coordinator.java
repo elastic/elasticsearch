@@ -168,7 +168,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
         this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService, this::getFoundPeers,
             this::isInitialConfigurationSet, this::setInitialConfiguration);
-        this.discoveryUpgradeService = new DiscoveryUpgradeService(settings, clusterSettings, transportService,
+        this.discoveryUpgradeService = new DiscoveryUpgradeService(settings, transportService,
             this::isInitialConfigurationSet, joinHelper, peerFinder::getFoundPeers, this::setInitialConfiguration);
         this.lagDetector = new LagDetector(settings, transportService.getThreadPool(), n -> removeNode(n, "lagging"),
             transportService::getLocalNode);
@@ -478,7 +478,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             clusterFormationFailureHelper.start();
 
             if (getCurrentTerm() == ZEN1_BWC_TERM) {
-                discoveryUpgradeService.activate(lastKnownLeader);
+                discoveryUpgradeService.activate(lastKnownLeader, coordinationState.get().getLastAcceptedState());
             }
 
             leaderChecker.setCurrentNodes(DiscoveryNodes.EMPTY_NODES);

@@ -27,10 +27,10 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
@@ -41,7 +41,9 @@ import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
-import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -55,6 +57,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
@@ -945,7 +948,7 @@ public class CoordinatorTests extends ESTestCase {
         cluster.runFor(defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING) + defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING)
             + DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "detecting disconnection");
 
-        assertThat(leader.clusterApplier.lastAppliedClusterState.blocks().global(), hasItem(expectedBlock));
+        assertThat(leader.getLastAppliedClusterState().blocks().global(), hasItem(expectedBlock));
 
         // TODO reboot the leader and verify that the same block is applied when it restarts
     }
@@ -1604,12 +1607,12 @@ public class CoordinatorTests extends ESTestCase {
             private Coordinator coordinator;
             private final DiscoveryNode localNode;
             private final MockPersistedState persistedState;
-            private FakeClusterApplier clusterApplier;
             private AckedFakeThreadPoolMasterService masterService;
+            private DisruptableClusterApplierService clusterApplierService;
+            private ClusterService clusterService;
             private TransportService transportService;
             private DisruptableMockTransport mockTransport;
             private List<BiConsumer<DiscoveryNode, ClusterState>> extraJoinValidators = new ArrayList<>();
-            private ClusterStateApplyResponse clusterStateApplyResponse = ClusterStateApplyResponse.SUCCEED;
 
             ClusterNode(int nodeIndex, boolean masterEligible) {
                 this(nodeIndex, createDiscoveryNode(nodeIndex, masterEligible), defaultPersistedStateSupplier);
@@ -1644,37 +1647,46 @@ public class CoordinatorTests extends ESTestCase {
                 final Settings settings = Settings.builder()
                     .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
                         ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY)).build(); // suppress auto-bootstrap
-
-                final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-                clusterApplier = new FakeClusterApplier(settings, clusterSettings);
-                masterService = new AckedFakeThreadPoolMasterService("test_node", "test",
-                    runnable -> deterministicTaskQueue.scheduleNow(onNode(runnable)));
                 transportService = mockTransport.createTransportService(
                     settings, deterministicTaskQueue.getThreadPool(this::onNode), NOOP_TRANSPORT_INTERCEPTOR,
                     a -> localNode, null, emptySet());
+                masterService = new AckedFakeThreadPoolMasterService(localNode.getId(), "test",
+                    runnable -> deterministicTaskQueue.scheduleNow(onNode(runnable)));
+                final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+                clusterApplierService = new DisruptableClusterApplierService(localNode.getId(), settings, clusterSettings,
+                    deterministicTaskQueue, this::onNode);
+                clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
+                clusterService.setNodeConnectionsService(
+                    new NodeConnectionsService(clusterService.getSettings(), deterministicTaskQueue.getThreadPool(this::onNode),
+                        transportService) {
+                        @Override
+                        public void connectToNodes(DiscoveryNodes discoveryNodes) {
+                            // override this method as it does blocking calls
+                        }
+                    });
                 final Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators =
                     Collections.singletonList((dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs)));
                 coordinator = new Coordinator("test_node", settings, clusterSettings, transportService, writableRegistry(),
                     ESAllocationTestCase.createAllocationService(Settings.EMPTY), masterService, this::getPersistedState,
-                    Cluster.this::provideUnicastHosts, clusterApplier, onJoinValidators, Randomness.get());
+                    Cluster.this::provideUnicastHosts, clusterApplierService, onJoinValidators, Randomness.get());
                 masterService.setClusterStatePublisher(coordinator);
 
                 logger.trace("starting up [{}]", localNode);
                 transportService.start();
                 transportService.acceptIncomingRequests();
-                masterService.start();
                 coordinator.start();
+                clusterService.start();
                 coordinator.startInitialJoin();
             }
 
             void close() {
                 logger.trace("taking down [{}]", localNode);
-                //transportService.stop(); // does blocking stuff :/
-                masterService.stop();
                 coordinator.stop();
-                //transportService.close(); // does blocking stuff :/
-                masterService.close();
+                clusterService.stop();
+                //transportService.stop(); // does blocking stuff :/
+                clusterService.close();
                 coordinator.close();
+                //transportService.close(); // does blocking stuff :/
             }
 
             ClusterNode restartedNode() {
@@ -1718,11 +1730,11 @@ public class CoordinatorTests extends ESTestCase {
             }
 
             void setClusterStateApplyResponse(ClusterStateApplyResponse clusterStateApplyResponse) {
-                this.clusterStateApplyResponse = clusterStateApplyResponse;
+                clusterApplierService.clusterStateApplyResponse = clusterStateApplyResponse;
             }
 
             ClusterStateApplyResponse getClusterStateApplyResponse() {
-                return clusterStateApplyResponse;
+                return clusterApplierService.clusterStateApplyResponse;
             }
 
             Runnable onNode(Runnable runnable) {
@@ -1823,7 +1835,7 @@ public class CoordinatorTests extends ESTestCase {
             }
 
             ClusterState getLastAppliedClusterState() {
-                return clusterApplier.lastAppliedClusterState;
+                return clusterApplierService.state();
             }
 
             void applyInitialConfiguration() {
@@ -1852,84 +1864,6 @@ public class CoordinatorTests extends ESTestCase {
 
             private boolean isNotUsefullyBootstrapped() {
                 return getLocalNode().isMasterNode() == false || coordinator.isInitialConfigurationSet() == false;
-            }
-
-            private class FakeClusterApplier implements ClusterApplier {
-
-                final ClusterName clusterName;
-                private final ClusterSettings clusterSettings;
-                ClusterState lastAppliedClusterState;
-
-                private FakeClusterApplier(Settings settings, ClusterSettings clusterSettings) {
-                    clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
-                    this.clusterSettings = clusterSettings;
-                }
-
-                @Override
-                public void setInitialState(ClusterState initialState) {
-                    assert lastAppliedClusterState == null;
-                    assert initialState != null;
-                    lastAppliedClusterState = initialState;
-                }
-
-                @Override
-                public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener) {
-                    switch (clusterStateApplyResponse) {
-                        case SUCCEED:
-                            deterministicTaskQueue.scheduleNow(onNode(new Runnable() {
-                                @Override
-                                public void run() {
-                                    final ClusterState oldClusterState = clusterApplier.lastAppliedClusterState;
-                                    final ClusterState newClusterState = clusterStateSupplier.get();
-                                    assert oldClusterState.version() <= newClusterState.version() : "updating cluster state from version "
-                                        + oldClusterState.version() + " to stale version " + newClusterState.version();
-                                    clusterApplier.lastAppliedClusterState = newClusterState;
-                                    final Settings incomingSettings = newClusterState.metaData().settings();
-                                    clusterSettings.applySettings(incomingSettings); // TODO validation might throw exceptions here.
-                                    listener.onSuccess(source);
-                                }
-
-                                @Override
-                                public String toString() {
-                                    return "apply cluster state from [" + source + "]";
-                                }
-                            }));
-                            break;
-                        case FAIL:
-                            deterministicTaskQueue.scheduleNow(onNode(new Runnable() {
-                                @Override
-                                public void run() {
-                                    listener.onFailure(source, new ElasticsearchException("cluster state application failed"));
-                                }
-
-                                @Override
-                                public String toString() {
-                                    return "fail to apply cluster state from [" + source + "]";
-                                }
-                            }));
-                            break;
-                        case HANG:
-                            if (randomBoolean()) {
-                                deterministicTaskQueue.scheduleNow(onNode(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        final ClusterState oldClusterState = clusterApplier.lastAppliedClusterState;
-                                        final ClusterState newClusterState = clusterStateSupplier.get();
-                                        assert oldClusterState.version() <= newClusterState.version() :
-                                            "updating cluster state from version "
-                                                + oldClusterState.version() + " to stale version " + newClusterState.version();
-                                        clusterApplier.lastAppliedClusterState = newClusterState;
-                                    }
-
-                                    @Override
-                                    public String toString() {
-                                        return "apply cluster state from [" + source + "] without ack";
-                                    }
-                                }));
-                            }
-                            break;
-                    }
-                }
             }
         }
 
@@ -2020,6 +1954,52 @@ public class CoordinatorTests extends ESTestCase {
                 }
             };
         }
+    }
+
+    static class DisruptableClusterApplierService extends ClusterApplierService {
+        private final String nodeName;
+        private final DeterministicTaskQueue deterministicTaskQueue;
+        ClusterStateApplyResponse clusterStateApplyResponse = ClusterStateApplyResponse.SUCCEED;
+
+        DisruptableClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings,
+                                         DeterministicTaskQueue deterministicTaskQueue, Function<Runnable, Runnable> runnableWrapper) {
+            super(nodeName, settings, clusterSettings, deterministicTaskQueue.getThreadPool(runnableWrapper));
+            this.nodeName = nodeName;
+            this.deterministicTaskQueue = deterministicTaskQueue;
+            addStateApplier(event -> {
+                switch (clusterStateApplyResponse) {
+                    case SUCCEED:
+                    case HANG:
+                        final ClusterState oldClusterState = event.previousState();
+                        final ClusterState newClusterState = event.state();
+                        assert oldClusterState.version() <= newClusterState.version() : "updating cluster state from version "
+                            + oldClusterState.version() + " to stale version " + newClusterState.version();
+                        break;
+                    case FAIL:
+                        throw new ElasticsearchException("simulated cluster state applier failure");
+                }
+            });
+        }
+
+        @Override
+        protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+            return new MockSinglePrioritizingExecutor(nodeName, deterministicTaskQueue);
+        }
+
+        @Override
+        public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener) {
+            if (clusterStateApplyResponse == ClusterStateApplyResponse.HANG) {
+                if (randomBoolean()) {
+                    // apply cluster state, but don't notify listener
+                    super.onNewClusterState(source, clusterStateSupplier, (source1, e) -> {
+                        // ignore result
+                    });
+                }
+            } else {
+                super.onNewClusterState(source, clusterStateSupplier, listener);
+            }
+        }
+
     }
 
     private static DiscoveryNode createDiscoveryNode(int nodeIndex, boolean masterEligible) {

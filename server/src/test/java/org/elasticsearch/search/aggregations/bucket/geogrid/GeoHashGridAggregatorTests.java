@@ -94,7 +94,7 @@ public class GeoHashGridAggregatorTests extends AggregatorTestCase {
             }
         }, geoHashGrid -> {
             assertEquals(expectedCountPerGeoHash.size(), geoHashGrid.getBuckets().size());
-            for (GeoHashGrid.Bucket bucket : geoHashGrid.getBuckets()) {
+            for (GeoGrid.Bucket bucket : geoHashGrid.getBuckets()) {
                 assertEquals((long) expectedCountPerGeoHash.get(bucket.getKeyAsString()), bucket.getDocCount());
             }
             assertTrue(AggregationInspectionHelper.hasValue(geoHashGrid));
@@ -111,7 +111,7 @@ public class GeoHashGridAggregatorTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-        GeoGridAggregationBuilder aggregationBuilder = new GeoGridAggregationBuilder("_name").field(field);
+        GeoGridAggregationBuilder aggregationBuilder = new GeoHashGridAggregationBuilder("_name").field(field);
         aggregationBuilder.precision(precision);
         MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
         fieldType.setHasDocValues(true);

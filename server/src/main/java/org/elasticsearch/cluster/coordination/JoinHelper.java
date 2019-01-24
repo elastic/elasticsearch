@@ -91,7 +91,7 @@ public class JoinHelper {
         this.masterService = masterService;
         this.transportService = transportService;
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
-        this.joinTaskExecutor = new JoinTaskExecutor(allocationService, logger) {
+        this.joinTaskExecutor = new JoinTaskExecutor(settings, allocationService, logger) {
 
             @Override
             public ClusterTasksResult<JoinTaskExecutor.Task> execute(ClusterState currentState, List<JoinTaskExecutor.Task> joiningTasks)

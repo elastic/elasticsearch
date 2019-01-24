@@ -74,7 +74,7 @@ public final class DateUtils {
     }
 
     public static ZonedDateTime asDateOnly(ZonedDateTime zdt) {
-        return zdt.toLocalDate().atStartOfDay(UTC);
+        return zdt.toLocalDate().atStartOfDay(zdt.getZone());
     }
 
     /**

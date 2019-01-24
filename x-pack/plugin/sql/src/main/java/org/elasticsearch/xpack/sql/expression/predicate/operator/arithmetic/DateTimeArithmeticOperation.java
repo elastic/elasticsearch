@@ -47,9 +47,6 @@ abstract class DateTimeArithmeticOperation extends ArithmeticOperation {
             if (DataTypeConversion.commonType(l, r) == null) {
                 return new TypeResolution(format("[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
             } else {
-                if (function() == SUB && right().dataType().isDateBased() && DataTypes.isInterval(left().dataType())) {
-                    throw new SqlIllegalArgumentException("Cannot subtract a date from an interval; do you mean the reverse?");
-                }
                 return resolveWithIntervals();
             }
         }

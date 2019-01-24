@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.rollup;
 
-import org.elasticsearch.common.rounding.DateTimeUnit;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -16,7 +16,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
-import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -98,7 +97,7 @@ public class RollupJobIdentifierUtils {
                         DateHistogramInterval interval = new DateHistogramInterval((String)agg.get(RollupField.INTERVAL));
 
                         String thisTimezone  = (String)agg.get(DateHistogramGroupConfig.TIME_ZONE);
-                        String sourceTimeZone = source.timeZone() == null ? DateTimeZone.UTC.toString() : source.timeZone().toString();
+                        String sourceTimeZone = source.timeZone() == null ? "UTC" : source.timeZone().toString();
 
                         // Ensure we are working on the same timezone
                         if (thisTimezone.equalsIgnoreCase(sourceTimeZone) == false) {
@@ -152,10 +151,10 @@ public class RollupJobIdentifierUtils {
 
         // The request must be gte the config.  The CALENDAR_ORDERING map values are integers representing
         // relative orders between the calendar units
-        DateTimeUnit requestUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(requestInterval.toString());
-        long requestOrder = requestUnit.field(DateTimeZone.UTC).getDurationField().getUnitMillis();
-        DateTimeUnit configUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(configInterval.toString());
-        long configOrder = configUnit.field(DateTimeZone.UTC).getDurationField().getUnitMillis();
+        Rounding.DateTimeUnit requestUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(requestInterval.toString());
+        long requestOrder = requestUnit.getField().getBaseUnit().getDuration().toMillis();
+        Rounding.DateTimeUnit configUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(configInterval.toString());
+        long configOrder = configUnit.getField().getBaseUnit().getDuration().toMillis();
 
         // All calendar units are multiples naturally, so we just care about gte
         return requestOrder >= configOrder;
@@ -387,8 +386,8 @@ public class RollupJobIdentifierUtils {
     static long getMillisFixedOrCalendar(String value) {
         DateHistogramInterval interval = new DateHistogramInterval(value);
         if (isCalendarInterval(interval)) {
-            DateTimeUnit intervalUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString());
-            return intervalUnit.field(DateTimeZone.UTC).getDurationField().getUnitMillis();
+            Rounding.DateTimeUnit intervalUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString());
+            return intervalUnit.getField().getBaseUnit().getDuration().toMillis();
         } else {
             return TimeValue.parseTimeValue(value, "date_histo.comparator.interval").getMillis();
         }

@@ -34,7 +34,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-class GeoGridBucket extends InternalMultiBucketAggregation.InternalBucket implements GeoHashGrid.Bucket, Comparable<GeoGridBucket> {
+public class GeoGridBucket extends InternalMultiBucketAggregation.InternalBucket implements GeoHashGrid.Bucket, Comparable<GeoGridBucket> {
 
     protected long geohashAsLong;
     protected long docCount;

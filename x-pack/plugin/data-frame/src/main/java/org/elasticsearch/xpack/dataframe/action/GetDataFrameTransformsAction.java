@@ -40,7 +40,8 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
     public static final String NAME = "cluster:monitor/data_frame/get";
 
     private static final ParseField INVALID_TRANSFORMS = new ParseField("invalid_transforms_count");
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(GetDataFrameTransformsAction.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+            LogManager.getLogger(GetDataFrameTransformsAction.class));
 
     private GetDataFrameTransformsAction() {
         super(NAME);

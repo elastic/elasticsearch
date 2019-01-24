@@ -86,7 +86,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -102,7 +101,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -110,7 +111,6 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
@@ -276,76 +276,64 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertTrue(test > 0);
     }
 
-    // NORELEASE This test need to be adapted for replicated closed indices
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33888")
     public void testIndexCanChangeCustomDataPath() throws Exception {
-        Environment env = getInstanceFromNode(Environment.class);
-        Path idxPath = env.sharedDataFile().resolve(randomAlphaOfLength(10));
-        final String INDEX = "idx";
-        Path startDir = idxPath.resolve("start-" + randomAlphaOfLength(10));
-        Path endDir = idxPath.resolve("end-" + randomAlphaOfLength(10));
-        logger.info("--> start dir: [{}]", startDir.toAbsolutePath().toString());
-        logger.info("-->   end dir: [{}]", endDir.toAbsolutePath().toString());
-        // temp dirs are automatically created, but the end dir is what
-        // startDir is going to be renamed as, so it needs to be deleted
-        // otherwise we get all sorts of errors about the directory
-        // already existing
-        IOUtils.rm(endDir);
+        final String index = "test-custom-data-path";
+        final Path sharedDataPath = getInstanceFromNode(Environment.class).sharedDataFile().resolve(randomAsciiLettersOfLength(10));
+        final Path indexDataPath = sharedDataPath.resolve("start-" + randomAsciiLettersOfLength(10));
 
-        Settings sb = Settings.builder()
-            .put(IndexMetaData.SETTING_DATA_PATH, startDir.toAbsolutePath().toString())
-            .build();
-        Settings sb2 = Settings.builder()
-            .put(IndexMetaData.SETTING_DATA_PATH, endDir.toAbsolutePath().toString())
-            .build();
+        logger.info("--> creating index [{}] with data_path [{}]", index, indexDataPath);
+        createIndex(index, Settings.builder().put(IndexMetaData.SETTING_DATA_PATH, indexDataPath.toAbsolutePath().toString()).build());
+        client().prepareIndex(index, "bar", "1").setSource("foo", "bar").setRefreshPolicy(IMMEDIATE).get();
+        ensureGreen(index);
 
-        logger.info("--> creating an index with data_path [{}]", startDir.toAbsolutePath().toString());
-        createIndex(INDEX, sb);
-        ensureGreen(INDEX);
-        client().prepareIndex(INDEX, "bar", "1").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        assertHitCount(client().prepareSearch(index).setSize(0).get(), 1L);
 
-        SearchResponse resp = client().prepareSearch(INDEX).setQuery(matchAllQuery()).get();
-        assertThat("found the hit", resp.getHits().getTotalHits().value, equalTo(1L));
-
-        logger.info("--> closing the index [{}]", INDEX);
-        client().admin().indices().prepareClose(INDEX).get();
+        logger.info("--> closing the index [{}]", index);
+        assertAcked(client().admin().indices().prepareClose(index));
         logger.info("--> index closed, re-opening...");
-        client().admin().indices().prepareOpen(INDEX).get();
+        assertAcked(client().admin().indices().prepareOpen(index));
         logger.info("--> index re-opened");
-        ensureGreen(INDEX);
+        ensureGreen(index);
 
-        resp = client().prepareSearch(INDEX).setQuery(matchAllQuery()).get();
-        assertThat("found the hit", resp.getHits().getTotalHits().value, equalTo(1L));
+        assertHitCount(client().prepareSearch(index).setSize(0).get(), 1L);
 
         // Now, try closing and changing the settings
+        logger.info("--> closing the index [{}] before updating data_path", index);
+        assertAcked(client().admin().indices().prepareClose(index));
 
-        logger.info("--> closing the index [{}]", INDEX);
-        client().admin().indices().prepareClose(INDEX).get();
+        final Path newIndexDataPath = sharedDataPath.resolve("end-" + randomAlphaOfLength(10));
+        IOUtils.rm(newIndexDataPath);
 
-        logger.info("--> moving data on disk [{}] to [{}]", startDir.getFileName(), endDir.getFileName());
-        assert Files.exists(endDir) == false : "end directory should not exist!";
-        Files.move(startDir, endDir, StandardCopyOption.REPLACE_EXISTING);
+        logger.info("--> copying data on disk from [{}] to [{}]", indexDataPath, newIndexDataPath);
+        assert Files.exists(newIndexDataPath) == false : "new index data path directory should not exist!";
+        try (Stream<Path> stream = Files.walk(indexDataPath)) {
+            stream.forEach(path -> {
+                try {
+                    if (path.endsWith(".lock") == false) {
+                        Files.copy(path, newIndexDataPath.resolve(indexDataPath.relativize(path)));
+                    }
+                } catch (final Exception e) {
+                    logger.error("Failed to copy data path directory", e);
+                    fail();
+                }
+            });
+        }
 
-        logger.info("--> updating settings...");
-        client().admin().indices().prepareUpdateSettings(INDEX)
-            .setSettings(sb2)
-            .setIndicesOptions(IndicesOptions.fromOptions(true, false, true, true))
-            .get();
-
-        assert Files.exists(startDir) == false : "start dir shouldn't exist";
+        logger.info("--> updating data_path to [{}] for index [{}]", newIndexDataPath, index);
+        assertAcked(client().admin().indices().prepareUpdateSettings(index)
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_DATA_PATH, newIndexDataPath.toAbsolutePath().toString()).build())
+            .setIndicesOptions(IndicesOptions.fromOptions(true, false, true, true)));
 
         logger.info("--> settings updated and files moved, re-opening index");
-        client().admin().indices().prepareOpen(INDEX).get();
+        assertAcked(client().admin().indices().prepareOpen(index));
         logger.info("--> index re-opened");
-        ensureGreen(INDEX);
+        ensureGreen(index);
 
-        resp = client().prepareSearch(INDEX).setQuery(matchAllQuery()).get();
-        assertThat("found the hit", resp.getHits().getTotalHits().value, equalTo(1L));
+        assertHitCount(client().prepareSearch(index).setSize(0).get(), 1L);
 
-        assertAcked(client().admin().indices().prepareDelete(INDEX));
+        assertAcked(client().admin().indices().prepareDelete(index));
         assertAllIndicesRemovedAndDeletionCompleted(Collections.singleton(getInstanceFromNode(IndicesService.class)));
-        assertPathHasBeenCleared(startDir.toAbsolutePath());
-        assertPathHasBeenCleared(endDir.toAbsolutePath());
+        assertPathHasBeenCleared(newIndexDataPath.toAbsolutePath());
     }
 
     public void testMaybeFlush() throws Exception {

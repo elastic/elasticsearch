@@ -24,12 +24,12 @@ is not possible to restore the data directory from a backup because this will
 lead to data corruption. Backups of an {es} cluster can only be taken using
 <<modules-snapshots>>.
 
-Elasticsearch <<modules-discovery-quorums,requires a response from a majority
-of the master-eligible nodes>> in order to elect a master and to update the
-cluster state. This means that if you have three master-eligible nodes then the
-cluster will remain available even if one of them has failed. However if two of
-the three master-eligible nodes fail then the cluster will be unavailable until
-at least one of them is restarted.
+{es} <<modules-discovery-quorums,requires a response from a majority of the
+master-eligible nodes>> in order to elect a master and to update the cluster
+state. This means that if you have three master-eligible nodes then the cluster
+will remain available even if one of them has failed. However if two of the
+three master-eligible nodes fail then the cluster will be unavailable until at
+least one of them is restarted.
 
 In very rare circumstances it may not be possible to restart enough nodes to
 restore the cluster's availability. If such a disaster occurs then you should
@@ -63,6 +63,25 @@ data loss since the node in question may not hold the latest cluster metadata,
 and this out-of-date metadata may make it impossible to use some or all of the
 indices in the cluster.
 
+The `elasticsearch-node unsafe-bootstrap` reports the term and version of the
+cluster state on the node on which it runs as follows:
+
+[source,txt]
+----
+Current node cluster state (term, version) pair is (4, 12)
+----
+
+If you have a choice of nodes on which to run this tool then you should pick
+one with a term that is as large as possible, and if there are multiple nodes
+with the same term then you should pick the one with the largest version. This
+identifies the node with the freshest cluster state, minimising the quantity of
+data that might be lost. For example, if the first node reports `(4, 12)` and a
+second node reports `(5, 3)`, then the second node is preferred since its term
+is larger.  However if the second node reports `(3, 17)` then the first node is
+preferred since its term is larger. If the second node reports `(4, 10)` then
+it has the same term as the first node, but has a smaller version, so the first
+node is preferred.
+
 [WARNING]
 Execution of this command can lead to arbitrary data loss. Only run this tool
 if you understand and accept the possible consequences and have exhausted all
@@ -74,21 +93,18 @@ The sequence of operations for using this tool are as follows:
 master-eligible nodes in the cluster, and they cannot be repaired or recovered
 by moving their data paths to healthy hardware.
 2. Stop **all** remaining master-eligible nodes.
-3. Run `elasticsearch-node unsafe-bootstrap` on each remaining
-master-eligible node but do not let the tool proceed with overriding node
-metadata. Remember (term, version) on each of the nodes.
-4. Compare (term, version) pairs using lexicographical order and pick
-master-eligible node with the highest (term, version).
-5. On this node, run the `elasticsearch-node unsafe-bootstrap` command as shown
+3. Select one of the remaining master-eligible nodes to become the new elected
+master as described above.
+4. On this node, run the `elasticsearch-node unsafe-bootstrap` command as shown
 below. Verify that the tool reported `Master node was successfully
 bootstrapped`.
-6. Start this node and verify that it is elected as the master node.
-7. Start all other master-eligible nodes and verify that each one joins the
+5. Start this node and verify that it is elected as the master node.
+6. Start all other master-eligible nodes and verify that each one joins the
 cluster.
-8. Any running master-ineligible nodes will automatically join the
+7. Any running master-ineligible nodes will automatically join the
 newly-elected master. Restart any previously-stopped nodes and verify that the
 cluster is now fully-formed.
-9. Investigate the data in the cluster to discover if any was lost during this
+8. Investigate the data in the cluster to discover if any was lost during this
 process.
 
 [WARNING]
@@ -101,17 +117,19 @@ The message `Master node was successfully bootstrapped` does not mean that
 there has been no data loss, it just means that tool was able to complete its
 job.
 
-Consider you cluster had 5 master-eligible nodes and you have permanently
-lost 3 of them. So you have 2 nodes remaining.
+As an example, suppose your cluster had five master-eligible nodes and you have
+permanently lost three of them, leaving two nodes remaining.
 
-* Run the tool on the 1st survived node.
+* Run the tool on the first remaining node, but answer `n` at the confirmation
+  step.
+
 [source,txt]
 ----
 node_1$ ./bin/elasticsearch-node unsafe-bootstrap
 
     WARNING: Elasticsearch MUST be stopped before running this tool.
 
-Current node cluster state (term, version) pair is (1, 12)
+Current node cluster state (term, version) pair is (4, 12)
 
 You should run this tool only if you have permanently lost half
 or more of the master-eligible nodes, and you cannot restore the cluster
@@ -123,7 +141,9 @@ Do you want to proceed?
 
 Confirm [y/N] n
 ----
-* Run the tool on the 2nd survived node.
+
+* Run the tool on the second remaining node, and again answer `n` at the
+  confirmation step.
 
 [source,txt]
 ----
@@ -131,7 +151,7 @@ node_2$ ./bin/elasticsearch-node unsafe-bootstrap
 
     WARNING: Elasticsearch MUST be stopped before running this tool.
 
-Current node cluster state (term, version) pair is (2, 3)
+Current node cluster state (term, version) pair is (5, 3)
 
 You should run this tool only if you have permanently lost half
 or more of the master-eligible nodes, and you cannot restore the cluster
@@ -143,19 +163,17 @@ Do you want to proceed?
 
 Confirm [y/N] n
 ----
-* Now you know that (term, version) pair on 1st node is (1, 12) and on the
-2nd node is (2, 3). It means that 2nd node has a latter cluster state and
-it's better to bootstrap using node 2.
+
+* Since the second node has a greater term it has a fresher cluster state, so
+  it is better to unsafely bootstrap the cluster using this node:
 
 [source,txt]
 ----
 node_2$ ./bin/elasticsearch-node unsafe-bootstrap
---------------------------------------------------------------------------
 
     WARNING: Elasticsearch MUST be stopped before running this tool.
 
-Current node cluster state (term, version) pair is (2, 3)
---------------------------------------------------------------------------
+Current node cluster state (term, version) pair is (5, 3)
 
 You should run this tool only if you have permanently lost half
 or more of the master-eligible nodes, and you cannot restore the cluster

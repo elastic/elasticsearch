@@ -317,7 +317,7 @@ public final class IndicesClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      *
-     * @deprecated This method uses an request and response objects which still refers to types, a deprecated feature.
+     * @deprecated This method uses request and response objects which still refers to types, a deprecated feature.
      * The method {@link #getFieldMappingAsync(GetFieldMappingsRequest, RequestOptions, ActionListener)} should be
      * used instead, which accepts a new request object.
      */

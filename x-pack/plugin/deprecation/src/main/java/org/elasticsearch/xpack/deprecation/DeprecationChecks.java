@@ -50,7 +50,8 @@ public class DeprecationChecks {
             NodeDeprecationChecks::gcsRepositoryChanges,
             NodeDeprecationChecks::fileDiscoveryPluginRemoved,
             NodeDeprecationChecks::defaultSSLSettingsRemoved,
-            NodeDeprecationChecks::watcherNotificationsSecureSettingsCheck
+            NodeDeprecationChecks::watcherNotificationsSecureSettingsCheck,
+            NodeDeprecationChecks::auditIndexSettingsCheck
         ));
 
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =

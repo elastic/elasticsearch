@@ -1,6 +1,8 @@
 [role="xpack"]
 [[audit-index]]
 === Index audit output
+deprecated[6.7.0, The index output type is deprecated and will be removed in 7.0.
+The sole output for the audit trail will be the <<audit-log-output, logfile>> type.]
 
 In addition to logging to a file, you can store audit logs in Elasticsearch
 rolling indices. These indices can be either on the same cluster, or on a

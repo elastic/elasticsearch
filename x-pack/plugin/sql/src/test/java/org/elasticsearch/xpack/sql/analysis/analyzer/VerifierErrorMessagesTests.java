@@ -529,4 +529,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:47: Cannot use an aggregate [MAX] for grouping",
                 error("SELECT MAX(date) FROM test GROUP BY HISTOGRAM(MAX(int), 1)"));
     }
+
+    public void testErrorMessageForPercentileWithSecondArgBasedOnAField() {
+        assertEquals("1:8: 2nd argument of PERCENTILE must be a constant, received [ABS(int)]",
+            error("SELECT PERCENTILE(int, ABS(int)) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileRankWithSecondArgBasedOnAField() {
+        assertEquals("1:8: 2nd argument of PERCENTILE_RANK must be a constant, received [ABS(int)]",
+            error("SELECT PERCENTILE_RANK(int, ABS(int)) FROM test"));
+    }
 }

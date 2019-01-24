@@ -25,6 +25,7 @@ import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class PutMappingRequestTests extends AbstractXContentTestCase<PutMappingRequest> {
 
@@ -45,7 +46,10 @@ public class PutMappingRequestTests extends AbstractXContentTestCase<PutMappingR
     @Override
     protected PutMappingRequest doParseInstance(XContentParser parser) throws IOException {
         PutMappingRequest request = new PutMappingRequest();
-        request.source(parser.map());
+        Map<String, Object> map = parser.map();
+        if (map.isEmpty() == false) {
+            request.source(map);
+        }
         return request;
     }
 
@@ -56,11 +60,16 @@ public class PutMappingRequestTests extends AbstractXContentTestCase<PutMappingR
 
     @Override
     protected void assertEqualInstances(PutMappingRequest expected, PutMappingRequest actual) {
-        try (XContentParser expectedJson = createParser(expected.xContentType().xContent(), expected.source());
-             XContentParser actualJson = createParser(actual.xContentType().xContent(), actual.source())) {
-            assertEquals(expectedJson.mapOrdered(), actualJson.mapOrdered());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        if (actual.source() != null) {
+            try (XContentParser expectedJson = createParser(expected.xContentType().xContent(), expected.source());
+                    XContentParser actualJson = createParser(actual.xContentType().xContent(), actual.source())) {
+                assertEquals(expectedJson.mapOrdered(), actualJson.mapOrdered());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            // if the original `source` is null, the parsed source should be so too
+            assertNull(expected.source());
         }
     }
 }

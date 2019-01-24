@@ -178,6 +178,10 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
     private static <T extends ToXContent> void mapValuesToXContent(ParseField field, Map<String, T> map, XContentBuilder builder,
                                                                    Params params) throws IOException {
+        if (map.isEmpty()) {
+            return;
+        }
+
         builder.startArray(field.getPreferredName());
         for (Map.Entry<String, T> entry : map.entrySet()) {
             entry.getValue().toXContent(builder, params);

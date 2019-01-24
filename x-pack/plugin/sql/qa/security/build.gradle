@@ -29,7 +29,6 @@ subprojects {
   integTestCluster {
     // Setup auditing so we can use it in some tests
     setting 'xpack.security.audit.enabled', 'true'
-    setting 'xpack.security.audit.outputs', 'logfile'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.license.self_generated.type', 'trial'
     // Setup roles used by tests
@@ -49,7 +48,6 @@ subprojects {
   runqa {
     // Setup auditing so we can use it in some tests
     setting 'xpack.security.audit.enabled', 'true'
-    setting 'xpack.security.audit.outputs', 'logfile'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.license.self_generated.type', 'trial'
     // Setup roles used by tests

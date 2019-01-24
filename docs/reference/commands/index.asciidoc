@@ -13,6 +13,7 @@ tasks from the command line:
 * <<saml-metadata>>
 * <<setup-passwords>>
 * <<shard-tool>>
+* <<node-tool>>
 * <<syskeygen>>
 * <<users-command>>
 
@@ -24,5 +25,6 @@ include::migrate-tool.asciidoc[]
 include::saml-metadata.asciidoc[]
 include::setup-passwords.asciidoc[]
 include::shard-tool.asciidoc[]
+include::node-tool.asciidoc[]
 include::syskeygen.asciidoc[]
 include::users-command.asciidoc[]

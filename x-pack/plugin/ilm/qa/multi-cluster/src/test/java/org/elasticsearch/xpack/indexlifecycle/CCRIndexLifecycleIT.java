@@ -210,7 +210,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     "\"mappings\": {\"_doc\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}, " +
                     "\"aliases\": {\"" + alias + "\":  {\"is_write_index\":  true}} }");
                 assertOK(leaderClient.performRequest(createIndexRequest));
-                // Check that the new index is creeg
+                // Check that the new index is created
                 Request checkIndexRequest = new Request("GET", "/_cluster/health/" + indexName);
                 checkIndexRequest.addParameter("wait_for_status", "green");
                 checkIndexRequest.addParameter("timeout", "70s");

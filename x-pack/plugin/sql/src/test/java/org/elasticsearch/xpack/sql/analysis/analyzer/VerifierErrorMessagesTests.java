@@ -366,4 +366,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: [INSERT] fourth argument must be [string], found value [3] type [integer]",
             error("SELECT INSERT('text', 1, 2, 3)"));
     }
+
+    public void testErrorMessageForPercentileWithSecondArgBasedOnAField() {
+        assertEquals("1:8: 2nd argument of PERCENTILE must be a constant, received [ABS(int)]",
+            error("SELECT PERCENTILE(int, ABS(int)) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileRankWithSecondArgBasedOnAField() {
+        assertEquals("1:8: 2nd argument of PERCENTILE_RANK must be a constant, received [ABS(int)]",
+            error("SELECT PERCENTILE_RANK(int, ABS(int)) FROM test"));
+    }
 }

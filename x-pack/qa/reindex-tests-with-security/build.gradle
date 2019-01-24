@@ -69,7 +69,7 @@ integTestCluster {
 
     // Check whether the cluster has started
     URL url = new URL("https://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}&wait_for_status=yellow");
-    for (int i = 0; i < 20; i++) {
+    for (int i = 20; i >= 0; i--) {
       // we use custom wait logic here for HTTPS
       HttpsURLConnection httpURLConnection = null;
       try {
@@ -84,10 +84,12 @@ integTestCluster {
           logger.info("Cluster has started");
           return true;
         } else {
-          logger.info("HTTP response was [{}]", httpURLConnection.getResponseCode());
+          logger.debug("HTTP response was [{}]", httpURLConnection.getResponseCode());
         }
       } catch (IOException e) {
-          logger.info("Failed to call cluster health - " + e)
+          if (i == 0) {
+              logger.error("Failed to call cluster health - " + e)
+          }
           logger.debug("Call to [{}] threw an exception", url, e)
       } finally {
         if (httpURLConnection != null) {

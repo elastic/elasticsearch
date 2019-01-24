@@ -38,6 +38,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -509,7 +510,8 @@ public class NodeJoinController {
             ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).blocks(ClusterBlocks.builder()
                 .blocks(currentState.blocks())
                 .removeGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)).build();
-            return ClusterState.builder(allocationService.deassociateDeadNodes(tmpState, false,
+            tmpState = PersistentTasksCustomMetaData.disassociateDeadNodes(tmpState);
+            return ClusterState.builder(allocationService.disassociateDeadNodes(tmpState, false,
                 "removed dead nodes on election"));
         }
 

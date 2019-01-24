@@ -67,19 +67,28 @@ public class TransportFollowInfoAction extends TransportMasterNodeReadAction<Fol
         List<String> concreteFollowerIndices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(state,
             IndicesOptions.STRICT_EXPAND_OPEN_CLOSED, request.getFollowerIndices()));
 
+        List<FollowerInfo> followerInfos = getFollowInfos(concreteFollowerIndices, state);
+        listener.onResponse(new FollowInfoAction.Response(followerInfos));
+    }
 
+    @Override
+    protected ClusterBlockException checkBlock(FollowInfoAction.Request request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+    }
+
+    static List<FollowerInfo> getFollowInfos(List<String> concreteFollowerIndices, ClusterState state) {
         List<FollowerInfo> followerInfos = new ArrayList<>();
         PersistentTasksCustomMetaData persistentTasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
 
-        for (IndexMetaData indexMetaData : state.metaData()) {
+        for (String index : concreteFollowerIndices) {
+            IndexMetaData indexMetaData = state.metaData().index(index);
             Map<String, String> ccrCustomData = indexMetaData.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
             if (ccrCustomData != null) {
                 Optional<ShardFollowTask> result;
                 if (persistentTasks != null) {
-                    result = persistentTasks.taskMap().values().stream()
-                        .map(persistentTask -> (ShardFollowTask) persistentTask.getParams())
-                        .filter(shardFollowTask -> concreteFollowerIndices.isEmpty() ||
-                            concreteFollowerIndices.contains(shardFollowTask.getFollowShardId().getIndexName()))
+                    result = persistentTasks.findTasks(ShardFollowTask.NAME, task -> true).stream()
+                        .map(task -> (ShardFollowTask) task.getParams())
+                        .filter(shardFollowTask -> index.equals(shardFollowTask.getFollowShardId().getIndexName()))
                         .findAny();
                 } else {
                     result = Optional.empty();
@@ -109,11 +118,6 @@ public class TransportFollowInfoAction extends TransportMasterNodeReadAction<Fol
             }
         }
 
-        listener.onResponse(new FollowInfoAction.Response(followerInfos));
-    }
-
-    @Override
-    protected ClusterBlockException checkBlock(FollowInfoAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return followerInfos;
     }
 }

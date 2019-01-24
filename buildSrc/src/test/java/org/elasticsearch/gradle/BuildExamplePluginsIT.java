@@ -40,14 +40,14 @@ import java.util.stream.Collectors;
 
 public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
 
-    private static List<File> EXAMPLE_PLUGINS = Collections.unmodifiableList(
+    private static final List<File> EXAMPLE_PLUGINS = Collections.unmodifiableList(
         Arrays.stream(
             Objects.requireNonNull(System.getProperty("test.build-tools.plugin.examples"))
                 .split(File.pathSeparator)
         ).map(File::new).collect(Collectors.toList())
     );
 
-    private static String BUILD_TOOLS_VERSION = Objects.requireNonNull(System.getProperty("test.version_under_test"));
+    private static final String BUILD_TOOLS_VERSION = Objects.requireNonNull(System.getProperty("test.version_under_test"));
 
     @Rule
     public TemporaryFolder tmpDir = new TemporaryFolder();

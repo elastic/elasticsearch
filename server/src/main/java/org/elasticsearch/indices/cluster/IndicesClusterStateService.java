@@ -26,7 +26,6 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -43,7 +42,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -58,8 +56,8 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.ReplicationTracker;
-import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardRelocatedException;
@@ -82,7 +80,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -127,7 +124,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final List<IndexEventListener> buildInIndexListener;
     private final PrimaryReplicaSyncer primaryReplicaSyncer;
     private final Consumer<ShardId> globalCheckpointSyncer;
-    private final TriConsumer<ShardId, Collection<RetentionLease>, ActionListener<ReplicationResponse>> retentionLeaseSyncer;
+    private final RetentionLeaseSyncer retentionLeaseSyncer;
 
     @Inject
     public IndicesClusterStateService(
@@ -161,7 +158,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 snapshotShardsService,
                 primaryReplicaSyncer,
                 globalCheckpointSyncAction::updateGlobalCheckpointForShard,
-                Objects.requireNonNull(retentionLeaseSyncAction)::updateRetentionLeaseForShard);
+                Objects.requireNonNull(retentionLeaseSyncAction)::updateRetentionLeasesForShard);
     }
 
     // for tests
@@ -180,7 +177,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final SnapshotShardsService snapshotShardsService,
             final PrimaryReplicaSyncer primaryReplicaSyncer,
             final Consumer<ShardId> globalCheckpointSyncer,
-            final TriConsumer<ShardId, Collection<RetentionLease>, ActionListener<ReplicationResponse>> retentionLeaseSyncer) {
+            final RetentionLeaseSyncer retentionLeaseSyncer) {
         this.settings = settings;
         this.buildInIndexListener =
                 Arrays.asList(
@@ -894,7 +891,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 RepositoriesService repositoriesService,
                 Consumer<IndexShard.ShardFailure> onShardFailure,
                 Consumer<ShardId> globalCheckpointSyncer,
-                TriConsumer<ShardId, Collection<RetentionLease>, ActionListener<ReplicationResponse>> retentionLeaseSyncer) throws IOException;
+                RetentionLeaseSyncer retentionLeaseSyncer) throws IOException;
 
         /**
          * Returns shard for the specified id if it exists otherwise returns <code>null</code>.

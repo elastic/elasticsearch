@@ -22,9 +22,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.WriteResponse;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -47,7 +44,6 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
@@ -223,7 +219,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         };
 
         // execution happens on the test thread, so no need to register an actual listener to callback
-        action.updateRetentionLeaseForShard(indexShard.shardId(), retentionLeases, ActionListener.wrap(() -> {}));
+        action.updateRetentionLeasesForShard(indexShard.shardId(), retentionLeases, ActionListener.wrap(() -> {}));
         assertTrue(invoked.get());
     }
 

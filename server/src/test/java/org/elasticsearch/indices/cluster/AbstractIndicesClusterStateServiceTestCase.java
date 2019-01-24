@@ -20,20 +20,18 @@
 package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.RetentionLease;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -50,7 +48,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -238,7 +235,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 final RepositoriesService repositoriesService,
                 final Consumer<IndexShard.ShardFailure> onShardFailure,
                 final Consumer<ShardId> globalCheckpointSyncer,
-                final TriConsumer<ShardId, Collection<RetentionLease>, ActionListener<ReplicationResponse>> retentionLeaseSyncer) throws IOException {
+                final RetentionLeaseSyncer retentionLeaseSyncer) throws IOException {
             failRandomly();
             MockIndexService indexService = indexService(recoveryState.getShardId().getIndex());
             MockIndexShard indexShard = indexService.createShard(shardRouting);

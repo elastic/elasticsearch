@@ -1,3 +1,4 @@
+# Only used for testing the docker images
 version: '3'
 services:
   elasticsearch-default:

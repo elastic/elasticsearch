@@ -21,10 +21,9 @@ package org.elasticsearch.client.indices;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.TimedRequest;
-import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.Strings;
 
-public class GetMappingsRequest extends TimedRequest implements Validatable {
+public class GetMappingsRequest extends TimedRequest {
 
     private boolean local = false;
     private boolean includeDefaults = false;

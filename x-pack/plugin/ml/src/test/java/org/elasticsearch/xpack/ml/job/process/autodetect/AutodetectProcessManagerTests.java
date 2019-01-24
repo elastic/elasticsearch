@@ -141,6 +141,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(metaData.getAliasAndIndexLookup()).thenReturn(aliasOrIndexSortedMap);
         clusterState = mock(ClusterState.class);
         when(clusterState.getMetaData()).thenReturn(metaData);
+        when(clusterState.metaData()).thenReturn(metaData);
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")

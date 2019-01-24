@@ -117,8 +117,8 @@ public class IndexDeprecationChecks {
             } else {
                 return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                     "Index created before 6.0",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
-                        "breaking-changes-7.0.html",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                        "#_indices_created_before_7_0",
                     "This index was created using version: " + createdWith);
             }
 

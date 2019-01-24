@@ -131,7 +131,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             stateBuilder.nodes(newNodesBuilder.build());
             clusterState = stateBuilder.build();
             if (nodesRemoved) {
-                clusterState = strategy.deassociateDeadNodes(clusterState, true, "reroute");
+                clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
             } else {
                 clusterState = strategy.reroute(clusterState, "reroute");
             }

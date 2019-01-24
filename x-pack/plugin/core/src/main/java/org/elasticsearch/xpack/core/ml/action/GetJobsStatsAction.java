@@ -84,7 +84,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         public Request(StreamInput in) throws IOException {
             super(in);
             jobId = in.readString();
-            expandedJobsIds = in.readList(StreamInput::readString);
+            expandedJobsIds = in.readStringList();
             if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
                 allowNoJobs = in.readBoolean();
             }
@@ -94,7 +94,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
-            out.writeStringList(expandedJobsIds);
+            out.writeStringCollection(expandedJobsIds);
             if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
                 out.writeBoolean(allowNoJobs);
             }

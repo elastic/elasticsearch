@@ -25,10 +25,11 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.LimitedRole;
+import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
@@ -126,7 +127,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                 .privileges(DeleteAction.NAME, IndexAction.NAME)
                 .build());
         request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
-        final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture();
+        final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, future);
 
         final HasPrivilegesResponse response = future.get();
@@ -164,7 +165,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                 .privileges("delete", "index", "manage")
                 .build());
         request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
-        final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture();
+        final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, future);
 
         final HasPrivilegesResponse response = future.get();
@@ -293,7 +294,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                         .build()
         );
 
-        final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture();
+        final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, future);
 
         final HasPrivilegesResponse response = future.get();
@@ -487,6 +488,44 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                 "monitor").isCompleteMatch(), is(false));
     }
 
+    public void testLimitedRoleHasPrivilegesApi() throws Exception {
+        final ApplicationPrivilege kibanaRead = defineApplicationPrivilege("kibana", "read", "data:read/*");
+        final ApplicationPrivilege kibanaWrite = defineApplicationPrivilege("kibana", "write", "data:write/*");
+        Role baseRole = Role.builder("base-role").cluster(Sets.newHashSet("manage", "monitor"), Collections.emptySet())
+                .add(IndexPrivilege.ALL, "all-*").addApplicationPrivilege(kibanaRead, Collections.singleton("*"))
+                .addApplicationPrivilege(kibanaWrite, Collections.singleton("*")).build();
+
+        Role limitedByRole = Role.builder("limited-by").cluster(ClusterPrivilege.MONITOR).add(IndexPrivilege.READ, "all-read-*")
+                .addApplicationPrivilege(kibanaRead, Collections.singleton("*")).build();
+
+        role = LimitedRole.createLimitedRole(baseRole, limitedByRole);
+
+        assertThat(hasPrivileges(indexPrivileges("read", "all-read-1", "all-read-2", "all-read-*"), "monitor").isCompleteMatch(), is(true));
+        assertThat(hasPrivileges(indexPrivileges("read", "all-1", "all-999"), "monitor").isCompleteMatch(), is(false));
+        assertThat(hasPrivileges(indexPrivileges("read", "all-999"), "manage").isCompleteMatch(), is(false));
+        assertThat(hasPrivileges(indexPrivileges("write", "all-999"), "monitor").isCompleteMatch(), is(false));
+        assertThat(hasPrivileges(indexPrivileges("write", "all-*"), "manage").isCompleteMatch(), is(false));
+
+        HasPrivilegesResponse response = hasPrivileges(indexPrivileges("read", "all-read-999"), "manage", "monitor");
+        assertThat(response.getClusterPrivileges().get("manage"), is(false));
+        assertThat(response.getClusterPrivileges().get("monitor"), is(true));
+        assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(1));
+        assertThat(response.getIndexPrivileges(), containsInAnyOrder(new ResourcePrivileges("all-read-999",
+                MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("read", true).map())));
+
+        response = hasPrivileges(new RoleDescriptor.IndicesPrivileges[] { indexPrivileges("read", "all-read-*") },
+                new RoleDescriptor.ApplicationResourcePrivileges[] {
+                        RoleDescriptor.ApplicationResourcePrivileges.builder().application("kibana").resources("*").privileges("read")
+                                .build(),
+                        RoleDescriptor.ApplicationResourcePrivileges.builder().application("kibana").resources("*").privileges("write")
+                                .build() },
+                "monitor");
+        assertThat(response.isCompleteMatch(), is(false));
+        final Set<ResourcePrivileges> kibanaPrivileges = response.getApplicationPrivileges().get("kibana");
+        assertThat(kibanaPrivileges,
+                containsInAnyOrder(new ResourcePrivileges("*", mapBuilder().put("write", false).put("read", true).map())));
+    }
+
     private RoleDescriptor.IndicesPrivileges indexPrivileges(String priv, String... indices) {
         return RoleDescriptor.IndicesPrivileges.builder()
                 .indices(indices)
@@ -511,7 +550,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         request.clusterPrivileges(clusterPrivileges);
         request.indexPrivileges(indicesPrivileges);
         request.applicationPrivileges(appPrivileges);
-        final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture();
+        final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, future);
         final HasPrivilegesResponse response = future.get();
         assertThat(response, notNullValue());

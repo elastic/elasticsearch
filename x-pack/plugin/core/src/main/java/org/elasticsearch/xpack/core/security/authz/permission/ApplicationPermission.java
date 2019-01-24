@@ -12,12 +12,15 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -81,6 +84,43 @@ public final class ApplicationPermission {
         final boolean matched = permissions.stream().anyMatch(e -> e.grants(other, resourceAutomaton));
         logger.trace("Permission [{}] {} grant [{} , {}]", this, matched ? "does" : "does not", other, resource);
         return matched;
+    }
+
+    /**
+     * For a given application, checks for the privileges for resources and returns an instance of {@link ResourcesPrivileges} holding a map
+     * of resource to {@link ResourcePrivileges} where the resource is application resource and the map of application privilege to whether
+     * it is allowed or not.
+     *
+     * @param applicationName application name
+     * @param forResources list of application resources
+     * @param forPrivilegeNames list of application privileges
+     * @param storedPrivileges stored {@link ApplicationPrivilegeDescriptor} for the application
+     * @return an instance of {@link ResourcesPrivileges}
+     */
+    public ResourcesPrivileges getResourcePrivileges(final String applicationName, List<String> forResources,
+                                                                 List<String> forPrivilegeNames,
+                                                                 Collection<ApplicationPrivilegeDescriptor> storedPrivileges) {
+        boolean allowAll = true;
+        Map<String, ResourcePrivileges> result = new LinkedHashMap<>();
+        for (String checkResource : forResources) {
+            for (String checkPrivilegeName : forPrivilegeNames) {
+                final Set<String> nameSet = Collections.singleton(checkPrivilegeName);
+                final ApplicationPrivilege checkPrivilege = ApplicationPrivilege.get(applicationName, nameSet, storedPrivileges);
+                assert checkPrivilege.getApplication().equals(applicationName) : "Privilege " + checkPrivilege + " should have application "
+                        + applicationName;
+                assert checkPrivilege.name().equals(nameSet) : "Privilege " + checkPrivilege + " should have name " + nameSet;
+
+                ResourcePrivileges.Builder builder = ResourcePrivileges.builder().setResource(checkResource);
+                if (grants(checkPrivilege, checkResource)) {
+                    builder.addPrivilege(checkPrivilegeName, Boolean.TRUE);
+                } else {
+                    builder.addPrivilege(checkPrivilegeName, Boolean.FALSE);
+                    allowAll = false;
+                }
+                result.compute(checkResource, (k, v) -> (v == null) ? builder.build() : builder.addPrivileges(v.getPrivileges()).build());
+            }
+        }
+        return new ResourcesPrivileges(allowAll, result);
     }
 
     @Override

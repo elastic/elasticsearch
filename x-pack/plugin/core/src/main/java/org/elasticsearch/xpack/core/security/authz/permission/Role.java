@@ -14,6 +14,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -93,6 +95,22 @@ public class Role {
         return indices().check(action);
     }
 
+
+    /**
+     * For given index patterns and index privileges determines allowed privileges and creates an instance of {@link ResourcesPrivileges}
+     * holding a map of resource to {@link ResourcePrivileges} where resource is index pattern and the map of index privilege to whether it
+     * is allowed or not.
+     *
+     * @param forIndexPatterns list of index patterns
+     * @param allowRestrictedIndices {@code true} whether restricted indices are allowed
+     * @param forPrivileges list of index privileges
+     * @return a map of resource to {@link ResourcePrivileges}
+     */
+    public ResourcesPrivileges getResourcePrivileges(List<String> forIndexPatterns, boolean allowRestrictedIndices,
+                                                                 List<String> forPrivileges) {
+        return indices().getResourcePrivileges(forIndexPatterns, allowRestrictedIndices, forPrivileges);
+    }
+
     /**
      * Check if cluster permissions allow for the given action
      *
@@ -102,6 +120,33 @@ public class Role {
      */
     public boolean checkClusterAction(String action, TransportRequest request) {
         return cluster().check(action, request);
+    }
+
+    /**
+     * Check if cluster permissions allow for the given cluster privilege
+     *
+     * @param clusterPrivilege cluster privilege
+     * @return {@code true} if cluster privilege is allowed else returns {@code false}
+     */
+    public boolean checkClusterPrivilege(ClusterPrivilege clusterPrivilege) {
+        return cluster().check(clusterPrivilege);
+    }
+
+    /**
+     * For a given application, checks for the privileges for resources and returns an instance of {@link ResourcesPrivileges} holding a map
+     * of resource to {@link ResourcePrivileges} where the resource is application resource and the map of application privilege to whether
+     * it is allowed or not.
+     *
+     * @param applicationName application name
+     * @param forResources list of application resources
+     * @param forPrivilegeNames list of application privileges
+     * @param storedPrivileges stored {@link ApplicationPrivilegeDescriptor} for the application
+     * @return an instance of {@link ResourcesPrivileges}
+     */
+    public ResourcesPrivileges getResourcePrivileges(final String applicationName, List<String> forResources,
+                                                                 List<String> forPrivilegeNames,
+                                                                 Collection<ApplicationPrivilegeDescriptor> storedPrivileges) {
+        return application().getResourcePrivileges(applicationName, forResources, forPrivilegeNames, storedPrivileges);
     }
 
     /**
@@ -236,4 +281,5 @@ public class Role {
             ), Sets.newHashSet(arp.getResources()));
         }
     }
+
 }

@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.security.action.user;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -21,14 +19,11 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
+import org.elasticsearch.xpack.core.security.authz.permission.ResourcesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
-import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
@@ -107,106 +102,41 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
         Map<String, Boolean> cluster = new HashMap<>();
         for (String checkAction : request.clusterPrivileges()) {
             final ClusterPrivilege checkPrivilege = ClusterPrivilege.get(Collections.singleton(checkAction));
-            final ClusterPrivilege rolePrivilege = userRole.cluster().privilege();
-            cluster.put(checkAction, testPrivilege(checkPrivilege, rolePrivilege.getAutomaton()));
+            cluster.put(checkAction, userRole.checkClusterPrivilege(checkPrivilege));
         }
         boolean allMatch = cluster.values().stream().allMatch(Boolean::booleanValue);
 
-        final Map<IndicesPermission.Group, Automaton> predicateCache = new HashMap<>();
-
-        final Map<String, HasPrivilegesResponse.ResourcePrivileges> indices = new LinkedHashMap<>();
+        final List<ResourcePrivileges> indices = new ArrayList<>();
         for (RoleDescriptor.IndicesPrivileges check : request.indexPrivileges()) {
-            for (String index : check.getIndices()) {
-                final Map<String, Boolean> privileges = new HashMap<>();
-                final HasPrivilegesResponse.ResourcePrivileges existing = indices.get(index);
-                if (existing != null) {
-                    privileges.putAll(existing.getPrivileges());
-                }
-                for (String privilege : check.getPrivileges()) {
-                    if (testIndexMatch(index, check.allowRestrictedIndices(), privilege, userRole, predicateCache)) {
-                        logger.debug(() -> new ParameterizedMessage("Role [{}] has [{}] on index [{}]",
-                            Strings.arrayToCommaDelimitedString(userRole.names()), privilege, index));
-                        privileges.put(privilege, true);
-                    } else {
-                        logger.debug(() -> new ParameterizedMessage("Role [{}] does not have [{}] on index [{}]",
-                            Strings.arrayToCommaDelimitedString(userRole.names()), privilege, index));
-                        privileges.put(privilege, false);
-                        allMatch = false;
-                    }
-                }
-                indices.put(index, new HasPrivilegesResponse.ResourcePrivileges(index, privileges));
-            }
+            ResourcesPrivileges resourcePrivileges = userRole.getResourcePrivileges(Arrays.asList(check.getIndices()),
+                    check.allowRestrictedIndices(), Arrays.asList(check.getPrivileges()));
+            allMatch = allMatch && resourcePrivileges.allAllowed();
+            indices.addAll(resourcePrivileges.getResourceToResourcePrivileges().values());
         }
 
-        final Map<String, Collection<HasPrivilegesResponse.ResourcePrivileges>> privilegesByApplication = new HashMap<>();
+        final Map<String, Collection<ResourcePrivileges>> privilegesByApplication = new HashMap<>();
         for (String applicationName : getApplicationNames(request)) {
             logger.debug("Checking privileges for application {}", applicationName);
-            final Map<String, HasPrivilegesResponse.ResourcePrivileges> appPrivilegesByResource = new LinkedHashMap<>();
+            Map<String, ResourcePrivileges> allAppPrivsByResource = new LinkedHashMap<>();
             for (RoleDescriptor.ApplicationResourcePrivileges p : request.applicationPrivileges()) {
-                if (applicationName.equals(p.getApplication())) {
-                    for (String resource : p.getResources()) {
-                        final Map<String, Boolean> privileges = new HashMap<>();
-                        final HasPrivilegesResponse.ResourcePrivileges existing = appPrivilegesByResource.get(resource);
-                        if (existing != null) {
-                            privileges.putAll(existing.getPrivileges());
+                ResourcesPrivileges appPrivsByResource = userRole.getResourcePrivileges(applicationName, Arrays.asList(p.getResources()),
+                        Arrays.asList(p.getPrivileges()), applicationPrivileges);
+                allMatch = allMatch && appPrivsByResource.allAllowed();
+                appPrivsByResource.getResourceToResourcePrivileges().forEach((k1, v1) -> {
+                    allAppPrivsByResource.compute(k1, (k0, v0) -> {
+                        if (v0 == null) {
+                            return v1;
+                        } else {
+                            Map<String, Boolean> newPrivs = new HashMap<>(v0.getPrivileges());
+                            newPrivs.putAll(v1.getPrivileges());
+                            return new ResourcePrivileges(k1, newPrivs);
                         }
-                        for (String privilege : p.getPrivileges()) {
-                            if (testResourceMatch(applicationName, resource, privilege, userRole, applicationPrivileges)) {
-                                logger.debug(() -> new ParameterizedMessage("Role [{}] has [{} {}] on resource [{}]",
-                                    Strings.arrayToCommaDelimitedString(userRole.names()), applicationName, privilege, resource));
-                                privileges.put(privilege, true);
-                            } else {
-                                logger.debug(() -> new ParameterizedMessage("Role [{}] does not have [{} {}] on resource [{}]",
-                                    Strings.arrayToCommaDelimitedString(userRole.names()), applicationName, privilege, resource));
-                                privileges.put(privilege, false);
-                                allMatch = false;
-                            }
-                        }
-                        appPrivilegesByResource.put(resource, new HasPrivilegesResponse.ResourcePrivileges(resource, privileges));
-                    }
-                }
+                    });
+                });
             }
-            privilegesByApplication.put(applicationName, appPrivilegesByResource.values());
+            privilegesByApplication.put(applicationName, allAppPrivsByResource.values());
         }
-
-        listener.onResponse(new HasPrivilegesResponse(request.username(), allMatch, cluster, indices.values(), privilegesByApplication));
-    }
-
-    private boolean testIndexMatch(String checkIndexPattern, boolean allowRestrictedIndices, String checkPrivilegeName, Role userRole,
-            Map<IndicesPermission.Group, Automaton> predicateCache) {
-        final IndexPrivilege checkPrivilege = IndexPrivilege.get(Collections.singleton(checkPrivilegeName));
-
-        final Automaton checkIndexAutomaton = IndicesPermission.Group.buildIndexMatcherAutomaton(allowRestrictedIndices, checkIndexPattern);
-
-        List<Automaton> privilegeAutomatons = new ArrayList<>();
-        for (IndicesPermission.Group group : userRole.indices().groups()) {
-            final Automaton groupIndexAutomaton = predicateCache.computeIfAbsent(group,
-                    g -> IndicesPermission.Group.buildIndexMatcherAutomaton(g.allowRestrictedIndices(), g.indices()));
-            if (Operations.subsetOf(checkIndexAutomaton, groupIndexAutomaton)) {
-                final IndexPrivilege rolePrivilege = group.privilege();
-                if (rolePrivilege.name().contains(checkPrivilegeName)) {
-                    return true;
-                }
-                privilegeAutomatons.add(rolePrivilege.getAutomaton());
-            }
-        }
-        return testPrivilege(checkPrivilege, Automatons.unionAndMinimize(privilegeAutomatons));
-    }
-
-    private static boolean testPrivilege(Privilege checkPrivilege, Automaton roleAutomaton) {
-        return Operations.subsetOf(checkPrivilege.getAutomaton(), roleAutomaton);
-    }
-
-    private boolean testResourceMatch(String application, String checkResource, String checkPrivilegeName, Role userRole,
-                                      Collection<ApplicationPrivilegeDescriptor> privileges) {
-        final Set<String> nameSet = Collections.singleton(checkPrivilegeName);
-        final ApplicationPrivilege checkPrivilege = ApplicationPrivilege.get(application, nameSet, privileges);
-        assert checkPrivilege.getApplication().equals(application)
-            : "Privilege " + checkPrivilege + " should have application " + application;
-        assert checkPrivilege.name().equals(nameSet)
-            : "Privilege " + checkPrivilege + " should have name " + nameSet;
-
-        return userRole.application().grants(checkPrivilege, checkResource);
+        listener.onResponse(new HasPrivilegesResponse(request.username(), allMatch, cluster, indices, privilegesByApplication));
     }
 
 }

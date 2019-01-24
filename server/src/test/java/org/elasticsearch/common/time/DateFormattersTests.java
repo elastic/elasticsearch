@@ -147,6 +147,22 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(formatter, instanceOf(JavaDateFormatter.class));
     }
 
+    public void testEpochFormatting() {
+        long seconds = randomLongBetween(0, 130L * 365 * 86400); // from 1970 epoch till around 2100
+        long nanos = randomLongBetween(0, 999_999_999L);
+        Instant instant = Instant.ofEpochSecond(seconds, nanos);
+
+        DateFormatter millisFormatter = DateFormatter.forPattern("epoch_millis");
+        String millis = millisFormatter.format(instant);
+        Instant millisInstant = Instant.from(millisFormatter.parse(millis));
+        assertThat(millisInstant.toEpochMilli(), is(instant.toEpochMilli()));
+
+        DateFormatter secondsFormatter = DateFormatter.forPattern("epoch_second");
+        String formattedSeconds = secondsFormatter.format(instant);
+        Instant secondsInstant = Instant.from(secondsFormatter.parse(formattedSeconds));
+        assertThat(secondsInstant.getEpochSecond(), is(instant.getEpochSecond()));
+    }
+
     public void testParsingStrictNanoDates() {
         DateFormatter formatter = DateFormatters.forPattern("strict_date_optional_time_nanos");
         formatter.format(formatter.parse("2016-01-01T00:00:00.000"));

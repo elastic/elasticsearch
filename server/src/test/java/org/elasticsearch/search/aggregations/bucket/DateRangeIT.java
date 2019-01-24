@@ -996,39 +996,24 @@ public class DateRangeIT extends ESIntegTestCase {
                 .addAggregation(dateRange("date_range").field("date").addRange(1000, 3000).addRange(3000, 4000)).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         List<Bucket> buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
-        if (JavaVersion.current().getVersion().get(0) == 8) {
-            assertBucket(buckets.get(0), 2L, "1000.0-3000.0", 1000000L, 3000000L);
-            assertBucket(buckets.get(1), 1L, "3000.0-4000.0", 3000000L, 4000000L);
-        } else {
-            assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
-            assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
-        }
+        assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
 
         // using no format should also work when and to/from are string values
         searchResponse = client().prepareSearch(indexName).setSize(0)
                 .addAggregation(dateRange("date_range").field("date").addRange("1000", "3000").addRange("3000", "4000")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
-        if (JavaVersion.current().getVersion().get(0) == 8) {
-            assertBucket(buckets.get(0), 2L, "1000.0-3000.0", 1000000L, 3000000L);
-            assertBucket(buckets.get(1), 1L, "3000.0-4000.0", 3000000L, 4000000L);
-        } else {
-            assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
-            assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
-        }
+        assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
 
         // also e-notation should work, fractional parts should be truncated
         searchResponse = client().prepareSearch(indexName).setSize(0)
                 .addAggregation(dateRange("date_range").field("date").addRange(1.0e3, 3000.8123).addRange(3000.8123, 4.0e3)).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
-        if (JavaVersion.current().getVersion().get(0) == 8) {
-            assertBucket(buckets.get(0), 2L, "1000.0-3000.0", 1000000L, 3000000L);
-            assertBucket(buckets.get(1), 1L, "3000.0-4000.0", 3000000L, 4000000L);
-        } else {
-            assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
-            assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
-        }
+        assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
 
         // using different format should work when to/from is compatible with
         // format in aggregation

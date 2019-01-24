@@ -381,7 +381,7 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(1, intSetting.getConcreteSettingForNamespace(group3).get(groupThreeSettings).intValue());
         assertEquals(Arrays.asList(5, 6), listSetting.getConcreteSettingForNamespace(group3).get(groupThreeSettings));
         assertEquals(1, results.size());
-        assertEquals(2, groupThreeSettings.size());
+        assertEquals(1, groupThreeSettings.size());
         results.clear();
 
         service.applySettings(Settings.builder()

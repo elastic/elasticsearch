@@ -53,7 +53,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
      * This test simply checks to make sure nothing crashes.  Test indexes 100-150 documents,
      * constructs 20-100 random queries and tries to profile them
      */
-    @AwaitsFix(bugUrl = "https://todo")
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/LUCENE-8658")
     public void testProfileQuery() throws Exception {
         createIndex("test");
         ensureGreen();

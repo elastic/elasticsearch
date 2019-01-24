@@ -47,6 +47,8 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
         ).map(File::new).collect(Collectors.toList())
     );
 
+    private static String BUILD_TOOLS_VERSION = Objects.requireNonNull(System.getProperty("test.version_under_test"));
+
     @Rule
     public TemporaryFolder tmpDir = new TemporaryFolder();
 
@@ -96,7 +98,8 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
 
     private void adaptBuildScriptForTest() throws IOException {
         // Add the local repo as a build script URL so we can pull in build-tools and apply the plugin under test
-        // + is ok because we have no other repo and just want to pick up latest
+        // we need to specify the exact version of build-tools because the esplugin plugin will add more repos, we want to get
+        // the version
         writeBuildScript(
             "buildscript {\n" +
                 "    repositories {\n" +
@@ -105,7 +108,7 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
                 "        }\n" +
                 "    }\n" +
                 "    dependencies {\n" +
-                "        classpath \"org.elasticsearch.gradle:build-tools:+\"\n" +
+                "        classpath \"org.elasticsearch.gradle:build-tools:" + BUILD_TOOLS_VERSION + "\"\n" +
                 "    }\n" +
                 "}\n"
         );

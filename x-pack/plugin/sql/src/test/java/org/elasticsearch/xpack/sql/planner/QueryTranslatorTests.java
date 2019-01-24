@@ -170,7 +170,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testDateRangeCast() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > CAST('1969-05-13T12:34:56Z' AS DATE)");
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > CAST('1969-05-13T12:34:56Z' AS DATETIME)");
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
@@ -277,7 +277,7 @@ public class QueryTranslatorTests extends ESTestCase {
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.isNull(params.a0))",
             aggFilter.scriptTemplate().toString());
-        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
+        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int){a->"));
     }
 
     public void testTranslateIsNotNullExpression_HavingClause_Painless() {
@@ -290,7 +290,7 @@ public class QueryTranslatorTests extends ESTestCase {
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.isNotNull(params.a0))",
             aggFilter.scriptTemplate().toString());
-        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
+        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int){a->"));
     }
 
     public void testTranslateInExpression_WhereClause() {
@@ -328,8 +328,10 @@ public class QueryTranslatorTests extends ESTestCase {
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
         SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
-        assertEquals("Line 1:52: Comparisons against variables are not (currently) supported; " +
-                "offender [keyword] in [keyword IN (foo, bar, keyword)]", ex.getMessage());
+        assertEquals(
+                "Line 1:52: Comparisons against variables are not (currently) supported; "
+                        + "offender [keyword] in [keyword IN ('foo', 'bar', keyword)]",
+                ex.getMessage());
     }
 
     public void testTranslateInExpression_WhereClause_Painless() {
@@ -358,7 +360,7 @@ public class QueryTranslatorTests extends ESTestCase {
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.in(params.a0, params.v0))",
             aggFilter.scriptTemplate().toString());
-        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
+        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int){a->"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=[10, 20]}]"));
     }
 
@@ -372,7 +374,7 @@ public class QueryTranslatorTests extends ESTestCase {
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.in(params.a0, params.v0))",
             aggFilter.scriptTemplate().toString());
-        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
+        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int){a->"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=[10]}]"));
 
     }
@@ -387,7 +389,7 @@ public class QueryTranslatorTests extends ESTestCase {
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.in(params.a0, params.v0))",
             aggFilter.scriptTemplate().toString());
-        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
+        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int){a->"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=[10, null, 20, 30]}]"));
     }
 
@@ -406,7 +408,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils." +
             operation.name().toLowerCase(Locale.ROOT) + "(params.a0),params.v0))",
             aggFilter.scriptTemplate().toString());
-        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
+        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int){a->"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=10}]"));
     }
 
@@ -478,7 +480,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("+2-0", h.interval().fold().toString());
         Expression field = h.field();
         assertEquals(FieldAttribute.class, field.getClass());
-        assertEquals(DataType.DATE, field.dataType());
+        assertEquals(DataType.DATETIME, field.dataType());
     }
     
     public void testCountAndCountDistinctFolding() {

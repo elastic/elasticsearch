@@ -51,7 +51,7 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
     private static final String LDAPCACERT_PATH = "/ca.crt";
 
     @Before
-    public void init() throws Exception {
+    public void init() {
         Path caPath = getDataPath(LDAPCACERT_PATH);
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
@@ -60,13 +60,13 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
          */
         globalSettings = Settings.builder()
             .put("path.home", createTempDir())
-            .put("xpack.ssl.certificate_authorities", caPath)
+            .put("xpack.security.authc.realms.ldap.oldap-test.ssl.certificate_authorities", caPath)
             .build();
         threadPool = new TestThreadPool("LdapUserSearchSessionFactoryTests");
     }
 
     @After
-    public void shutdown() throws InterruptedException {
+    public void shutdown() {
         terminate(threadPool);
     }
 

@@ -475,20 +475,18 @@ The default is `jks`.
 `ssl.verification_mode`::
 Indicates the type of verification when using `ldaps` to protect against man
 in the middle attacks and certificate forgery. Values are `none`, `certificate`,
-and `full`. Defaults to the value of `xpack.ssl.verification_mode`.
+and `full`. Defaults to `full`.
 +
-See <<ssl-tls-settings,`xpack.ssl.verification_mode`>> for an explanation of
-these values.
+See <<ssl-tls-settings,`ssl.verification_mode`>> for an explanation of these values.
 
 `ssl.supported_protocols`::
-Supported protocols for TLS/SSL (with versions). Defaults to the value of
-`xpack.ssl.supported_protocols`.
+Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.2,TLSv1.1,TLSv1`.
 
 `ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
 communicating with the LDAP server. 
 Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
-Java Cryptography Architecture documentation]. Defaults to the value of
-`xpack.ssl.cipher_suites`.
+Java Cryptography Architecture documentation]. See <<ssl-tls-settings,`ssl.cipher_suites`>>
+for the default value.
 
 `cache.ttl`::
 Specifies the time-to-live for cached user entries. A user and a hash of its 
@@ -721,20 +719,18 @@ The default is `jks`.
 `ssl.verification_mode`::
 Indicates the type of verification when using `ldaps` to protect against man
 in the middle attacks and certificate forgery. Values are `none`, `certificate`,
-and `full`. Defaults to the value of `xpack.ssl.verification_mode`.
+and `full`. Defaults to `full`.
 +
-See <<ssl-tls-settings,`xpack.ssl.verification_mode`>> for an explanation of
-these values.
+See <<ssl-tls-settings,`ssl.verification_mode`>> for an explanation of these values.
 
 `ssl.supported_protocols`::
-Supported protocols for TLS/SSL (with versions). Defaults to the value of
-`xpack.ssl.supported_protocols`.
+Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.2, TLSv1.1, TLSv1`.
 
 `ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
 communicating with the Active Directory server. 
 Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
-Java Cryptography Architecture documentation]. Defaults to the value of
-`xpack.ssl.cipher_suites`.
+Java Cryptography Architecture documentation]. See <<ssl-tls-settings,`ssl.cipher_suites`>> for
+the default values.
 
 `cache.ttl`::
 Specifies the time-to-live for cached user entries. A user and a hash of its 
@@ -1133,8 +1129,7 @@ One of `full`
 certificate path, but not the hostname) or `none` (perform no verification).
 Defaults to `full`.
 +
-See <<ssl-tls-settings,`xpack.ssl.verification_mode`>> for a more detailed
-explanation of these values.
+See <<ssl-tls-settings,`ssl.verification_mode`>> for a more detailed explanation of these values.
 
 `ssl.supported_protocols`::
 Specifies the supported protocols for TLS/SSL.
@@ -1204,14 +1199,12 @@ through the list of URLs will continue until a successful connection is made.
 
 [float]
 [[ssl-tls-settings]]
-==== Default TLS/SSL settings
-You can configure the following TLS/SSL settings in
-`elasticsearch.yml`. For more information, see
-{stack-ov}/encrypting-communications.html[Encrypting communications]. These
-settings are used unless they have been overridden by more specific
-settings such as those for HTTP or Transport.
+==== Default values for TLS/SSL settings
+In general, the values below represent the default values for the various TLS
+settings. For more information, see
+{stack-ov}/encrypting-communications.html[Encrypting communications].
 
-`xpack.ssl.supported_protocols`::
+`ssl.supported_protocols`::
 Supported protocols with versions. Valid protocols: `SSLv2Hello`,
 `SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`. Defaults to `TLSv1.2`, `TLSv1.1`,
 `TLSv1`. 
@@ -1221,15 +1214,15 @@ NOTE: If `xpack.security.fips_mode.enabled` is `true`, you cannot use `SSLv2Hell
 or `SSLv3`. See <<fips-140-compliance>>.
 --
 
-`xpack.ssl.client_authentication`::
+`ssl.client_authentication`::
 Controls the server's behavior in regard to requesting a certificate
 from client connections. Valid values are `required`, `optional`, and `none`.
 `required` forces a client to present a certificate, while `optional`
 requests a client certificate but the client is not required to present one.
-Defaults to `required`. This global setting is not applicable for HTTP, see
+Defaults to `required`, except for HTTP, which defaults to `none`. See
  <<http-tls-ssl-settings>>.
 
-`xpack.ssl.verification_mode`::
+`ssl.verification_mode`::
 Controls the verification of certificates. Valid values are:
 - `full`, which verifies that the provided certificate is signed by a trusted
        authority (CA) and also verifies that the server's hostname (or IP
@@ -1244,7 +1237,7 @@ Controls the verification of certificates. Valid values are:
 +
 The default value is `full`.
 
-`xpack.ssl.cipher_suites`::
+`ssl.cipher_suites`::
 Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
 Java Cryptography Architecture documentation]. Defaults to `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`,
 `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`,
@@ -1255,112 +1248,15 @@ Jurisdiction Policy Files_ has been installed, the default value also includes `
 
 [float]
 [[tls-ssl-key-settings]]
-===== Default TLS/SSL key and trusted certificate settings
+===== TLS/SSL key and trusted certificate settings
 
 The following settings are used to specify a private key, certificate, and the
-trusted certificates that should be used when communicating over an SSL/TLS connection.
-If none of the settings below are specified, the 
-<<ssl-tls-settings,default settings>> are used. If no trusted certificates are configured, the default certificates that are trusted by the JVM will be
-trusted along with the certificate(s) from the <<tls-ssl-key-settings, key settings>>. The key and certificate must be in place
-for connections that require client authentication or when acting as a SSL enabled server.
-
-[float]
-===== PEM encoded files
-
-When using PEM encoded files, use the following settings:
-
-`xpack.ssl.key`::
-Path to the PEM encoded file containing the private key.
-
-`xpack.ssl.key_passphrase`::
-The passphrase that is used to decrypt the private key. This value is
-optional as the key might not be encrypted.
-
-`xpack.ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
-The passphrase that is used to decrypt the private key. This value is
-optional as the key might not be encrypted.
-
-`xpack.ssl.certificate`::
-Path to a PEM encoded file containing the certificate (or certificate chain)
-that will be presented to clients when they connect.
-
-`xpack.ssl.certificate_authorities`::
-List of paths to the PEM encoded certificate files that should be trusted.
-
-[float]
-===== Java keystore files
-
-When using Java keystore files (JKS), which contain the private key, certificate
-and certificates that should be trusted, use the following settings:
-
-`xpack.ssl.keystore.path`::
-Path to the keystore that holds the private key and certificate.
-
-`xpack.ssl.keystore.password`::
-Password to the keystore.
-
-`xpack.ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
-Password to the keystore.
-
-`xpack.ssl.keystore.key_password`::
-Password for the private key in the keystore. Defaults to the
-same value as `xpack.ssl.keystore.password`.
-
-`xpack.ssl.keystore.secure_key_password` (<<secure-settings,Secure>>)::
-Password for the private key in the keystore.
-
-`xpack.ssl.truststore.path`::
-Path to the truststore file.
-
-`xpack.ssl.truststore.password`::
-Password to the truststore.
-
-`xpack.ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
-Password to the truststore.
-
-WARNING: If `xpack.security.fips_mode.enabled` is `true`, you cannot use Java 
-keystore files. See <<fips-140-compliance>>. 
-
-[float]
-===== PKCS#12 files
-
-When using PKCS#12 container files (`.p12` or `.pfx`), which contain the
-private key, certificate, and certificates that should be trusted, use
-the following settings:
-
-`xpack.ssl.keystore.path`::
-Path to the PKCS#12 file that holds the private key and certificate.
-
-`xpack.ssl.keystore.type`::
-Set this to `PKCS12`.
-
-`xpack.ssl.keystore.password`::
-Password to the PKCS#12 file.
-
-`xpack.ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
-Password to the PKCS#12 file.
-
-`xpack.ssl.keystore.key_password`::
-Password for the private key in the PKCS12 file.
-Defaults to the same value as `xpack.ssl.keystore.password`.
-
-`xpack.ssl.keystore.secure_key_password` (<<secure-settings,Secure>>)::
-Password for the private key in the PKCS12 file.
-
-`xpack.ssl.truststore.path`::
-Path to the truststore file.
-
-`xpack.ssl.truststore.type`::
-Set this to `PKCS12`.
-
-`xpack.ssl.truststore.password`::
-Password to the truststore.
-
-`xpack.ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
-Password to the truststore.
-
-WARNING: If `xpack.security.fips_mode.enabled` is `true`, you cannot use PKCS#12 
-keystore files. See <<fips-140-compliance>>. 
+trusted certificates that should be used when communicating over an SSL/TLS
+connection. If no trusted certificates are configured, the default certificates
+that are trusted by the JVM will be trusted along with the certificate(s)
+associated with a key in the same context. The key and certificate must be in
+place for connections that require client authentication or when acting as a
+SSL enabled server.
 
 [[pkcs12-truststore-note]]
 [NOTE]
@@ -1374,33 +1270,6 @@ a PKCS#12 container includes trusted certificate ("anchor") entries look for
 `2.16.840.1.113894.746875.1.1: <Unsupported tag 6>` in the
 `openssl pkcs12 -info` output, or `trustedCertEntry` in the
 `keytool -list` output.
-
-[float]
-===== PKCS#11 tokens
-
-When using a PKCS#11 cryptographic token, which contains the
-private key, certificate, and certificates that should be trusted, use
-the following settings:
-
-`xpack.ssl.keystore.type`::
-Set this to `PKCS11`.
-
-`xpack.ssl.truststore.type`::
-Set this to `PKCS11`.
-
-
-[[pkcs11-truststore-note]]
-[NOTE]
-When configuring the PKCS#11 token that your JVM is configured to use as
-a keystore or a truststore for Elasticsearch, the PIN for the token can be
-configured by setting the appropriate value to `xpack.ssl.truststore.password`
-or `xpack.ssl.truststore.secure_password`. In the absence of the above, {es} will
-fallback to use he appropriate JVM setting (`-Djavax.net.ssl.trustStorePassword`)
-if that is set.
-Since there can only be one PKCS#11 token configured, only one keystore and
-truststore will be usable for configuration in {es}. This in turn means
-that only one certificate can be used for TLS both in the transport and the
-http layer.
 
 [[http-tls-ssl-settings]]
 :ssl-prefix:             xpack.security.http
@@ -1433,16 +1302,6 @@ this is `xpack.security.transport.ssl.key`. In order to use this setting in a
 transport profile, use the prefix `transport.profiles.$PROFILE.xpack.security.` and
 append the portion of the setting after `xpack.security.transport.`. For the key
 setting, this would be `transport.profiles.$PROFILE.xpack.security.ssl.key`.
-
-[[auditing-tls-ssl-settings]]
-:ssl-prefix:             xpack.security.audit.index.client.xpack
-:component:              Auditing
-:client-auth-default!:
-:server!:
-
-include::ssl-settings.asciidoc[]
-
-See also <<remote-audit-settings>>. 
 
 [float]
 [[ip-filtering-settings]]

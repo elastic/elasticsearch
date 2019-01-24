@@ -110,8 +110,8 @@ public final class InvalidateApiKeyResponse extends ActionResponse implements To
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeStringList(invalidatedApiKeys);
-        out.writeStringList(previouslyInvalidatedApiKeys);
+        out.writeStringCollection(invalidatedApiKeys);
+        out.writeStringCollection(previouslyInvalidatedApiKeys);
         out.writeCollection(errors, StreamOutput::writeException);
     }
 

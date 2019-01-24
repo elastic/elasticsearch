@@ -45,7 +45,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * the delay marker). These are shards that have become unassigned due to a node leaving
  * and which were assigned the delay marker based on the index delay setting
  * {@link UnassignedInfo#INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING}
- * (see {@link AllocationService#deassociateDeadNodes(RoutingAllocation)}).
+ * (see {@link AllocationService#disassociateDeadNodes(RoutingAllocation)}.
  * This class is responsible for choosing the next (closest) delay expiration of a
  * delayed shard to schedule a reroute to remove the delay marker.
  * The actual removal of the delay marker happens in

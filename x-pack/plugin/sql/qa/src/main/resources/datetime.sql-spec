@@ -6,8 +6,9 @@
 // Time NOT IMPLEMENTED in H2 on TIMESTAMP WITH TIME ZONE - hence why these are moved to CSV
 //
 
-// WEEK_OF_YEAR moved to CSV tests, because H2 builds its Calendar with the local Locale, we consider ROOT as the default Locale
-// This has implications on the results, which could change given specific locales where the rules for determining the start of a year are different.
+// WEEK_OF_YEAR moved to CSV tests, because H2 builds its Calendar with the local Locale,
+// we consider ROOT as the default Locale. This has implications on the results, which could
+// change given specific locales where the rules for determining the start of a year are different.
 
 //
 // DateTime
@@ -31,10 +32,10 @@ SELECT MONTHNAME(CAST('2018-09-03' AS TIMESTAMP)) month FROM "test_emp" limit 1;
 dayNameFromStringDateTime
 SELECT DAYNAME(CAST('2018-09-03' AS TIMESTAMP)) day FROM "test_emp" limit 1;
 
-quarterSelect
+dateTimeQuarter
 SELECT QUARTER(hire_date) q, hire_date FROM test_emp ORDER BY hire_date LIMIT 15;
 
-dayOfWeek
+dateTimeDayOfWeek
 SELECT DAY_OF_WEEK(birth_date) day, birth_date FROM test_emp ORDER BY DAY_OF_WEEK(birth_date);
 
 //

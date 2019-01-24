@@ -24,11 +24,11 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -60,6 +60,7 @@ import static java.lang.Math.max;
 import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.elasticsearch.cluster.ClusterState.UNKNOWN_VERSION;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
+import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.zen.ZenDiscovery.PING_TIMEOUT_SETTING;
 
 /**
@@ -80,7 +81,12 @@ public class DiscoveryUpgradeService {
     public static final Setting<Boolean> ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING =
         Setting.boolSetting("discovery.zen.unsafe_rolling_upgrades_enabled", true, Setting.Property.NodeScope);
 
-    private final ElectMasterService electMasterService;
+    /**
+     * Dummy {@link ElectMasterService} that is only used to choose the best 6.x master from the discovered nodes, ignoring the
+     * `minimum_master_nodes` setting.
+     */
+    private static final ElectMasterService electMasterService = new ElectMasterService(Settings.EMPTY);
+
     private final TransportService transportService;
     private final BooleanSupplier isBootstrappedSupplier;
     private final JoinHelper joinHelper;
@@ -93,12 +99,11 @@ public class DiscoveryUpgradeService {
     @Nullable // null if no active joining round
     private volatile JoiningRound joiningRound;
 
-    public DiscoveryUpgradeService(Settings settings, ClusterSettings clusterSettings, TransportService transportService,
+    public DiscoveryUpgradeService(Settings settings, TransportService transportService,
                                    BooleanSupplier isBootstrappedSupplier, JoinHelper joinHelper,
                                    Supplier<Iterable<DiscoveryNode>> peersSupplier,
                                    Consumer<VotingConfiguration> initialConfigurationConsumer) {
         assert Version.CURRENT.major == Version.V_6_6_0.major + 1 : "remove this service once unsafe upgrades are no longer needed";
-        electMasterService = new ElectMasterService(settings);
         this.transportService = transportService;
         this.isBootstrappedSupplier = isBootstrappedSupplier;
         this.joinHelper = joinHelper;
@@ -107,12 +112,9 @@ public class DiscoveryUpgradeService {
         this.bwcPingTimeout = BWC_PING_TIMEOUT_SETTING.get(settings);
         this.enableUnsafeBootstrappingOnUpgrade = ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING.get(settings);
         this.clusterName = CLUSTER_NAME_SETTING.get(settings);
-
-        clusterSettings.addSettingsUpdateConsumer(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
-            electMasterService::minimumMasterNodes); // TODO reject update if the new value is too large
     }
 
-    public void activate(Optional<DiscoveryNode> lastKnownLeader) {
+    public void activate(Optional<DiscoveryNode> lastKnownLeader, ClusterState lastAcceptedClusterState) {
         // called under coordinator mutex
 
         if (isBootstrappedSupplier.getAsBoolean()) {
@@ -122,8 +124,13 @@ public class DiscoveryUpgradeService {
         assert lastKnownLeader.isPresent() == false || Coordinator.isZen1Node(lastKnownLeader.get()) : lastKnownLeader;
         // if there was a leader and it's not a old node then we must have been bootstrapped
 
+        final Settings dynamicSettings = lastAcceptedClusterState.metaData().settings();
+        final int minimumMasterNodes = DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(dynamicSettings)
+            ? DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(dynamicSettings)
+            : lastAcceptedClusterState.getMinimumMasterNodesOnPublishingMaster();
+
         assert joiningRound == null : joiningRound;
-        joiningRound = new JoiningRound(lastKnownLeader.isPresent());
+        joiningRound = new JoiningRound(enableUnsafeBootstrappingOnUpgrade && lastKnownLeader.isPresent(), minimumMasterNodes);
         joiningRound.scheduleNextAttempt();
     }
 
@@ -160,13 +167,19 @@ public class DiscoveryUpgradeService {
 
     private class JoiningRound {
         private final boolean upgrading;
+        private final int minimumMasterNodes;
 
-        JoiningRound(boolean upgrading) {
+        JoiningRound(boolean upgrading, int minimumMasterNodes) {
             this.upgrading = upgrading;
+            this.minimumMasterNodes = minimumMasterNodes;
         }
 
         private boolean isRunning() {
             return joiningRound == this && isBootstrappedSupplier.getAsBoolean() == false;
+        }
+
+        private boolean canBootstrap(Set<DiscoveryNode> discoveryNodes) {
+            return upgrading && minimumMasterNodes <= discoveryNodes.stream().filter(DiscoveryNode::isMasterNode).count();
         }
 
         void scheduleNextAttempt() {
@@ -189,26 +202,22 @@ public class DiscoveryUpgradeService {
                     // this set of nodes is reasonably fresh - the PeerFinder cleans up nodes to which the transport service is not
                     // connected each time it wakes up (every second by default)
 
-                    logger.debug("nodes: {}", discoveryNodes);
+                    logger.debug("upgrading={}, minimumMasterNodes={}, nodes={}", upgrading, minimumMasterNodes, discoveryNodes);
 
-                    if (electMasterService.hasEnoughMasterNodes(discoveryNodes)) {
-                        if (discoveryNodes.stream().anyMatch(Coordinator::isZen1Node)) {
-                            electBestOldMaster(discoveryNodes);
-                        } else if (upgrading && enableUnsafeBootstrappingOnUpgrade) {
-                            // no Zen1 nodes found, but the last-known master was a Zen1 node, so this is a rolling upgrade
-                            transportService.getThreadPool().generic().execute(() -> {
-                                try {
-                                    initialConfigurationConsumer.accept(new VotingConfiguration(discoveryNodes.stream()
-                                        .map(DiscoveryNode::getId).collect(Collectors.toSet())));
-                                } catch (Exception e) {
-                                    logger.debug("exception during bootstrapping upgrade, retrying", e);
-                                } finally {
-                                    scheduleNextAttempt();
-                                }
-                            });
-                        } else {
-                            scheduleNextAttempt();
-                        }
+                    if (discoveryNodes.stream().anyMatch(Coordinator::isZen1Node)) {
+                        electBestOldMaster(discoveryNodes);
+                    } else if (canBootstrap(discoveryNodes)) {
+                        // no Zen1 nodes found, but the last-known master was a Zen1 node, so this is a rolling upgrade
+                        transportService.getThreadPool().generic().execute(() -> {
+                            try {
+                                initialConfigurationConsumer.accept(new VotingConfiguration(discoveryNodes.stream()
+                                    .map(DiscoveryNode::getId).collect(Collectors.toSet())));
+                            } catch (Exception e) {
+                                logger.debug("exception during bootstrapping upgrade, retrying", e);
+                            } finally {
+                                scheduleNextAttempt();
+                            }
+                        });
                     } else {
                         scheduleNextAttempt();
                     }

@@ -125,18 +125,19 @@ public class TestingConventionsTasks extends DefaultTask {
     }
 
     @Input
-    public Set<String> getMainClassNames() {
+    public Set<String> getMainClassNamedLikeTests() {
         SourceSetContainer javaSourceSets = Boilerplate.getJavaSourceSets(getProject());
         if (javaSourceSets.findByName(SourceSet.MAIN_SOURCE_SET_NAME) == null) {
             // some test projects don't have a main source set
             return Collections.emptySet();
         }
-        return Boilerplate.getJavaSourceSets(getProject()).getByName(SourceSet.MAIN_SOURCE_SET_NAME)
+        return javaSourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME)
             .getOutput().getClassesDirs().getAsFileTree()
             .getFiles().stream()
             .filter(file -> file.getName().endsWith(".class"))
             .map(File::getName)
             .map(name -> name.substring(0, name.length() - 6))
+            .filter(this::implementsNamingConvention)
             .collect(Collectors.toSet());
     }
 
@@ -257,9 +258,7 @@ public class TestingConventionsTasks extends DefaultTask {
                 // TODO: check that the testing tasks are included in the right task based on the name ( from the rule )
                 checkNoneExists(
                     "Classes matching the test naming convention should be in test not main",
-                    getMainClassNames().stream()
-                        .filter(this::implementsNamingConvention)
-                        .collect(Collectors.toSet())
+                    getMainClassNamedLikeTests()
                 )
             );
         }

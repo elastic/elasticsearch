@@ -134,9 +134,15 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         // Submit a job that will start after DEFAULT_STARTING_INTERVAL, and reschedule itself after running
         threadPool.scheduleUnlessShuttingDown(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
 
-        if (clusterService.state().getNodes().getDataNodes().size() > 1) {
-            // Submit an info update job to be run immediately
-            threadPool.executor(executorName()).execute(() -> maybeRefresh());
+        try {
+            if (clusterService.state().getNodes().getDataNodes().size() > 1) {
+                // Submit an info update job to be run immediately
+                threadPool.executor(executorName()).execute(() -> maybeRefresh());
+            }
+        } catch (EsRejectedExecutionException ex) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Couldn't schedule cluster info update task - node might be shutting down", ex);
+            }
         }
     }
 

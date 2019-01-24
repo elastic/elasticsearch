@@ -130,11 +130,11 @@ public class FieldHitExtractor implements HitExtractor {
         }
         if (dataType == DataType.DATETIME) {
             if (values instanceof String) {
-                return DateUtils.of(Long.parseLong(values.toString()));
+                return DateUtils.asDateTime(Long.parseLong(values.toString()));
             }
             // returned by nested types...
             if (values instanceof DateTime) {
-                return DateUtils.of((DateTime) values);
+                return DateUtils.asDateTime((DateTime) values);
             }
         }
         if (values instanceof Long || values instanceof Double || values instanceof String || values instanceof Boolean) {

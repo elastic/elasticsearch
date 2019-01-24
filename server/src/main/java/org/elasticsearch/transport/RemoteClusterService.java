@@ -379,6 +379,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     @Override
     protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress, boolean compressionEnabled,
                                        TimeValue pingSchedule) {
+        if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+            throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
+        }
         ConnectionProfile oldProfile = remoteClusterConnectionProfiles.get(clusterAlias);
         ConnectionProfile newProfile;
         if (oldProfile != null) {

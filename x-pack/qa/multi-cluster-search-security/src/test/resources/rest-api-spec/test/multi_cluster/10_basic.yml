@@ -97,6 +97,10 @@ teardown:
               terms:
                 field: f1.keyword
 
+  - match: {_clusters.total: 2}
+  - match: {_clusters.successful: 2}
+  - match: {_clusters.skipped: 0}
+  - match: {_clusters.ccs_reduce_mode: "remote"}
   - match: { _shards.total: 5 }
   - match: { hits.total: 6}
   - match: { hits.hits.0._index: "my_remote_cluster:test_index"}
@@ -115,6 +119,10 @@ teardown:
               terms:
                 field: f1.keyword
 
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
+  - match: {_clusters.ccs_reduce_mode: "remote"}
   - match: { _shards.total: 3 }
   - match: { hits.total: 6}
   - match: { hits.hits.0._index: "my_remote_cluster:test_index"}
@@ -134,6 +142,10 @@ teardown:
               terms:
                 field: f1.keyword
 
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
+  - match: {_clusters.ccs_reduce_mode: "remote"}
   - match: { _shards.total: 3 }
   - match: { hits.total: 6}
   - match: { hits.hits.0._index: "my_remote_cluster:test_index"}
@@ -152,6 +164,7 @@ teardown:
               terms:
                 field: f1.keyword
 
+  - is_false: _clusters
   - match: { _shards.total: 2 }
   - match: { hits.total: 5}
   - match: { hits.hits.0._index: "local_index"}
@@ -182,6 +195,10 @@ teardown:
         rest_total_hits_as_int: true
         index: test_remote_cluster:test_index
 
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
+  - match: {_clusters.ccs_reduce_mode: "remote"}
   - match: { _shards.total: 3 }
   - match: { hits.total: 6 }
   - match: { hits.hits.0._index: "test_remote_cluster:test_index" }
@@ -193,6 +210,10 @@ teardown:
         rest_total_hits_as_int: true
         index: "*_remote_cluster:test_ind*"
 
+  - match: {_clusters.total: 2}
+  - match: {_clusters.successful: 2}
+  - match: {_clusters.skipped: 0}
+  - match: {_clusters.ccs_reduce_mode: "remote"}
   - match: { _shards.total: 6 }
   - match: { hits.total: 12 }
 
@@ -205,6 +226,10 @@ teardown:
         rest_total_hits_as_int: true
         index: my_remote_cluster:aliased_test_index
 
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
+  - match: {_clusters.ccs_reduce_mode: "remote"}
   - match: { _shards.total: 3 }
   - match: { hits.total: 2 }
   - match: { hits.hits.0._source.filter_field: 1 }
@@ -219,6 +244,10 @@ teardown:
         rest_total_hits_as_int: true
         index: my_remote_cluster:secure_alias # TODO make this a wildcard once
 
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
+  - match: {_clusters.ccs_reduce_mode: "remote"}
   - match: { _shards.total: 2 }
   - match: { hits.total: 1 }
   - is_true: hits.hits.0._source.secure

@@ -180,7 +180,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         String indexName = "test_index_exists_index_present";
         createIndex(indexName, Settings.EMPTY);
 
-        org.elasticsearch.action.admin.indices.get.GetIndexRequest request = new org.elasticsearch.action.admin.indices.get.GetIndexRequest();
+        org.elasticsearch.action.admin.indices.get.GetIndexRequest request
+            = new org.elasticsearch.action.admin.indices.get.GetIndexRequest();
         request.indices(indexName);
 
         boolean response = execute(request, highLevelClient().indices()::exists, highLevelClient().indices()::existsAsync,

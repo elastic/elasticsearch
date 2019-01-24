@@ -68,11 +68,11 @@ public class Line implements Geometry {
     }
 
     public double[] getLats() {
-        return lats;
+        return lats.clone();
     }
 
     public double[] getLons() {
-        return lons;
+        return lons.clone();
     }
 
     @Override

@@ -128,77 +128,85 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
 
     private void indexShape(ParseContext context, Object luceneShape) {
         if (luceneShape instanceof Geometry) {
-            ((Geometry) luceneShape).visit(new GeometryVisitor<Void>() {
-                @Override
-                public Void visit(Circle circle) {
-                    throw new IllegalArgumentException("invalid shape type found [Circle] while indexing shape");
-                }
-
-                @Override
-                public Void visit(GeometryCollection<?> collection) {
-                    for (Geometry geometry : collection) {
-                        geometry.visit(this);
-                    }
-                    return null;
-                }
-
-                @Override
-                public Void visit(org.elasticsearch.geo.geometry.Line line) {
-                    indexFields(context, LatLonShape.createIndexableFields(name(), new Line(line.getLats(), line.getLons())));
-                    return null;
-                }
-
-                @Override
-                public Void visit(LinearRing ring) {
-                    throw new IllegalArgumentException("invalid shape type found [LinearRing] while indexing shape");
-                }
-
-                @Override
-                public Void visit(MultiLine multiLine) {
-                    for (org.elasticsearch.geo.geometry.Line line : multiLine) {
-                        visit(line);
-                    }
-                    return null;
-                }
-
-                @Override
-                public Void visit(MultiPoint multiPoint) {
-                    for(Point point : multiPoint) {
-                        visit(point);
-                    }
-                    return null;
-                }
-
-                @Override
-                public Void visit(MultiPolygon multiPolygon) {
-                    for(org.elasticsearch.geo.geometry.Polygon polygon : multiPolygon) {
-                        visit(polygon);
-                    }
-                    return null;
-                }
-
-                @Override
-                public Void visit(Point point) {
-                    indexFields(context, LatLonShape.createIndexableFields(name(), point.getLat(), point.getLon()));
-                    return null;
-                }
-
-                @Override
-                public Void visit(org.elasticsearch.geo.geometry.Polygon polygon) {
-                    indexFields(context, LatLonShape.createIndexableFields(name(), toLucenePolygon(polygon)));
-                    return null;
-                }
-
-                @Override
-                public Void visit(org.elasticsearch.geo.geometry.Rectangle r) {
-                    Polygon p = new Polygon(new double[]{r.getMinLat(), r.getMinLat(), r.getMaxLat(), r.getMaxLat(), r.getMinLat()},
-                        new double[]{r.getMinLon(), r.getMaxLon(), r.getMaxLon(), r.getMinLon(), r.getMinLon()});
-                    indexFields(context, LatLonShape.createIndexableFields(name(), p));
-                    return null;
-                }
-            });
+            ((Geometry) luceneShape).visit(new LuceneGeometryIndexer(context));
         } else {
             throw new IllegalArgumentException("invalid shape type found [" + luceneShape.getClass() + "] while indexing shape");
+        }
+    }
+
+    private class LuceneGeometryIndexer implements GeometryVisitor<Void> {
+        private ParseContext context;
+
+        private LuceneGeometryIndexer(ParseContext context) {
+            this.context = context;
+        }
+
+        @Override
+        public Void visit(Circle circle) {
+            throw new IllegalArgumentException("invalid shape type found [Circle] while indexing shape");
+        }
+
+        @Override
+        public Void visit(GeometryCollection<?> collection) {
+            for (Geometry geometry : collection) {
+                geometry.visit(this);
+            }
+            return null;
+        }
+
+        @Override
+        public Void visit(org.elasticsearch.geo.geometry.Line line) {
+            indexFields(context, LatLonShape.createIndexableFields(name(), new Line(line.getLats(), line.getLons())));
+            return null;
+        }
+
+        @Override
+        public Void visit(LinearRing ring) {
+            throw new IllegalArgumentException("invalid shape type found [LinearRing] while indexing shape");
+        }
+
+        @Override
+        public Void visit(MultiLine multiLine) {
+            for (org.elasticsearch.geo.geometry.Line line : multiLine) {
+                visit(line);
+            }
+            return null;
+        }
+
+        @Override
+        public Void visit(MultiPoint multiPoint) {
+            for(Point point : multiPoint) {
+                visit(point);
+            }
+            return null;
+        }
+
+        @Override
+        public Void visit(MultiPolygon multiPolygon) {
+            for(org.elasticsearch.geo.geometry.Polygon polygon : multiPolygon) {
+                visit(polygon);
+            }
+            return null;
+        }
+
+        @Override
+        public Void visit(Point point) {
+            indexFields(context, LatLonShape.createIndexableFields(name(), point.getLat(), point.getLon()));
+            return null;
+        }
+
+        @Override
+        public Void visit(org.elasticsearch.geo.geometry.Polygon polygon) {
+            indexFields(context, LatLonShape.createIndexableFields(name(), toLucenePolygon(polygon)));
+            return null;
+        }
+
+        @Override
+        public Void visit(org.elasticsearch.geo.geometry.Rectangle r) {
+            Polygon p = new Polygon(new double[]{r.getMinLat(), r.getMinLat(), r.getMaxLat(), r.getMaxLat(), r.getMinLat()},
+                new double[]{r.getMinLon(), r.getMaxLon(), r.getMaxLon(), r.getMinLon(), r.getMinLon()});
+            indexFields(context, LatLonShape.createIndexableFields(name(), p));
+            return null;
         }
     }
 

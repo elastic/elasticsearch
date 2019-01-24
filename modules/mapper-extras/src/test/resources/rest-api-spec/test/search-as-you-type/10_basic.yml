@@ -52,7 +52,7 @@ setup:
         body:
           query:
             term:
-              "a_field": "quick"
+              a_field: "quick"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
@@ -69,7 +69,7 @@ setup:
         body:
           query:
             term:
-              "a_field._2gram": "quick red"
+              a_field._2gram: "quick red"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
@@ -81,7 +81,7 @@ setup:
         body:
           query:
             term:
-              "a_field._2gram": "red fox"
+              a_field._2gram: "red fox"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
@@ -93,7 +93,7 @@ setup:
         body:
           query:
             term:
-              "a_field._2gram": "fox lazy"
+              a_field._2gram: "fox lazy"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
@@ -105,7 +105,7 @@ setup:
         body:
           query:
             term:
-              "a_field._2gram": "lazy brown"
+              a_field._2gram: "lazy brown"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
@@ -117,12 +117,12 @@ setup:
         body:
           query:
             term:
-              "a_field._2gram": "brown dog"
+              a_field._2gram: "brown dog"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
-# make sure we're not just always returning a match
+  # make sure we're not just always returning a match
   - do:
       search:
         rest_total_hits_as_int: true
@@ -130,7 +130,7 @@ setup:
         body:
           query:
             term:
-              "a_field._2gram": "avoid matching"
+              a_field._2gram: "avoid matching"
 
   - match: { hits.total: 0 }
 
@@ -144,7 +144,7 @@ setup:
         body:
           query:
             term:
-              "a_field._3gram": "quick red fox"
+              a_field._3gram: "quick red fox"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
@@ -156,7 +156,7 @@ setup:
         body:
           query:
             term:
-              "a_field._3gram": "red fox lazy"
+              a_field._3gram: "red fox lazy"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
@@ -168,7 +168,7 @@ setup:
         body:
           query:
             term:
-              "a_field._3gram": "fox lazy brown"
+              a_field._3gram: "fox lazy brown"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
@@ -180,7 +180,7 @@ setup:
         body:
           query:
             term:
-              "a_field._3gram": "lazy brown dog"
+              a_field._3gram: "lazy brown dog"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
@@ -193,7 +193,7 @@ setup:
         body:
           query:
             term:
-              "a_field._3gram": "avoid matching"
+              a_field._3gram: "avoid matching"
 
   - match: { hits.total: 0 }
 
@@ -207,7 +207,7 @@ setup:
         body:
           query:
             term:
-              "a_field._4gram": "quick red fox lazy"
+              a_field._4gram: "quick red fox lazy"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
@@ -219,7 +219,7 @@ setup:
         body:
           query:
             term:
-              "a_field._4gram": "red fox lazy brown"
+              a_field._4gram: "red fox lazy brown"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
@@ -231,7 +231,7 @@ setup:
         body:
           query:
             term:
-              "a_field._4gram": "fox lazy brown dog"
+              a_field._4gram: "fox lazy brown dog"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
@@ -244,15 +244,15 @@ setup:
         body:
           query:
             term:
-              "a_field._4gram": "avoid matching"
+              a_field._4gram: "avoid matching"
 
   - match: { hits.total: 0 }
 
-# we won't check all the terms that this field generates because there are many
+  # we won't check all the terms that this field generates because there are many
 ---
 "search on prefix":
 
-# search term as prefix
+  # search term as prefix
   - do:
       search:
         rest_total_hits_as_int: true
@@ -260,12 +260,12 @@ setup:
         body:
           query:
             term:
-              "a_field._index_prefix": "quick re"
+              a_field._index_prefix: "quick re"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
-# search term as infix
+  # search term as infix
   - do:
       search:
         rest_total_hits_as_int: true
@@ -273,12 +273,12 @@ setup:
         body:
           query:
             term:
-              "a_field._index_prefix": "lazy br"
+              a_field._index_prefix: "lazy br"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
-# ensure we're generating the last token as a shingle
+  # ensure we're generating the last token as a shingle
   - do:
       search:
         rest_total_hits_as_int: true
@@ -286,7 +286,216 @@ setup:
         body:
           query:
             term:
-              "a_field._index_prefix": "do"
+              a_field._index_prefix: "do"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"prefix query on shingle fields":
+
+  # prefix on root field
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            prefix:
+              a_field: "quic"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+  # infix on root field
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            prefix:
+              a_field: "red fo"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+  # prefix on 2gram
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            prefix:
+              a_field._2gram: "quic"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+  # infix on 2gram
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            prefix:
+              a_field._2gram: "red fo"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+  # prefix on 3gram
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            prefix:
+              a_field._3gram: "quic"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+  # infix on 3gram
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            prefix:
+              a_field._3gram: "red fo"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+  # prefix on 4gram
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            prefix:
+              a_field._4gram: "quic"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+  # infix on 4gram
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            prefix:
+              a_field._4gram: "red fo"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"prefix query covers all shingle sizes with prefix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            prefix:
+              a_field: "quic"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            prefix:
+              a_field: "quick r"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            prefix:
+              a_field: "quick red fo"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            prefix:
+              a_field: "quick red fox la"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"prefix query covers all shingle sizes with infix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            prefix:
+              a_field: "fo"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            prefix:
+              a_field: "fox laz"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            prefix:
+              a_field: "fox lazy br"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            prefix:
+              a_field: "fox lazy brown do"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }

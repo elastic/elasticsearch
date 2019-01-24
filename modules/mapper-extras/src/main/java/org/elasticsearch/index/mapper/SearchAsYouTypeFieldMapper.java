@@ -33,6 +33,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -60,8 +61,8 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "search_as_you_type";
-    private static final int LOWEST_MAX_SHINGLE_SIZE = 2;
-    private static final int HIGHEST_MAX_SHINGLE_SIZE = 4;
+    private static final int MAX_SHINGLE_SIZE_LOWER_BOUND = 2;
+    private static final int MAX_SHINGLE_SIZE_UPPER_BOUND = 4;
     private static final String PREFIX_FIELD_SUFFIX = "._index_prefix";
 
     public static class Defaults {
@@ -115,9 +116,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         public Builder maxShingleSize(int maxShingleSize) {
-            if (maxShingleSize < LOWEST_MAX_SHINGLE_SIZE || maxShingleSize > HIGHEST_MAX_SHINGLE_SIZE) {
-                throw new MapperParsingException("[max_shingle_size] must be at least [" + LOWEST_MAX_SHINGLE_SIZE + "] and at most [" +
-                    HIGHEST_MAX_SHINGLE_SIZE + "], got [" + maxShingleSize + "]");
+            if (maxShingleSize < MAX_SHINGLE_SIZE_LOWER_BOUND || maxShingleSize > MAX_SHINGLE_SIZE_UPPER_BOUND) {
+                throw new MapperParsingException("[max_shingle_size] must be at least [" + MAX_SHINGLE_SIZE_LOWER_BOUND + "] and at most " +
+                    "[" + MAX_SHINGLE_SIZE_UPPER_BOUND + "], got [" + maxShingleSize + "]");
             }
             this.maxShingleSize = maxShingleSize;
             return builder;
@@ -189,6 +190,10 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             this.minChars = other.minChars;
             this.maxChars = other.maxChars;
             this.parentField = other.parentField;
+        }
+
+        boolean termLengthWithinBounds(int length) {
+            return length >= minChars - 1 && length <= maxChars;
         }
 
         @Override
@@ -330,10 +335,12 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         void setPrefixFieldType(PrefixFieldType prefixFieldType) {
+            checkIfFrozen();
             this.prefixFieldType = prefixFieldType;
         }
 
         void setShingleSize(int shingleSize) {
+            checkIfFrozen();
             this.shingleSize = shingleSize;
         }
 
@@ -353,6 +360,22 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+            if (prefixFieldType == null || prefixFieldType.termLengthWithinBounds(value.length()) == false) {
+                return super.prefixQuery(value, method, context);
+            } else {
+                final Query query = prefixFieldType.prefixQuery(value, method, context);
+                if (method == null
+                    || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
+                    || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
+                    return new ConstantScoreQuery(query);
+                } else {
+                    return query;
+                }
+            }
+        }
+
+        @Override
         public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
             super.checkCompatibility(other, conflicts);
             ShingleFieldType ft = (ShingleFieldType) other;
@@ -362,6 +385,27 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             if (Objects.equals(this.prefixFieldType, ft.prefixFieldType) == false) {
                 conflicts.add("mapper [" + name() + "] has different [index_prefixes] settings");
             }
+        }
+
+        @Override
+        public boolean equals(Object otherObject) {
+            if (this == otherObject) {
+                return true;
+            }
+            if (otherObject == null || getClass() != otherObject.getClass()) {
+                return false;
+            }
+            if (!super.equals(otherObject)) {
+                return false;
+            }
+            final ShingleFieldType other = (ShingleFieldType) otherObject;
+            return shingleSize == other.shingleSize
+                && Objects.equals(prefixFieldType, other.prefixFieldType);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), shingleSize, prefixFieldType);
         }
     }
 

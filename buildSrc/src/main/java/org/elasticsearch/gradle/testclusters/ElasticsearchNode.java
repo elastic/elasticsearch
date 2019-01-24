@@ -237,28 +237,33 @@ public class ElasticsearchNode {
         // Stop all children first, ES could actually be a child when there's some wrapper process like on Windows.
         if (processHandle.isAlive()) {
             processHandle.children().forEach(each -> stopHandle(each, forcibly));
+        } else {
+            logger.info("Process was not running when we tried to terminate it.");
+            return;
         }
+
         logProcessInfo(
             "Terminating elasticsearch process" + (forcibly ? " forcibly " : "gratefully") + ":",
             processHandle.info()
         );
+
         if (processHandle.isAlive()) {
             if (forcibly) {
                 processHandle.destroyForcibly();
             } else {
                 processHandle.destroy();
             }
-        } else {
-            logger.info("Process was not running when we tried to terminate it.");
+            waitForProcessToExit(processHandle);
         }
-        waitForProcessToExit(processHandle);
+
         if (processHandle.isAlive()) {
             logger.info("process did not terminate after {} {}, stopping it forcefully",
                 ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT
             );
             processHandle.destroyForcibly();
+            waitForProcessToExit(processHandle);
         }
-        waitForProcessToExit(processHandle);
+
         if (processHandle.isAlive()) {
             throw new TestClustersException("Was not able to terminate es process");
         }

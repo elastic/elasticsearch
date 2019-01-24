@@ -188,8 +188,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             .blocks(currentState.blocks())
             .removeGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)).build();
         logger.trace("becomeMasterAndTrimConflictingNodes: {}", tmpState.nodes());
-        tmpState = PersistentTasksCustomMetaData.deassociateDeadNodes(tmpState);
-        return ClusterState.builder(allocationService.deassociateDeadNodes(tmpState, false, "removed dead nodes on election"));
+        tmpState = PersistentTasksCustomMetaData.disassociateDeadNodes(tmpState);
+        return ClusterState.builder(allocationService.disassociateDeadNodes(tmpState, false, "removed dead nodes on election"));
     }
 
     @Override

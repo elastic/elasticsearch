@@ -221,6 +221,10 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         return this.clusterUUID;
     }
 
+    /**
+     * Whether the current node with the given cluster state is locked into the cluster with the UUID returned by {@link #clusterUUID()},
+     * meaning that it will not accept any cluster state with a different clusterUUID.
+     */
     public boolean clusterUUIDCommitted() {
         return this.clusterUUIDCommitted;
     }
@@ -762,6 +766,12 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return false;
         }
         if (!metaData1.templates.equals(metaData2.templates())) {
+            return false;
+        }
+        if (!metaData1.clusterUUID.equals(metaData2.clusterUUID)) {
+            return false;
+        }
+        if (metaData1.clusterUUIDCommitted != metaData2.clusterUUIDCommitted) {
             return false;
         }
         // Check if any persistent metadata needs to be saved

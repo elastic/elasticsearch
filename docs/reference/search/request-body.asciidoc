@@ -115,8 +115,8 @@ And here is a sample response:
 
 `ccs_reduce_mode`::
 
-    The cross-cluster search execution mode. Can be `one_request_per_shard` or
-    `prefer_one_request_per_cluster`. Defaults to `prefer_one_request_per_cluster`.
+    The cross-cluster search execution mode. Can be `local` or
+    `prefer_remote`. Defaults to `prefer_remote`.
     See <<ccs-execution-mode>> for more.
 
 

@@ -29,13 +29,13 @@
        rest_total_hits_as_int: true
        index: "skip_shards_index,my_remote_cluster:single_doc_index"
        pre_filter_shard_size: 1
-       ccs_reduce_mode: "one_request_per_shard"
+       ccs_reduce_mode: "local"
        body: { "size" : 10, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"} } } }
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._index: "skip_shards_index"}
   - is_false: num_reduce_phases
-  - match: {_clusters.execution_mode: "one_request_per_shard"}
+  - match: {_clusters.execution_mode: "local"}
   - match: { _shards.total: 2 }
   - match: { _shards.successful: 2 }
   - match: { _shards.skipped : 1}
@@ -48,13 +48,13 @@
        rest_total_hits_as_int: true
        index: "skip_shards_index,my_remote_cluster:single_doc_index"
        pre_filter_shard_size: 1
-       ccs_reduce_mode: "one_request_per_shard"
+       ccs_reduce_mode: "local"
        body: { "size" : 10, "query" : { "range" : { "created_at" : { "gte" : "2015-02-01", "lt": "2016-02-01"} } } }
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._index: "my_remote_cluster:single_doc_index"}
   - is_false: num_reduce_phases
-  - match: {_clusters.execution_mode: "one_request_per_shard"}
+  - match: {_clusters.execution_mode: "local"}
   - match: { _shards.total: 2 }
   - match: { _shards.successful: 2 }
   - match: { _shards.skipped : 1}

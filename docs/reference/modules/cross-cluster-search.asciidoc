@@ -73,7 +73,7 @@ GET /cluster_one:twitter/_search
     "skipped": 0
   },
   "_clusters": {
-    "execution_mode": "one_request_per_cluster",
+    "execution_mode": "remote",
     "total": 1,
     "successful": 1,
     "skipped": 0
@@ -140,7 +140,7 @@ will be prefixed with their remote cluster name:
     "skipped": 0
   },
   "_clusters": {
-    "execution_mode": "one_request_per_cluster",
+    "execution_mode": "remote",
     "total": 2,
     "successful": 2,
     "skipped": 0
@@ -234,7 +234,7 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
     "skipped": 0
   },
   "_clusters": { <1>
-    "execution_mode": "one_request_per_cluster",
+    "execution_mode": "remote",
     "total": 3,
     "successful": 2,
     "skipped": 1
@@ -286,7 +286,7 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
 
 When searching across remote clusters, there are two possible execution modes:
 
-- `one_request_per_cluster`: the coordinating node sends one search
+- `remote`: the coordinating node sends one search
 request to each cluster. Each cluster performs the search independently,
 reducing and fetching results which are then returned to the caller.
 Once the CCS node has received all the responses, it performs another
@@ -296,7 +296,7 @@ and the remote clusters involved, which is typically the case. A single request
 is sent to each remote cluster, at the cost of retrieving `from` + `size`
 already fetched results from each one of them.
 
-- `one_request_per_shard`: the coordinating node sends a
+- `local`: the coordinating node sends a
 <<search-shards,search shards>> request to each remote cluster, to collect
 information about their corresponding remote indices involved in the search
 request and the shards where their data is located. Once each cluster has
@@ -308,7 +308,7 @@ then reduced (and fetched, depending on the
 execution mode is beneficial whenever there is very low network latency between
 the coordinating node and the remote clusters involved.
 
-By default `one_request_per_cluster` is used when possible, unless a scroll
+By default `remote` is used when possible, unless a scroll
 is provided, or unless inner hits are requested as part of field collapsing:
 The <<search-request-body, search API>> supports the `ccs_reduce_mode`
 parameter which allows to select the execution mode if needed. The execution

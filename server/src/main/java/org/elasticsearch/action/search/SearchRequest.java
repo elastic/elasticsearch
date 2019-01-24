@@ -262,15 +262,15 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 validationException =
                     addValidationError("[request_cache] cannot be used in a scroll context", validationException);
             }
-            if (ccsReduceMode == CCSReduceMode.ONE_REQUEST_PER_CLUSTER) {
-                validationException = addValidationError("[ccs_reduce_mode] cannot be [" + CCSReduceMode.ONE_REQUEST_PER_CLUSTER +
+            if (ccsReduceMode == CCSReduceMode.REMOTE) {
+                validationException = addValidationError("[ccs_reduce_mode] cannot be [" + CCSReduceMode.REMOTE +
                     "] in a scroll context", validationException);
             }
         }
         boolean collapseWithInnerHits = source != null && source.collapse() != null && source.collapse().getInnerHits() != null
             && source.collapse().getInnerHits().isEmpty() == false;
-        if (collapseWithInnerHits && ccsReduceMode == CCSReduceMode.ONE_REQUEST_PER_CLUSTER) {
-            validationException = addValidationError("[ccs_reduce_mode] cannot be [" + CCSReduceMode.ONE_REQUEST_PER_CLUSTER +
+        if (collapseWithInnerHits && ccsReduceMode == CCSReduceMode.REMOTE) {
+            validationException = addValidationError("[ccs_reduce_mode] cannot be [" + CCSReduceMode.REMOTE +
                 "] when inner hits are requested as part of field collapsing", validationException);
         }
         return validationException;
@@ -339,9 +339,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
-     * Returns the execution mode for cross-cluster search request. When not set {@link CCSReduceMode#ONE_REQUEST_PER_CLUSTER} is used
+     * Returns the execution mode for cross-cluster search request. When not set {@link CCSReduceMode#REMOTE} is used
      * whenever possible. In case a scroll is provided or inner hits are requested as part of field collapsing,
-     * {@link CCSReduceMode#ONE_REQUEST_PER_SHARD} is used instead.
+     * {@link CCSReduceMode#LOCAL} is used instead.
      */
     @Nullable
     public CCSReduceMode getCCSExecutionMode() {

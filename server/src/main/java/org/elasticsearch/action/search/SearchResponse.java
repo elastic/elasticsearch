@@ -409,7 +409,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      */
     public static class Clusters implements ToXContent, Writeable {
 
-        public static final Clusters EMPTY = new Clusters(0, 0, 0, CCSReduceMode.ONE_REQUEST_PER_CLUSTER);
+        public static final Clusters EMPTY = new Clusters(0, 0, 0, CCSReduceMode.REMOTE);
 
         static final ParseField _CLUSTERS_FIELD = new ParseField("_clusters");
         static final ParseField SUCCESSFUL_FIELD = new ParseField("successful");

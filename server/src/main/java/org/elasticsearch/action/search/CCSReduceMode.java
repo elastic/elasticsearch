@@ -25,8 +25,7 @@ import java.util.Locale;
  * The execution modes when executing a cross-cluster search request
  */
 public enum CCSReduceMode {
-    ONE_REQUEST_PER_SHARD,
-    ONE_REQUEST_PER_CLUSTER;
+    LOCAL, REMOTE;
 
     @Override
     public String toString() {

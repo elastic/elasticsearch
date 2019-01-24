@@ -247,7 +247,7 @@ public class SearchResponseTests extends ESTestCase {
                         new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f), null, null, null, false, null, 1
                     ),
                 null, 0, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY,
-                new SearchResponse.Clusters(5, 3, 2, CCSReduceMode.ONE_REQUEST_PER_SHARD));
+                new SearchResponse.Clusters(5, 3, 2, CCSReduceMode.LOCAL));
             StringBuilder expectedString = new StringBuilder();
             expectedString.append("{");
             {
@@ -262,7 +262,7 @@ public class SearchResponseTests extends ESTestCase {
                 }
                 expectedString.append("\"_clusters\":");
                 {
-                    expectedString.append("{\"execution_mode\":\"one_request_per_shard\",");
+                    expectedString.append("{\"execution_mode\":\"local\",");
                     expectedString.append("\"total\":5,");
                     expectedString.append("\"successful\":3,");
                     expectedString.append("\"skipped\":2},");

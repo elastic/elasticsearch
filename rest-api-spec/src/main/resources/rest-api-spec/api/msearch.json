@@ -46,8 +46,8 @@
         },
         "ccs_reduce_mode": {
           "type" : "enum",
-          "options" : ["one_request_per_shard","one_request_per_cluster"],
-          "default" : "one_request_per_cluster",
+          "options" : ["local","remote"],
+          "default" : "remote",
           "description" : "The cross-cluster search execution mode: fan out to all the shards or, when possible, send one search request to each remote cluster and perform local reduction"
         }
       }

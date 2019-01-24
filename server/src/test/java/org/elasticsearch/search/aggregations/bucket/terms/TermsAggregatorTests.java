@@ -90,7 +90,6 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.SeqNoFieldMapper.PRIMARY_TERM_NAME;
-import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketScript;
 import static org.hamcrest.Matchers.equalTo;
@@ -155,35 +154,35 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         directory.close();
     }
 
-    public void testSimpleKeyword() throws Exception {
+    public void testSimple() throws Exception {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
-                document.add(new SortedSetDocValuesField("keyword", new BytesRef("a")));
-                document.add(new SortedSetDocValuesField("keyword", new BytesRef("b")));
+                document.add(new SortedSetDocValuesField("string", new BytesRef("a")));
+                document.add(new SortedSetDocValuesField("string", new BytesRef("b")));
                 indexWriter.addDocument(document);
                 document = new Document();
-                document.add(new SortedSetDocValuesField("keyword", new BytesRef("")));
-                document.add(new SortedSetDocValuesField("keyword", new BytesRef("c")));
-                document.add(new SortedSetDocValuesField("keyword", new BytesRef("a")));
+                document.add(new SortedSetDocValuesField("string", new BytesRef("")));
+                document.add(new SortedSetDocValuesField("string", new BytesRef("c")));
+                document.add(new SortedSetDocValuesField("string", new BytesRef("a")));
                 indexWriter.addDocument(document);
                 document = new Document();
-                document.add(new SortedSetDocValuesField("keyword", new BytesRef("b")));
-                document.add(new SortedSetDocValuesField("keyword", new BytesRef("d")));
+                document.add(new SortedSetDocValuesField("string", new BytesRef("b")));
+                document.add(new SortedSetDocValuesField("string", new BytesRef("d")));
                 indexWriter.addDocument(document);
                 document = new Document();
-                document.add(new SortedSetDocValuesField("keyword", new BytesRef("")));
+                document.add(new SortedSetDocValuesField("string", new BytesRef("")));
                 indexWriter.addDocument(document);
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     for (TermsAggregatorFactory.ExecutionMode executionMode : TermsAggregatorFactory.ExecutionMode.values()) {
                         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", ValueType.STRING)
                             .executionHint(executionMode.toString())
-                            .field("keyword")
+                            .field("string")
                             .order(BucketOrder.key(true));
                         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
-                        fieldType.setName("keyword");
-                        fieldType.setHasDocValues(true);
+                        fieldType.setName("string");
+                        fieldType.setHasDocValues(true );
 
                         TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
                         aggregator.preCollection();
@@ -683,7 +682,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                             .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
                             .field("field"));
                         aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-                        fieldType.fielddataBuilder()
                         aggregator.preCollection();
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                         aggregator.postCollection();

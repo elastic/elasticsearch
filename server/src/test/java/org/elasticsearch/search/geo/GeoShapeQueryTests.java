@@ -357,6 +357,9 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         SearchResponse result = client().prepareSearch("test").setTypes("type").setQuery(geoShapeQueryBuilder).get();
         assertSearchResponse(result);
+        assumeTrue("Skipping the check for the polygon with a degenerated dimension until "
+                +" https://issues.apache.org/jira/browse/LUCENE-8634 is fixed",
+            randomPoly.maxLat - randomPoly.minLat > 8.4e-8 &&  randomPoly.maxLon - randomPoly.minLon > 8.4e-8);
         assertHitCount(result, 1);
     }
 
@@ -385,7 +388,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         }
         gcb.shape(new PolygonBuilder(cb));
 
-        logger.info("Created Random GeometryCollection containing {} shapes", gcb.numShapes());
+        logger.info("Created Random GeometryCollection containing {} shapes using {} tree", gcb.numShapes(),
+            usePrefixTrees ? "default" : "quadtree");
 
         if (usePrefixTrees == false) {
             client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape")
@@ -406,7 +410,11 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         SearchResponse result = client().prepareSearch("test").setTypes("type").setQuery(geoShapeQueryBuilder).get();
         assertSearchResponse(result);
-        assertTrue(result.getHits().getTotalHits() > 0);
+        assumeTrue("Skipping the check for the polygon with a degenerated dimension until "
+            +" https://issues.apache.org/jira/browse/LUCENE-8634 is fixed",
+            randomPoly.maxLat - randomPoly.minLat > 8.4e-8 &&  randomPoly.maxLon - randomPoly.minLon > 8.4e-8);
+        assertTrue("query: " + geoShapeQueryBuilder.toString() + " doc: " + Strings.toString(docSource),
+            result.getHits().getTotalHits() > 0);
     }
 
     /** tests querying a random geometry collection with a point */

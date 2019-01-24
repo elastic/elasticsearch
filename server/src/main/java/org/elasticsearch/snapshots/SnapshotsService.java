@@ -124,7 +124,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     @Inject
     public SnapshotsService(Settings settings, ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
                             RepositoriesService repositoriesService, ThreadPool threadPool) {
-        super(settings);
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.repositoriesService = repositoriesService;
@@ -1451,7 +1450,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public static void checkIndexDeletion(ClusterState currentState, Set<IndexMetaData> indices) {
         Set<Index> indicesToFail = indicesToFailForCloseOrDeletion(currentState, indices);
         if (indicesToFail != null) {
-            throw new IllegalArgumentException("Cannot delete indices that are being snapshotted: " + indicesToFail +
+            throw new SnapshotInProgressException("Cannot delete indices that are being snapshotted: " + indicesToFail +
                 ". Try again after snapshot finishes or cancel the currently running snapshot.");
         }
     }
@@ -1463,7 +1462,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public static void checkIndexClosing(ClusterState currentState, Set<IndexMetaData> indices) {
         Set<Index> indicesToFail = indicesToFailForCloseOrDeletion(currentState, indices);
         if (indicesToFail != null) {
-            throw new IllegalArgumentException("Cannot close indices that are being snapshotted: " + indicesToFail +
+            throw new SnapshotInProgressException("Cannot close indices that are being snapshotted: " + indicesToFail +
                 ". Try again after snapshot finishes or cancel the currently running snapshot.");
         }
     }

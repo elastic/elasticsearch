@@ -18,28 +18,37 @@
  */
 package org.elasticsearch.client.watcher;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class PutWatchResponseTests extends AbstractXContentTestCase<PutWatchResponse> {
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
-    @Override
-    protected PutWatchResponse createTestInstance() {
+public class PutWatchResponseTests extends ESTestCase {
+
+    public void testFromXContent() throws IOException {
+        xContentTester(this::createParser,
+            PutWatchResponseTests::createTestInstance,
+            PutWatchResponseTests::toXContent,
+            PutWatchResponse::fromXContent)
+            .supportsUnknownFields(true)
+            .assertToXContentEquivalence(false)
+            .test();
+    }
+
+    private static XContentBuilder toXContent(PutWatchResponse response, XContentBuilder builder) throws IOException {
+        return builder.startObject()
+            .field("_id", response.getId())
+            .field("_version", response.getVersion())
+            .field("created", response.isCreated())
+            .endObject();
+    }
+
+    private static PutWatchResponse createTestInstance() {
         String id = randomAlphaOfLength(10);
         long version = randomLongBetween(1, 10);
         boolean created = randomBoolean();
         return new PutWatchResponse(id, version, created);
-    }
-
-    @Override
-    protected PutWatchResponse doParseInstance(XContentParser parser) throws IOException {
-        return PutWatchResponse.fromXContent(parser);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
     }
 }

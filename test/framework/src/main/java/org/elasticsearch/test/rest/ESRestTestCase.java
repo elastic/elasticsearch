@@ -238,6 +238,17 @@ public abstract class ESRestTestCase extends ESTestCase {
         } 
         
     }
+
+    /**
+     * Creates request options designed to be used when making a call that can return warnings, for example a
+     * deprecated request. The options will ensure that the given warnings are returned if all nodes are on
+     * {@link Version#CURRENT} and will allow (but not require) the warnings if any node is running an older version.
+     *
+     * @param warnings The expected warnings.
+     */
+    public static RequestOptions expectWarnings(String... warnings) {
+        return expectVersionSpecificWarnings(consumer -> consumer.current(warnings));
+    }
     
     public static RequestOptions expectVersionSpecificWarnings(Consumer<VersionSensitiveWarningsHandler> expectationsSetter) {
         Builder builder = RequestOptions.DEFAULT.toBuilder();

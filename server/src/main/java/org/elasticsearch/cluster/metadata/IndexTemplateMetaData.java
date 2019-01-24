@@ -198,7 +198,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         Builder builder = new Builder(in.readString());
         builder.order(in.readInt());
         if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            builder.patterns(in.readList(StreamInput::readString));
+            builder.patterns(in.readStringList());
         } else {
             builder.patterns(Collections.singletonList(in.readString()));
         }
@@ -235,7 +235,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         out.writeString(name);
         out.writeInt(order);
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            out.writeStringList(patterns);
+            out.writeStringCollection(patterns);
         } else {
             out.writeString(patterns.get(0));
         }

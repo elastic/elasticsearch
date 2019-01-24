@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -46,7 +45,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * the delay marker). These are shards that have become unassigned due to a node leaving
  * and which were assigned the delay marker based on the index delay setting
  * {@link UnassignedInfo#INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING}
- * (see {@link AllocationService#deassociateDeadNodes(RoutingAllocation)}).
+ * (see {@link AllocationService#disassociateDeadNodes(RoutingAllocation)}.
  * This class is responsible for choosing the next (closest) delay expiration of a
  * delayed shard to schedule a reroute to remove the delay marker.
  * The actual removal of the delay marker happens in
@@ -130,9 +129,8 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
     }
 
     @Inject
-    public DelayedAllocationService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public DelayedAllocationService(ThreadPool threadPool, ClusterService clusterService,
                                     AllocationService allocationService) {
-        super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocationService = allocationService;

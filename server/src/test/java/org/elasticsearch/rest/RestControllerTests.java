@@ -473,7 +473,6 @@ public class RestControllerTests extends ESTestCase {
         HttpServerTransport {
 
         TestHttpServerTransport() {
-            super(Settings.EMPTY);
         }
 
         @Override

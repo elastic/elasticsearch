@@ -49,7 +49,8 @@ public class DeprecationChecks {
             NodeDeprecationChecks::azureRepositoryChanges,
             NodeDeprecationChecks::gcsRepositoryChanges,
             NodeDeprecationChecks::fileDiscoveryPluginRemoved,
-            NodeDeprecationChecks::defaultSSLSettingsRemoved
+            NodeDeprecationChecks::defaultSSLSettingsRemoved,
+            NodeDeprecationChecks::watcherNotificationsSecureSettingsCheck
         ));
 
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =

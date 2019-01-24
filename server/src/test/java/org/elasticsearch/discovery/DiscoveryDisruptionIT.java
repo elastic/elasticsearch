@@ -98,6 +98,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
      * The temporal unicast responses is empty. When partition is solved the one ping response contains a master node.
      * The rejoining node should take this master node and connect.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37687")
     public void testUnicastSinglePingResponseContainsMaster() throws Exception {
         internalCluster().setHostsListContainsOnlyFirstNode(true);
         List<String> nodes = startCluster(4);
@@ -137,6 +138,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
     /**
      * Test cluster join with issues in cluster state publishing *
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37685")
     public void testClusterJoinDespiteOfPublishingIssues() throws Exception {
         String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         String nonMasterNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
@@ -203,6 +205,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(3);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37539")
     public void testElectMasterWithLatestVersion() throws Exception {
         final Set<String> nodes = new HashSet<>(internalCluster().startNodes(3));
         ensureStableCluster(3);

@@ -53,7 +53,9 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, FreezeAction.NAME, FreezeAction::new)
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, FreezeAction.NAME, FreezeAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, SetPriorityAction.NAME, SetPriorityAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, UnfollowAction.NAME, UnfollowAction::new)
             ));
     }
 
@@ -69,7 +71,9 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse)
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse)
         ));
         return new NamedXContentRegistry(entries);
     }
@@ -116,6 +120,10 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     return ShrinkActionTests.randomInstance();
                 case FreezeAction.NAME:
                     return new FreezeAction();
+                case SetPriorityAction.NAME:
+                    return SetPriorityActionTests.randomInstance();
+                case UnfollowAction.NAME:
+                    return new UnfollowAction();
                 default:
                     throw new IllegalArgumentException("invalid action [" + action + "]");
             }};
@@ -163,6 +171,10 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     return ShrinkActionTests.randomInstance();
                 case FreezeAction.NAME:
                     return new FreezeAction();
+                case SetPriorityAction.NAME:
+                    return SetPriorityActionTests.randomInstance();
+                case UnfollowAction.NAME:
+                    return new UnfollowAction();
                 default:
                     throw new IllegalArgumentException("invalid action [" + action + "]");
             }};

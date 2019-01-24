@@ -52,7 +52,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         for (String role : roles) {
             c.preparePutRole(role)
                     .cluster("none")
-                    .addIndices(new String[] { "*" }, new String[] { "ALL" }, null, null, null)
+                    .addIndices(new String[] { "*" }, new String[] { "ALL" }, null, null, null, randomBoolean())
                     .get();
             logger.debug("--> created role [{}]", role);
         }
@@ -87,7 +87,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         for (String role : toModify) {
             PutRoleResponse response = securityClient.preparePutRole(role)
                     .cluster("none")
-                    .addIndices(new String[] { "*" }, new String[] { "ALL" }, null, null, null)
+                    .addIndices(new String[] { "*" }, new String[] { "ALL" }, null, null, null, randomBoolean())
                     .runAs(role)
                     .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
                     .get();

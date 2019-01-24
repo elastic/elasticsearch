@@ -174,6 +174,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
         Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> analyzers = new TreeMap<>();
         analyzers.put("fingerprint", FingerprintAnalyzerProvider::new);
+
+        // TODO remove in 8.0
         analyzers.put("standard_html_strip", StandardHtmlStripAnalyzerProvider::new);
         analyzers.put("pattern", PatternAnalyzerProvider::new);
         analyzers.put("snowball", SnowballAnalyzerProvider::new);
@@ -320,6 +322,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     @Override
     public List<PreBuiltAnalyzerProviderFactory> getPreBuiltAnalyzerProviderFactories() {
         List<PreBuiltAnalyzerProviderFactory> analyzers = new ArrayList<>();
+        // TODO remove in 8.0
         analyzers.add(new PreBuiltAnalyzerProviderFactory("standard_html_strip", CachingStrategy.ELASTICSEARCH,
             () -> new StandardHtmlStripAnalyzer(CharArraySet.EMPTY_SET)));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("pattern", CachingStrategy.ELASTICSEARCH,

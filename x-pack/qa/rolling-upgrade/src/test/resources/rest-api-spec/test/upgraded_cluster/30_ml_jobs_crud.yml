@@ -31,6 +31,11 @@ setup:
         job_id: mixed-cluster-job
   - match: { count: 1 }
 
+  - do:
+      indices.exists_alias:
+        name: ".ml-state-write"
+  - is_true: ''
+
 ---
 "Test job with pre 6.4 rules":
 

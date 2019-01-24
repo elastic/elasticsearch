@@ -640,7 +640,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             // Follow index, so that we can query for follow stats:
-            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", "follower");
+            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", "follower", true);
             PutFollowResponse putFollowResponse = client.ccr().putFollow(putFollowRequest, RequestOptions.DEFAULT);
             assertThat(putFollowResponse.isFollowIndexCreated(), is(true));
             assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));

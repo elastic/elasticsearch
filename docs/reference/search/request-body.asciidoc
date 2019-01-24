@@ -213,7 +213,7 @@ include::request/preference.asciidoc[]
 
 include::request/explain.asciidoc[]
 
-include::request/version.asciidoc[]
+include::request/version-and-seq-no.asciidoc[]
 
 include::request/index-boost.asciidoc[]
 

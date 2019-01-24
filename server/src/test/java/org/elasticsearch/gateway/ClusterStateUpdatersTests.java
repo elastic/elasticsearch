@@ -268,7 +268,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
         final ClusterState updatedState = mixCurrentStateAndRecoveredState(currentState, recoveredState);
 
         assertThat(updatedState.metaData().clusterUUID(), not(equalTo("_na_")));
-        assertTrue(MetaData.isGlobalStateEquals(metaData, updatedState.metaData()));
+        assertFalse(MetaData.isGlobalStateEquals(metaData, updatedState.metaData()));
         assertThat(updatedState.metaData().index("test"), equalTo(indexMetaData));
         assertTrue(updatedState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
         assertTrue(updatedState.blocks().hasGlobalBlock(CLUSTER_READ_ONLY_BLOCK));

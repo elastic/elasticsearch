@@ -168,7 +168,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
         this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService, this::getFoundPeers,
             this::isInitialConfigurationSet, this::setInitialConfiguration);
-        this.discoveryUpgradeService = new DiscoveryUpgradeService(settings, clusterSettings, transportService,
+        this.discoveryUpgradeService = new DiscoveryUpgradeService(settings, transportService,
             this::isInitialConfigurationSet, joinHelper, peerFinder::getFoundPeers, this::setInitialConfiguration);
         this.lagDetector = new LagDetector(settings, transportService.getThreadPool(), n -> removeNode(n, "lagging"),
             transportService::getLocalNode);
@@ -348,6 +348,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             // The preVoteCollector is only active while we are candidate, but it does not call this method with synchronisation, so we have
             // to check our mode again here.
             if (mode == Mode.CANDIDATE) {
+                if (electionQuorumContainsLocalNode(getLastAcceptedState()) == false) {
+                    logger.trace("skip election as local node is not part of election quorum: {}",
+                        getLastAcceptedState().coordinationMetaData());
+                    return;
+                }
+
                 final StartJoinRequest startJoinRequest
                     = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen) + 1);
                 logger.debug("starting election with {}", startJoinRequest);
@@ -358,6 +364,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 });
             }
         }
+    }
+
+    private static boolean electionQuorumContainsLocalNode(ClusterState lastAcceptedState) {
+        final String localNodeId = lastAcceptedState.nodes().getLocalNodeId();
+        assert localNodeId != null;
+        return lastAcceptedState.getLastCommittedConfiguration().getNodeIds().contains(localNodeId)
+            || lastAcceptedState.getLastAcceptedConfiguration().getNodeIds().contains(localNodeId);
     }
 
     private Optional<Join> ensureTermAtLeast(DiscoveryNode sourceNode, long targetTerm) {
@@ -462,7 +475,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             clusterFormationFailureHelper.start();
 
             if (getCurrentTerm() == ZEN1_BWC_TERM) {
-                discoveryUpgradeService.activate(lastKnownLeader);
+                discoveryUpgradeService.activate(lastKnownLeader, coordinationState.get().getLastAcceptedState());
             }
 
             leaderChecker.setCurrentNodes(DiscoveryNodes.EMPTY_NODES);
@@ -717,10 +730,24 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 return false;
             }
 
+            if (getLocalNode().isMasterNode() == false) {
+                logger.debug("skip setting initial configuration as local node is not a master-eligible node");
+                throw new CoordinationStateRejectedException(
+                    "this node is not master-eligible, but cluster bootstrapping can only happen on a master-eligible node");
+            }
+
+            if (votingConfiguration.getNodeIds().contains(getLocalNode().getId()) == false) {
+                logger.debug("skip setting initial configuration as local node is not part of initial configuration");
+                throw new CoordinationStateRejectedException("local node is not part of initial configuration");
+            }
+
             final List<DiscoveryNode> knownNodes = new ArrayList<>();
             knownNodes.add(getLocalNode());
             peerFinder.getFoundPeers().forEach(knownNodes::add);
+
             if (votingConfiguration.hasQuorum(knownNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toList())) == false) {
+                logger.debug("skip setting initial configuration as not enough nodes discovered to form a quorum in the " +
+                    "initial configuration [knownNodes={}, {}]", knownNodes, votingConfiguration);
                 throw new CoordinationStateRejectedException("not enough nodes discovered to form a quorum in the initial configuration " +
                     "[knownNodes=" + knownNodes + ", " + votingConfiguration + "]");
             }
@@ -737,6 +764,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             metaDataBuilder.coordinationMetaData(coordinationMetaData);
 
             coordinationState.get().setInitialState(ClusterState.builder(currentState).metaData(metaDataBuilder).build());
+            assert electionQuorumContainsLocalNode(getLastAcceptedState()) :
+                "initial state does not have local node in its election quorum: " + getLastAcceptedState().coordinationMetaData();
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
             startElectionScheduler();
             return true;
@@ -1030,12 +1059,20 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             public void run() {
                 synchronized (mutex) {
                     if (mode == Mode.CANDIDATE) {
+                        final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
+
+                        if (electionQuorumContainsLocalNode(lastAcceptedState) == false) {
+                            logger.trace("skip prevoting as local node is not part of election quorum: {}",
+                                lastAcceptedState.coordinationMetaData());
+                            return;
+                        }
+
                         if (prevotingRound != null) {
                             prevotingRound.close();
                         }
-                        final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
                         final List<DiscoveryNode> discoveredNodes
                             = getDiscoveredNodes().stream().filter(n -> isZen1Node(n) == false).collect(Collectors.toList());
+
                         prevotingRound = preVoteCollector.start(lastAcceptedState, discoveredNodes);
                     }
                 }

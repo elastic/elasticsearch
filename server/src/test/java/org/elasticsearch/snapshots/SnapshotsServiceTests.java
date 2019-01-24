@@ -24,11 +24,13 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapConfiguration;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -45,13 +47,14 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.CoordinatorTests;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.coordination.MockSinglePrioritizingExecutor;
+import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -197,6 +200,53 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertEquals(0, snapshotInfo.failedShards());
     }
 
+    public void testConcurrentSnapshotCreateAndDelete() {
+        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+
+        String repoName = "repo";
+        String snapshotName = "snapshot";
+        final String index = "test";
+
+        final int shards = randomIntBetween(1, 10);
+
+        TestClusterNode masterNode =
+            testClusterNodes.currentMaster(testClusterNodes.nodes.values().iterator().next().clusterService.state());
+        final AtomicBoolean createdSnapshot = new AtomicBoolean();
+        masterNode.client.admin().cluster().preparePutRepository(repoName)
+            .setType(FsRepository.TYPE).setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
+            .execute(
+                assertNoFailureListener(
+                    () -> masterNode.client.admin().indices().create(
+                        new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL).settings(
+                            Settings.builder()
+                                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
+                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)),
+                        assertNoFailureListener(
+                            () -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                                .execute(assertNoFailureListener(
+                                    () -> masterNode.client.admin().cluster().deleteSnapshot(
+                                        new DeleteSnapshotRequest(repoName, snapshotName),
+                                        assertNoFailureListener(() -> masterNode.client.admin().cluster()
+                                            .prepareCreateSnapshot(repoName, snapshotName).execute(
+                                                assertNoFailureListener(() -> createdSnapshot.set(true))
+                                            )))))))));
+
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        assertTrue(createdSnapshot.get());
+        SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
+        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
+        assertThat(snapshotIds, hasSize(1));
+
+        final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
+        assertEquals(shards, snapshotInfo.successfulShards());
+        assertEquals(0, snapshotInfo.failedShards());
+    }
+
     private void startCluster() {
         final ClusterState initialClusterState =
             new ClusterState.Builder(ClusterName.DEFAULT).nodes(testClusterNodes.randomDiscoveryNodes()).build();
@@ -205,14 +255,10 @@ public class SnapshotsServiceTests extends ESTestCase {
         deterministicTaskQueue.advanceTime();
         deterministicTaskQueue.runAllRunnableTasks();
 
-        final BootstrapConfiguration bootstrapConfiguration = new BootstrapConfiguration(
-            testClusterNodes.nodes.values().stream().filter(n -> n.node.isMasterNode())
-                .map(node -> new BootstrapConfiguration.NodeDescription(node.node))
-                .distinct()
-                .collect(Collectors.toList()));
+        final VotingConfiguration votingConfiguration = new VotingConfiguration(testClusterNodes.nodes.values().stream().map(n -> n.node)
+                .filter(DiscoveryNode::isMasterNode).map(DiscoveryNode::getId).collect(Collectors.toSet()));
         testClusterNodes.nodes.values().stream().filter(n -> n.node.isMasterNode()).forEach(
-            testClusterNode -> testClusterNode.coordinator.setInitialConfiguration(bootstrapConfiguration)
-        );
+            testClusterNode -> testClusterNode.coordinator.setInitialConfiguration(votingConfiguration));
 
         runUntil(
             () -> {
@@ -526,6 +572,11 @@ public class SnapshotsServiceTests extends ESTestCase {
                 ));
             actions.put(CreateSnapshotAction.INSTANCE,
                 new TransportCreateSnapshotAction(
+                    transportService, clusterService, threadPool,
+                    snapshotsService, actionFilters, indexNameExpressionResolver
+                ));
+            actions.put(DeleteSnapshotAction.INSTANCE,
+                new TransportDeleteSnapshotAction(
                     transportService, clusterService, threadPool,
                     snapshotsService, actionFilters, indexNameExpressionResolver
                 ));

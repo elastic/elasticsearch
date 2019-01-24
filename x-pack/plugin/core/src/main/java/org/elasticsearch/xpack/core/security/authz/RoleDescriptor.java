@@ -613,7 +613,7 @@ public class RoleDescriptor implements ToXContentObject {
             this.deniedFields = in.readOptionalStringArray();
             this.privileges = in.readStringArray();
             this.query = in.readOptionalBytesReference();
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
                 allowRestrictedIndices = in.readBoolean();
             } else {
                 allowRestrictedIndices = false;
@@ -627,7 +627,7 @@ public class RoleDescriptor implements ToXContentObject {
             out.writeOptionalStringArray(deniedFields);
             out.writeStringArray(privileges);
             out.writeOptionalBytesReference(query);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
                 out.writeBoolean(allowRestrictedIndices);
             }
         }

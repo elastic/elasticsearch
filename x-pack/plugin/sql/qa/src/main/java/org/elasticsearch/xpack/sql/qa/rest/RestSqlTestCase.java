@@ -49,6 +49,8 @@ import static org.hamcrest.Matchers.containsString;
  * user rather than to the JDBC driver or CLI.
  */
 public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTestCase {
+    
+    public static String SQL_QUERY_REST_ENDPOINT = org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
     /**
      * Builds that map that is returned in the header for each column.
      */
@@ -309,7 +311,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     protected Map<String, Object> runSql(HttpEntity sql, String suffix) throws IOException {
-        Request request = new Request("POST", "/_sql" + suffix);
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT + suffix);
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability
         if (randomBoolean()) {
@@ -640,7 +642,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
      * rather than the {@code format} parameter.
      */
     private Tuple<String, String> runSqlAsText(String suffix, HttpEntity entity, String accept) throws IOException {
-        Request request = new Request("POST", "/_sql" + suffix);
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT + suffix);
         request.addParameter("error_trace", "true");
         request.setEntity(entity);
         RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -658,7 +660,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
      * rather than an {@code Accept} header.
      */
     private Tuple<String, String> runSqlAsTextFormat(String sql, String format) throws IOException {
-        Request request = new Request("POST", "/_sql");
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         request.addParameter("error_trace", "true");
         request.addParameter("format", format);
         request.setJsonEntity("{\"query\":\"" + sql + "\"}");

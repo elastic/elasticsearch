@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -90,12 +91,16 @@ public class Reconfigurator {
      * @param retiredNodeIds Nodes that are leaving the cluster and which should not appear in the configuration if possible. Nodes that are
      *                       retired and not in the current configuration will never appear in the resulting configuration; this is useful
      *                       for shifting the vote in a 2-node cluster so one of the nodes can be restarted without harming availability.
+     * @param currentMaster  The current master. Unless retired, we prefer to keep the current master in the config.
      * @param currentConfig  The current configuration. As far as possible, we prefer to keep the current config as-is.
      * @return An optimal configuration, or leave the current configuration unchanged if the optimal configuration has no live quorum.
      */
-    public VotingConfiguration reconfigure(Set<DiscoveryNode> liveNodes, Set<String> retiredNodeIds, VotingConfiguration currentConfig) {
+    public VotingConfiguration reconfigure(Set<DiscoveryNode> liveNodes, Set<String> retiredNodeIds, DiscoveryNode currentMaster,
+                                           VotingConfiguration currentConfig) {
         assert liveNodes.stream().noneMatch(Coordinator::isZen1Node) : liveNodes;
-        logger.trace("{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}", this, currentConfig, liveNodes, retiredNodeIds);
+        assert liveNodes.contains(currentMaster) : "liveNodes = " + liveNodes + " master = " + currentMaster;
+        logger.trace("{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}, currentMaster={}",
+            this, currentConfig, liveNodes, retiredNodeIds, currentMaster);
 
         /*
          *  There are three true/false properties of each node in play: live/non-live, retired/non-retired and in-config/not-in-config.
@@ -122,7 +127,7 @@ public class Reconfigurator {
         final Set<String> nonRetiredInConfigNotLiveIds = new TreeSet<>(inConfigNotLiveIds);
         nonRetiredInConfigNotLiveIds.removeAll(retiredNodeIds);
 
-        final Set<String> nonRetiredInConfigLiveIds = new TreeSet<>(liveInConfigIds);
+        final Set<String> nonRetiredInConfigLiveIds = masterFirstTreeSet(liveInConfigIds, currentMaster);
         nonRetiredInConfigLiveIds.removeAll(retiredNodeIds);
 
         final Set<String> nonRetiredLiveNotInConfigIds = Sets.sortedDifference(liveNodeIds, currentConfig.getNodeIds());
@@ -161,5 +166,13 @@ public class Reconfigurator {
             // If there are not enough live nodes to form a quorum in the newly-proposed configuration, it's better to do nothing.
             return currentConfig;
         }
+    }
+
+    private TreeSet<String> masterFirstTreeSet(Collection<? extends String> items, DiscoveryNode masterNode) {
+        final String masterNodeId = masterNode.getId();
+        final TreeSet<String> set = new TreeSet<>(Comparator.<String>comparingInt(s -> s.equals(masterNodeId) ? 0 : 1)
+            .thenComparing(Comparator.naturalOrder()));
+        set.addAll(items);
+        return set;
     }
 }

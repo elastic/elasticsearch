@@ -21,16 +21,6 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 
-archivesBaseName = 'elasticsearch-geo'
-
-publishing {
-    publications {
-        nebula {
-            artifactId = archivesBaseName
-        }
-    }
-}
-
 dependencies {
     if (isEclipse == false || project.path == ":libs:geo-tests") {
         testCompile("org.elasticsearch.test:framework:${version}") {

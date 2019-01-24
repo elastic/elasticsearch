@@ -179,8 +179,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                                                                        ThreadPool threadPool,
                                                                        Client client,
                                                                        SettingsModule settingsModule) {
-        IndexScopedSettings indexScopedSettings = settingsModule.getIndexScopedSettings();
-        return Collections.singletonList(new ShardFollowTasksExecutor(client, threadPool, clusterService, indexScopedSettings));
+        return Collections.singletonList(new ShardFollowTasksExecutor(client, threadPool, clusterService, settingsModule));
     }
 
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {

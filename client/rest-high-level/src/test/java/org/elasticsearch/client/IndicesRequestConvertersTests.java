@@ -133,6 +133,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.setRandomTimeout(createIndexRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         RequestConvertersTests.setRandomMasterTimeout(createIndexRequest, expectedParams);
         RequestConvertersTests.setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, expectedParams);
+        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "false");
 
         Request request = IndicesRequestConverters.createIndex(createIndexRequest);
         Assert.assertEquals("/" + createIndexRequest.index(), request.getEndpoint());
@@ -212,9 +213,9 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         putMappingRequest.type(type);
 
         Map<String, String> expectedParams = new HashMap<>();
-
         RequestConvertersTests.setRandomTimeout(putMappingRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         RequestConvertersTests.setRandomMasterTimeout(putMappingRequest, expectedParams);
+        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
 
         Request request = IndicesRequestConverters.putMapping(putMappingRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");

@@ -255,8 +255,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             org.elasticsearch.action.admin.indices.create.CreateIndexResponse createIndexResponse = execute(
                 createIndexRequest,
                 highLevelClient().indices()::create,
-                highLevelClient().indices()::createAsync,
-                expectWarnings(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE));
+                highLevelClient().indices()::createAsync);
             assertTrue(createIndexResponse.isAcknowledged());
 
             assertTrue(indexExists(indexName));
@@ -284,11 +283,14 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             mappingBuilder.endObject().endObject().endObject();
             createIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder);
 
+            String shardsWarning = "the default number of shards will change from [5] to [1] in 7.0.0; "
+                + "if you wish to continue using the default of [5] shards, "
+                + "you must manage this on the create index request or with an index template";
             org.elasticsearch.action.admin.indices.create.CreateIndexResponse createIndexResponse = execute(
                 createIndexRequest,
                 highLevelClient().indices()::create,
                 highLevelClient().indices()::createAsync,
-                expectWarnings(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE));
+                expectWarnings(shardsWarning, RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE));
             assertTrue(createIndexResponse.isAcknowledged());
 
             Map<String, Object> getIndexResponse = getAsMap(indexName);
@@ -302,7 +304,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             Map<String, Object> term = (Map) filter.get("term");
             assertEquals(2016, term.get("year"));
 
-            assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type", getIndexResponse));
+            assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings._doc.properties.field.type", getIndexResponse));
         }
     }
 

@@ -20,7 +20,11 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -42,21 +46,29 @@ public class RestCreateIndexActionTests extends RestActionTestCase {
     }
 
     public void testIncludeTypeName() throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put(INCLUDE_TYPE_NAME_PARAMETER, randomFrom("true", "false"));
+        XContentBuilder content = XContentFactory.jsonBuilder().startObject()
+            .startObject("mappings")
+                .startObject("some_type").endObject()
+            .endObject()
+        .endObject();
+
         RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.PUT)
             .withPath("/some_index")
-            .withParams(params)
+            .withContent(BytesReference.bytes(content), XContentType.JSON)
             .build();
 
         action.prepareRequest(deprecatedRequest, mock(NodeClient.class));
         assertWarnings(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE);
 
+        Map<String, String> params = new HashMap<>();
+        params.put(INCLUDE_TYPE_NAME_PARAMETER, "false");
         RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.PUT)
             .withPath("/some_index")
+            .withParams(params)
             .build();
+
         action.prepareRequest(validRequest, mock(NodeClient.class));
     }
 }

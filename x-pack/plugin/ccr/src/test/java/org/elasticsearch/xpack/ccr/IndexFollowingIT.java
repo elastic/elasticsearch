@@ -240,7 +240,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final PutFollowAction.Request followRequest = putFollow("index1", "index2", false);
         PutFollowAction.Response response = followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
-        assertFalse(response.isFollowIndexCreated());
+        assertTrue(response.isFollowIndexCreated());
         assertFalse(response.isFollowIndexShardsAcked());
         assertFalse(response.isIndexFollowingStarted());
 

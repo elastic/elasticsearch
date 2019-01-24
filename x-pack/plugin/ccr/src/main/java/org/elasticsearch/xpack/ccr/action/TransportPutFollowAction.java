@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
@@ -91,7 +90,7 @@ public final class TransportPutFollowAction
     protected void masterOperation(
             final PutFollowAction.Request request,
             final ClusterState state,
-            final ActionListener<PutFollowAction.Response> listener) throws Exception {
+            final ActionListener<PutFollowAction.Response> listener) {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
@@ -147,12 +146,12 @@ public final class TransportPutFollowAction
                 if (restoreInfo == null) {
                     // If restoreInfo is null then it is possible there was a master failure during the
                     // restore.
-                    listener.onFailure(new ElasticsearchException("apparent master failure during restore"));
+                    followingListener.onResponse(new PutFollowAction.Response(true, false, false));
                 } else if (restoreInfo.failedShards() == 0) {
                     initiateFollowing(client, request, followingListener);
                 } else {
-                    int failedShards = restoreInfo.failedShards();
-                    followingListener.onFailure(new ElasticsearchException("failed to restore [" + failedShards + "] shards"));
+                    // Has failed shards
+                    followingListener.onResponse(new PutFollowAction.Response(true, false, false));
                 }
             }
 
@@ -170,29 +169,31 @@ public final class TransportPutFollowAction
             .indices(request.getLeaderIndex()).indicesOptions(request.indicesOptions()).renamePattern("^(.*)$")
             .renameReplacement(request.getFollowRequest().getFollowerIndex()).masterNodeTimeout(request.masterNodeTimeout())
             .indexSettings(settingsBuilder);
-        initiateRestore(restoreRequest, restoreCompleteHandler);
-
-        restoreInitiatedListener.onResponse(new PutFollowAction.Response(false, false, false));
+        initiateRestore(restoreRequest, restoreInitiatedListener, restoreCompleteHandler);
     }
 
-    private void initiateRestore(RestoreSnapshotRequest restoreRequest, ActionListener<RestoreSnapshotResponse> listener) {
+    private void initiateRestore(RestoreSnapshotRequest restoreRequest, ActionListener<PutFollowAction.Response> restoreInitiatedListener,
+                                 ActionListener<RestoreSnapshotResponse> restoreCompleteListener) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(e);
+                restoreInitiatedListener.onFailure(e);
+                restoreCompleteListener.onFailure(e);
             }
 
             @Override
             protected void doRun() {
                 restoreService.restoreSnapshot(restoreRequest, new ActionListener<RestoreService.RestoreCompletionResponse>() {
                     @Override
-                    public void onResponse(RestoreService.RestoreCompletionResponse restoreCompletionResponse) {
-                        RestoreClusterStateListener.createAndRegisterListener(clusterService, restoreCompletionResponse, listener);
+                    public void onResponse(RestoreService.RestoreCompletionResponse response) {
+                        restoreInitiatedListener.onResponse(new PutFollowAction.Response(true, false, false));
+                        RestoreClusterStateListener.createAndRegisterListener(clusterService, response, restoreCompleteListener);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        listener.onFailure(e);
+                        restoreInitiatedListener.onFailure(e);
+                        restoreCompleteListener.onFailure(e);
                     }
                 });
             }

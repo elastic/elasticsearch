@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.action.index;
 
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.inject.Inject;
@@ -78,11 +79,12 @@ public class MappingUpdatedAction {
     }
 
     /**
-     * Update mappings synchronously on the master node, waiting for at most
-     * {@code timeout}. When this method returns successfully mappings have
-     * been applied to the master node and propagated to data nodes.
+     * Update mappings on the master node, waiting for the change to be committed,
+     * but not for the mapping update to be applied on all nodes. The timeout specified by
+     * {@code timeout} is the master node timeout ({@link MasterNodeRequest#masterNodeTimeout()}),
+     * potentially waiting for a master node to be available.
      */
-    public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate, TimeValue timeout) {
-        updateMappingRequest(index, type, mappingUpdate, timeout).get();
+    public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate, TimeValue masterNodeTimeout) {
+        updateMappingRequest(index, type, mappingUpdate, masterNodeTimeout).get();
     }
 }

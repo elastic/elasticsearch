@@ -16,27 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class ParsedGeoHashGrid extends ParsedGeoGrid {
+public class ParsedGeoHashGridBucket extends ParsedGeoGridBucket {
 
-    private static ObjectParser<ParsedGeoGrid, Void> PARSER = createParser(ParsedGeoHashGrid::new,
-        ParsedGeoHashGridBucket::fromXContent, ParsedGeoHashGridBucket::fromXContent);
-
-    public static ParsedGeoGrid fromXContent(XContentParser parser, String name) throws IOException {
-        ParsedGeoGrid aggregation = PARSER.parse(parser, null);
-        aggregation.setName(name);
-        return aggregation;
+    @Override
+    public GeoPoint getKey() {
+        return GeoPoint.fromGeohash(geohashAsString);
     }
 
     @Override
-    public String getType() {
-        return GeoHashGridAggregationBuilder.NAME;
+    public String getKeyAsString() {
+        return geohashAsString;
+    }
+
+    static ParsedGeoHashGridBucket fromXContent(XContentParser parser) throws IOException {
+        return parseXContent(parser, false, ParsedGeoHashGridBucket::new, (p, bucket) -> bucket.geohashAsString = p.textOrNull());
     }
 }

@@ -74,6 +74,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     private String type;
 
     private String source;
+    private String origin = "";
 
     private Index concreteIndex;
 
@@ -182,6 +183,16 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      */
     public PutMappingRequest source(Object... source) {
         return source(buildFromSimplifiedDef(type, source));
+    }
+
+    public String origin() {
+        return origin;
+    }
+
+    public PutMappingRequest origin(String origin) {
+        // reserve "null" for bwc.
+        this.origin = Objects.requireNonNull(origin);
+        return this;
     }
 
     /**
@@ -301,6 +312,11 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             in.readBoolean(); // updateAllTypes
         }
         concreteIndex = in.readOptionalWriteable(Index::new);
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            origin = in.readOptionalString();
+        } else {
+            origin = null;
+        }
     }
 
     @Override
@@ -314,6 +330,9 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             out.writeBoolean(true); // updateAllTypes
         }
         out.writeOptionalWriteable(concreteIndex);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeOptionalString(origin);
+        }
     }
 
     @Override

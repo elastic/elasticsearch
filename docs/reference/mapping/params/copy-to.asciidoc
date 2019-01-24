@@ -11,19 +11,17 @@ the `full_name` field as follows:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "first_name": {
-          "type": "text",
-          "copy_to": "full_name" <1>
-        },
-        "last_name": {
-          "type": "text",
-          "copy_to": "full_name" <1>
-        },
-        "full_name": {
-          "type": "text"
-        }
+    "properties": {
+      "first_name": {
+        "type": "text",
+        "copy_to": "full_name" <1>
+      },
+      "last_name": {
+        "type": "text",
+        "copy_to": "full_name" <1>
+      },
+      "full_name": {
+        "type": "text"
       }
     }
   }

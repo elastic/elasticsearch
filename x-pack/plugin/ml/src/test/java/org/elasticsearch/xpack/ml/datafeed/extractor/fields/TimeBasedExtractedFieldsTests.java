@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
-import org.joda.time.DateTime;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -61,13 +60,6 @@ public class TimeBasedExtractedFieldsTests extends ESTestCase {
         assertThat(extractedFields.getDocValueFields().stream().map(ExtractedField::getName).toArray(String[]::new),
             equalTo(new String[] {"time", "doc1", "doc2"}));
         assertThat(extractedFields.getSourceFields(), equalTo(new String[] {"src1", "src2"}));
-    }
-
-    public void testTimeFieldValue() {
-        long millis = randomLong();
-        SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", new DateTime(millis)).build();
-        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Collections.singletonList(timeField));
-        assertThat(extractedFields.timeFieldValue(hit), equalTo(millis));
     }
 
     public void testStringTimeFieldValue() {

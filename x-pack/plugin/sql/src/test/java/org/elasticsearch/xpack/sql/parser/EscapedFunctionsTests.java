@@ -192,7 +192,7 @@ public class EscapedFunctionsTests extends ESTestCase {
 
     public void testTimestampLiteral() {
         Literal l = timestampLiteral("2012-01-01 10:01:02.3456");
-        assertThat(l.dataType(), is(DataType.DATE));
+        assertThat(l.dataType(), is(DataType.DATETIME));
     }
 
     public void testTimestampLiteralValidation() {

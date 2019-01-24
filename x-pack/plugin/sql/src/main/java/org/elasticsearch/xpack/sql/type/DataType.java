@@ -41,10 +41,11 @@ public enum DataType {
     OBJECT(                JDBCType.STRUCT,    -1,                0,                 0,  false, false, false),
     NESTED(                JDBCType.STRUCT,    -1,                0,                 0,  false, false, false),
     BINARY(                JDBCType.VARBINARY, -1,                Integer.MAX_VALUE, 0,  false, false, false),
-    // since ODBC and JDBC interpret precision for Date as display size,
+    DATE(                  JDBCType.DATE,      Long.BYTES,        10,                10, false, false, true),
+    // since ODBC and JDBC interpret precision for Date as display size
     // the precision is 23 (number of chars in ISO8601 with millis) + Z (the UTC timezone)
     // see https://github.com/elastic/elasticsearch/issues/30386#issuecomment-386807288
-    DATE(                  JDBCType.TIMESTAMP, Long.BYTES,        24,                24, false, false, true),
+    DATETIME(              JDBCType.TIMESTAMP, Long.BYTES,        24,                24, false, false, true),
     //
     // specialized types
     //
@@ -103,8 +104,8 @@ public enum DataType {
 
         // Date
         odbcToEs.put("SQL_DATE", DATE);
-        odbcToEs.put("SQL_TIME", DATE);
-        odbcToEs.put("SQL_TIMESTAMP", DATE);
+        odbcToEs.put("SQL_TIME", DATETIME);
+        odbcToEs.put("SQL_TIMESTAMP", DATETIME);
 
         // Intervals
         odbcToEs.put("SQL_INTERVAL_HOUR_TO_MINUTE", INTERVAL_HOUR_TO_MINUTE);
@@ -214,6 +215,10 @@ public enum DataType {
     public boolean isPrimitive() {
         return this != OBJECT && this != NESTED;
     }
+
+    public boolean isDateBased() {
+        return this == DATE || this == DATETIME;
+    }
     
     public static DataType fromOdbcType(String odbcType) {
         return odbcToEs.get(odbcType);
@@ -225,8 +230,12 @@ public enum DataType {
      * For any dataType DataType.fromTypeName(dataType.esType) == dataType
      */
     public static DataType fromTypeName(String esType) {
+        String uppercase = esType.toUpperCase(Locale.ROOT);
+        if (uppercase.equals("DATE")) {
+            return DataType.DATETIME;
+        }
         try {
-            return DataType.valueOf(esType.toUpperCase(Locale.ROOT));
+            return DataType.valueOf(uppercase);
         } catch (IllegalArgumentException ex) {
             return DataType.UNSUPPORTED;
         }

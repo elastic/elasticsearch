@@ -71,12 +71,6 @@ forbiddenApisTest {
 // TODO: Not anymore. Now in :libs:core
 jarHell.enabled=false
 
-namingConventions {
-  testClass = 'org.elasticsearch.client.RestClientTestCase'
-  //we don't have integration tests
-  skipIntegTestInDisguise = true
-}
-
 testingConventions {
   naming.clear()
   naming {

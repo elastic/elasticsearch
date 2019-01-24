@@ -19,6 +19,11 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -32,7 +37,7 @@ import java.util.stream.Collectors;
  * otherwise merge away operations that have been soft deleted). Each retention lease contains a unique identifier, the retaining sequence
  * number, the timestamp of when the lease was created or renewed, and the source of the retention lease (e.g., "ccr").
  */
-public final class RetentionLease {
+public final class RetentionLease implements Writeable {
 
     private final String id;
 
@@ -114,6 +119,33 @@ public final class RetentionLease {
         this.retainingSequenceNumber = retainingSequenceNumber;
         this.timestamp = timestamp;
         this.source = source;
+    }
+
+    /**
+     * Constructs a new retention lease from a stream. The retention lease should have been written via {@link #writeTo(StreamOutput)}.
+     *
+     * @param in the stream to construct the retention lease from
+     * @throws IOException if an I/O exception occurs reading from the stream
+     */
+    public RetentionLease(final StreamInput in) throws IOException {
+        id = in.readString();
+        retainingSequenceNumber = in.readZLong();
+        timestamp = in.readVLong();
+        source = in.readString();
+    }
+
+    /**
+     * Writes a retention lease to a stream in a manner suitable for later reconstruction via {@link #RetentionLease(StreamInput)}.
+     *
+     * @param out the stream to write the retention lease to
+     * @throws IOException if an I/O exception occurs writing to the stream
+     */
+    @Override
+    public void writeTo(final StreamOutput out) throws IOException {
+        out.writeString(id);
+        out.writeZLong(retainingSequenceNumber);
+        out.writeVLong(timestamp);
+        out.writeString(source);
     }
 
     /**

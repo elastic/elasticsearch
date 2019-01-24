@@ -1,7 +1,7 @@
 setup:
   - skip:
       version: " - 6.99.99"
-      reason: include_type_name is not supported before 7.0.0
+      reason: include_type_name defaults to true before 7.0.0
   - do:
       indices.put_template:
         name: test
@@ -11,17 +11,15 @@ setup:
             number_of_shards:   1
             number_of_replicas: 0
           mappings:
-            _doc:
-              properties:
-                field:
-                  type: keyword
+            properties:
+              field:
+                type: keyword
 
 ---
 "Get template":
 
   - do:
       indices.get_template:
-        include_type_name: false
         name: test
 
   - match: {test.index_patterns: ["test-*"]}
@@ -42,7 +40,6 @@ setup:
 
   - do:
       indices.get_template:
-        include_type_name: false
         name: test_no_mappings
 
   - match: {test_no_mappings.index_patterns: ["test-*"]}

@@ -182,7 +182,7 @@ public class QueryContainer {
         List<FieldExtraction> nestedRefs = new ArrayList<>();
 
         String name = aliasName(attr);
-        String format = attr.field().getDataType() == DataType.DATE ? "epoch_millis" : null;
+        String format = attr.field().getDataType() == DataType.DATETIME ? "epoch_millis" : null;
         Query q = rewriteToContainNestedField(query, attr.source(),
                 attr.nestedParent().name(), name, format, attr.field().isAggregatable());
 

@@ -15,6 +15,7 @@ setup:
 
   - do:
       indices.get_field_mapping:
+        include_type_name: true
         fields: text
 
   - match: {test_index.mappings.test_type.text.mapping.text.type:     text}
@@ -23,6 +24,7 @@ setup:
 "Get field mapping by index only":
   - do:
       indices.get_field_mapping:
+        include_type_name: true
         index: test_index
         fields: text
 
@@ -33,6 +35,7 @@ setup:
 
   - do:
       indices.get_field_mapping:
+        include_type_name: true
         index: test_index
         type: test_type
         fields: text
@@ -44,6 +47,7 @@ setup:
 
   - do:
       indices.get_field_mapping:
+        include_type_name: true
         index: test_index
         type: test_type
         fields: [ text , text1 ]
@@ -56,6 +60,7 @@ setup:
 
   - do:
       indices.get_field_mapping:
+        include_type_name: true
         index: test_index
         type: test_type
         fields: text
@@ -69,6 +74,7 @@ setup:
 
   - do:
       indices.get_field_mapping:
+        include_type_name: true
         type: test_type
         fields: text
 

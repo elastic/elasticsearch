@@ -16,15 +16,13 @@ Create an index with two fields:
 PUT /my-index
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "message": {
-                    "type": "text"
-                },
-                "query": {
-                    "type": "percolator"
-                }
-            }
+        "properties": {
+             "message": {
+                 "type": "text"
+             },
+             "query": {
+                 "type": "percolator"
+             }
         }
     }
 }

@@ -19,9 +19,6 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.get.MultiGetItemResponse;
-import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -181,51 +178,6 @@ public class JobConfigProvider {
                 }
             }
         }, client::get);
-    }
-
-    /**
-     * Get the list anomaly detector jobs specified by {@code jobIds}.
-     *
-     * WARNING: errors are silently ignored, if a job is not found a
-     * {@code ResourceNotFoundException} is not thrown. Only found
-     * jobs are returned, this size of the returned jobs list could
-     * be different to the size of the requested ids list.
-     *
-     * @param jobIds    The jobs to get
-     * @param listener  Jobs listener
-     */
-    public void getJobs(List<String> jobIds, ActionListener<List<Job.Builder>> listener) {
-        MultiGetRequest multiGetRequest = new MultiGetRequest();
-        jobIds.forEach(jobId -> multiGetRequest.add(AnomalyDetectorsIndex.configIndexName(),
-                ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId)));
-
-        List<Job.Builder> jobs = new ArrayList<>();
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, multiGetRequest, new ActionListener<MultiGetResponse>() {
-            @Override
-            public void onResponse(MultiGetResponse multiGetResponse) {
-
-                MultiGetItemResponse[] responses = multiGetResponse.getResponses();
-                for (MultiGetItemResponse response : responses) {
-                    GetResponse getResponse = response.getResponse();
-                    if (getResponse.isExists()) {
-                        BytesReference source = getResponse.getSourceAsBytesRef();
-                        try {
-                            Job.Builder job = parseJobLenientlyFromSource(source);
-                            jobs.add(job);
-                        } catch (IOException e) {
-                            logger.error("Error parsing job configuration [" + response.getId() + "]");
-                        }
-                    }
-                }
-
-                listener.onResponse(jobs);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        }, client::multiGet);
     }
 
     /**

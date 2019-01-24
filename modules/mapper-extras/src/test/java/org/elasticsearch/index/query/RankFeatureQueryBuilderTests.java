@@ -98,7 +98,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
 
     public void testDefaultScoreFunction() throws IOException {
         String query = "{\n" +
-                "    \"feature\" : {\n" +
+                "    \"rank_feature\" : {\n" +
                 "        \"field\": \"my_feature_field\"\n" +
                 "    }\n" +
                 "}";
@@ -108,7 +108,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
 
     public void testIllegalField() throws IOException {
         String query = "{\n" +
-                "    \"feature\" : {\n" +
+                "    \"rank_feature\" : {\n" +
                 "        \"field\": \"" + STRING_FIELD_NAME + "\"\n" +
                 "    }\n" +
                 "}";
@@ -119,7 +119,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
 
     public void testIllegalCombination() throws IOException {
         String query = "{\n" +
-                "    \"feature\" : {\n" +
+                "    \"rank_feature\" : {\n" +
                 "        \"field\": \"my_negative_feature_field\",\n" +
                 "        \"log\" : {\n" +
                 "            \"scaling_factor\": 4.5\n" +

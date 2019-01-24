@@ -5,7 +5,7 @@ A `rank_features` field can index numeric feature vectors, so that they can
 later be used to boost documents in queries with a
 <<query-dsl-rank-feature-query,`rank_feature`>> query.
 
-It is analogous to the <<rank_feature,`rank_feature`>> datatype but is better suited
+It is analogous to the <<rank-feature,`rank_feature`>> datatype but is better suited
 when the list of features is sparse so that it wouldn't be reasonable to add
 one field to the mappings for each of them.
 

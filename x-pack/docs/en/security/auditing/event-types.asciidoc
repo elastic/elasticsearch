@@ -210,8 +210,7 @@ that have been previously described:
 === Audit event attributes for the deprecated formats
 
 The following table shows the common attributes that can be associated with
-every event, when it is output to the `<clustername>_access.log` file or to the
-<<audit-index, index>>.
+every event, when it is output to the `<clustername>_access.log` file.
 
 .Common attributes
 [cols="2,7",options="header"]
@@ -229,10 +228,8 @@ every event, when it is output to the `<clustername>_access.log` file or to the
                         `run_as_denied`, `run_as_granted`.
 |======
 
-For an event in the <<audit-log-output,audit log file output>>, these are
-positional attributes, which are printed at the beginning of each log line and
-are not adjoined by the attribute name. As a matter of course, the names are
-present for each attribute when the event is forwarded to the <<audit-index, index audit output>>.
+These are positional attributes, which are printed at the beginning of each log line and
+are not adjoined by the attribute name.
 
 The attribute `origin_address` is also common to every audit event. It is always
 named, that is, it is not positional. It denotes the source IP address of the

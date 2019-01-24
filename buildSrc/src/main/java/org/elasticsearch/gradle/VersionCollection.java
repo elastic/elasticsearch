@@ -20,6 +20,8 @@ package org.elasticsearch.gradle;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -86,6 +88,7 @@ public class VersionCollection {
 
     private final Version currentVersion;
     private final Map<Integer, List<Version>> groupByMajor;
+    private final Map<Version, UnreleasedVersionInfo> unreleased;
 
     public class UnreleasedVersionInfo {
         public final Version version;
@@ -129,6 +132,16 @@ public class VersionCollection {
         assertCurrentVersionMatchesParsed(currentVersionProperty);
 
         assertNoOlderThanTwoMajors();
+
+        Map<Version, UnreleasedVersionInfo> unreleased = new HashMap<>();
+        for (Version unreleasedVersion : getUnreleased()) {
+            if (unreleasedVersion.equals(currentVersion)) {
+                continue;
+            }
+            unreleased.put(unreleasedVersion,
+                new UnreleasedVersionInfo(unreleasedVersion, getBranchFor(unreleasedVersion), getGradleProjectNameFor(unreleasedVersion)));
+        }
+        this.unreleased = Collections.unmodifiableMap(unreleased);
     }
 
     private void assertNoOlderThanTwoMajors() {
@@ -148,6 +161,13 @@ public class VersionCollection {
                     currentVersionProperty
             );
         }
+    }
+
+    /**
+      * Returns info about the unreleased version, or {@code null} if the version is released.
+      */
+    public UnreleasedVersionInfo unreleasedInfo(Version version) {
+        return unreleased.get(version);
     }
 
     public void forPreviousUnreleased(Consumer<UnreleasedVersionInfo> consumer) {

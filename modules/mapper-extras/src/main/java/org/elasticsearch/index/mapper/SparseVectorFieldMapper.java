@@ -31,9 +31,9 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
@@ -107,7 +107,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DocValueFormat docValueFormat(String format, DateTimeZone timeZone) {
+        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
             throw new UnsupportedOperationException(
                 "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations");
         }

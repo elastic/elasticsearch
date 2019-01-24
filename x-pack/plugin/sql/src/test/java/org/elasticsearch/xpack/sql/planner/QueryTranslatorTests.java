@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
+import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
+import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
@@ -170,7 +172,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testDateRangeCast() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > CAST('1969-05-13T12:34:56Z' AS DATE)");
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > CAST('1969-05-13T12:34:56Z' AS DATETIME)");
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
@@ -180,7 +182,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(query instanceof RangeQuery);
         RangeQuery rq = (RangeQuery) query;
         assertEquals("date", rq.field());
-        assertEquals(DateUtils.of("1969-05-13T12:34:56Z"), rq.lower());
+        assertEquals(DateUtils.asDateTime("1969-05-13T12:34:56Z"), rq.lower());
     }
     
     public void testLikeConstructsNotSupported() {
@@ -480,7 +482,53 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("+2-0", h.interval().fold().toString());
         Expression field = h.field();
         assertEquals(FieldAttribute.class, field.getClass());
+        assertEquals(DataType.DATETIME, field.dataType());
+    }
+
+    public void testGroupByHistogramWithDate() {
+        LogicalPlan p = plan("SELECT MAX(int) FROM test GROUP BY HISTOGRAM(CAST(date AS DATE), INTERVAL 2 MONTHS)");
+        assertTrue(p instanceof Aggregate);
+        Aggregate a = (Aggregate) p;
+        List<Expression> groupings = a.groupings();
+        assertEquals(1, groupings.size());
+        Expression exp = groupings.get(0);
+        assertEquals(Histogram.class, exp.getClass());
+        Histogram h = (Histogram) exp;
+        assertEquals("+0-2", h.interval().fold().toString());
+        Expression field = h.field();
+        assertEquals(Cast.class, field.getClass());
         assertEquals(DataType.DATE, field.dataType());
+    }
+
+    public void testGroupByHistogramWithDateAndSmallInterval() {
+        PhysicalPlan p = optimizeAndPlan("SELECT MAX(int) FROM test GROUP BY " +
+            "HISTOGRAM(CAST(date AS DATE), INTERVAL 5 MINUTES)");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(1, eqe.queryContainer().aggs().groups().size());
+        assertEquals(GroupByDateHistogram.class, eqe.queryContainer().aggs().groups().get(0).getClass());
+        assertEquals(86400000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).interval());
+    }
+
+    public void testGroupByHistogramWithDateTruncateIntervalToDayMultiples() {
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT MAX(int) FROM test GROUP BY " +
+                "HISTOGRAM(CAST(date AS DATE), INTERVAL '2 3:04' DAY TO MINUTE)");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.queryContainer().aggs().groups().size());
+            assertEquals(GroupByDateHistogram.class, eqe.queryContainer().aggs().groups().get(0).getClass());
+            assertEquals(172800000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).interval());
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT MAX(int) FROM test GROUP BY " +
+                "HISTOGRAM(CAST(date AS DATE), INTERVAL 4409 MINUTES)");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.queryContainer().aggs().groups().size());
+            assertEquals(GroupByDateHistogram.class, eqe.queryContainer().aggs().groups().get(0).getClass());
+            assertEquals(259200000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).interval());
+        }
     }
     
     public void testCountAndCountDistinctFolding() {

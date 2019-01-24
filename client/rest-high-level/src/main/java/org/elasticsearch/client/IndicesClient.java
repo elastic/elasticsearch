@@ -249,7 +249,7 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      *
-     * @deprecated This method uses an old request and response objects which still refer to types, a deprecated
+     * @deprecated This method uses old request and response objects which still refer to types, a deprecated
      * feature. The method {@link #getMapping(GetMappingsRequest, RequestOptions)} should be used instead, which
      * accepts a new request object.
      */
@@ -317,7 +317,7 @@ public final class IndicesClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      *
-     * @deprecated This method uses request and response objects which still refers to types, a deprecated feature.
+     * @deprecated This method uses old request and response objects which still refer to types, a deprecated feature.
      * The method {@link #getFieldMappingAsync(GetFieldMappingsRequest, RequestOptions, ActionListener)} should be
      * used instead, which accepts a new request object.
      */

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.put.MappingRequestOriginValidator;
+import org.elasticsearch.action.admin.indices.mapping.put.MappingRequestValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -40,7 +40,10 @@ public final class CcrRequests {
         return putMappingRequest;
     }
 
-    public static final MappingRequestOriginValidator CCR_PUT_MAPPING_REQUEST_VALIDATOR = (request, state, indices) -> {
+    public static final MappingRequestValidator CCR_PUT_MAPPING_REQUEST_VALIDATOR = (request, state, indices) -> {
+        if (request.origin() == null) {
+            return null; // a put-mapping-request on old versions does not have origin.
+        }
         final List<Index> followingIndices = Arrays.stream(indices)
             .filter(index -> {
                 final IndexMetaData indexMetaData = state.metaData().index(index);

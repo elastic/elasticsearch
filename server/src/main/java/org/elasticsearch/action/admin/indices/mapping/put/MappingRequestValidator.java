@@ -23,18 +23,18 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.index.Index;
 
 /**
- * A validator that validates the origin of a {@link PutMappingRequest} before executing it.
- * @see TransportPutMappingAction.RequestOriginValidators
+ * A validator that validates a {@link PutMappingRequest} before executing it.
+ * @see TransportPutMappingAction.RequestValidators
  */
-public interface MappingRequestOriginValidator {
+public interface MappingRequestValidator {
 
     /**
-     * Validates the origin a given put mapping request with its associated concrete indices and the current state.
+     * Validates a given put mapping request with its associated concrete indices and the current state.
      *
      * @param request the request to validate
      * @param state   the current cluster state
      * @param indices the concrete indices that associated with the given put mapping request
      * @return a non-null exception indicates a reason that the given request should be aborted; otherwise returns null.
      */
-    Exception validateRequestOrigin(PutMappingRequest request, ClusterState state, Index[] indices);
+    Exception validateRequest(PutMappingRequest request, ClusterState state, Index[] indices);
 }

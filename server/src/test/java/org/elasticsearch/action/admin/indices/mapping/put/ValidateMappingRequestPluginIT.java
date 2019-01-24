@@ -34,11 +34,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ValidateMappingRequestOriginIT extends ESSingleNodeTestCase {
+public class ValidateMappingRequestPluginIT extends ESSingleNodeTestCase {
     static final Map<String, Collection<String>> allowedOrigins = ConcurrentCollections.newConcurrentMap();
     public static class TestPlugin extends Plugin implements ActionPlugin {
         @Override
-        public Collection<MappingRequestOriginValidator> mappingRequestOriginValidators() {
+        public Collection<MappingRequestValidator> mappingRequestValidators() {
             return Collections.singletonList((request, state, indices) -> {
                 for (Index index : indices) {
                     if (allowedOrigins.getOrDefault(index.getName(), Collections.emptySet()).contains(request.origin()) == false) {
@@ -55,7 +55,7 @@ public class ValidateMappingRequestOriginIT extends ESSingleNodeTestCase {
         return Collections.singletonList(TestPlugin.class);
     }
 
-    public void testValidateMappingRequestOrigin() {
+    public void testValidateMappingRequest() {
         createIndex("index_1");
         createIndex("index_2");
         allowedOrigins.put("index_1", Arrays.asList("1", "2"));

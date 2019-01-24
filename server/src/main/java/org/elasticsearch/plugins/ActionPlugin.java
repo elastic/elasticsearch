@@ -22,7 +22,7 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.MappingRequestOriginValidator;
+import org.elasticsearch.action.admin.indices.mapping.put.MappingRequestValidator;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
@@ -183,10 +183,10 @@ public interface ActionPlugin {
     }
 
     /**
-     * Returns a collection of validators that are used by {@link TransportPutMappingAction.RequestOriginValidators} to validate
-     * the origin of a {@link org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest} before the executing it.
+     * Returns a collection of validators that are used by {@link TransportPutMappingAction.RequestValidators} to
+     * validate a {@link org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest} before the executing it.
      */
-    default Collection<MappingRequestOriginValidator> mappingRequestOriginValidators() {
+    default Collection<MappingRequestValidator> mappingRequestValidators() {
         return Collections.emptyList();
     }
 }

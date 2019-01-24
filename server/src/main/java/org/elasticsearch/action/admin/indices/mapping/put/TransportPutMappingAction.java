@@ -45,17 +45,17 @@ import java.util.Collection;
 public class TransportPutMappingAction extends TransportMasterNodeAction<PutMappingRequest, AcknowledgedResponse> {
 
     private final MetaDataMappingService metaDataMappingService;
-    private final RequestOriginValidators requestOriginValidators;
+    private final RequestValidators requestValidators;
 
     @Inject
     public TransportPutMappingAction(TransportService transportService, ClusterService clusterService,
                                      ThreadPool threadPool, MetaDataMappingService metaDataMappingService,
                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                     RequestOriginValidators requestOriginValidators) {
+                                     RequestValidators requestValidators) {
         super(PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
             PutMappingRequest::new);
         this.metaDataMappingService = metaDataMappingService;
-        this.requestOriginValidators = requestOriginValidators;
+        this.requestValidators = requestValidators;
     }
 
     @Override
@@ -87,12 +87,10 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
             final Index[] concreteIndices = request.getConcreteIndex() == null ?
                 indexNameExpressionResolver.concreteIndices(state, request)
                 : new Index[] {request.getConcreteIndex()};
-            if (request.origin() != null) {
-                final Exception validationException = requestOriginValidators.validateRequestOrigin(request, state, concreteIndices);
-                if (validationException != null) {
-                    listener.onFailure(validationException);
-                    return;
-                }
+            final Exception validationException = requestValidators.validateRequest(request, state, concreteIndices);
+            if (validationException != null) {
+                listener.onFailure(validationException);
+                return;
             }
             PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest()
                     .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
@@ -121,17 +119,17 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
     }
 
 
-    public static class RequestOriginValidators {
-        private final Collection<MappingRequestOriginValidator> validators;
+    public static class RequestValidators {
+        private final Collection<MappingRequestValidator> validators;
 
-        public RequestOriginValidators(Collection<MappingRequestOriginValidator> validators) {
+        public RequestValidators(Collection<MappingRequestValidator> validators) {
             this.validators = validators;
         }
 
-        private Exception validateRequestOrigin(PutMappingRequest request, ClusterState state, Index[] indices) {
+        private Exception validateRequest(PutMappingRequest request, ClusterState state, Index[] indices) {
             Exception firstException = null;
-            for (MappingRequestOriginValidator validator : validators) {
-                final Exception e = validator.validateRequestOrigin(request, state, indices);
+            for (MappingRequestValidator validator : validators) {
+                final Exception e = validator.validateRequest(request, state, indices);
                 if (firstException == null) {
                     firstException = e;
                 } else {

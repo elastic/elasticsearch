@@ -21,6 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -35,11 +36,13 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
     private class MockIndexer extends AsyncTwoPhaseIndexer<Integer, MockJobStats> {
 
+        private final CountDownLatch latch;
         // test the execution order
         private int step;
 
-        protected MockIndexer(Executor executor, AtomicReference<IndexerState> initialState, Integer initialPosition) {
+        protected MockIndexer(Executor executor, AtomicReference<IndexerState> initialState, Integer initialPosition, CountDownLatch latch) {
             super(executor, initialState, initialPosition, new MockJobStats());
+            this.latch = latch;
         }
 
         @Override
@@ -49,9 +52,18 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         @Override
         protected IterationResult<Integer> doProcess(SearchResponse searchResponse) {
+            awaitForLatch();
             assertThat(step, equalTo(3));
             ++step;
             return new IterationResult<Integer>(Collections.emptyList(), 3, true);
+        }
+
+        private void awaitForLatch() {
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
 
         @Override
@@ -196,12 +208,15 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         final ExecutorService executor = Executors.newFixedThreadPool(1);
         isFinished.set(false);
         try {
-
-            MockIndexer indexer = new MockIndexer(executor, state, 2);
+            CountDownLatch countDownLatch = new CountDownLatch(1);
+            MockIndexer indexer = new MockIndexer(executor, state, 2, countDownLatch);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+            Thread.sleep(1000);
             assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
+            countDownLatch.countDown();
+
             assertThat(indexer.getPosition(), equalTo(2));
             ESTestCase.awaitBusy(() -> isFinished.get());
             assertThat(indexer.getStep(), equalTo(6));

@@ -56,7 +56,7 @@ unitTest {
 
 dependencies {
   compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
-  compile project(':libs:elasticsearch-ssl-config')
+  compile "org.elasticsearch:elasticsearch-ssl-config:${version}"
   // for http - testing reindex from remote
   testCompile project(path: ':modules:transport-netty4', configuration: 'runtime')
   // for parent/child testing

@@ -66,7 +66,8 @@ public class RestCreateIndexAction extends BaseRestHandler {
             if (sourceAsMap.containsKey("mappings")) {
                 if (includeTypeName == false) {
                     Map<String, Object> newSourceAsMap = new HashMap<>(sourceAsMap);
-                    newSourceAsMap.put("mappings", Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, sourceAsMap.get("mappings")));
+                    newSourceAsMap.put("mappings", Collections.singletonMap(
+                        MapperService.SINGLE_MAPPING_NAME, sourceAsMap.get("mappings")));
                     sourceAsMap = newSourceAsMap;
                 } else {
                     deprecationLogger.deprecatedAndMaybeLog("create_index_with_types", TYPES_DEPRECATION_MESSAGE);

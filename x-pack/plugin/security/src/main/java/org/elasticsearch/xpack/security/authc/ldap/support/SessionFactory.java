@@ -174,14 +174,7 @@ public abstract class SessionFactory {
         if (deprecationHandler.shouldLogWarnings()) {
             final SSLSocketVerifier existingVerifier = options.getSSLSocketVerifier();
             assert existingVerifier != null : "LDAPConnectionOptions has null verifier";
-            final SSLSocketVerifier wrappedVerifier = new SSLSocketVerifier() {
-                @Override
-                public void verifySSLSocket(String host, int port, SSLSocket sslSocket) throws LDAPException {
-                    deprecationHandler.checkAndLog(sslSocket.getSession(), () -> "ldap host " + host);
-                    existingVerifier.verifySSLSocket(host, port, sslSocket);
-                }
-            };
-            options.setSSLSocketVerifier(wrappedVerifier);
+            options.setSSLSocketVerifier(new TlsDeprecationSocketVerifier(deprecationHandler, existingVerifier));
         }
     }
 
@@ -280,6 +273,26 @@ public abstract class SessionFactory {
             }
 
             return allSecure;
+        }
+    }
+
+    static class TlsDeprecationSocketVerifier extends SSLSocketVerifier {
+        private final TLSv1DeprecationHandler deprecationHandler;
+        private final SSLSocketVerifier delegate;
+
+        TlsDeprecationSocketVerifier(TLSv1DeprecationHandler deprecationHandler, SSLSocketVerifier delegate) {
+            this.deprecationHandler = deprecationHandler;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void verifySSLSocket(String host, int port, SSLSocket sslSocket) throws LDAPException {
+            deprecationHandler.checkAndLog(sslSocket.getSession(), () -> "ldap host " + host);
+            delegate.verifySSLSocket(host, port, sslSocket);
+        }
+
+        SSLSocketVerifier getDelegate() {
+            return delegate;
         }
     }
 }

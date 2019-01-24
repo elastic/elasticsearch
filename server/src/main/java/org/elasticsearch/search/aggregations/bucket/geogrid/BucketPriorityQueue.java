@@ -18,19 +18,23 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.ParseField;
+import org.apache.lucene.util.PriorityQueue;
 
-/**
- * Encapsulates relevant parameter defaults and validations for the geo hash grid aggregation.
- */
-final class GeoHashGridParams {
+class BucketPriorityQueue<B extends InternalGeoGridBucket> extends PriorityQueue<B> {
 
-    /* recognized field names in JSON */
-    static final ParseField FIELD_PRECISION = new ParseField("precision");
-    static final ParseField FIELD_SIZE = new ParseField("size");
-    static final ParseField FIELD_SHARD_SIZE = new ParseField("shard_size");
+    BucketPriorityQueue(int size) {
+        super(size);
+    }
 
-    private GeoHashGridParams() {
-        throw new AssertionError("No instances intended");
+    @Override
+    protected boolean lessThan(InternalGeoGridBucket o1, InternalGeoGridBucket o2) {
+        int cmp = Long.compare(o2.getDocCount(), o1.getDocCount());
+        if (cmp == 0) {
+            cmp = o2.compareTo(o1);
+            if (cmp == 0) {
+                cmp = System.identityHashCode(o2) - System.identityHashCode(o1);
+            }
+        }
+        return cmp > 0;
     }
 }

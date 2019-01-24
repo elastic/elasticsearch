@@ -97,7 +97,7 @@ public class ClusterBootstrapService {
 
     void onFoundPeersUpdated() {
         final Set<DiscoveryNode> nodes = getDiscoveredNodes();
-        if (transportService.getLocalNode().isMasterNode() && bootstrapRequirements.isEmpty() == false
+        if (bootstrappingPermitted.get() && transportService.getLocalNode().isMasterNode() && bootstrapRequirements.isEmpty() == false
             && isBootstrappedSupplier.getAsBoolean() == false && nodes.stream().noneMatch(Coordinator::isZen1Node)) {
 
             final Tuple<Set<DiscoveryNode>,List<String>> requirementMatchingResult;
@@ -113,6 +113,13 @@ public class ClusterBootstrapService {
             final List<String> unsatisfiedRequirements = requirementMatchingResult.v2();
             logger.trace("nodesMatchingRequirements={}, unsatisfiedRequirements={}, bootstrapRequirements={}",
                 nodesMatchingRequirements, unsatisfiedRequirements, bootstrapRequirements);
+
+            if (nodesMatchingRequirements.contains(transportService.getLocalNode()) == false) {
+                logger.info("skipping cluster bootstrapping as local node does not match bootstrap requirements: {}",
+                    bootstrapRequirements);
+                bootstrappingPermitted.set(false);
+                return;
+            }
 
             if (nodesMatchingRequirements.size() * 2 > bootstrapRequirements.size()) {
                 startBootstrap(nodesMatchingRequirements, unsatisfiedRequirements);

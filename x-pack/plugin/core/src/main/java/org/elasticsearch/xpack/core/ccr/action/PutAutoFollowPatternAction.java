@@ -275,7 +275,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             super(in);
             name = in.readString();
             remoteCluster = in.readString();
-            leaderIndexPatterns = in.readList(StreamInput::readString);
+            leaderIndexPatterns = in.readStringList();
             followIndexNamePattern = in.readOptionalString();
             maxReadRequestOperationCount = in.readOptionalVInt();
             maxReadRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
@@ -294,7 +294,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(name);
             out.writeString(remoteCluster);
-            out.writeStringList(leaderIndexPatterns);
+            out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexNamePattern);
             out.writeOptionalVInt(maxReadRequestOperationCount);
             out.writeOptionalWriteable(maxReadRequestSize);

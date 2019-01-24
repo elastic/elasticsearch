@@ -18,25 +18,18 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 
-import java.util.List;
+import java.io.IOException;
 
-/**
- * A {@code geohash_grid} aggregation. Defines multiple buckets, each representing a cell in a geo-grid of a specific
- * precision.
- */
-public interface GeoHashGrid extends MultiBucketsAggregation {
+public abstract class ParsedGeoGridBucket extends ParsedMultiBucketAggregation.ParsedBucket implements GeoGrid.Bucket {
 
-    /**
-     * A bucket that is associated with a {@code geohash_grid} cell. The key of the bucket is the {@code geohash} of the cell
-     */
-    interface Bucket extends MultiBucketsAggregation.Bucket {
-    }
+    protected String geohashAsString;
 
-    /**
-     * @return  The buckets of this aggregation (each bucket representing a geohash grid cell)
-     */
     @Override
-    List<? extends Bucket> getBuckets();
+    protected XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
+        return builder.field(Aggregation.CommonFields.KEY.getPreferredName(), geohashAsString);
+    }
 }

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.MappingRequestValidator;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
@@ -425,6 +426,12 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
         } else {
             throw new IllegalStateException("Only one EngineFactory plugin allowed");
         }
+    }
+
+    @Override
+    public Collection<MappingRequestValidator> mappingRequestValidators() {
+        return filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.mappingRequestValidators().stream())
+            .collect(Collectors.toList());
     }
 
     private <T> List<T> filterPlugins(Class<T> type) {

@@ -23,7 +23,6 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -51,6 +50,7 @@ import org.elasticsearch.client.indexlifecycle.RolloverAction;
 import org.elasticsearch.client.indexlifecycle.ShrinkAction;
 import org.elasticsearch.client.indexlifecycle.StartILMRequest;
 import org.elasticsearch.client.indexlifecycle.StopILMRequest;
+import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -338,16 +338,16 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
                 new PutLifecyclePolicyRequest(policy);
             client.indexLifecycle().putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
 
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index-1",
-                Settings.builder()
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index-1")
+                .settings(Settings.builder()
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                     .put("index.lifecycle.name", "my_policy")
                     .put("index.lifecycle.rollover_alias", "my_alias")
                     .build());
             createIndexRequest.alias(new Alias("my_alias").writeIndex(true));
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
-            CreateIndexRequest createOtherIndexRequest = new CreateIndexRequest("other_index",
-                Settings.builder()
+            CreateIndexRequest createOtherIndexRequest = new CreateIndexRequest("other_index")
+                .settings(Settings.builder()
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                     .build());
             client.indices().create(createOtherIndexRequest, RequestOptions.DEFAULT);
@@ -600,8 +600,8 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
                 new PutLifecyclePolicyRequest(policy);
             client.indexLifecycle().putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
 
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index",
-                Settings.builder()
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index")
+                .settings(Settings.builder()
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                     .put("index.lifecycle.name", "my_policy")
                     .build());
@@ -665,8 +665,8 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         LifecyclePolicy policy = new LifecyclePolicy("my_policy", phases);
         PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
         client.indexLifecycle().putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index",
-            Settings.builder()
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index")
+            .settings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put("index.lifecycle.name", "my_policy")
                 .build());

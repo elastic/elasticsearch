@@ -33,6 +33,9 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asDateTimeField;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asMillisSinceEpoch;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.utcMillisRemoveTime;
 
 class JdbcResultSet implements ResultSet, JdbcWrapper {
 
@@ -252,8 +255,11 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
                 if (val == null) {
                     return null;
                 }
-                return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asMillisSinceEpoch, Function.identity());
-            };
+                return asDateTimeField(val, JdbcDateUtils::asMillisSinceEpoch, Function.identity());
+            }
+            if (EsType.DATE == type) {
+                return utcMillisRemoveTime(asMillisSinceEpoch(val.toString()));
+            }
             return val == null ? null : (Long) val;
         } catch (ClassCastException cce) {
             throw new SQLException(

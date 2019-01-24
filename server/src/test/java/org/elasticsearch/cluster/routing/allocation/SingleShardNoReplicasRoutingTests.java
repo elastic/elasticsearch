@@ -117,7 +117,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
         logger.info("Killing node1 where the shard is, checking the shard is unassigned");
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node1")).build();
-        newState = strategy.deassociateDeadNodes(clusterState, true, "reroute");
+        newState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 

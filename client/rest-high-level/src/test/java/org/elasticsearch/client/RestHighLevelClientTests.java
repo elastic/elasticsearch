@@ -715,6 +715,10 @@ public class RestHighLevelClientTests extends ESTestCase {
             "nodes.reload_secure_settings",
             "search_shards",
         };
+        List<String> booleanReturnMethods = Arrays.asList(
+            "security.enable_user",
+            "security.disable_user",
+            "security.change_password");
         Set<String> deprecatedMethods = new HashSet<>();
         deprecatedMethods.add("indices.force_merge");
         deprecatedMethods.add("multi_get");
@@ -736,6 +740,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 .map(method -> Tuple.tuple(toSnakeCase(method.getName()), method))
                 .flatMap(tuple -> tuple.v2().getReturnType().getName().endsWith("Client")
                         ? getSubClientMethods(tuple.v1(), tuple.v2().getReturnType()) : Stream.of(tuple))
+                .filter(tuple -> tuple.v2().getAnnotation(Deprecated.class) == null)
                 .collect(Collectors.groupingBy(Tuple::v1,
                     Collectors.mapping(Tuple::v2, Collectors.toSet())));
 
@@ -753,7 +758,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 } else if (isSubmitTaskMethod(apiName)) {
                     assertSubmitTaskMethod(methods, method, apiName, restSpec);
                 } else {
-                    assertSyncMethod(method, apiName);
+                    assertSyncMethod(method, apiName, booleanReturnMethods);
                     apiUnsupported.remove(apiName);
                     if (apiSpec.contains(apiName) == false) {
                         if (deprecatedMethods.contains(apiName)) {
@@ -790,9 +795,9 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertThat("Some API are not supported but they should be: " + apiUnsupported, apiUnsupported.size(), equalTo(0));
     }
 
-    private static void assertSyncMethod(Method method, String apiName) {
+    private static void assertSyncMethod(Method method, String apiName, List<String> booleanReturnMethods) {
         //A few methods return a boolean rather than a response object
-        if (apiName.equals("ping") || apiName.contains("exist")) {
+        if (apiName.equals("ping") || apiName.contains("exist") || booleanReturnMethods.contains(apiName)) {
             assertThat("the return type for method [" + method + "] is incorrect",
                 method.getReturnType().getSimpleName(), equalTo("boolean"));
         } else {
@@ -811,10 +816,18 @@ public class RestHighLevelClientTests extends ESTestCase {
                 method.getParameterTypes()[0], equalTo(RequestOptions.class));
         } else {
             assertEquals("incorrect number of arguments for method [" + method + "]", 2, method.getParameterTypes().length);
-            assertThat("the first parameter to method [" + method + "] is the wrong type",
-                method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
-            assertThat("the second parameter to method [" + method + "] is the wrong type",
-                method.getParameterTypes()[1], equalTo(RequestOptions.class));
+            // This is no longer true for all methods. Some methods can contain these 2 args backwards because of deprecation
+            if (method.getParameterTypes()[0].equals(RequestOptions.class)) {
+                assertThat("the first parameter to method [" + method + "] is the wrong type",
+                    method.getParameterTypes()[0], equalTo(RequestOptions.class));
+                assertThat("the second parameter to method [" + method + "] is the wrong type",
+                    method.getParameterTypes()[1].getSimpleName(), endsWith("Request"));
+            } else {
+                assertThat("the first parameter to method [" + method + "] is the wrong type",
+                    method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
+                assertThat("the second parameter to method [" + method + "] is the wrong type",
+                    method.getParameterTypes()[1], equalTo(RequestOptions.class));
+            }
         }
     }
 
@@ -829,10 +842,18 @@ public class RestHighLevelClientTests extends ESTestCase {
             assertThat(method.getParameterTypes()[1], equalTo(ActionListener.class));
         } else {
             assertEquals("async method [" + method + "] has the wrong number of arguments", 3, method.getParameterTypes().length);
-            assertThat("the first parameter to async method [" + method + "] should be a request type",
-                method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
-            assertThat("the second parameter to async method [" + method + "] is the wrong type",
-                method.getParameterTypes()[1], equalTo(RequestOptions.class));
+            // This is no longer true for all methods. Some methods can contain these 2 args backwards because of deprecation
+            if (method.getParameterTypes()[0].equals(RequestOptions.class)) {
+                assertThat("the first parameter to async method [" + method + "] should be a request type",
+                    method.getParameterTypes()[0], equalTo(RequestOptions.class));
+                assertThat("the second parameter to async method [" + method + "] is the wrong type",
+                    method.getParameterTypes()[1].getSimpleName(), endsWith("Request"));
+            } else {
+                assertThat("the first parameter to async method [" + method + "] should be a request type",
+                    method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
+                assertThat("the second parameter to async method [" + method + "] is the wrong type",
+                    method.getParameterTypes()[1], equalTo(RequestOptions.class));
+            }
             assertThat("the third parameter to async method [" + method + "] is the wrong type",
                 method.getParameterTypes()[2], equalTo(ActionListener.class));
         }

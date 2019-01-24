@@ -351,10 +351,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
             final IndexService indexService = indicesService.indexServiceSafe(request.getShard().getIndex());
             final IndexShard indexShard = indexService.getShard(request.getShard().id());
             final SeqNoStats seqNoStats = indexShard.seqNoStats();
-            final IndexMetaData indexMetaData = clusterService.state().metaData().index(shardId.getIndex());
-            final long mappingVersion = indexMetaData.getMappingVersion();
-            final long settingsVersion = indexMetaData.getSettingsVersion();
-
             final Translog.Operation[] operations = getOperations(
                     indexShard,
                     seqNoStats.getGlobalCheckpoint(),
@@ -362,8 +358,14 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
                     request.getMaxOperationCount(),
                     request.getExpectedHistoryUUID(),
                     request.getMaxBatchSize());
-            // must capture after after snapshotting operations to ensure this MUS is at least the highest MUS of any of these operations.
+            // must capture after snapshotting operations to ensure this MUS is at least the highest MUS of any of these operations.
             final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
+            // must capture IndexMetaData after snapshotting operations to ensure the returned mapping version is at least as up-to-date
+            // as the mapping version that these operations used. Here we must not use IndexMetaData from ClusterService for we expose
+            // a new cluster state to ClusterApplier(s) before exposing it in the ClusterService.
+            final IndexMetaData indexMetaData = indexService.getMetaData();
+            final long mappingVersion = indexMetaData.getMappingVersion();
+            final long settingsVersion = indexMetaData.getSettingsVersion();
             return getResponse(
                     mappingVersion,
                     settingsVersion,

@@ -171,15 +171,5 @@ public class SnapshotUserRoleIT extends NativeRealmIntegTestCase {
                     containsString("action [indices:admin/delete] is unauthorized for user [snapshot_user]"));
         }
     }
-
-    // create repo
-    // create another index
-    // create user with snapshot_user role
-
-    // test user can NOT get, search, index, change settings
-    // test user can NOT put repositories
-    // test user can NOT restore snapshot
-    // test user can list all indices (including .security)
-    // test user can snapshot all indices (including .security)
     
 }

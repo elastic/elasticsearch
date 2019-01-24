@@ -30,7 +30,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class SnapshotUserRoleIT extends NativeRealmIntegTestCase {
@@ -104,13 +103,16 @@ public class SnapshotUserRoleIT extends NativeRealmIntegTestCase {
                 containsString("action [indices:data/read/search] is unauthorized for user [snapshot_user]"));
         // try create index
         unauthzException = expectThrows(ElasticsearchSecurityException.class,
-                () -> client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken)).admin().indices().prepareCreate(ordinaryIndex + "2").get());
+                () -> client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken)).admin().indices()
+                        .prepareCreate(ordinaryIndex + "2").get());
         assertThat(unauthzException.status(), is(RestStatus.FORBIDDEN));
         assertThat(unauthzException.getDetailedMessage(),
                 containsString("action [indices:admin/create] is unauthorized for user [snapshot_user]"));
         // try create another repo
-        unauthzException = expectThrows(ElasticsearchSecurityException.class, () -> client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken))
-                .admin().cluster().preparePutRepository("some_other_repo").setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).get());
+        unauthzException = expectThrows(ElasticsearchSecurityException.class,
+                () -> client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken)).admin().cluster()
+                        .preparePutRepository("some_other_repo").setType("fs")
+                        .setSettings(Settings.builder().put("location", randomRepoPath())).get());
         assertThat(unauthzException.status(), is(RestStatus.FORBIDDEN));
         assertThat(unauthzException.getDetailedMessage(),
                 containsString("action [cluster:admin/repository/put] is unauthorized for user [snapshot_user]"));
@@ -122,50 +124,57 @@ public class SnapshotUserRoleIT extends NativeRealmIntegTestCase {
         assertThat(unauthzException.getDetailedMessage(),
                 containsString("action [cluster:admin/repository/delete] is unauthorized for user [snapshot_user]"));
         // try fumble with snapshots
-        unauthzException = expectThrows(ElasticsearchSecurityException.class, () -> client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken))
-                .admin().cluster().prepareRestoreSnapshot("repo", randomAlphaOfLength(4).toLowerCase(Locale.ROOT)).get());
+        unauthzException = expectThrows(ElasticsearchSecurityException.class,
+                () -> client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken)).admin().cluster()
+                        .prepareRestoreSnapshot("repo", randomAlphaOfLength(4).toLowerCase(Locale.ROOT)).get());
         assertThat(unauthzException.status(), is(RestStatus.FORBIDDEN));
         assertThat(unauthzException.getDetailedMessage(),
                 containsString("action [cluster:admin/snapshot/restore] is unauthorized for user [snapshot_user]"));
-        unauthzException = expectThrows(ElasticsearchSecurityException.class, () -> client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken))
-                .admin().cluster().prepareDeleteSnapshot("repo", randomAlphaOfLength(4).toLowerCase(Locale.ROOT)).get());
+        unauthzException = expectThrows(ElasticsearchSecurityException.class,
+                () -> client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken)).admin().cluster()
+                        .prepareDeleteSnapshot("repo", randomAlphaOfLength(4).toLowerCase(Locale.ROOT)).get());
         assertThat(unauthzException.status(), is(RestStatus.FORBIDDEN));
         assertThat(unauthzException.getDetailedMessage(),
                 containsString("action [cluster:admin/snapshot/delete] is unauthorized for user [snapshot_user]"));
         // try destructive actions on all indices are unauthorized
         for (final String indexToTest : Arrays.asList(INTERNAL_SECURITY_INDEX, SECURITY_INDEX_NAME, ordinaryIndex)) {
-            unauthzException = expectThrows(ElasticsearchSecurityException.class,
-                    () -> client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken)).prepareSearch(indexToTest).get());
+            unauthzException = expectThrows(ElasticsearchSecurityException.class, () -> client()
+                    .filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken)).prepareSearch(indexToTest).get());
             assertThat(unauthzException.status(), is(RestStatus.FORBIDDEN));
             assertThat(unauthzException.getDetailedMessage(),
                     containsString("action [indices:data/read/search] is unauthorized for user [snapshot_user]"));
 
             unauthzException = expectThrows(ElasticsearchSecurityException.class,
-                    () -> client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken)).prepareGet(indexToTest, "doc", "1").get());
+                    () -> client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken))
+                            .prepareGet(indexToTest, "doc", "1").get());
             assertThat(unauthzException.status(), is(RestStatus.FORBIDDEN));
             assertThat(unauthzException.getDetailedMessage(),
                     containsString("action [indices:data/read/get] is unauthorized for user [snapshot_user]"));
 
             unauthzException = expectThrows(ElasticsearchSecurityException.class,
-                    () -> client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken)).prepareIndex(indexToTest, "doc").setSource("term", "val").get());
+                    () -> client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken))
+                            .prepareIndex(indexToTest, "doc").setSource("term", "val").get());
             assertThat(unauthzException.status(), is(RestStatus.FORBIDDEN));
             assertThat(unauthzException.getDetailedMessage(),
                     containsString("action [indices:data/write/index] is unauthorized for user [snapshot_user]"));
 
             unauthzException = expectThrows(ElasticsearchSecurityException.class,
-                    () -> client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken)).prepareUpdate(indexToTest, "doc", "1").setDoc("term", "val").get());
+                    () -> client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken))
+                            .prepareUpdate(indexToTest, "doc", "1").setDoc("term", "val").get());
             assertThat(unauthzException.status(), is(RestStatus.FORBIDDEN));
             assertThat(unauthzException.getDetailedMessage(),
                     containsString("action [indices:data/write/update] is unauthorized for user [snapshot_user]"));
 
             unauthzException = expectThrows(ElasticsearchSecurityException.class,
-                    () -> client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken)).prepareDelete(indexToTest, "doc", "1").get());
+                    () -> client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken))
+                            .prepareDelete(indexToTest, "doc", "1").get());
             assertThat(unauthzException.status(), is(RestStatus.FORBIDDEN));
             assertThat(unauthzException.getDetailedMessage(),
                     containsString("action [indices:data/write/delete] is unauthorized for user [snapshot_user]"));
 
             unauthzException = expectThrows(ElasticsearchSecurityException.class,
-                    () -> client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken)).admin().indices().prepareDelete(indexToTest).get());
+                    () -> client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken)).admin().indices()
+                            .prepareDelete(indexToTest).get());
             assertThat(unauthzException.status(), is(RestStatus.FORBIDDEN));
             assertThat(unauthzException.getDetailedMessage(),
                     containsString("action [indices:admin/delete] is unauthorized for user [snapshot_user]"));

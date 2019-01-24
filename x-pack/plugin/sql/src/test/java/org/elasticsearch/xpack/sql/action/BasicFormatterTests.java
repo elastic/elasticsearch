@@ -42,10 +42,6 @@ public class BasicFormatterTests extends ESTestCase {
     public void testFormatWithHeader() {
         String[] result = formatter.formatWithHeader(firstResponse.columns(), firstResponse.rows()).split("\n");
         assertThat(result, arrayWithSize(4));
-        logger.info(result[0]);
-        logger.info(result[1]);
-        logger.info(result[2]);
-        logger.info(result[3]);
         assertEquals("      foo      |         bar          |15charwidename!|  null_field1  |superduperwidename!!!|      baz      |"
                 + "          date          |  null_field2  ", result[0]);
         assertEquals("---------------+----------------------+---------------+---------------+---------------------+---------------+"
@@ -66,8 +62,6 @@ public class BasicFormatterTests extends ESTestCase {
                         Arrays.asList("ohnotruncateddata", 4, 1, null, 77, "wombat", "1955-01-21T01:02:03.342Z", null),
                         Arrays.asList("dog", 2, 123124.888, null, 9912, "goat", "2231-12-31T23:59:59.999Z", null))).split("\n");
         assertThat(result, arrayWithSize(2));
-        logger.info(result[0]);
-        logger.info(result[1]);
         assertEquals("ohnotruncatedd~|4                     |1              |null           |77                   |wombat         |"
                 + "1955-01-21T01:02:03.342Z|null           ", result[0]);
         assertEquals("dog            |2                     |123124.888     |null           |9912                 |goat           |"

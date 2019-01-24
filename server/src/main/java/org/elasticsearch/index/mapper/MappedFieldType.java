@@ -50,9 +50,9 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.DocValueFormat;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
 
@@ -335,10 +335,10 @@ public abstract class MappedFieldType extends FieldType {
      * @param relation the relation, nulls should be interpreted like INTERSECTS
      */
     public Query rangeQuery(
-            Object lowerTerm, Object upperTerm,
-            boolean includeLower, boolean includeUpper,
-            ShapeRelation relation, DateTimeZone timeZone, DateMathParser parser,
-            QueryShardContext context) {
+        Object lowerTerm, Object upperTerm,
+        boolean includeLower, boolean includeUpper,
+        ShapeRelation relation, ZoneId timeZone, DateMathParser parser,
+        QueryShardContext context) {
         throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support range queries");
     }
 
@@ -413,7 +413,7 @@ public abstract class MappedFieldType extends FieldType {
         IndexReader reader,
         Object from, Object to,
         boolean includeLower, boolean includeUpper,
-        DateTimeZone timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
+        ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
         return Relation.INTERSECTS;
     }
 
@@ -448,7 +448,7 @@ public abstract class MappedFieldType extends FieldType {
     /** Return a {@link DocValueFormat} that can be used to display and parse
      *  values as returned by the fielddata API.
      *  The default implementation returns a {@link DocValueFormat#RAW}. */
-    public DocValueFormat docValueFormat(@Nullable String format, DateTimeZone timeZone) {
+    public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
         }

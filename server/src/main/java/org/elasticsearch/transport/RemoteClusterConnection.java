@@ -25,9 +25,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -62,7 +59,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -172,6 +168,13 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
         this.skipUnavailable = skipUnavailable;
     }
 
+    /**
+     * Returns whether this cluster is configured to be skipped when unavailable
+     */
+    boolean isSkipUnavailable() {
+        return skipUnavailable;
+    }
+
     @Override
     public void onNodeDisconnected(DiscoveryNode node) {
         boolean remove = connectedNodes.remove(node);
@@ -182,64 +185,15 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     }
 
     /**
-     * Fetches all shards for the search request from this remote connection. This is used to later run the search on the remote end.
-     */
-    public void fetchSearchShards(ClusterSearchShardsRequest searchRequest,
-                                  ActionListener<ClusterSearchShardsResponse> listener) {
-
-        final ActionListener<ClusterSearchShardsResponse> searchShardsListener;
-        final Consumer<Exception> onConnectFailure;
-        if (skipUnavailable) {
-            onConnectFailure = (exception) -> listener.onResponse(ClusterSearchShardsResponse.EMPTY);
-            searchShardsListener = ActionListener.wrap(listener::onResponse, (e) -> listener.onResponse(ClusterSearchShardsResponse.EMPTY));
-        } else {
-            onConnectFailure = listener::onFailure;
-            searchShardsListener = listener;
-        }
-        // in case we have no connected nodes we try to connect and if we fail we either notify the listener or not depending on
-        // the skip_unavailable setting
-        ensureConnected(ActionListener.wrap((x) -> fetchShardsInternal(searchRequest, searchShardsListener), onConnectFailure));
-    }
-
-    /**
      * Ensures that this cluster is connected. If the cluster is connected this operation
      * will invoke the listener immediately.
      */
-    public void ensureConnected(ActionListener<Void> voidActionListener) {
+    void ensureConnected(ActionListener<Void> voidActionListener) {
         if (connectedNodes.size() == 0) {
             connectHandler.connect(voidActionListener);
         } else {
             voidActionListener.onResponse(null);
         }
-    }
-
-    private void fetchShardsInternal(ClusterSearchShardsRequest searchShardsRequest,
-                                     final ActionListener<ClusterSearchShardsResponse> listener) {
-        final DiscoveryNode node = getAnyConnectedNode();
-        Transport.Connection connection = connectionManager.getConnection(node);
-        transportService.sendRequest(connection, ClusterSearchShardsAction.NAME, searchShardsRequest, TransportRequestOptions.EMPTY,
-            new TransportResponseHandler<ClusterSearchShardsResponse>() {
-
-                @Override
-                public ClusterSearchShardsResponse read(StreamInput in) throws IOException {
-                    return new ClusterSearchShardsResponse(in);
-                }
-
-                @Override
-                public void handleResponse(ClusterSearchShardsResponse clusterSearchShardsResponse) {
-                    listener.onResponse(clusterSearchShardsResponse);
-                }
-
-                @Override
-                public void handleException(TransportException e) {
-                    listener.onFailure(e);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SEARCH;
-                }
-            });
     }
 
     /**

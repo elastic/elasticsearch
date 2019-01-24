@@ -103,6 +103,7 @@ public class IndicesModuleTests extends ESTestCase {
             assertFalse(module.getMapperRegistry().getMetadataMapperParsers(version).isEmpty());
             Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
                 module.getMapperRegistry().getMetadataMapperParsers(version);
+            assertEquals(EXPECTED_METADATA_FIELDS_6x.length, metadataMapperParsers.size());
             int i = 0;
             for (String field : metadataMapperParsers.keySet()) {
                 assertEquals(EXPECTED_METADATA_FIELDS_6x[i++], field);
@@ -114,6 +115,7 @@ public class IndicesModuleTests extends ESTestCase {
             assertFalse(module.getMapperRegistry().getMetadataMapperParsers(version).isEmpty());
             Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
                 module.getMapperRegistry().getMetadataMapperParsers(version);
+            assertEquals(EXPECTED_METADATA_FIELDS.length, metadataMapperParsers.size());
             int i = 0;
             for (String field : metadataMapperParsers.keySet()) {
                 assertEquals(EXPECTED_METADATA_FIELDS[i++], field);

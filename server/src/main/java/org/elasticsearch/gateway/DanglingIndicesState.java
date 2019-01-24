@@ -27,8 +27,10 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -55,6 +57,7 @@ public class DanglingIndicesState implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(DanglingIndicesState.class);
 
+    private final Settings settings;
     private final NodeEnvironment nodeEnv;
     private final MetaStateService metaStateService;
     private final LocalAllocateDangledIndices allocateDangledIndices;
@@ -62,8 +65,9 @@ public class DanglingIndicesState implements ClusterStateListener {
     private final Map<Index, IndexMetaData> danglingIndices = ConcurrentCollections.newConcurrentMap();
 
     @Inject
-    public DanglingIndicesState(NodeEnvironment nodeEnv, MetaStateService metaStateService,
+    public DanglingIndicesState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
                                 LocalAllocateDangledIndices allocateDangledIndices, ClusterService clusterService) {
+        this.settings = settings;
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
         this.allocateDangledIndices = allocateDangledIndices;
@@ -132,8 +136,12 @@ public class DanglingIndicesState implements ClusterStateListener {
             final List<IndexMetaData> indexMetaDataList = metaStateService.loadIndicesStates(excludeIndexPathIds::contains);
             Map<Index, IndexMetaData> newIndices = new HashMap<>(indexMetaDataList.size());
             final IndexGraveyard graveyard = metaData.indexGraveyard();
+            boolean coordinatingOnly = DiscoveryNode.isDataNode(settings) == false
+                && DiscoveryNode.isMasterNode(settings) == false;
             for (IndexMetaData indexMetaData : indexMetaDataList) {
-                if (metaData.hasIndex(indexMetaData.getIndex().getName())) {
+                if (coordinatingOnly) {
+                    logger.warn("[{}] dangling index ignored for non-data, non-master node", indexMetaData.getIndex());
+                } else if (metaData.hasIndex(indexMetaData.getIndex().getName())) {
                     logger.warn("[{}] can not be imported as a dangling index, as index with same name already exists in cluster metadata",
                         indexMetaData.getIndex());
                 } else if (graveyard.containsIndex(indexMetaData.getIndex())) {

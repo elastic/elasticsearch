@@ -26,9 +26,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -158,7 +160,54 @@ public class DanglingIndicesStateTests extends ESTestCase {
         }
     }
 
+    public void testDanglingIndicesIgnoredWhenObsolete() throws IOException {
+        Settings noDataNoMasterSettings = Settings.builder()
+            .put(Node.NODE_DATA_SETTING.getKey(), false)
+            .put(Node.NODE_MASTER_SETTING.getKey(), false)
+            .build();
+
+        Settings noDataSettings = Settings.builder()
+            .put(Node.NODE_DATA_SETTING.getKey(), false)
+            .build();
+
+        Settings noMasterSettings = Settings.builder()
+            .put(Node.NODE_MASTER_SETTING.getKey(), false)
+            .build();
+
+        verifyDanglingIndicesIgnoredWhenObsolete(noDataNoMasterSettings, 0,
+            "node.data=false and node.master=false nodes should not detect any dangling indices");
+        verifyDanglingIndicesIgnoredWhenObsolete(noDataSettings, 1,
+            "node.data=false and node.master=true nodes should detect dangling indices");
+        verifyDanglingIndicesIgnoredWhenObsolete(noMasterSettings, 1,
+            "node.data=true and node.master=false nodes should detect dangling indices");
+        // also validated by #testDanglingIndicesDiscovery, included for completeness.
+        verifyDanglingIndicesIgnoredWhenObsolete(Settings.EMPTY, 1,
+            "node.data=true and node.master=true nodes should detect dangling indices");
+    }
+
+    private void verifyDanglingIndicesIgnoredWhenObsolete(Settings settings, int expected, String reason) throws IOException {
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
+            DanglingIndicesState danglingState = createDanglingIndicesState(env, metaStateService, settings);
+
+            final Settings.Builder testIndexSettings = Settings.builder().put(indexSettings)
+                .put(IndexMetaData.SETTING_INDEX_UUID, "test1UUID");
+            IndexMetaData dangledIndex = IndexMetaData.builder("test1").settings(testIndexSettings).build();
+            metaStateService.writeIndex("test_write", dangledIndex);
+
+            assertThat(reason,
+                danglingState.findNewDanglingIndices(MetaData.builder().build()).size(),
+                equalTo(expected));
+        }
+    }
+
     private DanglingIndicesState createDanglingIndicesState(NodeEnvironment env, MetaStateService metaStateService) {
-        return new DanglingIndicesState(env, metaStateService, null, mock(ClusterService.class));
+        return new DanglingIndicesState(Settings.EMPTY, env, metaStateService, null, mock(ClusterService.class));
+    }
+
+    private DanglingIndicesState createDanglingIndicesState(NodeEnvironment env,
+                                                            MetaStateService metaStateService,
+                                                            Settings settings) {
+        return new DanglingIndicesState(settings, env, metaStateService, null, mock(ClusterService.class));
     }
 }

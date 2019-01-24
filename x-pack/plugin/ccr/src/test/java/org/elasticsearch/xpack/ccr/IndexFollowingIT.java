@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
@@ -47,6 +48,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.CcrIntegTestCase;
@@ -208,6 +210,25 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             .get("index2").get("doc");
         assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetaData.sourceAsMap()), equalTo("long"));
         assertThat(XContentMapValues.extractValue("properties.k", mappingMetaData.sourceAsMap()), nullValue());
+    }
+
+    public void testDoNotAllowPutMappingToFollower() throws Exception {
+        final String leaderIndexSettings = getIndexSettings(between(1, 2), between(0, 1),
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate("index-1").setSource(leaderIndexSettings, XContentType.JSON));
+        followerClient().execute(PutFollowAction.INSTANCE, putFollow("index-1", "index-2")).get();
+        PutMappingRequest putMappingRequest = new PutMappingRequest("index-2").type("doc").source("new_field", "type=keyword");
+        ElasticsearchStatusException forbiddenException = expectThrows(ElasticsearchStatusException.class,
+            () -> followerClient().admin().indices().putMapping(putMappingRequest).actionGet());
+        assertThat(forbiddenException.getMessage(),
+            equalTo("can't put mapping to the following indices [index-2]; " +
+                "the mapping of the following indices are self-replicated from its leader indices"));
+        assertThat(forbiddenException.status(), equalTo(RestStatus.FORBIDDEN));
+        pauseFollow("index-2");
+        followerClient().admin().indices().close(new CloseIndexRequest("index-2")).actionGet();
+        assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request("index-2")).actionGet());
+        followerClient().admin().indices().open(new OpenIndexRequest("index-2")).actionGet();
+        assertAcked(followerClient().admin().indices().putMapping(putMappingRequest).actionGet());
     }
 
     public void testFollowIndex_backlog() throws Exception {

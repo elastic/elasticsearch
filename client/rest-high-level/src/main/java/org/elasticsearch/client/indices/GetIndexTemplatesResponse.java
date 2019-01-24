@@ -22,10 +22,19 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 
 public class GetIndexTemplatesResponse  {
+
+    @Override
+    public String toString() {
+        List<IndexTemplateMetaData> thisList = new ArrayList<>(this.indexTemplates);
+        thisList.sort(Comparator.comparing(IndexTemplateMetaData::name));
+        return "GetIndexTemplatesResponse [indexTemplates=" + thisList + "]";
+    }
 
     private final List<IndexTemplateMetaData> indexTemplates;
 
@@ -52,4 +61,30 @@ public class GetIndexTemplatesResponse  {
         }
         return new GetIndexTemplatesResponse(templates);
     }
+
+    @Override
+    public int hashCode() {
+        List<IndexTemplateMetaData> sortedList = new ArrayList<>(this.indexTemplates);
+        sortedList.sort(Comparator.comparing(IndexTemplateMetaData::name));
+        return Objects.hash(sortedList);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        // To compare results we need to make sure the templates are listed in the same order
+        GetIndexTemplatesResponse other = (GetIndexTemplatesResponse) obj;
+        List<IndexTemplateMetaData> thisList = new ArrayList<>(this.indexTemplates);
+        List<IndexTemplateMetaData> otherList = new ArrayList<>(other.indexTemplates);
+        thisList.sort(Comparator.comparing(IndexTemplateMetaData::name));
+        otherList.sort(Comparator.comparing(IndexTemplateMetaData::name));
+        return Objects.equals(thisList, otherList);
+    }
+    
+    
 }

@@ -75,9 +75,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     private final Set<Alias> aliases = new HashSet<>();
 
     private Integer version;
-
-    public PutIndexTemplateRequest() {
-    }
     
     /**
      * Ignores deprecation warnings. 

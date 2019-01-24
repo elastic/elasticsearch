@@ -976,8 +976,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         names.put("foo^bar", "foo%5Ebar");
 
         PutIndexTemplateRequest putTemplateRequest = 
-                new PutIndexTemplateRequest()
-                .name(ESTestCase.randomFrom(names.keySet()))
+                new PutIndexTemplateRequest(ESTestCase.randomFrom(names.keySet()))
                 .patterns(Arrays.asList(ESTestCase.generateRandomStringArray(20, 100, false, false)));
         if (ESTestCase.randomBoolean()) {
             putTemplateRequest.order(ESTestCase.randomInt());

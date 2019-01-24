@@ -1434,8 +1434,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     
     @SuppressWarnings("unchecked")
     public void testPutTemplate() throws Exception {
-        PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest()
-            .name("my-template")
+        PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest("my-template")
             .patterns(Arrays.asList("pattern-1", "name-*"))
             .order(10)
             .create(randomBoolean())
@@ -1613,11 +1612,11 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     public void testCRUDIndexTemplate() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
-        PutIndexTemplateRequest putTemplate1 = new PutIndexTemplateRequest().name("template-1")
+        PutIndexTemplateRequest putTemplate1 = new PutIndexTemplateRequest("template-1")
             .patterns(Arrays.asList("pattern-1", "name-1")).alias(new Alias("alias-1"));
         assertThat(execute(putTemplate1, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged(),
             equalTo(true));
-        PutIndexTemplateRequest putTemplate2 = new PutIndexTemplateRequest().name("template-2")
+        PutIndexTemplateRequest putTemplate2 = new PutIndexTemplateRequest("template-2")
             .patterns(Arrays.asList("pattern-2", "name-2"))
             .mapping("{properities: { \"name\": { \"type\": \"text\" }}", XContentType.JSON)
             .settings(Settings.builder().put("number_of_shards", "2").put("number_of_replicas", "0"));
@@ -1694,8 +1693,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         {
             for (String suffix : Arrays.asList("1", "2")) {
 
-                final PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest()
-                    .name("template-" + suffix)
+                final PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("template-" + suffix)
                     .patterns(Arrays.asList("pattern-" + suffix, "name-" + suffix))
                     .alias(new Alias("alias-" + suffix));
                 assertTrue(execute(putRequest, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged());

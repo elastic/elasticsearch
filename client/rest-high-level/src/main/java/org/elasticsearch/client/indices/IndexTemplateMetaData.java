@@ -132,7 +132,7 @@ public class IndexTemplateMetaData  {
         IndexTemplateMetaData that = (IndexTemplateMetaData) o;
 
         if (order != that.order) return false;
-        if (!mappings.equals(that.mappings)) return false;
+        if (!Objects.equals(mappings, that.mappings)) return false;
         if (!name.equals(that.name)) return false;
         if (!settings.equals(that.settings)) return false;
         if (!patterns.equals(that.patterns)) return false;
@@ -142,15 +142,8 @@ public class IndexTemplateMetaData  {
 
     @Override
     public int hashCode() {
-        int result = name.hashCode();
-        result = 31 * result + order;
-        result = 31 * result + Objects.hashCode(version);
-        result = 31 * result + patterns.hashCode();
-        result = 31 * result + settings.hashCode();
-        result = 31 * result + mappings.hashCode();
-        return result;
+        return Objects.hash(name, order, version, patterns, settings, mappings);
     }
-
 
     public static class Builder {
 
@@ -249,16 +242,10 @@ public class IndexTemplateMetaData  {
                         templateSettingsBuilder.normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
                         builder.settings(templateSettingsBuilder.build());
                     } else if ("mappings".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (token == XContentParser.Token.FIELD_NAME) {
-                                currentFieldName = parser.currentName();
-                            } else if (token == XContentParser.Token.START_OBJECT) {
-                                String mappingType = currentFieldName;
-                                Map<String, Object> mappingSource =
-                                    MapBuilder.<String, Object>newMapBuilder().put(mappingType, parser.mapOrdered()).map();
-                                MappingMetaData md = new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, mappingSource);
-                                builder.mapping(md);
-                            }
+                        Map<String, Object> mapping = parser.map();
+                        if (mapping.isEmpty() == false) {
+                            MappingMetaData md = new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, mapping);
+                            builder.mapping(md);
                         }
                     } else if ("aliases".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -269,20 +256,10 @@ public class IndexTemplateMetaData  {
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if ("mappings".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            Map<String, Object> mapping = parser.mapOrdered();
-                            if (mapping.size() == 1) {
-                                String mappingType = mapping.keySet().iterator().next();
-                                String mappingSource = Strings.toString(XContentFactory.jsonBuilder().map(mapping));
-
-                                if (mappingSource == null) {
-                                    // crap, no mapping source, warn?
-                                } else {
-                                    MappingMetaData md = new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, mapping);
-                                    builder.mapping(md);
-                                }
-                            }
-                        }
+                        // The server-side IndexTemplateMetaData has toXContent impl that can return mappings
+                        // in an array but also a comment saying this never happens with typeless APIs.
+                        throw new ElasticsearchParseException("Invalid response format - "
+                                + "mappings are not expected to be returned in an array", currentFieldName);
                     } else if ("index_patterns".equals(currentFieldName)) {
                         List<String> index_patterns = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

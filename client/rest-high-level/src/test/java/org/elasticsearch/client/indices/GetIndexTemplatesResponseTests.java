@@ -21,12 +21,9 @@ package org.elasticsearch.client.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 
-import org.elasticsearch.client.ccr.CcrStatsResponse;
-import org.elasticsearch.client.ccr.CcrStatsResponseTests;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;

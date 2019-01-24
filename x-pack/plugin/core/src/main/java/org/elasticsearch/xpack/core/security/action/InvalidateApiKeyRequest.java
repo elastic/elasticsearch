@@ -114,18 +114,18 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         ActionRequestValidationException validationException = null;
         if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && Strings.hasText(id) == false
                 && Strings.hasText(name) == false) {
-            validationException = addValidationError("One of [api key id, api key name, username, realm name] must be specified", null);
+            validationException = addValidationError("One of [api key id, api key name, username, realm name] must be specified",
+                    validationException);
         }
-        if (Strings.hasText(realmName) || Strings.hasText(userName)) {
-            if (Strings.hasText(id)) {
-                validationException = addValidationError("api key id must not be specified when username or realm name is specified", null);
-            }
-            if (Strings.hasText(name)) {
-                validationException = addValidationError("api key name must not be specified when username or realm name is specified",
+        if (Strings.hasText(id) || Strings.hasText(name)) {
+            if (Strings.hasText(realmName) || Strings.hasText(userName)) {
+                validationException = addValidationError(
+                        "username or realm name must not be specified when the api key id or api key name is specified",
                         validationException);
             }
-        } else if (Strings.hasText(id) && Strings.hasText(name)) {
-            validationException = addValidationError("api key name must not be specified when api key id is specified", null);
+        }
+        if (Strings.hasText(id) && Strings.hasText(name)) {
+            validationException = addValidationError("only one of [api key id, api key name] can be specified", validationException);
         }
         return validationException;
     }

@@ -72,6 +72,7 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -116,6 +117,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivile
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.permission.LimitedRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
@@ -521,7 +523,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             final IndicesAccessControl.IndexAccessControl indexAccessControl =
                 indicesAccessControl.getIndexPermissions(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER);
             assertFalse(indexAccessControl.getFieldPermissions().hasFieldLevelSecurity());
-            assertNull(indexAccessControl.getQueries());
+            assertFalse(indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions());
         }
     }
 
@@ -1484,6 +1486,27 @@ public class AuthorizationServiceTests extends ESTestCase {
         }).when(apiKeyService).getRoleForApiKey(eq(authentication), eq(rolesStore), any(ActionListener.class));
 
         authorize(authentication, "cluster:admin/foo", new ClearScrollRequest());
+        verify(apiKeyService).getRoleForApiKey(eq(authentication), eq(rolesStore), any(ActionListener.class));
+        verifyZeroInteractions(rolesStore);
+    }
+
+    public void testApiKeyAuthUsesApiKeyServiceWithScopedRole() throws IOException {
+        final Role fromRole = Role.builder("a-role").cluster(Collections.singleton(ClusterPrivilegeName.ALL), Collections.emptyList())
+                .build();
+        final Role scopedByRole = Role.builder("scoped-role")
+                .cluster(Collections.singleton(ClusterPrivilegeName.MANAGE_SECURITY), Collections.emptyList()).build();
+        final Role role = LimitedRole.createLimitedRole(fromRole, scopedByRole);
+
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        final Authentication authentication = createAuthentication(new User("test api key user", "api_key"), AuthenticationType.API_KEY);
+        doAnswer(invocationOnMock -> {
+            ActionListener<Role> listener = (ActionListener<Role>) invocationOnMock.getArguments()[2];
+            listener.onResponse(role);
+            return Void.TYPE;
+        }).when(apiKeyService).getRoleForApiKey(eq(authentication), eq(rolesStore), any(ActionListener.class));
+
+        assertThrowsAuthorizationException(() -> authorize(authentication, "cluster:admin/foo", new ClearScrollRequest()),
+                "cluster:admin/foo", "test api key user");
         verify(apiKeyService).getRoleForApiKey(eq(authentication), eq(rolesStore), any(ActionListener.class));
         verifyZeroInteractions(rolesStore);
     }

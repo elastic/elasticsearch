@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.Authenticator;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
@@ -210,7 +211,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             return null;
         }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex, clusterService);
+        apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex, clusterService,
+                mock(CompositeRolesStore.class));
         tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex, clusterService);
         service = new AuthenticationService(settings, realms, auditTrail, new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool, new AnonymousUser(settings), tokenService, apiKeyService);

@@ -73,7 +73,7 @@ public class SearchResponseMergerTests extends ESTestCase {
 
     @Before
     public void init() {
-        numResponses = randomIntBetween(2, 10);
+        numResponses = randomIntBetween(1, 10);
         executorService = Executors.newFixedThreadPool(numResponses);
     }
 
@@ -87,7 +87,7 @@ public class SearchResponseMergerTests extends ESTestCase {
 
     private void awaitResponsesAdded() throws InterruptedException {
         executorService.shutdown();
-        executorService.awaitTermination(5, TimeUnit.SECONDS);
+        assertTrue(executorService.awaitTermination(5, TimeUnit.SECONDS));
     }
 
     public void testMergeTookInMillis() throws InterruptedException {
@@ -137,6 +137,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             addResponse(merger, searchResponse);
         }
         awaitResponsesAdded();
+        assertEquals(numResponses, merger.numResponses());
         SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponse mergedResponse = merger.getMergedResponse(clusters);
         assertSame(clusters, mergedResponse.getClusters());
@@ -170,6 +171,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             addResponse(merger, searchResponse);
         }
         awaitResponsesAdded();
+        assertEquals(numResponses, merger.numResponses());
         ShardSearchFailure[] shardFailures = merger.getMergedResponse(SearchResponse.Clusters.EMPTY).getShardFailures();
         assertThat(Arrays.asList(shardFailures), containsInAnyOrder(expectedFailures.toArray(ShardSearchFailure.EMPTY_ARRAY)));
     }
@@ -189,6 +191,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             addResponse(merger, searchResponse);
         }
         awaitResponsesAdded();
+        assertEquals(numResponses, merger.numResponses());
         SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponse mergedResponse = merger.getMergedResponse(clusters);
         assertSame(clusters, mergedResponse.getClusters());
@@ -221,6 +224,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             addResponse(searchResponseMerger, searchResponse);
         }
         awaitResponsesAdded();
+        assertEquals(numResponses, searchResponseMerger.numResponses());
         SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponse mergedResponse = searchResponseMerger.getMergedResponse(clusters);
         assertSame(clusters, mergedResponse.getClusters());
@@ -267,6 +271,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             addResponse(searchResponseMerger, searchResponse);
         }
         awaitResponsesAdded();
+        assertEquals(numResponses, searchResponseMerger.numResponses());
         SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponse mergedResponse = searchResponseMerger.getMergedResponse(clusters);
         assertSame(clusters, mergedResponse.getClusters());
@@ -334,7 +339,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         Iterator<Map.Entry<String, Index[]>> indicesIterator = randomRealisticIndices(numIndices, numResponses).entrySet().iterator();
         for (int i = 0; i < numResponses; i++) {
             Map.Entry<String, Index[]> entry = indicesIterator.next();
-            String clusterAlias = entry.getKey().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? null : entry.getKey();
+            String clusterAlias = entry.getKey();
             Index[] indices = entry.getValue();
             int total = randomIntBetween(1, 1000);
             expectedTotal += total;
@@ -386,7 +391,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         }
 
         awaitResponsesAdded();
-
+        assertEquals(numResponses, searchResponseMerger.numResponses());
         final SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponse searchResponse = searchResponseMerger.getMergedResponse(clusters);
 
@@ -432,6 +437,72 @@ public class SearchResponseMergerTests extends ESTestCase {
             SearchHit expected = priorityQueue.poll();
             assertSame(expected, hit);
         }
+    }
+
+    public void testMergeSearchHitsSameCluster() throws InterruptedException {
+        //this test verifies that we can search against docs coming from the same cluster,
+        // in case it is registered twice with different aliases.
+        final SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> 0);
+        SearchResponseMerger merger = new SearchResponseMerger(0, 10, Integer.MAX_VALUE, timeProvider, flag -> null);
+        ShardId shardId = new ShardId("index", "index-uuid", 0);
+        for (int i = 0; i < numResponses; i++) {
+            SearchHit hit = new SearchHit(0);
+            SearchShardTarget shardTarget = new SearchShardTarget(randomAlphaOfLengthBetween(3, 8), shardId,
+                "cluster-" + i, OriginalIndices.NONE);
+            hit.shard(shardTarget);
+            hit.score(10F);
+            SearchHits searchHits = new SearchHits(new SearchHit[]{hit}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 10F);
+            InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, InternalAggregations.EMPTY,
+                null, null, false, null, 1);
+            merger.add(new SearchResponse(internalSearchResponse, null, 1, 1, 0, 100L, ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY));
+        }
+        awaitResponsesAdded();
+        assertEquals(numResponses, merger.numResponses());
+        SearchResponse.Clusters clusters = new SearchResponse.Clusters(numResponses, numResponses, 0,
+            CCSExecutionMode.ONE_REQUEST_PER_CLUSTER);
+        SearchResponse merged = merger.getMergedResponse(clusters);
+        assertSame(clusters, merged.getClusters());
+        SearchHits searchHits = merged.getHits();
+        assertNotNull(searchHits.getTotalHits());
+        assertEquals(TotalHits.Relation.EQUAL_TO, searchHits.getTotalHits().relation);
+        assertEquals(numResponses, searchHits.getTotalHits().value);
+        assertEquals(10F, searchHits.getMaxScore(), 0F);
+        assertEquals(numResponses, searchHits.getHits().length);
+        for (int i = 0; i < numResponses; i++) {
+            SearchHit searchHit = searchHits.getHits()[i];
+            assertEquals(0, searchHit.docId());
+            assertEquals(10F, searchHit.getScore(), 0F);
+            assertEquals(shardId, searchHit.getShard().getShardId());
+            assertEquals("cluster-" + i, searchHit.getShard().getClusterAlias());
+        }
+    }
+
+    public void testMergeNoResponsesAdded() {
+        long currentRelativeTime = randomLong();
+        final SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
+        SearchResponseMerger merger = new SearchResponseMerger(0, 10, Integer.MAX_VALUE, timeProvider, flag -> null);
+        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
+        assertEquals(0, merger.numResponses());
+        SearchResponse response = merger.getMergedResponse(clusters);
+        assertSame(clusters, response.getClusters());
+        assertEquals(TimeUnit.NANOSECONDS.toMillis(currentRelativeTime), response.getTook().millis());
+        assertEquals(0, response.getTotalShards());
+        assertEquals(0, response.getSuccessfulShards());
+        assertEquals(0, response.getSkippedShards());
+        assertEquals(0, response.getFailedShards());
+        assertEquals(0, response.getNumReducePhases());
+        assertFalse(response.isTimedOut());
+        assertNotNull(response.getHits().getTotalHits());
+        assertEquals(0, response.getHits().getTotalHits().value);
+        assertEquals(0, response.getHits().getHits().length);
+        assertEquals(TotalHits.Relation.EQUAL_TO, response.getHits().getTotalHits().relation);
+        assertNull(response.getScrollId());
+        assertSame(InternalAggregations.EMPTY, response.getAggregations());
+        assertNull(response.getSuggest());
+        assertEquals(0, response.getProfileResults().size());
+        assertNull(response.isTerminatedEarly());
+        assertEquals(0, response.getShardFailures().length);
     }
 
     private static Tuple<Integer, TotalHits.Relation> randomTrackTotalHits() {

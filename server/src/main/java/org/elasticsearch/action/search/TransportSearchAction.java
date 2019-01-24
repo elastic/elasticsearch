@@ -245,8 +245,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         //here we modify the original source so we can re-use it by setting it to each outgoing search request
                         source.from(0);
                         source.size(from + size);
+                        //TODO when searching only against a remote cluster, we could ask directly for the final number of results and let
+                        //the remote cluster do a final reduction, yet that is not possible as we are providing a localClusterAlias which
+                        //will automatically make the local reduction non final
                     }
-                    //TODO add some yaml test to check the execution mode paramater
                     SearchResponseMerger searchResponseMerger = new SearchResponseMerger(from, size, trackTotalHitsUpTo,
                         timeProvider, searchService::createReduceContext);
                     AtomicInteger skippedClusters = new AtomicInteger(0);

@@ -119,16 +119,6 @@ final class SearchResponseMerger {
             return new SearchResponse(internalSearchResponse, null, 0, 0, 0, searchTimeProvider.buildTookInMillis(),
                 ShardSearchFailure.EMPTY_ARRAY, clusters);
         }
-        if (searchResponses.size() == 1) {
-            SearchResponse response = searchResponses.get(0);
-            SearchProfileShardResults profileShardResults = new SearchProfileShardResults(response.getProfileResults());
-            InternalSearchResponse internalSearchResponse = new InternalSearchResponse(response.getHits(),
-                (InternalAggregations)response.getAggregations(), response.getSuggest(), profileShardResults, response.isTimedOut(),
-                response.isTerminatedEarly(), response.getNumReducePhases());
-            return new SearchResponse(internalSearchResponse, response.getScrollId(), response.getTotalShards(),
-                response.getSuccessfulShards(), response.getSkippedShards(), searchTimeProvider.buildTookInMillis(),
-                response.getShardFailures(), clusters);
-        }
         int totalShards = 0;
         int skippedShards = 0;
         int successfulShards = 0;

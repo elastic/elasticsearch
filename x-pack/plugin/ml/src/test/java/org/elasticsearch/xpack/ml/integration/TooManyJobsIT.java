@@ -124,11 +124,11 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
     }
 
     public void testSingleNode() throws Exception {
-        verifyMaxNumberOfJobsLimit(1, randomIntBetween(1, 100));
+        verifyMaxNumberOfJobsLimit(1, randomIntBetween(1, 20));
     }
 
     public void testMultipleNodes() throws Exception {
-        verifyMaxNumberOfJobsLimit(3, randomIntBetween(1, 100));
+        verifyMaxNumberOfJobsLimit(3, randomIntBetween(1, 20));
     }
 
     private void verifyMaxNumberOfJobsLimit(int numNodes, int maxNumberOfJobsPerNode) throws Exception {

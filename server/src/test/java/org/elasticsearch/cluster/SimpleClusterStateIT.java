@@ -119,6 +119,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         assertThat(clusterStateResponse.getState().metaData().indices().size(), is(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37820")
     public void testMetadataVersion() {
         createIndex("index-1");
         createIndex("index-2");

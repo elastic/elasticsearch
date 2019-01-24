@@ -23,7 +23,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -45,10 +44,6 @@ public class AllFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_all";
 
     public static class Defaults {
-        public static final String NAME = AllFieldMapper.NAME;
-        public static final String INDEX_NAME = AllFieldMapper.NAME;
-        public static final EnabledAttributeMapper ENABLED = EnabledAttributeMapper.UNSET_DISABLED;
-
         public static final MappedFieldType FIELD_TYPE = new AllFieldType();
 
         static {
@@ -60,14 +55,21 @@ public class AllFieldMapper extends MetadataFieldMapper {
     }
 
     public static class Builder extends MetadataFieldMapper.Builder<Builder, AllFieldMapper> {
+        private boolean disableExplicit = false;
+
         public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
+            super(NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
             builder = this;
+        }
+
+        private Builder setDisableExplicit() {
+            this.disableExplicit = true;
+            return this;
         }
 
         @Override
         public AllFieldMapper build(BuilderContext context) {
-            return new AllFieldMapper(fieldType, context.indexSettings(), context.indexCreatedVersion());
+            return new AllFieldMapper(fieldType, context.indexSettings(), disableExplicit);
         }
     }
 
@@ -84,6 +86,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
                     if (enabled) {
                         throw new IllegalArgumentException("[_all] is disabled in this version.");
                     }
+                    builder.setDisableExplicit();
                     iterator.remove();
                 }
             }
@@ -93,7 +96,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new AllFieldMapper(indexSettings, Defaults.FIELD_TYPE, context.indexVersionCreated());
+            return new AllFieldMapper(indexSettings, Defaults.FIELD_TYPE, false);
         }
     }
 
@@ -121,15 +124,15 @@ public class AllFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private AllFieldMapper(Settings indexSettings, MappedFieldType existing, Version indexCreatedVersion) {
-        this(existing.clone(), indexSettings, indexCreatedVersion);
+    private final boolean disableExplicit;
+
+    private AllFieldMapper(Settings indexSettings, MappedFieldType existing, boolean disableExplicit) {
+        this(existing.clone(), indexSettings, disableExplicit);
     }
 
-    private AllFieldMapper(MappedFieldType fieldType, Settings indexSettings, Version indexCreatedVersion) {
+    private AllFieldMapper(MappedFieldType fieldType, Settings indexSettings, boolean disableExplicit) {
         super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
-        if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
-            throw new IllegalArgumentException("[_all] is disabled in this version.");
-        }
+        this.disableExplicit = disableExplicit;
     }
 
     @Override
@@ -160,9 +163,11 @@ public class AllFieldMapper extends MetadataFieldMapper {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        if (includeDefaults) {
+        if (includeDefaults || disableExplicit) {
             builder.startObject(CONTENT_TYPE);
-            builder.field("enabled", false);
+            if (disableExplicit) {
+                builder.field("enabled", false);
+            }
             builder.endObject();
         }
         return builder;

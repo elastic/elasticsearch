@@ -20,6 +20,7 @@ will resolve to `/var/log/elasticsearch/production.log`.
 
 [source,properties]
 --------------------------------------------------
+######## Server JSON ############################
 appender.rolling.type = RollingFile <1>
 appender.rolling.name = rolling
 appender.rolling.fileName = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}_server.log <2>
@@ -40,6 +41,30 @@ appender.rolling.strategy.action.condition.type = IfFileName <12>
 appender.rolling.strategy.action.condition.glob = ${sys:es.logs.cluster_name}-* <13>
 appender.rolling.strategy.action.condition.nested_condition.type = IfAccumulatedFileSize <14>
 appender.rolling.strategy.action.condition.nested_condition.exceeds = 2GB <15>
+################################################
+######## Server -  old style pattern ###########
+appender.rolling_old.type = RollingFile
+appender.rolling_old.name = rolling_old
+appender.rolling_old.fileName = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}_server.old_log <16>
+appender.rolling_old.layout.type = PatternLayout
+appender.rolling_old.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] [%node_name]%marker %m%n
+
+appender.rolling_old.filePattern = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}-%d{yyyy-MM-dd}-%i.old_log.gz
+appender.rolling_old.policies.type = Policies
+appender.rolling_old.policies.time.type = TimeBasedTriggeringPolicy
+appender.rolling_old.policies.time.interval = 1
+appender.rolling_old.policies.time.modulate = true
+appender.rolling_old.policies.size.type = SizeBasedTriggeringPolicy
+appender.rolling_old.policies.size.size = 128MB
+appender.rolling_old.strategy.type = DefaultRolloverStrategy
+appender.rolling_old.strategy.fileIndex = nomax
+appender.rolling_old.strategy.action.type = Delete
+appender.rolling_old.strategy.action.basepath = ${sys:es.logs.base_path}
+appender.rolling_old.strategy.action.condition.type = IfFileName
+appender.rolling_old.strategy.action.condition.glob = ${sys:es.logs.cluster_name}-*
+appender.rolling_old.strategy.action.condition.nested_condition.type = IfAccumulatedFileSize
+appender.rolling_old.strategy.action.condition.nested_condition.exceeds = 2GB
+################################################
 --------------------------------------------------
 
 <1> Configure the `RollingFile` appender
@@ -60,6 +85,8 @@ appender.rolling.strategy.action.condition.nested_condition.exceeds = 2GB <15>
 <13> The pattern is to only delete the main logs
 <14> Only delete if we have accumulated too many compressed logs
 <15> The size condition on the compressed logs is 2 GB
+<16> The configuration for `old style` pattern appenders. These logs will be saved in `*.old_log` files and if archived will be in `*
+.old_log.gz` files. Note that these should be considered deprecated and will be removed in the future.
 
 NOTE: Log4j's configuration parsing gets confused by any extraneous whitespace;
 if you copy and paste any Log4j settings on this page, or enter any Log4j

@@ -43,11 +43,13 @@ public class CustomLoggingConfigIT extends ESRestTestCase {
     private static final Pattern NODE_STARTED = Pattern.compile(
         ".*node-0 \"cluster.uuid\": \"\\w*\", \"node.id\": \"\\w*\".*started.*");
 
-    public void testSuccessfulStartupWithCustomConfig()  {
-        Stream<String> stringStream = openReader(getLogFile());
-
-        assertTrue("Log line indicating successful startup not found",
-            stringStream.anyMatch(line -> isStartupLine(line)));
+    public void testSuccessfulStartupWithCustomConfig() throws Exception {
+        assertBusy(() -> {
+            try (Stream<String> lines = streamLogLines(getLogFile())) {
+                assertTrue("Log line indicating successful startup not found\n",
+                    lines.anyMatch(line -> isStartupLine(line)));
+            }
+        });
     }
 
     private boolean isStartupLine(String line) {
@@ -55,7 +57,7 @@ public class CustomLoggingConfigIT extends ESRestTestCase {
         return matcher.matches();
     }
 
-    private Stream<String> openReader(Path logFile) {
+    private Stream<String> streamLogLines(Path logFile) {
         return AccessController.doPrivileged((PrivilegedAction<Stream<String>>) () -> {
             try {
                 return Files.lines(logFile, StandardCharsets.UTF_8);

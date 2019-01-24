@@ -13,6 +13,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
@@ -30,7 +32,6 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -275,9 +276,10 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                         failedReadRequests++;
                         fetchExceptions.put(from, Tuple.tuple(retryCounter, ExceptionsHelper.convertToElastic(e)));
                     }
-                    if (e instanceof ElasticsearchException) {
-                        ElasticsearchException elasticsearchException = (ElasticsearchException) e;
-                        if (elasticsearchException.getMetadataKeys().contains(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY)) {
+                    Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof ResourceNotFoundException) {
+                        ResourceNotFoundException resourceNotFoundException = (ResourceNotFoundException) cause;
+                        if (resourceNotFoundException.getMetadataKeys().contains(Engine.SEQNO_RANGE_MISSING_METADATA_KEY)) {
                             handleFallenBehindLeaderShard(e, from, maxOperationCount, maxRequiredSeqNo, retryCounter);
                             return;
                         }

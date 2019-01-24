@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -60,9 +61,8 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         long toSeqNo = randomLongBetween(fromSeqNo, Long.MAX_VALUE);
         // Empty engine
         try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", mapperService, fromSeqNo, toSeqNo, true)) {
-            IllegalStateException error = expectThrows(IllegalStateException.class, () -> drainAll(snapshot));
-            assertThat(error.getMessage(),
-                containsString("Not all operations between from_seqno [" + fromSeqNo + "] and to_seqno [" + toSeqNo + "] found"));
+            ResourceNotFoundException error = expectThrows(ResourceNotFoundException.class, () -> drainAll(snapshot));
+            assertResourceNotFoundException(error, fromSeqNo, toSeqNo);
         }
         try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", mapperService, fromSeqNo, toSeqNo, false)) {
             assertThat(snapshot, SnapshotMatchers.size(0));
@@ -103,9 +103,8 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
                     searcher, mapperService, between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE), fromSeqNo, toSeqNo, true)) {
                 searcher = null;
-                IllegalStateException error = expectThrows(IllegalStateException.class, () -> drainAll(snapshot));
-                assertThat(error.getMessage(),
-                    containsString("Not all operations between from_seqno [" + fromSeqNo + "] and to_seqno [" + toSeqNo + "] found"));
+                ResourceNotFoundException error = expectThrows(ResourceNotFoundException.class, () -> drainAll(snapshot));
+                assertResourceNotFoundException(error, fromSeqNo, toSeqNo);
             }finally {
                 IOUtils.close(searcher);
             }
@@ -124,9 +123,8 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
                     searcher, mapperService, between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE), fromSeqNo, toSeqNo, true)) {
                 searcher = null;
-                IllegalStateException error = expectThrows(IllegalStateException.class, () -> drainAll(snapshot));
-                assertThat(error.getMessage(),
-                    containsString("Not all operations between from_seqno [" + fromSeqNo + "] and to_seqno [" + toSeqNo + "] found"));
+                ResourceNotFoundException error = expectThrows(ResourceNotFoundException.class, () -> drainAll(snapshot));
+                assertResourceNotFoundException(error, fromSeqNo, toSeqNo);
             }finally {
                 IOUtils.close(searcher);
             }
@@ -297,9 +295,18 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         long fromSeqNo = randomLongBetween(0, 5);
         long toSeqNo = randomLongBetween(Long.MAX_VALUE - 5, Long.MAX_VALUE);
         try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", mapperService, fromSeqNo, toSeqNo, true)) {
-            IllegalStateException error = expectThrows(IllegalStateException.class, () -> drainAll(snapshot));
-            assertThat(error.getMessage(),
-                containsString("Not all operations between from_seqno [" + fromSeqNo + "] and to_seqno [" + toSeqNo + "] found"));
+            ResourceNotFoundException error = expectThrows(ResourceNotFoundException.class, () -> drainAll(snapshot));
+            assertResourceNotFoundException(error, fromSeqNo, toSeqNo);
         }
+    }
+
+    private static void assertResourceNotFoundException(ResourceNotFoundException error, long fromSeqNo, long toSeqNo) {
+        assertThat(error.getMessage(),
+            containsString("Not all operations between from_seqno [" + fromSeqNo + "] and to_seqno [" + toSeqNo + "] found"));
+
+        List<String> metadata = error.getMetadata(Engine.SEQNO_RANGE_MISSING_METADATA_KEY);
+        assertThat(metadata.size(), equalTo(2));
+        assertThat(metadata.get(0), equalTo(Long.toString(fromSeqNo)));
+        assertThat(metadata.get(1), equalTo(Long.toString(toSeqNo)));
     }
 }

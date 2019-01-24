@@ -31,6 +31,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -146,14 +147,18 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     private void rangeCheck(Translog.Operation op) {
         if (op == null) {
             if (lastSeenSeqNo < toSeqNo) {
-                throw new MissingHistoryOperationsException("Not all operations between from_seqno [" + fromSeqNo + "] " +
+                ResourceNotFoundException e = new ResourceNotFoundException("Not all operations between from_seqno [" + fromSeqNo + "] " +
                     "and to_seqno [" + toSeqNo + "] found; prematurely terminated last_seen_seqno [" + lastSeenSeqNo + "]");
+                e.addMetadata(Engine.SEQNO_RANGE_MISSING_METADATA_KEY, Long.toString(fromSeqNo), Long.toString(toSeqNo));
+                throw e;
             }
         } else {
             final long expectedSeqNo = lastSeenSeqNo + 1;
             if (op.seqNo() != expectedSeqNo) {
-                throw new MissingHistoryOperationsException("Not all operations between from_seqno [" + fromSeqNo + "] " +
+                ResourceNotFoundException e = new ResourceNotFoundException("Not all operations between from_seqno [" + fromSeqNo + "] " +
                     "and to_seqno [" + toSeqNo + "] found; expected seqno [" + expectedSeqNo + "]; found [" + op + "]");
+                e.addMetadata(Engine.SEQNO_RANGE_MISSING_METADATA_KEY, Long.toString(fromSeqNo), Long.toString(toSeqNo));
+                throw e;
             }
         }
     }

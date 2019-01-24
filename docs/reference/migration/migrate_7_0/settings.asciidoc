@@ -154,3 +154,18 @@ node's keystore, i.e., they are not to be specified via the cluster settings API
 `xpack.notification.pagerduty.account.<id>.secure_service_api_key`
 - `xpack.notification.slack.account.<id>.url`, instead use
 `xpack.notification.slack.account.<id>.secure_url`
+
+[float]
+[[remove-audit-index-output]]
+==== Audit index output type removed
+
+All the settings under the `xpack.security.audit.index` namespace have been
+removed. In addition, the `xpack.security.audit.outputs` setting has been
+removed as well.
+
+These settings enabled and configured the audit index output type. This output
+type has been removed because it was unreliable in certain scenarios and this
+could have lead to dropping audit events while the operations on the system
+were allowed to continue as usual. The recommended replacement is the
+use of the `logfile` audit output type and using other components from the
+Elastic Stack to handle the indexing part.

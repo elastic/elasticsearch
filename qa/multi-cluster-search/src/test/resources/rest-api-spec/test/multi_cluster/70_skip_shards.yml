@@ -34,6 +34,7 @@
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._index: "skip_shards_index"}
+  - is_false: num_reduce_phases
   - match: {_clusters.execution_mode: "one_request_per_shard"}
   - match: { _shards.total: 2 }
   - match: { _shards.successful: 2 }
@@ -52,6 +53,7 @@
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._index: "my_remote_cluster:single_doc_index"}
+  - is_false: num_reduce_phases
   - match: {_clusters.execution_mode: "one_request_per_shard"}
   - match: { _shards.total: 2 }
   - match: { _shards.successful: 2 }

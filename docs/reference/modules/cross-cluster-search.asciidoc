@@ -65,6 +65,7 @@ GET /cluster_one:twitter/_search
 {
   "took": 150,
   "timed_out": false,
+  "num_reduce_phases": 2,
   "_shards": {
     "total": 1,
     "successful": 1,
@@ -131,6 +132,7 @@ will be prefixed with their remote cluster name:
 {
   "took": 150,
   "timed_out": false,
+  "num_reduce_phases": 3,
   "_shards": {
     "total": 2,
     "successful": 2,
@@ -224,6 +226,7 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
 {
   "took": 150,
   "timed_out": false,
+  "num_reduce_phases": 3,
   "_shards": {
     "total": 2,
     "successful": 2,

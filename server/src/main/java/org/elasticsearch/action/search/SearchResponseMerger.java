@@ -39,6 +39,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -183,10 +184,11 @@ final class SearchResponseMerger {
         Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
         InternalAggregations reducedAggs = InternalAggregations.reduce(aggs, reduceContextFunction.apply(true));
         ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
+        SearchProfileShardResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         //make failures ordering consistent with ordinary search and CCS
         Arrays.sort(shardFailures, FAILURES_COMPARATOR);
-        InternalSearchResponse response = new InternalSearchResponse(mergedSearchHits, reducedAggs, suggest,
-            new SearchProfileShardResults(profileResults), topDocsStats.timedOut, topDocsStats.terminatedEarly, numReducePhases);
+        InternalSearchResponse response = new InternalSearchResponse(mergedSearchHits, reducedAggs, suggest, profileShardResults,
+            topDocsStats.timedOut, topDocsStats.terminatedEarly, numReducePhases);
         long tookInMillis = searchTimeProvider.buildTookInMillis();
         return new SearchResponse(response, null, totalShards, successfulShards, skippedShards, tookInMillis, shardFailures, clusters);
     }
@@ -260,16 +262,21 @@ final class SearchResponseMerger {
     }
 
     private static void setShardIndex(Map<ShardIdAndClusterAlias, Integer> shards, List<TopDocs> topDocsList) {
-        int shardIndex = 0;
-        for (Map.Entry<ShardIdAndClusterAlias, Integer> shard : shards.entrySet()) {
-            shard.setValue(shardIndex++);
+        {
+            //assign a different shardIndex to each shard, based on their shardId natural ordering and their cluster alias
+            int shardIndex = 0;
+            for (Map.Entry<ShardIdAndClusterAlias, Integer> shard : shards.entrySet()) {
+                shard.setValue(shardIndex++);
+            }
         }
-        //and go through all the scoreDocs from each cluster and set their corresponding shardIndex
+        //go through all the scoreDocs from each cluster and set their corresponding shardIndex
         for (TopDocs topDocs : topDocsList) {
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                 FieldDocAndSearchHit fieldDocAndSearchHit = (FieldDocAndSearchHit) scoreDoc;
                 SearchShardTarget shard = fieldDocAndSearchHit.searchHit.getShard();
-                fieldDocAndSearchHit.shardIndex = shards.get(new ShardIdAndClusterAlias(shard.getShardId(), shard.getClusterAlias()));
+                ShardIdAndClusterAlias shardId = new ShardIdAndClusterAlias(shard.getShardId(), shard.getClusterAlias());
+                assert shards.containsKey(shardId);
+                fieldDocAndSearchHit.shardIndex = shards.get(shardId);
             }
         }
     }
@@ -346,7 +353,17 @@ final class SearchResponseMerger {
             if (shardIdCompareTo != 0) {
                 return shardIdCompareTo;
             }
-            return clusterAlias.compareTo(o.clusterAlias);
+            int clusterAliasCompareTo = clusterAlias.compareTo(o.clusterAlias);
+            if (clusterAliasCompareTo != 0) {
+                //TODO we may want to fix this, CCS returns remote results before local ones (TransportSearchAction#mergeShardsIterators)
+                if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                    return 1;
+                }
+                if (o.clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                    return -1;
+                }
+            }
+            return clusterAliasCompareTo;
         }
     }
 }

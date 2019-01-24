@@ -439,45 +439,6 @@ public class SearchResponseMergerTests extends ESTestCase {
         }
     }
 
-    public void testMergeSearchHitsSameCluster() throws InterruptedException {
-        //this test verifies that we can search against docs coming from the same cluster,
-        // in case it is registered twice with different aliases.
-        final SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> 0);
-        SearchResponseMerger merger = new SearchResponseMerger(0, 10, Integer.MAX_VALUE, timeProvider, flag -> null);
-        ShardId shardId = new ShardId("index", "index-uuid", 0);
-        for (int i = 0; i < numResponses; i++) {
-            SearchHit hit = new SearchHit(0);
-            SearchShardTarget shardTarget = new SearchShardTarget(randomAlphaOfLengthBetween(3, 8), shardId,
-                "cluster-" + i, OriginalIndices.NONE);
-            hit.shard(shardTarget);
-            hit.score(10F);
-            SearchHits searchHits = new SearchHits(new SearchHit[]{hit}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 10F);
-            InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, InternalAggregations.EMPTY,
-                null, null, false, null, 1);
-            merger.add(new SearchResponse(internalSearchResponse, null, 1, 1, 0, 100L, ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY));
-        }
-        awaitResponsesAdded();
-        assertEquals(numResponses, merger.numResponses());
-        SearchResponse.Clusters clusters = new SearchResponse.Clusters(numResponses, numResponses, 0,
-            CCSExecutionMode.ONE_REQUEST_PER_CLUSTER);
-        SearchResponse merged = merger.getMergedResponse(clusters);
-        assertSame(clusters, merged.getClusters());
-        SearchHits searchHits = merged.getHits();
-        assertNotNull(searchHits.getTotalHits());
-        assertEquals(TotalHits.Relation.EQUAL_TO, searchHits.getTotalHits().relation);
-        assertEquals(numResponses, searchHits.getTotalHits().value);
-        assertEquals(10F, searchHits.getMaxScore(), 0F);
-        assertEquals(numResponses, searchHits.getHits().length);
-        for (int i = 0; i < numResponses; i++) {
-            SearchHit searchHit = searchHits.getHits()[i];
-            assertEquals(0, searchHit.docId());
-            assertEquals(10F, searchHit.getScore(), 0F);
-            assertEquals(shardId, searchHit.getShard().getShardId());
-            assertEquals("cluster-" + i, searchHit.getShard().getClusterAlias());
-        }
-    }
-
     public void testMergeNoResponsesAdded() {
         long currentRelativeTime = randomLong();
         final SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
@@ -570,8 +531,11 @@ public class SearchResponseMergerTests extends ESTestCase {
         for (int i = 0; i < numClusters; i++) {
             Index[] indices = new Index[indicesNames.length];
             for (int j = 0; j < indices.length; j++) {
-                //Realistically clusters have the same indices with same names, but different uuid
-                indices[j] = new Index(indicesNames[j], randomAlphaOfLength(10));
+                String indexName = indicesNames[j];
+                //Realistically clusters have the same indices with same names, but different uuid. Yet it can happen that the same cluster
+                //is registered twice with different aliases and searched multiple times as part of the same search request.
+                String indexUuid = frequently() ? randomAlphaOfLength(10) : indexName;
+                indices[j] = new Index(indexName, indexUuid);
             }
             String clusterAlias;
             if (frequently() || indicesPerCluster.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
@@ -622,9 +586,21 @@ public class SearchResponseMergerTests extends ESTestCase {
                     }
                 }
             }
-            int shardIdCompareTo = a.getShard().getShardId().compareTo(b.getShard().getShardId());
+            SearchShardTarget aShard = a.getShard();
+            SearchShardTarget bShard = b.getShard();
+            int shardIdCompareTo = aShard.getShardId().compareTo(bShard.getShardId());
             if (shardIdCompareTo != 0) {
                 return shardIdCompareTo;
+            }
+            int clusterAliasCompareTo = aShard.getClusterAlias().compareTo(bShard.getClusterAlias());
+            if (clusterAliasCompareTo != 0) {
+                if (aShard.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                    return 1;
+                }
+                if (bShard.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                    return -1;
+                }
+                return clusterAliasCompareTo;
             }
             return Integer.compare(a.docId(), b.docId());
         }

@@ -40,6 +40,7 @@
   - match: {_clusters.successful: 2}
   - match: {_clusters.skipped: 0}
   - match: {_clusters.execution_mode: "one_request_per_cluster"}
+  - match: {num}
   - match: { _shards.total: 5 }
   - match: { hits.total: 11 }
   - gte: { hits.hits.0._seq_no: 0 }

@@ -36,7 +36,7 @@ public class DataFrameMessages {
     public static final String DATA_FRAME_TRANSFORM_PIVOT_FAILED_TO_CREATE_COMPOSITE_AGGREGATION =
             "Failed to create composite aggregation from pivot function";
     public static final String DATA_FRAME_TRANSFORM_CONFIGURATION_INVALID =
-            "Data frame transform configuration [{}] has invalid elements";
+            "Data frame transform configuration [{0}] has invalid elements";
 
     public static final String LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_QUERY =
             "Failed to parse query for data frame transform";

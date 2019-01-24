@@ -3,81 +3,90 @@
 [float]
 === Background
 
-Elasticsearch ≤ 6 leniently allows the following unsafe operations:
+Sometimes {es} nodes are temporarily stopped, perhaps because of the need to
+perform some maintenance activity or perhaps because of a hardware failure.
+Once the temporary condition has been resolved you should restart the node and
+it will rejoin the cluster and continue normally. Depending on your
+configuration, your cluster may be able to remain completely available even
+while one or more of its nodes are stopped.
 
-* Recovery from loss of a majority of master-eligible nodes.
+Sometimes it might not be possible to restart a node after it has stopped. For
+example, the node's host may suffer from a hardware problem that cannot be
+repaired. If the cluster is still available then you can start up
+a fresh node on another host and {es} will bring this node into the cluster in place
+of the failed node.
 
-Simply start up enough fresh master-eligible nodes to satisfy
-minimum_master_nodes and the cluster will re-form. This is unsafe because there
-could have been a cluster-state update that was committed without being accepted
-on the surviving nodes.
+Each node stores its data in the data directories defined by the
+<<path-settings,`path.data` setting>>. This means that in a disaster you can
+also restart a node by moving its data directories to another host, presuming
+that those data directories can be recovered from the faulty host. Note that it
+is not possible to restore the data directory from a backup because this will
+lead to data corruption. Backups of an {es} cluster can only be taken using
+<<modules-snapshots>>.
 
-* Nodes migrating from one cluster to another.
+Elasticsearch <<modules-discovery-quorums,requires a response from a majority
+of the master-eligible nodes>> in order to elect a master and to update the
+cluster state. This means that if you have three master-eligible nodes then the
+cluster will remain available even if one of them has failed. However if two of
+the three master-eligible nodes fail then the cluster will be unavailable until
+at least one of them is restarted.
 
-If a node is disconnected from cluster A and then discovers a distinct cluster B
-then it will join cluster B. Any indices having shards on the migrating node
-will be imported as dangling indices into cluster B, and these shards will be
-treated as in-sync even if they were not in-sync in cluster A,
-which may confusingly expose an arbitrarily stale shard to searches.
+In very rare circumstances it may not be possible to restart enough nodes to
+restore the cluster's availability. If such a disaster occurs then you should
+build a new cluster from a recent snapshot, and re-import any data that was
+ingested since that snapshot was taken.
 
-[NOTE]
-When we're talking about the loss of nodes, we mean loss of storage for these
-nodes. If you still have access to the nodes storage, you should copy
-previous nodes data to other nodes and start Elasticsearch.
+However, if the disaster is serious enough then it may not be possible to
+recover from a recent snapshot either. Unfortunately in this case there is no
+way forward that does not risk data loss, but it may be possible to use the
+`elasticsearch-node` tool to unsafely bring the cluster back online.
 
-Starting with Elasticsearch 7 cluster does not really support these operations:
+This tool has two modes, depending on whether there are any master-eligible
+nodes remaining or not:
 
-* A cluster that loses a majority of its master-eligible nodes will not
-proceed until it finds a majority of precisely those nodes again, using the
-persistent node ID for identification. New nodes will have new persistent node
-IDs so will not count towards a majority.
+* `elastisearch-node unsafe-bootstap` can be used if there is at least one
+  remaining master-eligible node. It allows a remaining node to become the
+  elected master node without needing a response from any other nodes.
 
-* When node tries to join different cluster, cluster UUID comparison will fail.
-
-There is value in supporting these operations for severe disasters,
-but this is never done automatically and requires manual user intervention and
-acceptance of the risk of data loss.
-
-[float]
-=== Strongly prefer restoring from the snapshot
-If there is a recent snapshot available, you should use snapshot restore
-instead of this tool. Snapshot restore gives you a *consistent* data back
-in time. This tool usage gives you *inconsistent* data back in time.
-
-
-[float]
-=== Command line tool
-`elasticsearch-node` tool has two modes:
-
-* `elastisearch-node unsafe-bootstap` could be used to bootstrap master-eligible
-node in the cluster, where the majority of master eligible nodes is lost, but
- there is at least one master-eligible node available.
-* `elastisearch-node detach-cluster` could be used to detach data nodes from
-the cluster when the all master eligible nodes are lost in the cluster.
+* `elastisearch-node detach-cluster` can be used if there are no remaining
+  master-eligible nodes. It allows you to detach any remaining data nodes from
+  the old, failed, cluster so they can join a new cluster.
 
 [float]
 === Unsafe bootstrap
-If you have lost the majority of master eligible nodes, you can still try to
-recover the cluster using `elasticsearch-node unsafe-bootstrap`.
+
+If there is at least one remaining master-eligible node, but it is not possible
+to restart a majority of them, then the `elasticsearch-node unsafe-bootstrap`
+command will allow one of the remaining nodes to become the elected master
+without needing a response from any other nodes. This can lead to arbitrary
+data loss since the node in question may not hold the latest cluster metadata,
+and this out-of-date metadata may make it impossible to use some or all of the
+indices in the cluster.
 
 [WARNING]
 Execution of this command can lead to arbitrary data loss. Only run this tool
- if you understand what you're doing.
+if you understand and accept the possible consequences and have exhausted all
+other possibilities for recovery of your cluster.
 
-The sequence of bootstrapping your cluster would be the following:
+The sequence of operations for using this tool are as follows:
 
-1. Make sure you really lost storage of the majority master eligible nodes in
-the cluster.
-2. Make sure to stop all *all* master eligible nodes. This
-step is *important* to prevent split-brain in the future.
-3. From the survived master eligible nodes, pick one.
-4. Run `elasticsearch-node unsafe-bootstrap` command as shown below.
-5. If you see `Master node was successfully bootstrapped` message, it means
-that the tool was able to bootstrap master eligible node.
-6. Start bootstrapped master eligible node.
-7. Data only nodes should be able to automatically join this node, restart
-them if you previously stopped them.
-8. Start more master eligible nodes to get desired level of fault-tolerance.
+1. Make sure you have really lost access to at least half of the
+master-eligible nodes in the cluster, and they cannot be repaired or recovered
+by moving their data paths to healthy hardware.
+2. Stop **all** remaining master-eligible nodes.
+3. Select one of the remaining master-eligible nodes to become the new elected
+master.
+4. On this node, run the `elasticsearch-node unsafe-bootstrap` command as shown
+below. Verify that the tool reported `Master node was successfully
+bootstrapped`.
+5. Start this node and verify that it is elected as the master node.
+6. Start all other master-eligible nodes and verify that each one joins the
+cluster.
+7. Any running master-ineligible nodes will automatically join the
+newly-elected master. Restart any previously-stopped nodes and verify that the
+cluster is now fully-formed.
+8. Investigate the data in the cluster to discover if any was lost during this
+process.
 
 [source,txt]
 ----
@@ -106,14 +115,17 @@ Master node was successfully bootstrapped
 ----
 
 [WARNING]
-When you run the tool it will make sure that the node being bootstrapped is
-stopped. There is no way for this tool to understand if other master eligible
-nodes are stopped, please make sure you shut them down.
+When you run the tool it will make sure that the node being bootstrapped is not
+running. It is important that all other master-eligible nodes are also stopped
+while this tool is running, but the tool does not check this.
 
 [NOTE]
-`Master node was successfully bootstrapped` does not mean that there would be
- no data loss, it just means that tool was able to complete its job.
+The message `Master node was successfully bootstrapped` does not mean that
+there has been no data loss, it just means that tool was able to complete its
+job.
 
 [float]
 === Detach cluster
 To be described
+
+

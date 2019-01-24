@@ -212,6 +212,7 @@ if (project != rootProject) {
     if (isLuceneSnapshot) {
       systemProperty 'test.lucene-snapshot-revision', isLuceneSnapshot[0][1]
     }
+    systemProperty 'test.version_under_test', version
   }
   check.dependsOn(integTest)
 

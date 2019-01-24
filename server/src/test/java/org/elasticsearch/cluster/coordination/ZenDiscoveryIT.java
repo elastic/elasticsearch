@@ -17,16 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen;
+package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.coordination.JoinHelper;
-import org.elasticsearch.cluster.coordination.JoinRequest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -38,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryStats;
+import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCustomMetaData;

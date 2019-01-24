@@ -408,8 +408,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    // public for tests
-    public void sendValidateJoinRequest(ClusterState stateForJoinValidation, JoinRequest joinRequest,
+    // package private for tests
+    void sendValidateJoinRequest(ClusterState stateForJoinValidation, JoinRequest joinRequest,
                                         JoinHelper.JoinCallback joinCallback) {
         // validate the join on the joining node, will throw a failure if it fails the validation
         joinHelper.sendValidateJoinRequest(joinRequest.getSourceNode(), stateForJoinValidation, new ActionListener<Empty>() {

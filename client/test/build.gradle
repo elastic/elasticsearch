@@ -51,8 +51,6 @@ jarHell.enabled=false
 dependencyLicenses.enabled = false
 dependenciesInfo.enabled = false
 
-namingConventions.enabled = false
-
 //we aren't releasing this jar
 thirdPartyAudit.enabled = false
 unitTest.enabled = false

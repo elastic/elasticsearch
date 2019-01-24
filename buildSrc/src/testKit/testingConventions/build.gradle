@@ -67,6 +67,10 @@ project(':valid_setup_no_base') {
     }
 }
 
+project(':tests_in_main') {
+
+}
+
 project (':valid_setup_with_base') {
     task randomized(type: com.carrotsearch.gradle.junit4.RandomizedTestingTask) {
         include "**/*IT.class"

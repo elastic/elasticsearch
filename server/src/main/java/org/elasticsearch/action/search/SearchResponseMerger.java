@@ -29,7 +29,6 @@ import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;

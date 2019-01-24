@@ -55,6 +55,7 @@ import java.nio.file.FileSystemException;
 import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
+import java.time.ZoneId;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.Collection;
@@ -698,7 +699,6 @@ public abstract class StreamOutput extends OutputStream {
         writers.put(ZonedDateTime.class, (o, v) -> {
             o.writeByte((byte) 23);
             final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
-            zonedDateTime.getZone().getId();
             o.writeString(zonedDateTime.getZone().getId());
             o.writeLong(zonedDateTime.toInstant().toEpochMilli());
         });
@@ -1010,6 +1010,13 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Write a {@linkplain ZoneId} to the stream.
+     */
+    public void writeZoneId(ZoneId timeZone) throws IOException {
+        writeString(timeZone.getId());
+    }
+
+    /**
      * Write an optional {@linkplain DateTimeZone} to the stream.
      */
     public void writeOptionalTimeZone(@Nullable DateTimeZone timeZone) throws IOException {
@@ -1018,6 +1025,18 @@ public abstract class StreamOutput extends OutputStream {
         } else {
             writeBoolean(true);
             writeTimeZone(timeZone);
+        }
+    }
+
+    /**
+     * Write an optional {@linkplain ZoneId} to the stream.
+     */
+    public void writeOptionalZoneId(@Nullable ZoneId timeZone) throws IOException {
+        if (timeZone == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeZoneId(timeZone);
         }
     }
 
@@ -1050,23 +1069,27 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a collection of generic objects via a {@link Writer}
+     * Writes a collection of objects via a {@link Writer}.
+     *
+     * @param collection the collection of objects
+     * @throws IOException if an I/O exception occurs writing the collection
      */
-    public <T> void writeCollection(Collection<T> collection, Writer<T> writer) throws IOException {
+    public <T> void writeCollection(final Collection<T> collection, final Writer<T> writer) throws IOException {
         writeVInt(collection.size());
-        for (T val: collection) {
+        for (final T val: collection) {
             writer.write(this, val);
         }
     }
 
     /**
-     * Writes a list of strings
+     * Writes a collection of a strings. The corresponding collection can be read from a stream input using
+     * {@link StreamInput#readList(Writeable.Reader)}.
+     *
+     * @param collection the collection of strings
+     * @throws IOException if an I/O exception occurs writing the collection
      */
-    public void writeStringList(List<String> list) throws IOException {
-        writeVInt(list.size());
-        for (String string: list) {
-            this.writeString(string);
-        }
+    public void writeStringCollection(final Collection<String> collection) throws IOException {
+        writeCollection(collection, StreamOutput::writeString);
     }
 
     /**

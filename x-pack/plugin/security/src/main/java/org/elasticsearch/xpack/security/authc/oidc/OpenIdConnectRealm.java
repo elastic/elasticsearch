@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
-import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -88,12 +87,26 @@ public class OpenIdConnectRealm extends Realm {
     private DelegatedAuthorizationSupport delegatedRealms;
 
 
-    public OpenIdConnectRealm(RealmConfig config, SSLService sslService, NativeRoleMappingStore roleMapper) {
+    public OpenIdConnectRealm(RealmConfig config, SSLService sslService, UserRoleMapper roleMapper) {
         super(config);
         this.roleMapper = roleMapper;
         this.rpConfiguration = buildRelyingPartyConfiguration(config);
         this.opConfiguration = buildOpenIdConnectProviderConfiguration(config);
         this.openIdConnectAuthenticator = new OpenIdConnectAuthenticator(config, opConfiguration, rpConfiguration, sslService);
+        this.principalAttribute = ClaimParser.forSetting(logger, PRINCIPAL_CLAIM, config, true);
+        this.groupsAttribute = ClaimParser.forSetting(logger, GROUPS_CLAIM, config, false);
+        this.dnAttribute = ClaimParser.forSetting(logger, DN_CLAIM, config, false);
+        this.nameAttribute = ClaimParser.forSetting(logger, NAME_CLAIM, config, false);
+        this.mailAttribute = ClaimParser.forSetting(logger, MAIL_CLAIM, config, false);
+        this.populateUserMetadata = config.getSetting(POPULATE_USER_METADATA);
+    }
+
+    OpenIdConnectRealm(RealmConfig config, OpenIdConnectAuthenticator authenticator, UserRoleMapper roleMapper) {
+        super(config);
+        this.roleMapper = roleMapper;
+        this.rpConfiguration = null;
+        this.opConfiguration = null;
+        this.openIdConnectAuthenticator = authenticator;
         this.principalAttribute = ClaimParser.forSetting(logger, PRINCIPAL_CLAIM, config, true);
         this.groupsAttribute = ClaimParser.forSetting(logger, GROUPS_CLAIM, config, false);
         this.dnAttribute = ClaimParser.forSetting(logger, DN_CLAIM, config, false);

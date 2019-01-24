@@ -5,31 +5,54 @@
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
-
+import com.nimbusds.jwt.JWTClaimsSet;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
+import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
+import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.hamcrest.Matchers;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static java.time.Instant.now;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class OpenIdConnectRealmTests extends ESTestCase {
 
-    private static final String REALM_NAME = "oidc1-realm";
     private Settings globalSettings;
     private Environment env;
     private ThreadContext threadContext;
 
+    private static final String REALM_NAME = "oidc-realm";
     @Before
     public void setupEnv() {
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
@@ -37,236 +60,85 @@ public class OpenIdConnectRealmTests extends ESTestCase {
         threadContext = new ThreadContext(globalSettings);
     }
 
-    public void testIncorrectResponseTypeThrowsError() {
-        final Settings.Builder settingsBuilder = Settings.builder()
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "hybrid");
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
-        });
-        assertThat(exception.getMessage(), Matchers.containsString("[xpack.security.authc.realms.oidc.oidc1-realm.rp.response_type]." +
-            " Allowed values are [code, id_token]"));
+    public void testAuthentication() throws Exception {
+        final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
+        AtomicReference<UserRoleMapper.UserData> userData = new AtomicReference<>();
+        Mockito.doAnswer(invocation -> {
+            assert invocation.getArguments().length == 2;
+            userData.set((UserRoleMapper.UserData) invocation.getArguments()[0]);
+            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
+            listener.onResponse(new HashSet<>(Arrays.asList("kibana_user", "role1")));
+            return null;
+        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+
+        final boolean notPopulateMetadata = randomBoolean();
+
+        AuthenticationResult result = authenticateWithOidc(roleMapper, notPopulateMetadata, false);
+        assertThat(result.getUser().roles(), arrayContainingInAnyOrder("kibana_user", "role1"));
+        if (notPopulateMetadata == false) {
+            assertThat(result.getUser().metadata().get("oidc_iss"), equalTo("https://op.company.org"));
+            assertThat(result.getUser().metadata().get("oidc_name"), equalTo("Clinton Barton"));
+        }
     }
 
-    public void testMissingAuthorizationEndpointThrowsError() {
-        final Settings.Builder settingsBuilder = Settings.builder()
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
-        SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
-        });
-        assertThat(exception.getMessage(),
-            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT)));
+    public void testWithAuthorizingRealm() throws Exception {
+        final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
+        Mockito.doAnswer(invocation -> {
+            assert invocation.getArguments().length == 2;
+            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
+            listener.onFailure(new RuntimeException("Role mapping should not be called"));
+            return null;
+        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+
+        AuthenticationResult result = authenticateWithOidc(roleMapper, randomBoolean(), true);
+        assertThat(result.getUser().roles(), arrayContainingInAnyOrder("lookup_user_role"));
+        assertThat(result.getUser().fullName(), equalTo("Clinton Barton"));
+        assertThat(result.getUser().metadata().entrySet(), Matchers.iterableWithSize(1));
+        assertThat(result.getUser().metadata().get("is_lookup"), Matchers.equalTo(true));
     }
 
-    public void testInvalidAuthorizationEndpointThrowsError() {
-        final Settings.Builder settingsBuilder = Settings.builder()
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "this is not a URI")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
-        });
-        assertThat(exception.getMessage(),
-            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT)));
+    public void testClaimPatternParsing() throws Exception {
+        final Settings.Builder builder = getBasicRealmSettings();
+        builder.put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getPattern()), "^OIDC-(.+)");
+        final RealmConfig config = buildConfig(builder.build());
+        final OpenIdConnectRealmSettings.ClaimSetting principalSetting = new OpenIdConnectRealmSettings.ClaimSetting("principal");
+        final OpenIdConnectRealm.ClaimParser parser = OpenIdConnectRealm.ClaimParser.forSetting(logger, principalSetting, config, true);
+        final JWTClaimsSet claims = new JWTClaimsSet.Builder()
+            .subject("OIDC-cbarton")
+            .audience("https://rp.elastic.co/cb")
+            .expirationTime(Date.from(now().plusSeconds(3600)))
+            .issueTime(Date.from(now().minusSeconds(5)))
+            .jwtID(randomAlphaOfLength(8))
+            .issuer("https://op.company.org")
+            .build();
+        assertThat(parser.getClaimValue(claims), equalTo("cbarton"));
     }
 
-    public void testMissingTokenEndpointThrowsError() {
-        final Settings.Builder settingsBuilder = Settings.builder()
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
-        SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
-        });
-        assertThat(exception.getMessage(),
-            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT)));
-    }
+    public void testInvalidPrincipalClaimPatternParsing() throws Exception {
+        final OpenIdConnectAuthenticator authenticator = mock(OpenIdConnectAuthenticator.class);
 
-    public void testInvalidTokenEndpointThrowsError() {
-        final Settings.Builder settingsBuilder = Settings.builder()
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "This is not a uri")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
-        });
-        assertThat(exception.getMessage(),
-            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT)));
-    }
-
-    public void testMissingJwksUrlThrowsError() {
-        final Settings.Builder settingsBuilder = Settings.builder()
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
-        });
-        assertThat(exception.getMessage(),
-            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL)));
-    }
-
-    public void testInvalidJwksUrlThrowsError() {
-        final Settings.Builder settingsBuilder = Settings.builder()
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "this is not a url")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "This is not a uri")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
-        });
-        assertThat(exception.getMessage(),
-            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL)));
-    }
-
-    public void testMissingIssuerThrowsError() {
-        final Settings.Builder settingsBuilder = Settings.builder()
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
-        SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
-        });
-        assertThat(exception.getMessage(),
-            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER)));
-    }
-
-    public void testMissingNameTypeThrowsError() {
-        final Settings.Builder settingsBuilder = Settings.builder()
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
-        SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
-        });
-        assertThat(exception.getMessage(),
-            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME)));
-    }
-
-    public void testMissingRedirectUriThrowsError() {
-        final Settings.Builder settingsBuilder = Settings.builder()
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
-        SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
-        });
-        assertThat(exception.getMessage(),
-            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI)));
-    }
-
-    public void testMissingClientIdThrowsError() {
-        final Settings.Builder settingsBuilder = Settings.builder()
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
-        SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
-        });
-        assertThat(exception.getMessage(),
-            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID)));
-    }
-
-    public void testMissingPrincipalClaimThrowsError() {
-        final Settings.Builder settingsBuilder = Settings.builder()
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com/cb")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code")
-            .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REQUESTED_SCOPES),
-                Arrays.asList("openid", "scope1", "scope2"));
-        SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
-        });
-        assertThat(exception.getMessage(),
-            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim())));
-    }
-
-    public void testPatternWithoutSettingThrowsError() {
-        final Settings.Builder settingsBuilder = Settings.builder()
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.NAME_CLAIM.getPattern()), "^(.*)$")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com/cb")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code")
-            .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REQUESTED_SCOPES),
-                Arrays.asList("openid", "scope1", "scope2"));
-        SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
-        });
-        assertThat(exception.getMessage(),
-            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.NAME_CLAIM.getClaim())));
-        assertThat(exception.getMessage(),
-            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.NAME_CLAIM.getPattern())));
+        final OpenIdConnectToken token = new OpenIdConnectToken("", "", "");
+        final Settings.Builder builder = getBasicRealmSettings();
+        builder.put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getPattern()), "^OIDC-(.+)");
+        final RealmConfig config = buildConfig(builder.build());
+        final OpenIdConnectRealm realm = new OpenIdConnectRealm(config, authenticator, null);
+        final OpenIdConnectRealmSettings.ClaimSetting principalSetting = new OpenIdConnectRealmSettings.ClaimSetting("principal");
+        final JWTClaimsSet claims = new JWTClaimsSet.Builder()
+            .subject("cbarton@avengers.com")
+            .audience("https://rp.elastic.co/cb")
+            .expirationTime(Date.from(now().plusSeconds(3600)))
+            .issueTime(Date.from(now().minusSeconds(5)))
+            .jwtID(randomAlphaOfLength(8))
+            .issuer("https://op.company.org")
+            .build();
+        when(authenticator.authenticate(token)).thenReturn(claims);
+        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        realm.authenticate(token, future);
+        final AuthenticationResult result = future.actionGet();
+        assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
+        assertThat(result.getMessage(), containsString("claims.principal"));
+        assertThat(result.getMessage(), containsString("sub"));
+        assertThat(result.getMessage(), containsString("^OIDC-(.+)"));
     }
 
     public void testBuilidingAuthenticationRequest() {
@@ -311,11 +183,88 @@ public class OpenIdConnectRealmTests extends ESTestCase {
             "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb&state=" + state + "&nonce=" + nonce + "&client_id=rp-my"));
     }
 
+
+    private AuthenticationResult authenticateWithOidc(UserRoleMapper roleMapper, boolean notPopulateMetadata, boolean useAuthorizingRealm)
+        throws Exception {
+
+        final String principal = "324235435454";
+
+        final MockLookupRealm lookupRealm = new MockLookupRealm(
+            new RealmConfig(new RealmConfig.RealmIdentifier("mock", "mock_lookup"), globalSettings, env, threadContext));
+        final OpenIdConnectAuthenticator authenticator = mock(OpenIdConnectAuthenticator.class);
+
+        final Settings.Builder builder = getBasicRealmSettings();
+        if (notPopulateMetadata) {
+            builder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.POPULATE_USER_METADATA),
+                false);
+        }
+        if (useAuthorizingRealm) {
+            builder.putList(getFullSettingKey(new RealmConfig.RealmIdentifier("oidc", REALM_NAME),
+                DelegatedAuthorizationSettings.AUTHZ_REALMS), lookupRealm.name());
+            lookupRealm.registerUser(new User(principal, new String[]{"lookup_user_role"}, "Clinton Barton", "cbarton@shield.gov",
+                Collections.singletonMap("is_lookup", true), true));
+        }
+        final RealmConfig config = buildConfig(builder.build());
+        final OpenIdConnectRealm realm = new OpenIdConnectRealm(config, authenticator, roleMapper);
+        initializeRealms(realm, lookupRealm);
+        final OpenIdConnectToken token = new OpenIdConnectToken("", "", "");
+        final JWTClaimsSet claims = new JWTClaimsSet.Builder()
+            .subject(principal)
+            .audience("https://rp.elastic.co/cb")
+            .expirationTime(Date.from(now().plusSeconds(3600)))
+            .issueTime(Date.from(now().minusSeconds(5)))
+            .jwtID(randomAlphaOfLength(8))
+            .issuer("https://op.company.org")
+            .claim("groups", Arrays.asList("group1", "group2", "groups3"))
+            .claim("mail", "cbarton@shield.gov")
+            .claim("name", "Clinton Barton")
+            .build();
+
+        when(authenticator.authenticate(token)).thenReturn(claims);
+        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        realm.authenticate(token, future);
+        final AuthenticationResult result = future.get();
+        assertThat(result, notNullValue());
+        assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
+        assertThat(result.getUser().principal(), equalTo(principal));
+        assertThat(result.getUser().email(), equalTo("cbarton@shield.gov"));
+        assertThat(result.getUser().fullName(), equalTo("Clinton Barton"));
+
+        return result;
+    }
+
     private RealmConfig buildConfig(Settings realmSettings) {
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
             .put(realmSettings).build();
         final Environment env = TestEnvironment.newEnvironment(settings);
         return new RealmConfig(new RealmConfig.RealmIdentifier("oidc", REALM_NAME), settings, env, threadContext);
+    }
+
+    private void initializeRealms(Realm... realms) {
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isAuthorizationRealmAllowed()).thenReturn(true);
+
+        final List<Realm> realmList = Arrays.asList(realms);
+        for (Realm realm : realms) {
+            realm.initialize(realmList, licenseState);
+        }
+    }
+
+    private Settings.Builder getBasicRealmSettings() {
+        return Settings.builder()
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.org/login")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.org/token")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.org/jwks.json")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.elastic.co/cb")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), randomFrom("code", "id_token"))
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.GROUPS_CLAIM.getClaim()), "groups")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.MAIL_CLAIM.getClaim()), "mail")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.NAME_CLAIM.getClaim()), "name");
     }
 }

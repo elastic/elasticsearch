@@ -141,6 +141,9 @@ public class OpenIdConnectAuthenticator {
                 return idTokenClaims;
             }
 
+        } catch (ElasticsearchSecurityException e) {
+            // Don't wrap in a new ElasticsearchSecurityException
+            throw e;
         } catch (Exception e) {
             logger.debug("Failed to consume the OpenID connect response", e);
             throw new ElasticsearchSecurityException("Failed to consume the OpenID connect response");
@@ -236,9 +239,13 @@ public class OpenIdConnectAuthenticator {
      * @param state         The state that was contained in the response
      */
     private void validateState(State expectedState, State state) {
-        if (state.equals(expectedState) == false) {
+        if (null == state || null == expectedState) {
+            logger.debug("Failed to validate the response, at least one of the stored [{}] or received [{}] values were empty. ", state,
+                expectedState);
+            throw new ElasticsearchSecurityException("Failed to validate the response, state parameter is missing.");
+        } else if (state.equals(expectedState) == false) {
             logger.debug("Invalid state parameter [{}], while [{}] was expected", state, expectedState);
-            throw new ElasticsearchSecurityException("Received a response with an invalid state parameter");
+            throw new ElasticsearchSecurityException("Received a response with an invalid state parameter.");
         }
     }
 

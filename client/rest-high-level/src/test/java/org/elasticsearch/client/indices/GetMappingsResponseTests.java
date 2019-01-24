@@ -19,11 +19,13 @@
 
 package org.elasticsearch.client.indices;
 
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.test.ESTestCase;
@@ -40,30 +42,32 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
 public class GetMappingsResponseTests extends ESTestCase {
 
+    // Because the client-side class does not have a toXContent method, we test xContent serialization by creating
+    // a random server object, serializing it to xContent, then parsing it back as a client object. We check
+    // equality by converting the parsed client object to a server one, and comparing it to the original.
     public void testFromXContent() throws IOException {
         xContentTester(
             this::createParser,
             GetMappingsResponseTests::createTestInstance,
             GetMappingsResponseTests::toXContent,
-            GetMappingsResponse::fromXContent)
-            .assertEqualsConsumer(this::assertEqualInstances)
+            GetMappingsResponseTests::fromXContent)
             .supportsUnknownFields(true)
             .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
             .test();
     }
 
     private static GetMappingsResponse createTestInstance() {
-        Map<String, MappingMetaData> allMappings = new HashMap<>();
-        allMappings.put("index-" + randomAlphaOfLength(5), randomMappingMetaData());
-        return new GetMappingsResponse(allMappings);
+        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
+        mappings.put(MapperService.SINGLE_MAPPING_NAME, randomMappingMetaData());
+
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> allMappings = ImmutableOpenMap.builder();
+        allMappings.put("index-" + randomAlphaOfLength(5), mappings.build());
+
+        return new GetMappingsResponse(allMappings.build());
     }
 
     private Predicate<String> getRandomFieldsExcludeFilter() {
         return field -> !field.equals(MAPPINGS.getPreferredName());
-    }
-
-    private void assertEqualInstances(GetMappingsResponse expected, GetMappingsResponse actual) {
-        assertEquals(expected.mappings(), actual.mappings());
     }
 
     public static MappingMetaData randomMappingMetaData() {
@@ -96,9 +100,20 @@ public class GetMappingsResponseTests extends ESTestCase {
         return mappings;
     }
 
-    // Because the client-side class does not have a toXContent method, we first convert it to a server
-    // class, and then use its method (with include_type_name set to 'false') to generate the xContent.
     private static void toXContent(GetMappingsResponse response, XContentBuilder builder) throws IOException {
+        Params params = new ToXContent.MapParams(
+            Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "false"));
+
+        builder.startObject();
+        response.toXContent(builder, params);
+        builder.endObject();
+    }
+
+    private static GetMappingsResponse fromXContent(
+            XContentParser parser) throws IOException {
+        org.elasticsearch.client.indices.GetMappingsResponse response =
+            org.elasticsearch.client.indices.GetMappingsResponse.fromXContent(parser);
+
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> allMappings = ImmutableOpenMap.builder();
 
         for (Map.Entry<String, MappingMetaData> indexEntry : response.mappings().entrySet()) {
@@ -107,14 +122,6 @@ public class GetMappingsResponseTests extends ESTestCase {
             allMappings.put(indexEntry.getKey(), mappings.build());
         }
 
-        org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse serverResponse =
-            new org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse(allMappings.build());
-
-        Params params = new ToXContent.MapParams(
-            Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "false"));
-
-        builder.startObject();
-        serverResponse.toXContent(builder, params);
-        builder.endObject();
+        return new GetMappingsResponse(allMappings.build());
     }
 }

@@ -40,7 +40,8 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         // test the execution order
         private int step;
 
-        protected MockIndexer(Executor executor, AtomicReference<IndexerState> initialState, Integer initialPosition, CountDownLatch latch) {
+        protected MockIndexer(Executor executor, AtomicReference<IndexerState> initialState, Integer initialPosition,
+                              CountDownLatch latch) {
             super(executor, initialState, initialPosition, new MockJobStats());
             this.latch = latch;
         }
@@ -213,7 +214,6 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
-            Thread.sleep(1000);
             assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
             countDownLatch.countDown();
 

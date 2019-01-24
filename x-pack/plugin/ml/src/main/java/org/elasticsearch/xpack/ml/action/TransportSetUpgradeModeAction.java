@@ -142,20 +142,20 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
             wrappedListener::onFailure
         );
 
-           /*
-             <2> Handle the cluster response and act accordingly
-             <.1>
-                 If we are enabling the option, we need to isolate the datafeeds so we can unassign the ML Jobs
-             </.1>
-             <.2>
-                 If we are disabling the option, we need to wait to make sure all the jobs get reallocated to an appropriate node
-                 before returning to the user.
+        /*
+          <2> Handle the cluster response and act accordingly
+          <.1>
+              If we are enabling the option, we need to isolate the datafeeds so we can unassign the ML Jobs
+          </.1>
+          <.2>
+              If we are disabling the option, we need to wait to make sure all the jobs get reallocated to an appropriate node
+              before returning to the user.
 
-                 We don't want to return to the user unless we would be ready to handle a call against this endpoint immediately again.
-                 Don't want to leave the jobs in a weird reassignment state.
-             </.2>
-             </2>
-            */
+              We don't want to return to the user unless we would be ready to handle a call against this endpoint immediately again.
+              Don't want to leave the jobs in a weird reassignment state.
+          </.2>
+          </2>
+         */
         ActionListener<AcknowledgedResponse> clusterStateUpdateListener = ActionListener.wrap(
             acknowledgedResponse -> {
                 // State change was not acknowledged, we either timed out or ran into some exception
@@ -186,7 +186,7 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                     GetDatafeedsStatsAction.Request datafeedStatsRequest =
                         new GetDatafeedsStatsAction.Request(Strings.collectionToCommaDelimitedString(datafeedIdsRestarted));
 
-                    awaitCondition(() -> jobsNotAwaitingUpgrade(jobStatsRequest) && datafeedsNotAwaitingUpgrade(datafeedStatsRequest),
+                    awaitCondition(() -> jobsAllocatedToNode(jobStatsRequest) && datafeedsAllocatedToNode(datafeedStatsRequest),
                         "datafeeds and jobs to be reassigned to nodes.",
                         request.timeout(),
                         wrappedListener);
@@ -220,19 +220,18 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private boolean jobsNotAwaitingUpgrade(GetJobsStatsAction.Request jobStatsRequest) throws InterruptedException, ExecutionException {
+    private boolean jobsAllocatedToNode(GetJobsStatsAction.Request jobStatsRequest) throws InterruptedException, ExecutionException {
         try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(),
             ML_ORIGIN)) {
             return client.execute(GetJobsStatsAction.INSTANCE, jobStatsRequest).get()
                 .getResponse()
                 .results()
                 .stream()
-                .anyMatch(
-                    jobStats -> jobStats.getNode() != null);
+                .allMatch(jobStats -> jobStats.getNode() != null);
         }
     }
 
-    private boolean datafeedsNotAwaitingUpgrade(GetDatafeedsStatsAction.Request datafeedStatsRequest)
+    private boolean datafeedsAllocatedToNode(GetDatafeedsStatsAction.Request datafeedStatsRequest)
         throws InterruptedException, ExecutionException {
         try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(),
             ML_ORIGIN)) {
@@ -240,8 +239,7 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                 .getResponse()
                 .results()
                 .stream()
-                .anyMatch(
-                    datafeedStats -> datafeedStats.getNode() != null);
+                .allMatch(datafeedStats -> datafeedStats.getNode() != null);
         }
     }
 

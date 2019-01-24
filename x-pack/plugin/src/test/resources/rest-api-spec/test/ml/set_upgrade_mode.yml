@@ -61,7 +61,11 @@ setup:
 
 ---
 teardown:
+  - skip:
+      features: headers
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       ml.set_upgrade_mode:
         enabled: false
 
@@ -186,8 +190,6 @@ teardown:
   - match: { acknowledged: true }
 
   - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       ml.put_job:
         job_id: failing-set-upgrade-mode-job
         body:  >
@@ -206,7 +208,5 @@ teardown:
 
   - do:
       catch: /Could not open job as indices are being upgraded/
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       ml.open_job:
         job_id: failing-set-upgrade-mode-job

@@ -139,7 +139,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     private final Auditor auditor;
 
-    private volatile boolean upgradeInProgress = false;
+    private volatile boolean upgradeInProgress;
 
     public AutodetectProcessManager(Environment environment, Settings settings, Client client, ThreadPool threadPool,
                                     JobManager jobManager, JobResultsProvider jobResultsProvider, JobResultsPersister jobResultsPersister,
@@ -181,13 +181,13 @@ public class AutodetectProcessManager implements ClusterStateListener {
         }
     }
 
-    public void killProcess(JobTask jobTask, boolean awaitCompletion, String reason, boolean shouldFinish) {
+    public void killProcess(JobTask jobTask, boolean awaitCompletion, String reason) {
         logger.trace("[{}] Killing process: awaitCompletion = [{}]; reason = [{}]", jobTask.getJobId(), awaitCompletion, reason);
         ProcessContext processContext = processByAllocation.remove(jobTask.getAllocationId());
         if (processContext != null) {
             processContext.newKillBuilder()
                     .setAwaitCompletion(awaitCompletion)
-                    .setFinish(shouldFinish)
+                    .setFinish(true)
                     .setReason(reason)
                     .setShouldFinalizeJob(upgradeInProgress == false)
                     .kill();

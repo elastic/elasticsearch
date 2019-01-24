@@ -720,7 +720,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         }
 
         void killJob(String reason) {
-            autodetectProcessManager.killProcess(this, false, reason, true);
+            autodetectProcessManager.killProcess(this, false, reason);
         }
 
         void closeJob(String reason) {

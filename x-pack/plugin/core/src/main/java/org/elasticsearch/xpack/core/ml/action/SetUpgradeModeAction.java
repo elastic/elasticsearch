@@ -42,6 +42,7 @@ public class SetUpgradeModeAction extends Action<AcknowledgedResponse> {
         private static final ParseField ENABLED = new ParseField("enabled");
         public static final ConstructingObjectParser<Request, Void> PARSER =
             new ConstructingObjectParser<>(NAME, a -> new Request((Boolean)a[0]));
+
         static {
             PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED);
         }

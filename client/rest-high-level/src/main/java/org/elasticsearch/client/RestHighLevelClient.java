@@ -2062,7 +2062,7 @@ public class RestHighLevelClient implements Closeable {
         return options.build();
     }
 
-    static boolean convertExistsResponse(Response response) {
+    protected static boolean convertExistsResponse(Response response) {
         return response.getStatusLine().getStatusCode() == 200;
     }
 

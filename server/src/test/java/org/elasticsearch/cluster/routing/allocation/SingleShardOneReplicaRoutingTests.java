@@ -130,7 +130,7 @@ public class SingleShardOneReplicaRoutingTests extends ESAllocationTestCase {
         logger.info("Kill node1, backup shard should become primary");
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node1")).build();
-        newState = strategy.deassociateDeadNodes(clusterState, true, "reroute");
+        newState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 

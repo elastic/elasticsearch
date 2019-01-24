@@ -28,8 +28,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -72,37 +70,13 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
 
     @Override
     protected void masterOperation(final CreateSnapshotRequest request, ClusterState state,
-                                   final ActionListener<CreateSnapshotResponse> listener) {
-        snapshotsService.createSnapshot(request, new SnapshotsService.CreateSnapshotListener() {
-            @Override
-            public void onResponse(Snapshot snapshotCreated) {
-                if (request.waitForCompletion()) {
-                    snapshotsService.addListener(new SnapshotsService.SnapshotCompletionListener() {
-                        @Override
-                        public void onSnapshotCompletion(Snapshot snapshot, SnapshotInfo snapshotInfo) {
-                            if (snapshotCreated.equals(snapshot)) {
-                                listener.onResponse(new CreateSnapshotResponse(snapshotInfo));
-                                snapshotsService.removeListener(this);
-                            }
-                        }
-
-                        @Override
-                        public void onSnapshotFailure(Snapshot snapshot, Exception e) {
-                            if (snapshotCreated.equals(snapshot)) {
-                                listener.onFailure(e);
-                                snapshotsService.removeListener(this);
-                            }
-                        }
-                    });
-                } else {
-                    listener.onResponse(new CreateSnapshotResponse());
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        final ActionListener<CreateSnapshotResponse> listener) {
+        if (request.waitForCompletion()) {
+            snapshotsService.executeSnapshot(request,
+                ActionListener.wrap(snapshotInfo-> listener.onResponse(new CreateSnapshotResponse(snapshotInfo)), listener::onFailure));
+        } else {
+            snapshotsService.createSnapshot(request,
+                ActionListener.wrap(snapshot -> listener.onResponse(new CreateSnapshotResponse()), listener::onFailure));
+        }
     }
 }

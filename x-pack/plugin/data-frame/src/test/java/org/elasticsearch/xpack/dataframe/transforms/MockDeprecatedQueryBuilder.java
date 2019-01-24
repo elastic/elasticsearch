@@ -24,7 +24,7 @@ import java.io.IOException;
 /*
  * Utility test class to write a deprecation message on usage
  */
-class MockDeprecatedQueryBuilder extends AbstractQueryBuilder<MockDeprecatedQueryBuilder> {
+public class MockDeprecatedQueryBuilder extends AbstractQueryBuilder<MockDeprecatedQueryBuilder> {
 
     public static final String NAME = "deprecated_match_all";
     public static final String DEPRECATION_MESSAGE = "expected deprecation message from MockDeprecatedQueryBuilder";
@@ -38,7 +38,7 @@ class MockDeprecatedQueryBuilder extends AbstractQueryBuilder<MockDeprecatedQuer
         declareStandardFields(PARSER);
     }
 
-    MockDeprecatedQueryBuilder() {
+    public MockDeprecatedQueryBuilder() {
     }
 
     public MockDeprecatedQueryBuilder(StreamInput in) throws IOException {

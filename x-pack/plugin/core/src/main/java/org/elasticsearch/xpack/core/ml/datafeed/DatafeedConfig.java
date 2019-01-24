@@ -246,14 +246,14 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.queryDelay = in.readOptionalTimeValue();
         this.frequency = in.readOptionalTimeValue();
         if (in.readBoolean()) {
-            this.indices = Collections.unmodifiableList(in.readList(StreamInput::readString));
+            this.indices = Collections.unmodifiableList(in.readStringList());
         } else {
             this.indices = null;
         }
         // This consumes the list of types if there was one.
         if (in.getVersion().before(Version.V_7_0_0)) {
             if (in.readBoolean()) {
-                in.readList(StreamInput::readString);
+                in.readStringList();
             }
         }
         if (in.getVersion().before(Version.V_6_6_0)) {
@@ -408,7 +408,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         out.writeOptionalTimeValue(frequency);
         if (indices != null) {
             out.writeBoolean(true);
-            out.writeStringList(indices);
+            out.writeStringCollection(indices);
         } else {
             out.writeBoolean(false);
         }
@@ -416,7 +416,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         // An empty list is expected
         if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeBoolean(true);
-            out.writeStringList(Collections.emptyList());
+            out.writeStringCollection(Collections.emptyList());
         }
         if (out.getVersion().before(Version.V_6_6_0)) {
             out.writeNamedWriteable(getParsedQuery());

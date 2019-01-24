@@ -16,8 +16,10 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CombinedRateLimiter;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
@@ -42,6 +44,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 public class CcrRestoreSourceService extends AbstractLifecycleComponent implements IndexEventListener {
 
@@ -52,6 +55,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
     private final CopyOnWriteArrayList<Consumer<String>> closeSessionListeners = new CopyOnWriteArrayList<>();
     private final ThreadPool threadPool;
     private final CcrSettings ccrSettings;
+    private final CounterMetric throttleTime = new CounterMetric();
 
     public CcrRestoreSourceService(ThreadPool threadPool, CcrSettings ccrSettings) {
         this.threadPool = threadPool;
@@ -136,7 +140,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
         }
         restore.idle = false;
-        return new SessionReader(restore);
+        return new SessionReader(restore, ccrSettings, throttleTime::inc);
     }
 
     private void internalCloseSession(String sessionUUID, boolean throwIfSessionMissing) {
@@ -180,6 +184,10 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 restoreSession.idle = true;
             }
         }
+    }
+
+    public long getThrottleTime() {
+        return this.throttleTime.count();
     }
 
     private static class RestoreSession extends AbstractRefCounted {
@@ -254,9 +262,13 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
     public static class SessionReader implements Closeable {
 
         private final RestoreSession restoreSession;
+        private final CcrSettings ccrSettings;
+        private final LongConsumer throttleListener;
 
-        private SessionReader(RestoreSession restoreSession) {
+        private SessionReader(RestoreSession restoreSession, CcrSettings ccrSettings, LongConsumer throttleListener) {
             this.restoreSession = restoreSession;
+            this.ccrSettings = ccrSettings;
+            this.throttleListener = throttleListener;
             restoreSession.incRef();
         }
 
@@ -270,6 +282,9 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
          * @throws IOException if the read fails
          */
         public long readFileBytes(String fileName, BytesReference reference) throws IOException {
+            CombinedRateLimiter rateLimiter = ccrSettings.getRateLimiter();
+            long throttleTime = rateLimiter.maybePause(reference.length());
+            throttleListener.accept(throttleTime);
             return restoreSession.readFileBytes(fileName, reference);
         }
 

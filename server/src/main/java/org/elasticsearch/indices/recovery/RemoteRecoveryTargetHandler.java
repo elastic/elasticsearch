@@ -77,11 +77,12 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
+    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG,
-                new RecoveryPrepareForTranslogOperationsRequest(recoveryId, shardId, totalTranslogOps, fileBasedRecovery),
-                TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
-                EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+            new RecoveryPrepareForTranslogOperationsRequest(recoveryId, shardId, totalTranslogOps, fileBasedRecovery),
+            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
+            new ActionListenerResponseHandler<>(ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure),
+                in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
     }
 
     @Override

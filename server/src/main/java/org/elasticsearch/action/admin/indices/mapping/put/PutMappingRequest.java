@@ -254,7 +254,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * The mapping source definition.
      */
     public PutMappingRequest source(XContentBuilder mappingBuilder) {
-        return source(Strings.toString(mappingBuilder), mappingBuilder.contentType());
+        return source(BytesReference.bytes(mappingBuilder), mappingBuilder.contentType());
     }
 
     /**
@@ -264,7 +264,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(mappingSource);
-            return source(Strings.toString(builder), XContentType.JSON);
+            return source(BytesReference.bytes(builder), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + mappingSource + "]", e);
         }

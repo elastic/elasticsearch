@@ -16,16 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.gradle.testkit;
 
-package org.elasticsearch.test;
-
-/**
- * This class should fail the naming conventions self test.
- */
-public class NamingConventionsCheckInMainIT {
-
-    public static class InternalInvalidTests extends NamingConventionsCheckBadClasses.UnitTestCase {
-
-    }
+public class NamingConventionTests {
 
 }

@@ -70,11 +70,6 @@ public class PluginBuildPlugin extends BuildPlugin {
             if (isModule == false || isXPackModule) {
                 addNoticeGeneration(project)
             }
-
-            project.namingConventions {
-                // Plugins declare integration tests as "Tests" instead of IT.
-                skipIntegTestInDisguise = true
-            }
         }
         project.testingConventions {
             naming.clear()

@@ -16,9 +16,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -654,14 +652,18 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             }
 
             String jobId = jobTask.getJobId();
-            autodetectProcessManager.openJob(jobTask, clusterState, e2 -> {
+            autodetectProcessManager.openJob(jobTask, clusterState, (e2, shouldFinalizeJob) -> {
                 if (e2 == null) {
-                    FinalizeJobExecutionAction.Request finalizeRequest = new FinalizeJobExecutionAction.Request(new String[]{jobId});
-                    executeAsyncWithOrigin(client, ML_ORIGIN, FinalizeJobExecutionAction.INSTANCE, finalizeRequest,
+                    if (shouldFinalizeJob) {
+                        FinalizeJobExecutionAction.Request finalizeRequest = new FinalizeJobExecutionAction.Request(new String[]{jobId});
+                        executeAsyncWithOrigin(client, ML_ORIGIN, FinalizeJobExecutionAction.INSTANCE, finalizeRequest,
                             ActionListener.wrap(
-                                    response -> task.markAsCompleted(),
-                                    e -> logger.error("error finalizing job [" + jobId + "]", e)
+                                response -> task.markAsCompleted(),
+                                e -> logger.error("error finalizing job [" + jobId + "]", e)
                             ));
+                    } else {
+                        task.markAsCompleted();
+                    }
                 } else {
                     task.markAsFailed(e2);
                 }
@@ -672,9 +674,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
                                                      PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask,
                                                      Map<String, String> headers) {
-            JobTask task = new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers);
-            clusterService.addListener(task);
-            return task;
+            return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers);
         }
 
         void setMaxConcurrentJobAllocations(int maxConcurrentJobAllocations) {
@@ -696,13 +696,12 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         }
     }
 
-    public static class JobTask extends AllocatedPersistentTask implements OpenJobAction.JobTaskMatcher, ClusterStateListener {
+    public static class JobTask extends AllocatedPersistentTask implements OpenJobAction.JobTaskMatcher {
 
         private static final Logger LOGGER = LogManager.getLogger(JobTask.class);
 
         private final String jobId;
         private volatile AutodetectProcessManager autodetectProcessManager;
-        private volatile boolean upgradeInProgress;
 
         JobTask(String jobId, long id, String type, String action, TaskId parentTask, Map<String, String> headers) {
             super(id, type, action, "job-" + jobId, parentTask, headers);
@@ -721,16 +720,11 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         }
 
         void killJob(String reason) {
-            autodetectProcessManager.killProcess(this, false, reason, upgradeInProgress == false);
+            autodetectProcessManager.killProcess(this, false, reason, true);
         }
 
         void closeJob(String reason) {
             autodetectProcessManager.closeJob(this, false, reason);
-        }
-
-        @Override
-        public void clusterChanged(ClusterChangedEvent event) {
-            upgradeInProgress = MlMetadata.getMlMetadata(event.state()).isUpgradeMode();
         }
     }
 

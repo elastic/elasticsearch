@@ -32,12 +32,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -48,12 +48,14 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
+import static org.elasticsearch.xpack.core.ml.MlTasks.DATAFEED_TASK_ID_PREFIX;
 import static org.elasticsearch.xpack.core.ml.MlTasks.DATAFEED_TASK_NAME;
 import static org.elasticsearch.xpack.core.ml.MlTasks.JOB_TASK_ID_PREFIX;
+import static org.elasticsearch.xpack.core.ml.MlTasks.JOB_TASK_NAME;
 
 public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<SetUpgradeModeAction.Request, AcknowledgedResponse> {
 
-    private static final AtomicBoolean isRunning = new AtomicBoolean(false);
+    private final AtomicBoolean isRunning = new AtomicBoolean(false);
     private final PersistentTasksClusterService persistentTasksClusterService;
     private final ClusterService clusterService;
     private final Client client;
@@ -83,13 +85,7 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
     protected void masterOperation(SetUpgradeModeAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
 
-        if (request.isEnabled() == MlMetadata.getMlMetadata(state).isUpgradeMode()) {
-            listener.onResponse(new AcknowledgedResponse(true));
-            return;
-        }
-
-        // Switching the setting on/off while we are in the middle of adjusting task assignments and isolating datafeeds
-        // may result in unknown behavior
+        // Don't want folks spamming this endpoint while it is in progress, only allow one request to be handled at a time
         if (isRunning.compareAndSet(false, true) == false) {
             String msg = "Attempted to set [upgrade_mode] to [" +
                 request.isEnabled() + "] from [" + MlMetadata.getMlMetadata(state).isUpgradeMode() +
@@ -99,41 +95,52 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                 "Cannot change [upgrade_mode]. Previous request is still being processed.",
                 RestStatus.TOO_MANY_REQUESTS,
                 detail));
+            return;
         }
-        // Once we have set isRunning to true, we don't want to chance it being kept that way without the master node having to restart
-        try {
-            ActionListener<AcknowledgedResponse> wrappedListener = ActionListener.wrap(
-                r -> {
-                    isRunning.set(false);
-                    listener.onResponse(r);
-                },
-                e -> {
-                    isRunning.set(false);
-                    listener.onFailure(e);
-                }
-            );
-            final PersistentTasksCustomMetaData tasksCustomMetaData = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-            final Collection<PersistentTask<?>> allJobTasks =
-                tasksCustomMetaData.findTasks(MlTasks.JOB_TASK_NAME, task -> true);
 
-            // <4> We have unassigned the tasks, respond to the listener.
-            ActionListener<List<PersistentTask<?>>> unassignPersistentTasksListener = ActionListener.wrap(
-                unassigndPersistentTasks -> {
-                    // TODO Is there some other besides the datafeeds fully stopping?
-                    awaitCondition(
-                        () -> client.admin().cluster().prepareListTasks().setActions(DATAFEED_TASK_NAME + "[c]").get().getTasks().isEmpty(),
-                        "datafeed tasks to fully stop.",
-                        request.timeout(),
-                        wrappedListener);
-                },
-                wrappedListener::onFailure
-            );
+        // Noop, nothing for us to do, simply return fast to the caller
+        if (request.isEnabled() == MlMetadata.getMlMetadata(state).isUpgradeMode()) {
+            isRunning.set(false);
+            listener.onResponse(new AcknowledgedResponse(true));
+            return;
+        }
 
-            // <3> After isolating the datafeeds, unassign the tasks
-            ActionListener<List<IsolateDatafeedAction.Response>> isolateDatafeedListener = ActionListener.wrap(
-                isolatedDatafeeds -> unassignPersistentTasks(tasksCustomMetaData, unassignPersistentTasksListener),
-                wrappedListener::onFailure
-            );
+        ActionListener<AcknowledgedResponse> wrappedListener = ActionListener.wrap(
+            r -> {
+                isRunning.set(false);
+                listener.onResponse(r);
+            },
+            e -> {
+                isRunning.set(false);
+                listener.onFailure(e);
+            }
+        );
+        final PersistentTasksCustomMetaData tasksCustomMetaData = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+
+        // <4> We have unassigned the tasks, respond to the listener.
+        ActionListener<List<PersistentTask<?>>> unassignPersistentTasksListener = ActionListener.wrap(
+            unassigndPersistentTasks -> {
+                // Wait for our tasks to all stop
+                awaitCondition(
+                    () -> client.admin()
+                        .cluster()
+                        .prepareListTasks()
+                        .setActions(DATAFEED_TASK_NAME + "[c]", JOB_TASK_NAME + "[c]")
+                        .get()
+                        .getTasks()
+                        .isEmpty(),
+                    "datafeed and job tasks to fully stop.",
+                    request.timeout(),
+                    wrappedListener);
+            },
+            wrappedListener::onFailure
+        );
+
+        // <3> After isolating the datafeeds, unassign the tasks
+        ActionListener<List<IsolateDatafeedAction.Response>> isolateDatafeedListener = ActionListener.wrap(
+            isolatedDatafeeds -> unassignPersistentTasks(tasksCustomMetaData, unassignPersistentTasksListener),
+            wrappedListener::onFailure
+        );
 
            /*
              <2> Handle the cluster response and act accordingly
@@ -149,55 +156,63 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
              </.2>
              </2>
             */
-            ActionListener<AcknowledgedResponse> clusterStateUpdateListener = ActionListener.wrap(
-                acknowledgedResponse -> {
-                    // State change was not acknowledged, we either timed out or ran into some exception
-                    // We should not continue and alert failure to the end user
-                    if (acknowledgedResponse.isAcknowledged() == false) {
-                        wrappedListener.onFailure(new ElasticsearchTimeoutException("Unknown error occurred while updating cluster state"));
-                        return;
-                    }
-                    // Did we change from disabled -> enabled?
-                    if (request.isEnabled()) {
-                        isolateDatafeeds(tasksCustomMetaData, isolateDatafeedListener);
-                    } else {
-                        // We disabled the setting, we should simply wait for all jobs to not have the `AWAITING_UPGRADE` assignment
-                        List<String> jobIdsRestarted = allJobTasks.stream()
-                            .filter(persistentTask -> persistentTask.getAssignment().equals(AWAITING_UPGRADE))
-                            .map(persistentTask -> persistentTask.getId().substring(JOB_TASK_ID_PREFIX.length()))
-                            .collect(Collectors.toList());
-                        GetJobsStatsAction.Request jobStatsRequest =
-                            new GetJobsStatsAction.Request(Strings.collectionToCommaDelimitedString(jobIdsRestarted));
-                        awaitCondition(() -> jobsAwaitingUpgrade(jobStatsRequest),
-                            "jobs to be reassigned to nodes.",
-                            request.timeout(),
-                            wrappedListener);
-                    }
-                },
-                wrappedListener::onFailure
-            );
+        ActionListener<AcknowledgedResponse> clusterStateUpdateListener = ActionListener.wrap(
+            acknowledgedResponse -> {
+                // State change was not acknowledged, we either timed out or ran into some exception
+                // We should not continue and alert failure to the end user
+                if (acknowledgedResponse.isAcknowledged() == false) {
+                    wrappedListener.onFailure(new ElasticsearchTimeoutException("Unknown error occurred while updating cluster state"));
+                    return;
+                }
+                // Did we change from disabled -> enabled?
+                if (request.isEnabled()) {
+                    isolateDatafeeds(tasksCustomMetaData, isolateDatafeedListener);
+                } else {
+                    // We disabled the setting, we should simply wait for all jobs to not have the `AWAITING_UPGRADE` assignment
+                    List<String> jobIdsRestarted = tasksCustomMetaData.findTasks(MlTasks.JOB_TASK_NAME, task -> true)
+                        .stream()
+                        .filter(persistentTask -> persistentTask.getAssignment().equals(AWAITING_UPGRADE))
+                        .map(persistentTask -> persistentTask.getId().substring(JOB_TASK_ID_PREFIX.length()))
+                        .collect(Collectors.toList());
 
-            //<1> Change MlMetadata to indicate that upgrade_mode is now enabled
-            clusterService.submitStateUpdateTask("ml-set-upgrade-mode",
-                new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, clusterStateUpdateListener) {
+                    List<String> datafeedIdsRestarted = tasksCustomMetaData.findTasks(DATAFEED_TASK_NAME, task -> true)
+                        .stream()
+                        .filter(persistentTask -> persistentTask.getAssignment().equals(AWAITING_UPGRADE))
+                        .map(persistentTask -> persistentTask.getId().substring(DATAFEED_TASK_ID_PREFIX.length()))
+                        .collect(Collectors.toList());
 
-                    @Override
-                    protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                        return new AcknowledgedResponse(acknowledged);
-                    }
+                    GetJobsStatsAction.Request jobStatsRequest =
+                        new GetJobsStatsAction.Request(Strings.collectionToCommaDelimitedString(jobIdsRestarted));
+                    GetDatafeedsStatsAction.Request datafeedStatsRequest =
+                        new GetDatafeedsStatsAction.Request(Strings.collectionToCommaDelimitedString(datafeedIdsRestarted));
 
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        MlMetadata.Builder builder = new MlMetadata.Builder(currentState.metaData().custom(MlMetadata.TYPE));
-                        builder.isUpgradeMode(request.isEnabled());
-                        ClusterState.Builder newState = ClusterState.builder(currentState);
-                        newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, builder.build()).build());
-                        return newState.build();
-                    }
-                });
-        } finally {
-            isRunning.set(false);
-        }
+                    awaitCondition(() -> jobsNotAwaitingUpgrade(jobStatsRequest) && datafeedsNotAwaitingUpgrade(datafeedStatsRequest),
+                        "datafeeds and jobs to be reassigned to nodes.",
+                        request.timeout(),
+                        wrappedListener);
+                }
+            },
+            wrappedListener::onFailure
+        );
+
+        //<1> Change MlMetadata to indicate that upgrade_mode is now enabled
+        clusterService.submitStateUpdateTask("ml-set-upgrade-mode",
+            new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, clusterStateUpdateListener) {
+
+                @Override
+                protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                    return new AcknowledgedResponse(acknowledged);
+                }
+
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    MlMetadata.Builder builder = new MlMetadata.Builder(currentState.metaData().custom(MlMetadata.TYPE));
+                    builder.isUpgradeMode(request.isEnabled());
+                    ClusterState.Builder newState = ClusterState.builder(currentState);
+                    newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, builder.build()).build());
+                    return newState.build();
+                }
+            });
     }
 
     @Override
@@ -205,7 +220,7 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private boolean jobsAwaitingUpgrade(GetJobsStatsAction.Request jobStatsRequest) throws InterruptedException, ExecutionException {
+    private boolean jobsNotAwaitingUpgrade(GetJobsStatsAction.Request jobStatsRequest) throws InterruptedException, ExecutionException {
         try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(),
             ML_ORIGIN)) {
             return client.execute(GetJobsStatsAction.INSTANCE, jobStatsRequest).get()
@@ -213,7 +228,20 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                 .results()
                 .stream()
                 .anyMatch(
-                    jobStats -> jobStats.getAssignmentExplanation().equals(AWAITING_UPGRADE.getExplanation()));
+                    jobStats -> jobStats.getNode() != null);
+        }
+    }
+
+    private boolean datafeedsNotAwaitingUpgrade(GetDatafeedsStatsAction.Request datafeedStatsRequest)
+        throws InterruptedException, ExecutionException {
+        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(),
+            ML_ORIGIN)) {
+            return client.execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest).get()
+                .getResponse()
+                .results()
+                .stream()
+                .anyMatch(
+                    datafeedStats -> datafeedStats.getNode() != null);
         }
     }
 

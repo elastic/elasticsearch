@@ -69,7 +69,7 @@ PUT _ilm/policy/my_policy
 
 [source,js]
 --------------------------------------------------
-GET _ilm/policy
+GET _ilm/policy/my_policy
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

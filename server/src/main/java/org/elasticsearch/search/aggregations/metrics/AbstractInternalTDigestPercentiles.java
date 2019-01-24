@@ -82,6 +82,10 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         return state.byteSize();
     }
 
+    TDigestState getState() {
+        return state;
+    }
+
     @Override
     public AbstractInternalTDigestPercentiles doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         TDigestState merged = null;

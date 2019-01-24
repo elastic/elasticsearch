@@ -724,7 +724,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * snapshot and remove it from the cluster state.
      */
     private void removeFinishedSnapshotFromClusterState(ClusterChangedEvent event) {
-        if (event.previousState().nodes().isLocalNodeElectedMaster() == false) {
+        if (event.localNodeMaster() && !event.previousState().nodes().isLocalNodeElectedMaster()) {
             SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
             if (snapshotsInProgress != null && !snapshotsInProgress.entries().isEmpty()) {
                 for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {

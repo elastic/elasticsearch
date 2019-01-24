@@ -5,8 +5,24 @@
  */
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
@@ -38,10 +54,16 @@ import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.notifications.AuditMessage;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Static methods to create Elasticsearch index mappings for the autodetect
@@ -106,6 +128,8 @@ public class ElasticsearchMappings {
     public static final String TEXT = "text";
 
     static final String RAW = "raw";
+
+    private static final Logger logger = LogManager.getLogger(ElasticsearchMappings.class);
 
     private ElasticsearchMappings() {
     }
@@ -963,5 +987,95 @@ public class ElasticsearchMappings {
                         .endObject()
                     .endObject()
                 .endObject();
+    }
+
+    static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion) throws IOException {
+        List<String> indicesToUpdate = new ArrayList<>();
+
+        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> currentMapping = state.metaData().findMappings(concreteIndices,
+                new String[] {DOC_TYPE}, MapperPlugin.NOOP_FIELD_FILTER);
+
+        for (String index : concreteIndices) {
+            ImmutableOpenMap<String, MappingMetaData> innerMap = currentMapping.get(index);
+            if (innerMap != null) {
+                MappingMetaData metaData = innerMap.get(DOC_TYPE);
+                try {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> meta = (Map<String, Object>) metaData.sourceAsMap().get("_meta");
+                    if (meta != null) {
+                        String versionString = (String) meta.get("version");
+                        if (versionString == null) {
+                            logger.info("Version of mappings for [{}] not found, recreating", index);
+                            indicesToUpdate.add(index);
+                            continue;
+                        }
+
+                        Version mappingVersion = Version.fromString(versionString);
+
+                        if (mappingVersion.onOrAfter(minVersion)) {
+                            continue;
+                        } else {
+                            logger.info("Mappings for [{}] are outdated [{}], updating it[{}].", index, mappingVersion, Version.CURRENT);
+                            indicesToUpdate.add(index);
+                            continue;
+                        }
+                    } else {
+                        logger.info("Version of mappings for [{}] not found, recreating", index);
+                        indicesToUpdate.add(index);
+                        continue;
+                    }
+                } catch (Exception e) {
+                    logger.error(new ParameterizedMessage("Failed to retrieve mapping version for [{}], recreating", index), e);
+                    indicesToUpdate.add(index);
+                    continue;
+                }
+            } else {
+                logger.info("No mappings found for [{}], recreating", index);
+                indicesToUpdate.add(index);
+            }
+        }
+        return indicesToUpdate.toArray(new String[indicesToUpdate.size()]);
+    }
+
+    public static void addDocMappingIfMissing(String alias, CheckedSupplier<XContentBuilder, IOException> mappingSupplier,
+                                              Client client, ClusterState state, ActionListener<Boolean> listener) {
+        AliasOrIndex aliasOrIndex = state.metaData().getAliasAndIndexLookup().get(alias);
+        if (aliasOrIndex == null) {
+            // The index has never been created yet
+            listener.onResponse(true);
+            return;
+        }
+        String[] concreteIndices = aliasOrIndex.getIndices().stream().map(IndexMetaData::getIndex).map(Index::getName)
+            .toArray(String[]::new);
+
+        String[] indicesThatRequireAnUpdate;
+        try {
+            indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, Version.CURRENT);
+        } catch (IOException e) {
+            listener.onFailure(e);
+            return;
+        }
+
+        if (indicesThatRequireAnUpdate.length > 0) {
+            try (XContentBuilder mapping = mappingSupplier.get()) {
+                PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
+                putMappingRequest.type(DOC_TYPE);
+                putMappingRequest.source(mapping);
+                executeAsyncWithOrigin(client, ML_ORIGIN, PutMappingAction.INSTANCE, putMappingRequest,
+                    ActionListener.wrap(response -> {
+                        if (response.isAcknowledged()) {
+                            listener.onResponse(true);
+                        } else {
+                            listener.onFailure(new ElasticsearchException("Attempt to put missing mapping in indices "
+                                + Arrays.toString(indicesThatRequireAnUpdate) + " was not acknowledged"));
+                        }
+                    }, listener::onFailure));
+            } catch (IOException e) {
+                listener.onFailure(e);
+            }
+        } else {
+            logger.trace("Mappings are up to date.");
+            listener.onResponse(true);
+        }
     }
 }

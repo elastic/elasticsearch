@@ -20,8 +20,10 @@ package org.elasticsearch.cluster.routing;
  */
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -89,6 +92,34 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
             .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
+    }
+
+    public void testBulkWeirdScenario() throws Exception {
+        String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        internalCluster().startDataOnlyNodes(2);
+
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
+            .put("index.number_of_shards", 1).put("index.number_of_replicas", 1)).get());
+        ensureGreen();
+
+        BulkResponse bulkResponse = client().prepareBulk()
+            .add(client().prepareIndex().setIndex("test").setType("_doc").setId("1").setSource("field1", "value1"))
+            .add(client().prepareUpdate().setIndex("test").setType("_doc").setId("1").setDoc("field2", "value2"))
+            .execute().actionGet();
+
+        assertThat(bulkResponse.hasFailures(), equalTo(false));
+        assertThat(bulkResponse.getItems().length, equalTo(2));
+
+        logger.info(Strings.toString(bulkResponse, true, true));
+
+        internalCluster().assertSeqNos();
+
+        assertThat(bulkResponse.getItems()[0].getResponse().getId(), equalTo("1"));
+        assertThat(bulkResponse.getItems()[0].getResponse().getVersion(), equalTo(1L));
+        assertThat(bulkResponse.getItems()[0].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+        assertThat(bulkResponse.getItems()[1].getResponse().getId(), equalTo("1"));
+        assertThat(bulkResponse.getItems()[1].getResponse().getVersion(), equalTo(2L));
+        assertThat(bulkResponse.getItems()[1].getResponse().getResult(), equalTo(DocWriteResponse.Result.UPDATED));
     }
 
     private void createStaleReplicaScenario(String master) throws Exception {
@@ -265,7 +296,6 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         assertThat(newHistoryUUIds, hasSize(1));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37345")
     public void testForceStaleReplicaToBePromotedToPrimaryOnWrongNode() throws Exception {
         String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNodes(2);
@@ -275,7 +305,10 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
                 .put("index.number_of_replicas", 1)).get());
         ensureGreen();
         createStaleReplicaScenario(master);
-        internalCluster().startDataOnlyNodes(2);
+        // Ensure the stopped primary's data is deleted so that it doesn't get picked up by the next datanode we start
+        internalCluster().wipePendingDataDirectories();
+        internalCluster().startDataOnlyNodes(1);
+        ensureStableCluster(3, master);
         final int shardId = 0;
         final List<String> nodeNames = new ArrayList<>(Arrays.asList(internalCluster().getNodeNames()));
         nodeNames.remove(master);
@@ -290,6 +323,25 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         assertThat(
             iae.getMessage(),
             equalTo("No data for shard [" + shardId + "] of index [" + idxName + "] found on node [" + nodeWithoutData + ']'));
+    }
+
+    public void testForceStaleReplicaToBePromotedForGreenIndex() {
+        internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        final String idxName = "test";
+        assertAcked(client().admin().indices().prepareCreate(idxName)
+            .setSettings(Settings.builder().put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 1)).get());
+        ensureGreen();
+        final String nodeWithoutData = randomFrom(dataNodes);
+        final int shardId = 0;
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().cluster().prepareReroute()
+                .add(new AllocateStalePrimaryAllocationCommand(idxName, shardId, nodeWithoutData, true)).get());
+        assertThat(
+            iae.getMessage(),
+            equalTo("[allocate_stale_primary] primary [" + idxName+ "][" + shardId + "] is already assigned"));
     }
 
     public void testForceStaleReplicaToBePromotedForMissingIndex() {

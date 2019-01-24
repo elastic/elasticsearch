@@ -640,11 +640,9 @@ added a mapping value to pick up more fields from the data:
 PUT test
 {
   "mappings": {
-    "_doc": {
-      "dynamic": false,   <1>
-      "properties": {
-        "text": {"type": "text"}
-      }
+    "dynamic": false,   <1>
+    "properties": {
+      "text": {"type": "text"}
     }
   }
 }
@@ -659,7 +657,7 @@ POST test/_doc?refresh
   "text": "words words",
   "flag": "foo"
 }
-PUT test/_mapping/_doc   <2>
+PUT test/_mapping   <2>
 {
   "properties": {
     "text": {"type": "text"},

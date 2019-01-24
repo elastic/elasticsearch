@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.HppcMaps;
@@ -768,12 +769,12 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         if (!metaData1.templates.equals(metaData2.templates())) {
             return false;
         }
-        if (!metaData1.clusterUUID.equals(metaData2.clusterUUID)) {
-            return false;
-        }
-        if (metaData1.clusterUUIDCommitted != metaData2.clusterUUIDCommitted) {
-            return false;
-        }
+//        if (!metaData1.clusterUUID.equals(metaData2.clusterUUID)) {
+//            return false;
+//        }
+//        if (metaData1.clusterUUIDCommitted != metaData2.clusterUUIDCommitted) {
+//            return false;
+//        }
         // Check if any persistent metadata needs to be saved
         int customCount1 = 0;
         for (ObjectObjectCursor<String, Custom> cursor : metaData1.customs) {
@@ -1166,7 +1167,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
         public Builder generateClusterUuidIfNeeded() {
             if (clusterUUID.equals(UNKNOWN_CLUSTER_UUID)) {
-                clusterUUID = UUIDs.randomBase64UUID();
+                clusterUUID = UUIDs.randomBase64UUID(Randomness.createSecure());
             }
             return this;
         }

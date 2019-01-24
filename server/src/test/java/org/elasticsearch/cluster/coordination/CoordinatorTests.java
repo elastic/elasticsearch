@@ -1040,6 +1040,9 @@ public class CoordinatorTests extends ESTestCase {
             mockAppender.stop();
         }
         assertTrue(newNode.getLastAppliedClusterState().version() == 0);
+
+        // reset clusterUUIDCommitted to let node join again
+        //clusterNodes.replaceAll(cn -> cn == clusterNode ? cn.restartedNode() : cn);
     }
 
     private static long defaultMillis(Setting<TimeValue> setting) {
@@ -1644,6 +1647,10 @@ public class CoordinatorTests extends ESTestCase {
             }
 
             ClusterNode restartedNode() {
+                return restartedNode(Function.identity());
+            }
+
+            ClusterNode restartedNode(Function<ClusterState, ClusterState> adaptClusterState) {
                 final TransportAddress address = randomBoolean() ? buildNewFakeTransportAddress() : localNode.getAddress();
                 final DiscoveryNode newLocalNode = new DiscoveryNode(localNode.getName(), localNode.getId(),
                     UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests

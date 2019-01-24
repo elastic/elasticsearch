@@ -14,7 +14,7 @@ this can be overridden with the `search_analyzer` setting:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "settings": {
     "analysis": {
@@ -38,13 +38,11 @@ PUT my_index?include_type_name=true
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "text": {
-          "type": "text",
-          "analyzer": "autocomplete", <2>
-          "search_analyzer": "standard" <2>
-        }
+    "properties": {
+      "text": {
+        "type": "text",
+        "analyzer": "autocomplete", <2>
+        "search_analyzer": "standard" <2>
       }
     }
   }

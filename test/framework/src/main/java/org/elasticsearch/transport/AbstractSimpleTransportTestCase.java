@@ -2038,11 +2038,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             new NetworkService(Collections.emptyList()), PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
             new NoneCircuitBreakerService()) {
             @Override
-            protected String handleRequest(TcpChannel mockChannel, String profileName, StreamInput stream, long requestId,
-                                           int messageLengthBytes, Version version, InetSocketAddress remoteAddress, byte status)
+            protected void handleRequest(TcpChannel channel, InboundMessage.RequestMessage request, int messageLengthBytes)
                 throws IOException {
-                return super.handleRequest(mockChannel, profileName, stream, requestId, messageLengthBytes, version, remoteAddress,
-                    (byte) (status & ~(1 << 3))); // we flip the isHandshake bit back and act like the handler is not found
+                // we flip the isHandshake bit back and act like the handler is not found
+                byte status = (byte) (request.status & ~(1 << 3));
+                Version version = request.getVersion();
+                InboundMessage.RequestMessage nonHandshakeRequest = new InboundMessage.RequestMessage(request.threadContext, version,
+                    status, request.getRequestId(), request.getActionName(), request.getFeatures(), request.getStreamInput());
+                super.handleRequest(channel, nonHandshakeRequest, messageLengthBytes);
             }
         };
 

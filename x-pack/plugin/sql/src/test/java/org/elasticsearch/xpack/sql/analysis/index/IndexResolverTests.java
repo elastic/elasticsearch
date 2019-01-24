@@ -190,7 +190,7 @@ public class IndexResolverTests extends ESTestCase {
     }
 
     private static boolean isAggregatable(DataType type) {
-        return type.isNumeric() || type == DataType.KEYWORD || type == DataType.DATE;
+        return type.isNumeric() || type == DataType.KEYWORD || type == DataType.DATETIME;
     }
 
     private static class UpdateableFieldCapabilities extends FieldCapabilities {

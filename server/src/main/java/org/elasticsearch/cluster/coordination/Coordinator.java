@@ -283,6 +283,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
             if (localState.metaData().clusterUUIDCommitted() &&
                 localState.metaData().clusterUUID().equals(publishRequest.getAcceptedState().metaData().clusterUUID()) == false) {
+                logger.warn("received cluster state from {} with a different cluster uuid {} than local cluster uuid {}, rejecting",
+                    sourceNode, publishRequest.getAcceptedState().metaData().clusterUUID(), localState.metaData().clusterUUID());
                 throw new CoordinationStateRejectedException("received cluster state from " + sourceNode +
                     " with a different cluster uuid " + publishRequest.getAcceptedState().metaData().clusterUUID() +
                     " than local cluster uuid " + localState.metaData().clusterUUID() + ", rejecting");

@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigu
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.ClusterNode;
+import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
@@ -58,6 +59,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MockGatewayMetaState;
 import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
@@ -160,6 +162,7 @@ public class CoordinatorTests extends ESTestCase {
     // check that runRandomly leads to reproducible results
     public void testRepeatableTests() throws Exception {
         final Callable<Long> test = () -> {
+            resetNodeIndexBeforeEachTest();
             final Cluster cluster = new Cluster(randomIntBetween(1, 5));
             cluster.runRandomly();
             final long afterRunRandomly = value(cluster.getAnyNode().getLastAppliedClusterState());
@@ -1041,8 +1044,16 @@ public class CoordinatorTests extends ESTestCase {
         }
         assertTrue(newNode.getLastAppliedClusterState().version() == 0);
 
-        // reset clusterUUIDCommitted to let node join again
-        //clusterNodes.replaceAll(cn -> cn == clusterNode ? cn.restartedNode() : cn);
+        // reset clusterUUIDCommitted (and node / cluster state term) to let node join again
+        final ClusterNode detachedNode = newNode.restartedNode(
+            metaData -> MetaData.builder(metaData)
+                .clusterUUIDCommitted(false)
+                .coordinationMetaData(CoordinationMetaData.builder(metaData.coordinationMetaData())
+                    .term(0L).build())
+                .build(),
+            term -> 0L);
+        cluster1.clusterNodes.replaceAll(cn -> cn == newNode ? detachedNode : cn);
+        cluster1.stabilise();
     }
 
     private static long defaultMillis(Setting<TimeValue> setting) {
@@ -1513,21 +1524,41 @@ public class CoordinatorTests extends ESTestCase {
                 }
             }
 
-            MockPersistedState(DiscoveryNode newLocalNode, MockPersistedState oldState) {
+            MockPersistedState(DiscoveryNode newLocalNode, MockPersistedState oldState,
+                               Function<MetaData, MetaData> adaptGlobalMetaData, Function<Long, Long> adaptCurrentTerm) {
                 try {
                     if (oldState.nodeEnvironment != null) {
                         nodeEnvironment = oldState.nodeEnvironment;
+                        final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry());
+                        final MetaData updatedMetaData = adaptGlobalMetaData.apply(oldState.getLastAcceptedState().metaData());
+                        if (updatedMetaData != oldState.getLastAcceptedState().metaData()) {
+                            metaStateService.writeGlobalStateAndUpdateManifest("update global state", updatedMetaData);
+                        }
+                        final long updatedTerm = adaptCurrentTerm.apply(oldState.getCurrentTerm());
+                        if (updatedTerm != oldState.getCurrentTerm()) {
+                            final Manifest manifest = metaStateService.loadManifestOrEmpty();
+                            metaStateService.writeManifestAndCleanup("update term",
+                                new Manifest(updatedTerm, manifest.getClusterStateVersion(), manifest.getGlobalGeneration(),
+                                    manifest.getIndexGenerations()));
+                        }
                         delegate = new MockGatewayMetaState(Settings.EMPTY, nodeEnvironment, xContentRegistry(), newLocalNode)
                                 .getPersistedState(Settings.EMPTY, null);
                     } else {
                         nodeEnvironment = null;
                         BytesStreamOutput outStream = new BytesStreamOutput();
                         outStream.setVersion(Version.CURRENT);
-                        oldState.getLastAcceptedState().writeTo(outStream);
+                        final MetaData updatedMetaData = adaptGlobalMetaData.apply(oldState.getLastAcceptedState().metaData());
+                        final ClusterState clusterState;
+                        if (updatedMetaData != oldState.getLastAcceptedState().metaData()) {
+                            clusterState = ClusterState.builder(oldState.getLastAcceptedState()).metaData(updatedMetaData).build();
+                        } else {
+                            clusterState = oldState.getLastAcceptedState();
+                        }
+                        clusterState.writeTo(outStream);
                         StreamInput inStream = new NamedWriteableAwareStreamInput(outStream.bytes().streamInput(),
                                 new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
-                        delegate = new InMemoryPersistedState(oldState.getCurrentTerm(), ClusterState.readFrom(inStream,
-                                newLocalNode)); // adapts it to new localNode instance
+                        delegate = new InMemoryPersistedState(adaptCurrentTerm.apply(oldState.getCurrentTerm()),
+                                ClusterState.readFrom(inStream, newLocalNode)); // adapts it to new localNode instance
                     }
                 } catch (IOException e) {
                     throw new UncheckedIOException("Unable to create MockPersistedState", e);
@@ -1647,16 +1678,17 @@ public class CoordinatorTests extends ESTestCase {
             }
 
             ClusterNode restartedNode() {
-                return restartedNode(Function.identity());
+                return restartedNode(Function.identity(), Function.identity());
             }
 
-            ClusterNode restartedNode(Function<ClusterState, ClusterState> adaptClusterState) {
+            ClusterNode restartedNode(Function<MetaData, MetaData> adaptGlobalMetaData, Function<Long, Long> adaptCurrentTerm) {
                 final TransportAddress address = randomBoolean() ? buildNewFakeTransportAddress() : localNode.getAddress();
                 final DiscoveryNode newLocalNode = new DiscoveryNode(localNode.getName(), localNode.getId(),
                     UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
                     address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
                     localNode.isMasterNode() ? EnumSet.allOf(Role.class) : emptySet(), Version.CURRENT);
-                return new ClusterNode(nodeIndex, newLocalNode, node -> new MockPersistedState(newLocalNode, persistedState));
+                return new ClusterNode(nodeIndex, newLocalNode,
+                    node -> new MockPersistedState(newLocalNode, persistedState, adaptGlobalMetaData, adaptCurrentTerm));
             }
 
             private PersistedState getPersistedState() {

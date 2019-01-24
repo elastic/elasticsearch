@@ -41,7 +41,7 @@ telling it to use the policy they have created:
 
 [source,js]
 --------------------------------------------------
-PUT /myindex?include_type_name=true
+PUT /myindex
 {
   "settings": {
     "index.number_of_shards": 2,

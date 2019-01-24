@@ -131,3 +131,41 @@ The removal of these default settings also removes the ability for a component t
 fallback to a default configuration when using TLS. Each component (realm, transport, http,
 http client, etc) must now be configured with their own settings for TLS if it is being
 used.
+
+[float]
+[[watcher-notifications-account-settings]]
+==== Watcher notifications account settings
+
+The following settings have been removed in favor of the secure variants.
+The <<secure-settings, secure settings>> have to be defined inside each cluster
+node's keystore, i.e., they are not to be specified via the cluster settings API.
+
+- `xpack.notification.email.account.<id>.smtp.password`, instead use
+`xpack.notification.email.account.<id>.smtp.secure_password`
+- `xpack.notification.hipchat.account.<id>.auth_token`, instead use
+`xpack.notification.hipchat.account.<id>.secure_auth_token`
+- `xpack.notification.jira.account.<id>.url`, instead use
+`xpack.notification.jira.account.<id>.secure_url`
+- `xpack.notification.jira.account.<id>.user`, instead use
+`xpack.notification.jira.account.<id>.secure_user`
+- `xpack.notification.jira.account.<id>.password`, instead use
+`xpack.notification.jira.account.<id>.secure_password`
+- `xpack.notification.pagerduty.account.<id>.service_api_key`, instead use
+`xpack.notification.pagerduty.account.<id>.secure_service_api_key`
+- `xpack.notification.slack.account.<id>.url`, instead use
+`xpack.notification.slack.account.<id>.secure_url`
+
+[float]
+[[remove-audit-index-output]]
+==== Audit index output type removed
+
+All the settings under the `xpack.security.audit.index` namespace have been
+removed. In addition, the `xpack.security.audit.outputs` setting has been
+removed as well.
+
+These settings enabled and configured the audit index output type. This output
+type has been removed because it was unreliable in certain scenarios and this
+could have lead to dropping audit events while the operations on the system
+were allowed to continue as usual. The recommended replacement is the
+use of the `logfile` audit output type and using other components from the
+Elastic Stack to handle the indexing part.

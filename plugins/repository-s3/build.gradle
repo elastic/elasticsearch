@@ -169,6 +169,90 @@ buildscript {
   }
 }
 
+private static int freePort(String minioAddress) {
+  int minioPort
+  ServerSocket serverSocket = new ServerSocket(0, 1, InetAddress.getByName(minioAddress))
+  try {
+    minioPort = serverSocket.localPort
+  } finally {
+    serverSocket.close()
+  }
+  if (minioPort == 0) {
+    throw new GradleException("Could not find a free port for Minio")
+  }
+  return minioPort
+}
+
+private int getMinioPid(Process minioProcess) {
+  int minioPid
+  if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
+    try {
+      Class<?> cProcessImpl = minioProcess.getClass()
+      Field fPid = cProcessImpl.getDeclaredField("pid")
+      if (!fPid.isAccessible()) {
+        fPid.setAccessible(true)
+      }
+      minioPid = fPid.getInt(minioProcess)
+    } catch (Exception e) {
+      logger.error("failed to read pid from minio process", e)
+      minioProcess.destroyForcibly()
+      throw e
+    }
+  } else {
+    minioPid = minioProcess.pid()
+  }
+  return minioPid
+}
+
+private static Process setupMinio(String minioAddress, int minioPort, String minioDataDir, String accessKey, String secretKey,
+                                  String minioBinDir, String minioFileName) {
+  // we skip these tests on Windows so we do no need to worry about compatibility here
+  final ProcessBuilder minio = new ProcessBuilder(
+    "${minioBinDir}/${minioFileName}",
+    "server",
+    "--address",
+    minioAddress + ":" + minioPort,
+    minioDataDir)
+  minio.environment().put('MINIO_ACCESS_KEY', accessKey)
+  minio.environment().put('MINIO_SECRET_KEY', secretKey)
+  return minio.start()
+}
+
+private void addShutdownHook(Process minioProcess, int minioPort, int minioPid) {
+  new BufferedReader(new InputStreamReader(minioProcess.inputStream)).withReader { br ->
+    String line
+    int httpPort = 0
+    while ((line = br.readLine()) != null) {
+      logger.info(line)
+      if (line.matches('.*Endpoint.*:\\d+$')) {
+        assert httpPort == 0
+        final int index = line.lastIndexOf(":")
+        assert index >= 0
+        httpPort = Integer.parseInt(line.substring(index + 1))
+        if (httpPort != minioPort) {
+          throw new IllegalStateException("Port mismatch, expected ${minioPort} but was ${httpPort}")
+        }
+
+        final File script = new File(project.buildDir, "minio/minio.killer.sh")
+        script.setText(
+          ["function shutdown {",
+           "  kill ${minioPid}",
+           "}",
+           "trap shutdown EXIT",
+           // will wait indefinitely for input, but we never pass input, and the pipe is only closed when the build dies
+           "read line\n"].join('\n'), 'UTF-8')
+        final ProcessBuilder killer = new ProcessBuilder("bash", script.absolutePath)
+        killer.start()
+        break
+      }
+    }
+
+    if (httpPort <= 0) {
+      throw new IllegalStateException("httpPort must be > 0")
+    }
+  }
+}
+
 if (useFixture && minioDistribution) {
   apply plugin: 'de.undercouch.download'
 
@@ -201,72 +285,28 @@ if (useFixture && minioDistribution) {
     ext.minioPort = 0
 
     doLast {
-      // get free port
-      ServerSocket serverSocket = new ServerSocket(0, 1, InetAddress.getByName(minioAddress))
-      try {
-        minioPort = serverSocket.localPort
-      } finally {
-        serverSocket.close()
-      }
-      if (minioPort == 0) {
-        throw new GradleException("Could not find a free port for Minio")
-      }
-
       new File("${minioDataDir}/${s3PermanentBucket}").mkdirs()
-      // we skip these tests on Windows so we do no need to worry about compatibility here
-      final ProcessBuilder minio = new ProcessBuilder(
-              "${minioBinDir}/${minioFileName}",
-              "server",
-              "--address",
-              minioAddress + ":" + minioPort,
-              minioDataDir)
-      minio.environment().put('MINIO_ACCESS_KEY', s3PermanentAccessKey)
-      minio.environment().put('MINIO_SECRET_KEY', s3PermanentSecretKey)
-      final Process process = minio.start()
-      if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
+
+      Exception accumulatedException = null
+      for (int i = 0; i < 5; ++i) {
         try {
-          Class<?> cProcessImpl = process.getClass()
-          Field fPid = cProcessImpl.getDeclaredField("pid")
-          if (!fPid.isAccessible()) {
-            fPid.setAccessible(true)
-          }
-          minioPid = fPid.getInt(process)
+          minioPort = freePort(minioAddress)
+          final Process process =
+            setupMinio(minioAddress, minioPort, minioDataDir, s3PermanentAccessKey, s3PermanentSecretKey, minioBinDir, minioFileName)
+          minioPid = getMinioPid(process)
+          addShutdownHook(process, minioPort, minioPid)
+          break
         } catch (Exception e) {
-          logger.error("failed to read pid from minio process", e)
-          process.destroyForcibly()
-          throw e
-        }
-      } else {
-        minioPid = process.pid()
-      }
-
-      new BufferedReader(new InputStreamReader(process.getInputStream())).withReader { br ->
-        String line
-        int httpPort = 0
-        while ((line = br.readLine()) != null) {
-          logger.info(line)
-          if (line.matches('.*Endpoint.*:\\d+$')) {
-            assert httpPort == 0
-            final int index = line.lastIndexOf(":")
-            assert index >= 0
-            httpPort = Integer.parseInt(line.substring(index + 1))
-            assert httpPort == minioPort : "Port mismatch, expected ${minioPort} but was ${httpPort}"
-
-            final File script = new File(project.buildDir, "minio/minio.killer.sh")
-            script.setText(
-                    ["function shutdown {",
-                     "  kill ${minioPid}",
-                     "}",
-                     "trap shutdown EXIT",
-                     // will wait indefinitely for input, but we never pass input, and the pipe is only closed when the build dies
-                     "read line\n"].join('\n'), 'UTF-8')
-            final ProcessBuilder killer = new ProcessBuilder("bash", script.absolutePath)
-            killer.start()
-            break
+          logger.error("Exception while trying to start Minio {}", e)
+          if (accumulatedException == null) {
+            accumulated = e
+          } else {
+            accumulatedException.addSuppressed(e)
           }
         }
-
-        assert httpPort > 0
+      }
+      if (accumulatedException != null) {
+        throw new GradleException("Failed to start Minio", accumulatedException)
       }
     }
   }

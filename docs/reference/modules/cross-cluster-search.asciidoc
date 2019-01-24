@@ -73,7 +73,7 @@ GET /cluster_one:twitter/_search
     "skipped": 0
   },
   "_clusters": {
-    "execution_mode": "remote",
+    "ccs_reduce_mode": "remote",
     "total": 1,
     "successful": 1,
     "skipped": 0
@@ -140,7 +140,7 @@ will be prefixed with their remote cluster name:
     "skipped": 0
   },
   "_clusters": {
-    "execution_mode": "remote",
+    "ccs_reduce_mode": "remote",
     "total": 2,
     "successful": 2,
     "skipped": 0
@@ -234,7 +234,7 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
     "skipped": 0
   },
   "_clusters": { <1>
-    "execution_mode": "remote",
+    "ccs_reduce_mode": "remote",
     "total": 3,
     "successful": 2,
     "skipped": 1
@@ -281,40 +281,40 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
 <1> The `clusters` section indicates that one cluster was unavailable and got skipped
 
 [float]
-[[ccs-execution-mode]]
-=== Execution mode
+[[ccs-reduce-mode]]
+=== Reduce mode
 
-When searching across remote clusters, there are two possible execution modes:
+When searching across remote clusters, there are two possible reduce modes:
 
-- `remote`: the coordinating node sends one search
-request to each cluster. Each cluster performs the search independently,
-reducing and fetching results which are then returned to the caller.
-Once the CCS node has received all the responses, it performs another
-reduction and returns the relevant results back to the user. This execution
-mode is beneficial when there is network latency between the coordinating node
-and the remote clusters involved, which is typically the case. A single request
-is sent to each remote cluster, at the cost of retrieving `from` + `size`
-already fetched results from each one of them.
+- `remote`: the coordinating node sends one search request to each cluster.
+Each cluster performs the search independently, reducing and fetching results
+which are then returned to the caller. Once the CCS node has received all the
+responses, it performs another reduction and returns the relevant results back
+to the user. The `remote` reduce mode is beneficial when there is network
+latency between the coordinating node and the remote clusters involved, which
+is typically the case. A single request is sent to each remote cluster, at the
+cost of retrieving `from` + `size` already fetched results.
 
-- `local`: the coordinating node sends a
-<<search-shards,search shards>> request to each remote cluster, to collect
-information about their corresponding remote indices involved in the search
-request and the shards where their data is located. Once each cluster has
-responded to such request, the search executes as if all shards were part of
-the same cluster. The coordinating node sends one request to each shard
-involved, each shard executes the query and returns its own results which are
-then reduced (and fetched, depending on the
-<<search-request-search-type, search type>>) by the coordinating node. This
-execution mode is beneficial whenever there is very low network latency between
-the coordinating node and the remote clusters involved.
+- `local`: the coordinating node sends a <<search-shards,search shards>>
+request to each remote cluster, in order to collect information about their
+corresponding remote indices involved in the search request and the shards
+where their data is located. Once each cluster has responded to such request,
+the search executes as if all shards were part of the same cluster. The
+coordinating node sends one request to each shard involved, each shard
+executes the query and returns its own results which are then reduced (and
+fetched, depending on the <<search-request-search-type, search type>>) by the
+coordinating node. The `local` reduce mode is beneficial whenever there is very
+ low network latency between the coordinating node and the remote clusters
+ involved, as it treats all shards the same, at the cost of sending many
+ requests to each remote cluster.
 
-By default `remote` is used when possible, unless a scroll
-is provided, or unless inner hits are requested as part of field collapsing:
-The <<search-request-body, search API>> supports the `ccs_reduce_mode`
-parameter which allows to select the execution mode if needed. The execution
-mode that was used for the request is returned as part of the `_clusters`
-section.
+By default `remote` is used whenever possible. In case a scroll is provided,
+or inner hits are requested as part of field collapsing, `local` is used
+instead. The <<search-request-body, search API>> supports the `ccs_reduce_mode`
+parameter which allows to select the reduce mode if needed. The reduce mode
+that was used for a cross-cluster search request is returned as part of the
+`_clusters` section.
 
 Note that all the communication between the nodes, regardless of which cluster
-they belong to and the selected execution mode, happens through the
+they belong to and the selected reduce mode, happens through the
 <<modules-transport,transport layer>>.

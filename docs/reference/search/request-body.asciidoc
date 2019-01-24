@@ -115,9 +115,8 @@ And here is a sample response:
 
 `ccs_reduce_mode`::
 
-    The cross-cluster search execution mode. Can be `local` or
-    `prefer_remote`. Defaults to `prefer_remote`.
-    See <<ccs-execution-mode>> for more.
+    The cross-cluster search reduce mode. Can be `local` or `remote`.
+    See <<ccs-reduce-mode>> for more.
 
 
 Out of the above, the `search_type`, `request_cache` and the `allow_partial_search_results` 

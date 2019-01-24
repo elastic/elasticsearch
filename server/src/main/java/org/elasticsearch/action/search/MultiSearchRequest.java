@@ -207,7 +207,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 searchRequest.searchType(searchType);
             }
             if (ccsExecutionMode != null) {
-                searchRequest.setCCSExecutionMode(ccsExecutionMode);
+                searchRequest.setCCSReduceMode(ccsExecutionMode);
             }
             IndicesOptions defaultOptions = searchRequest.indicesOptions();
             // now parse the action
@@ -231,7 +231,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                         } else if ("search_type".equals(entry.getKey()) || "searchType".equals(entry.getKey())) {
                             searchRequest.searchType(nodeStringValue(value, null));
                         } else if ("ccs_reduce_mode".equals(entry.getKey()) || "ccsExecutionMode".equals(entry.getKey())) {
-                            searchRequest.setCCSExecutionMode(nodeStringValue(value, null));
+                            searchRequest.setCCSReduceMode(nodeStringValue(value, null));
                         } else if ("request_cache".equals(entry.getKey()) || "requestCache".equals(entry.getKey())) {
                             searchRequest.requestCache(nodeBooleanValue(value, entry.getKey()));
                         } else if ("preference".equals(entry.getKey())) {
@@ -333,8 +333,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         if (request.searchType() != null) {
             xContentBuilder.field("search_type", request.searchType().name().toLowerCase(Locale.ROOT));
         }
-        if (request.getCCSExecutionMode() != null) {
-            xContentBuilder.field("ccs_reduce_mode", request.getCCSExecutionMode().toString());
+        if (request.getCCSReduceMode() != null) {
+            xContentBuilder.field("ccs_reduce_mode", request.getCCSReduceMode().toString());
         }
         if (request.requestCache() != null) {
             xContentBuilder.field("request_cache", request.requestCache());

@@ -333,7 +333,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                                 total = parser.intValue();
                             } else if (Clusters.SKIPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 skipped = parser.intValue();
-                            } else if (Clusters.EXECUTION_MODE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            } else if (Clusters.CCS_REDUCE_MODE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 executionMode = CCSReduceMode.fromString(parser.text());
                             } else {
                                 parser.skipChildren();
@@ -415,14 +415,14 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         static final ParseField SUCCESSFUL_FIELD = new ParseField("successful");
         static final ParseField SKIPPED_FIELD = new ParseField("skipped");
         static final ParseField TOTAL_FIELD = new ParseField("total");
-        static final ParseField EXECUTION_MODE_FIELD = new ParseField("execution_mode");
+        static final ParseField CCS_REDUCE_MODE_FIELD = new ParseField("ccs_reduce_mode");
 
         private final int total;
         private final int successful;
         private final int skipped;
-        private final CCSReduceMode executionMode;
+        private final CCSReduceMode ccsReduceMode;
 
-        public Clusters(int total, int successful, int skipped, CCSReduceMode executionMode) {
+        public Clusters(int total, int successful, int skipped, CCSReduceMode ccsReduceMode) {
             assert total >= 0 && successful >= 0 && skipped >= 0
                     : "total: " + total + " successful: " + successful + " skipped: " + skipped;
             assert successful <= total && skipped == total - successful
@@ -430,7 +430,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             this.total = total;
             this.successful = successful;
             this.skipped = skipped;
-            this.executionMode = Objects.requireNonNull(executionMode);
+            this.ccsReduceMode = Objects.requireNonNull(ccsReduceMode);
         }
 
         private Clusters(StreamInput in) throws IOException {
@@ -438,9 +438,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             this.successful = in.readVInt();
             this.skipped = in.readVInt();
             if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-                this.executionMode = in.readOptionalEnum(CCSReduceMode.class);
+                this.ccsReduceMode = in.readOptionalEnum(CCSReduceMode.class);
             } else {
-                this.executionMode = null;
+                this.ccsReduceMode = null;
             }
         }
 
@@ -450,7 +450,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             out.writeVInt(successful);
             out.writeVInt(skipped);
             if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                out.writeOptionalEnum(executionMode);
+                out.writeOptionalEnum(ccsReduceMode);
             }
         }
 
@@ -458,7 +458,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (this != EMPTY) {
                 builder.startObject(_CLUSTERS_FIELD.getPreferredName());
-                builder.field(EXECUTION_MODE_FIELD.getPreferredName(), executionMode == null ? null : executionMode.toString());
+                builder.field(CCS_REDUCE_MODE_FIELD.getPreferredName(), ccsReduceMode == null ? null : ccsReduceMode.toString());
                 builder.field(TOTAL_FIELD.getPreferredName(), total);
                 builder.field(SUCCESSFUL_FIELD.getPreferredName(), successful);
                 builder.field(SKIPPED_FIELD.getPreferredName(), skipped);
@@ -491,8 +491,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         /**
          * Returns the execution mode used for the execution of this cross-cluster search request
          */
-        public CCSReduceMode getExecutionMode() {
-            return executionMode;
+        public CCSReduceMode getCCSReduceMode() {
+            return ccsReduceMode;
         }
 
         @Override
@@ -507,17 +507,17 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             return total == clusters.total &&
                     successful == clusters.successful &&
                     skipped == clusters.skipped &&
-                    executionMode == clusters.executionMode;
+                    ccsReduceMode == clusters.ccsReduceMode;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(total, successful, skipped, executionMode);
+            return Objects.hash(total, successful, skipped, ccsReduceMode);
         }
 
         @Override
         public String toString() {
-            return "Clusters{execution_mode=" + executionMode + ", total=" + total +
+            return "Clusters{ccs_reduce_mode=" + ccsReduceMode + ", total=" + total +
                 ", successful=" + successful + ", skipped=" + skipped + '}';
         }
     }

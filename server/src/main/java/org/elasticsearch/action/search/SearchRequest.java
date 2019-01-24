@@ -325,26 +325,26 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
-     * Sets the execution mode (as a {@link CCSReduceMode}) for cross-cluster search requests
+     * Sets the reduce mode (as a {@link CCSReduceMode}) for cross-cluster search requests
      */
-    public void setCCSExecutionMode(CCSReduceMode ccsReduceMode) {
+    public void setCCSReduceMode(CCSReduceMode ccsReduceMode) {
         this.ccsReduceMode = Objects.requireNonNull(ccsReduceMode, "ccsReduceMode must not be null");
     }
 
     /**
-     * Sets the execution mode (as a string) for cross-cluster search requests
+     * Sets the reduce mode (as a string) for cross-cluster search requests
      */
-    public void setCCSExecutionMode(String ccsExecutionMode) {
-        this.ccsReduceMode = CCSReduceMode.fromString(ccsExecutionMode);
+    public void setCCSReduceMode(String ccsReduceMode) {
+        this.ccsReduceMode = CCSReduceMode.fromString(ccsReduceMode);
     }
 
     /**
-     * Returns the execution mode for cross-cluster search request. When not set {@link CCSReduceMode#REMOTE} is used
-     * whenever possible. In case a scroll is provided or inner hits are requested as part of field collapsing,
+     * Returns the reduce mode for cross-cluster search requests. When not set {@link CCSReduceMode#REMOTE} is used
+     * whenever possible; in case a scroll is provided or inner hits are requested as part of field collapsing,
      * {@link CCSReduceMode#LOCAL} is used instead.
      */
     @Nullable
-    public CCSReduceMode getCCSExecutionMode() {
+    public CCSReduceMode getCCSReduceMode() {
         return this.ccsReduceMode;
     }
 

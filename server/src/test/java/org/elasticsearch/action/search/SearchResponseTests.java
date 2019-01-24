@@ -262,7 +262,7 @@ public class SearchResponseTests extends ESTestCase {
                 }
                 expectedString.append("\"_clusters\":");
                 {
-                    expectedString.append("{\"execution_mode\":\"local\",");
+                    expectedString.append("{\"ccs_reduce_mode\":\"local\",");
                     expectedString.append("\"total\":5,");
                     expectedString.append("\"successful\":3,");
                     expectedString.append("\"skipped\":2},");
@@ -306,6 +306,6 @@ public class SearchResponseTests extends ESTestCase {
         assertEquals(clusters.getSkipped(), deserializedClusters.getSkipped());
         assertEquals(clusters.getSuccessful(), deserializedClusters.getSuccessful());
         assertEquals(clusters.getTotal(), deserializedClusters.getTotal());
-        assertNull(deserializedClusters.getExecutionMode());
+        assertNull(deserializedClusters.getCCSReduceMode());
     }
 }

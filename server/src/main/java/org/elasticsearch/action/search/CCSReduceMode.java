@@ -22,7 +22,7 @@ package org.elasticsearch.action.search;
 import java.util.Locale;
 
 /**
- * The execution modes when executing a cross-cluster search request
+ * The reduce modes when executing a cross-cluster search request
  */
 public enum CCSReduceMode {
     LOCAL, REMOTE;

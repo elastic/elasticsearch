@@ -165,7 +165,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(2, response.getClusters().getSuccessful());
                 assertEquals(0, response.getClusters().getSkipped());
-                assertEquals(CCSReduceMode.REMOTE, response.getClusters().getExecutionMode());
+                assertEquals(CCSReduceMode.REMOTE, response.getClusters().getCCSReduceMode());
                 assertEquals(10, response.getHits().getTotalHits().value);
                 assertEquals(10, response.getHits().getHits().length);
             }
@@ -174,7 +174,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(1, response.getClusters().getTotal());
                 assertEquals(1, response.getClusters().getSuccessful());
                 assertEquals(0, response.getClusters().getSkipped());
-                assertEquals(CCSReduceMode.REMOTE, response.getClusters().getExecutionMode());
+                assertEquals(CCSReduceMode.REMOTE, response.getClusters().getCCSReduceMode());
                 assertEquals(0, response.getHits().getTotalHits().value);
             }
 
@@ -184,7 +184,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(2, response.getClusters().getSuccessful());
                 assertEquals(0, response.getClusters().getSkipped());
-                assertEquals(CCSReduceMode.LOCAL, response.getClusters().getExecutionMode());
+                assertEquals(CCSReduceMode.LOCAL, response.getClusters().getCCSReduceMode());
                 assertEquals(10, response.getHits().getTotalHits().value);
                 assertEquals(10, response.getHits().getHits().length);
                 String scrollId = response.getScrollId();
@@ -203,7 +203,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(1, response.getClusters().getSuccessful());
                 assertEquals(1, response.getClusters().getSkipped());
-                assertEquals(CCSReduceMode.REMOTE, response.getClusters().getExecutionMode());
+                assertEquals(CCSReduceMode.REMOTE, response.getClusters().getCCSReduceMode());
                 assertEquals(10, response.getHits().getTotalHits().value);
                 assertEquals(10, response.getHits().getHits().length);
             }
@@ -212,7 +212,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(1, response.getClusters().getTotal());
                 assertEquals(0, response.getClusters().getSuccessful());
                 assertEquals(1, response.getClusters().getSkipped());
-                assertEquals(CCSReduceMode.REMOTE, response.getClusters().getExecutionMode());
+                assertEquals(CCSReduceMode.REMOTE, response.getClusters().getCCSReduceMode());
                 assertEquals(0, response.getHits().getTotalHits().value);
             }
 
@@ -222,7 +222,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(1, response.getClusters().getSuccessful());
                 assertEquals(1, response.getClusters().getSkipped());
-                assertEquals(CCSReduceMode.LOCAL, response.getClusters().getExecutionMode());
+                assertEquals(CCSReduceMode.LOCAL, response.getClusters().getCCSReduceMode());
                 assertEquals(10, response.getHits().getTotalHits().value);
                 assertEquals(10, response.getHits().getHits().length);
                 String scrollId = response.getScrollId();

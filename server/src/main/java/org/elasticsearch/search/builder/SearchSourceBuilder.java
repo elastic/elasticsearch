@@ -249,7 +249,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         timeout = in.readOptionalTimeValue();
         trackScores = in.readBoolean();
         version = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
             seqNoAndPrimaryTerm = in.readOptionalBoolean();
         } else {
             seqNoAndPrimaryTerm = null;
@@ -317,7 +317,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalTimeValue(timeout);
         out.writeBoolean(trackScores);
         out.writeOptionalBoolean(version);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
             out.writeOptionalBoolean(seqNoAndPrimaryTerm);
         }
         out.writeNamedWriteableList(extBuilders);

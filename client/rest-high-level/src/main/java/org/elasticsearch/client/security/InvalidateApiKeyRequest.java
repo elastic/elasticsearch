@@ -39,10 +39,6 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
     private final String id;
     private final String name;
 
-    public InvalidateApiKeyRequest() {
-        this(null, null, null, null);
-    }
-
     // pkg scope for testing
     InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
             @Nullable String apiKeyName) {

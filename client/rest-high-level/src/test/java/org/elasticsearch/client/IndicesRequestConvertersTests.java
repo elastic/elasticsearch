@@ -127,10 +127,10 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
 
     public void testIndicesExistEmptyIndicesWithTypes() {
-        LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
-                -> IndicesRequestConverters.indicesExist(new org.elasticsearch.action.admin.indices.get.GetIndexRequest()));
-        LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
-                -> IndicesRequestConverters.indicesExist(new org.elasticsearch.action.admin.indices.get.GetIndexRequest().indices(null)));
+        LuceneTestCase.expectThrows(IllegalArgumentException.class,
+                () -> IndicesRequestConverters.indicesExist(new org.elasticsearch.action.admin.indices.get.GetIndexRequest()));
+        LuceneTestCase.expectThrows(IllegalArgumentException.class, () -> IndicesRequestConverters
+                .indicesExist(new org.elasticsearch.action.admin.indices.get.GetIndexRequest().indices((String[]) null)));
     }
 
     public void testIndicesExistWithTypes() {

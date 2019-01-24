@@ -55,13 +55,6 @@ include-tagged::{doc-tests-file}[{api}-mappings-xcontent]
 <1> Mapping source provided as an `XContentBuilder` object, the Elasticsearch
 built-in helpers to generate JSON content
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-mappings-shortcut]
---------------------------------------------------
-<1> Mapping source provided as `Object` key-pairs, which gets converted to
-JSON format
-
 ==== Index aliases
 Aliases can be set at index creation time
 

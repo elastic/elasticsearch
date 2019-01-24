@@ -8,11 +8,20 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
@@ -232,6 +241,50 @@ public class NodeDeprecationChecks {
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#tls-setting-fallback",
                 "Nodes with default TLS/SSL settings: " + nodesFound);
+        }
+        return null;
+    }
+
+    static DeprecationIssue tlsv1ProtocolDisabled(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
+        final Set<String> contexts = new TreeSet<>();
+
+        for (NodeInfo node : nodeInfos) {
+            final String nodeName = node.getNode().getName();
+            final Settings settings = node.getSettings();
+            settings.keySet().stream()
+                .filter(key -> key.contains(".ssl."))
+                .map(key -> key.replaceAll("\\.ssl\\..*$", ".ssl"))
+                .distinct()
+                .filter(sslPrefix -> settings.hasValue(sslPrefix + ".supported_protocols") == false)
+                .map(sslPrefix -> nodeName + ": " + sslPrefix)
+                .forEach(contexts::add);
+            final Map<String, Settings> realms = RealmSettings.getRealmSettings(settings);
+            realms.forEach((name, realmSettings) -> {
+                final String type = realmSettings.get("type");
+                final String sslPrefix = RealmSettings.PREFIX + name + ".ssl";
+                if (LdapRealmSettings.LDAP_TYPE.equals(type) || LdapRealmSettings.AD_TYPE.equals(type)) {
+                    final List<String> urls = realmSettings.getAsList(SessionFactorySettings.URLS_SETTING);
+                    if (urls != null && urls.stream().anyMatch(u -> u.startsWith("ldaps://"))) {
+                        if (settings.hasValue(sslPrefix + ".supported_protocols") == false) {
+                            contexts.add(nodeName + ": " + sslPrefix);
+                        }
+                    }
+                } else if (SamlRealmSettings.TYPE.equals(type)) {
+                    final String path = SamlRealmSettings.IDP_METADATA_PATH.get(realmSettings);
+                    if (Strings.hasText(path) && path.startsWith("https://")) {
+                        if (settings.hasValue(sslPrefix + ".supported_protocols") == false) {
+                            contexts.add(nodeName + ": " + sslPrefix);
+                        }
+                    }
+                }
+            });
+        }
+        if (contexts.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "TLS v1.0 has been removed from default TLS/SSL protocols",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "#tls-v1-removed",
+                "The nodes/ssl contexts rely on the default TLS/SSL protocols: " + contexts);
         }
         return null;
     }

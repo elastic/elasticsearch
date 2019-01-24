@@ -44,7 +44,6 @@ import org.elasticsearch.client.security.DeleteRoleResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
-import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.ExpressionRoleMapping;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
@@ -85,7 +84,6 @@ import org.hamcrest.Matchers;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -519,18 +517,18 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             //tag::enable-user-execute
             EnableUserRequest request = new EnableUserRequest("enable_user", RefreshPolicy.NONE);
-            EmptyResponse response = client.security().enableUser(request, RequestOptions.DEFAULT);
+            boolean response = client.security().enableUser(RequestOptions.DEFAULT, request);
             //end::enable-user-execute
 
-            assertNotNull(response);
+            assertTrue(response);
         }
 
         {
             //tag::enable-user-execute-listener
             EnableUserRequest request = new EnableUserRequest("enable_user", RefreshPolicy.NONE);
-            ActionListener<EmptyResponse> listener = new ActionListener<EmptyResponse>() {
+            ActionListener<Boolean> listener = new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(EmptyResponse setUserEnabledResponse) {
+                public void onResponse(Boolean response) {
                     // <1>
                 }
 
@@ -546,7 +544,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::enable-user-execute-async
-            client.security().enableUserAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.security().enableUserAsync(RequestOptions.DEFAULT, request, listener); // <1>
             // end::enable-user-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -563,18 +561,18 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             //tag::disable-user-execute
             DisableUserRequest request = new DisableUserRequest("disable_user", RefreshPolicy.NONE);
-            EmptyResponse response = client.security().disableUser(request, RequestOptions.DEFAULT);
+            boolean response = client.security().disableUser(RequestOptions.DEFAULT, request);
             //end::disable-user-execute
 
-            assertNotNull(response);
+            assertTrue(response);
         }
 
         {
             //tag::disable-user-execute-listener
             DisableUserRequest request = new DisableUserRequest("disable_user", RefreshPolicy.NONE);
-            ActionListener<EmptyResponse> listener = new ActionListener<EmptyResponse>() {
+            ActionListener<Boolean> listener = new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(EmptyResponse setUserEnabledResponse) {
+                public void onResponse(Boolean response) {
                     // <1>
                 }
 
@@ -590,7 +588,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::disable-user-execute-async
-            client.security().disableUserAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.security().disableUserAsync(RequestOptions.DEFAULT, request, listener); // <1>
             // end::disable-user-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -1040,17 +1038,17 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             //tag::change-password-execute
             ChangePasswordRequest request = new ChangePasswordRequest("change_password_user", newPassword, RefreshPolicy.NONE);
-            EmptyResponse response = client.security().changePassword(request, RequestOptions.DEFAULT);
+            boolean response = client.security().changePassword(RequestOptions.DEFAULT, request);
             //end::change-password-execute
 
-            assertNotNull(response);
+            assertTrue(response);
         }
         {
             //tag::change-password-execute-listener
             ChangePasswordRequest request = new ChangePasswordRequest("change_password_user", password, RefreshPolicy.NONE);
-            ActionListener<EmptyResponse> listener = new ActionListener<EmptyResponse>() {
+            ActionListener<Boolean> listener = new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(EmptyResponse response) {
+                public void onResponse(Boolean response) {
                     // <1>
                 }
 
@@ -1066,7 +1064,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             //tag::change-password-execute-async
-            client.security().changePasswordAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.security().changePasswordAsync(RequestOptions.DEFAULT, request, listener); // <1>
             //end::change-password-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

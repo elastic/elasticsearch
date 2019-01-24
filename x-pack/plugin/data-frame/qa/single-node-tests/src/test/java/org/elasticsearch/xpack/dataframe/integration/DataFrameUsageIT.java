@@ -46,7 +46,7 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
         assertEquals(null, XContentMapValues.extractValue("data_frame.stats", usageAsMap));
 
         // create a transform
-        createPivotReviewsTransform("test_usage", "pivot_reviews");
+        createPivotReviewsTransform("test_usage", "pivot_reviews", null);
 
         usageResponse = client().performRequest(new Request("GET", "_xpack/usage"));
 

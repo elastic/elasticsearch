@@ -69,17 +69,4 @@ public class GetMappingsResponse {
 
         return new GetMappingsResponse(mappings);
     }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        GetMappingsResponse that = (GetMappingsResponse) o;
-        return Objects.equals(mappings, that.mappings);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(mappings);
-    }
 }

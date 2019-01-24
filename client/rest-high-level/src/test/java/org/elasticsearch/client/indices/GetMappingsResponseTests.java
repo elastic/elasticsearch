@@ -46,6 +46,7 @@ public class GetMappingsResponseTests extends ESTestCase {
             GetMappingsResponseTests::createTestInstance,
             GetMappingsResponseTests::toXContent,
             GetMappingsResponse::fromXContent)
+            .assertEqualsConsumer(this::assertEqualInstances)
             .supportsUnknownFields(true)
             .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
             .test();
@@ -59,6 +60,10 @@ public class GetMappingsResponseTests extends ESTestCase {
 
     private Predicate<String> getRandomFieldsExcludeFilter() {
         return field -> !field.equals(MAPPINGS.getPreferredName());
+    }
+
+    private void assertEqualInstances(GetMappingsResponse expected, GetMappingsResponse actual) {
+        assertEquals(expected.mappings(), actual.mappings());
     }
 
     public static MappingMetaData randomMappingMetaData() {

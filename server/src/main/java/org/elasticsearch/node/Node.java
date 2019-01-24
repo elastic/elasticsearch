@@ -685,10 +685,15 @@ public class Node implements Closeable {
         transportService.acceptIncomingRequests();
         discovery.startInitialJoin();
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings);
+        NodeAndClusterIdStateListener.getAndSetNodeIdAndClusterId(clusterService,
+            injector.getInstance(ThreadPool.class).getThreadContext());
+
         if (initialStateTimeout.millis() > 0) {
             final ThreadPool thread = injector.getInstance(ThreadPool.class);
             ClusterState clusterState = clusterService.state();
-            ClusterStateObserver observer = new ClusterStateObserver(clusterState, clusterService, null, logger, thread.getThreadContext());
+            ClusterStateObserver observer =
+                new ClusterStateObserver(clusterState, clusterService, null, logger, thread.getThreadContext());
+
             if (clusterState.nodes().getMasterNodeId() == null) {
                 logger.debug("waiting to join the cluster. timeout [{}]", initialStateTimeout);
                 final CountDownLatch latch = new CountDownLatch(1);
@@ -714,9 +719,7 @@ public class Node implements Closeable {
                 } catch (InterruptedException e) {
                     throw new ElasticsearchTimeoutException("Interrupted while waiting for initial discovery state");
                 }
-
             }
-            NodeAndClusterIdStateListener.getAndSetNodeIdAndClusterId(observer);
         }
 
         injector.getInstance(HttpServerTransport.class).start();

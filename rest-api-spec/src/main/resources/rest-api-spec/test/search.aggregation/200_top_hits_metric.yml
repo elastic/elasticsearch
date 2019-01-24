@@ -87,9 +87,6 @@ setup:
 
 ---
 "top_hits aggregation with sequence numbers":
-  - skip:
-      version: " - 6.99.99"
-      reason: support was added in 7.0
 
   - do:
       search:

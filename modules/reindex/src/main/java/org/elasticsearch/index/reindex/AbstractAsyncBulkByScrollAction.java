@@ -42,7 +42,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
@@ -142,13 +141,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         if (sorts == null || sorts.isEmpty()) {
             sourceBuilder.sort(fieldSort("_doc"));
         }
-        if (needsSourceDocumentVersions) {
-            sourceBuilder.version(true);
-        }
-        if (needsSourceDocumentSeqNoAndPrimaryTerm) {
-            sourceBuilder.docValueField(SeqNoFieldMapper.NAME);
-            sourceBuilder.docValueField(SeqNoFieldMapper.PRIMARY_TERM_NAME);
-        }
+        sourceBuilder.version(needsSourceDocumentVersions);
+        sourceBuilder.seqNoAndPrimaryTerm(needsSourceDocumentSeqNoAndPrimaryTerm);
     }
 
     /**

@@ -29,6 +29,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -1379,8 +1380,8 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Returns true if the provided field is a registered metadata field (including ones registered via plugins), false otherwise.
      */
-    public boolean isMetaDataField(String field) {
-        return mapperRegistry.isMetaDataField(field);
+    public boolean isMetaDataField(Version indexCreatedVersion, String field) {
+        return mapperRegistry.isMetaDataField(indexCreatedVersion, field);
     }
 
     /**

@@ -131,7 +131,7 @@ public class SearchResponseTests extends ESTestCase {
         int totalClusters = randomIntBetween(0, 10);
         int successfulClusters = randomIntBetween(0, totalClusters);
         int skippedClusters = totalClusters - successfulClusters;
-        CCSExecutionMode executionMode = randomFrom(CCSExecutionMode.values());
+        CCSReduceMode executionMode = randomFrom(CCSReduceMode.values());
         return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters, executionMode);
     }
 
@@ -247,7 +247,7 @@ public class SearchResponseTests extends ESTestCase {
                         new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f), null, null, null, false, null, 1
                     ),
                 null, 0, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY,
-                new SearchResponse.Clusters(5, 3, 2, CCSExecutionMode.ONE_REQUEST_PER_SHARD));
+                new SearchResponse.Clusters(5, 3, 2, CCSReduceMode.ONE_REQUEST_PER_SHARD));
             StringBuilder expectedString = new StringBuilder();
             expectedString.append("{");
             {

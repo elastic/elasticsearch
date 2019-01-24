@@ -92,7 +92,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private CCSExecutionMode ccsExecutionMode;
+    private CCSReduceMode ccsReduceMode;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
@@ -152,7 +152,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     private SearchRequest(SearchRequest searchRequest, String[] indices, String localClusterAlias, long absoluteStartMillis) {
         this.allowPartialSearchResults = searchRequest.allowPartialSearchResults;
         this.batchedReduceSize = searchRequest.batchedReduceSize;
-        this.ccsExecutionMode = searchRequest.ccsExecutionMode;
+        this.ccsReduceMode = searchRequest.ccsReduceMode;
         this.indices = indices;
         this.indicesOptions = searchRequest.indicesOptions;
         this.maxConcurrentShardRequests = searchRequest.maxConcurrentShardRequests;
@@ -203,7 +203,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
         }
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            ccsExecutionMode = in.readOptionalEnum(CCSExecutionMode.class);
+            ccsReduceMode = in.readOptionalEnum(CCSReduceMode.class);
         }
     }
 
@@ -232,7 +232,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             }
         }
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeOptionalEnum(ccsExecutionMode);
+            out.writeOptionalEnum(ccsReduceMode);
         }
     }
 
@@ -262,15 +262,15 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 validationException =
                     addValidationError("[request_cache] cannot be used in a scroll context", validationException);
             }
-            if (ccsExecutionMode == CCSExecutionMode.ONE_REQUEST_PER_CLUSTER) {
-                validationException = addValidationError("[ccs_execution_mode] cannot be [" + CCSExecutionMode.ONE_REQUEST_PER_CLUSTER +
+            if (ccsReduceMode == CCSReduceMode.ONE_REQUEST_PER_CLUSTER) {
+                validationException = addValidationError("[ccs_reduce_mode] cannot be [" + CCSReduceMode.ONE_REQUEST_PER_CLUSTER +
                     "] in a scroll context", validationException);
             }
         }
         boolean collapseWithInnerHits = source != null && source.collapse() != null && source.collapse().getInnerHits() != null
             && source.collapse().getInnerHits().isEmpty() == false;
-        if (collapseWithInnerHits && ccsExecutionMode == CCSExecutionMode.ONE_REQUEST_PER_CLUSTER) {
-            validationException = addValidationError("[ccs_execution_mode] cannot be [" + CCSExecutionMode.ONE_REQUEST_PER_CLUSTER +
+        if (collapseWithInnerHits && ccsReduceMode == CCSReduceMode.ONE_REQUEST_PER_CLUSTER) {
+            validationException = addValidationError("[ccs_reduce_mode] cannot be [" + CCSReduceMode.ONE_REQUEST_PER_CLUSTER +
                 "] when inner hits are requested as part of field collapsing", validationException);
         }
         return validationException;
@@ -325,27 +325,27 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
-     * Sets the execution mode (as a {@link CCSExecutionMode}) for cross-cluster search requests
+     * Sets the execution mode (as a {@link CCSReduceMode}) for cross-cluster search requests
      */
-    public void setCCSExecutionMode(CCSExecutionMode ccsExecutionMode) {
-        this.ccsExecutionMode = Objects.requireNonNull(ccsExecutionMode, "ccsExecutionMode must not be null");
+    public void setCCSExecutionMode(CCSReduceMode ccsReduceMode) {
+        this.ccsReduceMode = Objects.requireNonNull(ccsReduceMode, "ccsReduceMode must not be null");
     }
 
     /**
      * Sets the execution mode (as a string) for cross-cluster search requests
      */
     public void setCCSExecutionMode(String ccsExecutionMode) {
-        this.ccsExecutionMode = CCSExecutionMode.fromString(ccsExecutionMode);
+        this.ccsReduceMode = CCSReduceMode.fromString(ccsExecutionMode);
     }
 
     /**
-     * Returns the execution mode for cross-cluster search request. When not set {@link CCSExecutionMode#ONE_REQUEST_PER_CLUSTER} is used
+     * Returns the execution mode for cross-cluster search request. When not set {@link CCSReduceMode#ONE_REQUEST_PER_CLUSTER} is used
      * whenever possible. In case a scroll is provided or inner hits are requested as part of field collapsing,
-     * {@link CCSExecutionMode#ONE_REQUEST_PER_SHARD} is used instead.
+     * {@link CCSReduceMode#ONE_REQUEST_PER_SHARD} is used instead.
      */
     @Nullable
-    public CCSExecutionMode getCCSExecutionMode() {
-        return this.ccsExecutionMode;
+    public CCSReduceMode getCCSExecutionMode() {
+        return this.ccsReduceMode;
     }
 
     /**
@@ -640,14 +640,14 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults) &&
                 Objects.equals(localClusterAlias, that.localClusterAlias) &&
                 absoluteStartMillis == that.absoluteStartMillis &&
-                ccsExecutionMode == that.ccsExecutionMode;
+                ccsReduceMode == that.ccsReduceMode;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
                 scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize,
-                allowPartialSearchResults, localClusterAlias, absoluteStartMillis, ccsExecutionMode);
+                allowPartialSearchResults, localClusterAlias, absoluteStartMillis, ccsReduceMode);
     }
 
     @Override
@@ -667,7 +667,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 ", allowPartialSearchResults=" + allowPartialSearchResults +
                 ", localClusterAlias=" + localClusterAlias +
                 ", getOrCreateAbsoluteStartMillis=" + absoluteStartMillis +
-                ", ccsExecutionMode=" + ccsExecutionMode +
+                ", ccsReduceMode=" + ccsReduceMode +
                 ", source=" + source + '}';
     }
 }

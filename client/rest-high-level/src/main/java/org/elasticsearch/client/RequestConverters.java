@@ -399,7 +399,7 @@ final class RequestConverters {
         params.withIndicesOptions(searchRequest.indicesOptions());
         params.putParam("search_type", searchRequest.searchType().name().toLowerCase(Locale.ROOT));
         if (searchRequest.getCCSExecutionMode() != null) {
-            params.putParam("ccs_execution_mode", searchRequest.getCCSExecutionMode().toString());
+            params.putParam("ccs_reduce_mode", searchRequest.getCCSExecutionMode().toString());
         }
         if (searchRequest.requestCache() != null) {
             params.putParam("request_cache", Boolean.toString(searchRequest.requestCache()));

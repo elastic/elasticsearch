@@ -202,15 +202,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (remoteClusterIndices.isEmpty()) {
                 executeLocalSearch(task, timeProvider, searchRequest, localIndices, clusterState, listener);
             } else {
-                CCSExecutionMode executionMode = searchRequest.getCCSExecutionMode();
+                CCSReduceMode executionMode = searchRequest.getCCSExecutionMode();
                 if (executionMode == null) {
                     boolean collapseWithInnerHits = source != null && source.collapse() != null && source.collapse().getInnerHits() != null
                         && source.collapse().getInnerHits().isEmpty() == false;
                     boolean scroll = searchRequest.scroll() != null;
-                    executionMode = collapseWithInnerHits || scroll ? CCSExecutionMode.ONE_REQUEST_PER_SHARD
-                        : CCSExecutionMode.ONE_REQUEST_PER_CLUSTER;
+                    executionMode = collapseWithInnerHits || scroll ? CCSReduceMode.ONE_REQUEST_PER_SHARD
+                        : CCSReduceMode.ONE_REQUEST_PER_CLUSTER;
                 }
-                if (executionMode == CCSExecutionMode.ONE_REQUEST_PER_SHARD) {
+                if (executionMode == CCSReduceMode.ONE_REQUEST_PER_SHARD) {
                     AtomicInteger skippedClusters = new AtomicInteger(0);
                     collectSearchShards(searchRequest.indicesOptions(), searchRequest.preference(), searchRequest.routing(),
                         skippedClusters, remoteClusterIndices, remoteClusterService, threadPool,
@@ -226,7 +226,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 executeSearch((SearchTask) task, timeProvider, searchRequest, localIndices,
                                     remoteShardIterators, clusterNodeLookup, clusterState, remoteAliasFilters, listener,
                                     new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters.get(),
-                                        CCSExecutionMode.ONE_REQUEST_PER_SHARD));
+                                        CCSReduceMode.ONE_REQUEST_PER_SHARD));
                             },
                             listener::onFailure));
                 } else {
@@ -374,7 +374,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     Exception exception = exceptions.get();
                     if (exception == null) {
                         SearchResponse.Clusters clusters = new SearchResponse.Clusters(totalClusters, searchResponseMerger.numResponses(),
-                            skippedClusters.get(), CCSExecutionMode.ONE_REQUEST_PER_CLUSTER);
+                            skippedClusters.get(), CCSReduceMode.ONE_REQUEST_PER_CLUSTER);
                         SearchResponse response;
                         try {
                             //TODO test when merge breaks

@@ -310,7 +310,7 @@ the coordinating node and the remote clusters involved.
 
 By default `one_request_per_cluster` is used when possible, unless a scroll
 is provided, or unless inner hits are requested as part of field collapsing:
-The <<search-request-body, search API>> supports the `ccs_execution_mode`
+The <<search-request-body, search API>> supports the `ccs_reduce_mode`
 parameter which allows to select the execution mode if needed. The execution
 mode that was used for the request is returned as part of the `_clusters`
 section.

@@ -145,7 +145,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertEquals("keepAlive must not be null", e.getMessage());
 
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> searchRequest.setCCSExecutionMode("whatever"));
-        assertEquals("unknown ccs_execution_mode: [whatever]", iae.getMessage());
+        assertEquals("unknown ccs_reduce_mode: [whatever]", iae.getMessage());
     }
 
     public void testValidate() throws IOException {
@@ -163,8 +163,8 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             searchRequest.requestCache(false);
             searchRequest.scroll(new TimeValue(1000));
             searchRequest.source().trackTotalHits(false);
-            if (searchRequest.getCCSExecutionMode() == CCSExecutionMode.ONE_REQUEST_PER_CLUSTER) {
-                searchRequest.setCCSExecutionMode(CCSExecutionMode.ONE_REQUEST_PER_SHARD);
+            if (searchRequest.getCCSExecutionMode() == CCSReduceMode.ONE_REQUEST_PER_CLUSTER) {
+                searchRequest.setCCSExecutionMode(CCSReduceMode.ONE_REQUEST_PER_SHARD);
             }
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
@@ -178,8 +178,8 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             searchRequest.requestCache(false);
             searchRequest.scroll(new TimeValue(1000));
             searchRequest.source().from(10);
-            if (searchRequest.getCCSExecutionMode() == CCSExecutionMode.ONE_REQUEST_PER_CLUSTER) {
-                searchRequest.setCCSExecutionMode(CCSExecutionMode.ONE_REQUEST_PER_SHARD);
+            if (searchRequest.getCCSExecutionMode() == CCSReduceMode.ONE_REQUEST_PER_CLUSTER) {
+                searchRequest.setCCSExecutionMode(CCSReduceMode.ONE_REQUEST_PER_SHARD);
             }
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
@@ -191,8 +191,8 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder().size(0));
             searchRequest.requestCache(false);
             searchRequest.scroll(new TimeValue(1000));
-            if (searchRequest.getCCSExecutionMode() == CCSExecutionMode.ONE_REQUEST_PER_CLUSTER) {
-                searchRequest.setCCSExecutionMode(CCSExecutionMode.ONE_REQUEST_PER_SHARD);
+            if (searchRequest.getCCSExecutionMode() == CCSReduceMode.ONE_REQUEST_PER_CLUSTER) {
+                searchRequest.setCCSExecutionMode(CCSReduceMode.ONE_REQUEST_PER_SHARD);
             }
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
@@ -205,8 +205,8 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             searchRequest.source().addRescorer(new QueryRescorerBuilder(QueryBuilders.matchAllQuery()));
             searchRequest.requestCache(false);
             searchRequest.scroll(new TimeValue(1000));
-            if (searchRequest.getCCSExecutionMode() == CCSExecutionMode.ONE_REQUEST_PER_CLUSTER) {
-                searchRequest.setCCSExecutionMode(CCSExecutionMode.ONE_REQUEST_PER_SHARD);
+            if (searchRequest.getCCSExecutionMode() == CCSReduceMode.ONE_REQUEST_PER_CLUSTER) {
+                searchRequest.setCCSExecutionMode(CCSReduceMode.ONE_REQUEST_PER_SHARD);
             }
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
@@ -217,22 +217,22 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
             searchRequest.scroll(new TimeValue(1000));
             searchRequest.requestCache(false);
-            searchRequest.setCCSExecutionMode(CCSExecutionMode.ONE_REQUEST_PER_CLUSTER);
+            searchRequest.setCCSExecutionMode(CCSReduceMode.ONE_REQUEST_PER_CLUSTER);
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[ccs_execution_mode] cannot be [one_request_per_cluster] in a scroll context",
+            assertEquals("[ccs_reduce_mode] cannot be [one_request_per_cluster] in a scroll context",
                 validationErrors.validationErrors().get(0));
         }
         {
             SearchRequest searchRequest = createSearchRequest().source(
                 new SearchSourceBuilder().collapse(new CollapseBuilder("field").setInnerHits(new InnerHitBuilder())));
             searchRequest.scroll((Scroll)null);
-            searchRequest.setCCSExecutionMode(CCSExecutionMode.ONE_REQUEST_PER_CLUSTER);
+            searchRequest.setCCSExecutionMode(CCSReduceMode.ONE_REQUEST_PER_CLUSTER);
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(validationErrors.validationErrors().toString(), 1, validationErrors.validationErrors().size());
-            assertEquals("[ccs_execution_mode] cannot be [one_request_per_cluster] " +
+            assertEquals("[ccs_reduce_mode] cannot be [one_request_per_cluster] " +
                     "when inner hits are requested as part of field collapsing", validationErrors.validationErrors().get(0));
         }
     }
@@ -265,7 +265,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             () -> randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH))));
         mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
         mutators.add(() -> mutation.setCCSExecutionMode(randomValueOtherThan(searchRequest.getCCSExecutionMode(),
-            () -> randomFrom(CCSExecutionMode.values()))));
+            () -> randomFrom(CCSReduceMode.values()))));
         randomFrom(mutators).run();
         return mutation;
     }

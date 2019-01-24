@@ -173,8 +173,8 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
-        if (request.hasParam("ccs_execution_mode")) {
-            searchRequest.setCCSExecutionMode(request.param("ccs_execution_mode"));
+        if (request.hasParam("ccs_reduce_mode")) {
+            searchRequest.setCCSExecutionMode(request.param("ccs_reduce_mode"));
         }
         checkRestTotalHits(request, searchRequest);
     }

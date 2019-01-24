@@ -322,7 +322,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                     int successful = -1;
                     int total = -1;
                     int skipped = -1;
-                    CCSExecutionMode executionMode = null;
+                    CCSReduceMode executionMode = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
@@ -334,7 +334,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                             } else if (Clusters.SKIPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 skipped = parser.intValue();
                             } else if (Clusters.EXECUTION_MODE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                executionMode = CCSExecutionMode.fromString(parser.text());
+                                executionMode = CCSReduceMode.fromString(parser.text());
                             } else {
                                 parser.skipChildren();
                             }
@@ -409,7 +409,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      */
     public static class Clusters implements ToXContent, Writeable {
 
-        public static final Clusters EMPTY = new Clusters(0, 0, 0, CCSExecutionMode.ONE_REQUEST_PER_CLUSTER);
+        public static final Clusters EMPTY = new Clusters(0, 0, 0, CCSReduceMode.ONE_REQUEST_PER_CLUSTER);
 
         static final ParseField _CLUSTERS_FIELD = new ParseField("_clusters");
         static final ParseField SUCCESSFUL_FIELD = new ParseField("successful");
@@ -420,9 +420,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         private final int total;
         private final int successful;
         private final int skipped;
-        private final CCSExecutionMode executionMode;
+        private final CCSReduceMode executionMode;
 
-        public Clusters(int total, int successful, int skipped, CCSExecutionMode executionMode) {
+        public Clusters(int total, int successful, int skipped, CCSReduceMode executionMode) {
             assert total >= 0 && successful >= 0 && skipped >= 0
                     : "total: " + total + " successful: " + successful + " skipped: " + skipped;
             assert successful <= total && skipped == total - successful
@@ -438,7 +438,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             this.successful = in.readVInt();
             this.skipped = in.readVInt();
             if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-                this.executionMode = in.readOptionalEnum(CCSExecutionMode.class);
+                this.executionMode = in.readOptionalEnum(CCSReduceMode.class);
             } else {
                 this.executionMode = null;
             }
@@ -491,7 +491,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         /**
          * Returns the execution mode used for the execution of this cross-cluster search request
          */
-        public CCSExecutionMode getExecutionMode() {
+        public CCSReduceMode getExecutionMode() {
             return executionMode;
         }
 

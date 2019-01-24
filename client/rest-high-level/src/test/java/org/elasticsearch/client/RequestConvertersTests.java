@@ -41,7 +41,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.CCSExecutionMode;
+import org.elasticsearch.action.search.CCSReduceMode;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -1864,8 +1864,8 @@ public class RequestConvertersTests extends ESTestCase {
             expectedParams.put("scroll", searchRequest.scroll().keepAlive().getStringRep());
         }
         if (randomBoolean()) {
-            searchRequest.setCCSExecutionMode(randomFrom(CCSExecutionMode.values()));
-            expectedParams.put("ccs_execution_mode", searchRequest.getCCSExecutionMode().toString());
+            searchRequest.setCCSExecutionMode(randomFrom(CCSReduceMode.values()));
+            expectedParams.put("ccs_reduce_mode", searchRequest.getCCSExecutionMode().toString());
         }
     }
 

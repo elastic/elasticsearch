@@ -44,7 +44,7 @@
           "description" : "Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
           "default" : false
         },
-        "ccs_execution_mode": {
+        "ccs_reduce_mode": {
           "type" : "enum",
           "options" : ["one_request_per_shard","one_request_per_cluster"],
           "default" : "one_request_per_cluster",

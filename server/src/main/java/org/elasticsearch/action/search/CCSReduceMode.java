@@ -24,7 +24,7 @@ import java.util.Locale;
 /**
  * The execution modes when executing a cross-cluster search request
  */
-public enum CCSExecutionMode {
+public enum CCSReduceMode {
     ONE_REQUEST_PER_SHARD,
     ONE_REQUEST_PER_CLUSTER;
 
@@ -33,12 +33,12 @@ public enum CCSExecutionMode {
         return name().toLowerCase(Locale.ROOT);
     }
 
-    public static CCSExecutionMode fromString(String executionMode) {
-        for (CCSExecutionMode value : CCSExecutionMode.values()) {
+    public static CCSReduceMode fromString(String executionMode) {
+        for (CCSReduceMode value : CCSReduceMode.values()) {
             if (value.name().toLowerCase(Locale.ROOT).equals(executionMode)) {
                 return value;
             }
         }
-        throw new IllegalArgumentException("unknown ccs_execution_mode: [" + executionMode + "]");
+        throw new IllegalArgumentException("unknown ccs_reduce_mode: [" + executionMode + "]");
     }
 }

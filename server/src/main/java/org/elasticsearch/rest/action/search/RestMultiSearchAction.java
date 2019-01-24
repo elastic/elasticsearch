@@ -147,7 +147,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] types = Strings.splitStringByCommaToArray(request.param("type"));
         String searchType = request.param("search_type");
-        String ccsExecutionMode = request.param("ccs_execution_mode");
+        String ccsExecutionMode = request.param("ccs_reduce_mode");
         String routing = request.param("routing");
 
         final Tuple<XContentType, BytesReference> sourceTuple = request.contentOrSourceParam();

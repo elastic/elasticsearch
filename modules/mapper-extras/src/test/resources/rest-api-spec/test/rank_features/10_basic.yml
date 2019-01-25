@@ -1,7 +1,7 @@
 setup:
   - skip:
       version: " - 6.99.99"
-      reason: "The feature_vector field was introduced in 7.0.0"
+      reason: "The rank_features field was introduced in 7.0.0"
 
   - do:
       indices.create:
@@ -13,7 +13,7 @@ setup:
               _doc:
                 properties:
                   tags:
-                     type: feature_vector
+                     type: rank_features
 
   - do:
       index:
@@ -46,7 +46,7 @@ setup:
         rest_total_hits_as_int: true
         body:
           query:
-            feature:
+            rank_feature:
               field: tags.bar
               log:
                 scaling_factor: 3
@@ -68,7 +68,7 @@ setup:
         rest_total_hits_as_int: true
         body:
           query:
-            feature:
+            rank_feature:
               field: tags.bar
               saturation:
                 pivot: 20
@@ -90,7 +90,7 @@ setup:
         rest_total_hits_as_int: true
         body:
           query:
-            feature:
+            rank_feature:
               field: tags.bar
               sigmoid:
                 pivot: 20

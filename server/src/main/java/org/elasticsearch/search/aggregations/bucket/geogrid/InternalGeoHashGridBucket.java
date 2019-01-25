@@ -26,8 +26,8 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import java.io.IOException;
 
 public class InternalGeoHashGridBucket extends InternalGeoGridBucket<InternalGeoHashGridBucket> {
-    InternalGeoHashGridBucket(long geohashAsLong, long docCount, InternalAggregations aggregations) {
-        super(geohashAsLong, docCount, aggregations);
+    InternalGeoHashGridBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
+        super(hashAsLong, docCount, aggregations);
     }
 
     /**
@@ -38,18 +38,18 @@ public class InternalGeoHashGridBucket extends InternalGeoGridBucket<InternalGeo
     }
 
     @Override
-    InternalGeoHashGridBucket buildBucket(InternalGeoGridBucket bucket, long geoHashAsLong, long docCount,
+    InternalGeoHashGridBucket buildBucket(InternalGeoGridBucket bucket, long hashAsLong, long docCount,
                                           InternalAggregations aggregations) {
-        return new InternalGeoHashGridBucket(geoHashAsLong, docCount, aggregations);
+        return new InternalGeoHashGridBucket(hashAsLong, docCount, aggregations);
     }
 
     @Override
     public String getKeyAsString() {
-        return GeoHashUtils.stringEncode(geohashAsLong);
+        return GeoHashUtils.stringEncode(hashAsLong);
     }
 
     @Override
     public GeoPoint getKey() {
-        return GeoPoint.fromGeohash(geohashAsLong);
+        return GeoPoint.fromGeohash(hashAsLong);
     }
 }

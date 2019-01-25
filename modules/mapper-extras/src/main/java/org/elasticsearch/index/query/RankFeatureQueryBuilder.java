@@ -27,9 +27,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.FeatureFieldMapper.FeatureFieldType;
-import org.elasticsearch.index.mapper.FeatureMetaFieldMapper;
-import org.elasticsearch.index.mapper.FeatureVectorFieldMapper.FeatureVectorFieldType;
+import org.elasticsearch.index.mapper.RankFeatureFieldMapper.RankFeatureFieldType;
+import org.elasticsearch.index.mapper.RankFeatureMetaFieldMapper;
+import org.elasticsearch.index.mapper.RankFeaturesFieldMapper.RankFeaturesFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -37,12 +37,12 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Query to run on a [feature] field.
+ * Query to run on a [rank_feature] field.
  */
-public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQueryBuilder> {
+public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeatureQueryBuilder> {
 
     /**
-     * Scoring function for a [feature] field.
+     * Scoring function for a [rank_feature] field.
      */
     public abstract static class ScoreFunction {
 
@@ -260,23 +260,23 @@ public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQuery
         }
     }
 
-    public static ConstructingObjectParser<FeatureQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
+    public static ConstructingObjectParser<RankFeatureQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
             "feature", args -> {
                 final String field = (String) args[0];
                 final float boost = args[1] == null ? DEFAULT_BOOST : (Float) args[1];
                 final String queryName = (String) args[2];
                 long numNonNulls = Arrays.stream(args, 3, args.length).filter(Objects::nonNull).count();
-                final FeatureQueryBuilder query;
+                final RankFeatureQueryBuilder query;
                 if (numNonNulls > 1) {
                     throw new IllegalArgumentException("Can only specify one of [log], [saturation] and [sigmoid]");
                 } else if (numNonNulls == 0) {
-                    query = new FeatureQueryBuilder(field, new ScoreFunction.Saturation());
+                    query = new RankFeatureQueryBuilder(field, new ScoreFunction.Saturation());
                 } else {
                     ScoreFunction scoreFunction = (ScoreFunction) Arrays.stream(args, 3, args.length)
                             .filter(Objects::nonNull)
                             .findAny()
                             .get();
-                    query = new FeatureQueryBuilder(field, scoreFunction);
+                    query = new RankFeatureQueryBuilder(field, scoreFunction);
                 }
                 query.boost(boost);
                 query.queryName(queryName);
@@ -294,17 +294,17 @@ public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQuery
                 ScoreFunction.Sigmoid.PARSER, new ParseField("sigmoid"));
     }
 
-    public static final String NAME = "feature";
+    public static final String NAME = "rank_feature";
 
     private final String field;
     private final ScoreFunction scoreFunction;
 
-    public FeatureQueryBuilder(String field, ScoreFunction scoreFunction) {
+    public RankFeatureQueryBuilder(String field, ScoreFunction scoreFunction) {
         this.field = Objects.requireNonNull(field);
         this.scoreFunction = Objects.requireNonNull(scoreFunction);
     }
 
-    public FeatureQueryBuilder(StreamInput in) throws IOException {
+    public RankFeatureQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.field = in.readString();
         this.scoreFunction = readScoreFunction(in);
@@ -334,27 +334,27 @@ public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQuery
     protected Query doToQuery(QueryShardContext context) throws IOException {
         final MappedFieldType ft = context.fieldMapper(field);
 
-        if (ft instanceof FeatureFieldType) {
-            final FeatureFieldType fft = (FeatureFieldType) ft;
-            return scoreFunction.toQuery(FeatureMetaFieldMapper.NAME, field, fft.positiveScoreImpact());
+        if (ft instanceof RankFeatureFieldType) {
+            final RankFeatureFieldType fft = (RankFeatureFieldType) ft;
+            return scoreFunction.toQuery(RankFeatureMetaFieldMapper.NAME, field, fft.positiveScoreImpact());
         } else if (ft == null) {
             final int lastDotIndex = field.lastIndexOf('.');
             if (lastDotIndex != -1) {
                 final String parentField = field.substring(0, lastDotIndex);
                 final MappedFieldType parentFt = context.fieldMapper(parentField);
-                if (parentFt instanceof FeatureVectorFieldType) {
+                if (parentFt instanceof RankFeaturesFieldType) {
                     return scoreFunction.toQuery(parentField, field.substring(lastDotIndex + 1), true);
                 }
             }
             return new MatchNoDocsQuery(); // unmapped field
         } else {
-            throw new IllegalArgumentException("[feature] query only works on [feature] fields and features of [feature_vector] fields, " +
-                    "not [" + ft.typeName() + "]");
+            throw new IllegalArgumentException("[rank_feature] query only works on [rank_feature] fields and " +
+                "features of [rank_features] fields, not [" + ft.typeName() + "]");
         }
     }
 
     @Override
-    protected boolean doEquals(FeatureQueryBuilder other) {
+    protected boolean doEquals(RankFeatureQueryBuilder other) {
         return Objects.equals(field, other.field) && Objects.equals(scoreFunction, other.scoreFunction);
     }
 

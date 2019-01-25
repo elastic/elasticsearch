@@ -167,7 +167,7 @@ if (useFixture) {
     }
   }
 
-  composeUp.dependsOn(writeDockerFile)
+  preProcessFixture.dependsOn(writeDockerFile)
   // The following closure must execute before the afterEvaluate block in the constructor of the following integrationTest tasks:
   project.afterEvaluate {
     ClusterConfiguration cluster = project.extensions.getByName('integTestMinioCluster') as ClusterConfiguration

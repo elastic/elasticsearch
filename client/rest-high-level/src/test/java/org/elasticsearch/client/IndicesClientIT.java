@@ -1458,6 +1458,65 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(extractValue("my-template.mappings.properties.host_name.type", templates), equalTo("keyword"));
         assertThat((Map<String, String>) extractValue("my-template.aliases.alias-1", templates), hasEntry("index_routing", "abc"));
         assertThat((Map<String, String>) extractValue("my-template.aliases.{index}-write", templates), hasEntry("search_routing", "xyz"));
+    }
+    
+    public void testPutTemplateWithTypesUsingUntypedAPI() throws Exception {
+        PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest("my-template")
+            .patterns(Arrays.asList("pattern-1", "name-*"))
+            .order(10)
+            .create(randomBoolean())
+            .settings(Settings.builder().put("number_of_shards", "3").put("number_of_replicas", "0"))
+            .mapping("{ "
+                    + "\"my_doc_type\":{"
+                    + "\"properties\":{"
+                    + "\"host_name\": {\"type\":\"keyword\"}"
+                    + "}"
+                    + "}"
+                    + "}", XContentType.JSON)
+            .alias(new Alias("alias-1").indexRouting("abc")).alias(new Alias("{index}-write").searchRouting("xyz"));
+
+        
+        ElasticsearchStatusException badMappingError = expectThrows(ElasticsearchStatusException.class,
+                () -> execute(putTemplateRequest,
+                        highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync));
+        assertThat(badMappingError.getDetailedMessage(), containsString("Root mapping definition has unsupported parameters:  [my_doc_type"));
+    }    
+    
+    @SuppressWarnings("unchecked")
+    public void testPutTemplateWithNoTypesUsingTypedApi() throws Exception {
+        org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplateRequest = 
+            new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest()
+            .name("my-template")
+            .patterns(Arrays.asList("pattern-1", "name-*"))
+            .order(10)
+            .create(randomBoolean())
+            .settings(Settings.builder().put("number_of_shards", "3").put("number_of_replicas", "0"))
+            .mapping("my_doc_type",
+                    // Note that the declared type is missing from the mapping 
+                    "{ "
+                    + "\"properties\":{"
+                    + "\"host_name\": {\"type\":\"keyword\"},"
+                    + "\"description\": {\"type\":\"text\"}"
+                    + "}"
+                    + "}", XContentType.JSON)
+            .alias(new Alias("alias-1").indexRouting("abc")).alias(new Alias("{index}-write").searchRouting("xyz"));
+
+        AcknowledgedResponse putTemplateResponse = execute(putTemplateRequest,
+            highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync,
+            expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
+            );
+        assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
+
+        Map<String, Object> templates = getAsMap("/_template/my-template");
+        assertThat(templates.keySet(), hasSize(1));
+        assertThat(extractValue("my-template.order", templates), equalTo(10));
+        assertThat(extractRawValues("my-template.index_patterns", templates), contains("pattern-1", "name-*"));
+        assertThat(extractValue("my-template.settings.index.number_of_shards", templates), equalTo("3"));
+        assertThat(extractValue("my-template.settings.index.number_of_replicas", templates), equalTo("0"));
+        assertThat(extractValue("my-template.mappings.properties.host_name.type", templates), equalTo("keyword"));
+        assertThat(extractValue("my-template.mappings.properties.description.type", templates), equalTo("text"));
+        assertThat((Map<String, String>) extractValue("my-template.aliases.alias-1", templates), hasEntry("index_routing", "abc"));
+        assertThat((Map<String, String>) extractValue("my-template.aliases.{index}-write", templates), hasEntry("search_routing", "xyz"));
     }    
 
     public void testPutTemplateBadRequests() throws Exception {
@@ -1530,8 +1589,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplate1 = 
             new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest().name("template-1")
             .patterns(Arrays.asList("pattern-1", "name-1")).alias(new Alias("alias-1"));
-        assertThat(execute(putTemplate1, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged(),
-            equalTo(true));
+        assertThat(execute(putTemplate1, client.indices()::putTemplate, client.indices()::putTemplateAsync
+                , expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE))
+            .isAcknowledged(), equalTo(true));
         org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplate2 = 
             new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest().name("template-2")
             .patterns(Arrays.asList("pattern-2", "name-2"))
@@ -1618,10 +1678,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             equalTo(true));
         PutIndexTemplateRequest putTemplate2 = new PutIndexTemplateRequest("template-2")
             .patterns(Arrays.asList("pattern-2", "name-2"))
-            .mapping("{properities: { \"name\": { \"type\": \"text\" }}", XContentType.JSON)
+            .mapping("{\"properties\": { \"name\": { \"type\": \"text\" }}}", XContentType.JSON)
             .settings(Settings.builder().put("number_of_shards", "2").put("number_of_replicas", "0"));
-        assertThat(execute(putTemplate2, client.indices()::putTemplate, client.indices()::putTemplateAsync, 
-                expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE))
+        assertThat(execute(putTemplate2, client.indices()::putTemplate, client.indices()::putTemplateAsync)
                 .isAcknowledged(), equalTo(true));
 
         GetIndexTemplatesResponse getTemplate1 = execute(

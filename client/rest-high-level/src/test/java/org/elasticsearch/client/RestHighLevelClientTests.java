@@ -724,6 +724,9 @@ public class RestHighLevelClientTests extends ESTestCase {
         deprecatedMethods.add("multi_get");
         deprecatedMethods.add("multi_search");
         deprecatedMethods.add("search_scroll");
+        // TODO remove in 8.0 - we will undeprecate indices.get_template because current getIndexTemplate
+        // impl will replace existing getTemplate method.
+        deprecatedMethods.add("indices.get_template");
 
         ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load("/rest-api-spec/api");
         Set<String> apiSpec = restSpec.getApis().stream().map(ClientYamlSuiteRestApi::getName).collect(Collectors.toSet());

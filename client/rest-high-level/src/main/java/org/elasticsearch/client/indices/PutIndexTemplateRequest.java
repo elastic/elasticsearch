@@ -75,30 +75,17 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     private final Set<Alias> aliases = new HashSet<>();
 
     private Integer version;
-    
-    /**
-     * Ignores deprecation warnings. 
-     */
-    private static final DeprecationHandler DEPRECATION_HANDLER = new DeprecationHandler() {
-        @Override
-        public void usedDeprecatedName(String usedName, String modernName) {}
-        @Override
-        public void usedDeprecatedField(String usedName, String replacedWith) {}
-    };    
 
     /**
      * Constructs a new put index template request with the provided name.
      */
     public PutIndexTemplateRequest(String name) {
-        this.name = name;
+        this.name(name);
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (name == null) {
-            validationException = addValidationError("name is missing", validationException);
-        }
         if (indexPatterns == null || indexPatterns.size() == 0) {
             validationException = addValidationError("index patterns are missing", validationException);
         }
@@ -109,6 +96,9 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * Sets the name of the index template.
      */
     public PutIndexTemplateRequest name(String name) {
+        if(name == null) {
+            throw new IllegalArgumentException("Name cannot be null");
+        }
         this.name = name;
         return this;
     }
@@ -398,7 +388,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     public PutIndexTemplateRequest aliases(BytesReference source) {
         // EMPTY is safe here because we never call namedObject
         try (XContentParser parser = XContentHelper
-                .createParser(NamedXContentRegistry.EMPTY, DEPRECATION_HANDLER, source)) {
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source)) {
             //move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {

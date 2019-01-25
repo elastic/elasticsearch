@@ -38,10 +38,11 @@ import static org.hamcrest.core.Is.is;
 
 public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIndexTemplateRequest> {
     public void testValidateErrorMessage() throws Exception {
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest(null);
-        ActionRequestValidationException withoutNameAndPattern = request.validate();
-        assertThat(withoutNameAndPattern.getMessage(), containsString("name is missing"));
-        assertThat(withoutNameAndPattern.getMessage(), containsString("index patterns are missing"));
+        expectThrows(IllegalArgumentException.class, () -> new PutIndexTemplateRequest(null));
+        expectThrows(IllegalArgumentException.class, () -> new PutIndexTemplateRequest("test").name(null));
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest("test");
+        ActionRequestValidationException withoutPattern = request.validate();
+        assertThat(withoutPattern.getMessage(), containsString("index patterns are missing"));
 
         request.name("foo");
         ActionRequestValidationException withoutIndexPatterns = request.validate();

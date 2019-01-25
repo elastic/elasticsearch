@@ -19,8 +19,6 @@
 
 package org.elasticsearch.client.indices;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -35,6 +33,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -107,39 +106,31 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
 
     // As the client class GetIndexTemplatesResponse doesn't have toXContent method, adding this method here only for the test
     static void toXContent(GetIndexTemplatesResponse response, XContentBuilder builder) throws IOException {
-        builder.startObject();
-        for (IndexTemplateMetaData indexTemplateMetaData : response.getIndexTemplates()) {
-            builder.startObject(indexTemplateMetaData.name());
-            templateToXContent(indexTemplateMetaData, builder);
-            builder.endObject();
+        
+        //Create a server-side counterpart for the client-side class and call toXContent on it
+        
+        List<org.elasticsearch.cluster.metadata.IndexTemplateMetaData> serverIndexTemplates = new ArrayList<>();
+        List<IndexTemplateMetaData> clientIndexTemplates = response.getIndexTemplates();
+        for (IndexTemplateMetaData clientITMD : clientIndexTemplates) {
+            org.elasticsearch.cluster.metadata.IndexTemplateMetaData.Builder serverTemplateBuilder = 
+                    org.elasticsearch.cluster.metadata.IndexTemplateMetaData.builder(clientITMD.name());
+
+            serverTemplateBuilder.patterns(clientITMD.patterns());
+
+            Iterator<AliasMetaData> aliases = clientITMD.aliases().valuesIt();
+            aliases.forEachRemaining((a)->serverTemplateBuilder.putAlias(a));
+            
+            serverTemplateBuilder.settings(clientITMD.settings());
+            serverTemplateBuilder.order(clientITMD.order());
+            serverTemplateBuilder.version(clientITMD.version());
+            if (clientITMD.mappings() != null) {
+                serverTemplateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, clientITMD.mappings().source());
+            }
+            serverIndexTemplates.add(serverTemplateBuilder.build());
+
         }
-        builder.endObject();
+        org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse serverResponse = new        
+                org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse(serverIndexTemplates);
+        serverResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
     }
-
-    private static void templateToXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder) throws IOException {
-        builder.field("order", indexTemplateMetaData.order());
-        if (indexTemplateMetaData.version() != null) {
-            builder.field("version", indexTemplateMetaData.version());
-        }
-        builder.field("index_patterns", indexTemplateMetaData.patterns());
-
-        builder.startObject("settings");
-        indexTemplateMetaData.settings().toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-
-        MappingMetaData mappings = indexTemplateMetaData.mappings();
-        if (mappings != null) {
-            Map<String, Object> mappingsAsMap = mappings.getSourceAsMap();
-            builder.field("mappings", mappingsAsMap);
-        } else {
-            builder.startObject("mappings").endObject();
-        }
-
-        builder.startObject("aliases");
-        for (ObjectCursor<AliasMetaData> cursor : indexTemplateMetaData.aliases().values()) {
-            AliasMetaData.Builder.toXContent(cursor.value, builder, ToXContent.EMPTY_PARAMS);
-        }
-        builder.endObject();
-    }
-
 }

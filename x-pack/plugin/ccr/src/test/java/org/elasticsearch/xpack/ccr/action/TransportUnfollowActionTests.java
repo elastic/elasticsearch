@@ -49,7 +49,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
         IndexMetaData resultIMD = result.metaData().index("follow_index");
         assertThat(resultIMD.getSettings().get(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey()), nullValue());
         assertThat(resultIMD.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY), nullValue());
-        assertThat(resultIMD.getSettingsVersion(), equalTo(settingsVersion+ 1));
+        assertThat(resultIMD.getSettingsVersion(), equalTo(settingsVersion + 1));
     }
 
     public void testUnfollowIndexOpen() {

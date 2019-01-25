@@ -117,16 +117,14 @@ public class RetentionLeaseSyncAction extends
     }
 
     @Override
-    protected WritePrimaryResult<Request, Response> shardOperationOnPrimary(
-            final Request request,
-            final IndexShard primary) throws Exception {
+    protected WritePrimaryResult<Request, Response> shardOperationOnPrimary(final Request request, final IndexShard primary) {
         Objects.requireNonNull(request);
         Objects.requireNonNull(primary);
         return new WritePrimaryResult<>(request, new Response(), null, null, primary, logger);
     }
 
     @Override
-    protected WriteReplicaResult<Request> shardOperationOnReplica(final Request request, final IndexShard replica) throws Exception {
+    protected WriteReplicaResult<Request> shardOperationOnReplica(final Request request, final IndexShard replica) {
         Objects.requireNonNull(request);
         Objects.requireNonNull(replica);
         replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());

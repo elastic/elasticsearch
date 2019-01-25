@@ -7,13 +7,9 @@ package org.elasticsearch.xpack.core.security.authz.store;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
-import org.elasticsearch.action.admin.indices.get.GetIndexAction;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges.ManageApplicationPrivileges;

@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-public class SnapshotUserRoleIT extends NativeRealmIntegTestCase {
+public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
 
     private String snapshotUserToken; 
     private String ordinaryIndex;

@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.action.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
@@ -156,24 +157,9 @@ public class ShardStateActionTests extends ESTestCase {
 
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
-        AtomicBoolean success = new AtomicBoolean();
-        CountDownLatch latch = new CountDownLatch(1);
-
+        final TestListener listener = new TestListener();
         ShardRouting shardRouting = getRandomShardRouting(index);
-        shardStateAction.localShardFailed(shardRouting, "test", getSimulatedFailure(), new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void aVoid) {
-                success.set(true);
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                success.set(false);
-                latch.countDown();
-                assert false;
-            }
-        });
+        shardStateAction.localShardFailed(shardRouting, "test", getSimulatedFailure(), listener);
 
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertEquals(1, capturedRequests.length);
@@ -188,8 +174,8 @@ public class ShardStateActionTests extends ESTestCase {
 
         transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
 
-        latch.await();
-        assertTrue(success.get());
+        listener.await();
+        assertNull(listener.failure.get());
     }
 
     public void testNoMaster() throws InterruptedException {
@@ -291,28 +277,14 @@ public class ShardStateActionTests extends ESTestCase {
 
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
-        AtomicBoolean failure = new AtomicBoolean();
-
+        final TestListener listener = new TestListener();
         ShardRouting failedShard = getRandomShardRouting(index);
-        shardStateAction.localShardFailed(failedShard, "test", getSimulatedFailure(), new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void aVoid) {
-                failure.set(false);
-                assert false;
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                failure.set(true);
-            }
-        });
+        shardStateAction.localShardFailed(failedShard, "test", getSimulatedFailure(), listener);
 
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, equalTo(1));
-        assertFalse(failure.get());
         transport.handleRemoteError(capturedRequests[0].requestId, new TransportException("simulated"));
-
-        assertTrue(failure.get());
+        assertNotNull(listener.failure.get());
     }
 
     public void testShardNotFound() throws InterruptedException {
@@ -320,32 +292,17 @@ public class ShardStateActionTests extends ESTestCase {
 
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
-        AtomicBoolean success = new AtomicBoolean();
-        CountDownLatch latch = new CountDownLatch(1);
-
+        final TestListener listener = new TestListener();
         ShardRouting failedShard = getRandomShardRouting(index);
         RoutingTable routingTable = RoutingTable.builder(clusterService.state().getRoutingTable()).remove(index).build();
         setState(clusterService, ClusterState.builder(clusterService.state()).routingTable(routingTable));
-        shardStateAction.localShardFailed(failedShard, "test", getSimulatedFailure(), new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void aVoid) {
-                success.set(true);
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                success.set(false);
-                latch.countDown();
-                assert false;
-            }
-        });
+        shardStateAction.localShardFailed(failedShard, "test", getSimulatedFailure(), listener);
 
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
 
-        latch.await();
-        assertTrue(success.get());
+        listener.await();
+        assertNull(listener.failure.get());
     }
 
     public void testNoLongerPrimaryShardException() throws InterruptedException {
@@ -355,36 +312,23 @@ public class ShardStateActionTests extends ESTestCase {
 
         ShardRouting failedShard = getRandomShardRouting(index);
 
-        AtomicReference<Throwable> failure = new AtomicReference<>();
-        CountDownLatch latch = new CountDownLatch(1);
-
+        final TestListener listener = new TestListener();
         long primaryTerm = clusterService.state().metaData().index(index).primaryTerm(failedShard.id());
         assertThat(primaryTerm, greaterThanOrEqualTo(1L));
         shardStateAction.remoteShardFailed(failedShard.shardId(), failedShard.allocationId().getId(),
-            primaryTerm + 1, randomBoolean(), "test", getSimulatedFailure(),
-            new ActionListener<Void>() {
-                @Override
-                public void onResponse(Void aVoid) {
-                    failure.set(null);
-                    latch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    failure.set(e);
-                    latch.countDown();
-                }
-            });
+            primaryTerm + 1, randomBoolean(), "test", getSimulatedFailure(), listener);
 
         ShardStateAction.NoLongerPrimaryShardException catastrophicError =
                 new ShardStateAction.NoLongerPrimaryShardException(failedShard.shardId(), "dummy failure");
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         transport.handleRemoteError(capturedRequests[0].requestId, catastrophicError);
 
-        latch.await();
-        assertNotNull(failure.get());
-        assertThat(failure.get(), instanceOf(ShardStateAction.NoLongerPrimaryShardException.class));
-        assertThat(failure.get().getMessage(), equalTo(catastrophicError.getMessage()));
+        listener.await();
+
+        final Exception failure = listener.failure.get();
+        assertNotNull(failure);
+        assertThat(failure, instanceOf(ShardStateAction.NoLongerPrimaryShardException.class));
+        assertThat(failure.getMessage(), equalTo(catastrophicError.getMessage()));
     }
 
     public void testCacheRemoteShardFailed() throws Exception {
@@ -471,6 +415,26 @@ public class ShardStateActionTests extends ESTestCase {
         masterThread.join();
     }
 
+    public void testShardStarted() throws InterruptedException {
+        final String index = "test";
+        setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
+
+        final ShardRouting shardRouting = getRandomShardRouting(index);
+        final TestListener listener = new TestListener();
+        shardStateAction.shardStarted(shardRouting, "testShardStarted", listener);
+
+        final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests[0].request, instanceOf(ShardStateAction.StartedShardEntry.class));
+
+        ShardStateAction.StartedShardEntry entry = (ShardStateAction.StartedShardEntry) capturedRequests[0].request;
+        assertThat(entry.shardId, equalTo(shardRouting.shardId()));
+        assertThat(entry.allocationId, equalTo(shardRouting.allocationId().getId()));
+
+        transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
+        listener.await();
+        assertNull(listener.failure.get());
+    }
+
     private ShardRouting getRandomShardRouting(String index) {
         IndexRoutingTable indexRoutingTable = clusterService.state().routingTable().index(index);
         ShardsIterator shardsIterator = indexRoutingTable.randomAllActiveShardsIt();
@@ -541,6 +505,34 @@ public class ShardStateActionTests extends ESTestCase {
             out.setVersion(version);
             writeable.writeTo(out);
             return out.bytes();
+        }
+    }
+
+    private static class TestListener implements ActionListener<Void> {
+
+        private final SetOnce<Exception> failure = new SetOnce<>();
+        private final CountDownLatch latch = new CountDownLatch(1);
+
+        @Override
+        public void onResponse(Void aVoid) {
+            try {
+                failure.set(null);
+            } finally {
+                latch.countDown();
+            }
+        }
+
+        @Override
+        public void onFailure(final Exception e) {
+            try {
+                failure.set(e);
+            } finally {
+                latch.countDown();
+            }
+        }
+
+        void await() throws InterruptedException {
+            latch.await();
         }
     }
 }

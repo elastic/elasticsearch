@@ -37,12 +37,12 @@ import java.util.Map;
  * A {@link FieldMapper} that exposes Lucene's {@link FeatureField} as a sparse
  * vector of features.
  */
-public class FeatureVectorFieldMapper extends FieldMapper {
+public class RankFeaturesFieldMapper extends FieldMapper {
 
-    public static final String CONTENT_TYPE = "feature_vector";
+    public static final String CONTENT_TYPE = "rank_features";
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new FeatureVectorFieldType();
+        public static final MappedFieldType FIELD_TYPE = new RankFeaturesFieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
@@ -53,7 +53,7 @@ public class FeatureVectorFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, FeatureVectorFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder, RankFeaturesFieldMapper> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -61,14 +61,14 @@ public class FeatureVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public FeatureVectorFieldType fieldType() {
-            return (FeatureVectorFieldType) super.fieldType();
+        public RankFeaturesFieldType fieldType() {
+            return (RankFeaturesFieldType) super.fieldType();
         }
 
         @Override
-        public FeatureVectorFieldMapper build(BuilderContext context) {
+        public RankFeaturesFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            return new FeatureVectorFieldMapper(
+            return new RankFeaturesFieldMapper(
                     name, fieldType, defaultFieldType,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
@@ -77,24 +77,24 @@ public class FeatureVectorFieldMapper extends FieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            FeatureVectorFieldMapper.Builder builder = new FeatureVectorFieldMapper.Builder(name);
+            RankFeaturesFieldMapper.Builder builder = new RankFeaturesFieldMapper.Builder(name);
             return builder;
         }
     }
 
-    public static final class FeatureVectorFieldType extends MappedFieldType {
+    public static final class RankFeaturesFieldType extends MappedFieldType {
 
-        public FeatureVectorFieldType() {
+        public RankFeaturesFieldType() {
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
-        protected FeatureVectorFieldType(FeatureVectorFieldType ref) {
+        protected RankFeaturesFieldType(RankFeaturesFieldType ref) {
             super(ref);
         }
 
-        public FeatureVectorFieldType clone() {
-            return new FeatureVectorFieldType(this);
+        public RankFeaturesFieldType clone() {
+            return new RankFeaturesFieldType(this);
         }
 
         @Override
@@ -104,44 +104,44 @@ public class FeatureVectorFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(QueryShardContext context) {
-            throw new UnsupportedOperationException("[feature_vector] fields do not support [exists] queries");
+            throw new UnsupportedOperationException("[rank_features] fields do not support [exists] queries");
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            throw new UnsupportedOperationException("[feature_vector] fields do not support sorting, scripting or aggregating");
+            throw new UnsupportedOperationException("[rank_features] fields do not support sorting, scripting or aggregating");
         }
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new UnsupportedOperationException("Queries on [feature_vector] fields are not supported");
+            throw new UnsupportedOperationException("Queries on [rank_features] fields are not supported");
         }
     }
 
-    private FeatureVectorFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+    private RankFeaturesFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
     }
 
     @Override
-    protected FeatureVectorFieldMapper clone() {
-        return (FeatureVectorFieldMapper) super.clone();
+    protected RankFeaturesFieldMapper clone() {
+        return (RankFeaturesFieldMapper) super.clone();
     }
 
     @Override
-    public FeatureVectorFieldType fieldType() {
-        return (FeatureVectorFieldType) super.fieldType();
+    public RankFeaturesFieldType fieldType() {
+        return (RankFeaturesFieldType) super.fieldType();
     }
 
     @Override
     public void parse(ParseContext context) throws IOException {
         if (context.externalValueSet()) {
-            throw new IllegalArgumentException("[feature_vector] fields can't be used in multi-fields");
+            throw new IllegalArgumentException("[rank_features] fields can't be used in multi-fields");
         }
 
         if (context.parser().currentToken() != Token.START_OBJECT) {
-            throw new IllegalArgumentException("[feature_vector] fields must be json objects, expected a START_OBJECT but got: " +
+            throw new IllegalArgumentException("[rank_features] fields must be json objects, expected a START_OBJECT but got: " +
                     context.parser().currentToken());
         }
 
@@ -155,12 +155,12 @@ public class FeatureVectorFieldMapper extends FieldMapper {
                 final String key = name() + "." + feature;
                 float value = context.parser().floatValue(true);
                 if (context.doc().getByKey(key) != null) {
-                    throw new IllegalArgumentException("[feature_vector] fields do not support indexing multiple values for the same " +
-                            "feature [" + key + "] in the same document");
+                    throw new IllegalArgumentException("[rank_features] fields do not support indexing multiple values for the same " +
+                            "rank feature [" + key + "] in the same document");
                 }
                 context.doc().addWithKey(key, new FeatureField(name(), feature, value));
             } else {
-                throw new IllegalArgumentException("[feature_vector] fields take hashes that map a feature to a strictly positive " +
+                throw new IllegalArgumentException("[rank_features] fields take hashes that map a feature to a strictly positive " +
                         "float, but got unexpected token " + token);
             }
         }

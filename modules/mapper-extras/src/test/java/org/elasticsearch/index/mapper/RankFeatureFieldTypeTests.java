@@ -19,11 +19,28 @@
 
 package org.elasticsearch.index.mapper;
 
-public class FeatureMetaFieldTypeTests extends FieldTypeTestCase {
+import org.junit.Before;
+
+public class RankFeatureFieldTypeTests extends FieldTypeTestCase {
 
     @Override
     protected MappedFieldType createDefaultFieldType() {
-        return new FeatureMetaFieldMapper.FeatureMetaFieldType();
+        return new RankFeatureFieldMapper.RankFeatureFieldType();
     }
 
+    @Before
+    public void setupProperties() {
+        addModifier(new Modifier("positive_score_impact", false) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                RankFeatureFieldMapper.RankFeatureFieldType tft = (RankFeatureFieldMapper.RankFeatureFieldType)ft;
+                tft.setPositiveScoreImpact(tft.positiveScoreImpact() == false);
+            }
+            @Override
+            public void normalizeOther(MappedFieldType other) {
+                super.normalizeOther(other);
+                ((RankFeatureFieldMapper.RankFeatureFieldType) other).setPositiveScoreImpact(true);
+            }
+        });
+    }
 }

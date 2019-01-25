@@ -36,7 +36,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
-public class FeatureVectorFieldMapperTests extends ESSingleNodeTestCase {
+public class RankFeaturesFieldMapperTests extends ESSingleNodeTestCase {
 
     IndexService indexService;
     DocumentMapperParser parser;
@@ -54,7 +54,7 @@ public class FeatureVectorFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testDefaults() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "feature_vector").endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "rank_features").endObject().endObject()
                 .endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
@@ -79,15 +79,15 @@ public class FeatureVectorFieldMapperTests extends ESSingleNodeTestCase {
         FeatureField featureField2 = (FeatureField) fields[1];
         assertThat(featureField2.stringValue(), Matchers.equalTo("bar"));
 
-        int freq1 = FeatureFieldMapperTests.getFrequency(featureField1.tokenStream(null, null));
-        int freq2 = FeatureFieldMapperTests.getFrequency(featureField2.tokenStream(null, null));
+        int freq1 = RankFeatureFieldMapperTests.getFrequency(featureField1.tokenStream(null, null));
+        int freq2 = RankFeatureFieldMapperTests.getFrequency(featureField2.tokenStream(null, null));
         assertTrue(freq1 < freq2);
     }
 
     public void testRejectMultiValuedFields() throws MapperParsingException, IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "feature_vector").endObject().startObject("foo")
-                .startObject("properties").startObject("field").field("type", "feature_vector").endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "rank_features").endObject().startObject("foo")
+                .startObject("properties").startObject("field").field("type", "rank_features").endObject().endObject()
                 .endObject().endObject().endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
@@ -103,7 +103,7 @@ public class FeatureVectorFieldMapperTests extends ESSingleNodeTestCase {
                                  .endObject()
                             .endObject()),
                         XContentType.JSON)));
-        assertEquals("[feature_vector] fields take hashes that map a feature to a strictly positive float, but got unexpected token " +
+        assertEquals("[rank_features] fields take hashes that map a feature to a strictly positive float, but got unexpected token " +
                 "START_ARRAY", e.getCause().getMessage());
 
         e = expectThrows(MapperParsingException.class,
@@ -124,7 +124,7 @@ public class FeatureVectorFieldMapperTests extends ESSingleNodeTestCase {
                                     .endArray()
                                 .endObject()),
                         XContentType.JSON)));
-        assertEquals("[feature_vector] fields do not support indexing multiple values for the same feature [foo.field.bar] in the same " +
-                "document", e.getCause().getMessage());
+        assertEquals("[rank_features] fields do not support indexing multiple values for the same rank feature [foo.field.bar] in " +
+                "the same document", e.getCause().getMessage());
     }
 }

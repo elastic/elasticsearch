@@ -39,7 +39,7 @@ class CellIdSource extends ValuesSource.Numeric {
 
     CellIdSource(GeoPoint valuesSource, int precision, GeoPointLongEncoder encoder) {
         this.valuesSource = valuesSource;
-        //different GeoPoints could map to the same or different geohash cells.
+        //different GeoPoints could map to the same or different hashing cells.
         this.precision = precision;
         this.encoder = encoder;
     }

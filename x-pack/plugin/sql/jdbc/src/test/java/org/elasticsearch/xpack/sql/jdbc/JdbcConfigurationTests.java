@@ -6,9 +6,13 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.client.SslConfig;
 
 import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.CONNECT_TIMEOUT;
 import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.PAGE_TIMEOUT;
@@ -130,5 +134,77 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertThat(ci.pageTimeout(), equalTo(4L));
     }
 
-
+    public void testSSLPropertiesInUrl() throws Exception {
+        Map<String, String> urlPropMap = sslProperties();
+        
+        Properties allProps = new Properties();
+        allProps.putAll(urlPropMap);
+        String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));
+        
+        JdbcConfiguration ci = ci("jdbc:es://test?" + sslUrlProps.toString());
+        SslConfig sslConfig = new SslConfig(allProps, ci.baseUri());
+        assertEquals(ci.sslConfig(), sslConfig);
+    }
+    
+    public void testSSLPropertiesInUrlAndProperties() throws Exception {
+        Map<String, String> urlPropMap = new HashMap<>(4);
+        urlPropMap.put("ssl", "false");
+        urlPropMap.put("ssl.protocol", "SSLv3");
+        urlPropMap.put("ssl.keystore.location", "/abc/xyz");
+        urlPropMap.put("ssl.keystore.pass", "mypass");
+        
+        Map<String, String> propMap = new HashMap<>(4);
+        propMap.put("ssl.keystore.type", "PKCS12");
+        propMap.put("ssl.truststore.location", "/foo/bar");
+        propMap.put("ssl.truststore.pass", "anotherpass");
+        propMap.put("ssl.truststore.type", "jks");
+        
+        Properties props = new Properties();
+        props.putAll(propMap);
+        String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));
+        
+        JdbcConfiguration ci = JdbcConfiguration.create("jdbc:es://test?" + sslUrlProps.toString(), props, 0);
+        Properties allProps = new Properties();
+        allProps.putAll(urlPropMap);
+        allProps.putAll(propMap);
+        SslConfig sslConfig = new SslConfig(allProps, ci.baseUri());
+        assertEquals(ci.sslConfig(), sslConfig);
+    }
+    
+    public void testSSLPropertiesOverride() throws Exception {
+        Map<String, String> urlPropMap = sslProperties();
+        Map<String, String> propMap = new HashMap<>(8);
+        propMap.put("ssl", "false");
+        propMap.put("ssl.protocol", "TLS");
+        propMap.put("ssl.keystore.location", "/xyz");
+        propMap.put("ssl.keystore.pass", "different_mypass");
+        propMap.put("ssl.keystore.type", "JKS");
+        propMap.put("ssl.truststore.location", "/baz");
+        propMap.put("ssl.truststore.pass", "different_anotherpass");
+        propMap.put("ssl.truststore.type", "PKCS11");
+        
+        Properties props = new Properties();
+        props.putAll(propMap);
+        String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));
+        
+        JdbcConfiguration ci = JdbcConfiguration.create("jdbc:es://test?" + sslUrlProps.toString(), props, 0);
+        SslConfig sslConfig = new SslConfig(props, ci.baseUri());
+        assertEquals(ci.sslConfig(), sslConfig);
+    }
+    
+    private Map<String, String> sslProperties() {
+        Map<String, String> sslPropertiesMap = new HashMap<>(8);
+        // always using "false" so that the SSLContext doesn't actually start verifying the keystore and trustore
+        // locations, as we don't have file permissions to access them
+        sslPropertiesMap.put("ssl", "false");
+        sslPropertiesMap.put("ssl.protocol", "SSLv3");
+        sslPropertiesMap.put("ssl.keystore.location", "/abc/xyz");
+        sslPropertiesMap.put("ssl.keystore.pass", "mypass");
+        sslPropertiesMap.put("ssl.keystore.type", "PKCS12");
+        sslPropertiesMap.put("ssl.truststore.location", "/foo/bar");
+        sslPropertiesMap.put("ssl.truststore.pass", "anotherpass");
+        sslPropertiesMap.put("ssl.truststore.type", "jks");
+        
+        return sslPropertiesMap;
+    }
 }

@@ -51,6 +51,7 @@ string::        <<text,`text`>> and <<keyword,`keyword`>>
 
 <<sparse-vector>>::   Record sparse vectors of float values.
 
+<<search-as-you-type>>:: A text-like field optimized for queries to implement as-you-type completion
 
 [float]
 === Multi-fields
@@ -107,3 +108,5 @@ include::types/feature-vector.asciidoc[]
 include::types/dense-vector.asciidoc[]
 
 include::types/sparse-vector.asciidoc[]
+
+include::types/search-as-you-type.asciidoc[]

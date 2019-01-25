@@ -1,0 +1,184 @@
+[[search-as-you-type]]
+=== Search as you type datatype
+
+experimental[]
+
+The `search_as_you_type` field type is a text-like field that is optimized to
+provide out-of-the-box support for queries that serve an as-you-type completion
+use case.
+
+This field type creates a series of subfields that are analyzed to index terms
+that can be efficiently matched by a query that partially matches the entire
+indexed text value. Both prefix completion (i.e matching terms starting at the
+beginning of the input) and infix completion (i.e. matching terms at any
+position within the input) are supported.
+
+When adding a field of this type to a mapping
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "properties": {
+      "my_field": {
+        "type": "search_as_you_type"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+This creates the following fields
+
+[horizontal]
+
+`my_field`::
+
+    Analyzed as configured in the mapping. If an analyzer is not configured,
+    the default analyzer for the index is used
+
+`my_field._2gram`::
+
+    Wraps the analyzer of `my_field` with a shingle token filter of shingle
+    size 2
+
+`my_field._index_prefix`::
+
+    Wraps the analyzer of `my_field._2gram` with an edge ngram token filter
+
+
+The same input text is indexed into each of these fields automatically, with
+their differing analysis chains, when an indexed document has a value for the
+root field `my_field`.
+
+[source,js]
+--------------------------------------------------
+PUT my_index/_doc/1
+{
+  "my_field": "quick red fox lazy brown dog"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Setting a larger `max_shingle_size` in the mapping will create shingle fields
+with larger sized shingles, of 2 up to `max_shingle_size`. The
+`my_field._index_prefix` subfield will always use the analyzer from the
+subfield with the largest shingle size. For example the mapping
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "properties": {
+      "my_field": {
+        "type": "search_as_you_type",
+        "max_shingle_size": 4
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+Will create the fields
+
+[horizontal]
+
+`my_field`::
+
+    Analyzed as configured in the mapping. If an analyzer is not configured,
+    the default analyzer for the index is used
+
+`my_field._2gram`::
+
+    Wraps the analyzer of `my_field` with a shingle token filter of shingle
+    size 2
+
+`my_field._3gram`::
+
+    Wraps the analyzer of `my_field` with a shingle token filter of shingle
+    size 3
+
+`my_field._4gram`::
+
+    Wraps the analyzer of `my_field` with a shingle token filter of shingle
+    size 4
+
+`my_field._index_prefix`::
+
+    Wraps the analyzer of `my_field._4gram` with an edge ngram token filter
+
+
+[[specific-params]]
+==== Parameters specific to the `search_as_you_type` field
+
+The following parameters are accepted in a mapping for the `search_as_you_type`
+field and are specific to this field type
+
+[horizontal]
+
+`max_shingle_size`::
+
+    The largest shingle size to index the input with and create subfields for,
+    creating one subfield for each shingle size between 2 and
+    `max_shingle_size`. Accepts integer values between 2 (default) and 4
+    inclusive.
+
+
+[[general-params]]
+==== Parameters of the field type as a text field
+
+The following parameters are accepted in a mapping for the `search_as_you_type`
+field due to its nature as a text-like field, and behave similarly to their
+behavior when configuring a field of the <<text,`text`>> datatype. Unless
+otherwise noted, these options configure the root fields and shingle subfields
+in the same way. They do not configure the prefix subfield.
+
+<<analyzer,`analyzer`>>::
+
+    The <<analysis,analyzer>> which should be used for
+    <<mapping-index,`analyzed`>> string fields, both at index-time and at
+    search-time (unless overridden by the
+    <<search-analyzer,`search_analyzer`>>). Defaults to the default index
+    analyzer, or the <<analysis-standard-analyzer,`standard` analyzer>>.
+
+<<mapping-index,`index`>>::
+
+    Should the field be searchable? Accepts `true` (default) or `false`.
+
+<<index-options,`index_options`>>::
+
+    What information should be stored in the index, for search and highlighting
+    purposes. Defaults to `positions`. This option only configures the root
+    field. The shingle and prefix subfields, which can not be configured,
+    are set to `docs`.
+
+<<mapping-store,`store`>>::
+
+    Whether the field value should be stored and retrievable separately from
+    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
+    (default).
+
+<<search-analyzer,`search_analyzer`>>::
+
+    The <<analyzer,`analyzer`>> that should be used at search time on
+    <<mapping-index,`analyzed`>> fields. Defaults to the `analyzer` setting.
+
+<<search-quote-analyzer,`search_quote_analyzer`>>::
+
+    The <<analyzer,`analyzer`>> that should be used at search time when a
+    phrase is encountered. Defaults to the `search_analyzer` setting.
+
+<<similarity,`similarity`>>::
+
+    Which scoring algorithm or _similarity_ should be used. Defaults
+    to `BM25`.
+
+<<term-vector,`term_vector`>>::
+
+    Whether term vectors should be stored for an <<mapping-index,`analyzed`>>
+    field. Defaults to `no`.

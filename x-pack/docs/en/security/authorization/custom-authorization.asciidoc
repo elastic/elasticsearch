@@ -82,13 +82,14 @@ own authorization engine.
 [[packing-extension-plugin]]
 ==== Implement an elasticsearch plugin
 
-In order to register the security extension, you need to also implement an
-elastiicsearch plugin that contains the extension:
+In order to register the security extension for your custom roles provider or
+authorization engine, you need to also implement an elasticsearch plugin that
+contains the extension:
 
 . Implement a plugin class that extends `org.elasticsearch.plugins.Plugin`
 . Create a build configuration file for the plugin; Gradle is our recommendation.
-. Create a `plugin-descriptor.properties` file as described in the
-  <<plugin-authors,plugin authors>> section.
+. Create a `plugin-descriptor.properties` file as described in
+  {plugins}/plugin-authors.html[Help for plugin authors].
 . Create a `META-INF/services/org.elasticsearch.xpack.core.security.SecurityExtension` descriptor file for the
   extension that contains the fully qualified class name of your `org.elasticsearch.xpack.core.security.SecurityExtension` implementation
 . Bundle all in a single zip file.
@@ -111,35 +112,6 @@ bin/elasticsearch-plugin install file:///<path>/my-extension-plugin-1.0.zip
 `elasticsearch.yml` file.  The settings are not namespaced and you have access to any
 settings when constructing the extensions, although it is recommended to have a
 namespacing convention for extensions to keep your `elasticsearch.yml`
-configuration easy to understand.
-+
-For example, if you have a custom roles provider that
-resolves roles from reading a blob in an S3 bucket on AWS, then you would specify settings
-in `elasticsearch.yml` such as:
-+
-[source,js]
-----------------------------------------
-custom_roles_provider.s3_roles_provider.bucket: roles
-custom_roles_provider.s3_roles_provider.region: us-east-1
-custom_roles_provider.s3_roles_provider.secret_key: xxx
-custom_roles_provider.s3_roles_provider.access_key: xxx
-----------------------------------------
-
-To use a custom roles provider:
-
-. Install the roles provider extension on each node in the cluster. You run
-  `bin/elasticsearch-plugin` with the `install` sub-command and specify the URL
-  pointing to the zip file that contains the extension. For example:
-+
-[source,shell]
-----------------------------------------
-bin/elasticsearch-plugin install file:///<path>/my-roles-provider-1.0.zip
-----------------------------------------
-
-. Add any configuration parameters for any of the custom roles provider implementations
-to `elasticsearch.yml`.  The settings are not namespaced and you have access to any
-settings when constructing the custom roles providers, although it is recommended to
-have a namespacing convention for custom roles providers to keep your `elasticsearch.yml`
 configuration easy to understand.
 +
 For example, if you have a custom roles provider that

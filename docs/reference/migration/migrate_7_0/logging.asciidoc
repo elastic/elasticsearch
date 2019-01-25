@@ -1,0 +1,10 @@
+[float]
+[[breaking_70_logging_changes]]
+=== Logging changes
+
+[float]
+==== Elasticsearch server's logs have been renamed from `${sys:es.logs.cluster_name}.log` to
+`${sys:es.logs.cluster_name}_server.log`.
+
+Log files ending with `*.log` are now considered deprecated and newly added JSON logs ending
+`*.json` should be used.

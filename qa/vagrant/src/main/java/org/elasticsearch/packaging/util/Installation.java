@@ -102,6 +102,7 @@ public class Installation {
         public final Path elasticsearchKeystore = platformExecutable("elasticsearch-keystore");
         public final Path elasticsearchCertutil = platformExecutable("elasticsearch-certutil");
         public final Path elasticsearchShard = platformExecutable("elasticsearch-shard");
+        public final Path elasticsearchNode = platformExecutable("elasticsearch-node");
 
         private Path platformExecutable(String name) {
             final String platformExecutableName = Platforms.WINDOWS

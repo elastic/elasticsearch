@@ -38,7 +38,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
-public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
+public class RankFeatureFieldMapperTests extends ESSingleNodeTestCase {
 
     IndexService indexService;
     DocumentMapperParser parser;
@@ -65,7 +65,7 @@ public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testDefaults() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "feature").endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "rank_feature").endObject().endObject()
                 .endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
@@ -100,7 +100,7 @@ public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testNegativeScoreImpact() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "feature")
+                .startObject("properties").startObject("field").field("type", "rank_feature")
                 .field("positive_score_impact", false).endObject().endObject()
                 .endObject().endObject());
 
@@ -136,8 +136,8 @@ public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testRejectMultiValuedFields() throws MapperParsingException, IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "feature").endObject().startObject("foo")
-                .startObject("properties").startObject("field").field("type", "feature").endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "rank_feature").endObject().startObject("foo")
+                .startObject("properties").startObject("field").field("type", "rank_feature").endObject().endObject()
                 .endObject().endObject().endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
@@ -151,7 +151,7 @@ public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
                                 .field("field", Arrays.asList(10, 20))
                                 .endObject()),
                         XContentType.JSON)));
-        assertEquals("[feature] fields do not support indexing multiple values for the same field [field] in the same document",
+        assertEquals("[rank_feature] fields do not support indexing multiple values for the same field [field] in the same document",
                 e.getCause().getMessage());
 
         e = expectThrows(MapperParsingException.class,
@@ -168,7 +168,7 @@ public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
                                     .endArray()
                                 .endObject()),
                         XContentType.JSON)));
-        assertEquals("[feature] fields do not support indexing multiple values for the same field [foo.field] in the same document",
+        assertEquals("[rank_feature] fields do not support indexing multiple values for the same field [foo.field] in the same document",
                 e.getCause().getMessage());
     }
 }

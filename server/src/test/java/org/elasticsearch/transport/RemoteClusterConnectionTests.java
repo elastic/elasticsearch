@@ -1000,10 +1000,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                     try {
                                         DiscoveryNode node = connection.getAnyConnectedNode();
                                         assertNotNull(node);
-                                    } catch (IllegalStateException e) {
-                                        if (e.getMessage().startsWith("No node available for cluster:") == false) {
-                                            throw e;
-                                        }
+                                    } catch (NoSuchRemoteClusterException e) {
+                                        // ignore, this is an expected exception
                                     }
                                 }
                             } catch (Exception ex) {

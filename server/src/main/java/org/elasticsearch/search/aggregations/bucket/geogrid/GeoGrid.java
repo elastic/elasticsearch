@@ -18,19 +18,26 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+
+import java.util.List;
 
 /**
- * Encapsulates relevant parameter defaults and validations for the geo hash grid aggregation.
+ * A geo-grid aggregation. Defines multiple buckets, each representing a cell in a geo-grid of a specific
+ * precision.
  */
-final class GeoHashGridParams {
+public interface GeoGrid extends MultiBucketsAggregation {
 
-    /* recognized field names in JSON */
-    static final ParseField FIELD_PRECISION = new ParseField("precision");
-    static final ParseField FIELD_SIZE = new ParseField("size");
-    static final ParseField FIELD_SHARD_SIZE = new ParseField("shard_size");
-
-    private GeoHashGridParams() {
-        throw new AssertionError("No instances intended");
+    /**
+     * A bucket that is associated with a geo-grid cell. The key of the bucket is
+     * the {@link InternalGeoGridBucket#getKeyAsString()} of the cell
+     */
+    interface Bucket extends MultiBucketsAggregation.Bucket {
     }
+
+    /**
+     * @return The buckets of this aggregation (each bucket representing a geo-grid cell)
+     */
+    @Override
+    List<? extends Bucket> getBuckets();
 }

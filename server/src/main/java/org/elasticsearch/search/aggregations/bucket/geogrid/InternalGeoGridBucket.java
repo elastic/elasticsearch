@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.GeoHashUtils;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,42 +32,40 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class GeoGridBucket extends InternalMultiBucketAggregation.InternalBucket implements GeoHashGrid.Bucket, Comparable<GeoGridBucket> {
+public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
+        extends InternalMultiBucketAggregation.InternalBucket implements GeoGrid.Bucket, Comparable<InternalGeoGridBucket> {
 
-    protected long geohashAsLong;
+    protected long hashAsLong;
     protected long docCount;
     protected InternalAggregations aggregations;
 
-    GeoGridBucket(long geohashAsLong, long docCount, InternalAggregations aggregations) {
+    public InternalGeoGridBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
         this.docCount = docCount;
         this.aggregations = aggregations;
-        this.geohashAsLong = geohashAsLong;
+        this.hashAsLong = hashAsLong;
     }
 
     /**
      * Read from a stream.
      */
-    GeoGridBucket(StreamInput in) throws IOException {
-        geohashAsLong = in.readLong();
+    public InternalGeoGridBucket(StreamInput in) throws IOException {
+        hashAsLong = in.readLong();
         docCount = in.readVLong();
         aggregations = InternalAggregations.readAggregations(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(geohashAsLong);
+        out.writeLong(hashAsLong);
         out.writeVLong(docCount);
         aggregations.writeTo(out);
     }
 
-    @Override
-    public String getKeyAsString() {
-        return GeoHashUtils.stringEncode(geohashAsLong);
-    }
+    abstract B buildBucket(InternalGeoGridBucket bucket, long hashAsLong, long docCount, InternalAggregations aggregations);
 
-    @Override
-    public GeoPoint getKey() {
-        return GeoPoint.fromGeohash(geohashAsLong);
+
+    long hashAsLong() {
+        return hashAsLong;
     }
 
     @Override
@@ -83,25 +79,25 @@ public class GeoGridBucket extends InternalMultiBucketAggregation.InternalBucket
     }
 
     @Override
-    public int compareTo(GeoGridBucket other) {
-        if (this.geohashAsLong > other.geohashAsLong) {
+    public int compareTo(InternalGeoGridBucket other) {
+        if (this.hashAsLong > other.hashAsLong) {
             return 1;
         }
-        if (this.geohashAsLong < other.geohashAsLong) {
+        if (this.hashAsLong < other.hashAsLong) {
             return -1;
         }
         return 0;
     }
 
-    public GeoGridBucket reduce(List<? extends GeoGridBucket> buckets, InternalAggregation.ReduceContext context) {
+    public B reduce(List<B> buckets, InternalAggregation.ReduceContext context) {
         List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
         long docCount = 0;
-        for (GeoGridBucket bucket : buckets) {
+        for (B bucket : buckets) {
             docCount += bucket.docCount;
             aggregationsList.add(bucket.aggregations);
         }
         final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
-        return new GeoGridBucket(geohashAsLong, docCount, aggs);
+        return buildBucket(this, hashAsLong, docCount, aggs);
     }
 
     @Override
@@ -118,15 +114,15 @@ public class GeoGridBucket extends InternalMultiBucketAggregation.InternalBucket
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        GeoGridBucket bucket = (GeoGridBucket) o;
-        return geohashAsLong == bucket.geohashAsLong &&
+        InternalGeoGridBucket bucket = (InternalGeoGridBucket) o;
+        return hashAsLong == bucket.hashAsLong &&
             docCount == bucket.docCount &&
             Objects.equals(aggregations, bucket.aggregations);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(geohashAsLong, docCount, aggregations);
+        return Objects.hash(hashAsLong, docCount, aggregations);
     }
 
 }

@@ -292,6 +292,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37887")
     public void testFollowerMappingIsUpdated() throws IOException {
         String leaderClusterRepoName = CcrRepository.NAME_PREFIX + "leader_cluster";
         String leaderIndex = "index1";

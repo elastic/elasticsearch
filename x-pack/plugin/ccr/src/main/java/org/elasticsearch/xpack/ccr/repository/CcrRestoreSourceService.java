@@ -16,7 +16,10 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CombinedRateLimiter;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
@@ -28,6 +31,9 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -38,6 +44,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 public class CcrRestoreSourceService extends AbstractLifecycleComponent implements IndexEventListener {
 
@@ -45,8 +52,15 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
     private final Map<String, RestoreSession> onGoingRestores = ConcurrentCollections.newConcurrentMap();
     private final Map<IndexShard, HashSet<String>> sessionsForShard = new HashMap<>();
-    private final CopyOnWriteArrayList<Consumer<String>> openSessionListeners = new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<Consumer<String>> closeSessionListeners = new CopyOnWriteArrayList<>();
+    private final ThreadPool threadPool;
+    private final CcrSettings ccrSettings;
+    private final CounterMetric throttleTime = new CounterMetric();
+
+    public CcrRestoreSourceService(ThreadPool threadPool, CcrSettings ccrSettings) {
+        this.threadPool = threadPool;
+        this.ccrSettings = ccrSettings;
+    }
 
     @Override
     public synchronized void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
@@ -81,26 +95,10 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
     // TODO: The listeners are for testing. Once end-to-end file restore is implemented and can be tested,
     //  these should be removed.
-    public void addOpenSessionListener(Consumer<String> listener) {
-        openSessionListeners.add(listener);
-    }
-
     public void addCloseSessionListener(Consumer<String> listener) {
         closeSessionListeners.add(listener);
     }
 
-    // default visibility for testing
-    synchronized HashSet<String> getSessionsForShard(IndexShard indexShard) {
-        return sessionsForShard.get(indexShard);
-    }
-
-    // default visibility for testing
-    synchronized RestoreSession getOngoingRestore(String sessionUUID) {
-        return onGoingRestores.get(sessionUUID);
-    }
-
-    // TODO: Add a local timeout for the session. This timeout might might be for the entire session to be
-    //  complete. Or it could be for session to have been touched.
     public synchronized Store.MetadataSnapshot openSession(String sessionUUID, IndexShard indexShard) throws IOException {
         boolean success = false;
         RestoreSession restore = null;
@@ -113,9 +111,8 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 if (indexShard.state() == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(indexShard.shardId(), "cannot open ccr restore session if shard closed");
                 }
-                restore = new RestoreSession(sessionUUID, indexShard, indexShard.acquireSafeIndexCommit());
+                restore = new RestoreSession(sessionUUID, indexShard, indexShard.acquireSafeIndexCommit(), scheduleTimeout(sessionUUID));
                 onGoingRestores.put(sessionUUID, restore);
-                openSessionListeners.forEach(c -> c.accept(sessionUUID));
                 HashSet<String> sessions = sessionsForShard.computeIfAbsent(indexShard, (s) -> new HashSet<>());
                 sessions.add(sessionUUID);
             }
@@ -133,25 +130,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
     }
 
     public void closeSession(String sessionUUID) {
-        final RestoreSession restore;
-        synchronized (this) {
-            closeSessionListeners.forEach(c -> c.accept(sessionUUID));
-            restore = onGoingRestores.remove(sessionUUID);
-            if (restore == null) {
-                logger.debug("could not close session [{}] because session not found", sessionUUID);
-                throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
-            }
-            HashSet<String> sessions = sessionsForShard.get(restore.indexShard);
-            assert sessions != null : "No session UUIDs for shard even though one [" + sessionUUID + "] is active in ongoing restores";
-            if (sessions != null) {
-                boolean removed = sessions.remove(sessionUUID);
-                assert removed : "No session found for UUID [" + sessionUUID +"]";
-                if (sessions.isEmpty()) {
-                    sessionsForShard.remove(restore.indexShard);
-                }
-            }
-        }
-        restore.decRef();
+        internalCloseSession(sessionUUID, true);
     }
 
     public synchronized SessionReader getSessionReader(String sessionUUID) {
@@ -160,7 +139,55 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             logger.debug("could not get session [{}] because session not found", sessionUUID);
             throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
         }
-        return new SessionReader(restore);
+        restore.idle = false;
+        return new SessionReader(restore, ccrSettings, throttleTime::inc);
+    }
+
+    private void internalCloseSession(String sessionUUID, boolean throwIfSessionMissing) {
+        final RestoreSession restore;
+        synchronized (this) {
+            restore = onGoingRestores.remove(sessionUUID);
+            if (restore == null) {
+                if (throwIfSessionMissing) {
+                    logger.debug("could not close session [{}] because session not found", sessionUUID);
+                    throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
+                } else {
+                    return;
+                }
+            }
+            HashSet<String> sessions = sessionsForShard.get(restore.indexShard);
+            assert sessions != null : "No session UUIDs for shard even though one [" + sessionUUID + "] is active in ongoing restores";
+            if (sessions != null) {
+                boolean removed = sessions.remove(sessionUUID);
+                assert removed : "No session found for UUID [" + sessionUUID + "]";
+                if (sessions.isEmpty()) {
+                    sessionsForShard.remove(restore.indexShard);
+                }
+            }
+        }
+        closeSessionListeners.forEach(c -> c.accept(sessionUUID));
+        restore.decRef();
+
+    }
+
+    private Scheduler.Cancellable scheduleTimeout(String sessionUUID) {
+        TimeValue idleTimeout = ccrSettings.getRecoveryActivityTimeout();
+        return threadPool.scheduleWithFixedDelay(() -> maybeTimeout(sessionUUID), idleTimeout, ThreadPool.Names.GENERIC);
+    }
+
+    private void maybeTimeout(String sessionUUID) {
+        RestoreSession restoreSession = onGoingRestores.get(sessionUUID);
+        if (restoreSession != null) {
+            if (restoreSession.idle) {
+                internalCloseSession(sessionUUID, false);
+            } else {
+                restoreSession.idle = true;
+            }
+        }
+    }
+
+    public long getThrottleTime() {
+        return this.throttleTime.count();
     }
 
     private static class RestoreSession extends AbstractRefCounted {
@@ -168,14 +195,18 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         private final String sessionUUID;
         private final IndexShard indexShard;
         private final Engine.IndexCommitRef commitRef;
+        private final Scheduler.Cancellable timeoutTask;
         private final KeyedLock<String> keyedLock = new KeyedLock<>();
         private final Map<String, IndexInput> cachedInputs = new ConcurrentHashMap<>();
+        private volatile boolean idle = false;
 
-        private RestoreSession(String sessionUUID, IndexShard indexShard, Engine.IndexCommitRef commitRef) {
+        private RestoreSession(String sessionUUID, IndexShard indexShard, Engine.IndexCommitRef commitRef,
+                               Scheduler.Cancellable timeoutTask) {
             super("restore-session");
             this.sessionUUID = sessionUUID;
             this.indexShard = indexShard;
             this.commitRef = commitRef;
+            this.timeoutTask = timeoutTask;
         }
 
         private Store.MetadataSnapshot getMetaData() throws IOException {
@@ -223,6 +254,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         protected void closeInternal() {
             logger.debug("closing session [{}] for shard [{}]", sessionUUID, indexShard.shardId());
             assert keyedLock.hasLockedKeys() == false : "Should not hold any file locks when closing";
+            timeoutTask.cancel();
             IOUtils.closeWhileHandlingException(cachedInputs.values());
         }
     }
@@ -230,9 +262,13 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
     public static class SessionReader implements Closeable {
 
         private final RestoreSession restoreSession;
+        private final CcrSettings ccrSettings;
+        private final LongConsumer throttleListener;
 
-        private SessionReader(RestoreSession restoreSession) {
+        private SessionReader(RestoreSession restoreSession, CcrSettings ccrSettings, LongConsumer throttleListener) {
             this.restoreSession = restoreSession;
+            this.ccrSettings = ccrSettings;
+            this.throttleListener = throttleListener;
             restoreSession.incRef();
         }
 
@@ -246,6 +282,9 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
          * @throws IOException if the read fails
          */
         public long readFileBytes(String fileName, BytesReference reference) throws IOException {
+            CombinedRateLimiter rateLimiter = ccrSettings.getRateLimiter();
+            long throttleTime = rateLimiter.maybePause(reference.length());
+            throttleListener.accept(throttleTime);
             return restoreSession.readFileBytes(fileName, reference);
         }
 

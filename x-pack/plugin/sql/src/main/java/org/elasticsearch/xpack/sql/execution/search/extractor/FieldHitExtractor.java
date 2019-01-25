@@ -130,11 +130,11 @@ public class FieldHitExtractor implements HitExtractor {
         }
         if (dataType == DataType.DATETIME) {
             if (values instanceof String) {
-                return DateUtils.of(Long.parseLong(values.toString()));
+                return DateUtils.asDateTime(Long.parseLong(values.toString()));
             }
             // returned by nested types...
             if (values instanceof DateTime) {
-                return DateUtils.of((DateTime) values);
+                return DateUtils.asDateTime((DateTime) values);
             }
         }
         if (values instanceof Long || values instanceof Double || values instanceof String || values instanceof Boolean) {
@@ -166,8 +166,14 @@ public class FieldHitExtractor implements HitExtractor {
                 sj.add(path[i]);
                 Object node = subMap.get(sj.toString());
                 if (node instanceof Map) {
-                    // Add the sub-map to the queue along with the current path index
-                    queue.add(new Tuple<>(i, (Map<String, Object>) node));
+                    if (i < path.length - 1) {
+                        // Add the sub-map to the queue along with the current path index
+                        queue.add(new Tuple<>(i, (Map<String, Object>) node));
+                    } else {
+                        // We exhausted the path and got a map
+                        // If it is an object - it will be handled in the value extractor
+                        value = node;
+                    }
                 } else if (node != null) {
                     if (i < path.length - 1) {
                         // If we reach a concrete value without exhausting the full path, something is wrong with the mapping

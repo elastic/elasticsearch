@@ -66,6 +66,7 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
@@ -116,6 +117,24 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
 
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().get();
         assertThat(clusterStateResponse.getState().metaData().indices().size(), is(0));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37820")
+    public void testMetadataVersion() {
+        createIndex("index-1");
+        createIndex("index-2");
+        long metadataVersion = client().admin().cluster().prepareState().get().getState().metaData().version();
+        assertThat(metadataVersion, greaterThan(0L));
+        assertThat(client().admin().cluster().prepareState().setIndices("index-1").get().getState().metaData().version(),
+            equalTo(metadataVersion));
+        assertThat(client().admin().cluster().prepareState().setIndices("index-2").get().getState().metaData().version(),
+            equalTo(metadataVersion));
+        assertThat(client().admin().cluster().prepareState().setIndices("*").get().getState().metaData().version(),
+            equalTo(metadataVersion));
+        assertThat(client().admin().cluster().prepareState().setIndices("not-found").get().getState().metaData().version(),
+            equalTo(metadataVersion));
+        assertThat(client().admin().cluster().prepareState().clear().setMetaData(false).get().getState().metaData().version(),
+            equalTo(0L));
     }
 
     public void testIndexTemplates() throws Exception {

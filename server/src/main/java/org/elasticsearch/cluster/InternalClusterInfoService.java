@@ -140,9 +140,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
                 threadPool.executor(executorName()).execute(() -> maybeRefresh());
             }
         } catch (EsRejectedExecutionException ex) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Couldn't schedule cluster info update task - node might be shutting down", ex);
-            }
+            logger.debug("Couldn't schedule cluster info update task - node might be shutting down", ex);
         }
     }
 

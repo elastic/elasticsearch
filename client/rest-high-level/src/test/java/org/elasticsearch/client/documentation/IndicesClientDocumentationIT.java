@@ -32,8 +32,6 @@ import org.elasticsearch.action.admin.indices.analyze.DetailAnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -70,6 +68,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.SyncedFlushResponse;
 import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
+import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
@@ -132,7 +132,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         RestHighLevelClient client = highLevelClient();
 
         {
-            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"), RequestOptions.DEFAULT);
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"),
+                RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
         }
 
@@ -296,13 +297,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             {
                 // tag::create-index-request-mappings
-                request.mapping("_doc", // <1>
+                request.mapping(// <1>
                         "{\n" +
-                        "  \"_doc\": {\n" +
-                        "    \"properties\": {\n" +
-                        "      \"message\": {\n" +
-                        "        \"type\": \"text\"\n" +
-                        "      }\n" +
+                        "  \"properties\": {\n" +
+                        "    \"message\": {\n" +
+                        "      \"type\": \"text\"\n" +
                         "    }\n" +
                         "  }\n" +
                         "}", // <2>
@@ -323,7 +322,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 Map<String, Object> mapping = new HashMap<>();
                 mapping.put("properties", properties);
                 jsonMap.put("_doc", mapping);
-                request.mapping("_doc", jsonMap); // <1>
+                request.mapping(jsonMap); // <1>
                 //end::create-index-mappings-map
                 CreateIndexResponse createIndexResponse = client.indices().create(request, RequestOptions.DEFAULT);
                 assertTrue(createIndexResponse.isAcknowledged());
@@ -349,16 +348,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     builder.endObject();
                 }
                 builder.endObject();
-                request.mapping("_doc", builder); // <1>
+                request.mapping(builder); // <1>
                 //end::create-index-mappings-xcontent
-                CreateIndexResponse createIndexResponse = client.indices().create(request, RequestOptions.DEFAULT);
-                assertTrue(createIndexResponse.isAcknowledged());
-            }
-            {
-                request = new CreateIndexRequest("twitter4");
-                //tag::create-index-mappings-shortcut
-                request.mapping("_doc", "message", "type=text"); // <1>
-                //end::create-index-mappings-shortcut
                 CreateIndexResponse createIndexResponse = client.indices().create(request, RequestOptions.DEFAULT);
                 assertTrue(createIndexResponse.isAcknowledged());
             }
@@ -369,15 +360,13 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::create-index-request-aliases
 
             // tag::create-index-request-timeout
-            request.timeout(TimeValue.timeValueMinutes(2)); // <1>
-            request.timeout("2m"); // <2>
+            request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
             // end::create-index-request-timeout
             // tag::create-index-request-masterTimeout
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-            request.masterNodeTimeout("1m"); // <2>
+            request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
             // end::create-index-request-masterTimeout
             // tag::create-index-request-waitForActiveShards
-            request.waitForActiveShards(2); // <1>
+            request.waitForActiveShards(ActiveShardCount.from(2)); // <1>
             request.waitForActiveShards(ActiveShardCount.DEFAULT); // <2>
             // end::create-index-request-waitForActiveShards
             {
@@ -1116,7 +1105,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             Settings settings = Settings.builder().put("number_of_shards", 3).build();
             CreateIndexResponse createIndexResponse = client.indices().create(
-                    new CreateIndexRequest("index", settings), RequestOptions.DEFAULT);
+                new CreateIndexRequest("index").settings(settings), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
         }
 
@@ -1180,7 +1169,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             Settings settings = Settings.builder().put("number_of_shards", 3).build();
             CreateIndexResponse createIndexResponse = client.indices().create(
-                    new CreateIndexRequest("index", settings), RequestOptions.DEFAULT);
+                new CreateIndexRequest("index").settings(settings), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
         }
 
@@ -1231,9 +1220,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             Settings settings = Settings.builder().put("number_of_shards", 3).build();
             String mappings = "{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}";
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("index")
+                .settings(settings)
+                .mapping(mappings, XContentType.JSON);
             CreateIndexResponse createIndexResponse = client.indices().create(
-                new CreateIndexRequest("index", settings).mapping("_doc", mappings, XContentType.JSON),
-                RequestOptions.DEFAULT);
+                createIndexRequest, RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
         }
 

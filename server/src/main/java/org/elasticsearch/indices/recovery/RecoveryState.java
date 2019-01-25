@@ -115,19 +115,6 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
     private DiscoveryNode targetNode;
     private boolean primary;
 
-    public RecoveryState(StreamInput in) throws IOException {
-        timer = new Timer(in);
-        stage = Stage.fromId(in.readByte());
-        shardId = ShardId.readShardId(in);
-        recoverySource = RecoverySource.readFrom(in);
-        targetNode = new DiscoveryNode(in);
-        sourceNode = in.readOptionalWriteable(DiscoveryNode::new);
-        index = new Index(in);
-        translog = new Translog(in);
-        verifyIndex = new VerifyIndex(in);
-        primary = in.readBoolean();
-    }
-
     public RecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode) {
         assert shardRouting.initializing() : "only allow initializing shard routing to be recovered: " + shardRouting;
         RecoverySource recoverySource = shardRouting.recoverySource();
@@ -144,6 +131,19 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
         verifyIndex = new VerifyIndex();
         timer = new Timer();
         timer.start();
+    }
+
+    public RecoveryState(StreamInput in) throws IOException {
+        timer = new Timer(in);
+        stage = Stage.fromId(in.readByte());
+        shardId = ShardId.readShardId(in);
+        recoverySource = RecoverySource.readFrom(in);
+        targetNode = new DiscoveryNode(in);
+        sourceNode = in.readOptionalWriteable(DiscoveryNode::new);
+        index = new Index(in);
+        translog = new Translog(in);
+        verifyIndex = new VerifyIndex(in);
+        primary = in.readBoolean();
     }
 
     @Override

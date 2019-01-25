@@ -125,6 +125,7 @@ public class RetentionLeaseSyncAction extends
     protected WritePrimaryResult<Request, Response> shardOperationOnPrimary(final Request request, final IndexShard primary) {
         Objects.requireNonNull(request);
         Objects.requireNonNull(primary);
+        // we flush to ensure that retention leases are committed
         flush(primary);
         return new WritePrimaryResult<>(request, new Response(), null, null, primary, logger);
     }
@@ -142,6 +143,7 @@ public class RetentionLeaseSyncAction extends
         final FlushRequest flushRequest = new FlushRequest();
         flushRequest.force(true);
         flushRequest.waitIfOngoing(true);
+        // we flush to ensure that retention leases are committed
         indexShard.flush(flushRequest);
     }
 

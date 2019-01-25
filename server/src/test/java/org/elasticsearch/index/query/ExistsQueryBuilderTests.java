@@ -55,8 +55,6 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
         if (randomBoolean()) {
             if (randomBoolean()) {
                 fieldPattern = fieldPattern + "*";
-            } else {
-                fieldPattern = MetaData.ALL;
             }
         }
         return new ExistsQueryBuilder(fieldPattern);

@@ -195,7 +195,6 @@ if (useFixture) {
   }
 
   integTestMinioRunner.dependsOn(postProcessFixture)
-  integTestMinioRunner.finalizedBy(composeDown)
   // Minio only supports a single access key, see https://github.com/minio/minio/pull/5968
   integTestMinioRunner.systemProperty 'tests.rest.blacklist', [
           'repository_s3/30_repository_temporary_credentials/*',

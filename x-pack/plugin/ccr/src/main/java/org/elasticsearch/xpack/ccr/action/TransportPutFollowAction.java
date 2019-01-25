@@ -157,11 +157,11 @@ public final class TransportPutFollowAction
             }
         };
 
-        Settings.Builder settingsBuilder = Settings.builder()
+        final Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowRequest().getFollowerIndex())
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        String leaderClusterRepoName = CcrRepository.NAME_PREFIX + request.getRemoteCluster();
-        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
+        final String leaderClusterRepoName = CcrRepository.NAME_PREFIX + request.getRemoteCluster();
+        final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
             .indices(request.getLeaderIndex()).indicesOptions(request.indicesOptions()).renamePattern("^(.*)$")
             .renameReplacement(request.getFollowRequest().getFollowerIndex()).masterNodeTimeout(request.masterNodeTimeout())
             .indexSettings(settingsBuilder);

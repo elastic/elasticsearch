@@ -94,7 +94,6 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
      */
     public NestedQueryBuilder(StreamInput in) throws IOException {
         super(in);
-
         path = in.readString();
         scoreMode = ScoreMode.values()[in.readVInt()];
         query = in.readNamedWriteable(QueryBuilder.class);

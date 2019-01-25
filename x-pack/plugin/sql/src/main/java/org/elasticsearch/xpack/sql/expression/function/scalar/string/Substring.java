@@ -45,17 +45,17 @@ public class Substring extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = Expressions.typeMustBeString(source, functionName(), ParamOrdinal.FIRST);
+        TypeResolution sourceResolution = Expressions.typeMustBeString(source, sourceText(), ParamOrdinal.FIRST);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
 
-        TypeResolution startResolution = Expressions.typeMustBeNumeric(start, functionName(), ParamOrdinal.SECOND);
+        TypeResolution startResolution = Expressions.typeMustBeNumeric(start, sourceText(), ParamOrdinal.SECOND);
         if (startResolution.unresolved()) {
             return startResolution;
         }
 
-        return Expressions.typeMustBeNumeric(length, functionName(), ParamOrdinal.THIRD);
+        return Expressions.typeMustBeNumeric(length, sourceText(), ParamOrdinal.THIRD);
     }
 
     @Override

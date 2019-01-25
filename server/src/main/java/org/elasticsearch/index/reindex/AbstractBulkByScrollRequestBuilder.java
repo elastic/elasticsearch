@@ -75,7 +75,7 @@ public abstract class AbstractBulkByScrollRequestBuilder<
     }
 
     /**
-     * Should we version conflicts cause the action to abort?
+     * Set whether or not version conflicts cause the action to abort.
      */
     public Self abortOnVersionConflict(boolean abortOnVersionConflict) {
         request.setAbortOnVersionConflict(abortOnVersionConflict);

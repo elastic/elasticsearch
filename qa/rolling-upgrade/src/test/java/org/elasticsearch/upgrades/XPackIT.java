@@ -30,13 +30,13 @@ import static org.junit.Assume.assumeThat;
 
 /**
  * Basic tests for simple xpack functionality that are only run if the
- * cluster is the on the "zip" distribution.
+ * cluster is the on the default distribution.
  */
 public class XPackIT extends AbstractRollingTestCase {
     @Before
     public void skipIfNotXPack() {
         assumeThat("test is only supported if the distribution contains xpack",
-                System.getProperty("tests.distribution"), equalTo("zip"));
+                System.getProperty("tests.distribution"), equalTo("default"));
         assumeThat("running this on the unupgraded cluster would change its state and it wouldn't work prior to 6.3 anyway",
                 CLUSTER_TYPE, equalTo(ClusterType.UPGRADED));
         /*

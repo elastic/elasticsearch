@@ -65,6 +65,7 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
                     }
                     break;
                 case PLAIN:
+                case CLI:
                     if (licenseState.isSqlAllowed() == false) {
                         throw LicenseUtils.newComplianceException(XPackField.SQL);
                     }

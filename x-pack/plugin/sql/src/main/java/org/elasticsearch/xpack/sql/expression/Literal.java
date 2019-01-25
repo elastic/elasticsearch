@@ -36,7 +36,7 @@ public class Literal extends NamedExpression {
     }
 
     public Literal(Source source, String name, Object value, DataType dataType) {
-        super(source, name == null ? String.valueOf(value) : name, emptyList(), null);
+        super(source, name == null ? source.text() : name, emptyList(), null);
         this.dataType = dataType;
         this.value = DataTypeConversion.convert(value, dataType);
     }

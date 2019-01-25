@@ -1,7 +1,7 @@
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
-  name 'authorization-engine-example'
+  name 'security-authorization-engine'
   description 'An example spi extension plugin for security that implements an Authorization Engine'
   classname 'org.elasticsearch.example.AuthorizationEnginePlugin'
   extendedPlugins = ['x-pack-security']
@@ -9,7 +9,7 @@ esplugin {
 
 dependencies {
   compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
-  testCompile project(path: xpackProject('transport-client').path, configuration: 'runtime')
+  testCompile "org.elasticsearch.client.x-pack-transport:${version}"
 }
 
 

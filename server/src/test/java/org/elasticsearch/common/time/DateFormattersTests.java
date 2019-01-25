@@ -161,6 +161,8 @@ public class DateFormattersTests extends ESTestCase {
         String formattedSeconds = secondsFormatter.format(instant);
         Instant secondsInstant = Instant.from(secondsFormatter.parse(formattedSeconds));
         assertThat(secondsInstant.getEpochSecond(), is(instant.getEpochSecond()));
+
+        assertThat(secondsFormatter.format(Instant.ofEpochSecond(42, 0)), is("42"));
     }
 
     public void testParsingStrictNanoDates() {

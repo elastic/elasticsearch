@@ -30,7 +30,7 @@ import org.elasticsearch.transport.TransportResponse;
 public final class ChannelActionListener<
     Response extends TransportResponse, Request extends TransportRequest> implements ActionListener<Response> {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(ChannelActionListener.class);
     private final TransportChannel channel;
     private final Request request;
     private final String actionName;

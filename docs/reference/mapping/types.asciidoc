@@ -43,9 +43,9 @@ string::        <<text,`text`>> and <<keyword,`keyword`>>
 
 <<alias>>::         Defines an alias to an existing field.
 
-<<feature>>::       Record numeric features to boost hits at query time.
+<<rank-feature>>::  Record numeric feature to boost hits at query time.
 
-<<feature-vector>>:: Record numeric feature vectors to boost hits at query time.
+<<rank-features>>:: Record numeric features to boost hits at query time.
 
 <<dense-vector>>::   Record dense vectors of float values.
 
@@ -101,9 +101,9 @@ include::types/percolator.asciidoc[]
 
 include::types/parent-join.asciidoc[]
 
-include::types/feature.asciidoc[]
+include::types/rank-feature.asciidoc[]
 
-include::types/feature-vector.asciidoc[]
+include::types/rank-features.asciidoc[]
 
 include::types/dense-vector.asciidoc[]
 

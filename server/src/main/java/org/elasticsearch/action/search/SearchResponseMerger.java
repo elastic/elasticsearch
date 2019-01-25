@@ -77,9 +77,9 @@ import static org.elasticsearch.action.search.SearchResponse.Clusters;
 //from the remote clusters in the fetch phase. This would be identical to the removed QueryAndFetch strategy except that only the remote
 //cluster response would have the fetch results.
 final class SearchResponseMerger {
-    private final int from;
-    private final int size;
-    private final int trackTotalHitsUpTo;
+    final int from;
+    final int size;
+    final int trackTotalHitsUpTo;
     private final SearchTimeProvider searchTimeProvider;
     private final Function<Boolean, ReduceContext> reduceContextFunction;
     private final List<SearchResponse> searchResponses = new CopyOnWriteArrayList<>();

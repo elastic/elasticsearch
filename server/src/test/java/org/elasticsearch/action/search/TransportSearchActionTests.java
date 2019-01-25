@@ -40,7 +40,10 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -57,6 +60,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -483,6 +487,61 @@ public class TransportSearchActionTests extends ESTestCase {
             for (MockTransportService mockTransportService : mockTransportServices) {
                 mockTransportService.close();
             }
+        }
+    }
+
+    public void testResolveCCSReduceMode() throws IOException {
+        SearchRequest searchRequest = new SearchRequestTests().createSearchRequest();
+        CCSReduceMode ccsReduceMode = randomFrom(CCSReduceMode.REMOTE, CCSReduceMode.LOCAL);
+        searchRequest.setCCSReduceMode(ccsReduceMode);
+        assertEquals(ccsReduceMode, searchRequest.getCCSReduceMode());
+        assertEquals(ccsReduceMode, TransportSearchAction.resolveCCSReduceMode(searchRequest));
+
+        searchRequest.setCCSReduceMode(CCSReduceMode.AUTO);
+        assertEquals(CCSReduceMode.AUTO, searchRequest.getCCSReduceMode());
+        boolean remoteReduce = searchRequest.scroll() == null && (searchRequest.source() == null
+            || searchRequest.source().collapse() == null || searchRequest.source().collapse().getInnerHits() == null
+            || searchRequest.source().collapse().getInnerHits().isEmpty());
+        assertEquals(remoteReduce ? CCSReduceMode.REMOTE : CCSReduceMode.LOCAL, TransportSearchAction.resolveCCSReduceMode(searchRequest));
+    }
+
+    public void testCreateSearchResponseMerger() {
+        TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
+        Function<Boolean, InternalAggregation.ReduceContext> reduceContext = flag -> null;
+        {
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            assertEquals(-1, source.size());
+            assertEquals(-1, source.from());
+            assertNull(source.trackTotalHitsUpTo());
+            SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(source, timeProvider, reduceContext);
+            assertEquals(0, merger.from);
+            assertEquals(10, merger.size);
+            assertEquals(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO, merger.trackTotalHitsUpTo);
+            assertEquals(0, source.from());
+            assertEquals(10, source.size());
+            assertNull(source.trackTotalHitsUpTo());
+        }
+        {
+            SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(null, timeProvider, reduceContext);
+            assertEquals(0, merger.from);
+            assertEquals(10, merger.size);
+            assertEquals(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO, merger.trackTotalHitsUpTo);
+        }
+        {
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            int originalFrom = randomIntBetween(0, 1000);
+            source.from(originalFrom);
+            int originalSize = randomIntBetween(0, 1000);
+            source.size(originalSize);
+            int trackTotalHitsUpTo = randomIntBetween(0, Integer.MAX_VALUE);
+            source.trackTotalHitsUpTo(trackTotalHitsUpTo);
+            SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(source, timeProvider, reduceContext);
+            assertEquals(0, source.from());
+            assertEquals(originalFrom + originalSize, source.size());
+            assertEquals(trackTotalHitsUpTo, (int)source.trackTotalHitsUpTo());
+            assertEquals(originalFrom, merger.from);
+            assertEquals(originalSize, merger.size);
+            assertEquals(trackTotalHitsUpTo, merger.trackTotalHitsUpTo);
         }
     }
 }

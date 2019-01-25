@@ -47,6 +47,7 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -202,7 +203,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (remoteClusterIndices.isEmpty()) {
                 executeLocalSearch(task, timeProvider, searchRequest, localIndices, clusterState, listener);
             } else {
-                CCSReduceMode ccsReduceMode = searchRequest.getEffectiveCCSReduceMode();
+                CCSReduceMode ccsReduceMode = resolveCCSReduceMode(searchRequest);
                 if (ccsReduceMode == CCSReduceMode.LOCAL) {
                     AtomicInteger skippedClusters = new AtomicInteger(0);
                     collectSearchShards(searchRequest.indicesOptions(), searchRequest.preference(), searchRequest.routing(),
@@ -223,27 +224,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             },
                             listener::onFailure));
                 } else {
-                    //TODO make this a method and test it?
-                    final int from;
-                    final int size;
-                    final int trackTotalHitsUpTo;
-                    if (source == null) {
-                        from = SearchService.DEFAULT_FROM;
-                        size = SearchService.DEFAULT_SIZE;
-                        trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
-                    } else {
-                        from = source.from() == -1 ? SearchService.DEFAULT_FROM : source.from();
-                        size = source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size();
-                        trackTotalHitsUpTo = source.trackTotalHitsUpTo();
-                        //here we modify the original source so we can re-use it by setting it to each outgoing search request
-                        source.from(0);
-                        source.size(from + size);
-                        //TODO when searching only against a remote cluster, we could ask directly for the final number of results and let
-                        //the remote cluster do a final reduction, yet that is not possible as we are providing a localClusterAlias which
-                        //will automatically make the reduction non final
-                    }
-                    SearchResponseMerger searchResponseMerger = new SearchResponseMerger(from, size, trackTotalHitsUpTo,
-                        timeProvider, searchService::createReduceContext);
+                    SearchResponseMerger searchResponseMerger = createSearchResponseMerger(source, timeProvider, searchService::createReduceContext);
                     AtomicInteger skippedClusters = new AtomicInteger(0);
                     final AtomicReference<Exception> exceptions = new AtomicReference<>();
                     int totalClusters = remoteClusterIndices.size() + (localIndices == null ? 0 : 1);
@@ -266,6 +247,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, timeProvider.getAbsoluteStartMillis());
                         executeLocalSearch(task, timeProvider, ccsLocalSearchRequest, localIndices, clusterState, ccsListener);
                     }
+
                 }
             }
         }, listener::onFailure);
@@ -275,6 +257,40 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             Rewriteable.rewriteAndFetch(searchRequest.source(), searchService.getRewriteContext(timeProvider::getAbsoluteStartMillis),
                 rewriteListener);
         }
+    }
+
+    static CCSReduceMode resolveCCSReduceMode(SearchRequest searchRequest) {
+        if (searchRequest.getCCSReduceMode() == CCSReduceMode.AUTO) {
+            SearchSourceBuilder source = searchRequest.source();
+            boolean collapseWithInnerHits = source != null && source.collapse() != null && source.collapse().getInnerHits() != null
+                && source.collapse().getInnerHits().isEmpty() == false;
+            return collapseWithInnerHits || searchRequest.scroll() != null ? CCSReduceMode.LOCAL : CCSReduceMode.REMOTE;
+        }
+        return searchRequest.getCCSReduceMode();
+    }
+
+    static SearchResponseMerger createSearchResponseMerger(SearchSourceBuilder source, SearchTimeProvider timeProvider,
+                                                           Function<Boolean, InternalAggregation.ReduceContext> reduceContextFunction) {
+        final int from;
+        final int size;
+        final int trackTotalHitsUpTo;
+        if (source == null) {
+            from = SearchService.DEFAULT_FROM;
+            size = SearchService.DEFAULT_SIZE;
+            trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
+        } else {
+            from = source.from() == -1 ? SearchService.DEFAULT_FROM : source.from();
+            size = source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size();
+            trackTotalHitsUpTo = source.trackTotalHitsUpTo() == null
+                ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : source.trackTotalHitsUpTo();
+            //here we modify the original source so we can re-use it by setting it to each outgoing search request
+            source.from(0);
+            source.size(from + size);
+            //TODO when searching only against a remote cluster, we could ask directly for the final number of results and let
+            //the remote cluster do a final reduction, yet that is not possible as we are providing a localClusterAlias which
+            //will automatically make the reduction non final
+        }
+        return new SearchResponseMerger(from, size, trackTotalHitsUpTo, timeProvider, reduceContextFunction);
     }
 
     static void collectSearchShards(IndicesOptions indicesOptions, String preference, String routing, AtomicInteger skippedClusters,
@@ -294,12 +310,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 new CCSActionListener<ClusterSearchShardsResponse, Map<String, ClusterSearchShardsResponse>>(
                     clusterAlias, skipUnavailable, responsesCountDown, skippedClusters, exceptions, listener) {
                     @Override
-                    void cumulateResponse(ClusterSearchShardsResponse clusterSearchShardsResponse) {
+                    void innerOnResponse(ClusterSearchShardsResponse clusterSearchShardsResponse) {
                         searchShardsResponses.put(clusterAlias, clusterSearchShardsResponse);
                     }
 
                     @Override
-                    Map<String, ClusterSearchShardsResponse> getFinalResponse() {
+                    Map<String, ClusterSearchShardsResponse> createFinalResponse() {
                         return searchShardsResponses;
                     }
                 }
@@ -307,19 +323,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
-    private ActionListener<SearchResponse> createCCSListener(String clusterAlias, boolean skipUnavailable, CountDown countDown,
+    private static ActionListener<SearchResponse> createCCSListener(String clusterAlias, boolean skipUnavailable, CountDown countDown,
                                                              AtomicInteger skippedClusters, AtomicReference<Exception> exceptions,
                                                              SearchResponseMerger searchResponseMerger, int totalClusters,
                                                              ActionListener<SearchResponse> originalListener) {
         return new CCSActionListener<SearchResponse, SearchResponse>(clusterAlias, skipUnavailable, countDown, skippedClusters,
             exceptions, originalListener) {
             @Override
-            void cumulateResponse(SearchResponse searchResponse) {
+            void innerOnResponse(SearchResponse searchResponse) {
                 searchResponseMerger.add(searchResponse);
             }
 
             @Override
-            SearchResponse getFinalResponse() {
+            SearchResponse createFinalResponse() {
                 SearchResponse.Clusters clusters = new SearchResponse.Clusters(totalClusters, searchResponseMerger.numResponses(),
                     skippedClusters.get(), CCSReduceMode.REMOTE);
                 return searchResponseMerger.getMergedResponse(clusters);
@@ -565,11 +581,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         @Override
         public final void onResponse(Response response) {
-            cumulateResponse(response);
+            innerOnResponse(response);
             maybeFinish();
         }
 
-        abstract void cumulateResponse(Response response);
+        abstract void innerOnResponse(Response response);
 
         @Override
         public final void onFailure(Exception e) {
@@ -596,7 +612,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 if (exception == null) {
                     FinalResponse response;
                     try {
-                        response = getFinalResponse();
+                        response = createFinalResponse();
                     } catch(Exception e) {
                         originalListener.onFailure(e);
                         return;
@@ -608,6 +624,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }
 
-        abstract FinalResponse getFinalResponse();
+        abstract FinalResponse createFinalResponse();
     }
 }

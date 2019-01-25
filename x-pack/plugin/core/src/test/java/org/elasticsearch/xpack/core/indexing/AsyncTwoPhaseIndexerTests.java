@@ -63,7 +63,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             try {
                 latch.await();
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                throw new RuntimeException(e);
             }
         }
 

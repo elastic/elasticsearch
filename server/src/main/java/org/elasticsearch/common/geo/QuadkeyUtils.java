@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import static org.elasticsearch.common.geo.GeoUtils.normalizeLat;
 import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
@@ -188,6 +189,7 @@ public class QuadkeyUtils {
             final double lon = ((xTile + 0.5) / tiles * 360.0) - 180;
             return new GeoPoint(lat, lon);
         }
-        throw new IllegalArgumentException(String.format("Invalid quadkey z/x/y values of %s/%s/%s", zoom, xTile, yTile));
+        throw new IllegalArgumentException(
+            String.format(Locale.ROOT, "Invalid quadkey z/x/y values of %s/%s/%s", zoom, xTile, yTile));
     }
 }

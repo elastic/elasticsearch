@@ -45,8 +45,9 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
         CustomAuthorizationEngine engine = new CustomAuthorizationEngine();
         // unauthorized
         {
-            Authentication authentication = new Authentication(new User("joe", new String[]{"not_superuser"}, new User("bar")),
-                new RealmRef("test", "test", "node"), new RealmRef("test", "test", "node"));
+            Authentication authentication =
+                new Authentication(new User("joe", new String[]{"custom_superuser"}, new User("bar", "not_superuser")),
+                    new RealmRef("test", "test", "node"), new RealmRef("test", "test", "node"));
             RequestInfo info = new RequestInfo(authentication, request, action);
             PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
             engine.resolveAuthorizationInfo(info, future);
@@ -61,8 +62,9 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
 
         // authorized
         {
-            Authentication authentication = new Authentication(new User("joe", new String[]{"custom_superuser"}, new User("bar")),
-                new RealmRef("test", "test", "node"), new RealmRef("test", "test", "node"));
+            Authentication authentication =
+                new Authentication(new User("joe", new String[]{"not_superuser"}, new User("bar", "custom_superuser")),
+                    new RealmRef("test", "test", "node"), new RealmRef("test", "test", "node"));
             RequestInfo info = new RequestInfo(authentication, request, action);
             PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
             engine.resolveAuthorizationInfo(info, future);

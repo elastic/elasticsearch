@@ -44,7 +44,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
 
     @Override
     public void authorizeRunAs(RequestInfo requestInfo, AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener) {
-        if (isSuperuser(requestInfo.getAuthentication().getUser())) {
+        if (isSuperuser(requestInfo.getAuthentication().getUser().authenticatedUser())) {
             listener.onResponse(AuthorizationResult.granted());
         } else {
             listener.onResponse(AuthorizationResult.deny());

@@ -31,6 +31,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
@@ -106,7 +107,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(nextMasterEligibleNodeName));
     }
 
-    public void testElectOnlyBetweenMasterNodes() throws IOException, ExecutionException, InterruptedException {
+    public void testElectOnlyBetweenMasterNodes() throws Exception {
         logger.info("--> start data node / non master node");
         internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), true)
             .put(Node.NODE_MASTER_SETTING.getKey(), false).put("discovery.initial_state_timeout", "1s"));
@@ -138,7 +139,14 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         logger.info("--> closing master node (1)");
         client().execute(AddVotingConfigExclusionsAction.INSTANCE,
                 new AddVotingConfigExclusionsRequest(new String[]{masterNodeName})).get();
-        internalCluster().stopCurrentMasterNode();
+        // removing the master from the voting configuration immediately triggers the master to step down
+        assertBusy(() -> {
+            assertThat(internalCluster().nonMasterClient().admin().cluster().prepareState()
+                .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(nextMasterEligableNodeName));
+            assertThat(internalCluster().masterClient().admin().cluster().prepareState()
+                .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(nextMasterEligableNodeName));
+        });
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodeName));
         assertThat(internalCluster().nonMasterClient().admin().cluster().prepareState()
             .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(nextMasterEligableNodeName));
         assertThat(internalCluster().masterClient().admin().cluster().prepareState()

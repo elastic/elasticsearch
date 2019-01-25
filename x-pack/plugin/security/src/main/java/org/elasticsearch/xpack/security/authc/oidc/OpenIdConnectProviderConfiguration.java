@@ -9,7 +9,6 @@ import com.nimbusds.oauth2.sdk.id.Issuer;
 import org.elasticsearch.common.Nullable;
 
 import java.net.URI;
-import java.net.URL;
 import java.util.Objects;
 
 /**
@@ -21,16 +20,16 @@ public class OpenIdConnectProviderConfiguration {
     private final URI tokenEndpoint;
     private final URI userinfoEndpoint;
     private final Issuer issuer;
-    private final URL jwkSetUrl;
+    private final String jwkSetPath;
 
-    public OpenIdConnectProviderConfiguration(String providerName, Issuer issuer, URL jwkSetUrl, URI authorizationEndpoint,
+    public OpenIdConnectProviderConfiguration(String providerName, Issuer issuer, String jwkSetPath, URI authorizationEndpoint,
                                               URI tokenEndpoint, @Nullable URI userinfoEndpoint) {
         this.providerName = Objects.requireNonNull(providerName, "OP Name must be provided");
         this.authorizationEndpoint = Objects.requireNonNull(authorizationEndpoint, "Authorization Endpoint must be provided");
         this.tokenEndpoint = Objects.requireNonNull(tokenEndpoint, "Token Endpoint must be provided");
         this.userinfoEndpoint = userinfoEndpoint;
         this.issuer = Objects.requireNonNull(issuer, "OP Issuer must be provided");
-        this.jwkSetUrl = Objects.requireNonNull(jwkSetUrl, "jwkSetUrl must be provided");
+        this.jwkSetPath = Objects.requireNonNull(jwkSetPath, "jwkSetUrl must be provided");
     }
 
     public String getProviderName() {
@@ -53,7 +52,7 @@ public class OpenIdConnectProviderConfiguration {
         return issuer;
     }
 
-    public URL getJwkSetUrl() {
-        return jwkSetUrl;
+    public String getJwkSetPath() {
+        return jwkSetPath;
     }
 }

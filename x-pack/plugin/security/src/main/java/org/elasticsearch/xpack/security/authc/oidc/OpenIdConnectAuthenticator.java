@@ -6,11 +6,13 @@
 package org.elasticsearch.xpack.security.authc.oidc;
 
 import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.util.DefaultResourceRetriever;
 import com.nimbusds.jose.util.IOUtils;
 import com.nimbusds.jose.util.Resource;
 import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.oauth2.sdk.AbstractRequest;
 import com.nimbusds.oauth2.sdk.AuthorizationCode;
 import com.nimbusds.oauth2.sdk.AuthorizationCodeGrant;
 import com.nimbusds.oauth2.sdk.AuthorizationGrant;
@@ -43,6 +45,7 @@ import com.nimbusds.openid.connect.sdk.validators.AccessTokenValidator;
 import com.nimbusds.openid.connect.sdk.validators.IDTokenValidator;
 import net.minidev.json.JSONObject;
 import org.apache.http.HttpResponse;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.conn.ssl.DefaultHostnameVerifier;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
@@ -53,6 +56,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -65,9 +69,14 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECT_TIMEOUT;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECTION_READ_TIMEOUT;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_SOCKET_TIMEOUT;
 
 /**
  * Handles an OpenID Connect Authentication response as received by the facilitator. In the case of an implicit flow, validates
@@ -80,15 +89,32 @@ public class OpenIdConnectAuthenticator {
     private final OpenIdConnectProviderConfiguration opConfig;
     private final RelyingPartyConfiguration rpConfig;
     private final SSLService sslService;
+    private final PrivilegedResourceRetriever privilegedResourceResolver;
 
     protected final Logger logger = LogManager.getLogger(getClass());
 
-    OpenIdConnectAuthenticator(RealmConfig realmConfig, OpenIdConnectProviderConfiguration opConfig, RelyingPartyConfiguration rpConfig,
-                               SSLService sslService) {
+    public OpenIdConnectAuthenticator(RealmConfig realmConfig, OpenIdConnectProviderConfiguration opConfig,
+                                      RelyingPartyConfiguration rpConfig,
+                                      SSLService sslService) {
         this.realmConfig = realmConfig;
         this.opConfig = opConfig;
         this.rpConfig = rpConfig;
         this.sslService = sslService;
+        this.privilegedResourceResolver = getPrivilegedResourceRetriever();
+    }
+
+    // For testing
+    OpenIdConnectAuthenticator(RealmConfig realmConfig, OpenIdConnectProviderConfiguration opConfig, RelyingPartyConfiguration rpConfig,
+                               SSLService sslService, PrivilegedResourceRetriever resourceRetriever) {
+        this.realmConfig = realmConfig;
+        this.opConfig = opConfig;
+        this.rpConfig = rpConfig;
+        this.sslService = sslService;
+        this.privilegedResourceResolver = resourceRetriever;
+    }
+
+    OpenIdConnectAuthenticator() {
+        this(null, null, null, null, null);
     }
 
     /**
@@ -125,14 +151,13 @@ public class OpenIdConnectAuthenticator {
                 Tuple<AccessToken, JWT> tokens = exchangeCodeForToken(code);
                 accessToken = tokens.v1();
                 idToken = tokens.v2();
-                validateAccessToken(accessToken, idToken, true);
             } else {
                 idToken = response.getIDToken();
                 accessToken = response.getAccessToken();
-                validateAccessToken(accessToken, idToken, false);
             }
             final JWTClaimsSet idTokenClaims = validateAndParseIdToken(idToken, expectedNonce);
-            if (opConfig.getAuthorizationEndpoint() != null) {
+            if (opConfig.getUserinfoEndpoint() != null) {
+                validateAccessToken(accessToken, idToken, rpConfig.getResponseType().impliesCodeFlow());
                 final JWTClaimsSet userInfoClaims = getUserInfo(accessToken);
                 final JSONObject combinedClaims = idTokenClaims.toJSONObject();
                 combinedClaims.merge(userInfoClaims.toJSONObject());
@@ -164,15 +189,16 @@ public class OpenIdConnectAuthenticator {
     private void validateAccessToken(AccessToken accessToken, JWT idToken, boolean optional) {
         try {
             // only "bearer" is defined in the specification but check just in case
-            if (accessToken.getType().equals("bearer") == false) {
-                logger.debug("Invalid access token type [{}], while [bearer] was expected", accessToken.getType());
-                throw new ElasticsearchSecurityException("Received a response with an invalid state parameter");
+            if (accessToken.getType().toString().equals("Bearer") == false) {
+                logger.debug("Invalid access token type [{}], while [Bearer] was expected", accessToken.getType());
+                throw new ElasticsearchSecurityException("Received a response with an invalid access token type");
             }
-            AccessTokenHash atHash = new AccessTokenHash(idToken.getJWTClaimsSet().getStringClaim("at_hash"));
-            if (null == atHash && optional == false) {
+            String atHashValue = idToken.getJWTClaimsSet().getStringClaim("at_hash");
+            if (null == atHashValue && optional == false) {
                 logger.debug("Failed to verify access token. at_hash claim is missing from the ID Token");
                 throw new ElasticsearchSecurityException("Failed to verify access token");
             }
+            AccessTokenHash atHash = new AccessTokenHash(atHashValue);
             JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(idToken.getHeader().getAlgorithm().getName());
             AccessTokenValidator.validate(accessToken, jwsAlgorithm, atHash);
         } catch (Exception e) {
@@ -189,6 +215,7 @@ public class OpenIdConnectAuthenticator {
      *                      session with the facilitator
      * @return a {@link JWTClaimsSet} with the OP claims that were contained in the Id Token
      */
+    @SuppressForbidden(reason = "uses toFile")
     private JWTClaimsSet validateAndParseIdToken(JWT idToken, Nonce expectedNonce) {
         Secret clientSecret = null;
         try {
@@ -198,8 +225,16 @@ public class OpenIdConnectAuthenticator {
                 clientSecret = new Secret(rpConfig.getClientSecret().toString());
                 validator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(), requestedAlgorithm, clientSecret);
             } else {
-                validator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(), requestedAlgorithm,
-                    opConfig.getJwkSetUrl(), getPrivilegedResourceRetriever());
+                String jwkSetPath = opConfig.getJwkSetPath();
+                if (jwkSetPath.startsWith("https://")) {
+                    validator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(), requestedAlgorithm,
+                        new URL(jwkSetPath), privilegedResourceResolver);
+                } else {
+                    final Path path = realmConfig.env().configFile().resolve(jwkSetPath);
+                    final JWKSet jwkSet = JWKSet.load(path.toFile());
+                    validator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(), requestedAlgorithm, jwkSet);
+                }
+
             }
             JWTClaimsSet verifiedIdTokenClaims = validator.validate(idToken, expectedNonce).toJWTClaimsSet();
             if (logger.isTraceEnabled()) {
@@ -209,7 +244,7 @@ public class OpenIdConnectAuthenticator {
 
         } catch (Exception e) {
             logger.debug("Failed to parse or validate the ID Token. ", e);
-            throw new ElasticsearchSecurityException("Failed to parse or validate the ID Token");
+            throw new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e);
         } finally {
             if (null != clientSecret) {
                 clientSecret.erase();
@@ -250,18 +285,27 @@ public class OpenIdConnectAuthenticator {
     }
 
     /**
-     * Makes a {@link HTTPRequest} using the appropriate TLS configuration and returns the associated {@link HTTPResponse}
+     * Wraps sending an {@link HTTPRequest} with the appropriate permissions and returns the associated {@link HTTPResponse}
      */
     private HTTPResponse getResponse(HTTPRequest httpRequest) throws PrivilegedActionException {
+        SpecialPermission.check();
+        return AccessController.doPrivileged((PrivilegedExceptionAction<HTTPResponse>) httpRequest::send);
+    }
+
+    /**
+     * Converts an {@link AbstractRequest} to a {@link HTTPRequest} setting the necessary TLS configuration and timeout parameters
+     */
+    private HTTPRequest buildRequest(AbstractRequest request) {
         final String sslKey = RealmSettings.realmSslPrefix(realmConfig.identifier());
         final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
         boolean isHostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
         final HostnameVerifier verifier = isHostnameVerificationEnabled ? new DefaultHostnameVerifier() : NoopHostnameVerifier.INSTANCE;
+        final HTTPRequest httpRequest = request.toHTTPRequest();
         httpRequest.setSSLSocketFactory(sslService.sslSocketFactory(sslConfiguration));
         httpRequest.setHostnameVerifier(verifier);
-
-        SpecialPermission.check();
-        return AccessController.doPrivileged((PrivilegedExceptionAction<HTTPResponse>) httpRequest::send);
+        httpRequest.setConnectTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECT_TIMEOUT).getMillis()));
+        httpRequest.setReadTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECTION_READ_TIMEOUT).getSeconds()));
+        return httpRequest;
     }
 
     /**
@@ -277,8 +321,8 @@ public class OpenIdConnectAuthenticator {
             clientSecret = new Secret(rpConfig.getClientSecret().toString());
             final ClientAuthentication clientAuth = new ClientSecretBasic(rpConfig.getClientId(), clientSecret);
             final AuthorizationGrant codeGrant = new AuthorizationCodeGrant(code, rpConfig.getRedirectUri());
-            final TokenRequest request = new TokenRequest(opConfig.getTokenEndpoint(), clientAuth, codeGrant);
-            final HTTPResponse httpResponse = getResponse(request.toHTTPRequest());
+            final TokenRequest tokenRequest = new TokenRequest(opConfig.getTokenEndpoint(), clientAuth, codeGrant);
+            final HTTPResponse httpResponse = getResponse(buildRequest(tokenRequest));
             final TokenResponse tokenResponse = OIDCTokenResponseParser.parse(httpResponse);
             if (tokenResponse.indicatesSuccess() == false) {
                 TokenErrorResponse errorResponse = (TokenErrorResponse) tokenResponse;
@@ -317,9 +361,8 @@ public class OpenIdConnectAuthenticator {
     private JWTClaimsSet getUserInfo(AccessToken accessToken) {
         try {
             final BearerAccessToken bearerToken = new BearerAccessToken(accessToken.getValue());
-            final HTTPRequest httpRequest = new UserInfoRequest(opConfig.getUserinfoEndpoint(), bearerToken).toHTTPRequest();
-            final HTTPResponse httpResponse = getResponse(httpRequest);
-            final UserInfoResponse response = UserInfoResponse.parse(httpResponse);
+            final UserInfoRequest userInfoRequest = new UserInfoRequest(opConfig.getUserinfoEndpoint(), bearerToken);
+            final UserInfoResponse response = UserInfoResponse.parse(getResponse(buildRequest(userInfoRequest)));
             if (response.indicatesSuccess() == false) {
                 UserInfoErrorResponse errorResponse = response.toErrorResponse();
                 logger.debug("Failed to get user information from the UserInfo endpoint. Code=[{}], " +
@@ -341,22 +384,24 @@ public class OpenIdConnectAuthenticator {
      * Creates a new {@link PrivilegedResourceRetriever} to be used with the {@link IDTokenValidator} by passing the
      * necessary client SSLContext and hostname verification configuration
      */
-    private PrivilegedResourceRetriever getPrivilegedResourceRetriever() {
+    PrivilegedResourceRetriever getPrivilegedResourceRetriever() {
         final String sslKey = RealmSettings.realmSslPrefix(realmConfig.identifier());
         final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
         boolean isHostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
         final HostnameVerifier verifier = isHostnameVerificationEnabled ? new DefaultHostnameVerifier() : NoopHostnameVerifier.INSTANCE;
-        return new PrivilegedResourceRetriever(sslService.sslContext(sslConfiguration), verifier);
+        return new PrivilegedResourceRetriever(sslService.sslContext(sslConfiguration), verifier, realmConfig);
     }
 
-    private static final class PrivilegedResourceRetriever extends DefaultResourceRetriever {
+    static class PrivilegedResourceRetriever extends DefaultResourceRetriever {
         private SSLContext clientContext;
         private HostnameVerifier verifier;
+        private RealmConfig config;
 
-        PrivilegedResourceRetriever(final SSLContext clientContext, final HostnameVerifier verifier) {
+        PrivilegedResourceRetriever(final SSLContext clientContext, final HostnameVerifier verifier, final RealmConfig config) {
             super();
             this.clientContext = clientContext;
             this.verifier = verifier;
+            this.config = config;
         }
 
         @Override
@@ -366,9 +411,14 @@ public class OpenIdConnectAuthenticator {
                 return AccessController.doPrivileged(
                     (PrivilegedExceptionAction<Resource>) () -> {
                         final BasicHttpContext context = new BasicHttpContext();
+                        final RequestConfig requestConfig = RequestConfig.custom()
+                            .setConnectTimeout(Math.toIntExact(config.getSetting(HTTP_CONNECT_TIMEOUT).getMillis()))
+                            .setConnectionRequestTimeout(Math.toIntExact(config.getSetting(HTTP_CONNECTION_READ_TIMEOUT).getSeconds()))
+                            .setSocketTimeout(Math.toIntExact(config.getSetting(HTTP_SOCKET_TIMEOUT).getMillis())).build();
                         try (CloseableHttpClient client = HttpClients.custom()
                             .setSSLContext(clientContext)
                             .setSSLHostnameVerifier(verifier)
+                            .setDefaultRequestConfig(requestConfig)
                             .build()) {
                             HttpGet get = new HttpGet(url.toURI());
                             HttpResponse response = client.execute(get, context);
@@ -379,8 +429,6 @@ public class OpenIdConnectAuthenticator {
             } catch (final PrivilegedActionException e) {
                 throw (IOException) e.getCause();
             }
-
         }
-
     }
 }

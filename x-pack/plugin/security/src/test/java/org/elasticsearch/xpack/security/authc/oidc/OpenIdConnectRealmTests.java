@@ -76,8 +76,8 @@ public class OpenIdConnectRealmTests extends ESTestCase {
         AuthenticationResult result = authenticateWithOidc(roleMapper, notPopulateMetadata, false);
         assertThat(result.getUser().roles(), arrayContainingInAnyOrder("kibana_user", "role1"));
         if (notPopulateMetadata == false) {
-            assertThat(result.getUser().metadata().get("oidc_iss"), equalTo("https://op.company.org"));
-            assertThat(result.getUser().metadata().get("oidc_name"), equalTo("Clinton Barton"));
+            assertThat(result.getUser().metadata().get("oidc(iss)"), equalTo("https://op.company.org"));
+            assertThat(result.getUser().metadata().get("oidc(name)"), equalTo("Clinton Barton"));
         }
     }
 
@@ -147,14 +147,15 @@ public class OpenIdConnectRealmTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_PATH), "https://op.example.com/jwks.json")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com/cb")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code")
             .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REQUESTED_SCOPES),
                 Arrays.asList("openid", "scope1", "scope2"));
-        final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
+        final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), new OpenIdConnectAuthenticator(),
+            null);
         final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri();
         final String state = response.getState();
         final String nonce = response.getNonce();
@@ -170,12 +171,13 @@ public class OpenIdConnectRealmTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.com/jwks.json")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_PATH), "https://op.example.com/jwks.json")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com/cb")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
-        final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
+        final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), new OpenIdConnectAuthenticator(),
+            null);
         final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri();
         final String state = response.getState();
         final String nonce = response.getNonce();
@@ -188,7 +190,6 @@ public class OpenIdConnectRealmTests extends ESTestCase {
         throws Exception {
 
         final String principal = "324235435454";
-
         final MockLookupRealm lookupRealm = new MockLookupRealm(
             new RealmConfig(new RealmConfig.RealmIdentifier("mock", "mock_lookup"), globalSettings, env, threadContext));
         final OpenIdConnectAuthenticator authenticator = mock(OpenIdConnectAuthenticator.class);
@@ -257,7 +258,7 @@ public class OpenIdConnectRealmTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.org/token")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_URL), "https://op.example.org/jwks.json")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_PATH), "https://op.example.org/jwks.json")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.elastic.co/cb")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")

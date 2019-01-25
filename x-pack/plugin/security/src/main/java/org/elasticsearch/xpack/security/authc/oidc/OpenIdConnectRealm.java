@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -33,13 +34,13 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 
-import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -58,7 +59,7 @@ import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectReal
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.NAME_CLAIM;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_ISSUER;
-import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_JWKSET_URL;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_JWKSET_PATH;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_NAME;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_USERINFO_ENDPOINT;
@@ -84,6 +85,7 @@ public class OpenIdConnectRealm extends Realm {
     private final ClaimParser mailAttribute;
     private final Boolean populateUserMetadata;
     private final UserRoleMapper roleMapper;
+
     private DelegatedAuthorizationSupport delegatedRealms;
 
 
@@ -99,28 +101,19 @@ public class OpenIdConnectRealm extends Realm {
         this.nameAttribute = ClaimParser.forSetting(logger, NAME_CLAIM, config, false);
         this.mailAttribute = ClaimParser.forSetting(logger, MAIL_CLAIM, config, false);
         this.populateUserMetadata = config.getSetting(POPULATE_USER_METADATA);
+        if (TokenService.isTokenServiceEnabled(config.settings()) == false) {
+            throw new IllegalStateException("OpenID Connect Realm requires that the token service be enabled ("
+                + XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey() + ")");
+        }
     }
 
+    // For testing
     OpenIdConnectRealm(RealmConfig config, OpenIdConnectAuthenticator authenticator, UserRoleMapper roleMapper) {
         super(config);
         this.roleMapper = roleMapper;
-        this.rpConfiguration = null;
-        this.opConfiguration = null;
-        this.openIdConnectAuthenticator = authenticator;
-        this.principalAttribute = ClaimParser.forSetting(logger, PRINCIPAL_CLAIM, config, true);
-        this.groupsAttribute = ClaimParser.forSetting(logger, GROUPS_CLAIM, config, false);
-        this.dnAttribute = ClaimParser.forSetting(logger, DN_CLAIM, config, false);
-        this.nameAttribute = ClaimParser.forSetting(logger, NAME_CLAIM, config, false);
-        this.mailAttribute = ClaimParser.forSetting(logger, MAIL_CLAIM, config, false);
-        this.populateUserMetadata = config.getSetting(POPULATE_USER_METADATA);
-    }
-
-    OpenIdConnectRealm(RealmConfig config) {
-        super(config);
-        this.roleMapper = null;
         this.rpConfiguration = buildRelyingPartyConfiguration(config);
         this.opConfiguration = buildOpenIdConnectProviderConfiguration(config);
-        this.openIdConnectAuthenticator = new OpenIdConnectAuthenticator(config, opConfiguration, rpConfiguration, null);
+        this.openIdConnectAuthenticator = authenticator;
         this.principalAttribute = ClaimParser.forSetting(logger, PRINCIPAL_CLAIM, config, true);
         this.groupsAttribute = ClaimParser.forSetting(logger, GROUPS_CLAIM, config, false);
         this.dnAttribute = ClaimParser.forSetting(logger, DN_CLAIM, config, false);
@@ -231,13 +224,9 @@ public class OpenIdConnectRealm extends Realm {
     private OpenIdConnectProviderConfiguration buildOpenIdConnectProviderConfiguration(RealmConfig config) {
         String providerName = require(config, OP_NAME);
         Issuer issuer = new Issuer(require(config, OP_ISSUER));
-        URL jwkSetUrl;
-        try {
-            jwkSetUrl = new URL(require(config, OP_JWKSET_URL));
-        } catch (MalformedURLException e) {
-            // This should never happen as it's already validated in the settings
-            throw new SettingsException("Invalid URL: " + OP_JWKSET_URL.getKey(), e);
-        }
+
+        String jwkSetUrl = require(config, OP_JWKSET_PATH);
+
         URI authorizationEndpoint;
         try {
             authorizationEndpoint = new URI(require(config, OP_AUTHORIZATION_ENDPOINT));
@@ -395,6 +384,5 @@ public class OpenIdConnectRealm extends Realm {
             }
         }
     }
-
 }
 

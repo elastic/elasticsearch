@@ -7,16 +7,15 @@ package org.elasticsearch.xpack.core.security.authc.oidc;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
-import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -48,7 +47,7 @@ public class OpenIdConnectRealmSettings {
     public static final Setting.AffixSetting<String> RP_RESPONSE_TYPE
         = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "rp.response_type",
         key -> Setting.simpleString(key, v -> {
-            List<String> responseTypes = Arrays.asList("code", "id_token");
+            List<String> responseTypes = Arrays.asList("code", "id_token", "id_token, token");
             if (responseTypes.contains(v) == false) {
                 throw new IllegalArgumentException("Invalid value [" + v + "] for [" + key + "]. Allowed values are " + responseTypes + "");
             }
@@ -98,19 +97,22 @@ public class OpenIdConnectRealmSettings {
         }, Setting.Property.NodeScope));
     public static final Setting.AffixSetting<String> OP_ISSUER
         = RealmSettings.simpleString(TYPE, "op.issuer", Setting.Property.NodeScope);
-    public static final Setting.AffixSetting<String> OP_JWKSET_URL
-        = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "op.jwkset_url",
-        key -> Setting.simpleString(key, v -> {
-            try {
-                new URL(v);
-            } catch (MalformedURLException e) {
-                throw new IllegalArgumentException("Invalid value [" + v + "] for [" + key + "]. Not a valid URL.", e);
-            }
-        }, Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<String> OP_JWKSET_PATH
+        = RealmSettings.simpleString(TYPE, "rp.jwkset_path", Setting.Property.NodeScope);
 
     public static final Setting.AffixSetting<Boolean> POPULATE_USER_METADATA = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE), "populate_user_metadata",
         key -> Setting.boolSetting(key, true, Setting.Property.NodeScope));
+    private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(5);
+    public static final Setting.AffixSetting<TimeValue> HTTP_CONNECT_TIMEOUT
+        = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "http.connect_timeout",
+        key -> Setting.timeSetting(key, DEFAULT_TIMEOUT, Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<TimeValue> HTTP_CONNECTION_READ_TIMEOUT
+        = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "http.connection_read_timeout",
+        key -> Setting.timeSetting(key, DEFAULT_TIMEOUT, Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<TimeValue> HTTP_SOCKET_TIMEOUT
+        = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "http.socket_timeout",
+        key -> Setting.timeSetting(key, DEFAULT_TIMEOUT, Setting.Property.NodeScope));
 
     public static final ClaimSetting PRINCIPAL_CLAIM = new ClaimSetting("principal");
     public static final ClaimSetting GROUPS_CLAIM = new ClaimSetting("groups");
@@ -121,7 +123,8 @@ public class OpenIdConnectRealmSettings {
     public static Set<Setting.AffixSetting<?>> getSettings() {
         final Set<Setting.AffixSetting<?>> set = Sets.newHashSet(
             RP_CLIENT_ID, RP_REDIRECT_URI, RP_RESPONSE_TYPE, RP_REQUESTED_SCOPES, RP_CLIENT_SECRET, RP_SIGNATURE_VERIFICATION_ALGORITHM,
-            OP_NAME, OP_AUTHORIZATION_ENDPOINT, OP_TOKEN_ENDPOINT, OP_USERINFO_ENDPOINT, OP_ISSUER, OP_JWKSET_URL);
+            OP_NAME, OP_AUTHORIZATION_ENDPOINT, OP_TOKEN_ENDPOINT, OP_USERINFO_ENDPOINT, OP_ISSUER, OP_JWKSET_PATH,
+            HTTP_CONNECT_TIMEOUT, HTTP_CONNECTION_READ_TIMEOUT, HTTP_SOCKET_TIMEOUT);
         set.addAll(DelegatedAuthorizationSettings.getSettings(TYPE));
         set.addAll(RealmSettings.getStandardSettings(TYPE));
         set.addAll(SSLConfigurationSettings.getRealmSettings(TYPE));

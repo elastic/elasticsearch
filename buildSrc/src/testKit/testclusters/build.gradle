@@ -25,6 +25,7 @@ allprojects { all ->
                 distribution = 'ZIP'
                 version = System.getProperty("test.version_under_test")
                 javaHome = file(System.getProperty('java.home'))
+                plugin file("${project(":dummyPlugin").buildDir}/distributions/dummy-${version}.zip")
             }
         }
 
@@ -39,6 +40,9 @@ allprojects { all ->
             doFirst {
                 println "$path: Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
             }
+        }
+        syncTestClustersArtifacts {
+            dependsOn ":dummyPlugin:bundlePlugin"
         }
     }
 }

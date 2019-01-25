@@ -31,10 +31,12 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -66,7 +68,9 @@ public class ElasticsearchNode {
     private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private static final int NODE_UP_TIMEOUT = 30;
     private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
+
     private final LinkedHashMap<String, Predicate<ElasticsearchNode>> waitConditions;
+    private final List<URI> plugins = new ArrayList<>();
 
     private final Path confPathRepo;
     private final Path configFile;
@@ -129,6 +133,16 @@ public class ElasticsearchNode {
         this.distribution = distribution;
     }
 
+    public void plugin(URI plugin) {
+        requireNonNull(plugin, "Plugin name can't be null");
+        checkFrozen();
+        this.plugins.add(plugin);
+    }
+
+    public void plugin(File plugin) {
+        plugin(plugin.toURI());
+    }
+
     public void freeze() {
         requireNonNull(distribution, "null distribution passed when configuring test cluster `" + this + "`");
         requireNonNull(version, "null version passed when configuring test cluster `" + this + "`");
@@ -186,7 +200,19 @@ public class ElasticsearchNode {
             spec.from(distroArtifact.resolve("config").toFile());
             spec.into(configFile.getParent());
         });
-        configure();
+
+        try {
+            createWorkingDir(distroArtifact);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        createConfiguration();
+
+        plugins.forEach(plugin -> runElaticsearchBinScript(
+            "elasticsearch-plugin",
+            "install", "--batch", plugin.toString())
+        );
+
         startElasticsearchProcess(distroArtifact);
     }
 
@@ -224,11 +250,11 @@ public class ElasticsearchNode {
         if (OperatingSystem.current().isWindows()) {
             processBuilder.command(
                 "cmd", "/c",
-                distroArtifact.resolve("\\bin\\elasticsearch.bat").toAbsolutePath().toString()
+                distroArtifact.resolve("bin\\elasticsearch.bat").toAbsolutePath().toString()
             );
         } else {
             processBuilder.command(
-                distroArtifact.resolve("bin/elasticsearch").toAbsolutePath().toString()
+                distroArtifact.resolve("./bin/elasticsearch").toAbsolutePath().toString()
             );
         }
         try {
@@ -236,9 +262,7 @@ public class ElasticsearchNode {
             Map<String, String> environment = processBuilder.environment();
             // Don't inherit anything from the environment for as that would  lack reproductability
             environment.clear();
-            environment.put("JAVA_HOME", getJavaHome().getAbsolutePath());
-            environment.put("ES_PATH_CONF", configFile.getParent().toAbsolutePath().toString());
-            environment.put("ES_JAVA_OPTIONS", "-Xms512m -Xmx512m");
+            environment.putAll(getESEnvironment());
             // don't buffer all in memory, make sure we don't block on the default pipes
             processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(esStderrFile.toFile()));
             processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esStdoutFile.toFile()));
@@ -342,16 +366,19 @@ public class ElasticsearchNode {
         }
     }
 
-    private void configure()  {
-        try {
-            Files.createDirectories(configFile.getParent());
-            Files.createDirectories(confPathRepo);
-            Files.createDirectories(confPathData);
-            Files.createDirectories(confPathLogs);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+    private void createWorkingDir(Path distroExtractDir) throws IOException {
+        services.sync(spec -> {
+            spec.from(distroExtractDir.toFile());
+            spec.into(workingDir.toFile());
+        });
+        Files.createDirectories(configFile.getParent());
+        Files.createDirectories(confPathRepo);
+        Files.createDirectories(confPathData);
+        Files.createDirectories(confPathLogs);
+        Files.createDirectories(tmpDir);
+    }
 
+    private void createConfiguration()  {
         LinkedHashMap<String, String> config = new LinkedHashMap<>();
 
         String nodeName = safeName(name);
@@ -377,6 +404,7 @@ public class ElasticsearchNode {
             config.put("cluster.initial_master_nodes", "[" + nodeName + "]");
         }
         try {
+            Files.delete(configFile);
             Files.write(
                 configFile,
                 config.entrySet().stream()

@@ -23,15 +23,12 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -42,12 +39,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -76,6 +68,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -125,7 +118,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
-import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
@@ -135,7 +127,6 @@ import org.elasticsearch.xpack.core.ssl.TLSLicenseBootstrapCheck;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.rest.RestGetCertificateInfoAction;
-import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
 import org.elasticsearch.xpack.security.action.interceptor.BulkShardRequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.IndicesAliasesRequestInterceptor;
@@ -171,8 +162,6 @@ import org.elasticsearch.xpack.security.action.user.TransportPutUserAction;
 import org.elasticsearch.xpack.security.action.user.TransportSetEnabledAction;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
-import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
-import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
@@ -223,11 +212,7 @@ import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServe
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTransport;
 import org.elasticsearch.xpack.security.transport.nio.SecurityNioHttpServerTransport;
 import org.elasticsearch.xpack.security.transport.nio.SecurityNioTransport;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -236,7 +221,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -261,14 +245,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 
-    static final Setting<List<String>> AUDIT_OUTPUTS_SETTING =
-        Setting.listSetting(SecurityField.setting("audit.outputs"),
-                Function.identity(),
-                s -> s.keySet().contains(SecurityField.setting("audit.outputs"))
-                        ? Collections.emptyList()
-                        : Collections.singletonList(LoggingAuditTrail.NAME),
-                Property.NodeScope);
-
     private final Settings settings;
     private final Environment env;
     private final boolean enabled;
@@ -285,7 +261,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     private final SetOnce<TokenService> tokenService = new SetOnce<>();
     private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
     private final SetOnce<SecurityIndexManager> securityIndex = new SetOnce<>();
-    private final SetOnce<IndexAuditTrail> indexAuditTrail = new SetOnce<>();
+    private final SetOnce<NioGroupFactory> groupFactory = new SetOnce<>();
     private final List<BootstrapCheck> bootstrapChecks;
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
 
@@ -322,7 +298,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     }
 
     private static void runStartupChecks(Settings settings) {
-        validateAutoCreateIndex(settings);
         validateRealmSettings(settings);
     }
 
@@ -400,31 +375,11 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         securityContext.set(new SecurityContext(settings, threadPool.getThreadContext()));
         components.add(securityContext.get());
 
-        // audit trails construction
-        Set<AuditTrail> auditTrails = new LinkedHashSet<>();
-        if (XPackSettings.AUDIT_ENABLED.get(settings)) {
-            List<String> outputs = AUDIT_OUTPUTS_SETTING.get(settings);
-            if (outputs.isEmpty()) {
-                throw new IllegalArgumentException("Audit logging is enabled but there are zero output types in "
-                    + XPackSettings.AUDIT_ENABLED.getKey());
-            }
-
-            for (String output : outputs) {
-                switch (output) {
-                    case LoggingAuditTrail.NAME:
-                        auditTrails.add(new LoggingAuditTrail(settings, clusterService, threadPool));
-                        break;
-                    case IndexAuditTrail.NAME:
-                        indexAuditTrail.set(new IndexAuditTrail(settings, client, threadPool, clusterService));
-                        auditTrails.add(indexAuditTrail.get());
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unknown audit trail output [" + output + "]");
-                }
-            }
-        }
-        final AuditTrailService auditTrailService =
-                new AuditTrailService(new ArrayList<>(auditTrails), getLicenseState());
+        // audit trail service construction
+        final List<AuditTrail> auditTrails = XPackSettings.AUDIT_ENABLED.get(settings)
+                ? Collections.singletonList(new LoggingAuditTrail(settings, clusterService, threadPool))
+                : Collections.emptyList();
+        final AuditTrailService auditTrailService = new AuditTrailService(auditTrails, getLicenseState());
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
 
@@ -611,9 +566,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         IPFilter.addSettings(settingsList);
 
         // audit settings
-        settingsList.add(AUDIT_OUTPUTS_SETTING);
         LoggingAuditTrail.registerSettings(settingsList);
-        IndexAuditTrail.registerSettings(settingsList);
 
         // authentication and authorization settings
         AnonymousUser.addSettings(settingsList);
@@ -826,92 +779,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
     }
 
-    static boolean indexAuditLoggingEnabled(Settings settings) {
-        if (XPackSettings.AUDIT_ENABLED.get(settings)) {
-            List<String> outputs = AUDIT_OUTPUTS_SETTING.get(settings);
-            for (String output : outputs) {
-                if (output.equals(IndexAuditTrail.NAME)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    static void validateAutoCreateIndex(Settings settings) {
-        String value = settings.get("action.auto_create_index");
-        if (value == null) {
-            return;
-        }
-
-        final boolean indexAuditingEnabled = Security.indexAuditLoggingEnabled(settings);
-        if (indexAuditingEnabled) {
-            String auditIndex = IndexAuditTrailField.INDEX_NAME_PREFIX + "*";
-            String errorMessage = LoggerMessageFormat.format(
-                    "the [action.auto_create_index] setting value [{}] is too" +
-                            " restrictive. disable [action.auto_create_index] or set it to include " +
-                            "[{}]", (Object) value, auditIndex);
-            if (Booleans.isFalse(value)) {
-                throw new IllegalArgumentException(errorMessage);
-            }
-
-            if (Booleans.isTrue(value)) {
-                return;
-            }
-
-            String[] matches = Strings.commaDelimitedListToStringArray(value);
-            List<String> indices = new ArrayList<>();
-            DateTime now = new DateTime(DateTimeZone.UTC);
-            // just use daily rollover
-
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now, IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusDays(1),
-                    IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(1),
-                    IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(2),
-                    IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(3),
-                    IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(4),
-                    IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(5),
-                    IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(6),
-                    IndexNameResolver.Rollover.DAILY));
-
-            for (String index : indices) {
-                boolean matched = false;
-                for (String match : matches) {
-                    char c = match.charAt(0);
-                    if (c == '-') {
-                        if (Regex.simpleMatch(match.substring(1), index)) {
-                            throw new IllegalArgumentException(errorMessage);
-                        }
-                    } else if (c == '+') {
-                        if (Regex.simpleMatch(match.substring(1), index)) {
-                            matched = true;
-                            break;
-                        }
-                    } else {
-                        if (Regex.simpleMatch(match, index)) {
-                            matched = true;
-                            break;
-                        }
-                    }
-                }
-                if (!matched) {
-                    throw new IllegalArgumentException(errorMessage);
-                }
-            }
-
-            logger.warn("the [action.auto_create_index] setting is configured to be restrictive [{}]. " +
-                    " for the next 6 months audit indices are allowed to be created, but please make sure" +
-                    " that any future history indices after 6 months with the pattern " +
-                    "[.security_audit_log*] are allowed to be created", value);
-        }
-    }
-
     @Override
     public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
         if (transportClientMode || enabled == false) { // don't register anything if we are not enabled
@@ -943,11 +810,12 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             return Collections.emptyMap();
         }
 
+        IPFilter ipFilter = this.ipFilter.get();
         Map<String, Supplier<Transport>> transports = new HashMap<>();
         transports.put(SecurityField.NAME4, () -> new SecurityNetty4ServerTransport(settings, Version.CURRENT, threadPool,
-            networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, ipFilter.get(), getSslService()));
-        transports.put(SecurityField.NIO, () -> new SecurityNioTransport(settings, Version.CURRENT, threadPool,
-            networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, ipFilter.get(), getSslService()));
+            networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, ipFilter, getSslService()));
+        transports.put(SecurityField.NIO, () -> new SecurityNioTransport(settings, Version.CURRENT, threadPool, networkService,
+            pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, ipFilter, getSslService(), getNioGroupFactory(settings)));
 
         return Collections.unmodifiableMap(transports);
     }
@@ -967,7 +835,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         httpTransports.put(SecurityField.NAME4, () -> new SecurityNetty4HttpServerTransport(settings, networkService, bigArrays,
             ipFilter.get(), getSslService(), threadPool, xContentRegistry, dispatcher));
         httpTransports.put(SecurityField.NIO, () -> new SecurityNioHttpServerTransport(settings, networkService, bigArrays,
-            pageCacheRecycler, threadPool, xContentRegistry, dispatcher, ipFilter.get(), getSslService()));
+            pageCacheRecycler, threadPool, xContentRegistry, dispatcher, ipFilter.get(), getSslService(), getNioGroupFactory(settings)));
 
         return httpTransports;
     }
@@ -995,23 +863,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
+            // .security index is not managed by using templates anymore
             templates.remove(SECURITY_TEMPLATE_NAME);
-            final XContent xContent = XContentFactory.xContent(XContentType.JSON);
-            final byte[] auditTemplate = TemplateUtils.loadTemplate("/" + IndexAuditTrail.INDEX_TEMPLATE_NAME + ".json",
-                    Version.CURRENT.toString(), SecurityIndexManager.TEMPLATE_VERSION_PATTERN).getBytes(StandardCharsets.UTF_8);
-
-            try (XContentParser parser = xContent
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, auditTemplate)) {
-                IndexTemplateMetaData auditMetadata = new IndexTemplateMetaData.Builder(
-                        IndexTemplateMetaData.Builder.fromXContent(parser, IndexAuditTrail.INDEX_TEMPLATE_NAME))
-                        .settings(IndexAuditTrail.customAuditIndexSettings(settings, logger))
-                        .build();
-                templates.put(IndexAuditTrail.INDEX_TEMPLATE_NAME, auditMetadata);
-            } catch (IOException e) {
-                // TODO: should we handle this with a thrown exception?
-                logger.error("Error loading template [{}] as part of metadata upgrading", IndexAuditTrail.INDEX_TEMPLATE_NAME);
-            }
-
+            templates.remove("security_audit_log");
             return templates;
         };
     }
@@ -1121,5 +975,15 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     @Override
     public void reloadSPI(ClassLoader loader) {
         securityExtensions.addAll(SecurityExtension.loadExtensions(loader));
+    }
+
+    private synchronized NioGroupFactory getNioGroupFactory(Settings settings) {
+         if (groupFactory.get() != null) {
+             assert groupFactory.get().getSettings().equals(settings) : "Different settings than originally provided";
+             return groupFactory.get();
+         } else {
+            groupFactory.set(new NioGroupFactory(settings, logger));
+            return groupFactory.get();
+         }
     }
 }

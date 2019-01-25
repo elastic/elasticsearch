@@ -33,7 +33,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -115,26 +114,31 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
         }
 
         final Map<String, Collection<ResourcePrivileges>> privilegesByApplication = new HashMap<>();
-        for (String applicationName : getApplicationNames(request)) {
-            logger.debug("Checking privileges for application {}", applicationName);
-            Map<String, ResourcePrivileges> allAppPrivsByResource = new LinkedHashMap<>();
-            for (RoleDescriptor.ApplicationResourcePrivileges p : request.applicationPrivileges()) {
-                ResourcesPrivileges appPrivsByResource = userRole.getResourcePrivileges(applicationName, Arrays.asList(p.getResources()),
-                        Arrays.asList(p.getPrivileges()), applicationPrivileges);
-                allMatch = allMatch && appPrivsByResource.allAllowed();
-                appPrivsByResource.getResourceToResourcePrivileges().forEach((k1, v1) -> {
-                    allAppPrivsByResource.compute(k1, (k0, v0) -> {
-                        if (v0 == null) {
-                            return v1;
-                        } else {
-                            Map<String, Boolean> newPrivs = new HashMap<>(v0.getPrivileges());
-                            newPrivs.putAll(v1.getPrivileges());
-                            return new ResourcePrivileges(k1, newPrivs);
+        for (RoleDescriptor.ApplicationResourcePrivileges p : request.applicationPrivileges()) {
+            logger.debug("Checking privileges for application {}", p.getApplication());
+            ResourcesPrivileges appPrivsByResource = userRole.getResourcePrivileges(p.getApplication(), Arrays.asList(p.getResources()),
+                    Arrays.asList(p.getPrivileges()), applicationPrivileges);
+            allMatch = allMatch && appPrivsByResource.allAllowed();
+            appPrivsByResource.getResourceToResourcePrivileges().forEach((k1, v1) -> {
+                privilegesByApplication.compute(p.getApplication(), (k0, v0) -> {
+                    if (v0 == null) {
+                        return Arrays.asList(v1);
+                    } else {
+                        List<ResourcePrivileges> newPrivs = new ArrayList<>();
+                        Map<String, Boolean> newPrivilegesPermissions = new HashMap<>();
+                        for (ResourcePrivileges existing : v0) {
+                            if (existing.getResource().equals(k1)) {
+                                newPrivilegesPermissions.putAll(existing.getPrivileges());
+                            } else {
+                                newPrivs.add(existing);
+                            }
                         }
-                    });
+                        newPrivilegesPermissions.putAll(v1.getPrivileges());
+                        newPrivs.add(new ResourcePrivileges(k1, newPrivilegesPermissions));
+                        return newPrivs;
+                    }
                 });
-            }
-            privilegesByApplication.put(applicationName, allAppPrivsByResource.values());
+            });
         }
         listener.onResponse(new HasPrivilegesResponse(request.username(), allMatch, cluster, indices, privilegesByApplication));
     }

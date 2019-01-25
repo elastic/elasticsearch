@@ -205,6 +205,16 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads an optional {@link Integer}.
+     */
+    public Integer readOptionalInt() throws IOException {
+        if (readBoolean()) {
+            return readInt();
+        }
+        return null;
+    }
+
+    /**
      * Reads an int stored in variable-length format.  Reads between one and
      * five bytes.  Smaller values take fewer bytes.  Negative numbers
      * will always use all 5 bytes and are therefore better serialized

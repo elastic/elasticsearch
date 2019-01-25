@@ -22,6 +22,8 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -45,13 +47,15 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
             .limit(randomIntBetween(0, 10)).collect(Collectors.toList());
         List<DeprecationIssue> nodeIssues = Stream.generate(DeprecationIssueTests::createTestInstance)
             .limit(randomIntBetween(0, 10)).collect(Collectors.toList());
+        List<DeprecationIssue> mlIssues = Stream.generate(DeprecationIssueTests::createTestInstance)
+                .limit(randomIntBetween(0, 10)).collect(Collectors.toList());
         Map<String, List<DeprecationIssue>> indexIssues = new HashMap<>();
         for (int i = 0; i < randomIntBetween(0, 10); i++) {
             List<DeprecationIssue> perIndexIssues = Stream.generate(DeprecationIssueTests::createTestInstance)
                 .limit(randomIntBetween(0, 10)).collect(Collectors.toList());
             indexIssues.put(randomAlphaOfLength(10), perIndexIssues);
         }
-        return new DeprecationInfoAction.Response(clusterIssues, nodeIssues, indexIssues);
+        return new DeprecationInfoAction.Response(clusterIssues, nodeIssues, indexIssues, mlIssues);
     }
 
     @Override
@@ -80,12 +84,14 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
         List<NodeStats> nodeStats = Collections.singletonList(new NodeStats(discoveryNode, 0L, null,
             null, null, null, null, null, null, null, null,
             null, null, null, null));
+        List<DatafeedConfig> datafeeds = Collections.singletonList(DatafeedConfigTests.createRandomizedDatafeedConfig("foo"));
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(Settings.EMPTY);
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false,
             true, true);
         boolean clusterIssueFound = randomBoolean();
         boolean nodeIssueFound = randomBoolean();
         boolean indexIssueFound = randomBoolean();
+        boolean mlIssueFound = randomBoolean();
         DeprecationIssue foundIssue = DeprecationIssueTests.createTestInstance();
         List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks =
             Collections.unmodifiableList(Arrays.asList(
@@ -100,10 +106,14 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
             Collections.unmodifiableList(Arrays.asList(
                 (idx) -> indexIssueFound ? foundIssue : null
             ));
+        List<Function<DatafeedConfig, DeprecationIssue>> mlSettingsChecks =
+                Collections.unmodifiableList(Arrays.asList(
+                        (idx) -> mlIssueFound ? foundIssue : null
+                ));
 
         DeprecationInfoAction.Response response = DeprecationInfoAction.Response.from(nodeInfos, nodeStats, state,
-            resolver, Strings.EMPTY_ARRAY, indicesOptions,
-            clusterSettingsChecks, nodeSettingsChecks, indexSettingsChecks);
+            resolver, Strings.EMPTY_ARRAY, indicesOptions, datafeeds,
+            clusterSettingsChecks, nodeSettingsChecks, indexSettingsChecks, mlSettingsChecks);
 
         if (clusterIssueFound) {
             assertThat(response.getClusterSettingsIssues(), equalTo(Collections.singletonList(foundIssue)));
@@ -122,6 +132,12 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
                 Collections.singletonList(foundIssue))));
         } else {
             assertTrue(response.getIndexSettingsIssues().isEmpty());
+        }
+
+        if (mlIssueFound) {
+            assertThat(response.getMlSettingsIssues(), equalTo(Collections.singletonList(foundIssue)));
+        } else {
+            assertTrue(response.getMlSettingsIssues().isEmpty());
         }
     }
 }

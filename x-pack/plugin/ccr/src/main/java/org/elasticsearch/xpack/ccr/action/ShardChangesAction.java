@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -27,7 +27,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.MissingHistoryOperationsException;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
@@ -38,6 +38,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ccr.Ccr;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -397,15 +398,14 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             ActionListener<Response> wrappedListener = ActionListener.wrap(listener::onResponse, e -> {
                 Throwable cause = ExceptionsHelper.unwrapCause(e);
-                if (cause instanceof ResourceNotFoundException) {
-                    ResourceNotFoundException resourceNotFoundException = (ResourceNotFoundException) cause;
-                    List<String> missingSeqnoRange = resourceNotFoundException.getMetadata(Engine.SEQNO_RANGE_MISSING_METADATA_KEY);
-                    if (missingSeqnoRange != null) {
-                        // Wrapping the exception into another exception for more descriptive error message in the context of ccr:
-                        String message = "Operations are no longer available for replicating. Maybe increase the retention setting [" +
-                            IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey() + "]?";
-                        listener.onFailure(new ResourceNotFoundException(message, cause));
-                    }
+                if (cause instanceof MissingHistoryOperationsException) {
+                    String message = "Operations are no longer available for replicating. Maybe increase the retention setting [" +
+                        IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey() + "]?";
+                    // Make it easy to detect this error in ShardFollowNodeTask:
+                    // (adding a metadata header instead of introducing a new exception that extends ElasticsearchException)
+                    ElasticsearchException wrapper = new ElasticsearchException(message, e);
+                    wrapper.addMetadata(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY);
+                    listener.onFailure(wrapper);
                 } else {
                     listener.onFailure(e);
                 }

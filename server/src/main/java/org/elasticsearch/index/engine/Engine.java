@@ -115,7 +115,6 @@ public abstract class Engine implements Closeable {
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
     public static final String RETENTION_LEASES = "retention_leases";
     public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
-    public static final String SEQNO_RANGE_MISSING_METADATA_KEY = "es.seqno_range_missing";
 
     protected final ShardId shardId;
     protected final String allocationId;

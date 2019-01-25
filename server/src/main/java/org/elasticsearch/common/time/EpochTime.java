@@ -136,6 +136,9 @@ class EpochTime {
     // this supports milliseconds without any fraction
     private static final DateTimeFormatter MILLISECONDS_FORMATTER1 = new DateTimeFormatterBuilder()
         .appendValue(MILLIS, 1, 19, SignStyle.NORMAL)
+        .optionalStart()
+        .appendFraction(NANOS_OF_MILLI, 0, 6, true)
+        .optionalEnd()
         .toFormatter(Locale.ROOT);
 
     // this supports milliseconds ending in dot
@@ -144,21 +147,13 @@ class EpochTime {
         .appendLiteral('.')
         .toFormatter(Locale.ROOT);
 
-    // this supports milliseconds with a fraction and is also used for printing
-    private static final DateTimeFormatter MILLISECONDS_FORMATTER3 = new DateTimeFormatterBuilder()
-        .append(MILLISECONDS_FORMATTER1)
-        .optionalStart() // optional is used so isSupported will be called when printing
-        .appendFraction(NANOS_OF_MILLI, 1, 6, true)
-        .optionalEnd()
-        .toFormatter(Locale.ROOT);
-
     static final DateFormatter SECONDS_FORMATTER = new JavaDateFormatter("epoch_second", SECONDS_FORMATTER1,
         builder -> builder.parseDefaulting(ChronoField.NANO_OF_SECOND, 999_999_999L),
         SECONDS_FORMATTER1, SECONDS_FORMATTER2);
 
     static final DateFormatter MILLIS_FORMATTER = new JavaDateFormatter("epoch_millis", MILLISECONDS_FORMATTER1,
         builder -> builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L),
-        MILLISECONDS_FORMATTER1, MILLISECONDS_FORMATTER2, MILLISECONDS_FORMATTER3);
+        MILLISECONDS_FORMATTER1, MILLISECONDS_FORMATTER2);
 
     private abstract static class EpochField implements TemporalField {
 

@@ -156,6 +156,8 @@ public class DateFormattersTests extends ESTestCase {
         String millis = millisFormatter.format(instant);
         Instant millisInstant = Instant.from(millisFormatter.parse(millis));
         assertThat(millisInstant.toEpochMilli(), is(instant.toEpochMilli()));
+        assertThat(millisFormatter.format(Instant.ofEpochSecond(42, 0)), is("42000"));
+        assertThat(millisFormatter.format(Instant.ofEpochSecond(42, 123456789L)), is("42123.456789"));
 
         DateFormatter secondsFormatter = DateFormatter.forPattern("epoch_second");
         String formattedSeconds = secondsFormatter.format(instant);

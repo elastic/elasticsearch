@@ -46,7 +46,7 @@ public class DocsTestPlugin extends RestTestPlugin {
             '\\{version_qualified\\}': VersionProperties.elasticsearch,
             '\\{lucene_version\\}' : VersionProperties.lucene.replaceAll('-snapshot-\\w+$', ''),
             '\\{build_flavor\\}' :
-                project.integTestCluster.distribution.startsWith('oss-') ? 'oss' : 'default',
+                project.integTestCluster.distribution.equals('oss') ? 'oss' : 'default',
         ]
         Task listSnippets = project.tasks.create('listSnippets', SnippetsTask)
         listSnippets.group 'Docs'

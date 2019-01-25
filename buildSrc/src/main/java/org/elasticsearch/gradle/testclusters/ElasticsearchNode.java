@@ -36,6 +36,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,6 +76,7 @@ public class ElasticsearchNode {
     private final Path httpPortsFile;
     private final Path esStdoutFile;
     private final Path esStderrFile;
+    private final Path tmpDir;
 
     private Distribution distribution;
     private String version;
@@ -96,6 +98,7 @@ public class ElasticsearchNode {
         httpPortsFile = confPathLogs.resolve("http.ports");
         esStdoutFile = confPathLogs.resolve("es.stdout.log");
         esStderrFile = confPathLogs.resolve("es.stderr.log");
+        tmpDir = workingDir.resolve("tmp");
         this.waitConditions = new LinkedHashMap<>();
         waitConditions.put("http ports file", node -> Files.exists(node.httpPortsFile));
         waitConditions.put("transport ports file", node -> Files.exists(node.transportPortFile));
@@ -185,6 +188,34 @@ public class ElasticsearchNode {
         });
         configure();
         startElasticsearchProcess(distroArtifact);
+    }
+
+    private void runElaticsearchBinScript(String tool, String... args) {
+        services.loggedExec(spec -> {
+            spec.setEnvironment(getESEnvironment());
+            spec.workingDir(workingDir);
+            if (OperatingSystem.current().isWindows()) {
+                spec.executable("cmd");
+                spec.args("/c");
+                spec.args("bin\\" + tool + ".bat");
+                spec.args((Object[]) args);
+            } else {
+                spec.executable("./bin/" + tool);
+                spec.args((Object[]) args);
+            }
+        });
+    }
+
+    private Map<String, String> getESEnvironment() {
+        Map<String, String> environment= new HashMap<>();
+        environment.put("JAVA_HOME", getJavaHome().getAbsolutePath());
+        environment.put("ES_PATH_CONF", configFile.getParent().toString());
+        environment.put("ES_JAVA_OPTS", "-Xms512m -Xmx512m");
+        environment.put("ES_TMPDIR", tmpDir.toString());
+        // Windows requires this as it defaults to `c:\windows` despite ES_TMPDIR
+
+        environment.put("TMP", tmpDir.toString());
+        return environment;
     }
 
     private void startElasticsearchProcess(Path distroArtifact) {

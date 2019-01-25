@@ -303,6 +303,15 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
         public int hashCode() {
             return Objects.hash(followIndexCreated, followIndexShardsAcked, indexFollowingStarted);
         }
+
+        @Override
+        public String toString() {
+            return "PutFollowAction.Response{" +
+                "followIndexCreated=" + followIndexCreated +
+                ", followIndexShardsAcked=" + followIndexShardsAcked +
+                ", indexFollowingStarted=" + indexFollowingStarted +
+                '}';
+        }
     }
 
 }

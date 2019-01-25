@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
@@ -42,7 +44,7 @@ import java.util.Objects;
 public final class TransportPutFollowAction
     extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
 
-    private static final ActionListener<PutFollowAction.Response> NOOP_LISTENER = ActionListener.wrap(() -> {});
+    private static final Logger logger = LogManager.getLogger(TransportPutFollowAction.class);
 
     private final Client client;
     private final RestoreService restoreService;
@@ -124,41 +126,6 @@ public final class TransportPutFollowAction
             return;
         }
 
-        final ActionListener<PutFollowAction.Response> followingListener;
-        final ActionListener<PutFollowAction.Response> restoreInitiatedListener;
-        if (request.getWaitForRestore()) {
-            followingListener = listener;
-            restoreInitiatedListener = NOOP_LISTENER;
-        } else {
-            followingListener = NOOP_LISTENER;
-            restoreInitiatedListener = listener;
-        }
-
-        Client clientWithHeaders = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
-
-        ActionListener<RestoreSnapshotResponse> restoreCompleteHandler = new ActionListener<RestoreSnapshotResponse>() {
-            @Override
-            public void onResponse(RestoreSnapshotResponse restoreSnapshotResponse) {
-                RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
-
-                if (restoreInfo == null) {
-                    // If restoreInfo is null then it is possible there was a master failure during the
-                    // restore.
-                    followingListener.onResponse(new PutFollowAction.Response(true, false, false));
-                } else if (restoreInfo.failedShards() == 0) {
-                    initiateFollowing(clientWithHeaders, request, followingListener);
-                } else {
-                    // Has failed shards
-                    followingListener.onResponse(new PutFollowAction.Response(true, false, false));
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                followingListener.onFailure(e);
-            }
-        };
-
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowRequest().getFollowerIndex())
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
@@ -167,36 +134,77 @@ public final class TransportPutFollowAction
             .indices(request.getLeaderIndex()).indicesOptions(request.indicesOptions()).renamePattern("^(.*)$")
             .renameReplacement(request.getFollowRequest().getFollowerIndex()).masterNodeTimeout(request.masterNodeTimeout())
             .indexSettings(settingsBuilder);
-        initiateRestore(restoreRequest, restoreInitiatedListener, restoreCompleteHandler);
-    }
 
-    private void initiateRestore(RestoreSnapshotRequest restoreRequest, ActionListener<PutFollowAction.Response> restoreInitiatedListener,
-                                 ActionListener<RestoreSnapshotResponse> restoreCompleteListener) {
+        final Client clientWithHeaders = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
+
             @Override
             public void onFailure(Exception e) {
-                restoreInitiatedListener.onFailure(e);
-                restoreCompleteListener.onFailure(e);
+                listener.onFailure(e);
             }
 
             @Override
-            protected void doRun() {
+            protected void doRun() throws Exception {
                 restoreService.restoreSnapshot(restoreRequest, new ActionListener<RestoreService.RestoreCompletionResponse>() {
+
                     @Override
                     public void onResponse(RestoreService.RestoreCompletionResponse response) {
-                        restoreInitiatedListener.onResponse(new PutFollowAction.Response(true, false, false));
-                        RestoreClusterStateListener.createAndRegisterListener(clusterService, response, restoreCompleteListener);
+                        afterRestoreStarted(clientWithHeaders, request, listener, response);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        restoreInitiatedListener.onFailure(e);
-                        restoreCompleteListener.onFailure(e);
+                        listener.onFailure(e);
                     }
                 });
             }
         });
+    }
 
+    private void afterRestoreStarted(Client clientWithHeaders, PutFollowAction.Request request,
+                                     ActionListener<PutFollowAction.Response> originalListener,
+                                     RestoreService.RestoreCompletionResponse response) {
+        final ActionListener<PutFollowAction.Response> listener;
+        if (request.getWaitForRestore() == false) {
+            originalListener.onResponse(new PutFollowAction.Response(true, false, false));
+            listener = new ActionListener<PutFollowAction.Response>() {
+
+                @Override
+                public void onResponse(PutFollowAction.Response response) {
+                    logger.debug("put follow completed with {}", response);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug("put follow failed during the restore process", e);
+                }
+            };
+        } else {
+            listener = originalListener;
+        }
+
+        RestoreClusterStateListener.createAndRegisterListener(clusterService, response, new ActionListener<RestoreSnapshotResponse>() {
+            @Override
+            public void onResponse(RestoreSnapshotResponse restoreSnapshotResponse) {
+                RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
+
+                if (restoreInfo == null) {
+                    // If restoreInfo is null then it is possible there was a master failure during the
+                    // restore.
+                    listener.onResponse(new PutFollowAction.Response(true, false, false));
+                } else if (restoreInfo.failedShards() == 0) {
+                    initiateFollowing(clientWithHeaders, request, listener);
+                } else {
+                    // Has failed shards
+                    listener.onResponse(new PutFollowAction.Response(true, false, false));
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     private void initiateFollowing(

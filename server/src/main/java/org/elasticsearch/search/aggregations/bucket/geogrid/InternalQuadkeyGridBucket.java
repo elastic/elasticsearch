@@ -39,9 +39,9 @@ public class InternalQuadkeyGridBucket extends InternalGeoGridBucket<InternalQua
     }
 
     @Override
-    InternalQuadkeyGridBucket buildBucket(InternalGeoGridBucket bucket, long geoHashAsLong, long docCount,
+    InternalQuadkeyGridBucket buildBucket(InternalGeoGridBucket bucket, long hashAsLong, long docCount,
                                           InternalAggregations aggregations) {
-        return new InternalQuadkeyGridBucket(geoHashAsLong, docCount, aggregations);
+        return new InternalQuadkeyGridBucket(hashAsLong, docCount, aggregations);
     }
 
     @Override
@@ -51,6 +51,6 @@ public class InternalQuadkeyGridBucket extends InternalGeoGridBucket<InternalQua
 
     @Override
     public GeoPoint getKey() {
-        return GeoPoint.fromGeohash(hashAsLong);
+        return QuadkeyUtils.hashToGeoPoint(hashAsLong);
     }
 }

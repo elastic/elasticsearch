@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.geo.QuadkeyUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,7 +33,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class QuadkeyGridParserTests extends ESTestCase {
     public void testParseValidFromInts() throws Exception {
-        int precision = randomIntBetween(1, 12);
+        int precision = randomIntBetween(0, QuadkeyUtils.MAX_ZOOM);
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
                 "{\"field\":\"my_loc\", \"precision\":" + precision + ", \"size\": 500, \"shard_size\": 550}");
         XContentParser.Token token = stParser.nextToken();
@@ -42,7 +43,7 @@ public class QuadkeyGridParserTests extends ESTestCase {
     }
 
     public void testParseValidFromStrings() throws Exception {
-        int precision = randomIntBetween(1, 12);
+        int precision = randomIntBetween(0, QuadkeyUtils.MAX_ZOOM);
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
                 "{\"field\":\"my_loc\", \"precision\":\"" + precision + "\", \"size\": \"500\", \"shard_size\": \"550\"}");
         XContentParser.Token token = stParser.nextToken();
@@ -55,7 +56,7 @@ public class QuadkeyGridParserTests extends ESTestCase {
         double distance = randomDoubleBetween(10.0, 100.00, true);
         DistanceUnit unit = randomFrom(DistanceUnit.values());
         if (unit.equals(DistanceUnit.MILLIMETERS)) {
-            distance = 5600 + randomDouble(); // 5.6cm is approx. smallest distance represented by precision 12
+            distance = 5600 + randomDouble(); // 5.6cm is approx. smallest distance
         }
         String distanceString = distance + unit.toString();
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
@@ -66,7 +67,7 @@ public class QuadkeyGridParserTests extends ESTestCase {
         GeoGridAggregationBuilder builder = QuadkeyGridAggregationBuilder.parse("quadkey_grid", stParser);
         assertNotNull(builder);
         assertThat(builder.precision(), greaterThanOrEqualTo(0));
-        assertThat(builder.precision(), lessThanOrEqualTo(12));
+        assertThat(builder.precision(), lessThanOrEqualTo(29));
     }
 
     public void testParseInvalidUnitPrecision() throws Exception {
@@ -112,7 +113,7 @@ public class QuadkeyGridParserTests extends ESTestCase {
             fail();
         } catch (XContentParseException ex) {
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
-            assertEquals("Invalid quadkey aggregation precision of 13. Must be between 0 and 29.", ex.getCause().getMessage());
+            assertEquals("Invalid quadkey aggregation precision of 30. Must be between 0 and 29.", ex.getCause().getMessage());
         }
     }
 }

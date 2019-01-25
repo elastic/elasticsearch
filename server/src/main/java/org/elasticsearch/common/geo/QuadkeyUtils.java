@@ -159,23 +159,17 @@ public class QuadkeyUtils {
         return "" + res[0] + "/" + res[1] + "/" + res[2];
     }
 
+    public static GeoPoint hashToGeoPoint(long hash) {
+        int[] res = parseHash(hash);
+        return zxyToGeoPoint(res[0], res[1], res[2]);
+    }
+
     public static GeoPoint hashToGeoPoint(String hashAsString) {
         Throwable cause = null;
         try {
             final String[] parts = hashAsString.split("/", 4);
             if (parts.length == 3) {
-                final int zoom = Integer.parseInt(parts[0]);
-                final int xTile = Integer.parseInt(parts[1]);
-                final int yTile = Integer.parseInt(parts[2]);
-
-                final int maxTiles = 1 << checkPrecisionRange(zoom);
-                if (xTile >= 0 && xTile < maxTiles && yTile >= 0 && yTile < maxTiles) {
-                    final double tiles = Math.pow(2.0, zoom);
-                    final double n = Math.PI - (2.0 * Math.PI * (yTile + 0.5)) / tiles;
-                    final double lat = Math.toDegrees(Math.atan(Math.sinh(n)));
-                    final double lon = ((xTile + 0.5) / tiles * 360.0) - 180;
-                    return new GeoPoint(lat, lon);
-                }
+                return zxyToGeoPoint(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
             }
         } catch (IllegalArgumentException e) {
             // This will also handle NumberFormatException
@@ -183,5 +177,17 @@ public class QuadkeyUtils {
         }
         throw new IllegalArgumentException("Invalid quadkey hash string of " +
             hashAsString + ". Must be three integers in a form \"zoom/x/y\".", cause);
+    }
+
+    private static GeoPoint zxyToGeoPoint(int zoom, int xTile, int yTile) {
+        final int maxTiles = 1 << checkPrecisionRange(zoom);
+        if (xTile >= 0 && xTile < maxTiles && yTile >= 0 && yTile < maxTiles) {
+            final double tiles = Math.pow(2.0, zoom);
+            final double n = Math.PI - (2.0 * Math.PI * (yTile + 0.5)) / tiles;
+            final double lat = Math.toDegrees(Math.atan(Math.sinh(n)));
+            final double lon = ((xTile + 0.5) / tiles * 360.0) - 180;
+            return new GeoPoint(lat, lon);
+        }
+        throw new IllegalArgumentException(String.format("Invalid quadkey z/x/y values of %s/%s/%s", zoom, xTile, yTile));
     }
 }

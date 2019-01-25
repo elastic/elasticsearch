@@ -277,9 +277,12 @@ public class ClusterStateChanges {
     }
 
     public ClusterState applyStartedShards(ClusterState clusterState, List<ShardRouting> startedShards) {
-        List<StartedShardEntry> entries = startedShards.stream().map(startedShard ->
-            new StartedShardEntry(startedShard.shardId(), startedShard.allocationId().getId(), "shard started"))
-            .collect(Collectors.toList());
+        List<StartedShardEntry> entries = startedShards.stream()
+            .map(startedShard -> {
+                final IndexMetaData indexMetaData = clusterState.metaData().index(startedShard.shardId().getIndex());
+                final long primaryTerm = indexMetaData != null ? indexMetaData.primaryTerm(startedShard.shardId().id()) : 0L;
+                return new StartedShardEntry(startedShard.shardId(), startedShard.allocationId().getId(), primaryTerm, "shard started");
+            }).collect(Collectors.toList());
         return runTasks(shardStartedClusterStateTaskExecutor, clusterState, entries);
     }
 

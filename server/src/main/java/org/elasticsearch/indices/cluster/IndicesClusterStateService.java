@@ -575,13 +575,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         try {
-            logger.debug("{} creating shard", shardRouting.shardId());
+            final long primaryTerm = state.metaData().index(shardRouting.index()).primaryTerm(shardRouting.id());
+            logger.debug("{} creating shard with primary term [{}]", shardRouting.shardId(), primaryTerm);
             RecoveryState recoveryState = new RecoveryState(shardRouting, nodes.getLocalNode(), sourceNode);
             indicesService.createShard(
                     shardRouting,
                     recoveryState,
                     recoveryTargetService,
-                    new RecoveryListener(shardRouting),
+                    new RecoveryListener(shardRouting, primaryTerm),
                     repositoriesService,
                     failedShardHandler,
                     globalCheckpointSyncer,
@@ -618,25 +619,24 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 .collect(Collectors.toSet());
             shard.updateShardState(shardRouting, primaryTerm, primaryReplicaSyncer::resync, clusterState.version(),
                 inSyncIds, indexShardRoutingTable, pre60AllocationIds);
+
+            final IndexShardState state = shard.state();
+            if (shardRouting.initializing() && (state == IndexShardState.STARTED || state == IndexShardState.POST_RECOVERY)) {
+                // the master thinks we are initializing, but we are already started or on POST_RECOVERY and waiting
+                // for master to confirm a shard started message (either master failover, or a cluster event before
+                // we managed to tell the master we started), mark us as started
+                if (logger.isTraceEnabled()) {
+                    logger.trace("{} master marked shard as initializing, but shard has state [{}], resending shard started to {}",
+                        shardRouting.shardId(), state, nodes.getMasterNode());
+                }
+                if (nodes.getMasterNode() != null) {
+                    shardStateAction.shardStarted(shardRouting, primaryTerm, "master " + nodes.getMasterNode() +
+                            " marked shard as initializing, but shard state is [" + state + "], mark shard as started",
+                        SHARD_STATE_ACTION_LISTENER, clusterState);
+                }
+            }
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed updating shard routing entry", e, clusterState);
-            return;
-        }
-
-        final IndexShardState state = shard.state();
-        if (shardRouting.initializing() && (state == IndexShardState.STARTED || state == IndexShardState.POST_RECOVERY)) {
-            // the master thinks we are initializing, but we are already started or on POST_RECOVERY and waiting
-            // for master to confirm a shard started message (either master failover, or a cluster event before
-            // we managed to tell the master we started), mark us as started
-            if (logger.isTraceEnabled()) {
-                logger.trace("{} master marked shard as initializing, but shard has state [{}], resending shard started to {}",
-                    shardRouting.shardId(), state, nodes.getMasterNode());
-            }
-            if (nodes.getMasterNode() != null) {
-                shardStateAction.shardStarted(shardRouting, "master " + nodes.getMasterNode() +
-                        " marked shard as initializing, but shard state is [" + state + "], mark shard as started",
-                    SHARD_STATE_ACTION_LISTENER, clusterState);
-            }
         }
     }
 
@@ -674,14 +674,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private class RecoveryListener implements PeerRecoveryTargetService.RecoveryListener {
 
         private final ShardRouting shardRouting;
+        private final long primaryTerm;
 
-        private RecoveryListener(ShardRouting shardRouting) {
+        private RecoveryListener(final ShardRouting shardRouting, final long primaryTerm) {
             this.shardRouting = shardRouting;
+            this.primaryTerm = primaryTerm;
         }
 
         @Override
-        public void onRecoveryDone(RecoveryState state) {
-            shardStateAction.shardStarted(shardRouting, "after " + state.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
+        public void onRecoveryDone(final RecoveryState state) {
+            shardStateAction.shardStarted(shardRouting, primaryTerm, "after " + state.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
         }
 
         @Override

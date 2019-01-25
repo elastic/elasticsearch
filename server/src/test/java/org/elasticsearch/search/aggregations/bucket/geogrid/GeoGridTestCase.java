@@ -32,7 +32,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends InternalGeoGrid<B>>
-    extends InternalMultiBucketAggregationTestCase<T> {
+        extends InternalMultiBucketAggregationTestCase<T> {
 
     /**
      * Instantiate a {@link InternalGeoGrid}-derived class using the same parameters as constructor.

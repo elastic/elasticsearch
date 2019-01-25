@@ -1,4 +1,0 @@
-apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.test.fixtures'
-
-unitTest.enabled = false

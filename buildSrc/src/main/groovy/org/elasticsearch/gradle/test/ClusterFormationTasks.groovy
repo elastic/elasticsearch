@@ -356,12 +356,10 @@ class ClusterFormationTasks {
                 'node.attr.testattr'           : 'test'
         ]
         int minimumMasterNodes = node.config.minimumMasterNodes.call()
-        if (minimumMasterNodes > 0) {
+        if (node.nodeVersion.before("7.0.0") && minimumMasterNodes > 0) {
             esConfig['discovery.zen.minimum_master_nodes'] = minimumMasterNodes
         }
-        if (minimumMasterNodes > 1) {
-            // don't wait for state.. just start up quickly
-            // this will also allow new and old nodes in the BWC case to become the master
+        if (node.config.numNodes > 1) {
             esConfig['discovery.initial_state_timeout'] = '0s'
         }
         if (esConfig.containsKey('discovery.zen.master_election.wait_for_joins_timeout') == false) {

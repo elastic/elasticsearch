@@ -305,9 +305,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     }
 
     public void testGetNextActionName() {
-        // TODO: FIX test based on timeseries lifecycle change
         // Hot Phase
-        assertNextActionName("hot", SetPriorityAction.NAME, RolloverAction.NAME,
+        assertNextActionName("hot", SetPriorityAction.NAME, UnfollowAction.NAME,
             new String[] {UnfollowAction.NAME, RolloverAction.NAME});
         assertNextActionName("hot", SetPriorityAction.NAME, RolloverAction.NAME, new String[]{RolloverAction.NAME});
         assertNextActionName("hot", SetPriorityAction.NAME, null, new String[] {});

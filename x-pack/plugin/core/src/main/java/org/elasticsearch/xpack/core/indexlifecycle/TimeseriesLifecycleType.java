@@ -34,8 +34,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
 
     public static final String TYPE = "timeseries";
     static final List<String> VALID_PHASES = Arrays.asList("hot", "warm", "cold", "delete");
-    // TODO: This has been changed so that the tests will run on CI. It may not be the correct approach
-    static final List<String> ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, RolloverAction.NAME, UnfollowAction.NAME);
+    static final List<String> ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME);
     static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
         AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME);
     static final List<String> ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, AllocateAction.NAME,

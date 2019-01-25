@@ -85,10 +85,6 @@ returns:
 --------------------------------------------------
 // TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 2/"_primary_term" : $body._primary_term/]
 
-
-Note: The <<search-search,Search API>> can return the `_seq_no` and `_primary_term`
-for each search hit by requesting the `_seq_no` and `_primary_term` <<search-request-docvalue-fields,Doc Value Fields>>.
-
 The sequence number and the primary term uniquely identify a change. By noting down 
 the sequence number and primary term returned, you can make sure to only change the
 document if no other change was made to it since you retrieved it. This

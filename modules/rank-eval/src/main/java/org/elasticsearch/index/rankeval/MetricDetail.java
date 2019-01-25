@@ -37,7 +37,7 @@ public interface MetricDetail extends ToXContentObject, NamedWriteable {
         innerToXContent(builder, params);
         builder.endObject();
         return builder.endObject();
-    };
+    }
 
     default String getMetricName() {
         return getWriteableName();

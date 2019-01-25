@@ -1,5 +1,5 @@
 ---
-"Internal version":
+"Update with if_seq_no":
 
  - skip:
       version: " - 6.99.99"
@@ -47,3 +47,17 @@
        id:       1
 
  - match: { _source:  { foo: bar } }
+
+ - do:
+     bulk:
+        body:
+          - update:
+              _index: test
+              _id: 1
+              if_seq_no: 100
+              if_primary_term: 200
+          - foo: baz
+
+ - match: { errors: true }
+ - match: { items.0.update.status: 409 }
+

@@ -26,10 +26,10 @@ import java.io.IOException;
 
 public abstract class ParsedGeoGridBucket extends ParsedMultiBucketAggregation.ParsedBucket implements GeoGrid.Bucket {
 
-    protected String geohashAsString;
+    protected String hashAsString;
 
     @Override
     protected XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
-        return builder.field(Aggregation.CommonFields.KEY.getPreferredName(), geohashAsString);
+        return builder.field(Aggregation.CommonFields.KEY.getPreferredName(), hashAsString);
     }
 }

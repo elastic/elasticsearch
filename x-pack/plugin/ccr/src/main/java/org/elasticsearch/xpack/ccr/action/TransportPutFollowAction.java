@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreClusterSt
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -165,7 +166,7 @@ public final class TransportPutFollowAction
                                      ActionListener<PutFollowAction.Response> originalListener,
                                      RestoreService.RestoreCompletionResponse response) {
         final ActionListener<PutFollowAction.Response> listener;
-        if (request.getWaitForRestore() == false) {
+        if (request.waitForActiveShards() == ActiveShardCount.NONE) {
             originalListener.onResponse(new PutFollowAction.Response(true, false, false));
             listener = new ActionListener<PutFollowAction.Response>() {
 

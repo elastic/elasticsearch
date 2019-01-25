@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.ccr;
 
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -36,17 +37,17 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
     private final String remoteCluster;
     private final String leaderIndex;
     private final String followerIndex;
-    private final boolean waitForRestore;
+    private final ActiveShardCount waitForActiveShards;
 
     public PutFollowRequest(String remoteCluster, String leaderIndex, String followerIndex) {
-        this(remoteCluster, leaderIndex, followerIndex, false);
+        this(remoteCluster, leaderIndex, followerIndex, ActiveShardCount.NONE);
     }
 
-    public PutFollowRequest(String remoteCluster, String leaderIndex, String followerIndex, boolean waitForRestore) {
+    public PutFollowRequest(String remoteCluster, String leaderIndex, String followerIndex, ActiveShardCount waitForActiveShards) {
         this.remoteCluster = Objects.requireNonNull(remoteCluster, "remoteCluster");
         this.leaderIndex = Objects.requireNonNull(leaderIndex, "leaderIndex");
         this.followerIndex = Objects.requireNonNull(followerIndex, "followerIndex");
-        this.waitForRestore = waitForRestore;
+        this.waitForActiveShards = waitForActiveShards;
     }
 
     @Override
@@ -72,8 +73,8 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
         return followerIndex;
     }
 
-    public boolean getWaitForRestore() {
-        return waitForRestore;
+    public ActiveShardCount waitForActiveShards() {
+        return waitForActiveShards;
     }
 
     @Override
@@ -82,7 +83,7 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
         if (o == null || getClass() != o.getClass()) return false;
         if (!super.equals(o)) return false;
         PutFollowRequest that = (PutFollowRequest) o;
-        return waitForRestore == that.waitForRestore &&
+        return waitForActiveShards == that.waitForActiveShards &&
             Objects.equals(remoteCluster, that.remoteCluster) &&
             Objects.equals(leaderIndex, that.leaderIndex) &&
             Objects.equals(followerIndex, that.followerIndex);
@@ -95,6 +96,6 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
             remoteCluster,
             leaderIndex,
             followerIndex,
-            waitForRestore);
+            waitForActiveShards);
     }
 }

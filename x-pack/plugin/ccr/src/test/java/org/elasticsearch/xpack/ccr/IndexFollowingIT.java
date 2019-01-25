@@ -200,7 +200,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         });
         thread.start();
 
-        final PutFollowAction.Request followRequest = putFollow("index1", "index2", false);
+        final PutFollowAction.Request followRequest = putFollow("index1", "index2", ActiveShardCount.NONE);
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         ensureFollowerGreen("index2");
@@ -238,7 +238,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
-        final PutFollowAction.Request followRequest = putFollow("index1", "index2", false);
+        final PutFollowAction.Request followRequest = putFollow("index1", "index2", ActiveShardCount.NONE);
         PutFollowAction.Response response = followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         assertTrue(response.isFollowIndexCreated());

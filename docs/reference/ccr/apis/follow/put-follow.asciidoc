@@ -31,7 +31,7 @@ POST /follower_index/_ccr/pause_follow
 
 [source,js]
 --------------------------------------------------
-PUT /<follower_index>/_ccr/follow?wait_for_restore=true
+PUT /<follower_index>/_ccr/follow?wait_for_active_shards=one
 {
   "remote_cluster" : "<remote_cluster>",
   "leader_index" : "<leader_index>"
@@ -77,7 +77,7 @@ This example creates a follower index named `follower_index`:
 
 [source,js]
 --------------------------------------------------
-PUT /follower_index/_ccr/follow?wait_for_restore=true
+PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 {
   "remote_cluster" : "remote_cluster",
   "leader_index" : "leader_index",

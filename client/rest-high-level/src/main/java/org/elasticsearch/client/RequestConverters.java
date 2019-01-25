@@ -963,10 +963,6 @@ final class RequestConverters {
             return putParam("wait_for_completion", waitForCompletion.toString());
         }
 
-        Params withWaitForRestore(boolean waitForRestore) {
-            return putParam("wait_for_restore", Boolean.toString(waitForRestore));
-        }
-
         Params withNodes(String[] nodes) {
             if (nodes != null && nodes.length > 0) {
                 return putParam("nodes", String.join(",", nodes));

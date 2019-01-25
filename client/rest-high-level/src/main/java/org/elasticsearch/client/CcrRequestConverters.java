@@ -47,7 +47,7 @@ final class CcrRequestConverters {
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         RequestConverters.Params parameters = new RequestConverters.Params(request);
-        parameters.withWaitForRestore(putFollowRequest.getWaitForRestore());
+        parameters.withWaitForActiveShards(putFollowRequest.waitForActiveShards());
         request.setEntity(createEntity(putFollowRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }

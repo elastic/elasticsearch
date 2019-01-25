@@ -11,6 +11,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
@@ -106,7 +107,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
                 ObjectParser.ValueType.STRING);
         }
 
-        public static Request fromXContent(final XContentParser parser, final String followerIndex, boolean waitForRestore)
+        public static Request fromXContent(final XContentParser parser, final String followerIndex, ActiveShardCount waitForActiveShards)
             throws IOException {
             Request request = PARSER.parse(parser, followerIndex);
             if (followerIndex != null) {
@@ -118,13 +119,13 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
                     }
                 }
             }
-            request.setWaitForRestore(waitForRestore);
+            request.waitForActiveShards(waitForActiveShards);
             return request;
         }
 
         private String remoteCluster;
         private String leaderIndex;
-        private boolean waitForRestore;
+        private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
         private ResumeFollowAction.Request followRequest;
 
         public Request() {
@@ -146,12 +147,21 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             this.leaderIndex = leaderIndex;
         }
 
-        public boolean getWaitForRestore() {
-            return waitForRestore;
+        public ActiveShardCount waitForActiveShards() {
+            return waitForActiveShards;
         }
 
-        public void setWaitForRestore(boolean waitForRestore) {
-            this.waitForRestore = waitForRestore;
+        /**
+         * Sets the number of shard copies that should be active for follower index creation to
+         * return. Defaults to {@link ActiveShardCount#NONE}, which will not wait for any shards
+         * to be active. Set this value to {@link ActiveShardCount#DEFAULT} to wait for the primary
+         * shard to be active. Set this value to {@link ActiveShardCount#ALL} to  wait for all shards
+         * (primary and all replicas) to be active before returning.
+         *
+         * @param waitForActiveShards number of active shard copies to wait on
+         */
+        public void waitForActiveShards(ActiveShardCount waitForActiveShards) {
+            this.waitForActiveShards = waitForActiveShards;
         }
 
         public ResumeFollowAction.Request getFollowRequest() {
@@ -190,9 +200,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             leaderIndex = in.readString();
             // TODO: Update after backport
             if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-                waitForRestore = in.readBoolean();
-            } else {
-                waitForRestore = false;
+                waitForActiveShards = ActiveShardCount.readFrom(in);
             }
             followRequest = new ResumeFollowAction.Request(in);
         }
@@ -204,7 +212,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             out.writeString(leaderIndex);
             // TODO: Update after backport
             if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                out.writeBoolean(waitForRestore);
+                waitForActiveShards.writeTo(out);
             }
             followRequest.writeTo(out);
         }
@@ -228,13 +236,13 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             Request request = (Request) o;
             return Objects.equals(remoteCluster, request.remoteCluster) &&
                 Objects.equals(leaderIndex, request.leaderIndex) &&
-                Objects.equals(waitForRestore, request.waitForRestore) &&
+                Objects.equals(waitForActiveShards, request.waitForActiveShards) &&
                 Objects.equals(followRequest, request.followRequest);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(remoteCluster, leaderIndex, waitForRestore, followRequest);
+            return Objects.hash(remoteCluster, leaderIndex, waitForActiveShards, followRequest);
         }
     }
 

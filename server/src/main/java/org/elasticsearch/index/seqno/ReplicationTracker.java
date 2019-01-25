@@ -230,7 +230,13 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         }
         final RetentionLease retentionLease =
                 new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source);
-        retentionLeases.put(id, retentionLease);
+        final RetentionLease existingRetentionLease = retentionLeases.put(id, retentionLease);
+        assert existingRetentionLease != null;
+        assert existingRetentionLease.retainingSequenceNumber() <= retentionLease.retainingSequenceNumber() :
+                "retention lease renewal for [" + id + "]"
+                        + " from [" + source + "]"
+                        + " renewed a lower retaining sequence number [" + retentionLease.retainingSequenceNumber() + "]"
+                        + " than the current lease retaining sequence number [" + existingRetentionLease.retainingSequenceNumber() + "]";
         return retentionLease;
     }
 

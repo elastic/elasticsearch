@@ -192,7 +192,6 @@ Closure commonPackageConfig(String type, boolean oss) {
       includeEmptyDirs true
       createDirectoryEntry true
       fileType CONFIG | NOREPLACE
-      from "${packagingFiles}/etc"
     }
     String envFile = expansionsForDistribution(type, false)['path.env']
     configurationFile envFile

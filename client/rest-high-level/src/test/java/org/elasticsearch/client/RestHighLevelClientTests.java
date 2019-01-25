@@ -724,9 +724,6 @@ public class RestHighLevelClientTests extends ESTestCase {
         deprecatedMethods.add("multi_get");
         deprecatedMethods.add("multi_search");
         deprecatedMethods.add("search_scroll");
-        // TODO remove in 8.0 - we will undeprecate indices.get_template because current getIndexTemplate
-        // impl will replace existing getTemplate method.
-        deprecatedMethods.add("indices.get_template");
 
         ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load("/rest-api-spec/api");
         Set<String> apiSpec = restSpec.getApis().stream().map(ClientYamlSuiteRestApi::getName).collect(Collectors.toSet());
@@ -746,6 +743,14 @@ public class RestHighLevelClientTests extends ESTestCase {
                 .filter(tuple -> tuple.v2().getAnnotation(Deprecated.class) == null)
                 .collect(Collectors.groupingBy(Tuple::v1,
                     Collectors.mapping(Tuple::v2, Collectors.toSet())));
+
+        // TODO remove in 8.0 - we will undeprecate indices.get_template because the current getIndexTemplate
+        // impl will replace the existing getTemplate method. 
+        // The above general-purpose code ignores all deprecated methods which in this case leaves `getTemplate`
+        // looking like it doesn't have a valid implementatation when it does. 
+        apiUnsupported.remove("indices.get_template");
+        
+        
 
         for (Map.Entry<String, Set<Method>> entry : methods.entrySet()) {
             String apiName = entry.getKey();

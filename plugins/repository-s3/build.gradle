@@ -1,4 +1,3 @@
-import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.AntFixture
@@ -196,6 +195,7 @@ if (useFixture) {
   }
 
   integTestMinioRunner.dependsOn(postProcessFixture)
+  integTestMinioRunner.finalizedBy(composeDown)
   // Minio only supports a single access key, see https://github.com/minio/minio/pull/5968
   integTestMinioRunner.systemProperty 'tests.rest.blacklist', [
           'repository_s3/30_repository_temporary_credentials/*',
@@ -203,7 +203,6 @@ if (useFixture) {
           'repository_s3/50_repository_ecs_credentials/*'
         ].join(",")
 
-  integTestMinioRunner.finalizedBy(composeDown)
   project.check.dependsOn(integTestMinio)
   BuildPlugin.requireDocker(integTestMinio)
 }

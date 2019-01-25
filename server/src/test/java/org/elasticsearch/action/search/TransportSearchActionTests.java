@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -34,15 +36,20 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -60,7 +67,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -324,165 +330,67 @@ public class TransportSearchActionTests extends ESTestCase {
         }
     }
 
-    private MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes) {
-        return RemoteClusterConnectionTests.startTransport(id, knownNodes, Version.CURRENT, threadPool);
-    }
-
-    public void testCollectSearchShards() throws Exception {
-        int numClusters = randomIntBetween(2, 10);
+    private MockTransportService[] startTransport(int numClusters, DiscoveryNode[] nodes, Map<String, OriginalIndices> remoteIndices,
+                                                  Settings.Builder settingsBuilder) {
         MockTransportService[] mockTransportServices = new MockTransportService[numClusters];
-        DiscoveryNode[] nodes = new DiscoveryNode[numClusters];
-        Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
-        Settings.Builder builder = Settings.builder();
         for (int i = 0; i < numClusters; i++) {
             List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-            MockTransportService remoteSeedTransport = startTransport("node_remote" + i, knownNodes);
+            MockTransportService remoteSeedTransport = RemoteClusterConnectionTests.startTransport("node_remote" + i, knownNodes,
+                Version.CURRENT, threadPool);
             mockTransportServices[i] = remoteSeedTransport;
             DiscoveryNode remoteSeedNode = remoteSeedTransport.getLocalDiscoNode();
             knownNodes.add(remoteSeedNode);
             nodes[i] = remoteSeedNode;
-            builder.put("cluster.remote.remote" + i + ".seeds", remoteSeedNode.getAddress().toString());
-            remoteIndicesByCluster.put("remote" + i, new OriginalIndices(new String[]{"index"}, IndicesOptions.lenientExpandOpen()));
+            settingsBuilder.put("cluster.remote.remote" + i + ".seeds", remoteSeedNode.getAddress().toString());
+            remoteIndices.put("remote" + i, new OriginalIndices(new String[]{"index"}, IndicesOptions.lenientExpandOpen()));
         }
+        return mockTransportServices;
+    }
+
+    private static SearchResponse emptySearchResponse() {
+        InternalSearchResponse response = new InternalSearchResponse(new SearchHits(new SearchHit[0],
+            new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN), InternalAggregations.EMPTY, null, null, false, null, 1);
+        return new SearchResponse(response, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+    }
+
+    public void testCCSRemoteReduceMergeFails() throws Exception {
+        int numClusters = randomIntBetween(2, 10);
+        DiscoveryNode[] nodes = new DiscoveryNode[numClusters];
+        Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
+        Settings.Builder builder = Settings.builder();
+        MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder);
         Settings settings = builder.build();
-
-        try {
-            try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
-                service.start();
-                service.acceptIncomingRequests();
-                RemoteClusterService remoteClusterService = service.getRemoteClusterService();
-                {
-                    final CountDownLatch latch = new CountDownLatch(1);
-                    AtomicReference<Map<String, ClusterSearchShardsResponse>> response = new AtomicReference<>();
-                    AtomicInteger skippedClusters = new AtomicInteger();
-                    TransportSearchAction.collectSearchShards(IndicesOptions.lenientExpandOpen(), null, null, skippedClusters,
-                        remoteIndicesByCluster, remoteClusterService, threadPool,
-                        new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch));
-                    awaitLatch(latch, 5, TimeUnit.SECONDS);
-                    assertEquals(0, skippedClusters.get());
-                    assertNotNull(response.get());
-                    Map<String, ClusterSearchShardsResponse> map = response.get();
-                    assertEquals(numClusters, map.size());
-                    for (int i = 0; i < numClusters; i++) {
-                        String clusterAlias = "remote" + i;
-                        assertTrue(map.containsKey(clusterAlias));
-                        ClusterSearchShardsResponse shardsResponse = map.get(clusterAlias);
-                        assertEquals(1, shardsResponse.getNodes().length);
-                    }
-                }
-                {
-                    final CountDownLatch latch = new CountDownLatch(1);
-                    AtomicReference<Exception> failure = new AtomicReference<>();
-                    AtomicInteger skippedClusters = new AtomicInteger(0);
-                    TransportSearchAction.collectSearchShards(IndicesOptions.lenientExpandOpen(), "index_not_found", null, skippedClusters,
-                        remoteIndicesByCluster, remoteClusterService, threadPool,
-                        new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch));
-                    awaitLatch(latch, 5, TimeUnit.SECONDS);
-                    assertEquals(0, skippedClusters.get());
-                    assertNotNull(failure.get());
-                    assertThat(failure.get(), instanceOf(RemoteTransportException.class));
-                    RemoteTransportException remoteTransportException = (RemoteTransportException) failure.get();
-                    assertEquals(RestStatus.NOT_FOUND, remoteTransportException.status());
-                }
-
-                int numDisconnectedClusters = randomIntBetween(1, numClusters);
-                Set<DiscoveryNode> disconnectedNodes = new HashSet<>(numDisconnectedClusters);
-                Set<Integer> disconnectedNodesIndices = new HashSet<>(numDisconnectedClusters);
-                while (disconnectedNodes.size() < numDisconnectedClusters) {
-                    int i = randomIntBetween(0, numClusters - 1);
-                    if (disconnectedNodes.add(nodes[i])) {
-                        assertTrue(disconnectedNodesIndices.add(i));
-                    }
-                }
-
-                CountDownLatch disconnectedLatch = new CountDownLatch(numDisconnectedClusters);
-                RemoteClusterServiceTests.addConnectionListener(remoteClusterService, new TransportConnectionListener() {
-                    @Override
-                    public void onNodeDisconnected(DiscoveryNode node) {
-                        if (disconnectedNodes.remove(node)) {
-                            disconnectedLatch.countDown();
-                        }
-                    }
-                });
-                for (DiscoveryNode disconnectedNode : disconnectedNodes) {
-                    service.addFailToSendNoConnectRule(disconnectedNode.getAddress());
-                }
-
-                {
-                    final CountDownLatch latch = new CountDownLatch(1);
-                    AtomicInteger skippedClusters = new AtomicInteger(0);
-                    AtomicReference<Exception> failure = new AtomicReference<>();
-                    TransportSearchAction.collectSearchShards(IndicesOptions.lenientExpandOpen(), null, null, skippedClusters,
-                        remoteIndicesByCluster, remoteClusterService, threadPool,
-                        new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch));
-                    awaitLatch(latch, 5, TimeUnit.SECONDS);
-                    assertEquals(0, skippedClusters.get());
-                    assertNotNull(failure.get());
-                    assertThat(failure.get(), instanceOf(RemoteTransportException.class));
-                    assertThat(failure.get().getMessage(), containsString("error while communicating with remote cluster ["));
-                    assertThat(failure.get().getCause(), instanceOf(NodeDisconnectedException.class));
-                }
-
-                //setting skip_unavailable to true for all the disconnected clusters will make the request succeed again
-                for (int i : disconnectedNodesIndices) {
-                    RemoteClusterServiceTests.updateSkipUnavailable(remoteClusterService, "remote" + i, true);
-                }
-
-                {
-                    final CountDownLatch latch = new CountDownLatch(1);
-                    AtomicInteger skippedClusters = new AtomicInteger(0);
-                    AtomicReference<Map<String, ClusterSearchShardsResponse>> response = new AtomicReference<>();
-                    TransportSearchAction.collectSearchShards(IndicesOptions.lenientExpandOpen(), null, null, skippedClusters,
-                        remoteIndicesByCluster, remoteClusterService, threadPool,
-                        new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch));
-                    awaitLatch(latch, 5, TimeUnit.SECONDS);
-                    assertNotNull(response.get());
-                    Map<String, ClusterSearchShardsResponse> map = response.get();
-                    assertEquals(numClusters - disconnectedNodesIndices.size(), map.size());
-                    assertEquals(skippedClusters.get(), disconnectedNodesIndices.size());
-                    for (int i = 0; i < numClusters; i++) {
-                        String clusterAlias = "remote" + i;
-                        if (disconnectedNodesIndices.contains(i)) {
-                            assertFalse(map.containsKey(clusterAlias));
-                        } else {
-                            assertNotNull(map.get(clusterAlias));
-                        }
-                    }
-                }
-
-                //give transport service enough time to realize that the node is down, and to notify the connection listeners
-                //so that RemoteClusterConnection is left with no connected nodes, hence it will retry connecting next
-                assertTrue(disconnectedLatch.await(5, TimeUnit.SECONDS));
-
-                service.clearAllRules();
-                if (randomBoolean()) {
-                    for (int i : disconnectedNodesIndices) {
-                        if (randomBoolean()) {
-                            RemoteClusterServiceTests.updateSkipUnavailable(remoteClusterService, "remote" + i, true);
-                        }
-
-                    }
-                }
-                {
-                    final CountDownLatch latch = new CountDownLatch(1);
-                    AtomicInteger skippedClusters = new AtomicInteger(0);
-                    AtomicReference<Map<String, ClusterSearchShardsResponse>> response = new AtomicReference<>();
-                    TransportSearchAction.collectSearchShards(IndicesOptions.lenientExpandOpen(), null, null, skippedClusters,
-                        remoteIndicesByCluster, remoteClusterService, threadPool,
-                        new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch));
-                    awaitLatch(latch, 5, TimeUnit.SECONDS);
-                    assertEquals(0, skippedClusters.get());
-                    assertNotNull(response.get());
-                    Map<String, ClusterSearchShardsResponse> map = response.get();
-                    assertEquals(numClusters, map.size());
-                    for (int i = 0; i < numClusters; i++) {
-                        String clusterAlias = "remote" + i;
-                        assertTrue(map.containsKey(clusterAlias));
-                        assertNotNull(map.get(clusterAlias));
-                    }
-                }
-                assertEquals(0, service.getConnectionManager().size());
+        boolean local = randomBoolean();
+        OriginalIndices localIndices = local ? new OriginalIndices(new String[]{"index"}, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
+        TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
+        Function<Boolean, InternalAggregation.ReduceContext> reduceContext = finalReduce -> null;
+        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+            service.start();
+            service.acceptIncomingRequests();
+            RemoteClusterService remoteClusterService = service.getRemoteClusterService();
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.preference("null_target");
+            final CountDownLatch latch = new CountDownLatch(1);
+            SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
+            AtomicReference<Exception> failure = new AtomicReference<>();
+            LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
+                ActionListener.wrap(r -> fail("no response expected"), failure::set), latch);
+            TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider, reduceContext,
+                remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
+            if (localIndices == null) {
+                assertNull(setOnce.get());
+            } else {
+                Tuple<SearchRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
+                assertEquals("", tuple.v1().getLocalClusterAlias());
+                assertThat(tuple.v2(), instanceOf(TransportSearchAction.CCSActionListener.class));
+                tuple.v2().onResponse(emptySearchResponse());
             }
+            awaitLatch(latch, 5, TimeUnit.SECONDS);
+            assertNotNull(failure.get());
+            //the intention here is not to test that we throw NPE, rather to trigger a situation that makes
+            //SearchResponseMerger#getMergedResponse fail unexpectedly and verify that the listener is properly notified with the NPE
+            assertThat(failure.get(), instanceOf(NullPointerException.class));
+            assertEquals(0, service.getConnectionManager().size());
         } finally {
             for (MockTransportService mockTransportService : mockTransportServices) {
                 mockTransportService.close();
@@ -490,8 +398,354 @@ public class TransportSearchActionTests extends ESTestCase {
         }
     }
 
-    public void testResolveCCSReduceMode() throws IOException {
-        SearchRequest searchRequest = new SearchRequestTests().createSearchRequest();
+    public void testCCSRemoteReduce() throws Exception {
+        int numClusters = randomIntBetween(2, 10);
+        DiscoveryNode[] nodes = new DiscoveryNode[numClusters];
+        Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
+        Settings.Builder builder = Settings.builder();
+        MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder);
+        Settings settings = builder.build();
+        boolean local = randomBoolean();
+        OriginalIndices localIndices = local ? new OriginalIndices(new String[]{"index"}, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
+        int totalClusters = numClusters + (local ? 1 : 0);
+        TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
+        Function<Boolean, InternalAggregation.ReduceContext> reduceContext = finalReduce -> null;
+        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+            service.start();
+            service.acceptIncomingRequests();
+            RemoteClusterService remoteClusterService = service.getRemoteClusterService();
+            {
+                SearchRequest searchRequest = new SearchRequest();
+                final CountDownLatch latch = new CountDownLatch(1);
+                SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
+                AtomicReference<SearchResponse> response = new AtomicReference<>();
+                LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
+                    ActionListener.wrap(response::set, e -> fail("no failures expected")), latch);
+                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider, reduceContext,
+                    remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
+                if (localIndices == null) {
+                    assertNull(setOnce.get());
+                } else {
+                    Tuple<SearchRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
+                    assertEquals("", tuple.v1().getLocalClusterAlias());
+                    assertThat(tuple.v2(), instanceOf(TransportSearchAction.CCSActionListener.class));
+                    tuple.v2().onResponse(emptySearchResponse());
+                }
+                awaitLatch(latch, 5, TimeUnit.SECONDS);
+
+                SearchResponse searchResponse = response.get();
+                assertEquals(0, searchResponse.getClusters().getSkipped());
+                assertEquals(totalClusters, searchResponse.getClusters().getTotal());
+                assertEquals(totalClusters, searchResponse.getClusters().getSuccessful());
+                assertEquals(CCSReduceMode.REMOTE, searchResponse.getClusters().getCCSReduceMode());
+                assertEquals(totalClusters + 1, searchResponse.getNumReducePhases());
+            }
+            {
+                SearchRequest searchRequest = new SearchRequest();
+                searchRequest.preference("index_not_found");
+                final CountDownLatch latch = new CountDownLatch(1);
+                SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
+                AtomicReference<Exception> failure = new AtomicReference<>();
+                LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
+                    ActionListener.wrap(r -> fail("no response expected"), failure::set), latch);
+                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider, reduceContext,
+                    remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
+                if (localIndices == null) {
+                    assertNull(setOnce.get());
+                } else {
+                    Tuple<SearchRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
+                    assertEquals("", tuple.v1().getLocalClusterAlias());
+                    assertThat(tuple.v2(), instanceOf(TransportSearchAction.CCSActionListener.class));
+                    tuple.v2().onResponse(emptySearchResponse());
+                }
+                awaitLatch(latch, 5, TimeUnit.SECONDS);
+                assertNotNull(failure.get());
+                assertThat(failure.get(), instanceOf(RemoteTransportException.class));
+                RemoteTransportException remoteTransportException = (RemoteTransportException) failure.get();
+                assertEquals(RestStatus.NOT_FOUND, remoteTransportException.status());
+            }
+
+            int numDisconnectedClusters = randomIntBetween(1, numClusters);
+            Set<DiscoveryNode> disconnectedNodes = new HashSet<>(numDisconnectedClusters);
+            Set<Integer> disconnectedNodesIndices = new HashSet<>(numDisconnectedClusters);
+            while (disconnectedNodes.size() < numDisconnectedClusters) {
+                int i = randomIntBetween(0, numClusters - 1);
+                if (disconnectedNodes.add(nodes[i])) {
+                    assertTrue(disconnectedNodesIndices.add(i));
+                }
+            }
+
+            CountDownLatch disconnectedLatch = new CountDownLatch(numDisconnectedClusters);
+            RemoteClusterServiceTests.addConnectionListener(remoteClusterService, new TransportConnectionListener() {
+                @Override
+                public void onNodeDisconnected(DiscoveryNode node) {
+                    if (disconnectedNodes.remove(node)) {
+                        disconnectedLatch.countDown();
+                    }
+                }
+            });
+            for (DiscoveryNode disconnectedNode : disconnectedNodes) {
+                service.addFailToSendNoConnectRule(disconnectedNode.getAddress());
+            }
+
+            {
+                SearchRequest searchRequest = new SearchRequest();
+                final CountDownLatch latch = new CountDownLatch(1);
+                SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
+                AtomicReference<Exception> failure = new AtomicReference<>();
+                LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
+                    ActionListener.wrap(r -> fail("no response expected"), failure::set), latch);
+                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider, reduceContext,
+                    remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
+                if (localIndices == null) {
+                    assertNull(setOnce.get());
+                } else {
+                    Tuple<SearchRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
+                    assertEquals("", tuple.v1().getLocalClusterAlias());
+                    assertThat(tuple.v2(), instanceOf(TransportSearchAction.CCSActionListener.class));
+                    tuple.v2().onResponse(emptySearchResponse());
+                }
+                awaitLatch(latch, 5, TimeUnit.SECONDS);
+                assertNotNull(failure.get());
+                assertThat(failure.get(), instanceOf(RemoteTransportException.class));
+                RemoteTransportException remoteTransportException = (RemoteTransportException) failure.get();
+                assertThat(failure.get().getMessage(), containsString("error while communicating with remote cluster ["));
+                assertThat(failure.get().getCause(), instanceOf(NodeDisconnectedException.class));
+            }
+
+            //setting skip_unavailable to true for all the disconnected clusters will make the request succeed again
+            for (int i : disconnectedNodesIndices) {
+                RemoteClusterServiceTests.updateSkipUnavailable(remoteClusterService, "remote" + i, true);
+            }
+
+            {
+                SearchRequest searchRequest = new SearchRequest();
+                final CountDownLatch latch = new CountDownLatch(1);
+                SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
+                AtomicReference<SearchResponse> response = new AtomicReference<>();
+                LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
+                    ActionListener.wrap(response::set, e -> fail("no failures expected")), latch);
+                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider, reduceContext,
+                    remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
+                if (localIndices == null) {
+                    assertNull(setOnce.get());
+                } else {
+                    Tuple<SearchRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
+                    assertEquals("", tuple.v1().getLocalClusterAlias());
+                    assertThat(tuple.v2(), instanceOf(TransportSearchAction.CCSActionListener.class));
+                    tuple.v2().onResponse(emptySearchResponse());
+                }
+                awaitLatch(latch, 5, TimeUnit.SECONDS);
+
+                SearchResponse searchResponse = response.get();
+                assertEquals(disconnectedNodesIndices.size(), searchResponse.getClusters().getSkipped());
+                assertEquals(totalClusters, searchResponse.getClusters().getTotal());
+                int successful = totalClusters - disconnectedNodesIndices.size();
+                assertEquals(successful, searchResponse.getClusters().getSuccessful());
+                assertEquals(CCSReduceMode.REMOTE, searchResponse.getClusters().getCCSReduceMode());
+                assertEquals(successful == 0 ? 0 : successful + 1, searchResponse.getNumReducePhases());
+            }
+
+            //give transport service enough time to realize that the node is down, and to notify the connection listeners
+            //so that RemoteClusterConnection is left with no connected nodes, hence it will retry connecting next
+            assertTrue(disconnectedLatch.await(5, TimeUnit.SECONDS));
+
+            service.clearAllRules();
+            if (randomBoolean()) {
+                for (int i : disconnectedNodesIndices) {
+                    if (randomBoolean()) {
+                        RemoteClusterServiceTests.updateSkipUnavailable(remoteClusterService, "remote" + i, true);
+                    }
+
+                }
+            }
+            {
+                SearchRequest searchRequest = new SearchRequest();
+                final CountDownLatch latch = new CountDownLatch(1);
+                SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
+                AtomicReference<SearchResponse> response = new AtomicReference<>();
+                LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
+                    ActionListener.wrap(response::set, e -> fail("no failures expected")), latch);
+                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider, reduceContext,
+                    remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
+                if (localIndices == null) {
+                    assertNull(setOnce.get());
+                } else {
+                    Tuple<SearchRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
+                    assertEquals("", tuple.v1().getLocalClusterAlias());
+                    assertThat(tuple.v2(), instanceOf(TransportSearchAction.CCSActionListener.class));
+                    tuple.v2().onResponse(emptySearchResponse());
+                }
+                awaitLatch(latch, 5, TimeUnit.SECONDS);
+
+                SearchResponse searchResponse = response.get();
+                assertEquals(0, searchResponse.getClusters().getSkipped());
+                assertEquals(totalClusters, searchResponse.getClusters().getTotal());
+                assertEquals(totalClusters, searchResponse.getClusters().getSuccessful());
+                assertEquals(CCSReduceMode.REMOTE, searchResponse.getClusters().getCCSReduceMode());
+                assertEquals(totalClusters + 1, searchResponse.getNumReducePhases());
+            }
+            assertEquals(0, service.getConnectionManager().size());
+        } finally {
+            for (MockTransportService mockTransportService : mockTransportServices) {
+                mockTransportService.close();
+            }
+        }
+    }
+
+    public void testCollectSearchShards() throws Exception {
+        int numClusters = randomIntBetween(2, 10);
+        DiscoveryNode[] nodes = new DiscoveryNode[numClusters];
+        Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
+        Settings.Builder builder = Settings.builder();
+        MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder);
+        Settings settings = builder.build();
+        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+            service.start();
+            service.acceptIncomingRequests();
+            RemoteClusterService remoteClusterService = service.getRemoteClusterService();
+            {
+                final CountDownLatch latch = new CountDownLatch(1);
+                AtomicReference<Map<String, ClusterSearchShardsResponse>> response = new AtomicReference<>();
+                AtomicInteger skippedClusters = new AtomicInteger();
+                TransportSearchAction.collectSearchShards(IndicesOptions.lenientExpandOpen(), null, null, skippedClusters,
+                    remoteIndicesByCluster, remoteClusterService, threadPool,
+                    new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch));
+                awaitLatch(latch, 5, TimeUnit.SECONDS);
+                assertEquals(0, skippedClusters.get());
+                assertNotNull(response.get());
+                Map<String, ClusterSearchShardsResponse> map = response.get();
+                assertEquals(numClusters, map.size());
+                for (int i = 0; i < numClusters; i++) {
+                    String clusterAlias = "remote" + i;
+                    assertTrue(map.containsKey(clusterAlias));
+                    ClusterSearchShardsResponse shardsResponse = map.get(clusterAlias);
+                    assertEquals(1, shardsResponse.getNodes().length);
+                }
+            }
+            {
+                final CountDownLatch latch = new CountDownLatch(1);
+                AtomicReference<Exception> failure = new AtomicReference<>();
+                AtomicInteger skippedClusters = new AtomicInteger(0);
+                TransportSearchAction.collectSearchShards(IndicesOptions.lenientExpandOpen(), "index_not_found", null, skippedClusters,
+                    remoteIndicesByCluster, remoteClusterService, threadPool,
+                    new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch));
+                awaitLatch(latch, 5, TimeUnit.SECONDS);
+                assertEquals(0, skippedClusters.get());
+                assertNotNull(failure.get());
+                assertThat(failure.get(), instanceOf(RemoteTransportException.class));
+                RemoteTransportException remoteTransportException = (RemoteTransportException) failure.get();
+                assertEquals(RestStatus.NOT_FOUND, remoteTransportException.status());
+            }
+
+            int numDisconnectedClusters = randomIntBetween(1, numClusters);
+            Set<DiscoveryNode> disconnectedNodes = new HashSet<>(numDisconnectedClusters);
+            Set<Integer> disconnectedNodesIndices = new HashSet<>(numDisconnectedClusters);
+            while (disconnectedNodes.size() < numDisconnectedClusters) {
+                int i = randomIntBetween(0, numClusters - 1);
+                if (disconnectedNodes.add(nodes[i])) {
+                    assertTrue(disconnectedNodesIndices.add(i));
+                }
+            }
+
+            CountDownLatch disconnectedLatch = new CountDownLatch(numDisconnectedClusters);
+            RemoteClusterServiceTests.addConnectionListener(remoteClusterService, new TransportConnectionListener() {
+                @Override
+                public void onNodeDisconnected(DiscoveryNode node) {
+                    if (disconnectedNodes.remove(node)) {
+                        disconnectedLatch.countDown();
+                    }
+                }
+            });
+            for (DiscoveryNode disconnectedNode : disconnectedNodes) {
+                service.addFailToSendNoConnectRule(disconnectedNode.getAddress());
+            }
+
+            {
+                final CountDownLatch latch = new CountDownLatch(1);
+                AtomicInteger skippedClusters = new AtomicInteger(0);
+                AtomicReference<Exception> failure = new AtomicReference<>();
+                TransportSearchAction.collectSearchShards(IndicesOptions.lenientExpandOpen(), null, null, skippedClusters,
+                    remoteIndicesByCluster, remoteClusterService, threadPool,
+                    new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch));
+                awaitLatch(latch, 5, TimeUnit.SECONDS);
+                assertEquals(0, skippedClusters.get());
+                assertNotNull(failure.get());
+                assertThat(failure.get(), instanceOf(RemoteTransportException.class));
+                assertThat(failure.get().getMessage(), containsString("error while communicating with remote cluster ["));
+                assertThat(failure.get().getCause(), instanceOf(NodeDisconnectedException.class));
+            }
+
+            //setting skip_unavailable to true for all the disconnected clusters will make the request succeed again
+            for (int i : disconnectedNodesIndices) {
+                RemoteClusterServiceTests.updateSkipUnavailable(remoteClusterService, "remote" + i, true);
+            }
+
+            {
+                final CountDownLatch latch = new CountDownLatch(1);
+                AtomicInteger skippedClusters = new AtomicInteger(0);
+                AtomicReference<Map<String, ClusterSearchShardsResponse>> response = new AtomicReference<>();
+                TransportSearchAction.collectSearchShards(IndicesOptions.lenientExpandOpen(), null, null, skippedClusters,
+                    remoteIndicesByCluster, remoteClusterService, threadPool,
+                    new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch));
+                awaitLatch(latch, 5, TimeUnit.SECONDS);
+                assertNotNull(response.get());
+                Map<String, ClusterSearchShardsResponse> map = response.get();
+                assertEquals(numClusters - disconnectedNodesIndices.size(), map.size());
+                assertEquals(skippedClusters.get(), disconnectedNodesIndices.size());
+                for (int i = 0; i < numClusters; i++) {
+                    String clusterAlias = "remote" + i;
+                    if (disconnectedNodesIndices.contains(i)) {
+                        assertFalse(map.containsKey(clusterAlias));
+                    } else {
+                        assertNotNull(map.get(clusterAlias));
+                    }
+                }
+            }
+
+            //give transport service enough time to realize that the node is down, and to notify the connection listeners
+            //so that RemoteClusterConnection is left with no connected nodes, hence it will retry connecting next
+            assertTrue(disconnectedLatch.await(5, TimeUnit.SECONDS));
+
+            service.clearAllRules();
+            if (randomBoolean()) {
+                for (int i : disconnectedNodesIndices) {
+                    if (randomBoolean()) {
+                        RemoteClusterServiceTests.updateSkipUnavailable(remoteClusterService, "remote" + i, true);
+                    }
+
+                }
+            }
+            {
+                final CountDownLatch latch = new CountDownLatch(1);
+                AtomicInteger skippedClusters = new AtomicInteger(0);
+                AtomicReference<Map<String, ClusterSearchShardsResponse>> response = new AtomicReference<>();
+                TransportSearchAction.collectSearchShards(IndicesOptions.lenientExpandOpen(), null, null, skippedClusters,
+                    remoteIndicesByCluster, remoteClusterService, threadPool,
+                    new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch));
+                awaitLatch(latch, 5, TimeUnit.SECONDS);
+                assertEquals(0, skippedClusters.get());
+                assertNotNull(response.get());
+                Map<String, ClusterSearchShardsResponse> map = response.get();
+                assertEquals(numClusters, map.size());
+                for (int i = 0; i < numClusters; i++) {
+                    String clusterAlias = "remote" + i;
+                    assertTrue(map.containsKey(clusterAlias));
+                    assertNotNull(map.get(clusterAlias));
+                }
+            }
+            assertEquals(0, service.getConnectionManager().size());
+        } finally {
+            for (MockTransportService mockTransportService : mockTransportServices) {
+                mockTransportService.close();
+            }
+        }
+    }
+
+    public void testResolveCCSReduceMode() throws Exception {
+        SearchRequestTests searchRequestTests = new SearchRequestTests();
+        searchRequestTests.setUp();
+        SearchRequest searchRequest = searchRequestTests.createSearchRequest();
         CCSReduceMode ccsReduceMode = randomFrom(CCSReduceMode.REMOTE, CCSReduceMode.LOCAL);
         searchRequest.setCCSReduceMode(ccsReduceMode);
         assertEquals(ccsReduceMode, searchRequest.getCCSReduceMode());

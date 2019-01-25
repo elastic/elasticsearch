@@ -40,8 +40,9 @@ public class VerifyRepositoryResponseTests extends ESTestCase {
             VerifyRepositoryResponseTests::createTestInstance,
             VerifyRepositoryResponseTests::toXContent,
             VerifyRepositoryResponse::fromXContent)
-            .supportsUnknownFields(false)
+            .supportsUnknownFields(true)
             .shuffleFieldsExceptions(new String[] {"nodes"}) // do not mix up the order of nodes, it will cause the tests to fail
+            .randomFieldsExcludeFilter((f) -> f.equals("nodes")) // everything in nodes needs to be a particular parseable object
             .assertToXContentEquivalence(false)
             .test();
     }
@@ -56,16 +57,14 @@ public class VerifyRepositoryResponseTests extends ESTestCase {
     }
 
     private static XContentBuilder toXContent(VerifyRepositoryResponse.NodeView node, XContentBuilder builder) throws IOException {
-        // Use a temp builder to create the object we want to add random fields to
-        XContentBuilder tempBuilder = JsonXContent.contentBuilder().startObject().field("name", node.getName()).endObject();
-        BytesReference newBytes = XContentTestUtils.insertRandomFields(XContentType.JSON, BytesReference.bytes(tempBuilder),
-            null, random());
-
-        // add the temp object into the actual builder
-        builder.rawField(node.getNodeId(), newBytes.streamInput(), XContentType.JSON);
-
+        builder.startObject(node.getNodeId());
+        {
+            builder.field("name", node.getName());
+        }
+        builder.endObject();
         return builder;
     }
+
 
     private static XContentBuilder toXContent(VerifyRepositoryResponse response, XContentBuilder builder) throws IOException {
         builder.startObject();

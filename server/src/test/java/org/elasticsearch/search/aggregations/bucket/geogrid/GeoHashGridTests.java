@@ -72,9 +72,9 @@ public class GeoHashGridTests extends InternalMultiBucketAggregationTestCase<Int
         Map<Long, List<InternalGeoGridBucket>> map = new HashMap<>();
         for (InternalGeoHashGrid input : inputs) {
             for (InternalGeoGridBucket bucket : input.getBuckets()) {
-                List<InternalGeoGridBucket> buckets = map.get(bucket.geohashAsLong);
+                List<InternalGeoGridBucket> buckets = map.get(bucket.hashAsLong);
                 if (buckets == null) {
-                    map.put(bucket.geohashAsLong, buckets = new ArrayList<>());
+                    map.put(bucket.hashAsLong, buckets = new ArrayList<>());
                 }
                 buckets.add(bucket);
             }

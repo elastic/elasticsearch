@@ -35,37 +35,37 @@ import java.util.Objects;
 public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
         extends InternalMultiBucketAggregation.InternalBucket implements GeoGrid.Bucket, Comparable<InternalGeoGridBucket> {
 
-    protected long geohashAsLong;
+    protected long hashAsLong;
     protected long docCount;
     protected InternalAggregations aggregations;
 
-    public InternalGeoGridBucket(long geohashAsLong, long docCount, InternalAggregations aggregations) {
+    public InternalGeoGridBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
         this.docCount = docCount;
         this.aggregations = aggregations;
-        this.geohashAsLong = geohashAsLong;
+        this.hashAsLong = hashAsLong;
     }
 
     /**
      * Read from a stream.
      */
     public InternalGeoGridBucket(StreamInput in) throws IOException {
-        geohashAsLong = in.readLong();
+        hashAsLong = in.readLong();
         docCount = in.readVLong();
         aggregations = InternalAggregations.readAggregations(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(geohashAsLong);
+        out.writeLong(hashAsLong);
         out.writeVLong(docCount);
         aggregations.writeTo(out);
     }
 
-    abstract B buildBucket(InternalGeoGridBucket bucket, long geoHashAsLong, long docCount, InternalAggregations aggregations);
+    abstract B buildBucket(InternalGeoGridBucket bucket, long hashAsLong, long docCount, InternalAggregations aggregations);
 
 
-    long geohashAsLong() {
-        return geohashAsLong;
+    long hashAsLong() {
+        return hashAsLong;
     }
 
     @Override
@@ -80,10 +80,10 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
 
     @Override
     public int compareTo(InternalGeoGridBucket other) {
-        if (this.geohashAsLong > other.geohashAsLong) {
+        if (this.hashAsLong > other.hashAsLong) {
             return 1;
         }
-        if (this.geohashAsLong < other.geohashAsLong) {
+        if (this.hashAsLong < other.hashAsLong) {
             return -1;
         }
         return 0;
@@ -97,7 +97,7 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
             aggregationsList.add(bucket.aggregations);
         }
         final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
-        return buildBucket(this, geohashAsLong, docCount, aggs);
+        return buildBucket(this, hashAsLong, docCount, aggs);
     }
 
     @Override
@@ -115,14 +115,14 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InternalGeoGridBucket bucket = (InternalGeoGridBucket) o;
-        return geohashAsLong == bucket.geohashAsLong &&
+        return hashAsLong == bucket.hashAsLong &&
             docCount == bucket.docCount &&
             Objects.equals(aggregations, bucket.aggregations);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(geohashAsLong, docCount, aggregations);
+        return Objects.hash(hashAsLong, docCount, aggregations);
     }
 
 }

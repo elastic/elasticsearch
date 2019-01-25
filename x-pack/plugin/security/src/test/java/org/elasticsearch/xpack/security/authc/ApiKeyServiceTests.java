@@ -42,6 +42,7 @@ import org.junit.Before;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
@@ -226,7 +227,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                     BytesReference.bytes(roleARoleDescriptor.toXContent(builder, ToXContent.EMPTY_PARAMS, true)).streamInput(), false);
         }
         authMetadata.put(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY,
-                (emptyApiKeyRoleDescriptor) ? null : Collections.singletonMap("a role", roleARDMap));
+                (emptyApiKeyRoleDescriptor) ? randomFrom(Arrays.asList(null, Collections.emptyMap())) : Collections.singletonMap("a role", roleARDMap));
 
         final RoleDescriptor limitedRoleDescriptor = new RoleDescriptor("limited role", new String[] { "all" },
                 new RoleDescriptor.IndicesPrivileges[] {

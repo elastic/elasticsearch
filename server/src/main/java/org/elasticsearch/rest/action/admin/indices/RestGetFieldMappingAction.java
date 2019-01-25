@@ -47,9 +47,10 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetFieldMappingAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestPutMappingAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using types in get field mapping requests is deprecated. " +
-        "Set request parameter include_type_name to false to be compatible with the next major version.";
+        LogManager.getLogger(RestGetFieldMappingAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get field mapping " +
+        "requests is deprecated. The parameter include_type_name should be provided and set to false to be " +
+        "compatible with the next major version.";
 
     public RestGetFieldMappingAction(Settings settings, RestController controller) {
         super(settings);

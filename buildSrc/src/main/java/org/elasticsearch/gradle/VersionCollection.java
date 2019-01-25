@@ -164,8 +164,8 @@ public class VersionCollection {
     }
 
     /**
-      * Returns info about the unreleased version, or {@code null} if the version is released.
-      */
+     * Returns info about the unreleased version, or {@code null} if the version is released.
+     */
     public UnreleasedVersionInfo unreleasedInfo(Version version) {
         return unreleased.get(version);
     }

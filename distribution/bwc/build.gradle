@@ -122,17 +122,34 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
 
     Map<String, File> artifactFiles = [:]
     List<String> projectDirs = []
-    List<String> projects = ['zip', 'deb', 'rpm']
+    List<String> projects = ['deb', 'rpm']
+    if (bwcVersion.onOrAfter('7.0.0')) {
+      projects.addAll(['windows-zip', 'darwin-tar', 'linux-tar'])
+    } else {
+      projects.add('zip')
+    }
+
     for (String projectName : projects) {
         String baseDir = "distribution"
+        String classifier = ""
+        String extension = projectName
+        if (bwcVersion.onOrAfter('7.0.0') && (projectName.contains('zip') || projectName.contains('tar'))) {
+          int ndx = projectName.indexOf('-')
+          classifier = "-${projectName.substring(0, ndx)}-x86_64"
+          extension = projectName.substring(ndx + 1)
+          if (extension.equals('tar')) {
+            extension += '.gz'
+          }
+        }
         if (bwcVersion.onOrAfter('6.3.0')) {
-            baseDir += projectName == 'zip' ? '/archives' : '/packages'
+            baseDir += projectName.endsWith('zip') || projectName.endsWith('tar') ? '/archives' : '/packages'
             // add oss variant first
             projectDirs.add("${baseDir}/oss-${projectName}")
-            artifactFiles.put("oss-" + projectName, file("${checkoutDir}/${baseDir}/oss-${projectName}/build/distributions/elasticsearch-oss-${bwcVersion}-SNAPSHOT.${projectName}"))
+            artifactFiles.put("oss-" + projectName, file("${checkoutDir}/${baseDir}/oss-${projectName}/build/distributions/elasticsearch-oss-${bwcVersion}-SNAPSHOT${classifier}.${extension}"))
         }
         projectDirs.add("${baseDir}/${projectName}")
-        artifactFiles.put(projectName, file("${checkoutDir}/${baseDir}/${projectName}/build/distributions/elasticsearch-${bwcVersion}-SNAPSHOT.${projectName}"))
+        artifactFiles.put(projectName,
+                file("${checkoutDir}/${baseDir}/${projectName}/build/distributions/elasticsearch-${bwcVersion}-SNAPSHOT${classifier}.${extension}"))
     }
     
     Closure createRunBwcGradleTask = { name, extraConfig ->
@@ -211,15 +228,21 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
     resolveAllDependencies.dependsOn resolveAllBwcDependencies
 
     for (e in artifactFiles) {
-        String projectName = e.key
-        File artifactFile = e.value
-        String artifactFileName = artifactFile.name
-        String artifactName = artifactFileName.contains('oss') ? 'elasticsearch-oss' : 'elasticsearch'
-        String suffix = artifactFile.toString()[-3..-1]
-        configurations.create(projectName)
-        artifacts {
-            it.add(projectName, [file: artifactFile, name: artifactName, type: suffix, builtBy: buildBwcVersion])
-        }
+      String projectName = e.key
+      File artifactFile = e.value
+      String artifactFileName = artifactFile.name
+      String artifactName = artifactFileName.contains('oss') ? 'elasticsearch-oss' : 'elasticsearch'
+      String suffix = artifactFile.toString()[-3..-1]
+      int archNdx = artifactFileName.indexOf('x86_64')
+      String classifier = ''
+      if (archNdx != -1) {
+        int osNdx = artifactFileName.lastIndexOf('-', archNdx - 2)
+        classifier = "${artifactFileName.substring(osNdx + 1, archNdx - 1)}-x86_64"
+      }
+      configurations.create(projectName)
+      artifacts {
+        it.add(projectName, [file: artifactFile, name: artifactName, classifier: classifier, type: suffix, builtBy: buildBwcVersion])
+      }
     }
     // make sure no dependencies were added to assemble; we want it to be a no-op
     assemble.dependsOn = []

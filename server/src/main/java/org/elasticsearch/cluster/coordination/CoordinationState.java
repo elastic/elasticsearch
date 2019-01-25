@@ -422,7 +422,7 @@ public class CoordinationState {
         logger.trace("handleCommit: applying commit request for term [{}] and version [{}]", applyCommit.getTerm(),
             applyCommit.getVersion());
 
-        persistedState.markLastAcceptedConfigAsCommitted();
+        persistedState.markLastAcceptedStateAsCommitted();
         assert getLastCommittedConfiguration().equals(getLastAcceptedConfiguration());
     }
 
@@ -471,18 +471,17 @@ public class CoordinationState {
         /**
          * Marks the last accepted cluster state as committed.
          * After a successful call to this method, {@link #getLastAcceptedState()} should return the last cluster state that was set,
-         * with the last committed configuration now corresponding to the last accepted configuration.
+         * with the last committed configuration now corresponding to the last accepted configuration, and the cluster uuid, if set,
+         * marked as committed.
          */
-        default void markLastAcceptedConfigAsCommitted() {
+        default void markLastAcceptedStateAsCommitted() {
             final ClusterState lastAcceptedState = getLastAcceptedState();
             MetaData.Builder metaDataBuilder = null;
             if (lastAcceptedState.getLastAcceptedConfiguration().equals(lastAcceptedState.getLastCommittedConfiguration()) == false) {
                 final CoordinationMetaData coordinationMetaData = CoordinationMetaData.builder(lastAcceptedState.coordinationMetaData())
                         .lastCommittedConfiguration(lastAcceptedState.getLastAcceptedConfiguration())
                         .build();
-                if (metaDataBuilder == null) {
-                    metaDataBuilder = MetaData.builder(lastAcceptedState.metaData());
-                }
+                metaDataBuilder = MetaData.builder(lastAcceptedState.metaData());
                 metaDataBuilder.coordinationMetaData(coordinationMetaData);
             }
             if (lastAcceptedState.metaData().clusterUUID().equals(MetaData.UNKNOWN_CLUSTER_UUID) == false &&

@@ -219,7 +219,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         gateway = maybeNew(gateway);
         assertThat(gateway.getLastAcceptedState().getLastAcceptedConfiguration(),
                 not(equalTo(gateway.getLastAcceptedState().getLastCommittedConfiguration())));
-        gateway.markLastAcceptedConfigAsCommitted();
+        gateway.markLastAcceptedStateAsCommitted();
 
         CoordinationMetaData expectedCoordinationMetaData = CoordinationMetaData.builder(coordinationMetaData)
                 .lastCommittedConfiguration(coordinationMetaData.getLastAcceptedConfiguration()).build();
@@ -228,7 +228,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
 
         gateway = maybeNew(gateway);
         assertClusterStateEqual(expectedClusterState, gateway.getLastAcceptedState());
-        gateway.markLastAcceptedConfigAsCommitted();
+        gateway.markLastAcceptedStateAsCommitted();
 
         gateway = maybeNew(gateway);
         assertClusterStateEqual(expectedClusterState, gateway.getLastAcceptedState());

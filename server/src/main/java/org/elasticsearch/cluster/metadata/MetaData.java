@@ -841,7 +841,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 clusterUUIDCommitted = in.readBoolean();
             }
             version = in.readLong();
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) { //TODO revisit after Zen2 BWC is implemented
+            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
                 coordinationMetaData = new CoordinationMetaData(in);
             } else {
                 coordinationMetaData = CoordinationMetaData.EMPTY_META_DATA;

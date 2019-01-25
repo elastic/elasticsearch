@@ -228,21 +228,21 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
     resolveAllDependencies.dependsOn resolveAllBwcDependencies
 
     for (e in artifactFiles) {
-      String projectName = e.key
-      File artifactFile = e.value
-      String artifactFileName = artifactFile.name
-      String artifactName = artifactFileName.contains('oss') ? 'elasticsearch-oss' : 'elasticsearch'
-      String suffix = artifactFile.toString()[-3..-1]
-      int archNdx = artifactFileName.indexOf('x86_64')
-      String classifier = ''
-      if (archNdx != -1) {
-        int osNdx = artifactFileName.lastIndexOf('-', archNdx - 2)
-        classifier = "${artifactFileName.substring(osNdx + 1, archNdx - 1)}-x86_64"
-      }
-      configurations.create(projectName)
-      artifacts {
-        it.add(projectName, [file: artifactFile, name: artifactName, classifier: classifier, type: suffix, builtBy: buildBwcVersion])
-      }
+        String projectName = e.key
+        File artifactFile = e.value
+        String artifactFileName = artifactFile.name
+        String artifactName = artifactFileName.contains('oss') ? 'elasticsearch-oss' : 'elasticsearch'
+        String suffix = artifactFile.toString()[-3..-1]
+        int archNdx = artifactFileName.indexOf('x86_64')
+        String classifier = ''
+        if (archNdx != -1) {
+            int osNdx = artifactFileName.lastIndexOf('-', archNdx - 2)
+            classifier = "${artifactFileName.substring(osNdx + 1, archNdx - 1)}-x86_64"
+        }
+        configurations.create(projectName)
+        artifacts {
+            it.add(projectName, [file: artifactFile, name: artifactName, classifier: classifier, type: suffix, builtBy: buildBwcVersion])
+        }
     }
     // make sure no dependencies were added to assemble; we want it to be a no-op
     assemble.dependsOn = []

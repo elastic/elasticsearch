@@ -346,14 +346,6 @@ the current document version of 1. If the document was already updated
 and its version was set to 2 or higher, the indexing command will fail
 and result in a conflict (409 http status code).
 
-WARNING: External versioning supports the value 0 as a valid version number.
-This allows the version to be in sync with an external versioning system
-where version numbers start from zero instead of one. It has the side effect
-that documents with version number equal to zero can neither be updated
-using the <<docs-update-by-query,Update-By-Query API>> nor be deleted
-using the <<docs-delete-by-query,Delete By Query API>> as long as their
-version number is equal to zero.
-
 A nice side effect is that there is no need to maintain strict ordering
 of async indexing operations executed as a result of changes to a source
 database, as long as version numbers from the source database are used.

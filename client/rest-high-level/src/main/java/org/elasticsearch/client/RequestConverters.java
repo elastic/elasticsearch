@@ -165,7 +165,9 @@ final class RequestConverters {
                         metadata.field("_index", action.index());
                     }
                     if (Strings.hasLength(action.type())) {
-                        metadata.field("_type", action.type());
+                        if (MapperService.SINGLE_MAPPING_NAME.equals(action.type()) == false) {
+                            metadata.field("_type", action.type());
+                        }
                     }
                     if (Strings.hasLength(action.id())) {
                         metadata.field("_id", action.id());

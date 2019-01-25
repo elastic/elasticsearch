@@ -5,24 +5,19 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 
+import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+
+@ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0, transportClientRatio = 0)
 public abstract class AbstractSqlIntegTestCase extends ESIntegTestCase {
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -32,29 +27,18 @@ public abstract class AbstractSqlIntegTestCase extends ESIntegTestCase {
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
-        settings.put("xpack.ml.autodetect_process", false);
+        settings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         return settings.build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(XPackPlugin.class, CommonAnalysisPlugin.class, ReindexPlugin.class);
+        return Collections.singletonList(LocalStateSQLXPackPlugin.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return nodePlugins();
-    }
-
-    @Override
-    protected Settings transportClientSettings() {
-        // Plugin should be loaded on the transport client as well
-        return nodeSettings(0);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        return Arrays.asList(TestZenDiscovery.TestPlugin.class, TestSeedPlugin.class);
     }
 }
 

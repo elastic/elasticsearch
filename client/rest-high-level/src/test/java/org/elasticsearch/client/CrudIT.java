@@ -68,9 +68,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestDeleteAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
+import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.rest.action.document.RestUpdateAction;
-import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -92,6 +92,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -612,6 +613,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             UpdateResponse updateResponse = execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
             assertEquals(RestStatus.OK, updateResponse.status());
             assertEquals(indexResponse.getVersion() + 1, updateResponse.getVersion());
+            assertThat(updateResponse.getSeqNo(), greaterThanOrEqualTo(0L));
+            assertThat(updateResponse.getPrimaryTerm(), greaterThanOrEqualTo(1L));
 
             final UpdateRequest updateRequestConflict = new UpdateRequest("index", "id");
             updateRequestConflict.doc(singletonMap("field", "with_version_conflict"), randomFrom(XContentType.values()));

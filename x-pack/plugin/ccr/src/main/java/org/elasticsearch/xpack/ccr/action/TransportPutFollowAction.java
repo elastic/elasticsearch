@@ -134,6 +134,8 @@ public final class TransportPutFollowAction
             restoreInitiatedListener = listener;
         }
 
+        Client clientWithHeaders = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
+
         ActionListener<RestoreSnapshotResponse> restoreCompleteHandler = new ActionListener<RestoreSnapshotResponse>() {
             @Override
             public void onResponse(RestoreSnapshotResponse restoreSnapshotResponse) {
@@ -144,7 +146,7 @@ public final class TransportPutFollowAction
                     // restore.
                     followingListener.onResponse(new PutFollowAction.Response(true, false, false));
                 } else if (restoreInfo.failedShards() == 0) {
-                    initiateFollowing(request, followingListener);
+                    initiateFollowing(clientWithHeaders, request, followingListener);
                 } else {
                     // Has failed shards
                     followingListener.onResponse(new PutFollowAction.Response(true, false, false));
@@ -198,9 +200,9 @@ public final class TransportPutFollowAction
     }
 
     private void initiateFollowing(
+        final Client client,
         final PutFollowAction.Request request,
         final ActionListener<PutFollowAction.Response> listener) {
-        Client client = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
         client.execute(ResumeFollowAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
             r -> listener.onResponse(new PutFollowAction.Response(true, true, r.isAcknowledged())),
             listener::onFailure

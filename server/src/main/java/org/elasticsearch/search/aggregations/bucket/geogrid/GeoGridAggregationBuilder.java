@@ -105,6 +105,14 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
      */
     public abstract GeoGridAggregationBuilder precision(int precision);
 
+    /**
+     * Creates a new instance of the {@link ValuesSourceAggregatorFactory}-derived class specific to the geo aggregation.
+     */
+    protected abstract ValuesSourceAggregatorFactory<ValuesSource.GeoPoint,?> createFactory(
+        String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, int precision, int requiredSize, int shardSize,
+        SearchContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder, Map<String, Object> metaData
+    ) throws IOException;
+
     public int precision() {
         return precision;
     }
@@ -157,7 +165,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         if (shardSize < requiredSize) {
             shardSize = requiredSize;
         }
-        return new GeoHashGridAggregatorFactory(name, config, precision, requiredSize, shardSize, context, parent,
+        return createFactory(name, config, precision, requiredSize, shardSize, context, parent,
                 subFactoriesBuilder, metaData);
     }
 

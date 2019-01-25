@@ -133,6 +133,19 @@ http client, etc) must now be configured with their own settings for TLS if it i
 used.
 
 [float]
+[[tls-v1-removed]]
+==== TLS v1.0 disabled
+
+TLS version 1.0 is now disabled by default as it suffers from
+https://www.owasp.org/index.php/Transport_Layer_Protection_Cheat_Sheet#Rule_-_Only_Support_Strong_Protocols[known security issues].
+The default protocols are now TLSv1.2 and TLSv1.1.
+You can enable TLS v1.0 by configuring the relevant `ssl.supported_protocols` setting to include `"TLSv1"`, for example:
+[source,yaml]
+--------------------------------------------------
+xpack.security.http.ssl.supported_protocols: [ "TLSv1.2", "TLSv1.1", "TLSv1" ]
+--------------------------------------------------
+
+[float]
 [[watcher-notifications-account-settings]]
 ==== Watcher notifications account settings
 

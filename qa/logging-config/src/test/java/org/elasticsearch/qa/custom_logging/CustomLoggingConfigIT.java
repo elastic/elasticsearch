@@ -32,6 +32,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -46,7 +47,8 @@ public class CustomLoggingConfigIT extends ESRestTestCase {
     public void testSuccessfulStartupWithCustomConfig() throws Exception {
         assertBusy(() -> {
             try (Stream<String> lines = streamLogLines(getLogFile())) {
-                assertTrue("Log line indicating successful startup not found\n",
+                assertTrue("Log line indicating successful startup not found\n"+streamLogLines(getLogFile())
+                        .collect(Collectors.joining("\n")),
                     lines.anyMatch(line -> isStartupLine(line)));
             }
         });

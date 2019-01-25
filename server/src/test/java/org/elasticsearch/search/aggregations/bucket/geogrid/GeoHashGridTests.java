@@ -40,7 +40,7 @@ public class GeoHashGridTests extends GeoGridTestCase<InternalGeoHashGridBucket,
     }
 
     @Override
-    protected InternalGeoHashGridBucket createInternalGeoHashGridBucket(Long key, long docCount, InternalAggregations aggregations) {
+    protected InternalGeoHashGridBucket createInternalGeoGridBucket(Long key, long docCount, InternalAggregations aggregations) {
         return new InternalGeoHashGridBucket(key, docCount, aggregations);
     }
 

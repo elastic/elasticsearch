@@ -43,7 +43,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
     /**
      * Instantiate a {@link InternalGeoGridBucket}-derived class using the same parameters as constructor.
      */
-    protected abstract B createInternalGeoHashGridBucket(Long key, long docCount, InternalAggregations aggregations);
+    protected abstract B createInternalGeoGridBucket(Long key, long docCount, InternalAggregations aggregations);
 
     /**
      * Encode longitude and latitude with a given precision as a long hash.
@@ -78,7 +78,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
             double longitude = randomDoubleBetween(-180.0, 180.0, false);
 
             long hashAsLong = longEncode(longitude, latitude, precision);
-            buckets.add(createInternalGeoHashGridBucket(hashAsLong, randomInt(IndexWriter.MAX_DOCS), aggregations));
+            buckets.add(createInternalGeoGridBucket(hashAsLong, randomInt(IndexWriter.MAX_DOCS), aggregations));
         }
         return createInternalGeoGrid(name, size, buckets, pipelineAggregators, metaData);
     }
@@ -102,7 +102,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
             for (B bucket : entry.getValue()) {
                 docCount += bucket.docCount;
             }
-            expectedBuckets.add(createInternalGeoHashGridBucket(entry.getKey(), docCount, InternalAggregations.EMPTY));
+            expectedBuckets.add(createInternalGeoGridBucket(entry.getKey(), docCount, InternalAggregations.EMPTY));
         }
         expectedBuckets.sort((first, second) -> {
             int cmp = Long.compare(second.docCount, first.docCount);
@@ -141,7 +141,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
         case 1:
             buckets = new ArrayList<>(buckets);
             buckets.add(
-                    createInternalGeoHashGridBucket(randomNonNegativeLong(), randomInt(IndexWriter.MAX_DOCS), InternalAggregations.EMPTY));
+                    createInternalGeoGridBucket(randomNonNegativeLong(), randomInt(IndexWriter.MAX_DOCS), InternalAggregations.EMPTY));
             break;
         case 2:
             size = size + between(1, 10);

@@ -470,9 +470,9 @@ public abstract class DataTypeConversion {
         private static Function<Object, Object> fromBool(Function<Boolean, Object> converter) {
             return (Object l) -> converter.apply(((Boolean) l));
         }
-        
+
         private static Function<Object, Object> fromDate(Function<Long, Object> converter) {
-            return l -> ((ZonedDateTime) l).toEpochSecond();
+            return l -> converter.apply(((ZonedDateTime) l).toInstant().toEpochMilli());
         }
 
         private static Function<Object, Object> toDate(Conversion conversion) {

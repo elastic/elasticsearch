@@ -32,7 +32,7 @@ task writeJavaPolicy {
         javaPolicy.write(
                 [
                         "grant {",
-                        "  permission java.io.FilePermission \"${-> followClusterTest.getNodes().get(0).homeDir}/logs/${-> followClusterTest.getNodes().get(0).clusterName}_server.log\", \"read\";",
+                        "  permission java.io.FilePermission \"${-> followClusterTest.getNodes().get(0).homeDir}/logs/${-> followClusterTest.getNodes().get(0).clusterName}_server.json\", \"read\";",
                         "};"
                 ].join("\n"))
     }
@@ -54,7 +54,8 @@ followClusterTestRunner {
     systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"
     systemProperty 'tests.target_cluster', 'follow'
     systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
-    systemProperty 'log', "${-> followClusterTest.getNodes().get(0).homeDir}/logs/${-> followClusterTest.getNodes().get(0).clusterName}_server.log"
+    systemProperty 'log', "${-> followClusterTest.getNodes().get(0).homeDir}/logs/" +
+            "${-> followClusterTest.getNodes().get(0).clusterName}_server.json"
     finalizedBy 'leaderClusterTestCluster#stop'
 }
 

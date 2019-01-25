@@ -439,7 +439,7 @@ describe_port() {
 }
 
 debug_collect_logs() {
-    local es_logfile="$ESLOG/elasticsearch_server.log"
+    local es_logfile="$ESLOG/elasticsearch_server.json"
     local system_logfile='/var/log/messages'
 
     if [ -e "$es_logfile" ]; then

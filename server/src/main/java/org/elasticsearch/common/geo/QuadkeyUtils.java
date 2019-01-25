@@ -108,7 +108,7 @@ public class QuadkeyUtils {
 
     public static int checkPrecisionRange(int precision) {
         if (precision < 0 || precision > MAX_ZOOM) {
-            throw new IllegalArgumentException("Invalid quadkey aggregation precision of " +
+            throw new IllegalArgumentException("Invalid quadkey precision of " +
                 precision + ". Must be between 0 and " + MAX_ZOOM + ".");
         }
         return precision;
@@ -120,7 +120,7 @@ public class QuadkeyUtils {
      * The precision itself is also encoded as a few high bits.
      */
     public static long longEncode(double longitude, double latitude, int precision) {
-        // Adapted from https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Java
+        // Mathematics for this code was adapted from https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Java
 
         // How many tiles in X and in Y
         final int tiles = 1 << checkPrecisionRange(precision);

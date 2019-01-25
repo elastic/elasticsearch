@@ -207,7 +207,7 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
         bootstrapNodeId = 3;
         List<String> masterNodes = internalCluster().startMasterOnlyNodes(3, Settings.EMPTY);
 
-        String dataNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
+        String dataNode = internalCluster().startDataOnlyNode();
         createIndex("test");
 
         Client dataNodeClient = internalCluster().client(dataNode);
@@ -234,7 +234,7 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
                 String.format(Locale.ROOT, UnsafeBootstrapMasterCommand.CLUSTER_STATE_TERM_VERSION_MSG_FORMAT,
                         metaData.coordinationMetaData().term(), metaData.version())));
 
-        internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        internalCluster().startMasterOnlyNode();
 
         assertBusy(() -> {
             ClusterState state = dataNodeClient.admin().cluster().prepareState().setLocal(true)

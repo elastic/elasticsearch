@@ -460,9 +460,9 @@ public abstract class DataTypeConversion {
         private static Function<Object, Object> fromBool(Function<Boolean, Object> converter) {
             return (Object l) -> converter.apply(((Boolean) l));
         }
-        
+
         private static Function<Object, Object> fromDate(Function<Long, Object> converter) {
-            return l -> ((ReadableInstant) l).getMillis();
+            return l -> converter.apply(((ReadableInstant) l).getMillis());
         }
 
         private static Function<Object, Object> toDate(Conversion conversion) {

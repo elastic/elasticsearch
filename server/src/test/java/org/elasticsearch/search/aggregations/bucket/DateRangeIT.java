@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -299,7 +300,7 @@ public class DateRangeIT extends ESIntegTestCase {
     public void testSingleValueFieldWithDateMath() throws Exception {
         ZoneId timezone = randomZone();
         int timeZoneOffset = timezone.getRules().getOffset(date(2, 15).toInstant()).getTotalSeconds();
-        String suffix = timezone.normalized().equals(ZoneOffset.UTC) ? "Z" : timezone.getId();
+        String suffix = timezone.equals(ZoneOffset.UTC) ? "Z" : timezone.getId();
         long expectedFirstBucketCount = timeZoneOffset < 0 ? 3L : 2L;
 
         SearchResponse response = client().prepareSearch("idx")
@@ -971,10 +972,9 @@ public class DateRangeIT extends ESIntegTestCase {
         assertBucket(buckets.get(1), 1L, "3000000-4000000", 3000000L, 4000000L);
 
         // providing numeric input without format should throw an exception
-        Exception e = expectThrows(Exception.class, () -> client().prepareSearch(indexName).setSize(0)
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> client().prepareSearch(indexName).setSize(0)
                 .addAggregation(dateRange("date_range").field("date").addRange(1000000, 3000000).addRange(3000000, 4000000)).get());
-        Throwable cause = e.getCause();
-        assertThat(cause.getMessage(),
+        assertThat(e.getDetailedMessage(),
             containsString("failed to parse date field [1000000] with format [strict_hour_minute_second]"));
     }
 

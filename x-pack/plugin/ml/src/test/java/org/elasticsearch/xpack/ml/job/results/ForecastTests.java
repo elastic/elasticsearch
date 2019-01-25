@@ -26,7 +26,7 @@ public class ForecastTests extends AbstractSerializingTestCase<Forecast> {
 
     public Forecast createTestInstance(String jobId) {
         Forecast forecast =
-                new Forecast(jobId, randomAlphaOfLength(20), new Date(randomLongBetween(0, 3000000000000L)),
+                new Forecast(jobId, randomAlphaOfLength(20), randomDate(),
                         randomNonNegativeLong(), randomInt());
 
         if (randomBoolean()) {

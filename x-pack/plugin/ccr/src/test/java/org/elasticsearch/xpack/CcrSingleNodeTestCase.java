@@ -18,7 +18,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
@@ -44,7 +46,7 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         builder.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         // Let cluster state api return quickly in order to speed up auto follow tests:
-        builder.put(CcrSettings.CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT.getKey(), TimeValue.timeValueMillis(100));
+        builder.put(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT.getKey(), TimeValue.timeValueMillis(100));
         return builder.build();
     }
 
@@ -77,6 +79,10 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.remote.local.seeds", (String) null));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+    }
+
+    protected AutoFollowStats getAutoFollowStats() {
+        return client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet().getAutoFollowStats();
     }
 
     protected ResumeFollowAction.Request getResumeFollowRequest(String followerIndex) {

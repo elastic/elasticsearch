@@ -93,7 +93,6 @@ public class WatcherDateTimeUtils {
                 "found [{}] instead", fieldName, token);
     }
 
-
     public static ZonedDateTime parseDateMath(String valueString, ZoneId timeZone, final Clock clock) {
         return dateMathParser.parse(valueString, clock::millis).atZone(timeZone);
     }

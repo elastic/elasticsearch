@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.indexlifecycle.IndexLifecycle;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.notification.email.Authentication;
 import org.elasticsearch.xpack.watcher.notification.email.Email;
@@ -161,6 +162,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         }
 
         types.add(CommonAnalysisPlugin.class);
+        // ILM is required for watcher template index settings
+        types.add(IndexLifecycle.class);
         return types;
     }
 

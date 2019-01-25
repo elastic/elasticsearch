@@ -132,13 +132,15 @@ public interface DateFormatter {
             throw new IllegalArgumentException("No date pattern provided");
         }
 
+        // support the 6.x BWC compatible way of parsing java 8 dates
+        if (input.startsWith("8")) {
+            input = input.substring(1);
+        }
+
         List<DateFormatter> formatters = new ArrayList<>();
         for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
             if (Strings.hasLength(pattern) == false) {
                 throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
-            }
-            if (pattern.startsWith("8")) {
-                pattern = pattern.substring(1);
             }
             formatters.add(DateFormatters.forPattern(pattern));
         }

@@ -61,6 +61,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestIndicesAction extends AbstractCatAction {
 
+    private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     public RestIndicesAction(Settings settings, RestController controller, IndexNameExpressionResolver indexNameExpressionResolver) {
@@ -432,7 +433,7 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexMetaData.getCreationDate());
             ZonedDateTime creationTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(indexMetaData.getCreationDate()), ZoneOffset.UTC);
-            table.addCell(DateFormatter.forPattern("strict_date_time").format(creationTime));
+            table.addCell(STRICT_DATE_TIME_FORMATTER.format(creationTime));
 
             table.addCell(totalStats.getStore() == null ? null : totalStats.getStore().size());
             table.addCell(primaryStats.getStore() == null ? null : primaryStats.getStore().size());

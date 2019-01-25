@@ -136,7 +136,7 @@ public class JavaDateMathParserTests extends ESTestCase {
 
     public void testRoundingPreservesEpochAsBaseDate() {
         // If a user only specifies times, then the date needs to always be 1970-01-01 regardless of rounding
-        DateFormatter formatter = DateFormatter.forPattern("HH:mm:ss");
+        DateFormatter formatter = DateFormatters.forPattern("HH:mm:ss");
         DateMathParser parser = formatter.toDateMathParser();
         ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(formatter.parse("04:52:20"));
         assertThat(zonedDateTime.getYear(), is(1970));
@@ -162,11 +162,12 @@ public class JavaDateMathParserTests extends ESTestCase {
         assertDateMathEquals("2014-11-18T09:20", "2014-11-18T08:20:59.999Z", 0, true, ZoneId.of("CET"));
 
         // implicit rounding with explicit timezone in the date format
-        DateFormatter formatter = DateFormatter.forPattern("yyyy-MM-ddXXX");
+        DateFormatter formatter = DateFormatters.forPattern("yyyy-MM-ddXXX");
         DateMathParser parser = formatter.toDateMathParser();
         Instant time = parser.parse("2011-10-09+01:00", () -> 0, false, (ZoneId) null);
         assertEquals(this.parser.parse("2011-10-09T00:00:00.000+01:00", () -> 0), time);
-        time = parser.parse("2011-10-09+01:00", () -> 0, true, (ZoneId) null);
+        time = DateFormatter.forPattern("strict_date_optional_time_nanos").toDateMathParser()
+            .parse("2011-10-09T23:59:59.999+01:00", () -> 0, false, (ZoneId) null);
         assertEquals(this.parser.parse("2011-10-09T23:59:59.999+01:00", () -> 0), time);
     }
 
@@ -262,8 +263,7 @@ public class JavaDateMathParserTests extends ESTestCase {
     }
 
     public void testIllegalDateFormat() {
-        // TODO FIXME
-//        assertParseException("Expected bad timestamp exception", Long.toString(Long.MAX_VALUE) + "0", "failed to parse date field");
+        assertParseException("Expected bad timestamp exception", Long.toString(Long.MAX_VALUE) + "0", "failed to parse date field");
         assertParseException("Expected bad date format exception", "123bogus", "failed to parse date field [123bogus]");
     }
 

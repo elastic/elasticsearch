@@ -327,7 +327,7 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
             timeout = in.readOptionalTimeValue();
             charset = in.readOptionalString();
             format = in.readBoolean() ? in.readEnum(FileStructure.Format.class) : null;
-            columnNames = in.readBoolean() ? in.readList(StreamInput::readString) : null;
+            columnNames = in.readBoolean() ? in.readStringList() : null;
             hasHeaderRow = in.readOptionalBoolean();
             delimiter = in.readBoolean() ? (char) in.readVInt() : null;
             quote = in.readBoolean() ? (char) in.readVInt() : null;

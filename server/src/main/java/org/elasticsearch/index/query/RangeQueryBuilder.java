@@ -39,8 +39,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.time.DateTimeException;
 import java.time.ZoneId;
-import java.time.zone.ZoneRulesException;
 import java.util.Objects;
 
 /**
@@ -256,7 +256,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         }
         try {
             this.timeZone = ZoneId.of(timeZone);
-        } catch (ZoneRulesException e) {
+        } catch (DateTimeException e) {
             throw new IllegalArgumentException(e);
         }
         return this;
@@ -294,7 +294,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     DateMathParser getForceDateParser() { // pkg private for testing
-        if (Strings.isEmpty(format) == false) {
+        if (Strings.hasText(format)) {
             return DateFormatter.forPattern(this.format).toDateMathParser();
         }
         return null;
@@ -329,7 +329,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (timeZone != null) {
             builder.field(TIME_ZONE_FIELD.getPreferredName(), timeZone.getId());
         }
-        if (Strings.isEmpty(format) == false) {
+        if (Strings.hasText(format)) {
             builder.field(FORMAT_FIELD.getPreferredName(), format);
         }
         if (relation != null) {
@@ -524,17 +524,15 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     @Override
     protected int doHashCode() {
-        String timeZoneId = timeZone == null ? null : timeZone.getId();
-        return Objects.hash(fieldName, from, to, timeZoneId, includeLower, includeUpper, format);
+        return Objects.hash(fieldName, from, to, timeZone, includeLower, includeUpper, format);
     }
 
     @Override
     protected boolean doEquals(RangeQueryBuilder other) {
-        String timeZoneId = timeZone == null ? null : timeZone.getId();
         return Objects.equals(fieldName, other.fieldName) &&
                Objects.equals(from, other.from) &&
                Objects.equals(to, other.to) &&
-               Objects.equals(timeZoneId, other.timeZone()) &&
+               Objects.equals(timeZone, other.timeZone) &&
                Objects.equals(includeLower, other.includeLower) &&
                Objects.equals(includeUpper, other.includeUpper) &&
                Objects.equals(format, other.format);

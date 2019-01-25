@@ -26,6 +26,9 @@ import org.joda.time.DateTimeZone;
 
 import java.time.ZoneOffset;
 
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+
 
 public class JodaTests extends ESTestCase {
 
@@ -47,4 +50,20 @@ public class JodaTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> Joda.forPattern("basic_T_time"));
     }
 
+    public void testEqualsAndHashcode() {
+        String format = randomFrom("yyyy/MM/dd HH:mm:ss", "basic_t_time");
+        JodaDateFormatter first = Joda.forPattern(format);
+        JodaDateFormatter second = Joda.forPattern(format);
+        JodaDateFormatter third = Joda.forPattern(" HH:mm:ss, yyyy/MM/dd");
+
+        assertThat(first, is(second));
+        assertThat(second, is(first));
+        assertThat(first, is(not(third)));
+        assertThat(second, is(not(third)));
+
+        assertThat(first.hashCode(), is(second.hashCode()));
+        assertThat(second.hashCode(), is(first.hashCode()));
+        assertThat(first.hashCode(), is(not(third.hashCode())));
+        assertThat(second.hashCode(), is(not(third.hashCode())));
+    }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 
 
 public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<RolloverRequest, RolloverResponse,
@@ -73,8 +74,13 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
         return this;
     }
 
-    public RolloverRequestBuilder mapping(String type, String source) {
+    public RolloverRequestBuilder mapping(String type, Object... source) {
         this.request.getCreateIndexRequest().mapping(type, source);
+        return this;
+    }
+
+    public RolloverRequestBuilder mapping(String type, String source, XContentType xContentType) {
+        this.request.getCreateIndexRequest().mapping(type, source, xContentType);
         return this;
     }
 

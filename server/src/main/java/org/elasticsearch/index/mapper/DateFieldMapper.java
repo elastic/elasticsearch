@@ -130,10 +130,10 @@ public class DateFieldMapper extends FieldMapper {
             super.setupFieldType(context);
             String pattern = this.format.value();
             DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter;
-            if ((Objects.equals(pattern, dateTimeFormatter.pattern()) == false && Strings.isEmpty(pattern) == false)) {
+
+            boolean hasPatternChanged = Strings.hasLength(pattern) && Objects.equals(pattern, dateTimeFormatter.pattern()) == false;
+            if (hasPatternChanged || Objects.equals(builder.locale, dateTimeFormatter.locale()) == false) {
                 fieldType().setDateTimeFormatter(DateFormatter.forPattern(pattern).withLocale(locale));
-            } else if (locale.equals(dateTimeFormatter.locale()) == false) {
-                fieldType().setDateTimeFormatter(dateTimeFormatter.withLocale(locale));
             }
         }
 

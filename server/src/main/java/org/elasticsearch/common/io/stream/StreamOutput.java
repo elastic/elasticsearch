@@ -1030,33 +1030,45 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a list of {@link Writeable} objects
+     * Writes a collection to this stream. The corresponding collection can be read from a stream input using
+     * {@link StreamInput#readList(Writeable.Reader)}.
+     *
+     * @param collection the collection to write to this stream
+     * @throws IOException if an I/O exception occurs writing the collection
      */
-    public void writeList(List<? extends Writeable> list) throws IOException {
-        writeVInt(list.size());
-        for (Writeable obj: list) {
-            obj.writeTo(this);
-        }
+    public void writeCollection(final Collection<? extends Writeable> collection) throws IOException {
+        writeCollection(collection, (o, v) -> v.writeTo(o));
     }
 
     /**
-     * Writes a collection of generic objects via a {@link Writer}
+     * Writes a list of {@link Writeable} objects
      */
-    public <T> void writeCollection(Collection<T> collection, Writer<T> writer) throws IOException {
+    public void writeList(List<? extends Writeable> list) throws IOException {
+        writeCollection(list);
+    }
+
+    /**
+     * Writes a collection of objects via a {@link Writer}.
+     *
+     * @param collection the collection of objects
+     * @throws IOException if an I/O exception occurs writing the collection
+     */
+    public <T> void writeCollection(final Collection<T> collection, final Writer<T> writer) throws IOException {
         writeVInt(collection.size());
-        for (T val: collection) {
+        for (final T val: collection) {
             writer.write(this, val);
         }
     }
 
     /**
-     * Writes a list of strings
+     * Writes a collection of a strings. The corresponding collection can be read from a stream input using
+     * {@link StreamInput#readList(Writeable.Reader)}.
+     *
+     * @param collection the collection of strings
+     * @throws IOException if an I/O exception occurs writing the collection
      */
-    public void writeStringList(List<String> list) throws IOException {
-        writeVInt(list.size());
-        for (String string: list) {
-            this.writeString(string);
-        }
+    public void writeStringCollection(final Collection<String> collection) throws IOException {
+        writeCollection(collection, StreamOutput::writeString);
     }
 
     /**

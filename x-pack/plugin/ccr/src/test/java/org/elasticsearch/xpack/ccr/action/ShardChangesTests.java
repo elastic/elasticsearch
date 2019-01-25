@@ -6,6 +6,9 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -21,7 +24,10 @@ import org.elasticsearch.xpack.ccr.LocalStateCcr;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -90,7 +96,7 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         assertThat(operation.id(), equalTo("5"));
     }
 
-    public void testMissingOperations() {
+    public void testMissingOperations() throws Exception {
         client().admin().indices().prepareCreate("index")
             .setSettings(Settings.builder()
                 .put("index.soft_deletes.enabled", true)
@@ -115,12 +121,34 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         request.setFromSeqNo(0L);
         request.setMaxOperationCount(1);
 
-        ElasticsearchException e =
-            expectThrows(ElasticsearchException.class, () -> client().execute(ShardChangesAction.INSTANCE, request).actionGet());
-        assertThat(e.getMessage(), equalTo("Operations are no longer available for replicating. Maybe increase the retention setting " +
-            "[index.soft_deletes.retention.operations]?"));
-        assertThat(e.getMetadataKeys().size(), equalTo(1));
-        assertThat(e.getMetadata(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY), notNullValue());
+        {
+            ResourceNotFoundException e =
+                expectThrows(ResourceNotFoundException.class, () -> client().execute(ShardChangesAction.INSTANCE, request).actionGet());
+            assertThat(e.getMessage(), equalTo("Operations are no longer available for replicating. Maybe increase the retention setting " +
+                "[index.soft_deletes.retention.operations]?"));
+
+            assertThat(e.getMetadataKeys().size(), equalTo(1));
+            assertThat(e.getMetadata(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY), notNullValue());
+            assertThat(e.getMetadata(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY), contains("0", "0"));
+        }
+        {
+            AtomicReference<Exception> holder = new AtomicReference<>();
+            CountDownLatch latch = new CountDownLatch(1);
+            client().execute(ShardChangesAction.INSTANCE, request,
+                new LatchedActionListener<>(ActionListener.wrap(r -> fail("expected an exception"), holder::set), latch));
+            latch.await();
+
+            ElasticsearchException e = (ElasticsearchException) holder.get();
+            assertThat(e, notNullValue());
+            assertThat(e.getMetadataKeys().size(), equalTo(0));
+
+            ResourceNotFoundException cause = (ResourceNotFoundException) e.getCause();
+            assertThat(cause.getMessage(), equalTo("Operations are no longer available for replicating. " +
+                "Maybe increase the retention setting [index.soft_deletes.retention.operations]?"));
+            assertThat(cause.getMetadataKeys().size(), equalTo(1));
+            assertThat(cause.getMetadata(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY), notNullValue());
+            assertThat(cause.getMetadata(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY), contains("0", "0"));
+        }
     }
 
 }

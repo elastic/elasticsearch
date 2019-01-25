@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -50,6 +51,7 @@ public final class TransportPutFollowAction
     private final Client client;
     private final RestoreService restoreService;
     private final CcrLicenseChecker ccrLicenseChecker;
+    private final ActiveShardsObserver activeShardsObserver;
 
     @Inject
     public TransportPutFollowAction(
@@ -72,6 +74,7 @@ public final class TransportPutFollowAction
         this.client = client;
         this.restoreService = restoreService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
+        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
     }
 
     @Override
@@ -212,10 +215,18 @@ public final class TransportPutFollowAction
         final Client client,
         final PutFollowAction.Request request,
         final ActionListener<PutFollowAction.Response> listener) {
-        client.execute(ResumeFollowAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
-            r -> listener.onResponse(new PutFollowAction.Response(true, true, r.isAcknowledged())),
-            listener::onFailure
-        ));
+        assert request.waitForActiveShards() != ActiveShardCount.DEFAULT : "PutFollowAction does not support DEFAULT.";
+        activeShardsObserver.waitForActiveShards(new String[]{request.getFollowRequest().getFollowerIndex()},
+            request.waitForActiveShards(), request.timeout(), result -> {
+                if (result) {
+                    client.execute(ResumeFollowAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
+                        r -> listener.onResponse(new PutFollowAction.Response(true, true, r.isAcknowledged())),
+                        listener::onFailure
+                    ));
+                } else {
+                    listener.onResponse(new PutFollowAction.Response(true, false, false));
+                }
+            }, listener::onFailure);
     }
 
     @Override

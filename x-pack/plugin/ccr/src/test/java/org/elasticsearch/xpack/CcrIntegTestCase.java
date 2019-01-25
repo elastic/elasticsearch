@@ -417,7 +417,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     public static PutFollowAction.Request putFollow(String leaderIndex, String followerIndex) {
-        return putFollow(leaderIndex, followerIndex, ActiveShardCount.ALL);
+        return putFollow(leaderIndex, followerIndex, ActiveShardCount.ONE);
     }
 
     public static PutFollowAction.Request putFollow(String leaderIndex, String followerIndex, ActiveShardCount waitForActiveShards) {

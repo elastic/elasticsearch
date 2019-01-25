@@ -99,7 +99,7 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         request.setRemoteCluster("local");
         request.setLeaderIndex(leaderIndex);
         request.setFollowRequest(getResumeFollowRequest(followerIndex));
-        request.waitForActiveShards(ActiveShardCount.DEFAULT);
+        request.waitForActiveShards(ActiveShardCount.ONE);
         return request;
     }
 

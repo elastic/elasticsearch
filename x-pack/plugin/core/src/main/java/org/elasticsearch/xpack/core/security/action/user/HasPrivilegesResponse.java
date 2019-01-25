@@ -121,7 +121,7 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
         for (int i = 0; i < count; i++) {
             final String index = in.readString();
             final Map<String, Boolean> privileges = in.readMap(StreamInput::readString, StreamInput::readBoolean);
-            set.add(new ResourcePrivileges(index, privileges));
+            set.add(ResourcePrivileges.builder(index).addPrivileges(privileges).build());
         }
         return set;
     }

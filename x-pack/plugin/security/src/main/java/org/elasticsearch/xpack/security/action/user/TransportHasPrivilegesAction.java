@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.action.user;
 
+import com.google.common.collect.Sets;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -20,7 +22,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
-import org.elasticsearch.xpack.core.security.authz.permission.ResourcesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivilegesMap;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
@@ -28,12 +30,10 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -105,42 +105,33 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
         }
         boolean allMatch = cluster.values().stream().allMatch(Boolean::booleanValue);
 
-        final List<ResourcePrivileges> indices = new ArrayList<>();
+        ResourcePrivilegesMap.Builder combineIndicesResourcePrivileges = ResourcePrivilegesMap.builder();
         for (RoleDescriptor.IndicesPrivileges check : request.indexPrivileges()) {
-            ResourcesPrivileges resourcePrivileges = userRole.getResourcePrivileges(Arrays.asList(check.getIndices()),
-                    check.allowRestrictedIndices(), Arrays.asList(check.getPrivileges()));
+            ResourcePrivilegesMap resourcePrivileges = userRole.checkIndicesPrivileges(Sets.newHashSet(check.getIndices()),
+                    check.allowRestrictedIndices(), Sets.newHashSet(check.getPrivileges()));
             allMatch = allMatch && resourcePrivileges.allAllowed();
-            indices.addAll(resourcePrivileges.getResourceToResourcePrivileges().values());
+            combineIndicesResourcePrivileges.addResourcePrivilegesMap(resourcePrivileges);
         }
+        ResourcePrivilegesMap allIndices = combineIndicesResourcePrivileges.build();
+        allMatch = allMatch && allIndices.allAllowed();
 
         final Map<String, Collection<ResourcePrivileges>> privilegesByApplication = new HashMap<>();
-        for (RoleDescriptor.ApplicationResourcePrivileges p : request.applicationPrivileges()) {
-            logger.debug("Checking privileges for application {}", p.getApplication());
-            ResourcesPrivileges appPrivsByResource = userRole.getResourcePrivileges(p.getApplication(), Arrays.asList(p.getResources()),
-                    Arrays.asList(p.getPrivileges()), applicationPrivileges);
-            allMatch = allMatch && appPrivsByResource.allAllowed();
-            appPrivsByResource.getResourceToResourcePrivileges().forEach((k1, v1) -> {
-                privilegesByApplication.compute(p.getApplication(), (k0, v0) -> {
-                    if (v0 == null) {
-                        return Arrays.asList(v1);
-                    } else {
-                        List<ResourcePrivileges> newPrivs = new ArrayList<>();
-                        Map<String, Boolean> newPrivilegesPermissions = new HashMap<>();
-                        for (ResourcePrivileges existing : v0) {
-                            if (existing.getResource().equals(k1)) {
-                                newPrivilegesPermissions.putAll(existing.getPrivileges());
-                            } else {
-                                newPrivs.add(existing);
-                            }
-                        }
-                        newPrivilegesPermissions.putAll(v1.getPrivileges());
-                        newPrivs.add(new ResourcePrivileges(k1, newPrivilegesPermissions));
-                        return newPrivs;
-                    }
-                });
-            });
+        for (String applicationName : getApplicationNames(request)) {
+            ResourcePrivilegesMap.Builder builder = ResourcePrivilegesMap.builder();
+            for (RoleDescriptor.ApplicationResourcePrivileges p : request.applicationPrivileges()) {
+                if (applicationName.equals(p.getApplication())) {
+                    ResourcePrivilegesMap appPrivsByResourceMap = userRole.checkApplicationResourcePrivileges(applicationName,
+                            Sets.newHashSet(p.getResources()), Sets.newHashSet(p.getPrivileges()), applicationPrivileges);
+                    builder.addResourcePrivilegesMap(appPrivsByResourceMap);
+                }
+            }
+            ResourcePrivilegesMap resourcePrivsForApplication = builder.build();
+            allMatch = allMatch && resourcePrivsForApplication.allAllowed();
+            privilegesByApplication.put(applicationName, resourcePrivsForApplication.getResourceToResourcePrivileges().values());
         }
-        listener.onResponse(new HasPrivilegesResponse(request.username(), allMatch, cluster, indices, privilegesByApplication));
+
+        listener.onResponse(new HasPrivilegesResponse(request.username(), allMatch, cluster,
+                allIndices.getResourceToResourcePrivileges().values(), privilegesByApplication));
     }
 
 }

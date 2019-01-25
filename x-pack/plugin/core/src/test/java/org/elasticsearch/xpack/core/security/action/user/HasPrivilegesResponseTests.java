@@ -60,16 +60,17 @@ public class HasPrivilegesResponseTests
     }
 
     public void testToXContent() throws Exception {
-        final HasPrivilegesResponse response = new HasPrivilegesResponse("daredevil", false,
-            Collections.singletonMap("manage", true),
-            Arrays.asList(
-                new ResourcePrivileges("staff",
-                    MapBuilder.<String, Boolean>newMapBuilder(new LinkedHashMap<>())
-                        .put("read", true).put("index", true).put("delete", false).put("manage", false).map()),
-                new ResourcePrivileges("customers",
-                    MapBuilder.<String, Boolean>newMapBuilder(new LinkedHashMap<>())
-                        .put("read", true).put("index", true).put("delete", true).put("manage", false).map())
-            ), Collections.emptyMap());
+        final HasPrivilegesResponse response = new HasPrivilegesResponse("daredevil", false, Collections.singletonMap("manage", true),
+                Arrays.asList(
+                        ResourcePrivileges.builder("staff")
+                                .addPrivileges(MapBuilder.<String, Boolean>newMapBuilder(new LinkedHashMap<>()).put("read", true)
+                                        .put("index", true).put("delete", false).put("manage", false).map())
+                                .build(),
+                        ResourcePrivileges.builder("customers")
+                                .addPrivileges(MapBuilder.<String, Boolean>newMapBuilder(new LinkedHashMap<>()).put("read", true)
+                                        .put("index", true).put("delete", true).put("manage", false).map())
+                                .build()),
+                Collections.emptyMap());
 
         final XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -123,7 +124,7 @@ public class HasPrivilegesResponseTests
 
     private static List<ResourcePrivileges> toResourcePrivileges(Map<String, Map<String, Boolean>> map) {
         return map.entrySet().stream()
-            .map(e -> new ResourcePrivileges(e.getKey(), e.getValue()))
+            .map(e -> ResourcePrivileges.builder(e.getKey()).addPrivileges(e.getValue()).build())
             .collect(Collectors.toList());
     }
 
@@ -163,7 +164,7 @@ public class HasPrivilegesResponseTests
             for (String priv : randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 8))) {
                 privileges.put(priv, randomBoolean());
             }
-            list.add(new ResourcePrivileges(resource, privileges));
+            list.add(ResourcePrivileges.builder(resource).addPrivileges(privileges).build());
         }
         return list;
     }

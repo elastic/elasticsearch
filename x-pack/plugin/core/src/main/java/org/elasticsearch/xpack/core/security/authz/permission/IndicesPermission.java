@@ -27,7 +27,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -127,21 +126,20 @@ public final class IndicesPermission {
     }
 
     /**
-     * For given index patterns and index privileges determines allowed privileges and creates an instance of {@link ResourcesPrivileges}
+     * For given index patterns and index privileges determines allowed privileges and creates an instance of {@link ResourcePrivilegesMap}
      * holding a map of resource to {@link ResourcePrivileges} where resource is index pattern and the map of index privilege to whether it
      * is allowed or not.
      *
-     * @param forIndexPatterns list of index patterns
-     * @param allowRestrictedIndices {@code true} whether restricted indices are allowed
-     * @param forPrivileges list of index privileges
-     * @return an instance of {@link ResourcesPrivileges}
+     * @param checkForIndexPatterns check permission grants for the set of index patterns
+     * @param allowRestrictedIndices if {@code true} then checks permission grants even for restricted indices by index matching
+     * @param checkForPrivileges check permission grants for the set of index privileges
+     * @return an instance of {@link ResourcePrivilegesMap}
      */
-    public ResourcesPrivileges getResourcePrivileges(List<String> forIndexPatterns, boolean allowRestrictedIndices,
-                                                                List<String> forPrivileges) {
-        final Map<String, ResourcePrivileges> resourcePrivileges = new LinkedHashMap<>();
-        boolean allowAll = true;
+    public ResourcePrivilegesMap checkResourcePrivileges(Set<String> checkForIndexPatterns, boolean allowRestrictedIndices,
+                                                         Set<String> checkForPrivileges) {
+        final ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
         final Map<IndicesPermission.Group, Automaton> predicateCache = new HashMap<>();
-        for (String forIndexPattern : forIndexPatterns) {
+        for (String forIndexPattern : checkForIndexPatterns) {
             final Automaton checkIndexAutomaton = IndicesPermission.Group.buildIndexMatcherAutomaton(allowRestrictedIndices,
                     forIndexPattern);
             Automaton allowedIndexPrivilegesAutomaton = null;
@@ -157,21 +155,17 @@ public final class IndicesPermission {
                     }
                 }
             }
-            for (String privilege : forPrivileges) {
+            for (String privilege : checkForPrivileges) {
                 IndexPrivilege indexPrivilege = IndexPrivilege.get(Collections.singleton(privilege));
-                ResourcePrivileges.Builder builder = ResourcePrivileges.builder().setResource(forIndexPattern);
                 if (allowedIndexPrivilegesAutomaton != null
                         && Operations.subsetOf(indexPrivilege.getAutomaton(), allowedIndexPrivilegesAutomaton)) {
-                    builder.addPrivilege(privilege, Boolean.TRUE);
+                    resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
                 } else {
-                    builder.addPrivilege(privilege, Boolean.FALSE);
-                    allowAll = false;
+                    resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.FALSE);
                 }
-                resourcePrivileges.compute(forIndexPattern,
-                        (k, v) -> (v == null) ? builder.build() : builder.addPrivileges(v.getPrivileges()).build());
             }
         }
-        return new ResourcesPrivileges(allowAll, resourcePrivileges);
+        return resourcePrivilegesMapBuilder.build();
     }
 
     public Automaton allowedActionsMatcher(String index) {

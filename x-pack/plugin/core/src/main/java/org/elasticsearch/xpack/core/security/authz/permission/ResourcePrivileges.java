@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 
 /**
@@ -19,7 +20,7 @@ public final class ResourcePrivileges {
     private final String resource;
     private final Map<String, Boolean> privileges;
 
-    public ResourcePrivileges(String resource, Map<String, Boolean> privileges) {
+    ResourcePrivileges(String resource, Map<String, Boolean> privileges) {
         this.resource = Objects.requireNonNull(resource);
         this.privileges = Collections.unmodifiableMap(privileges);
     }
@@ -33,7 +34,7 @@ public final class ResourcePrivileges {
     }
 
     public boolean isAllowed(String privilege) {
-        return (privileges.get(privilege)) != null ? privileges.get(privilege) : false;
+        return Boolean.TRUE.equals(privileges.get(privilege));
     }
 
     @Override
@@ -61,26 +62,27 @@ public final class ResourcePrivileges {
         return this.resource.equals(other.resource) && this.privileges.equals(other.privileges);
     }
 
-    public static Builder builder() {
-        return new Builder();
+    public static Builder builder(String resource) {
+        return new Builder(resource);
     }
 
     public static class Builder {
-        private String resource;
+        private final String resource;
         private Map<String, Boolean> privileges = new HashMap<>();
 
-        public Builder setResource(String resource) {
+        private Builder(String resource) {
             this.resource = resource;
-            return this;
         }
 
         public Builder addPrivilege(String privilege, Boolean allowed) {
-            this.privileges.put(privilege, allowed);
+            this.privileges.compute(privilege, (k, v) -> ((v == null) ? allowed : v && allowed));
             return this;
         }
 
         public Builder addPrivileges(Map<String, Boolean> privileges) {
-            this.privileges.putAll(privileges);
+            for (Entry<String, Boolean> entry : privileges.entrySet()) {
+                addPrivilege(entry.getKey(), entry.getValue());
+            }
             return this;
         }
 

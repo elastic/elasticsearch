@@ -34,7 +34,9 @@ public abstract class ClusterPermission {
 
     public abstract boolean check(String action, TransportRequest request);
 
-    public abstract boolean check(ClusterPrivilege clusterPrivilege);
+    public boolean check(ClusterPrivilege clusterPrivilege) {
+        return Operations.subsetOf(clusterPrivilege.getAutomaton(), this.privilege().getAutomaton());
+    }
 
     public abstract List<Tuple<ClusterPrivilege, ConditionalClusterPrivilege>> privileges();
 
@@ -61,11 +63,6 @@ public abstract class ClusterPermission {
         public List<Tuple<ClusterPrivilege, ConditionalClusterPrivilege>> privileges() {
             return Collections.singletonList(new Tuple<>(super.privilege, null));
         }
-
-        @Override
-        public boolean check(ClusterPrivilege clusterPrivilege) {
-            return Operations.subsetOf(clusterPrivilege.getAutomaton(), this.privilege().getAutomaton());
-        }
     }
 
     /**
@@ -87,11 +84,6 @@ public abstract class ClusterPermission {
         @Override
         public List<Tuple<ClusterPrivilege, ConditionalClusterPrivilege>> privileges() {
             return Collections.singletonList(new Tuple<>(super.privilege, conditionalPrivilege));
-        }
-
-        @Override
-        public boolean check(ClusterPrivilege clusterPrivilege) {
-            return Operations.subsetOf(clusterPrivilege.getAutomaton(), this.privilege().getAutomaton());
         }
     }
 

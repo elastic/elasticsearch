@@ -97,18 +97,18 @@ public class Role {
 
 
     /**
-     * For given index patterns and index privileges determines allowed privileges and creates an instance of {@link ResourcesPrivileges}
+     * For given index patterns and index privileges determines allowed privileges and creates an instance of {@link ResourcePrivilegesMap}
      * holding a map of resource to {@link ResourcePrivileges} where resource is index pattern and the map of index privilege to whether it
      * is allowed or not.
      *
-     * @param forIndexPatterns list of index patterns
-     * @param allowRestrictedIndices {@code true} whether restricted indices are allowed
-     * @param forPrivileges list of index privileges
-     * @return a map of resource to {@link ResourcePrivileges}
+     * @param checkForIndexPatterns check permission grants for the set of index patterns
+     * @param allowRestrictedIndices if {@code true} then checks permission grants even for restricted indices by index matching
+     * @param checkForPrivileges check permission grants for the set of index privileges
+     * @return an instance of {@link ResourcePrivilegesMap}
      */
-    public ResourcesPrivileges getResourcePrivileges(List<String> forIndexPatterns, boolean allowRestrictedIndices,
-                                                                 List<String> forPrivileges) {
-        return indices().getResourcePrivileges(forIndexPatterns, allowRestrictedIndices, forPrivileges);
+    public ResourcePrivilegesMap checkIndicesPrivileges(Set<String> checkForIndexPatterns, boolean allowRestrictedIndices,
+                                                                 Set<String> checkForPrivileges) {
+        return indices().checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices, checkForPrivileges);
     }
 
     /**
@@ -133,20 +133,21 @@ public class Role {
     }
 
     /**
-     * For a given application, checks for the privileges for resources and returns an instance of {@link ResourcesPrivileges} holding a map
-     * of resource to {@link ResourcePrivileges} where the resource is application resource and the map of application privilege to whether
-     * it is allowed or not.
+     * For a given application, checks for the privileges for resources and returns an instance of {@link ResourcePrivilegesMap} holding a
+     * map of resource to {@link ResourcePrivileges} where the resource is application resource and the map of application privilege to
+     * whether it is allowed or not.
      *
-     * @param applicationName application name
-     * @param forResources list of application resources
-     * @param forPrivilegeNames list of application privileges
-     * @param storedPrivileges stored {@link ApplicationPrivilegeDescriptor} for the application
-     * @return an instance of {@link ResourcesPrivileges}
+     * @param applicationName checks privileges for the provided application name
+     * @param checkForResources check permission grants for the set of resources
+     * @param checkForPrivilegeNames check permission grants for the set of privilege names
+     * @param storedPrivileges stored {@link ApplicationPrivilegeDescriptor} for an application against which the access checks are
+     * performed
+     * @return an instance of {@link ResourcePrivilegesMap}
      */
-    public ResourcesPrivileges getResourcePrivileges(final String applicationName, List<String> forResources,
-                                                                 List<String> forPrivilegeNames,
-                                                                 Collection<ApplicationPrivilegeDescriptor> storedPrivileges) {
-        return application().getResourcePrivileges(applicationName, forResources, forPrivilegeNames, storedPrivileges);
+    public ResourcePrivilegesMap checkApplicationResourcePrivileges(final String applicationName, Set<String> checkForResources,
+                                                                    Set<String> checkForPrivilegeNames,
+                                                                    Collection<ApplicationPrivilegeDescriptor> storedPrivileges) {
+        return application().checkResourcePrivileges(applicationName, checkForResources, checkForPrivilegeNames, storedPrivileges);
     }
 
     /**

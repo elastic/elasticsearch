@@ -227,7 +227,8 @@ public class ApiKeyServiceTests extends ESTestCase {
                     BytesReference.bytes(roleARoleDescriptor.toXContent(builder, ToXContent.EMPTY_PARAMS, true)).streamInput(), false);
         }
         authMetadata.put(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY,
-                (emptyApiKeyRoleDescriptor) ? randomFrom(Arrays.asList(null, Collections.emptyMap())) : Collections.singletonMap("a role", roleARDMap));
+                (emptyApiKeyRoleDescriptor) ? randomFrom(Arrays.asList(null, Collections.emptyMap()))
+                        : Collections.singletonMap("a role", roleARDMap));
 
         final RoleDescriptor limitedRoleDescriptor = new RoleDescriptor("limited role", new String[] { "all" },
                 new RoleDescriptor.IndicesPrivileges[] {

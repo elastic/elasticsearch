@@ -192,6 +192,10 @@ teardown:
               {
                 "names" :[ "*", "index-a" ],
                 "privileges" : [ "read", "index", "write" ]
+              },
+              {
+                "names" :[ "index-a", "index-b" ],
+                "privileges" : [ "read", "write" ]
               }
             ],
             "application": [
@@ -214,6 +218,10 @@ teardown:
         "read": true,
         "index": false,
         "write": false
+      },
+      "index-b" : {
+        "read": true,
+        "write": true
       }
     } }
   - match: { "application" : {

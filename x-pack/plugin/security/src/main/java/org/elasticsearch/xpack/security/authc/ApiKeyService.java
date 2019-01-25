@@ -310,7 +310,7 @@ public class ApiKeyService {
 
         if (roleDescriptors == null && authnRoleDescriptors == null) {
             listener.onFailure(new ElasticsearchSecurityException("no role descriptors found for API key"));
-        } else if (roleDescriptors == null) {
+        } else if (roleDescriptors == null || roleDescriptors.isEmpty()) {
             final List<RoleDescriptor> authnRoleDescriptorsList = parseRoleDescriptors(apiKeyId, authnRoleDescriptors);
             rolesStore.buildAndCacheRoleFromDescriptors(authnRoleDescriptorsList, apiKeyId, listener);
         } else {

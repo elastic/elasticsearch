@@ -804,7 +804,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             Custom customIndexMetaData = in.readNamedWriteable(Custom.class);
             builder.putCustom(customIndexMetaData.getWriteableName(), customIndexMetaData);
         }
-        builder.minimumMasterNodesOnPublishingMaster = in.getVersion().onOrAfter(Version.V_7_0_0) ? in.readVInt() : -1;
+        builder.minimumMasterNodesOnPublishingMaster = in.getVersion().onOrAfter(Version.V_6_7_0) ? in.readVInt() : -1;
         return builder.build();
     }
 
@@ -830,7 +830,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 out.writeNamedWriteable(cursor.value);
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
             out.writeVInt(minimumMasterNodesOnPublishingMaster);
         }
     }
@@ -880,7 +880,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             metaData = MetaData.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
-            minimumMasterNodesOnPublishingMaster = in.getVersion().onOrAfter(Version.V_7_0_0) ? in.readVInt() : -1;
+            minimumMasterNodesOnPublishingMaster = in.getVersion().onOrAfter(Version.V_6_7_0) ? in.readVInt() : -1;
         }
 
         @Override
@@ -894,7 +894,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             metaData.writeTo(out);
             blocks.writeTo(out);
             customs.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
                 out.writeVInt(minimumMasterNodesOnPublishingMaster);
             }
         }

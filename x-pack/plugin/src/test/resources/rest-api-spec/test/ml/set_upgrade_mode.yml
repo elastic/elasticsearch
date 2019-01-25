@@ -106,13 +106,13 @@ teardown:
       ml.get_job_stats:
         job_id: set-upgrade-mode-job
   - match: { jobs.0.state: "opened" }
-  - match: { jobs.0.assignment_explanation: "persistent task is awaiting upgrade to be completed." }
+  - match: { jobs.0.assignment_explanation: "persistent task cannot be assigned while upgrade mode is enabled." }
 
   - do:
       ml.get_datafeed_stats:
         datafeed_id: set-upgrade-mode-job-datafeed
   - match: { datafeeds.0.state: "started" }
-  - match: { datafeeds.0.assignment_explanation: "persistent task is awaiting upgrade to be completed." }
+  - match: { datafeeds.0.assignment_explanation: "persistent task cannot be assigned while upgrade mode is enabled." }
 
   - do:
       tasks.list:
@@ -135,13 +135,13 @@ teardown:
       ml.get_job_stats:
         job_id: set-upgrade-mode-job
   - match: { jobs.0.state: "opened" }
-  - match: { jobs.0.assignment_explanation: "persistent task is awaiting upgrade to be completed." }
+  - match: { jobs.0.assignment_explanation: "persistent task cannot be assigned while upgrade mode is enabled." }
 
   - do:
       ml.get_datafeed_stats:
         datafeed_id: set-upgrade-mode-job-datafeed
   - match: { datafeeds.0.state: "started" }
-  - match: { datafeeds.0.assignment_explanation: "persistent task is awaiting upgrade to be completed." }
+  - match: { datafeeds.0.assignment_explanation: "persistent task cannot be assigned while upgrade mode is enabled." }
 
   - do:
       tasks.list:
@@ -207,6 +207,6 @@ teardown:
           }
 
   - do:
-      catch: /Could not open job as indices are being upgraded/
+      catch: /Cannot open jobs when upgrade mode is enabled/
       ml.open_job:
         job_id: failing-set-upgrade-mode-job

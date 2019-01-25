@@ -798,10 +798,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     }
 
     static ElasticsearchException makeCurrentlyBeingUpgradedException(Logger logger, String jobId, String explanation) {
-        String msg = "Could not open job as relevant indices are being upgraded [" + explanation + "]";
+        String msg = "Cannot open jobs when upgrade mode is enabled";
         logger.warn("[{}] {}", jobId, msg);
-        Exception detail = new IllegalStateException(msg);
-        return new ElasticsearchStatusException("Could not open job as indices are being upgraded",
-            RestStatus.TOO_MANY_REQUESTS, detail);
+        return new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);
     }
 }

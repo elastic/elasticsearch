@@ -28,7 +28,8 @@ public final class MlTasks {
     public static final String DATAFEED_TASK_ID_PREFIX = "datafeed-";
 
     public static final PersistentTasksCustomMetaData.Assignment AWAITING_UPGRADE =
-        new PersistentTasksCustomMetaData.Assignment(null, "persistent task is awaiting upgrade to be completed.");
+        new PersistentTasksCustomMetaData.Assignment(null,
+            "persistent task cannot be assigned while upgrade mode is enabled.");
 
     private MlTasks() {
     }

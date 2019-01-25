@@ -101,7 +101,7 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
         putJob(job);
         ElasticsearchStatusException statusException = expectThrows(ElasticsearchStatusException.class, () -> openJob(job.getId()));
         assertThat(statusException.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
-        assertThat(statusException.getMessage(), equalTo("Could not open job as indices are being upgraded"));
+        assertThat(statusException.getMessage(), equalTo("Cannot open jobs when upgrade mode is enabled"));
 
         //Disable the setting
         response = client().execute(SetUpgradeModeAction.INSTANCE, new SetUpgradeModeAction.Request(false))
@@ -116,13 +116,13 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
         assertThat(persistentTasks.findTasks(MlTasks.JOB_TASK_NAME, task -> true).size(), equalTo(1));
         assertThat(MlMetadata.getMlMetadata(masterClusterState).isUpgradeMode(), equalTo(false));
 
-        assertThat(client().admin()
+        assertBusy(() -> assertThat(client().admin()
             .cluster()
             .prepareListTasks()
             .setActions(MlTasks.JOB_TASK_NAME + "[c]", MlTasks.DATAFEED_TASK_NAME + "[c]")
             .get()
             .getTasks()
-            .size(), equalTo(2));
+            .size(), equalTo(2)));
 
         jobStats = getJobStats(jobId).get(0);
         assertThat(jobStats.getState(), equalTo(JobState.OPENED));

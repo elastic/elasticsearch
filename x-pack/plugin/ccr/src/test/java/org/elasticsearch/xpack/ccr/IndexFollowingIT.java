@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
@@ -30,7 +31,10 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
+import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -91,7 +95,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
     public void testFollowIndex() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
-        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
+        int numberOfReplicas = between(0, 1);
+        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, numberOfReplicas,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderYellow("index1");
@@ -103,11 +108,29 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
-        final PutFollowAction.Request followRequest = putFollow("index1", "index2");
+        boolean waitOnAll = randomBoolean();
+
+        final PutFollowAction.Request followRequest;
+        if (waitOnAll) {
+            followRequest = putFollow("index1", "index2", ActiveShardCount.ALL);
+        } else {
+            followRequest = putFollow("index1", "index2", ActiveShardCount.ONE);
+        }
         PutFollowAction.Response response = followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
         assertTrue(response.isFollowIndexCreated());
         assertTrue(response.isFollowIndexShardsAcked());
         assertTrue(response.isIndexFollowingStarted());
+
+        ClusterHealthRequest healthRequest = Requests.clusterHealthRequest("index2").waitForNoRelocatingShards(true);
+        ClusterIndexHealth indexHealth = followerClient().admin().cluster().health(healthRequest).actionGet().getIndices().get("index2");
+        for (ClusterShardHealth shardHealth : indexHealth.getShards().values()) {
+            if (waitOnAll) {
+                assertTrue(shardHealth.isPrimaryActive());
+                assertEquals(1 + numberOfReplicas, shardHealth.getActiveShards());
+            } else {
+                assertTrue(shardHealth.isPrimaryActive());
+            }
+        }
 
         final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();
         final ShardStats[] firstBatchShardStats =

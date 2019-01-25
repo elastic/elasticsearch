@@ -47,12 +47,6 @@ forbiddenApisTest {
   replaceSignatureFiles 'jdk-signatures', 'es-all-signatures'
 }
 
-namingConventions {
-  testClass = 'com.carrotsearch.randomizedtesting.RandomizedTest'
-  //we don't have integration tests
-  skipIntegTestInDisguise = true
-}
-
 testingConventions {
   naming.clear()
   naming {

@@ -134,6 +134,6 @@ public class NestedQueryTests extends ESTestCase {
         NestedQuery q = new NestedQuery(new Source(1, 1, StringUtils.EMPTY), "a.b",
                 singletonMap("f", new SimpleImmutableEntry<>(true, null)),
                 new MatchAll(new Source(1, 1, StringUtils.EMPTY)));
-        assertEquals("NestedQuery@1:2[a.b.{f=true=use_field_mapping}[MatchAll@1:2[]]]", q.toString());
+        assertEquals("NestedQuery@1:2[a.b.{f=true=null}[MatchAll@1:2[]]]", q.toString());
     }
 }

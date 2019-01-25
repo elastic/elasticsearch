@@ -62,9 +62,9 @@ public class MlUpgradeIT extends MlNativeAutodetectIntegTestCase {
         Job job2 = jobs.get(1);
         Job job3 = jobs.get(2);
 
-        String job1Index = job1.getResultsIndexName();
-        String job2Index = job2.getResultsIndexName();
-        String job3Index = job3.getResultsIndexName();
+        String job1Index = job1.getInitialResultsIndexName();
+        String job2Index = job2.getInitialResultsIndexName();
+        String job3Index = job3.getInitialResultsIndexName();
 
         assertThat(indexExists(job1Index), is(true));
         assertThat(indexExists(job2Index), is(true));
@@ -108,9 +108,9 @@ public class MlUpgradeIT extends MlNativeAutodetectIntegTestCase {
         Job job2 = jobs.get(1);
         Job job3 = jobs.get(2);
 
-        String job1Index = job1.getResultsIndexName();
-        String job2Index = job2.getResultsIndexName();
-        String job3Index = job3.getResultsIndexName();
+        String job1Index = job1.getInitialResultsIndexName();
+        String job2Index = job2.getInitialResultsIndexName();
+        String job3Index = job3.getInitialResultsIndexName();
 
         assertThat(indexExists(job1Index), is(true));
         assertThat(indexExists(job2Index), is(true));
@@ -195,9 +195,9 @@ public class MlUpgradeIT extends MlNativeAutodetectIntegTestCase {
         Job job2 = jobs.get(1);
         Job job3 = jobs.get(2);
 
-        String job1Index = job1.getResultsIndexName();
-        String job2Index = job2.getResultsIndexName();
-        String job3Index = job3.getResultsIndexName();
+        String job1Index = job1.getInitialResultsIndexName();
+        String job2Index = job2.getInitialResultsIndexName();
+        String job3Index = job3.getInitialResultsIndexName();
 
         // This index name should match one of the automatically created migration indices
         String manuallyCreatedIndex = job1Index + "-" + Version.CURRENT.major;
@@ -233,9 +233,9 @@ public class MlUpgradeIT extends MlNativeAutodetectIntegTestCase {
         Job job2 = jobs.get(1);
         Job job3 = jobs.get(2);
 
-        String job1Index = job1.getResultsIndexName();
-        String job2Index = job2.getResultsIndexName();
-        String job3Index = job3.getResultsIndexName();
+        String job1Index = job1.getInitialResultsIndexName();
+        String job2Index = job2.getInitialResultsIndexName();
+        String job3Index = job3.getInitialResultsIndexName();
 
         assertThat(indexExists(job1Index), is(true));
         assertThat(indexExists(job2Index), is(true));

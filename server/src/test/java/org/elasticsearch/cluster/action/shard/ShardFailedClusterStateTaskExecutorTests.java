@@ -73,7 +73,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
     private ClusterState clusterState;
     private ShardStateAction.ShardFailedClusterStateTaskExecutor executor;
 
-    @Before
+    @Override
     public void setUp() throws Exception {
         super.setUp();
         allocationService = createAllocationService(Settings.builder()

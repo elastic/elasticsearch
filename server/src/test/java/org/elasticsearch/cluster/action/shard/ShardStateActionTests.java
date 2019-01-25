@@ -175,7 +175,7 @@ public class ShardStateActionTests extends ESTestCase {
         transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
 
         listener.await();
-        assertTrue(listener.isSuccessful());
+        assertNull(listener.failure.get());
     }
 
     public void testNoMaster() throws InterruptedException {
@@ -284,7 +284,7 @@ public class ShardStateActionTests extends ESTestCase {
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, equalTo(1));
         transport.handleRemoteError(capturedRequests[0].requestId, new TransportException("simulated"));
-        assertFalse(listener.isSuccessful());
+        assertNotNull(listener.failure.get());
     }
 
     public void testShardNotFound() throws InterruptedException {
@@ -302,7 +302,7 @@ public class ShardStateActionTests extends ESTestCase {
         transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
 
         listener.await();
-        assertTrue(listener.isSuccessful());
+        assertNull(listener.failure.get());
     }
 
     public void testNoLongerPrimaryShardException() throws InterruptedException {
@@ -324,9 +324,11 @@ public class ShardStateActionTests extends ESTestCase {
         transport.handleRemoteError(capturedRequests[0].requestId, catastrophicError);
 
         listener.await();
-        assertNotNull(listener.getFailure());
-        assertThat(listener.getFailure(), instanceOf(ShardStateAction.NoLongerPrimaryShardException.class));
-        assertThat(listener.getFailure().getMessage(), equalTo(catastrophicError.getMessage()));
+
+        final Exception failure = listener.failure.get();
+        assertNotNull(failure);
+        assertThat(failure, instanceOf(ShardStateAction.NoLongerPrimaryShardException.class));
+        assertThat(failure.getMessage(), equalTo(catastrophicError.getMessage()));
     }
 
     public void testCacheRemoteShardFailed() throws Exception {
@@ -422,13 +424,15 @@ public class ShardStateActionTests extends ESTestCase {
         shardStateAction.shardStarted(shardRouting, "testShardStarted", listener);
 
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
-        transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
-        listener.await();
-
         assertThat(capturedRequests[0].request, instanceOf(ShardStateAction.StartedShardEntry.class));
+
         ShardStateAction.StartedShardEntry entry = (ShardStateAction.StartedShardEntry) capturedRequests[0].request;
         assertThat(entry.shardId, equalTo(shardRouting.shardId()));
         assertThat(entry.allocationId, equalTo(shardRouting.allocationId().getId()));
+
+        transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
+        listener.await();
+        assertNull(listener.failure.get());
     }
 
     private ShardRouting getRandomShardRouting(String index) {
@@ -582,14 +586,6 @@ public class ShardStateActionTests extends ESTestCase {
             } finally {
                 latch.countDown();
             }
-        }
-
-        boolean isSuccessful() {
-            return getFailure() == null;
-        }
-
-        Exception getFailure() {
-            return failure.get();
         }
 
         void await() throws InterruptedException {

@@ -118,8 +118,7 @@ public class ClusterStateCreationUtils {
             }
             if (primaryState == ShardRoutingState.RELOCATING) {
                 relocatingNode = selectAndRemove(unassignedNodes);
-            }
-            if (primaryState == ShardRoutingState.INITIALIZING) {
+            } else if (primaryState == ShardRoutingState.INITIALIZING) {
                 unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
             }
         } else {

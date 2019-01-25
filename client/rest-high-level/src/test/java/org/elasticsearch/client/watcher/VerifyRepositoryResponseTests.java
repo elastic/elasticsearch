@@ -20,12 +20,8 @@
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.XContentTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,7 +60,6 @@ public class VerifyRepositoryResponseTests extends ESTestCase {
         builder.endObject();
         return builder;
     }
-
 
     private static XContentBuilder toXContent(VerifyRepositoryResponse response, XContentBuilder builder) throws IOException {
         builder.startObject();

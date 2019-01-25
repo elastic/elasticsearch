@@ -285,7 +285,8 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
     }
 
     // This method is using the Joda BWC layer.  When that's removed, this method
-    // can be deleted too - we'll just validate the Java time formats after that.
+    // can be deleted - we'll just validate the Java time formats after that.
+    // Also remove enableWarningsCheck() above if this method is removed.
     private void validateJodaTimestampFormats(List<String> jodaTimestampFormats, String text, long expectedEpochMs) {
 
         // All the test times are for Tue May 15 2018 16:14:56 UTC, which is 17:14:56 in London.
@@ -300,12 +301,7 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
                         actualEpochMs = Joda.forPattern("date_optional_time").withZone(defaultZone).parseMillis(text);
                         break;
                     default:
-                        // The Joda BWC layer doesn't support setting a default year, so we
-                        // cannot validate patterns that don't explicitly include a year.
-                        if (timestampFormat.contains("YYYY") == false) {
-                            return;
-                        }
-                        actualEpochMs = Joda.forPattern(timestampFormat).withZone(defaultZone).parseMillis(text);
+                        actualEpochMs = Joda.forPattern(timestampFormat).withYear(2018).withZone(defaultZone).parseMillis(text);
                         break;
                 }
                 if (expectedEpochMs == actualEpochMs) {

@@ -153,7 +153,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .endObject());
             MapperException exception = expectThrows(MapperException.class,
                     () -> mapper.parse(new SourceToParse("test", "type", "2", bytes, XContentType.JSON)));
-            assertThat(exception.getMessage(), containsString("failed to parse field [geo] of type [geo_shape] in document with id '2'"));
+            assertThat(exception.getMessage(), containsString("failed to parse field [geo]"));
         }
 
     }

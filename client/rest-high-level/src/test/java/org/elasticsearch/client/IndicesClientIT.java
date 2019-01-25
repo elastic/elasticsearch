@@ -1479,7 +1479,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         ElasticsearchStatusException badMappingError = expectThrows(ElasticsearchStatusException.class,
                 () -> execute(putTemplateRequest,
                         highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync));
-        assertThat(badMappingError.getDetailedMessage(), containsString("Root mapping definition has unsupported parameters:  [my_doc_type"));
+        assertThat(badMappingError.getDetailedMessage(), 
+                containsString("Root mapping definition has unsupported parameters:  [my_doc_type"));
     }    
     
     @SuppressWarnings("unchecked")

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.common.geo.QuadkeyUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -26,31 +26,33 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.util.List;
 import java.util.Map;
 
-public class GeoHashGridTests extends GeoGridTestCase<InternalGeoHashGridBucket, InternalGeoHashGrid> {
+import static org.elasticsearch.common.geo.QuadkeyUtils.MAX_ZOOM;
+
+public class QuadkeyGridTests extends GeoGridTestCase<InternalQuadkeyGridBucket, InternalQuadkeyGrid> {
 
     @Override
-    protected InternalGeoHashGrid createInternalGeoGrid(String name, int size, List<InternalGeoGridBucket> buckets,
+    protected InternalQuadkeyGrid createInternalGeoGrid(String name, int size, List<InternalGeoGridBucket> buckets,
                                                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalGeoHashGrid(name, size, buckets, pipelineAggregators, metaData);
+        return new InternalQuadkeyGrid(name, size, buckets, pipelineAggregators, metaData);
     }
 
     @Override
-    protected Writeable.Reader<InternalGeoHashGrid> instanceReader() {
-        return InternalGeoHashGrid::new;
+    protected Writeable.Reader<InternalQuadkeyGrid> instanceReader() {
+        return InternalQuadkeyGrid::new;
     }
 
     @Override
-    protected InternalGeoHashGridBucket createInternalGeoGridBucket(Long key, long docCount, InternalAggregations aggregations) {
-        return new InternalGeoHashGridBucket(key, docCount, aggregations);
+    protected InternalQuadkeyGridBucket createInternalGeoGridBucket(Long key, long docCount, InternalAggregations aggregations) {
+        return new InternalQuadkeyGridBucket(key, docCount, aggregations);
     }
 
     @Override
     protected long longEncode(double lng, double lat, int precision) {
-        return GeoHashUtils.longEncode(lng, lat, precision);
+        return QuadkeyUtils.longEncode(lng, lat, precision);
     }
 
     @Override
     protected int randomPrecision() {
-        return randomIntBetween(1, 12);
+        return randomIntBetween(0, MAX_ZOOM);
     }
 }

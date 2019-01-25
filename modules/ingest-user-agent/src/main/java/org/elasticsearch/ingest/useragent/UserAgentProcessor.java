@@ -27,9 +27,11 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.useragent.UserAgentParser.Details;
 import org.elasticsearch.ingest.useragent.UserAgentParser.VersionedName;
 
+import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -41,6 +43,8 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public class UserAgentProcessor extends AbstractProcessor {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(UserAgentProcessor.class));
 
     public static final String TYPE = "user_agent";
 
@@ -272,8 +276,6 @@ public class UserAgentProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(UserAgentProcessor.class));
-
         private final Map<String, UserAgentParser> userAgentParsers;
 
         public Factory(Map<String, UserAgentParser> userAgentParsers) {
@@ -336,9 +338,25 @@ public class UserAgentProcessor extends AbstractProcessor {
         ORIGINAL,
         VERSION;
 
+        private static Set<Property> DEPRECATED_PROPERTIES;
+
+        static {
+            Set<Property> deprecated = new HashSet<>();
+            for (Field field : Property.class.getFields()) {
+                if (field.isEnumConstant() && field.isAnnotationPresent(Deprecated.class)) {
+                    deprecated.add(valueOf(field.getName()));
+                }
+            }
+            DEPRECATED_PROPERTIES = deprecated;
+        }
+
         public static Property parseProperty(String propertyName) {
             try {
-                return valueOf(propertyName.toUpperCase(Locale.ROOT));
+                Property value = valueOf(propertyName.toUpperCase(Locale.ROOT));
+                if (DEPRECATED_PROPERTIES.contains(value)) {
+                    deprecationLogger.deprecated("the [{}] property is deprecated for the user-agent processor", propertyName);
+                }
+                return value;
             }
             catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("illegal property value [" + propertyName + "]. valid values are " +

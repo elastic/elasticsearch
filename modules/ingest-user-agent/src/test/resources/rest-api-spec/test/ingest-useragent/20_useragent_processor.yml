@@ -91,6 +91,7 @@
   - do:
       warnings:
         - "setting [ecs] to false for non-common schema format is deprecated and will be removed in 7.0, set to true to use the non-deprecated format"
+        - "the [os_major] property is deprecated for the user-agent processor"
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >

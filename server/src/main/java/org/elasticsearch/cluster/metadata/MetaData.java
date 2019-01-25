@@ -1245,7 +1245,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
             builder.startObject("templates");
             for (ObjectCursor<IndexTemplateMetaData> cursor : metaData.templates().values()) {
-                IndexTemplateMetaData.Builder.toXContent(cursor.value, builder, params);
+                IndexTemplateMetaData.Builder.toXContentWithTypes(cursor.value, builder, params);
             }
             builder.endObject();
 

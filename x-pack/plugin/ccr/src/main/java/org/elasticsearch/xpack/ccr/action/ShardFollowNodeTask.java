@@ -30,6 +30,7 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -130,7 +131,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
 
         // updates follower mapping, this gets us the leader mapping version and makes sure that leader and follower mapping are identical
-        updateMapping(followerMappingVersion -> {
+        updateMapping(0L, followerMappingVersion -> {
             synchronized (ShardFollowNodeTask.this) {
                 currentMappingVersion = followerMappingVersion;
             }
@@ -370,7 +371,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         coordinateReads();
     }
 
-    private synchronized void maybeUpdateMapping(Long minimumRequiredMappingVersion, Runnable task) {
+    private synchronized void maybeUpdateMapping(long minimumRequiredMappingVersion, Runnable task) {
         if (currentMappingVersion >= minimumRequiredMappingVersion) {
             LOGGER.trace("{} mapping version [{}] is higher or equal than minimum required mapping version [{}]",
                 params.getFollowShardId(), currentMappingVersion, minimumRequiredMappingVersion);
@@ -378,7 +379,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         } else {
             LOGGER.trace("{} updating mapping, mapping version [{}] is lower than minimum required mapping version [{}]",
                 params.getFollowShardId(), currentMappingVersion, minimumRequiredMappingVersion);
-            updateMapping(mappingVersion -> {
+            updateMapping(minimumRequiredMappingVersion, mappingVersion -> {
                 currentMappingVersion = mappingVersion;
                 task.run();
             });
@@ -400,12 +401,13 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
     }
 
-    private void updateMapping(LongConsumer handler) {
-        updateMapping(handler, new AtomicInteger(0));
+    private void updateMapping(long minRequiredMappingVersion, LongConsumer handler) {
+        updateMapping(minRequiredMappingVersion, handler, new AtomicInteger(0));
     }
 
-    private void updateMapping(LongConsumer handler, AtomicInteger retryCounter) {
-        innerUpdateMapping(handler, e -> handleFailure(e, retryCounter, () -> updateMapping(handler, retryCounter)));
+    private void updateMapping(long minRequiredMappingVersion, LongConsumer handler, AtomicInteger retryCounter) {
+        innerUpdateMapping(minRequiredMappingVersion, handler,
+            e -> handleFailure(e, retryCounter, () -> updateMapping(minRequiredMappingVersion, handler, retryCounter)));
     }
 
     private void updateSettings(final LongConsumer handler) {
@@ -418,12 +420,15 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private void handleFailure(Exception e, AtomicInteger retryCounter, Runnable task) {
         assert e != null;
-        if (shouldRetry(params.getRemoteCluster(), e) && isStopped() == false) {
-            int currentRetry = retryCounter.incrementAndGet();
-            LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying [{}]",
-                params.getFollowShardId(), currentRetry), e);
-            long delay = computeDelay(currentRetry, params.getReadPollTimeout().getMillis());
-            scheduler.accept(TimeValue.timeValueMillis(delay), task);
+        if (shouldRetry(params.getRemoteCluster(), e)) {
+            if (isStopped() == false) {
+                // Only retry is the shard follow task is not stopped.
+                int currentRetry = retryCounter.incrementAndGet();
+                LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying [{}]",
+                    params.getFollowShardId(), currentRetry), e);
+                long delay = computeDelay(currentRetry, params.getReadPollTimeout().getMillis());
+                scheduler.accept(TimeValue.timeValueMillis(delay), task);
+            }
         } else {
             fatalException = ExceptionsHelper.convertToElastic(e);
             LOGGER.warn("shard follow task encounter non-retryable error", e);
@@ -447,10 +452,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             return true;
         }
 
-        // This is thrown when using a Client and its remote cluster alias went MIA
-        String noSuchRemoteClusterMessage = "no such remote cluster: " + remoteCluster;
-        // This is thrown when creating a Client and the remote cluster does not exist:
-        String unknownClusterMessage = "unknown cluster alias [" + remoteCluster + "]";
         final Throwable actual = ExceptionsHelper.unwrapCause(e);
         return actual instanceof ShardNotFoundException ||
             actual instanceof IllegalIndexShardStateException ||
@@ -462,13 +463,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             actual instanceof IndexClosedException || // If follow index is closed
             actual instanceof ConnectTransportException ||
             actual instanceof NodeClosedException ||
-            (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed")) ||
-            (actual instanceof IllegalArgumentException && (noSuchRemoteClusterMessage.equals(actual.getMessage()) ||
-                unknownClusterMessage.equals(actual.getMessage())));
+            actual instanceof NoSuchRemoteClusterException ||
+            (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed"));
     }
 
     // These methods are protected for testing purposes:
-    protected abstract void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler);
+    protected abstract void innerUpdateMapping(long minRequiredMappingVersion, LongConsumer handler, Consumer<Exception> errorHandler);
 
     protected abstract void innerUpdateSettings(LongConsumer handler, Consumer<Exception> errorHandler);
 

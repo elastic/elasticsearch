@@ -61,18 +61,16 @@ object or from the mapping type.  For instance:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "dynamic": false, <1>
-      "properties": {
-        "user": { <2>
-          "properties": {
-            "name": {
-              "type": "text"
-            },
-            "social_networks": { <3>
-              "dynamic": true,
-              "properties": {}
-            }
+    "dynamic": false, <1>
+    "properties": {
+      "user": { <2>
+        "properties": {
+          "name": {
+            "type": "text"
+          },
+          "social_networks": { <3>
+            "dynamic": true,
+            "properties": {}
           }
         }
       }

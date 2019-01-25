@@ -72,11 +72,6 @@ public class PluginBuildPlugin extends BuildPlugin {
             if (isModule == false || isXPackModule) {
                 addNoticeGeneration(project)
             }
-
-            project.namingConventions {
-                // Plugins declare integration tests as "Tests" instead of IT.
-                skipIntegTestInDisguise = true
-            }
         }
         project.testingConventions {
             naming.clear()
@@ -114,7 +109,7 @@ public class PluginBuildPlugin extends BuildPlugin {
                 generatePOMTask.ext.pomFileName = "${project.archivesBaseName}-client-${project.versions.elasticsearch}.pom"
             }
         } else {
-            project.plugins.withType(MavenPublishPlugin).whenPluginAdded {
+            if (project.plugins.hasPlugin(MavenPublishPlugin)) {
                 project.publishing.publications.nebula(MavenPublication).artifactId(
                         project.pluginProperties.extension.name
                 )

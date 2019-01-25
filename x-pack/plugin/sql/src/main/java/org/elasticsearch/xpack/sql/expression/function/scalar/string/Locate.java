@@ -48,19 +48,19 @@ public class Locate extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution patternResolution = Expressions.typeMustBeString(pattern, functionName(), ParamOrdinal.FIRST);
+        TypeResolution patternResolution = Expressions.typeMustBeString(pattern, sourceText(), ParamOrdinal.FIRST);
         if (patternResolution.unresolved()) {
             return patternResolution;
         }
         
-        TypeResolution sourceResolution = Expressions.typeMustBeString(source, functionName(), ParamOrdinal.SECOND);
+        TypeResolution sourceResolution = Expressions.typeMustBeString(source, sourceText(), ParamOrdinal.SECOND);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
         
         return start == null ?
             TypeResolution.TYPE_RESOLVED :
-            Expressions.typeMustBeNumeric(start, functionName(), ParamOrdinal.THIRD);
+                Expressions.typeMustBeNumeric(start, sourceText(), ParamOrdinal.THIRD);
     }
 
     @Override

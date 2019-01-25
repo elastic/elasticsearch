@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -27,10 +29,14 @@ import org.elasticsearch.node.Node;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedTransferQueue;
+import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -108,7 +114,45 @@ public class EsExecutors {
                 new EsAbortPolicy(), contextHolder);
     }
 
-    private static final ExecutorService DIRECT_EXECUTOR_SERVICE = new AbstractExecutorService() {
+    /**
+     * Checks if the runnable arose from asynchronous submission of a task to an executor. If an uncaught exception was thrown
+     * during the execution of this task, we need to inspect this runnable and see if it is an error that should be propagated
+     * to the uncaught exception handler.
+     */
+    public static void rethrowErrors(Runnable runnable) {
+        if (runnable instanceof RunnableFuture) {
+            try {
+                ((RunnableFuture) runnable).get();
+            } catch (final Exception e) {
+                /*
+                 * In theory, Future#get can only throw a cancellation exception, an interrupted exception, or an execution
+                 * exception. We want to ignore cancellation exceptions, restore the interrupt status on interrupted exceptions, and
+                 * inspect the cause of an execution. We are going to be extra paranoid here though and completely unwrap the
+                 * exception to ensure that there is not a buried error anywhere. We assume that a general exception has been
+                 * handled by the executed task or the task submitter.
+                 */
+                assert e instanceof CancellationException
+                    || e instanceof InterruptedException
+                    || e instanceof ExecutionException : e;
+                final Optional<Error> maybeError = ExceptionsHelper.maybeError(e);
+                if (maybeError.isPresent()) {
+                    // throw this error where it will propagate to the uncaught exception handler
+                    throw maybeError.get();
+                }
+                if (e instanceof InterruptedException) {
+                    // restore the interrupt status
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+    }
+
+    private static final class DirectExecutorService extends AbstractExecutorService {
+
+        @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+        DirectExecutorService() {
+            super();
+        }
 
         @Override
         public void shutdown() {
@@ -131,16 +175,18 @@ public class EsExecutors {
         }
 
         @Override
-        public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+        public boolean awaitTermination(long timeout, TimeUnit unit) {
             throw new UnsupportedOperationException();
         }
 
         @Override
         public void execute(Runnable command) {
             command.run();
+            rethrowErrors(command);
         }
+    }
 
-    };
+    private static final ExecutorService DIRECT_EXECUTOR_SERVICE = new DirectExecutorService();
 
     /**
      * Returns an {@link ExecutorService} that executes submitted tasks on the current thread. This executor service does not support being

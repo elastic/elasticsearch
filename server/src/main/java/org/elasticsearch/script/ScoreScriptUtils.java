@@ -41,7 +41,7 @@ public final class ScoreScriptUtils {
 
     /****** STATIC FUNCTIONS that can be used by users for score calculations **/
 
-    public static double rational(double value, double k) {
+    public static double saturation(double value, double k) {
         return value/ (k + value);
     }
 
@@ -132,7 +132,7 @@ public final class ScoreScriptUtils {
             this.originLat = origin.lat();
             this.originLon = origin.lon();
             this.offset = DistanceUnit.DEFAULT.parse(offsetStr, DistanceUnit.DEFAULT);
-            this.scaling =  0.5 * Math.pow(scale, 2.0) / Math.log(decay);;
+            this.scaling =  0.5 * Math.pow(scale, 2.0) / Math.log(decay);
         }
 
         public double decayGeoGauss(GeoPoint docValue) {

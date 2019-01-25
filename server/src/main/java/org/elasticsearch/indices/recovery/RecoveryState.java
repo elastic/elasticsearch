@@ -367,6 +367,15 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
             time = in.readVLong();
         }
 
+        @Override
+        public synchronized void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(startTime);
+            out.writeVLong(startNanoTime);
+            out.writeVLong(stopTime);
+            // write a snapshot of current time, which is not per se the time field
+            out.writeVLong(time());
+        }
+
         public synchronized void start() {
             assert startTime == 0 : "already started";
             startTime = System.currentTimeMillis();
@@ -406,15 +415,6 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
             startNanoTime = 0;
             time = -1;
             stopTime = 0;
-        }
-
-        @Override
-        public synchronized void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(startTime);
-            out.writeVLong(startNanoTime);
-            out.writeVLong(stopTime);
-            // write a snapshot of current time, which is not per se the time field
-            out.writeVLong(time());
         }
 
     }

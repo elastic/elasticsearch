@@ -40,6 +40,7 @@ public class DateUtilsTests extends ESTestCase {
     private static final Set<String> IGNORE = new HashSet<>(Arrays.asList(
         "Eire", "Europe/Dublin" // dublin timezone in joda does not account for DST
     ));
+
     public void testTimezoneIds() {
         assertNull(DateUtils.dateTimeZoneToZoneId(null));
         assertNull(DateUtils.zoneIdToDateTimeZone(null));
@@ -70,6 +71,8 @@ public class DateUtilsTests extends ESTestCase {
         Instant tooEarlyInstant = ZonedDateTime.parse("1677-09-21T00:12:43.145224191Z").toInstant();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> toLong(tooEarlyInstant));
         assertThat(e.getMessage(), containsString("is before"));
+        e = expectThrows(IllegalArgumentException.class, () -> toLong(Instant.EPOCH.minusMillis(1)));
+        assertThat(e.getMessage(), containsString("is before"));
     }
 
     public void testInstantToLongMax() {
@@ -80,15 +83,20 @@ public class DateUtilsTests extends ESTestCase {
 
     public void testLongToInstant() {
         assertThat(toInstant(0), is(Instant.EPOCH));
-        assertThat(toInstant(-1), is(Instant.EPOCH.minusNanos(1)));
         assertThat(toInstant(1), is(Instant.EPOCH.plusNanos(1)));
 
         Instant instant = createRandomInstant();
         long nowInNs = toLong(instant);
         assertThat(toInstant(nowInNs), is(instant));
 
-        assertThat(toInstant(Long.MIN_VALUE),
-            is(ZonedDateTime.parse("1677-09-21T00:12:43.145224192Z").toInstant()));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> toInstant(-1));
+        assertThat(e.getMessage(),
+            is("nanoseconds are [-1] are before the epoch in 1970 and cannot be processed in nanosecond resolution"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> toInstant(Long.MIN_VALUE));
+        assertThat(e.getMessage(),
+            is("nanoseconds are [" + Long.MIN_VALUE + "] are before the epoch in 1970 and cannot be processed in nanosecond resolution"));
+
         assertThat(toInstant(Long.MAX_VALUE),
             is(ZonedDateTime.parse("2262-04-11T23:47:16.854775807Z").toInstant()));
     }

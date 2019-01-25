@@ -42,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -75,28 +76,53 @@ public class DateFieldMapper extends FieldMapper {
     }
 
     public enum Resolution {
-        MILLISECONDS {
-            public String type() {
-                return CONTENT_TYPE;
-            }
-
-            long convert(Instant instant) {
+        MILLISECONDS(CONTENT_TYPE, NumericType.DATE) {
+            public long convert(Instant instant) {
                 return instant.toEpochMilli();
             }
+
+            public Instant toInstant(long value) {
+                return Instant.ofEpochMilli(value);
+            }
         },
-        NANOSECONDS {
-            public String type() {
-                return "nanosecond";
+        NANOSECONDS("date_nanos", NumericType.DATE_NANOSECONDS) {
+            public long convert(Instant instant) {
+                return toLong(instant);
             }
 
-            long convert(Instant instant) {
-                return toLong(instant);
+            public Instant toInstant(long value) {
+                return DateUtils.toInstant(value);
             }
         };
 
-        public abstract String type();
+        private final String type;
+        private final NumericType numericType;
 
-        abstract long convert(Instant instant);
+        Resolution(String type, NumericType numericType) {
+            this.type = type;
+            this.numericType = numericType;
+        }
+
+        public String type() {
+            return type;
+        }
+
+        NumericType numericType() {
+            return numericType;
+        }
+
+        abstract public long convert(Instant instant);
+
+        abstract public Instant toInstant(long value);
+
+        public static Resolution ofOrdinal(int ord) {
+            for (Resolution resolution : values()) {
+                if (ord == resolution.ordinal()) {
+                    return resolution;
+                }
+            }
+            throw new IllegalArgumentException("unknown resolution ordinal [" + ord + "]");
+        }
     }
 
     public static class Builder extends FieldMapper.Builder<Builder, DateFieldMapper> {
@@ -425,7 +451,7 @@ public class DateFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder().numericType(NumericType.DATE);
+            return new DocValuesIndexFieldData.Builder().numericType(resolution.numericType());
         }
 
         @Override
@@ -434,7 +460,7 @@ public class DateFieldMapper extends FieldMapper {
             if (val == null) {
                 return null;
             }
-            return dateTimeFormatter().formatMillis(val);
+            return dateTimeFormatter().format(resolution.toInstant(val).atZone(ZoneOffset.UTC));
         }
 
         @Override
@@ -446,7 +472,10 @@ public class DateFieldMapper extends FieldMapper {
             if (timeZone == null) {
                 timeZone = ZoneOffset.UTC;
             }
-            return new DocValueFormat.DateTime(dateTimeFormatter, timeZone);
+            // TODO this is not yet nice, improve!
+            // the resolution here is always set to milliseconds, as aggregations use this formatter mainly and those are always in
+            // milliseconds. The only special case here is docvalue fields, which are handled somewhere else
+            return new DocValueFormat.DateTime(dateTimeFormatter, timeZone, Resolution.MILLISECONDS);
         }
     }
 

@@ -267,12 +267,6 @@ public final class SearchPhaseController {
         return mergedTopDocs;
     }
 
-    private static List<String> getDocIds(ScoreDoc[] scoreDocs) {
-        return Arrays.stream(scoreDocs)
-            .map(doc -> "id[" + doc.doc + "]/shard[" + doc.shardIndex + "]")
-            .collect(Collectors.toList());
-    }
-
     static void transformNanoToMilli(TopFieldDocs[] shardTopDocs, Sort sort) {
         for (int sortIdx = 0; sortIdx < shardTopDocs[0].fields.length; sortIdx++) {
             final int idx = sortIdx;

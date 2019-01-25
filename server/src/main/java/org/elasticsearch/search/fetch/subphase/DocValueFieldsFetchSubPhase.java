@@ -31,6 +31,8 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -110,20 +112,34 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                 SortedNumericDocValues longValues = null; // int / date fields
                 SortedNumericDoubleValues doubleValues = null; // floating-point fields
                 for (SearchHit hit : hits) {
+                    // TODO this is not yet nice, improve!
+                    boolean isNanosecondHit = false;
                     // if the reader index has changed we need to get a new doc values reader instance
                     if (subReaderContext == null || hit.docId() >= subReaderContext.docBase + subReaderContext.reader().maxDoc()) {
                         int readerIndex = ReaderUtil.subIndex(hit.docId(), context.searcher().getIndexReader().leaves());
                         subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
-                        data = indexFieldData.load(subReaderContext);
                         if (format == null) {
+                            data = indexFieldData.load(subReaderContext);
                             scriptValues = data.getLegacyFieldValues();
                         } else if (indexFieldData instanceof IndexNumericFieldData) {
-                            if (((IndexNumericFieldData) indexFieldData).getNumericType().isFloatingPoint()) {
+                            IndexNumericFieldData.NumericType numericType = ((IndexNumericFieldData) indexFieldData).getNumericType();
+                            if (numericType.isFloatingPoint()) {
+                                data = indexFieldData.load(subReaderContext);
                                 doubleValues = ((AtomicNumericFieldData) data).getDoubleValues();
                             } else {
+                                // by default nanoseconds are cut to milliseconds within aggregations
+                                // however for doc value fields we need the original nanosecond longs
+                                // TODO this is not yet nice, improve!
+                                if (numericType == IndexNumericFieldData.NumericType.DATE_NANOSECONDS) {
+                                    isNanosecondHit = true;
+                                    data = ((SortedNumericDVIndexFieldData)indexFieldData).loadNanosecondFieldData(subReaderContext);
+                                } else {
+                                    data = indexFieldData.load(subReaderContext);
+                                }
                                 longValues = ((AtomicNumericFieldData) data).getLongValues();
                             }
                         } else {
+                            data = indexFieldData.load(subReaderContext);
                             binaryValues = data.getBytesValues();
                         }
                     }
@@ -148,9 +164,16 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                             }
                         }
                     } else if (longValues != null) {
+                        // TODO this is not yet nice, improve!
+                        final DocValueFormat replacedFormat;
+                        if (isNanosecondHit) {
+                            replacedFormat = DocValueFormat.withResolution(format, DateFieldMapper.Resolution.NANOSECONDS);
+                        } else {
+                            replacedFormat = format;
+                        }
                         if (longValues.advanceExact(subDocId)) {
                             for (int i = 0, count = longValues.docValueCount(); i < count; ++i) {
-                                values.add(format.format(longValues.nextValue()));
+                                values.add(replacedFormat.format(longValues.nextValue()));
                             }
                         }
                     } else if (doubleValues != null) {

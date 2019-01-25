@@ -32,6 +32,7 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -139,9 +140,43 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
                 return new SortedNumericFloatFieldData(reader, field);
             case DOUBLE:
                 return new SortedNumericDoubleFieldData(reader, field);
+            case DATE_NANOSECONDS:
+                // TODO this is not yet nice, improve!
+                return new SortedNumericLongFieldData(reader, field, numericType) {
+                    @Override
+                    public SortedNumericDocValues getLongValues() {
+                        try {
+                            final SortedNumericDocValues dv = DocValues.getSortedNumeric(reader, field);
+                            return new AbstractSortedNumericDocValues() {
+
+                                @Override
+                                public boolean advanceExact(int target) throws IOException {
+                                    return dv.advanceExact(target);
+                                }
+
+                                @Override
+                                public long nextValue() throws IOException {
+                                    return dv.nextValue() / 1_000_000L;
+                                }
+
+                                @Override
+                                public int docValueCount() {
+                                    return dv.docValueCount();
+                                }
+                            };
+                        } catch (IOException e) {
+                            throw new IllegalStateException("Cannot load doc values", e);
+                        }
+                    }
+                };
             default:
                 return new SortedNumericLongFieldData(reader, field, numericType);
         }
+    }
+
+    // TODO this is not yet nice, improve!
+    public AtomicNumericFieldData loadNanosecondFieldData(LeafReaderContext context) {
+        return new SortedNumericLongFieldData(context.reader(), fieldName, numericType);
     }
 
     /**
@@ -155,7 +190,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
      * {@link DocValues#unwrapSingleton(SortedNumericDocValues)} will return
      * the underlying single-valued NumericDocValues representation.
      */
-    static final class SortedNumericLongFieldData extends AtomicLongFieldData {
+    class SortedNumericLongFieldData extends AtomicLongFieldData {
         final LeafReader reader;
         final String field;
 

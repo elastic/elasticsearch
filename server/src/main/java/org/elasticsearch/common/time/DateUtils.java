@@ -79,7 +79,6 @@ public class DateUtils {
         return ZoneId.of(zoneId).normalized();
     }
 
-    private static final Instant MIN_NANOSECOND_INSTANT = Instant.parse("1677-09-21T00:12:43.145224192Z");
     private static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
 
     /**
@@ -90,8 +89,8 @@ public class DateUtils {
      * @return        the nano seconds and seconds as a single long
      */
     public static long toLong(Instant instant) {
-        if (instant.isBefore(MIN_NANOSECOND_INSTANT)) {
-            throw new IllegalArgumentException("date[" + instant + "] is before 1677-09-21T00:12:43.145224192 and cannot be " +
+        if (instant.isBefore(Instant.EPOCH)) {
+            throw new IllegalArgumentException("date[" + instant + "] is before the epoch in 1970 and cannot be " +
                 "stored in nanosecond resolution");
         }
         if (instant.isAfter(MAX_NANOSECOND_INSTANT)) {
@@ -109,6 +108,10 @@ public class DateUtils {
      * @return                      the instant resembling the specified date
      */
     public static Instant toInstant(long nanoSecondsSinceEpoch) {
+        if (nanoSecondsSinceEpoch < 0) {
+            throw new IllegalArgumentException("nanoseconds are [" + nanoSecondsSinceEpoch + "] are before the epoch in 1970 and cannot " +
+                "be processed in nanosecond resolution");
+        }
         if (nanoSecondsSinceEpoch == 0) {
             return Instant.EPOCH;
         }

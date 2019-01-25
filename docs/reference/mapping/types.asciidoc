@@ -10,7 +10,7 @@ document:
 string::         <<text,`text`>> and <<keyword,`keyword`>>
 <<number>>::     `long`, `integer`, `short`, `byte`, `double`, `float`, `half_float`, `scaled_float`
 <<date>>::       `date`
-<<nanosecond>>:: `nanosecond`
+<<date_nanos>>:: `date_nanos`
 <<boolean>>::    `boolean`
 <<binary>>::     `binary`
 <<range>>::      `integer_range`, `float_range`, `long_range`, `double_range`, `date_range`
@@ -79,7 +79,7 @@ include::types/boolean.asciidoc[]
 
 include::types/date.asciidoc[]
 
-include::types/nanosecond.asciidoc[]
+include::types/date_nanos.asciidoc[]
 
 include::types/geo-point.asciidoc[]
 

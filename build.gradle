@@ -46,6 +46,8 @@ allprojects {
   description = "Elasticsearch subproject ${project.path}"
 }
 
+BuildPlugin.configureRepositories(project)
+
 apply plugin: 'nebula.info-scm'
 String licenseCommit
 if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {

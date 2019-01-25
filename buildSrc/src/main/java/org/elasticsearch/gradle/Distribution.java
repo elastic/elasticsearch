@@ -52,4 +52,5 @@ public enum Distribution {
             .onMac(() -> "darwin-x86_64")
             .supply();
     }
+
 }

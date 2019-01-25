@@ -143,6 +143,10 @@ public class ElasticsearchNode {
         plugin(plugin.toURI());
     }
 
+    public Path getConfigDir() {
+        return configFile.getParent();
+    }
+
     public void freeze() {
         requireNonNull(distribution, "null distribution passed when configuring test cluster `" + this + "`");
         requireNonNull(version, "null version passed when configuring test cluster `" + this + "`");
@@ -295,6 +299,16 @@ public class ElasticsearchNode {
     public String getTransportPortURI() {
         waitForAllConditions();
         return getTransportPortInternal().get(0);
+    }
+
+    public List<String> getAllHttpSocketURI() {
+        waitForAllConditions();
+        return getHttpPortInternal();
+    }
+
+    public List<String> getAllTransportPortURI() {
+        waitForAllConditions();
+        return getTransportPortInternal();
     }
 
     synchronized void stop(boolean tailLogs) {

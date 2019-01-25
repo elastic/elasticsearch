@@ -19,12 +19,6 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.rest.yaml.section.GreaterThanAssertion;
-import org.elasticsearch.test.rest.yaml.section.IsFalseAssertion;
-import org.elasticsearch.test.rest.yaml.section.IsTrueAssertion;
-import org.elasticsearch.test.rest.yaml.section.LengthAssertion;
-import org.elasticsearch.test.rest.yaml.section.LessThanAssertion;
-import org.elasticsearch.test.rest.yaml.section.MatchAssertion;
 
 import java.util.List;
 import java.util.Map;
@@ -66,6 +60,8 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(greaterThanAssertion.getField(), equalTo("field"));
         assertThat(greaterThanAssertion.getExpectedValue(), instanceOf(Integer.class));
         assertThat((Integer) greaterThanAssertion.getExpectedValue(), equalTo(3));
+        greaterThanAssertion.doAssert(3.1, greaterThanAssertion.getExpectedValue());
+        greaterThanAssertion.doAssert(4, greaterThanAssertion.getExpectedValue());
     }
 
     public void testParseLessThan() throws Exception {
@@ -78,6 +74,8 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(lessThanAssertion.getField(), equalTo("field"));
         assertThat(lessThanAssertion.getExpectedValue(), instanceOf(Integer.class));
         assertThat((Integer) lessThanAssertion.getExpectedValue(), equalTo(3));
+        lessThanAssertion.doAssert(2.9, lessThanAssertion.getExpectedValue());
+        lessThanAssertion.doAssert(2, lessThanAssertion.getExpectedValue());
     }
 
     public void testParseLength() throws Exception {

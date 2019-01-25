@@ -62,6 +62,14 @@ public class GreaterThanEqualToAssertion extends Assertion {
         assertThat("expected value of [" + getField() + "] is not comparable (got [" + expectedValue.getClass() + "])",
                 expectedValue, instanceOf(Comparable.class));
         try {
+            // make numbers comparable with each other: Float 1.0 can be compared to Double 1.0
+            if (actualValue.getClass().equals(safeClass(expectedValue)) == false) {
+                if (actualValue instanceof Number && expectedValue instanceof Number) {
+                    assertThat(errorMessage(), (Comparable) ((Number) actualValue).doubleValue(),
+                        greaterThanOrEqualTo((Comparable) ((Number) expectedValue).doubleValue()));
+                    return;
+                 }
+            }
             assertThat(errorMessage(), (Comparable) actualValue, greaterThanOrEqualTo((Comparable) expectedValue));
         } catch (ClassCastException e) {
             fail("cast error while checking (" + errorMessage() + "): " + e);

@@ -200,7 +200,7 @@ class ClusterFormationTasks {
         }
         Object dependency
         String snapshotProject = "${os}-${os.equals('windows') ? 'zip' : 'tar'}"
-        if (version.before("6.7.0")) {
+        if (version.before("7.0.0")) {
             snapshotProject = "zip"
         }
         if (distro.equals("oss")) {

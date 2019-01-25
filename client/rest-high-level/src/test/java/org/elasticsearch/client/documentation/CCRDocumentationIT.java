@@ -25,8 +25,6 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Request;
@@ -50,6 +48,8 @@ import org.elasticsearch.client.ccr.PutFollowResponse;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
+import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.junit.Before;
@@ -630,6 +630,22 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testGetFollowStats() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
+        {
+            // Create leader index:
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
+            createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
+            CreateIndexResponse response = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
+            assertThat(response.isAcknowledged(), is(true));
+        }
+        {
+            // Follow index, so that we can query for follow stats:
+            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", "follower");
+            PutFollowResponse putFollowResponse = client.ccr().putFollow(putFollowRequest, RequestOptions.DEFAULT);
+            assertThat(putFollowResponse.isFollowIndexCreated(), is(true));
+            assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));
+            assertThat(putFollowResponse.isIndexFollowingStarted(), is(true));
+        }
+
         // tag::ccr-get-follow-stats-request
         FollowStatsRequest request =
             new FollowStatsRequest("follower"); // <1>
@@ -671,6 +687,12 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::ccr-get-follow-stats-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+        {
+            PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
+            AcknowledgedResponse pauseFollowResponse =  client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
+            assertThat(pauseFollowResponse.isAcknowledged(), is(true));
+        }
     }
 
     static Map<String, Object> toMap(Response response) throws IOException {

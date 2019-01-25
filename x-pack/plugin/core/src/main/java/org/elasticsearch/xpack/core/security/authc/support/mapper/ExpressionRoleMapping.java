@@ -78,7 +78,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     public ExpressionRoleMapping(StreamInput in) throws IOException {
         this.name = in.readString();
         this.enabled = in.readBoolean();
-        this.roles = in.readList(StreamInput::readString);
+        this.roles = in.readStringList();
         this.expression = ExpressionParser.readExpression(in);
         this.metadata = in.readMap();
     }
@@ -87,7 +87,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeBoolean(enabled);
-        out.writeStringList(roles);
+        out.writeStringCollection(roles);
         ExpressionParser.writeExpression(expression, out);
         out.writeMap(metadata);
     }

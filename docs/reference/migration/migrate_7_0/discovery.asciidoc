@@ -13,9 +13,6 @@ settings summary>> for an example, and the
 <<modules-discovery-bootstrap-cluster,cluster bootstrapping reference
 documentation>> describes this setting in more detail.
 
-The `discovery.zen.minimum_master_nodes` setting is required during a rolling
-upgrade from 6.x, but can be removed in all other circumstances.
-
 [float]
 ==== Removing master-eligible nodes sometimes requires voting exclusions
 
@@ -38,3 +35,12 @@ file:
 - `discovery.zen.ping.unicast.hosts`
 - `discovery.zen.hosts_provider`
 - `cluster.initial_master_nodes`
+
+[float]
+==== Minimum master nodes must not be configured
+
+The `discovery.zen.minimum_master_nodes` setting must be removed from the
+`elasticsearch.yml` configuration file. This setting is, however, required to
+be set on master-eligible nodes running Elasticsearch 6 or earlier, so if you
+are upgrading a node from version 6 to version 7 you must remove this setting
+after shutting the version 6 node down for the last time before the upgrade.

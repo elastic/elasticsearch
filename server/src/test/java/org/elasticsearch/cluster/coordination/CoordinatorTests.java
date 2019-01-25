@@ -56,6 +56,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
 import org.elasticsearch.env.NodeEnvironment;
@@ -998,6 +999,14 @@ public class CoordinatorTests extends ESTestCase {
         cluster.bootstrapIfNecessary();
         cluster.runFor(10000, "failing join validation");
         assertTrue(cluster.clusterNodes.stream().allMatch(cn -> cn.getLastAppliedClusterState().version() == 0));
+    }
+
+    public void testRejectsSettingsWithMinimumMasterNodes() {
+        final IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, () -> new Coordinator("node",
+            Settings.builder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 1).build(),
+            null, null, null, null, null, null, null, null, null, null));
+        assertThat(illegalArgumentException.getMessage(), equalTo(
+            "node setting [discovery.zen.minimum_master_nodes] is not permitted and must be removed before starting this node"));
     }
 
     private static long defaultMillis(Setting<TimeValue> setting) {

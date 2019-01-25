@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -194,7 +195,8 @@ public class Zen1IT extends ESIntegTestCase {
                 }
                 ClusterHealthResponse clusterHealthResponse = clusterHealthRequestBuilder.get();
                 assertFalse(nodeName, clusterHealthResponse.isTimedOut());
-                return Coordinator.addZen1Attribute(false, Settings.builder().put(ZEN2_SETTINGS)).build();
+                return Coordinator.addZen1Attribute(false, Settings.builder().put(ZEN2_SETTINGS)
+                    .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)).build();
             }
         });
 
@@ -289,6 +291,7 @@ public class Zen1IT extends ESIntegTestCase {
                 return Coordinator.addZen1Attribute(false, Settings.builder())
                     .put(ZEN2_SETTINGS)
                     .putList(INITIAL_MASTER_NODES_SETTING.getKey(), nodeNames)
+                    .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
                     .build();
             }
         });

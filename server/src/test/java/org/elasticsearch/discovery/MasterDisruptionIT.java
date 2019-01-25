@@ -35,7 +35,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -124,11 +123,6 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         internalCluster().stopCurrentMasterNode();
 
         ensureStableCluster(3);
-
-        logger.info("--> reducing min master nodes to 2");
-        assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2))
-                .get());
 
         String master = internalCluster().getMasterName();
         String nonMaster = null;

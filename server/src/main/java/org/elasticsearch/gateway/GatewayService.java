@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
@@ -116,7 +117,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         if (RECOVER_AFTER_MASTER_NODES_SETTING.exists(settings)) {
             recoverAfterMasterNodes = RECOVER_AFTER_MASTER_NODES_SETTING.get(settings);
         } else if (discovery instanceof ZenDiscovery) {
-            recoverAfterMasterNodes = settings.getAsInt("discovery.zen.minimum_master_nodes", -1);
+            recoverAfterMasterNodes = settings.getAsInt(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), -1);
         } else {
             recoverAfterMasterNodes = -1;
         }

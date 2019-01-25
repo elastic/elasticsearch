@@ -36,7 +36,7 @@ import java.util.Map;
 
 public class QuadkeyGridAggregationBuilder extends GeoGridAggregationBuilder {
     public static final String NAME = "quadkey_grid";
-    public static final int DEFAULT_PRECISION = 5;
+    public static final int DEFAULT_PRECISION = 7;
     public static final int DEFAULT_MAX_NUM_CELLS = 10000;
 
     private static final ObjectParser<GeoGridAggregationBuilder, Void> PARSER = createParser(NAME, QuadkeyUtils::parsePrecision);

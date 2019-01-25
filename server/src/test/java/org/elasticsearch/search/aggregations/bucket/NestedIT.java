@@ -680,7 +680,7 @@ public class NestedIT extends ESIntegTestCase {
         assertThat(numStringParams.getDocCount(), equalTo(0L));
     }
 
-    public void testExtractInnerHitBuildersWithDuplicateName() throws Exception {
+    public void testExtractInnerHitBuildersWithDuplicateHitName() throws Exception {
         assertAcked(
             prepareCreate("idxduplicatehitnames")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
@@ -698,10 +698,10 @@ public class NestedIT extends ESIntegTestCase {
         assertFailures(
             searchRequestBuilder,
             RestStatus.BAD_REQUEST,
-            containsString("innerHits already contains an entry for key [ih1]"));
+            containsString("[inner_hits] already contains an entry for key [ih1]"));
     }
 
-    public void testExtractInnerHitBuildersWithNullName() throws Exception {
+    public void testExtractInnerHitBuildersWithDuplicatePath() throws Exception {
         assertAcked(
             prepareCreate("idxnullhitnames")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
@@ -709,12 +709,16 @@ public class NestedIT extends ESIntegTestCase {
         );
         ensureGreen("idxnullhitnames");
 
-        SearchResponse response = client().prepareSearch("idxnullhitnames")
+        SearchRequestBuilder searchRequestBuilder = client()
+            .prepareSearch("idxnullhitnames")
             .setQuery(boolQuery()
                 .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder()))
                 .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder()))
-                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder()))
-            ).get();
-        assertNoFailures(response);
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder())));
+
+        assertFailures(
+            searchRequestBuilder,
+            RestStatus.BAD_REQUEST,
+            containsString("[inner_hits] already contains an entry for key [property]"));
     }
 }

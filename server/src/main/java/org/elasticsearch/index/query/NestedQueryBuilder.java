@@ -318,13 +318,13 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     @Override
     public void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
         if (innerHitBuilder != null) {
-            if (innerHits.containsKey(innerHitBuilder.getName())) {
-                throw new IllegalArgumentException("innerHits already contains an entry for key [" + innerHitBuilder.getName() + "]");
+            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : path;
+            if (innerHits.containsKey(name)) {
+                throw new IllegalArgumentException("[inner_hits] already contains an entry for key [" + name + "]");
             }
 
             Map<String, InnerHitContextBuilder> children = new HashMap<>();
             InnerHitContextBuilder.extractInnerHits(query, children);
-            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : path;
             InnerHitContextBuilder innerHitContextBuilder = new NestedInnerHitContextBuilder(path, query, innerHitBuilder, children);
             innerHits.put(name, innerHitContextBuilder);
         }

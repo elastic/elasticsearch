@@ -1,7 +1,5 @@
 [[node-tool]]
 == elasticsearch-node
-[float]
-=== Background
 
 Sometimes {es} nodes are temporarily stopped, perhaps because of the need to
 perform some maintenance activity or perhaps because of a hardware failure.
@@ -53,11 +51,12 @@ nodes remaining or not:
   the old, failed, cluster so they can join a new cluster.
 
 [float]
-=== Unsafe bootstrap
+=== Unsafe cluster bootstrapping
 
 If there is at least one remaining master-eligible node, but it is not possible
 to restart a majority of them, then the `elasticsearch-node unsafe-bootstrap`
-command will allow one of the remaining nodes to become the elected master
+command will unsafely redo the <<modules-discovery-bootstrap-cluster,cluster
+bootstrapping process>>, allowing the target node to become the elected master
 without needing a response from any other nodes. This can lead to arbitrary
 data loss since the node in question may not hold the latest cluster metadata,
 and this out-of-date metadata may make it impossible to use some or all of the
@@ -108,9 +107,10 @@ cluster is now fully-formed.
 process.
 
 [WARNING]
-When you run the tool it will make sure that the node being bootstrapped is not
-running. It is important that all other master-eligible nodes are also stopped
-while this tool is running, but the tool does not check this.
+When you run the tool it will make sure that the node that is being used to
+bootstrap the cluster is not running. It is important that all other
+master-eligible nodes are also stopped while this tool is running, but the tool
+does not check this.
 
 [NOTE]
 The message `Master node was successfully bootstrapped` does not mean that

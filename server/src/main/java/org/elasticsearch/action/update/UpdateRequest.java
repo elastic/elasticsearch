@@ -890,6 +890,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         docAsUpsert = in.readBoolean();
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            ifSeqNo = in.readZLong();
+            ifPrimaryTerm = in.readVLong();
+        }
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
     }

@@ -161,7 +161,11 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
          * @param waitForActiveShards number of active shard copies to wait on
          */
         public void waitForActiveShards(ActiveShardCount waitForActiveShards) {
-            this.waitForActiveShards = waitForActiveShards;
+            if (waitForActiveShards.equals(ActiveShardCount.DEFAULT)) {
+                this.waitForActiveShards = ActiveShardCount.NONE;
+            } else {
+                this.waitForActiveShards = waitForActiveShards;
+            }
         }
 
         public ResumeFollowAction.Request getFollowRequest() {
@@ -200,7 +204,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             leaderIndex = in.readString();
             // TODO: Update after backport
             if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-                waitForActiveShards = ActiveShardCount.readFrom(in);
+                waitForActiveShards(ActiveShardCount.readFrom(in));
             }
             followRequest = new ResumeFollowAction.Request(in);
         }

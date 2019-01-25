@@ -20,8 +20,14 @@ include-tagged::{doc-tests-file}[{api}-request]
 <1> The name of the remote cluster alias.
 <2> The name of the leader in the remote cluster.
 <3> The name of the follower index that gets created as part of the put follow API call.
-<4> Boolean indicating whether to wait until the follower has been restored from the leader. Restoring requires
-copying all of the leader data to the follower which can be a time consuming process.
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-waitForActiveShards]
+--------------------------------------------------
+<1> The number of active shard copies to wait for before the put follow API returns a
+response, as an `int`
+<2> The number of active shard copies to wait for before the create index API returns a
+response, as an `ActiveShardCount`
 
 [id="{upid}-{api}-response"]
 ==== Response

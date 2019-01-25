@@ -15,7 +15,7 @@
       "params": {
         "wait_for_active_shards": {
           "type" : "string",
-          "description" : "Sets the number of shard copies that must be active before proceeding with the index operation. Defaults to non. Set to `all` for all shard copies, otherwise set to any non-negative value less than or equal to the total number of copies for the shard (number of replicas + 1)",
+          "description" : "Sets the number of shard copies that must be active before returning. Defaults to 0. Set to `all` for all shard copies, otherwise set to any non-negative value less than or equal to the total number of copies for the shard (number of replicas + 1)",
           "default": "none"
         }
       }

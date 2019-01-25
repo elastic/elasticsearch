@@ -83,7 +83,7 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
         if (o == null || getClass() != o.getClass()) return false;
         if (!super.equals(o)) return false;
         PutFollowRequest that = (PutFollowRequest) o;
-        return waitForActiveShards == that.waitForActiveShards &&
+        return Objects.equals(waitForActiveShards, that.waitForActiveShards) &&
             Objects.equals(remoteCluster, that.remoteCluster) &&
             Objects.equals(leaderIndex, that.leaderIndex) &&
             Objects.equals(followerIndex, that.followerIndex);

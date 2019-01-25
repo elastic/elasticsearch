@@ -31,7 +31,7 @@ POST /follower_index/_ccr/pause_follow
 
 [source,js]
 --------------------------------------------------
-PUT /<follower_index>/_ccr/follow?wait_for_active_shards=one
+PUT /<follower_index>/_ccr/follow?wait_for_active_shards=1
 {
   "remote_cluster" : "<remote_cluster>",
   "leader_index" : "<leader_index>"
@@ -43,9 +43,10 @@ PUT /<follower_index>/_ccr/follow?wait_for_active_shards=one
 // TEST[s/<remote_cluster>/remote_cluster/]
 // TEST[s/<leader_index>/leader_index/]
 
-The `wait_for_restore` parameter specifies whether or not the request should return immediately after following
-initialization (default) or wait for the follower to be restored from the remote leader index. Restoring from a
-remote index requires transferring all the remote lucene segment files to the follower index.
+The `wait_for_active_shards` parameter specifies the number of shards to wait on being active
+before responding. This defaults to waiting on none of the shards to be active. A shard must
+be restored from the leader index being active. Restoring a follower shard requires transferring
+all the remote lucene segment files to the follower index.
 
 ==== Path Parameters
 

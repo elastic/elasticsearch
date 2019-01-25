@@ -129,6 +129,7 @@ public class ElasticsearchNode {
     public void freeze() {
         requireNonNull(distribution, "null distribution passed when configuring test cluster `" + this + "`");
         requireNonNull(version, "null version passed when configuring test cluster `" + this + "`");
+        requireNonNull(javaHome, "null javaHome passed when configuring test cluster `" + this + "`");
         logger.info("Locking configuration of `{}`", this);
         configurationFrozen.set(true);
     }
@@ -204,16 +205,7 @@ public class ElasticsearchNode {
             Map<String, String> environment = processBuilder.environment();
             // Don't inherit anything from the environment for as that would  lack reproductability
             environment.clear();
-            if (javaHome != null) {
-                environment.put("JAVA_HOME", getJavaHome().getAbsolutePath());
-            } else if (System.getenv().get("JAVA_HOME") != null) {
-                logger.warn("{}: No java home configured will use it from environment: {}",
-                    this, System.getenv().get("JAVA_HOME")
-                );
-                environment.put("JAVA_HOME", System.getenv().get("JAVA_HOME"));
-            } else {
-                logger.warn("{}: No javaHome configured, will rely on default java detection", this);
-            }
+            environment.put("JAVA_HOME", getJavaHome().getAbsolutePath());
             environment.put("ES_PATH_CONF", configFile.getParent().toAbsolutePath().toString());
             environment.put("ES_JAVA_OPTIONS", "-Xms512m -Xmx512m");
             // don't buffer all in memory, make sure we don't block on the default pipes

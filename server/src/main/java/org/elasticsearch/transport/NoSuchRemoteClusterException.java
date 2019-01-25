@@ -17,13 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.transport;
 
-public class FeatureVectorFieldTypeTests extends FieldTypeTestCase {
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.common.io.stream.StreamInput;
 
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new FeatureVectorFieldMapper.FeatureVectorFieldType();
+import java.io.IOException;
+
+/**
+ * An exception that remote cluster is missing or
+ * connectivity to the remote connection is failing
+ */
+public final class NoSuchRemoteClusterException extends ResourceNotFoundException {
+
+    NoSuchRemoteClusterException(String clusterName) {
+        //No node available for cluster
+        super("no such remote cluster: [" + clusterName + "]");
+    }
+
+    public NoSuchRemoteClusterException(StreamInput in) throws IOException {
+        super(in);
     }
 
 }

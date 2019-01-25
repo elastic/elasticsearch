@@ -7,6 +7,12 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -25,6 +31,7 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
@@ -49,6 +56,11 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
                 "    - names: 'a'\n" +
                 "      privileges: [all]\n" +
                 "\n" +
+                "role_monitor_all_unrestricted_indices:\n" +
+                "  indices:\n" +
+                "    - names: '*'\n" +
+                "      privileges: [monitor]\n" +
+                "\n" +
                 "role_b:\n" +
                 "  indices:\n" +
                 "    - names: 'b'\n" +
@@ -60,14 +72,16 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
         return SecuritySettingsSource.CONFIG_STANDARD_USER +
             "user_a:" + usersPasswdHashed + "\n" +
-            "user_ab:" + usersPasswdHashed + "\n";
+            "user_ab:" + usersPasswdHashed + "\n" +
+            "user_monitor:" + usersPasswdHashed + "\n";
     }
 
     @Override
     protected String configUsersRoles() {
         return SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES +
                 "role_a:user_a,user_ab\n" +
-                "role_b:user_ab\n";
+                "role_b:user_ab\n" +
+                "role_monitor_all_unrestricted_indices:user_monitor\n";
     }
 
     public void testSingleRole() throws Exception {
@@ -125,6 +139,61 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
         searchResponse = items[1].getResponse();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1);
+    }
+
+    public void testMonitorRestrictedWildcards() throws Exception {
+        IndexResponse indexResponse = index("foo", "type", jsonBuilder()
+                .startObject()
+                .field("name", "value")
+                .endObject());
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+
+        indexResponse = index("foobar", "type", jsonBuilder()
+                .startObject()
+                .field("name", "value")
+                .endObject());
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+
+        indexResponse = index("foobarfoo", "type", jsonBuilder()
+                .startObject()
+                .field("name", "value")
+                .endObject());
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+
+        refresh();
+
+        final Client client = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_monitor", USERS_PASSWD)));
+
+        final GetSettingsResponse getSettingsResponse = client.admin().indices().prepareGetSettings(randomFrom("*", "_all", "foo*")).get();
+        assertThat(getSettingsResponse.getIndexToSettings().size(), is(3));
+        assertThat(getSettingsResponse.getIndexToSettings().containsKey("foo"), is(true));
+        assertThat(getSettingsResponse.getIndexToSettings().containsKey("foobar"), is(true));
+        assertThat(getSettingsResponse.getIndexToSettings().containsKey("foobarfoo"), is(true));
+
+        final IndicesShardStoresResponse indicesShardsStoresResponse = client.admin().indices()
+                .prepareShardStores(randomFrom("*", "_all", "foo*")).setShardStatuses("all").get();
+        assertThat(indicesShardsStoresResponse.getStoreStatuses().size(), is(3));
+        assertThat(indicesShardsStoresResponse.getStoreStatuses().containsKey("foo"), is(true));
+        assertThat(indicesShardsStoresResponse.getStoreStatuses().containsKey("foobar"), is(true));
+        assertThat(indicesShardsStoresResponse.getStoreStatuses().containsKey("foobarfoo"), is(true));
+
+        final UpgradeStatusResponse upgradeStatusResponse = client.admin().indices().prepareUpgradeStatus(randomFrom("*", "_all", "foo*"))
+                .get();
+        assertThat(upgradeStatusResponse.getIndices().size(), is(3));
+        assertThat(upgradeStatusResponse.getIndices().keySet(), containsInAnyOrder("foo", "foobar", "foobarfoo"));
+
+        final IndicesStatsResponse indicesStatsResponse = client.admin().indices().prepareStats(randomFrom("*", "_all", "foo*")).get();
+        assertThat(indicesStatsResponse.getIndices().size(), is(3));
+        assertThat(indicesStatsResponse.getIndices().keySet(), containsInAnyOrder("foo", "foobar", "foobarfoo"));
+
+        final IndicesSegmentResponse indicesSegmentResponse = client.admin().indices().prepareSegments("*").get();
+        assertThat(indicesSegmentResponse.getIndices().size(), is(3));
+        assertThat(indicesSegmentResponse.getIndices().keySet(), containsInAnyOrder("foo", "foobar", "foobarfoo"));
+
+        final RecoveryResponse indicesRecoveryResponse = client.admin().indices().prepareRecoveries("*").get();
+        assertThat(indicesRecoveryResponse.shardRecoveryStates().size(), is(3));
+        assertThat(indicesRecoveryResponse.shardRecoveryStates().keySet(), containsInAnyOrder("foo", "foobar", "foobarfoo"));
     }
 
     public void testMultipleRoles() throws Exception {

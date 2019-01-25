@@ -94,7 +94,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             (parser, context) -> FetchSourceContext.fromXContent(parser), SOURCE_FIELD,
             ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
         PARSER.declareLong(UpdateRequest::setIfSeqNo, IF_SEQ_NO);
-        PARSER.declareLong(UpdateRequest::setIfPrimaryTerm, IF_SEQ_NO);
+        PARSER.declareLong(UpdateRequest::setIfPrimaryTerm, IF_PRIMARY_TERM);
     }
 
     // Set to null initially so we can know to override in bulk requests that have a default type.

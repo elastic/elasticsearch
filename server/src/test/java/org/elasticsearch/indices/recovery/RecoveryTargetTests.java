@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState.File;
 import org.elasticsearch.indices.recovery.RecoveryState.Index;
@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class RecoveryTargetTests extends ESTestCase {
-    abstract class Streamer<T extends Streamable> extends Thread {
+    abstract class Streamer<T extends Writeable> extends Thread {
         private T lastRead;
         private final AtomicBoolean shouldStop;
         private final T source;

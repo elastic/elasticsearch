@@ -351,7 +351,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
         static final String TARGET_THROTTLE_TIME_IN_MILLIS = "target_throttle_time_in_millis";
     }
 
-    public static class Timer implements Streamable, Writeable {
+    public static class Timer implements Writeable {
         protected long startTime = 0;
         protected long startNanoTime = 0;
         protected long time = -1;
@@ -409,11 +409,6 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
         }
 
         @Override
-        public synchronized void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public synchronized void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(startTime);
             out.writeVLong(startNanoTime);
@@ -424,7 +419,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
 
     }
 
-    public static class VerifyIndex extends Timer implements ToXContentFragment, Streamable, Writeable {
+    public static class VerifyIndex extends Timer implements ToXContentFragment, Writeable {
         private volatile long checkIndexTime;
 
         public VerifyIndex() {
@@ -449,11 +444,6 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeVLong(checkIndexTime);
@@ -467,7 +457,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
         }
     }
 
-    public static class Translog extends Timer implements ToXContentFragment, Streamable, Writeable {
+    public static class Translog extends Timer implements ToXContentFragment, Writeable {
         public static final int UNKNOWN = -1;
 
         private int recovered;
@@ -560,11 +550,6 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeVInt(recovered);
@@ -583,7 +568,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
         }
     }
 
-    public static class File implements ToXContentObject, Streamable, Writeable {
+    public static class File implements ToXContentObject, Writeable {
         private String name;
         private long length;
         private long recovered;
@@ -645,11 +630,6 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
             out.writeVLong(length);
@@ -692,7 +672,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
         }
     }
 
-    public static class Index extends Timer implements ToXContentFragment, Streamable, Writeable {
+    public static class Index extends Timer implements ToXContentFragment, Writeable {
 
         private Map<String, File> fileDetails = new HashMap<>();
 
@@ -916,11 +896,6 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
 
         public synchronized void updateVersion(long version) {
             this.version = version;
-        }
-
-        @Override
-        public synchronized void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

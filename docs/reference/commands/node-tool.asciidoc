@@ -43,8 +43,8 @@ This tool has two modes, depending on whether there are any master-eligible
 nodes remaining or not:
 
 * `elastisearch-node unsafe-bootstap` can be used if there is at least one
-  remaining master-eligible node. It allows a remaining node to become the
-  elected master node without needing a response from any other nodes.
+  remaining master-eligible node. It allows you to force one of the remaining
+  nodes to become the elected master on its own.
 
 * `elastisearch-node detach-cluster` can be used if there are no remaining
   master-eligible nodes. It allows you to detach any remaining data nodes from
@@ -55,15 +55,18 @@ nodes remaining or not:
 
 If there is at least one remaining master-eligible node, but it is not possible
 to restart a majority of them, then the `elasticsearch-node unsafe-bootstrap`
-command will unsafely redo the <<modules-discovery-bootstrap-cluster,cluster
-bootstrapping process>>, allowing the target node to become the elected master
-without needing a response from any other nodes. This can lead to arbitrary
-data loss since the node in question may not hold the latest cluster metadata,
-and this out-of-date metadata may make it impossible to use some or all of the
-indices in the cluster.
+command will unsafely override the cluster's <<modules-discovery-voting,voting
+configuration>> as if performing another
+<<modules-discovery-bootstrap-cluster,cluster bootstrapping process>>, allowing
+the target node to become the elected master without needing a response from
+any other nodes. This can lead to arbitrary data loss since the chosen node may
+not hold the latest cluster metadata, and this out-of-date metadata may make it
+impossible to use some or all of the indices in the cluster.
 
-The `elasticsearch-node unsafe-bootstrap` reports the term and version of the
-cluster state on the node on which it runs as follows:
+When you run the `elasticsearch-node unsafe-bootstrap` tool it will analyse the
+state of the node and ask for confirmation before taking any action. Before
+asking for confirmation it reports the term and version of the cluster state on
+the node on which it runs as follows:
 
 [source,txt]
 ----

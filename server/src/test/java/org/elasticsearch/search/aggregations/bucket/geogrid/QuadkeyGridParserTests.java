@@ -113,7 +113,7 @@ public class QuadkeyGridParserTests extends ESTestCase {
             fail();
         } catch (XContentParseException ex) {
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
-            assertEquals("Invalid quadkey aggregation precision of 30. Must be between 0 and 29.", ex.getCause().getMessage());
+            assertEquals("Invalid quadkey precision of 30. Must be between 0 and 29.", ex.getCause().getMessage());
         }
     }
 }

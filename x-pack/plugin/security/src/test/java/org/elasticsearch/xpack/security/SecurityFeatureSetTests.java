@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -97,12 +98,6 @@ public class SecurityFeatureSetTests extends ESTestCase {
         settings.put("xpack.security.transport.ssl.enabled", transportSSLEnabled);
         final boolean auditingEnabled = randomBoolean();
         settings.put(XPackSettings.AUDIT_ENABLED.getKey(), auditingEnabled);
-        final String[] auditOutputs = randomFrom(
-                new String[] { "logfile" },
-                new String[] { "index" },
-                new String[] { "logfile", "index" }
-        );
-        settings.putList(Security.AUDIT_OUTPUTS_SETTING.getKey(), auditOutputs);
         final boolean httpIpFilterEnabled = randomBoolean();
         final boolean transportIPFilterEnabled = randomBoolean();
         when(ipFilter.usageStats())
@@ -192,7 +187,11 @@ public class SecurityFeatureSetTests extends ESTestCase {
 
                 // auditing
                 assertThat(source.getValue("audit.enabled"), is(auditingEnabled));
-                assertThat(source.getValue("audit.outputs"), contains(auditOutputs));
+                if (auditingEnabled) {
+                    assertThat(source.getValue("audit.outputs"), contains(LoggingAuditTrail.NAME));
+                } else {
+                    assertThat(source.getValue("audit.outputs"), is(nullValue()));
+                }
 
                 // ip filter
                 assertThat(source.getValue("ipfilter.http.enabled"), is(httpIpFilterEnabled));

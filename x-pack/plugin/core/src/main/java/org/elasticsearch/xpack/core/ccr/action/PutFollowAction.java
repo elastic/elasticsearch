@@ -192,7 +192,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
                 waitForRestore = in.readBoolean();
             } else {
-                waitForRestore = true;
+                waitForRestore = false;
             }
             followRequest = new ResumeFollowAction.Request(in);
         }

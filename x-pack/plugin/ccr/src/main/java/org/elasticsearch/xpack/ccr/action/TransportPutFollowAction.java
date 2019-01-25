@@ -124,10 +124,6 @@ public final class TransportPutFollowAction
             return;
         }
 
-        String remoteCluster = request.getRemoteCluster();
-
-        Client client = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
-
         final ActionListener<PutFollowAction.Response> followingListener;
         final ActionListener<PutFollowAction.Response> restoreInitiatedListener;
         if (request.getWaitForRestore()) {
@@ -148,7 +144,7 @@ public final class TransportPutFollowAction
                     // restore.
                     followingListener.onResponse(new PutFollowAction.Response(true, false, false));
                 } else if (restoreInfo.failedShards() == 0) {
-                    initiateFollowing(client, request, followingListener);
+                    initiateFollowing(request, followingListener);
                 } else {
                     // Has failed shards
                     followingListener.onResponse(new PutFollowAction.Response(true, false, false));
@@ -164,7 +160,7 @@ public final class TransportPutFollowAction
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowRequest().getFollowerIndex())
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        String leaderClusterRepoName = CcrRepository.NAME_PREFIX + remoteCluster;
+        String leaderClusterRepoName = CcrRepository.NAME_PREFIX + request.getRemoteCluster();
         RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
             .indices(request.getLeaderIndex()).indicesOptions(request.indicesOptions()).renamePattern("^(.*)$")
             .renameReplacement(request.getFollowRequest().getFollowerIndex()).masterNodeTimeout(request.masterNodeTimeout())
@@ -202,9 +198,9 @@ public final class TransportPutFollowAction
     }
 
     private void initiateFollowing(
-        final Client client,
         final PutFollowAction.Request request,
         final ActionListener<PutFollowAction.Response> listener) {
+        Client client = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
         client.execute(ResumeFollowAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
             r -> listener.onResponse(new PutFollowAction.Response(true, true, r.isAcknowledged())),
             listener::onFailure

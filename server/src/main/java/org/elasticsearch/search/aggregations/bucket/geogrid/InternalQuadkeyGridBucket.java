@@ -27,8 +27,8 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import java.io.IOException;
 
 public class InternalQuadkeyGridBucket extends InternalGeoGridBucket<InternalQuadkeyGridBucket> {
-    InternalQuadkeyGridBucket(long geohashAsLong, long docCount, InternalAggregations aggregations) {
-        super(geohashAsLong, docCount, aggregations);
+    InternalQuadkeyGridBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
+        super(hashAsLong, docCount, aggregations);
     }
 
     /**
@@ -46,11 +46,11 @@ public class InternalQuadkeyGridBucket extends InternalGeoGridBucket<InternalQua
 
     @Override
     public String getKeyAsString() {
-        return QuadkeyUtils.stringEncode(geohashAsLong);
+        return QuadkeyUtils.stringEncode(hashAsLong);
     }
 
     @Override
     public GeoPoint getKey() {
-        return GeoPoint.fromGeohash(geohashAsLong);
+        return GeoPoint.fromGeohash(hashAsLong);
     }
 }

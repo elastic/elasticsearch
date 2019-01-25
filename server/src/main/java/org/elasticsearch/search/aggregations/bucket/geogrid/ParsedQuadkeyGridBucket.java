@@ -29,15 +29,15 @@ public class ParsedQuadkeyGridBucket extends ParsedGeoGridBucket {
 
     @Override
     public GeoPoint getKey() {
-        return QuadkeyUtils.hashToGeoPoint(geohashAsString);
+        return QuadkeyUtils.hashToGeoPoint(hashAsString);
     }
 
     @Override
     public String getKeyAsString() {
-        return geohashAsString;
+        return hashAsString;
     }
 
     static ParsedQuadkeyGridBucket fromXContent(XContentParser parser) throws IOException {
-        return parseXContent(parser, false, ParsedQuadkeyGridBucket::new, (p, bucket) -> bucket.geohashAsString = p.textOrNull());
+        return parseXContent(parser, false, ParsedQuadkeyGridBucket::new, (p, bucket) -> bucket.hashAsString = p.textOrNull());
     }
 }

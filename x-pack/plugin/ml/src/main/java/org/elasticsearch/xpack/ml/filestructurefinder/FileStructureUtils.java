@@ -367,7 +367,7 @@ public final class FileStructureUtils {
     }
 
     // TODO: remove this method when Java time formats are the default
-    private static List<String> jodaBwcJavaTimestampFormatsForIngestPipeline(List<String> javaTimestampFormats) {
+    static List<String> jodaBwcJavaTimestampFormatsForIngestPipeline(List<String> javaTimestampFormats) {
         return javaTimestampFormats.stream().map(format -> {
             switch (format) {
                 case "ISO8601":

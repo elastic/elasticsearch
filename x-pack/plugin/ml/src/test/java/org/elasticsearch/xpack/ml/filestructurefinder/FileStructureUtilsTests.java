@@ -16,7 +16,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.filestructurefinder.FileStructureOverrides.EMPTY_OVERRIDES;
 import static org.hamcrest.Matchers.contains;
@@ -373,8 +372,8 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         assertNotNull(dateProcessor);
         assertEquals(timestampField, dateProcessor.get("field"));
         assertEquals(needClientTimezone, dateProcessor.containsKey("timezone"));
-        // TODO: remove the "8" prefix when Java time formats are the default
-        assertEquals(timestampFormats.stream().map(format -> "8" + format).collect(Collectors.toList()), dateProcessor.get("formats"));
+        // TODO: remove the call to jodaBwcJavaTimestampFormatsForIngestPipeline() when Java time formats are the default
+        assertEquals(FileStructureUtils.jodaBwcJavaTimestampFormatsForIngestPipeline(timestampFormats), dateProcessor.get("formats"));
 
         // After removing the two expected fields there should be nothing left in the pipeline
         assertEquals(Collections.emptyMap(), pipeline);
@@ -407,8 +406,8 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         assertNotNull(dateProcessor);
         assertEquals(timestampField, dateProcessor.get("field"));
         assertEquals(needClientTimezone, dateProcessor.containsKey("timezone"));
-        // TODO: remove the "8" prefix when Java time formats are the default
-        assertEquals(timestampFormats.stream().map(format -> "8" + format).collect(Collectors.toList()), dateProcessor.get("formats"));
+        // TODO: remove the call to jodaBwcJavaTimestampFormatsForIngestPipeline() when Java time formats are the default
+        assertEquals(FileStructureUtils.jodaBwcJavaTimestampFormatsForIngestPipeline(timestampFormats), dateProcessor.get("formats"));
 
         Map<String, Object> removeProcessor = (Map<String, Object>) processors.get(2).get("remove");
         assertNotNull(removeProcessor);

@@ -318,7 +318,7 @@ public class MetaDataCreateIndexService {
                             if (mappings.containsKey(cursor.key)) {
                                 XContentHelper.mergeDefaults(mappings.get(cursor.key),
                                     MapperService.parseMapping(xContentRegistry, mappingString));
-                            } else if (template.mappings().size() == 1 &&
+                            } else if (mappings.size() > 0 && template.mappings().size() == 1 &&
                                     (cursor.key.equals(MapperService.SINGLE_MAPPING_NAME) ||
                                             mappings.containsKey(MapperService.SINGLE_MAPPING_NAME))) {
                                 // The user is mixing a typeless index creation call with a typed template or vice-versa.

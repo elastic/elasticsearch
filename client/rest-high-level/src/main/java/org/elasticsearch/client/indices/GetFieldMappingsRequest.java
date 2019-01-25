@@ -17,40 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.mapping.get;
+package org.elasticsearch.client.indices;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 
-import java.io.IOException;
+/** Request the mappings of specific fields */
+public class GetFieldMappingsRequest implements Validatable {
 
-/**
- * Request the mappings of specific fields
- *
- * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
- * Any changes done to this class should go to that client class as well.
- */
-public class GetFieldMappingsRequest extends ActionRequest implements IndicesRequest.Replaceable {
-
-    protected boolean local = false;
+    private boolean local = false;
 
     private String[] fields = Strings.EMPTY_ARRAY;
 
     private boolean includeDefaults = false;
 
     private String[] indices = Strings.EMPTY_ARRAY;
-    private String[] types = Strings.EMPTY_ARRAY;
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
-
-    public GetFieldMappingsRequest() {
-
-    }
 
     /**
      * Indicate whether the receiving node should operate based on local index information or forward requests,
@@ -65,14 +49,8 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
         return local;
     }
 
-    @Override
     public GetFieldMappingsRequest indices(String... indices) {
         this.indices = indices;
-        return this;
-    }
-
-    public GetFieldMappingsRequest types(String... types) {
-        this.types = types;
         return this;
     }
 
@@ -81,16 +59,10 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
         return this;
     }
 
-    @Override
     public String[] indices() {
         return indices;
     }
 
-    public String[] types() {
-        return types;
-    }
-
-    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
@@ -115,30 +87,4 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
         return this;
     }
 
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(indices);
-        out.writeStringArray(types);
-        indicesOptions.writeIndicesOptions(out);
-        out.writeBoolean(local);
-        out.writeStringArray(fields);
-        out.writeBoolean(includeDefaults);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        types = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        local = in.readBoolean();
-        fields = in.readStringArray();
-        includeDefaults = in.readBoolean();
-    }
 }

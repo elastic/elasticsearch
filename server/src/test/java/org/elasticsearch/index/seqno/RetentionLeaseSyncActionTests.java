@@ -42,7 +42,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
 
 import java.util.Collection;
 import java.util.Collections;

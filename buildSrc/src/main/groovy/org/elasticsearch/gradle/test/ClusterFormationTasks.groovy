@@ -23,6 +23,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
@@ -171,6 +172,12 @@ class ClusterFormationTasks {
 
     /** Adds a dependency on the given distribution */
     static void configureDistributionDependency(Project project, String distro, Configuration configuration, String elasticsearchVersion) {
+        if (distro.equals("integ-test-zip")) {
+            // short circuit integ test so it doesn't complicate the rest of the distribution setup below
+            project.dependencies.add(configuration.name,
+                    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${elasticsearchVersion}@zip")
+            return
+        }
         // TEMP HACK
         // The oss docs CI build overrides the distro on the command line. This hack handles backcompat until CI is updated.
         if (distro.equals('oss-zip')) {
@@ -180,22 +187,31 @@ class ClusterFormationTasks {
             distro = 'default'
         }
         // END TEMP HACK
-        if (['integ-test-zip', 'oss', 'default'].contains(distro) == false) {
+        if (['oss', 'default'].contains(distro) == false) {
             throw new GradleException("Unknown distribution: ${distro} in project ${project.path}")
         }
         Version version = Version.fromString(elasticsearchVersion)
-        if (version.before('6.3.0') && distro.startsWith('oss-')) {
-            distro = distro.substring('oss-'.length())
-        }
-        String group = "downloads.zip"
-        if (distro.equals("integ-test-zip")) {
-            group = "org.elasticsearch.distribution.integ-test-zip"
-        }
+        String group = "downloads.zip" // dummy group, does not matter except for integ-test-zip, it is ignored by the fake ivy repo
         String artifactName = 'elasticsearch'
         if (distro.equals('oss') && Version.fromString(elasticsearchVersion).onOrAfter('6.3.0')) {
             artifactName += '-oss'
         }
-        project.dependencies.add(configuration.name, "${group}:${artifactName}:${elasticsearchVersion}@zip")
+        String snapshotProject = distro == 'oss' ? 'oss-zip' : 'zip'
+        Object dependency
+        boolean internalBuild = project.hasProperty('bwcVersions')
+        VersionCollection.UnreleasedVersionInfo unreleasedInfo = null
+        if (project.hasProperty('bwcVersions')) {
+            // NOTE: leniency is needed for external plugin authors using build-tools. maybe build the version compat info into build-tools?
+            unreleasedInfo = project.bwcVersions.unreleasedInfo(version)
+        }
+        if (unreleasedInfo != null) {
+            dependency = project.dependencies.project(path: ":distribution:bwc:${unreleasedInfo.gradleProjectName}", configuration: snapshotProject)
+        } else if (internalBuild && elasticsearchVersion.equals(VersionProperties.elasticsearch)) {
+            dependency = project.dependencies.project(path: ":distribution:archives:${snapshotProject}")
+        } else {
+            dependency = "${group}:${artifactName}:${elasticsearchVersion}@zip"
+        }
+        project.dependencies.add(configuration.name, dependency)
     }
 
     /** Adds a dependency on a different version of the given plugin, which will be retrieved using gradle's dependency resolution */

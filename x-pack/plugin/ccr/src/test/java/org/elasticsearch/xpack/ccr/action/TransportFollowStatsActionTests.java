@@ -44,7 +44,7 @@ public class TransportFollowStatsActionTests extends ESTestCase {
         assertThat(result.size(), equalTo(0));
     }
 
-    private static ShardFollowTask createShardFollowTask(String followerIndex) {
+    static ShardFollowTask createShardFollowTask(String followerIndex) {
         return new ShardFollowTask(
             null,
             new ShardId(followerIndex, "", 0),

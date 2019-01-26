@@ -233,17 +233,6 @@ assert_output() {
     echo "$output" | grep -E "$1"
 }
 
-assert_recursive_ownership() {
-    local directory=$1
-    local user=$2
-    local group=$3
-
-    realuser=$(find $directory -printf "%u\n" | sort | uniq)
-    [ "$realuser" = "$user" ]
-    realgroup=$(find $directory -printf "%g\n" | sort | uniq)
-    [ "$realgroup" = "$group" ]
-}
-
 # Deletes everything before running a test file
 clean_before_test() {
 

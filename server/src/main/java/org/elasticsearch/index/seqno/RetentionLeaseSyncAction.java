@@ -135,6 +135,7 @@ public class RetentionLeaseSyncAction extends
         Objects.requireNonNull(request);
         Objects.requireNonNull(replica);
         replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
+        // we flush to ensure that retention leases are committed
         flush(replica);
         return new WriteReplicaResult<>(request, null, null, replica, logger);
     }
@@ -143,7 +144,6 @@ public class RetentionLeaseSyncAction extends
         final FlushRequest flushRequest = new FlushRequest();
         flushRequest.force(true);
         flushRequest.waitIfOngoing(true);
-        // we flush to ensure that retention leases are committed
         indexShard.flush(flushRequest);
     }
 

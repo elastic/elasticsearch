@@ -44,8 +44,9 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory<
     private final int shardSize;
 
     GeoTileGridAggregatorFactory(String name, ValuesSourceConfig<GeoPoint> config, int precision, int requiredSize,
-                                 int shardSize, SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                 Map<String, Object> metaData) throws IOException {
+                                 int shardSize, SearchContext context, AggregatorFactory<?> parent,
+                                 AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.precision = precision;
         this.requiredSize = requiredSize;

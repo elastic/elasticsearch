@@ -5,9 +5,7 @@ experimental[]
 
 The `search_as_you_type` field type is a text-like field that is optimized to
 provide out-of-the-box support for queries that serve an as-you-type completion
-use case.
-
-This field type creates a series of subfields that are analyzed to index terms
+use case. It creates a series of subfields that are analyzed to index terms
 that can be efficiently matched by a query that partially matches the entire
 indexed text value. Both prefix completion (i.e matching terms starting at the
 beginning of the input) and infix completion (i.e. matching terms at any
@@ -44,24 +42,15 @@ This creates the following fields
     Wraps the analyzer of `my_field` with a shingle token filter of shingle
     size 2
 
+`my_field._3gram`::
+
+    Wraps the analyzer of `my_field` with a shingle token filter of shingle
+    size 3
+
 `my_field._index_prefix`::
 
-    Wraps the analyzer of `my_field._2gram` with an edge ngram token filter
+    Wraps the analyzer of `my_field._3gram` with an edge ngram token filter
 
-
-The same input text is indexed into each of these fields automatically, with
-their differing analysis chains, when an indexed document has a value for the
-root field `my_field`.
-
-[source,js]
---------------------------------------------------
-PUT my_index/_doc/1
-{
-  "my_field": "quick red fox lazy brown dog"
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
 
 Setting a larger `max_shingle_size` in the mapping will create shingle fields
 with larger sized shingles, of 2 up to `max_shingle_size`. The
@@ -84,7 +73,8 @@ PUT my_index
 --------------------------------------------------
 // CONSOLE
 
-Will create the fields
+Will create the fields as such. Note how this changes how the
+`my_field._index_prefix` field is analyzed
 
 [horizontal]
 
@@ -113,6 +103,107 @@ Will create the fields
     Wraps the analyzer of `my_field._4gram` with an edge ngram token filter
 
 
+The same input text is indexed into each of these fields automatically, with
+their differing analysis chains, when an indexed document has a value for the
+root field `my_field`.
+
+[source,js]
+--------------------------------------------------
+PUT my_index/_doc/1?refresh
+{
+  "my_field": "quick red fox lazy brown dog"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+To search for a document whose value for this field matches a complete shingle,
+use a series of match queries
+
+[source,js]
+--------------------------------------------------
+GET my_index/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "my_field": {
+              "query": "quick red",
+              "operator": "and"
+            }
+          }
+        }
+      ],
+      "should": [
+        {
+          "match": {
+            "my_field._2gram": {
+              "query": "quick red",
+              "operator": "or"
+            }
+          }
+        },
+        {
+          "match": {
+            "my_field._3gram": {
+              "query": "quick red",
+              "operator": "or"
+            }
+          }
+        },
+        {
+          "match": {
+            "my_field._4gram": {
+              "query": "quick red",
+              "operator": "or"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+--------------------------------------------------
+{
+  "took" : 44,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 0.8630463,
+    "hits" : [
+      {
+        "_index" : "my_index",
+        "_type" : "_doc",
+        "_id" : "1",
+        "_score" : 0.8630463,
+        "_source" : {
+          "my_field" : "quick red fox lazy brown dog"
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took" : 44/"took" : $body.took/]
+// TESTRESPONSE[s/"max_score" : 0.8630463/"max_score" : $body.hits.max_score/]
+// TESTRESPONSE[s/"_score" : 0.8630463/"_score" : $body.hits.hits.0._score/]
+
 [[specific-params]]
 ==== Parameters specific to the `search_as_you_type` field
 
@@ -125,8 +216,8 @@ field and are specific to this field type
 
     The largest shingle size to index the input with and create subfields for,
     creating one subfield for each shingle size between 2 and
-    `max_shingle_size`. Accepts integer values between 2 (default) and 4
-    inclusive.
+    `max_shingle_size`. Accepts integer values between 2 and 4 inclusive. This
+    option defaults to 3.
 
 
 [[general-params]]
@@ -182,3 +273,23 @@ in the same way. They do not configure the prefix subfield.
 
     Whether term vectors should be stored for an <<mapping-index,`analyzed`>>
     field. Defaults to `no`.
+
+
+[[prefix-queries]]
+==== Optimization of prefix queries
+
+When making a <<query-dsl-prefix-query,`prefix`>> query to the root field or
+any of its subfields, the query will be rewritten to a
+<<query-dsl-term-query,`term`>> query on the `._index_prefix` subfield. This
+matches more efficiently than is typical of `prefix` queries on text fields,
+as prefixes up to a certain length of each shingle are indexed directly as
+terms in the `._index_prefix` subfield.
+
+The analyzer of the `._index_prefix` subfield slightly modifies the
+shingle-building behavior to also index prefixes of the terms at the end of the
+field's value that normally would not be produced as shingles. For example, if
+the value `quick red fox` is indexed into a `search_as_you_type` field with
+`max_shingle_size` of 3, prefixes for `red fox` and `fox` are also indexed into
+the `._index_prefix` subfield even though they do not appear as terms in the
+`._3gram` subfield. This allows for completion of all the terms in the field's
+input.

@@ -34,7 +34,7 @@ public abstract class ClusterPermission {
 
     public abstract boolean check(String action, TransportRequest request);
 
-    public boolean check(ClusterPrivilege clusterPrivilege) {
+    public boolean grants(ClusterPrivilege clusterPrivilege) {
         return Operations.subsetOf(clusterPrivilege.getAutomaton(), this.privilege().getAutomaton());
     }
 
@@ -118,8 +118,8 @@ public abstract class ClusterPermission {
         }
 
         @Override
-        public boolean check(ClusterPrivilege clusterPrivilege) {
-            return children.stream().anyMatch(p -> p.check(clusterPrivilege));
+        public boolean grants(ClusterPrivilege clusterPrivilege) {
+            return children.stream().anyMatch(p -> p.grants(clusterPrivilege));
         }
     }
 }

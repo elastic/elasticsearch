@@ -66,7 +66,7 @@ public final class ResourcePrivileges {
         return new Builder(resource);
     }
 
-    public static class Builder {
+    public static final class Builder {
         private final String resource;
         private Map<String, Boolean> privileges = new HashMap<>();
 

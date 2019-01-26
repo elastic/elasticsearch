@@ -123,13 +123,13 @@ public class Role {
     }
 
     /**
-     * Check if cluster permissions allow for the given cluster privilege
+     * Check if cluster permissions grants the given cluster privilege
      *
      * @param clusterPrivilege cluster privilege
      * @return {@code true} if cluster privilege is allowed else returns {@code false}
      */
-    public boolean checkClusterPrivilege(ClusterPrivilege clusterPrivilege) {
-        return cluster().check(clusterPrivilege);
+    public boolean grants(ClusterPrivilege clusterPrivilege) {
+        return cluster().grants(clusterPrivilege);
     }
 
     /**

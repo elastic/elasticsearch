@@ -47,7 +47,7 @@ public final class LimitedRole extends Role {
     }
 
     /**
-     * @return A predicate that will match all the indices that this role and the scoped by role has the privilege for executing the given
+     * @return A predicate that will match all the indices that this role and the limited by role has the privilege for executing the given
      * action on.
      */
     @Override
@@ -102,15 +102,15 @@ public final class LimitedRole extends Role {
     }
 
     /**
-     * Check if cluster permissions allow for the given cluster privilege, also checks whether the limited by role allows the given cluster
+     * Check if cluster permissions grants the given cluster privilege, also checks whether the limited by role grants the given cluster
      * privilege
      *
      * @param clusterPrivilege cluster privilege
      * @return {@code true} if cluster privilege is allowed else returns {@code false}
      */
     @Override
-    public boolean checkClusterPrivilege(ClusterPrivilege clusterPrivilege) {
-        return super.cluster().check(clusterPrivilege) && limitedBy.cluster().check(clusterPrivilege);
+    public boolean grants(ClusterPrivilege clusterPrivilege) {
+        return super.grants(clusterPrivilege) && limitedBy.grants(clusterPrivilege);
     }
 
     /**

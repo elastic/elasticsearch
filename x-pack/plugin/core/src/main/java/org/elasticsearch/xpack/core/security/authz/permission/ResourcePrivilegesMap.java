@@ -60,7 +60,7 @@ public final class ResourcePrivilegesMap {
         return "ResourcePrivilegesMap [allAllowed=" + allAllowed + ", resourceToResourcePrivileges=" + resourceToResourcePrivileges + "]";
     }
 
-    public static class Builder {
+    public static final class Builder {
         private boolean allowAll = true;
         private Map<String, ResourcePrivileges.Builder> resourceToResourcePrivilegesBuilder = new LinkedHashMap<>();
 

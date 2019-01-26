@@ -193,27 +193,27 @@ public class LimitedRoleTests extends ESTestCase {
     public void testCheckClusterPrivilege() {
         Role fromRole = Role.builder("a-role").cluster(Collections.singleton(ClusterPrivilegeName.MANAGE_SECURITY), Collections.emptyList())
                 .build();
-        assertThat(fromRole.checkClusterPrivilege(ClusterPrivilege.ALL), is(false));
-        assertThat(fromRole.checkClusterPrivilege(ClusterPrivilege.MANAGE_SECURITY), is(true));
+        assertThat(fromRole.grants(ClusterPrivilege.ALL), is(false));
+        assertThat(fromRole.grants(ClusterPrivilege.MANAGE_SECURITY), is(true));
 
         {
             Role limitedByRole = Role.builder("scoped-role")
                     .cluster(Collections.singleton(ClusterPrivilegeName.ALL), Collections.emptyList()).build();
-            assertThat(limitedByRole.checkClusterPrivilege(ClusterPrivilege.ALL), is(true));
-            assertThat(limitedByRole.checkClusterPrivilege(ClusterPrivilege.MANAGE_SECURITY), is(true));
+            assertThat(limitedByRole.grants(ClusterPrivilege.ALL), is(true));
+            assertThat(limitedByRole.grants(ClusterPrivilege.MANAGE_SECURITY), is(true));
             Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
-            assertThat(role.checkClusterPrivilege(ClusterPrivilege.ALL), is(false));
-            assertThat(role.checkClusterPrivilege(ClusterPrivilege.MANAGE_SECURITY), is(true));
+            assertThat(role.grants(ClusterPrivilege.ALL), is(false));
+            assertThat(role.grants(ClusterPrivilege.MANAGE_SECURITY), is(true));
         }
         {
             Role limitedByRole = Role.builder("scoped-role")
                     .cluster(Collections.singleton(ClusterPrivilegeName.MONITOR), Collections.emptyList()).build();
-            assertThat(limitedByRole.checkClusterPrivilege(ClusterPrivilege.ALL), is(false));
-            assertThat(limitedByRole.checkClusterPrivilege(ClusterPrivilege.MONITOR), is(true));
+            assertThat(limitedByRole.grants(ClusterPrivilege.ALL), is(false));
+            assertThat(limitedByRole.grants(ClusterPrivilege.MONITOR), is(true));
             Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
-            assertThat(role.checkClusterPrivilege(ClusterPrivilege.ALL), is(false));
-            assertThat(role.checkClusterPrivilege(ClusterPrivilege.MANAGE_SECURITY), is(false));
-            assertThat(role.checkClusterPrivilege(ClusterPrivilege.MONITOR), is(false));
+            assertThat(role.grants(ClusterPrivilege.ALL), is(false));
+            assertThat(role.grants(ClusterPrivilege.MANAGE_SECURITY), is(false));
+            assertThat(role.grants(ClusterPrivilege.MONITOR), is(false));
         }
     }
 

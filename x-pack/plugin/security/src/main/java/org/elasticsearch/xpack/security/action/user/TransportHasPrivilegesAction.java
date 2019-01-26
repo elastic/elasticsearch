@@ -101,7 +101,7 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
         Map<String, Boolean> cluster = new HashMap<>();
         for (String checkAction : request.clusterPrivileges()) {
             final ClusterPrivilege checkPrivilege = ClusterPrivilege.get(Collections.singleton(checkAction));
-            cluster.put(checkAction, userRole.checkClusterPrivilege(checkPrivilege));
+            cluster.put(checkAction, userRole.grants(checkPrivilege));
         }
         boolean allMatch = cluster.values().stream().allMatch(Boolean::booleanValue);
 

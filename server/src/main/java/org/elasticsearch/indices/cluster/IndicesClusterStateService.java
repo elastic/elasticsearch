@@ -158,7 +158,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 snapshotShardsService,
                 primaryReplicaSyncer,
                 globalCheckpointSyncAction::updateGlobalCheckpointForShard,
-                Objects.requireNonNull(retentionLeaseSyncAction)::updateRetentionLeasesForShard);
+                Objects.requireNonNull(retentionLeaseSyncAction)::syncRetentionLeasesForShard);
     }
 
     // for tests

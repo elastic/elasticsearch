@@ -230,7 +230,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         };
 
         // execution happens on the test thread, so no need to register an actual listener to callback
-        action.updateRetentionLeasesForShard(indexShard.shardId(), retentionLeases, ActionListener.wrap(() -> {}));
+        action.syncRetentionLeasesForShard(indexShard.shardId(), retentionLeases, ActionListener.wrap(() -> {}));
         assertTrue(invoked.get());
     }
 

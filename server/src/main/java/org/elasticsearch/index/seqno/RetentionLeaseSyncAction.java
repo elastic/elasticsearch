@@ -95,9 +95,9 @@ public class RetentionLeaseSyncAction extends
      *
      * @param shardId         the shard to sync
      * @param retentionLeases the retention leases to sync
-     * @param listener        the callbak to invoke when the sync completes normally or abnormally
+     * @param listener        the callback to invoke when the sync completes normally or abnormally
      */
-    public void updateRetentionLeasesForShard(
+    public void syncRetentionLeasesForShard(
             final ShardId shardId,
             final Collection<RetentionLease> retentionLeases,
             final ActionListener<ReplicationResponse> listener) {

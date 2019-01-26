@@ -185,7 +185,11 @@ SHOW FUNCTIONS;
       name       |     type      
 -----------------+---------------
 AVG              |AGGREGATE      
-COUNT            |AGGREGATE      
+COUNT            |AGGREGATE
+FIRST            |AGGREGATE
+FIRST_VALUE      |AGGREGATE
+LAST             |AGGREGATE
+LAST_VALUE       |AGGREGATE
 MAX              |AGGREGATE      
 MIN              |AGGREGATE      
 SUM              |AGGREGATE      
@@ -699,6 +703,8 @@ SELECT MIN(salary) AS min, MAX(salary) AS max FROM emp HAVING min > 25000;
 // end::groupByHavingImplicitNoMatch
 //;
 
+
+
 ///////////////////////////////
 //
 // Grouping
@@ -996,6 +1002,55 @@ SELECT COUNT(DISTINCT hire_date) unique_hires, COUNT(hire_date) AS hires FROM em
 ----------------+---------------
 99              |100
 // end::aggCountDistinct
+;
+
+firstWithOneArg
+schema::FIRST(first_name):s
+// tag::firstWithOneArg
+SELECT FIRST(first_name) FROM emp;
+
+FIRST(first_name)
+-----------------
+Alejandro
+
+// end::firstWithOneArg
+;
+
+firstWithTwoArgs
+schema::FIRST(first_name, birth_date):s
+// tag::firstWithTwoArgs
+SELECT FIRST(first_name, birth_date) FROM emp;
+
+FIRST(first_name, birth_date)
+-----------------------------
+Remzi
+
+// end::firstWithTwoArgs
+;
+
+lastWithOneArg
+schema::LAST(first_name):s
+// tag::lastWithOneArg
+SELECT LAST(first_name) FROM emp;
+
+LAST(first_name)
+---------------
+Zvonko
+
+// end::lastWithOneArg
+;
+
+
+lastWithTwoArgs
+schema::LAST(first_name, birth_date):s
+// tag::lastWithTwoArgs
+SELECT LAST(first_name, birth_date) FROM emp;
+
+LAST(first_name, birth_date)
+---------------------------
+Hilari
+
+// end::lastWithTwoArgs
 ;
 
 aggMax

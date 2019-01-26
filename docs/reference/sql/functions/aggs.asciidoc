@@ -113,6 +113,129 @@ Returns the total number of _distinct non-null_ values in input values.
 include-tagged::{sql-specs}/docs.csv-spec[aggCountDistinct]
 --------------------------------------------------
 
+[[sql-functions-aggs-first]]
+===== `FIRST/FIRST_VALUE`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+FIRST(field_name<1>, sort_by_field_name<2>)
+--------------------------------------------------
+
+*Input*:
+
+<1> a field name
+<2> a field name; optional
+
+*Output*: same type as the input
+
+.Description:
+
+When only one argument is provided it returns the first **non-NULL** value across input values in the field
+`field_name`. It will return **NULL** only if all values in `field_name` are null. When a second argument
+is provided then it returns the first **non-NULL** value across input values in the field `field_name` ordered
+ascending by the **non-NULL** values of `sort_by_field_name`. E.g.:
+
+[cols="<,<"]
+|===
+s|a|b
+| 100 | 1
+| 200 | 1
+| 1 | 2
+| 2 | 2
+| 10 | null
+| 20 | null
+|
+|===
+
+[source, sql]
+-------------------------
+SELECT FIRST(a, b) FROM t
+-------------------------
+
+will result in:
+[cols="<"]
+|===
+s|FIRST(a, b)
+| 100
+|===
+
+
+["source","sql",subs="attributes,macros"]
+-----------------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[firstWithOneArg]
+-----------------------------------------------------------
+
+["source","sql",subs="attributes,macros"]
+-----------------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[firstWithTwoArgs]
+-----------------------------------------------------------
+
+[NOTE]
+`FIRST` cannot be used in to create a filter in a `HAVING` clause of a `GROUP BY` query.
+
+[[sql-functions-aggs-last]]
+===== `LAST/LAST_VALUE`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+LAST(field_name<1>, sort_by_field_name<2>)
+--------------------------------------------------
+
+*Input*:
+
+<1> a field name
+<2> a field name; optional
+
+*Output*: same type as the input
+
+.Description:
+
+It's the inverse of <<sql-functions-aggs-first>>. When only one argument is provided it returns the
+last **non-NULL** value across input values in the field `field_name`. It will return **NULL** only if
+all values in `field_name` are null. When a second argument is provided then it returns the last
+**non-NULL** value across input values in the field `field_name` ordered descending by the **non-NULL**
+values of `sort_by_field_name`. E.g.:
+
+[cols="<,<"]
+|===
+s|a|b
+| 10 | 1
+| 20 | 1
+| 1 | 2
+| 2 | 2
+| 100 | null
+| 200 | null
+|===
+
+[source, sql]
+------------------------
+SELECT LAST(a, b) FROM t
+------------------------
+
+will result in:
+[cols="<"]
+|===
+s|LAST(a, b)
+| 2
+|===
+
+
+["source","sql",subs="attributes,macros"]
+-----------------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[lastWithOneArg]
+-----------------------------------------------------------
+
+["source","sql",subs="attributes,macros"]
+-----------------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[lastWithTwoArgs]
+-----------------------------------------------------------
+
+[NOTE]
+`LAST` cannot be used in to create a filter in a `HAVING` clause of a `GROUP BY` query.
+
+
 [[sql-functions-aggs-max]]
 ===== `MAX`
 
@@ -160,6 +283,9 @@ Returns the minimum value across input values in the field `field_name`.
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[aggMin]
 --------------------------------------------------
+
+[NOTE]
+`MIN` on a field of type <<text, `text`>> or <<keyword, `keyword`>> is translated into <<sql-functions-aggs-first>>.
 
 [[sql-functions-aggs-sum]]
 ===== `SUM`

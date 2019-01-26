@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.type;
 
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.xpack.sql.util.DateUtils;
+
 import java.sql.JDBCType;
 import java.sql.SQLType;
 import java.sql.Types;
@@ -239,5 +242,9 @@ public enum DataType {
         } catch (IllegalArgumentException ex) {
             return DataType.UNSUPPORTED;
         }
+    }
+
+    public String format() {
+        return isDateBased() ? DateUtils.DATE_PARSE_FORMAT : DocValueFieldsContext.USE_DEFAULT_FORMAT;
     }
 }

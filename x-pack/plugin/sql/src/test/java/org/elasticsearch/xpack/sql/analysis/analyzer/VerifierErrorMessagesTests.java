@@ -537,14 +537,39 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 error("SELECT MAX(date) FROM test GROUP BY HISTOGRAM(MAX(int), 1)"));
     }
 
-    public void testErrorMessageForPercentileWithSecondArgBasedOnAField() {
+    public void testPercentileWithSecondArgBasedOnAField() {
         assertEquals("1:8: 2nd argument of PERCENTILE must be a constant, received [ABS(int)]",
             error("SELECT PERCENTILE(int, ABS(int)) FROM test"));
     }
 
-    public void testErrorMessageForPercentileRankWithSecondArgBasedOnAField() {
+    public void testPercentileRankWithSecondArgBasedOnAField() {
         assertEquals("1:8: 2nd argument of PERCENTILE_RANK must be a constant, received [ABS(int)]",
             error("SELECT PERCENTILE_RANK(int, ABS(int)) FROM test"));
+    }
+
+    public void testTopHitsFirstArgConstant() {
+        assertEquals("1:8: First argument of [FIRST] must be a table column, found constant ['foo']",
+            error("SELECT FIRST('foo', int) FROM test"));
+    }
+
+    public void testTopHitsSecondArgConstant() {
+        assertEquals("1:8: Second argument of [LAST] must be a table column, found constant [10]",
+            error("SELECT LAST(int, 10) FROM test"));
+    }
+
+    public void testTopHitsFirstArgTextWithNoKeyword() {
+        assertEquals("1:8: [FIRST] cannot operate on first argument field of data type [text]",
+            error("SELECT FIRST(text) FROM test"));
+    }
+
+    public void testTopHitsSecondArgTextWithNoKeyword() {
+        assertEquals("1:8: [LAST] cannot operate on second argument field of data type [text]",
+            error("SELECT LAST(keyword, text) FROM test"));
+    }
+
+    public void testTopHitsGroupByHavingUnsupported() {
+        assertEquals("1:50: HAVING filter is unsupported for function [FIRST(int)]",
+            error("SELECT FIRST(int) FROM test GROUP BY text HAVING FIRST(int) > 10"));
     }
 }
 

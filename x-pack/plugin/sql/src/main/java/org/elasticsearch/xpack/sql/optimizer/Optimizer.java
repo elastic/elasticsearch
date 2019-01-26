@@ -27,9 +27,13 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFuncti
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStatsEnclosed;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStatsEnclosed;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRank;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
@@ -120,7 +124,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceAggsWithStats(),
                 new PromoteStatsToExtendedStats(),
                 new ReplaceAggsWithPercentiles(),
-                new ReplaceAggsWithPercentileRanks()
+                new ReplaceAggsWithPercentileRanks(),
+                new ReplaceMinMaxWithTopHits()
                 );
 
         Batch operators = new Batch("Operator Optimization",
@@ -619,6 +624,38 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(LogicalPlan e) {
             return e;
+        }
+    }
+
+    static class ReplaceMinMaxWithTopHits extends OptimizerRule<Aggregate> {
+
+        @Override
+        protected LogicalPlan rule(Aggregate aggregate) {
+            List<NamedExpression> newAggregates = new ArrayList<>(aggregate.aggregates().size());
+            for (Expression agg : aggregate.aggregates()) {
+                Expression newAggFunction = agg.transformDown(a -> {
+                    if (a.field().dataType().isString()) {
+                        return new First(a.source(), a.field(), null);
+                    }
+                    return a;
+                }, Min.class);
+
+                if (newAggFunction != agg) {
+                    newAggregates.add((NamedExpression) newAggFunction);
+                } else {
+                    newAggFunction = agg.transformDown(a -> {
+                        if (a.field().dataType().isString()) {
+                            return new Last(a.source(), a.field(), null);
+                        }
+                        return a;
+                    }, Max.class);
+                    newAggregates.add((NamedExpression) newAggFunction);
+                }
+            }
+            if (!newAggregates.equals(aggregate.aggregates())) {
+                return new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), newAggregates);
+            }
+            return aggregate;
         }
     }
 

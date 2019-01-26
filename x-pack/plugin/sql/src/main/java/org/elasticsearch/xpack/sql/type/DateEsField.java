@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.util.Arrays;
 import java.util.List;
@@ -17,7 +18,8 @@ import java.util.Objects;
  */
 public class DateEsField extends EsField {
 
-    public static final List<String> DEFAULT_FORMAT = Arrays.asList("strict_date_optional_time", "epoch_millis");
+    private static final List<String> DEFAULT_FORMAT = Arrays.asList("strict_date_optional_time", DateUtils.DATE_PARSE_FORMAT);
+
     private final List<String> formats;
 
     public DateEsField(String name, Map<String, EsField> properties, boolean hasDocValues, String... formats) {

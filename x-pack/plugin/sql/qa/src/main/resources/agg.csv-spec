@@ -373,3 +373,36 @@ SELECT COUNT(ALL last_name)=COUNT(ALL first_name) AS areEqual, COUNT(ALL first_n
 ---------------+---------------+---------------
 false          |90             |100
 ;
+
+topHitsWithOneArgAndGroupBy
+schema::gender:s|first:s|last:s
+SELECT gender, FIRST(first_name) as first, LAST(first_name) as last FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+------------
+null           |   Berni       |   Patricio
+F              |   Alejandro   |   Xinglin
+M              |   Amabile     |   Zvonko
+;
+
+topHitsWithTwoArgsAndGroupBy
+schema::gender:s|first:s|last:s
+SELECT gender, FIRST(first_name, birth_date) as first, LAST(first_name, birth_date) as last FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+-----------------
+null           |   Lillian     |   Eberhardt
+F              |   Sumant      |   Valdiodio
+M              |   Remzi       |   Hilari
+;
+
+topHitsOnDatetime
+schema::gender:s|first:i|last:i
+SELECT gender, month(first(birth_date, languages)) first, month(last(birth_date, languages)) last FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+---------------
+null           |   1           |   10
+F              |   4           |   6
+M              |   1           |   4
+;

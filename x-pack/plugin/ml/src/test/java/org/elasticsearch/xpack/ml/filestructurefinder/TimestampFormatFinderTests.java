@@ -6,9 +6,17 @@
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.xpack.ml.filestructurefinder.TimestampFormatFinder.TimestampMatch;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
+import java.time.temporal.TemporalAccessor;
+import java.time.temporal.TemporalQueries;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -269,32 +277,39 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         assertTrue(expected.simplePattern.matcher(text).find());
     }
 
+    // This is because parsing timestamps using Joda formats generates warnings.
+    // Eventually we'll probably just remove the checks that the Joda formats
+    // are valid, and at that point this method can be removed too.
+    protected boolean enableWarningsCheck() {
+        return false;
+    }
+
+    // This method is using the Joda BWC layer.  When that's removed, this method
+    // can be deleted - we'll just validate the Java time formats after that.
+    // Also remove enableWarningsCheck() above if this method is removed.
     private void validateJodaTimestampFormats(List<String> jodaTimestampFormats, String text, long expectedEpochMs) {
 
         // All the test times are for Tue May 15 2018 16:14:56 UTC, which is 17:14:56 in London.
         // This is the timezone that will be used for any text representations that don't include it.
-        org.joda.time.DateTimeZone defaultZone = org.joda.time.DateTimeZone.forID("Europe/London");
-        org.joda.time.DateTime parsed;
+        ZoneId defaultZone = ZoneId.of("Europe/London");
+        long actualEpochMs;
         for (int i = 0; i < jodaTimestampFormats.size(); ++i) {
             try {
                 String timestampFormat = jodaTimestampFormats.get(i);
                 switch (timestampFormat) {
                     case "ISO8601":
-                        parsed = org.joda.time.format.ISODateTimeFormat.dateTimeParser()
-                            .withZone(defaultZone).withDefaultYear(2018).parseDateTime(text);
+                        actualEpochMs = Joda.forPattern("date_optional_time").withZone(defaultZone).parseMillis(text);
                         break;
                     default:
-                        org.joda.time.format.DateTimeFormatter parser =
-                            org.joda.time.format.DateTimeFormat.forPattern(timestampFormat).withZone(defaultZone).withLocale(Locale.ROOT);
-                        parsed = parser.withDefaultYear(2018).parseDateTime(text);
+                        actualEpochMs = Joda.forPattern(timestampFormat).withYear(2018).withZone(defaultZone).parseMillis(text);
                         break;
                 }
-                if (expectedEpochMs == parsed.getMillis()) {
+                if (expectedEpochMs == actualEpochMs) {
                     break;
                 }
                 // If the last one isn't right then propagate
                 if (i == jodaTimestampFormats.size() - 1) {
-                    assertEquals(expectedEpochMs, parsed.getMillis());
+                    assertEquals(expectedEpochMs, actualEpochMs);
                 }
             } catch (RuntimeException e) {
                 // If the last one throws then propagate
@@ -309,8 +324,8 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
         // All the test times are for Tue May 15 2018 16:14:56 UTC, which is 17:14:56 in London.
         // This is the timezone that will be used for any text representations that don't include it.
-        java.time.ZoneId defaultZone = java.time.ZoneId.of("Europe/London");
-        java.time.temporal.TemporalAccessor parsed;
+        ZoneId defaultZone = ZoneId.of("Europe/London");
+        TemporalAccessor parsed;
         for (int i = 0; i < javaTimestampFormats.size(); ++i) {
             try {
                 String timestampFormat = javaTimestampFormats.get(i);
@@ -319,8 +334,8 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
                         parsed = DateFormatters.forPattern("strict_date_optional_time_nanos").withZone(defaultZone).parse(text);
                         break;
                     default:
-                        java.time.format.DateTimeFormatter parser = new java.time.format.DateTimeFormatterBuilder()
-                            .appendPattern(timestampFormat).parseDefaulting(java.time.temporal.ChronoField.YEAR_OF_ERA, 2018)
+                        DateTimeFormatter parser = new DateTimeFormatterBuilder()
+                            .appendPattern(timestampFormat).parseDefaulting(ChronoField.YEAR_OF_ERA, 2018)
                             .toFormatter(Locale.ROOT);
                         // This next line parses the textual date without any default timezone, so if
                         // the text doesn't contain the timezone then the resulting temporal accessor
@@ -332,14 +347,14 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
                         // timezone and then again with a default timezone if the first parse didn't
                         // find one in the text.
                         parsed = parser.parse(text);
-                        if (parsed.query(java.time.temporal.TemporalQueries.zone()) == null) {
+                        if (parsed.query(TemporalQueries.zone()) == null) {
                             // TODO: when Java 8 is no longer supported remove the two
                             // lines and comment above and the closing brace below
                             parsed = parser.withZone(defaultZone).parse(text);
                         }
                         break;
                 }
-                long actualEpochMs = java.time.Instant.from(parsed).toEpochMilli();
+                long actualEpochMs = Instant.from(parsed).toEpochMilli();
                 if (expectedEpochMs == actualEpochMs) {
                     break;
                 }

@@ -598,7 +598,6 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35632")
     public void testHoltWintersValuedField() {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("type")

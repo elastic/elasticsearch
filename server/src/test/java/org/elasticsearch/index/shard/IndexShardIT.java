@@ -337,6 +337,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertPathHasBeenCleared(endDir.toAbsolutePath());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37896")
     public void testMaybeFlush() throws Exception {
         createIndex("test", Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
             .build());

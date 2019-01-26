@@ -288,7 +288,7 @@ public class ElasticsearchNode {
         logger.error("{} `{}`", description, this);
         try(Stream<String> lines = Files.lines(from, StandardCharsets.UTF_8)) {
             lines
-                .map(line -> "  [" + name + "]" + line)
+                .map(line -> "  " + line)
                 .forEach(logger::error);
         } catch (IOException e) {
             throw new UncheckedIOException(e);

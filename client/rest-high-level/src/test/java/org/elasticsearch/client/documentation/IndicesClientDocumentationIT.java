@@ -40,8 +40,8 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
+import org.elasticsearch.client.indices.GetFieldMappingsRequest;
+import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -716,8 +716,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // tag::get-field-mappings-request
         GetFieldMappingsRequest request = new GetFieldMappingsRequest(); // <1>
         request.indices("twitter"); // <2>
-        request.types("_doc"); // <3>
-        request.fields("message", "timestamp"); // <4>
+        request.fields("message", "timestamp"); // <3>
         // end::get-field-mappings-request
 
         // tag::get-field-mappings-request-indicesOptions
@@ -736,12 +735,12 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::get-field-mappings-execute
 
             // tag::get-field-mappings-response
-            final Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mappings =
+            final Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings =
                 response.mappings();// <1>
-            final Map<String, GetFieldMappingsResponse.FieldMappingMetaData> typeMappings =
-                mappings.get("twitter").get("_doc"); // <2>
+            final Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fieldMappings =
+                mappings.get("twitter"); // <2>
             final GetFieldMappingsResponse.FieldMappingMetaData metaData =
-                typeMappings.get("message");// <3>
+                fieldMappings.get("message");// <3>
 
             final String fullName = metaData.fullName();// <4>
             final Map<String, Object> source = metaData.sourceAsMap(); // <5>
@@ -768,11 +767,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             final CountDownLatch latch = new CountDownLatch(1);
             final ActionListener<GetFieldMappingsResponse> latchListener = new LatchedActionListener<>(listener, latch);
             listener = ActionListener.wrap(r -> {
-                final Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mappings =
+                final Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings =
                     r.mappings();
-                final Map<String, GetFieldMappingsResponse.FieldMappingMetaData> typeMappings =
-                    mappings.get("twitter").get("_doc");
-                final GetFieldMappingsResponse.FieldMappingMetaData metaData1 = typeMappings.get("message");
+                final Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fieldMappings =
+                    mappings.get("twitter");
+                final GetFieldMappingsResponse.FieldMappingMetaData metaData1 = fieldMappings.get("message");
 
                 final String fullName = metaData1.fullName();
                 final Map<String, Object> source = metaData1.sourceAsMap();

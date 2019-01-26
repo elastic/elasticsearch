@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import com.google.common.base.Joiner;
+
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryPrimaryDefaultContext;
@@ -60,12 +62,17 @@ public class SqlParserTests extends ESTestCase {
 
     public void testSelectScore() {
         UnresolvedFunction f = singleProjection(project(parseStatement("SELECT SCORE() FROM foo")), UnresolvedFunction.class);
-        assertEquals("SCORE", f.functionName());
+        assertEquals("SCORE()", f.sourceText());
+    }
+
+    public void testSelectAddWithParanthesis() {
+        Add f = singleProjection(project(parseStatement("SELECT (1 +  2)")), Add.class);
+        assertEquals("1 +  2", f.sourceText());
     }
 
     public void testSelectRightFunction() {
         UnresolvedFunction f = singleProjection(project(parseStatement("SELECT RIGHT()")), UnresolvedFunction.class);
-        assertEquals("RIGHT", f.functionName());
+        assertEquals("RIGHT()", f.sourceText());
     }
 
     public void testsSelectNonReservedKeywords() {
@@ -102,13 +109,13 @@ public class SqlParserTests extends ESTestCase {
 
     public void testOrderByScore() {
         Order.OrderDirection dir = randomFrom(Order.OrderDirection.values());
-        OrderBy ob = orderBy(parseStatement("SELECT * FROM foo ORDER BY SCORE()" + stringForDirection(dir)));
+        OrderBy ob = orderBy(parseStatement("SELECT * FROM foo ORDER BY SCORE( )" + stringForDirection(dir)));
         assertThat(ob.order(), hasSize(1));
         Order o = ob.order().get(0);
         assertEquals(dir, o.direction());
         assertThat(o.child(), instanceOf(UnresolvedFunction.class));
         UnresolvedFunction f = (UnresolvedFunction) o.child();
-        assertEquals("SCORE", f.functionName());
+        assertEquals("SCORE( )", f.sourceText());
     }
 
     public void testOrderByTwo() {
@@ -299,7 +306,7 @@ public class SqlParserTests extends ESTestCase {
         In in = (In) filter.condition();
         assertEquals("?a", in.value().toString());
         assertEquals(noChildren, in.list().size());
-        assertThat(in.list().get(0).toString(), startsWith("(a) + (b)#"));
+        assertThat(in.list().get(0).toString(), startsWith("a + b#"));
     }
 
     public void testDecrementOfDepthCounter() {

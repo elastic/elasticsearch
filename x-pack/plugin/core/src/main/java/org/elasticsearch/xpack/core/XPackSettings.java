@@ -154,14 +154,10 @@ public class XPackSettings {
         }
     }, Setting.Property.NodeScope);
 
-    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1.2", "TLSv1.1", "TLSv1");
+    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1.2", "TLSv1.1");
     public static final SSLClientAuth CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED;
     public static final SSLClientAuth HTTP_CLIENT_AUTH_DEFAULT = SSLClientAuth.NONE;
     public static final VerificationMode VERIFICATION_MODE_DEFAULT = VerificationMode.FULL;
-
-    // global settings that apply to everything!
-    public static final String GLOBAL_SSL_PREFIX = "xpack.ssl.";
-    private static final SSLConfigurationSettings GLOBAL_SSL = SSLConfigurationSettings.withPrefix(GLOBAL_SSL_PREFIX);
 
     // http specific settings
     public static final String HTTP_SSL_PREFIX = SecurityField.setting("http.ssl.");
@@ -174,7 +170,6 @@ public class XPackSettings {
     /** Returns all settings created in {@link XPackSettings}. */
     public static List<Setting<?>> getAllSettings() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
-        settings.addAll(GLOBAL_SSL.getAllSettings());
         settings.addAll(HTTP_SSL.getAllSettings());
         settings.addAll(TRANSPORT_SSL.getAllSettings());
         settings.add(SECURITY_ENABLED);

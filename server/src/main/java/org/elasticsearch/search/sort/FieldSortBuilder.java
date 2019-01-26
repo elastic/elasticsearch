@@ -93,7 +93,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         this.setNestedPath(template.getNestedPath());
         if (template.getNestedSort() != null) {
             this.setNestedSort(template.getNestedSort());
-        };
+        }
     }
 
     /**

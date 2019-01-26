@@ -183,6 +183,7 @@ public final class TransportFreezeIndexAction extends
                         throw new IllegalStateException("index [" + index.getName() + "] is not closed");
                     }
                     final IndexMetaData.Builder imdBuilder = IndexMetaData.builder(meta);
+                    imdBuilder.settingsVersion(meta.getSettingsVersion() + 1);
                     final Settings.Builder settingsBuilder =
                         Settings.builder()
                             .put(currentState.metaData().index(index).getSettings())

@@ -9,13 +9,11 @@ bounding box. Assuming the following indexed document:
 PUT /my_locations
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "pin": {
-                    "properties": {
-                        "location": {
-                            "type": "geo_point"
-                        }
+        "properties": {
+            "pin": {
+                "properties": {
+                    "location": {
+                        "type": "geo_point"
                     }
                 }
             }

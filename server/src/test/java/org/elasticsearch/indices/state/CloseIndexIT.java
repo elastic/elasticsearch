@@ -21,7 +21,6 @@ package org.elasticsearch.indices.state;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -41,6 +40,7 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptySet;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.action.support.IndicesOptions.lenientExpandOpen;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
@@ -51,6 +51,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class CloseIndexIT extends ESIntegTestCase {
+
+    private static final int MAX_DOCS = 25_000;
 
     public void testCloseMissingIndex() {
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareClose("test").get());
@@ -64,9 +66,9 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertThat(e.getMessage(), is("no such index [test2]"));
     }
 
-    public void testCloseOneMissingIndexIgnoreMissing() {
+    public void testCloseOneMissingIndexIgnoreMissing() throws Exception {
         createIndex("test1");
-        assertAcked(client().admin().indices().prepareClose("test1", "test2").setIndicesOptions(IndicesOptions.lenientExpandOpen()));
+        assertBusy(() -> assertAcked(client().admin().indices().prepareClose("test1", "test2").setIndicesOptions(lenientExpandOpen())));
         assertIndexIsClosed("test1");
     }
 
@@ -90,7 +92,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, nbDocs)
             .mapToObj(i -> client().prepareIndex(indexName, "_doc", String.valueOf(i)).setSource("num", i)).collect(toList()));
 
-        assertAcked(client().admin().indices().prepareClose(indexName));
+        assertBusy(() -> assertAcked(client().admin().indices().prepareClose(indexName)));
         assertIndexIsClosed(indexName);
 
         assertAcked(client().admin().indices().prepareOpen(indexName));
@@ -106,15 +108,15 @@ public class CloseIndexIT extends ESIntegTestCase {
                 .mapToObj(i -> client().prepareIndex(indexName, "_doc", String.valueOf(i)).setSource("num", i)).collect(toList()));
         }
         // First close should be acked
-        assertAcked(client().admin().indices().prepareClose(indexName));
+        assertBusy(() -> assertAcked(client().admin().indices().prepareClose(indexName)));
         assertIndexIsClosed(indexName);
 
         // Second close should be acked too
-        assertAcked(client().admin().indices().prepareClose(indexName));
+        assertBusy(() -> assertAcked(client().admin().indices().prepareClose(indexName)));
         assertIndexIsClosed(indexName);
     }
 
-    public void testCloseUnassignedIndex() {
+    public void testCloseUnassignedIndex() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         assertAcked(prepareCreate(indexName)
             .setWaitForActiveShards(ActiveShardCount.NONE)
@@ -124,7 +126,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertThat(clusterState.metaData().indices().get(indexName).getState(), is(IndexMetaData.State.OPEN));
         assertThat(clusterState.routingTable().allShards().stream().allMatch(ShardRouting::unassigned), is(true));
 
-        assertAcked(client().admin().indices().prepareClose(indexName));
+        assertBusy(() -> assertAcked(client().admin().indices().prepareClose(indexName)));
         assertIndexIsClosed(indexName);
     }
 
@@ -168,11 +170,11 @@ public class CloseIndexIT extends ESIntegTestCase {
         createIndex(indexName);
 
         int nbDocs = 0;
-        try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client())) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), MAX_DOCS)) {
             indexer.setAssertNoFailuresOnStop(false);
 
             waitForDocs(randomIntBetween(10, 50), indexer);
-            assertAcked(client().admin().indices().prepareClose(indexName));
+            assertBusy(() -> assertAcked(client().admin().indices().prepareClose(indexName)));
             indexer.stop();
             nbDocs += indexer.totalIndexedDocs();
 
@@ -186,7 +188,7 @@ public class CloseIndexIT extends ESIntegTestCase {
 
         assertIndexIsClosed(indexName);
         assertAcked(client().admin().indices().prepareOpen(indexName));
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), nbDocs);
+        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(MAX_DOCS).get(), nbDocs);
     }
 
     public void testCloseWhileDeletingIndices() throws Exception {
@@ -247,7 +249,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
 
-        final BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client());
+        final BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), MAX_DOCS);
         waitForDocs(1, indexer);
 
         final CountDownLatch latch = new CountDownLatch(1);
@@ -299,7 +301,8 @@ public class CloseIndexIT extends ESIntegTestCase {
         }
         refresh(indexName);
         assertIndexIsOpened(indexName);
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), indexer.totalIndexedDocs());
+        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(MAX_DOCS).get(),
+            indexer.totalIndexedDocs());
     }
 
     static void assertIndexIsClosed(final String... indices) {

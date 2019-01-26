@@ -54,7 +54,7 @@ d:i                  | l:s
 ;
 
 //
-// Date
+// DateTime
 //
 dateTimeIsoDayOfWeek
 SELECT ISO_DAY_OF_WEEK(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY ISO_DAY_OF_WEEK(birth_date);
@@ -131,32 +131,32 @@ SELECT CONVERT(birth_date, DOUBLE) AS date FROM test_emp GROUP BY date ORDER BY 
     date:d      
 ---------------
 null           
--5.631552E8    
--5.586624E8    
--5.56416E8     
--5.539104E8    
--5.517504E8    
--5.492448E8    
--5.406912E8    
--5.371488E8    
--5.359392E8    
+-5.631552E11
+-5.586624E11
+-5.56416E11
+-5.539104E11
+-5.517504E11
+-5.492448E11
+-5.406912E11
+-5.371488E11
+-5.359392E11
 ;
 
 castedDateTimeWithGroupBy2
-SELECT CAST(hire_date AS INTEGER) AS date FROM test_emp GROUP BY date ORDER BY date LIMIT 10;
+SELECT CAST(hire_date AS LONG) AS date FROM test_emp GROUP BY date ORDER BY date LIMIT 10;
 
-    date:i      
+    date:l
 ---------------
-477532800      
-478051200      
-484790400      
-489715200      
-495763200      
-498096000      
-498614400      
-501206400      
-501292800      
-501379200      
+477532800000
+478051200000
+484790400000
+489715200000
+495763200000
+498096000000
+498614400000
+501206400000
+501292800000
+501379200000
 ;
 
 dateTimeAggByIsoDayOfWeekWithFilter

@@ -18,20 +18,18 @@ field, and a `nested` field:
 PUT my_index
 {
   "mappings": {
-    "_doc": { <1>
-      "properties": {
-        "manager": { <2>
-          "properties": {
-            "age":  { "type": "integer" },
-            "name": { "type": "text"  }
-          }
-        },
-        "employees": { <3>
-          "type": "nested",
-          "properties": {
-            "age":  { "type": "integer" },
-            "name": { "type": "text"  }
-          }
+    "properties": { <1>
+      "manager": {
+        "properties": { <2>
+          "age":  { "type": "integer" },
+          "name": { "type": "text"  }
+        }
+      },
+      "employees": {
+        "type": "nested",
+        "properties": { <3>
+          "age":  { "type": "integer" },
+          "name": { "type": "text"  }
         }
       }
     }
@@ -58,7 +56,7 @@ PUT my_index/_doc/1 <4>
 }
 --------------------------------------------------
 // CONSOLE
-<1> Properties under the `_doc` mapping type.
+<1> Properties in the top-level mappings definition.
 <2> Properties under the `manager` object field.
 <3> Properties under the `employees` nested field.
 <4> An example document which corresponds to the above mapping.

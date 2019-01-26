@@ -53,10 +53,10 @@ class VagrantTestPlugin implements Plugin<Project> {
 
     /** All distributions to bring into test VM, whether or not they are used **/
     static final List<String> DISTRIBUTIONS = unmodifiableList([
-            'archives:linux-tar',
-            'archives:oss-linux-tar',
-            'archives:windows-zip',
-            'archives:oss-windows-zip',
+            'archives:tar',
+            'archives:oss-tar',
+            'archives:zip',
+            'archives:oss-zip',
             'packages:rpm',
             'packages:oss-rpm',
             'packages:deb',

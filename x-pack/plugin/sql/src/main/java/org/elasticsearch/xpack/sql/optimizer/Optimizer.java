@@ -159,7 +159,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         Batch label = new Batch("Set as Optimized", Limiter.ONCE,
                 new SetAsOptimized());
 
-        return Arrays.asList(aggregate, operators, local, label);
+        return Arrays.asList(operators, aggregate, local, label);
     }
 
 
@@ -1136,7 +1136,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return e.foldable() ? Literal.of(e) : e;
         }
     }
-    
+
     static class SimplifyConditional extends OptimizerExpressionRule {
 
         SimplifyConditional() {
@@ -1355,7 +1355,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
      * Propagate Equals to eliminate conjuncted Ranges.
      * When encountering a different Equals or non-containing {@link Range}, the conjunction becomes false.
      * When encountering a containing {@link Range}, the range gets eliminated by the equality.
-     * 
+     *
      * This rule doesn't perform any promotion of {@link BinaryComparison}s, that is handled by
      * {@link CombineBinaryComparisons} on purpose as the resulting Range might be foldable
      * (which is picked by the folding rule on the next run).
@@ -1420,7 +1420,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     continue;
                 }
                 Object eqValue = eq.right().fold();
-                
+
                 for (int i = 0; i < ranges.size(); i++) {
                     Range range = ranges.get(i);
 
@@ -1448,14 +1448,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                 return FALSE;
                             }
                         }
-                        
+
                         // it's in the range and thus, remove it
                         ranges.remove(i);
                         changed = true;
                     }
                 }
             }
-            
+
             return changed ? Predicates.combineAnd(CollectionUtils.combine(exps, equals, ranges)) : and;
         }
     }
@@ -1475,7 +1475,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
             return e;
         }
-        
+
         // combine conjunction
         private Expression combine(And and) {
             List<Range> ranges = new ArrayList<>();
@@ -1504,7 +1504,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     exps.add(ex);
                 }
             }
-            
+
             // finally try combining any left BinaryComparisons into possible Ranges
             // this could be a different rule but it's clearer here wrt the order of comparisons
 
@@ -1513,14 +1513,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
                 for (int j = i + 1; j < bcs.size(); j++) {
                     BinaryComparison other = bcs.get(j);
-                    
+
                     if (main.left().semanticEquals(other.left())) {
                         // >/>= AND </<=
                         if ((main instanceof GreaterThan || main instanceof GreaterThanOrEqual)
                                 && (other instanceof LessThan || other instanceof LessThanOrEqual)) {
                             bcs.remove(j);
                             bcs.remove(i);
-                            
+
                             ranges.add(new Range(and.source(), main.left(),
                                     main.right(), main instanceof GreaterThanOrEqual,
                                     other.right(), other instanceof LessThanOrEqual));
@@ -1532,7 +1532,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                 && (main instanceof LessThan || main instanceof LessThanOrEqual)) {
                             bcs.remove(j);
                             bcs.remove(i);
-                            
+
                             ranges.add(new Range(and.source(), main.left(),
                                     other.right(), other instanceof GreaterThanOrEqual,
                                     main.right(), main instanceof LessThanOrEqual));
@@ -1542,8 +1542,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 }
             }
-            
-            
+
+
             return changed ? Predicates.combineAnd(CollectionUtils.combine(exps, bcs, ranges)) : and;
         }
 
@@ -1690,13 +1690,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         private boolean findConjunctiveComparisonInRange(BinaryComparison main, List<Range> ranges) {
             Object value = main.right().fold();
-            
+
             // NB: the loop modifies the list (hence why the int is used)
             for (int i = 0; i < ranges.size(); i++) {
                 Range other = ranges.get(i);
-                
+
                 if (main.left().semanticEquals(other.value())) {
- 
+
                     if (main instanceof GreaterThan || main instanceof GreaterThanOrEqual) {
                         if (other.lower().foldable()) {
                             Integer comp = BinaryComparison.compare(value, other.lower().fold());
@@ -1705,7 +1705,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                 boolean lowerEq = comp == 0 && other.includeLower() && main instanceof GreaterThan;
                                  // 2 < a AND (1 < a < 3) -> 2 < a < 3
                                 boolean lower = comp > 0 || lowerEq;
-                                
+
                                 if (lower) {
                                     ranges.remove(i);
                                     ranges.add(i,
@@ -1745,14 +1745,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
             return false;
         }
-    
+
         /**
          * Find commonalities between the given comparison in the given list.
          * The method can be applied both for conjunctive (AND) or disjunctive purposes (OR).
          */
         private static boolean findExistingComparison(BinaryComparison main, List<BinaryComparison> bcs, boolean conjunctive) {
             Object value = main.right().fold();
-            
+
             // NB: the loop modifies the list (hence why the int is used)
             for (int i = 0; i < bcs.size(); i++) {
                 BinaryComparison other = bcs.get(i);
@@ -1763,10 +1763,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // if bc is a higher/lower value or gte vs gt, use it instead
                 if ((other instanceof GreaterThan || other instanceof GreaterThanOrEqual) &&
                     (main instanceof GreaterThan || main instanceof GreaterThanOrEqual)) {
-                    
+
                     if (main.left().semanticEquals(other.left())) {
                         Integer compare = BinaryComparison.compare(value, other.right().fold());
-                        
+
                         if (compare != null) {
                                  // AND
                             if ((conjunctive &&
@@ -1794,10 +1794,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // if bc is a lower/higher value or lte vs lt, use it instead
                 else if ((other instanceof LessThan || other instanceof LessThanOrEqual) &&
                         (main instanceof LessThan || main instanceof LessThanOrEqual)) {
-                    
+
                     if (main.left().semanticEquals(other.left())) {
                         Integer compare = BinaryComparison.compare(value, other.right().fold());
-                        
+
                         if (compare != null) {
                                  // AND
                             if ((conjunctive &&
@@ -1814,7 +1814,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                   (compare == 0 && main instanceof LessThanOrEqual && other instanceof LessThan)))) {
                                 bcs.remove(i);
                                 bcs.add(i, main);
-                                
+
                             }
                             // found a match
                             return true;
@@ -1824,7 +1824,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 }
             }
-                
+
             return false;
         }
     }
@@ -1951,5 +1951,5 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     enum TransformDirection {
         UP, DOWN
-    };
+    }
 }

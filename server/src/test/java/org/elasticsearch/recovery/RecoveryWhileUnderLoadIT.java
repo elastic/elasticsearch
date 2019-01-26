@@ -115,6 +115,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37895")
     public void testRecoverWhileUnderLoadAllocateReplicasRelocatePrimariesTest() throws Exception {
         logger.info("--> creating test index ...");
         int numberOfShards = numberOfShards();

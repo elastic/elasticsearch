@@ -427,7 +427,6 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         assertValidException(builder, IllegalArgumentException.class);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37894")
     @Override
     public void testParseGeometryCollection() throws IOException {
         if (rarely()) {

@@ -393,7 +393,7 @@ class BuildPlugin implements Plugin<Project> {
     static void requireJavaHome(Task task, int version) {
         Project rootProject = task.project.rootProject // use root project for global accounting
         if (rootProject.hasProperty('requiredJavaVersions') == false) {
-            rootProject.rootProject.ext.requiredJavaVersions = [:].withDefault{key -> return []}
+            rootProject.rootProject.ext.requiredJavaVersions = [:]
             rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
                 List<String> messages = []
                 for (entry in rootProject.requiredJavaVersions) {
@@ -416,7 +416,7 @@ class BuildPlugin implements Plugin<Project> {
                 throw new GradleException("JAVA${version}_HOME required to run task:\n${task}")
             }
         } else {
-            rootProject.requiredJavaVersions.get(version).add(task)
+            rootProject.requiredJavaVersions.getOrDefault(version, []).add(task)
         }
     }
 
@@ -899,6 +899,7 @@ class BuildPlugin implements Plugin<Project> {
         project.tasks.withType(RandomizedTestingTask) {task ->
             jvm "${project.runtimeJavaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel)
+            ifNoTests 'fail'
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
             project.sourceSets.matching { it.name == "test" }.all { test ->

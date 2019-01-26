@@ -102,7 +102,8 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     @Override
     public double getVariance() {
-        return (sumOfSqrs - ((sum * sum) / count)) / count;
+        double variance =  (sumOfSqrs - ((sum * sum) / count)) / count;
+        return variance < 0  ? 0 : variance;
     }
 
     @Override

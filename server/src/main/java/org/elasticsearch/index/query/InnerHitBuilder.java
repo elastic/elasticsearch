@@ -32,12 +32,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.search.collapse.CollapseBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -68,6 +68,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         PARSER.declareInt(InnerHitBuilder::setSize, SearchSourceBuilder.SIZE_FIELD);
         PARSER.declareBoolean(InnerHitBuilder::setExplain, SearchSourceBuilder.EXPLAIN_FIELD);
         PARSER.declareBoolean(InnerHitBuilder::setVersion, SearchSourceBuilder.VERSION_FIELD);
+        PARSER.declareBoolean(InnerHitBuilder::setSeqNoAndPrimaryTerm, SearchSourceBuilder.SEQ_NO_PRIMARY_TERM_FIELD);
         PARSER.declareBoolean(InnerHitBuilder::setTrackScores, SearchSourceBuilder.TRACK_SCORES_FIELD);
         PARSER.declareStringArray(InnerHitBuilder::setStoredFieldNames, SearchSourceBuilder.STORED_FIELDS_FIELD);
         PARSER.declareObjectArray(InnerHitBuilder::setDocValueFields,
@@ -117,7 +118,6 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
 
         }, COLLAPSE_FIELD, ObjectParser.ValueType.OBJECT);
     }
-
     private String name;
     private boolean ignoreUnmapped;
 
@@ -125,6 +125,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
     private int size = 3;
     private boolean explain;
     private boolean version;
+    private boolean seqNoAndPrimaryTerm;
     private boolean trackScores;
 
     private StoredFieldsContext storedFieldsContext;
@@ -161,6 +162,11 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         size = in.readVInt();
         explain = in.readBoolean();
         version = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)){
+            seqNoAndPrimaryTerm = in.readBoolean();
+        } else {
+            seqNoAndPrimaryTerm = false;
+        }
         trackScores = in.readBoolean();
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
         if (in.getVersion().before(Version.V_6_4_0)) {
@@ -215,6 +221,9 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         out.writeVInt(size);
         out.writeBoolean(explain);
         out.writeBoolean(version);
+        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+            out.writeBoolean(seqNoAndPrimaryTerm);
+        }
         out.writeBoolean(trackScores);
         out.writeOptionalWriteable(storedFieldsContext);
         if (out.getVersion().before(Version.V_6_4_0)) {
@@ -393,6 +402,15 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         return this;
     }
 
+    public boolean isSeqNoAndPrimaryTerm() {
+        return seqNoAndPrimaryTerm;
+    }
+
+    public InnerHitBuilder setSeqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
+        this.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
+        return this;
+    }
+
     public boolean isTrackScores() {
         return trackScores;
     }
@@ -552,6 +570,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         builder.field(SearchSourceBuilder.FROM_FIELD.getPreferredName(), from);
         builder.field(SearchSourceBuilder.SIZE_FIELD.getPreferredName(), size);
         builder.field(SearchSourceBuilder.VERSION_FIELD.getPreferredName(), version);
+        builder.field(SearchSourceBuilder.SEQ_NO_PRIMARY_TERM_FIELD.getPreferredName(), seqNoAndPrimaryTerm);
         builder.field(SearchSourceBuilder.EXPLAIN_FIELD.getPreferredName(), explain);
         builder.field(SearchSourceBuilder.TRACK_SCORES_FIELD.getPreferredName(), trackScores);
         if (fetchSourceContext != null) {
@@ -610,6 +629,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
                 Objects.equals(size, that.size) &&
                 Objects.equals(explain, that.explain) &&
                 Objects.equals(version, that.version) &&
+                Objects.equals(seqNoAndPrimaryTerm, that.seqNoAndPrimaryTerm) &&
                 Objects.equals(trackScores, that.trackScores) &&
                 Objects.equals(storedFieldsContext, that.storedFieldsContext) &&
                 Objects.equals(docValueFields, that.docValueFields) &&
@@ -622,7 +642,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, ignoreUnmapped, from, size, explain, version, trackScores,
+        return Objects.hash(name, ignoreUnmapped, from, size, explain, version, seqNoAndPrimaryTerm, trackScores,
                 storedFieldsContext, docValueFields, scriptFields, fetchSourceContext, sorts, highlightBuilder, innerCollapseBuilder);
     }
 

@@ -39,8 +39,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutMappingAction extends BaseRestHandler {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(RestPutMappingAction.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(RestPutMappingAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in put mapping " +
+        "requests is deprecated. The parameter include_type_name should be provided and set to false to be " +
+        "compatible with the next major version.";
 
     public RestPutMappingAction(Settings settings, RestController controller) {
         super(settings);
@@ -73,16 +76,22 @@ public class RestPutMappingAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-        PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
+            DEFAULT_INCLUDE_TYPE_NAME_POLICY);
         final String type = request.param("type");
-        if (type != null && includeTypeName == false) {
-            throw new IllegalArgumentException("Cannot set include_type_name=false and provide a type at the same time");
+
+        if (includeTypeName) {
+            deprecationLogger.deprecatedAndMaybeLog("put_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
+        } else if (type != null) {
+            throw new IllegalArgumentException("Types cannot be provided in put mapping requests, unless " +
+                "the include_type_name parameter is set to true.");
         }
+
+        PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
         putMappingRequest.type(includeTypeName ? type : MapperService.SINGLE_MAPPING_NAME);
         putMappingRequest.source(request.requiredContent(), request.getXContentType());
         if (request.hasParam("update_all_types")) {
-            DEPRECATION_LOGGER.deprecated("[update_all_types] is deprecated since indices may not have more than one type anymore");
+            deprecationLogger.deprecated("[update_all_types] is deprecated since indices may not have more than one type anymore");
         }
         putMappingRequest.updateAllTypes(request.paramAsBoolean("update_all_types", false));
         putMappingRequest.timeout(request.paramAsTime("timeout", putMappingRequest.timeout()));

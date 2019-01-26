@@ -163,6 +163,7 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
         return client.admin().cluster().prepareState().setLocal(true).get().getState();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37478")
     public void testOpenIndexNoAcknowledgement() {
         createIndex("test");
         ensureGreen();

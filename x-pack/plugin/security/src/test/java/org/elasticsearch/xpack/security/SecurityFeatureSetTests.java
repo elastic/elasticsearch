@@ -225,5 +225,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
                 assertThat(source.getValue("roles"), is(nullValue()));
             }
         }
+        assertWarnings("[xpack.security.audit.outputs] setting was deprecated in Elasticsearch and will be removed " +
+                "in a future release! See the breaking changes documentation for the next major version.");
     }
 }

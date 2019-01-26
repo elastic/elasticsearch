@@ -39,6 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.doAnswer;
@@ -55,7 +56,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong();
         final int extraRetainedOps = between(0, 100);
         final SoftDeletesPolicy softDeletesPolicy =
-                new SoftDeletesPolicy(globalCheckpoint::get, -1, extraRetainedOps, Collections::emptyList);
+                new SoftDeletesPolicy(globalCheckpoint::get, NO_OPS_PERFORMED, extraRetainedOps, Collections::emptyList);
         TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
         CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(logger, translogPolicy, softDeletesPolicy, globalCheckpoint::get);
 
@@ -92,8 +93,9 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         }
         assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(translogGenList.get(keptIndex)));
         assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(lastTranslogGen));
-        assertThat(softDeletesPolicy.getMinRetainedSeqNo(), equalTo(
-            Math.max(0, Math.min(getLocalCheckpoint(commitList.get(keptIndex)) + 1, globalCheckpoint.get() + 1 - extraRetainedOps))));
+        assertThat(softDeletesPolicy.getMinRetainedSeqNo(),
+            equalTo(Math.max(NO_OPS_PERFORMED,
+                Math.min(getLocalCheckpoint(commitList.get(keptIndex)) + 1, globalCheckpoint.get() + 1 - extraRetainedOps))));
     }
 
     public void testAcquireIndexCommit() throws Exception {
@@ -130,7 +132,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
             indexPolicy.onCommit(commitList);
             IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commitList, globalCheckpoint.get());
             assertThat(softDeletesPolicy.getMinRetainedSeqNo(), equalTo(
-                Math.max(0, Math.min(getLocalCheckpoint(safeCommit) + 1, globalCheckpoint.get() + 1 - extraRetainedOps))));
+                Math.max(NO_OPS_PERFORMED, Math.min(getLocalCheckpoint(safeCommit) + 1, globalCheckpoint.get() + 1 - extraRetainedOps))));
             // Captures and releases some commits
             int captures = between(0, 5);
             for (int n = 0; n < captures; n++) {
@@ -161,7 +163,8 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
             assertThat(translogPolicy.getTranslogGenerationOfLastCommit(),
                 equalTo(Long.parseLong(commitList.get(commitList.size() - 1).getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
             assertThat(softDeletesPolicy.getMinRetainedSeqNo(), equalTo(
-                Math.max(0, Math.min(getLocalCheckpoint(commitList.get(safeIndex)) + 1, globalCheckpoint.get() + 1 - extraRetainedOps))));
+                Math.max(NO_OPS_PERFORMED,
+                    Math.min(getLocalCheckpoint(commitList.get(safeIndex)) + 1, globalCheckpoint.get() + 1 - extraRetainedOps))));
         }
         snapshottingCommits.forEach(indexPolicy::releaseCommit);
         globalCheckpoint.set(randomLongBetween(lastMaxSeqNo, Long.MAX_VALUE));
@@ -175,7 +178,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(lastTranslogGen));
         IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commitList, globalCheckpoint.get());
         assertThat(softDeletesPolicy.getMinRetainedSeqNo(), equalTo(
-            Math.max(0, Math.min(getLocalCheckpoint(safeCommit) + 1, globalCheckpoint.get() + 1 - extraRetainedOps))));
+            Math.max(NO_OPS_PERFORMED, Math.min(getLocalCheckpoint(safeCommit) + 1, globalCheckpoint.get() + 1 - extraRetainedOps))));
     }
 
     public void testLegacyIndex() throws Exception {

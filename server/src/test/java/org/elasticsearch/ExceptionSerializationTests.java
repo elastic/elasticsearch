@@ -78,12 +78,14 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.ActionTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.EOFException;
@@ -810,6 +812,9 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(147, org.elasticsearch.env.ShardLockObtainFailedException.class);
         ids.put(148, UnknownNamedObjectException.class);
         ids.put(149, MultiBucketConsumerService.TooManyBucketsException.class);
+        ids.put(150, null);
+        ids.put(151, SnapshotInProgressException.class);
+        ids.put(152, NoSuchRemoteClusterException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

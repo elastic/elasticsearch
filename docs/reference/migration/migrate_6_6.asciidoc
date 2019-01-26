@@ -7,12 +7,34 @@
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 6.6.
 
-* <<breaking_66_ml_changes>>
+* <<breaking_66_api_changes>>
 * <<breaking_66_mapping_changes>>
 * <<breaking_66_search_changes>>
 * <<breaking_66_setting_changes>>
 
 See also <<release-highlights>> and <<es-release-notes>>.
+
+[float]
+[[breaking_66_api_changes]]
+=== API changes
+
+[float]
+==== Machine learning API changes
+
+The get jobs API and get job stats API can retrieve a maximum of 10,000 jobs.
+Likewise, the get datafeeds API and get datafeed stats API can retrieve a
+maximum of 10,000 datafeeds. Prior to version 6.6, there were no limits on the
+results from these APIs. 
+
+[float]
+==== {watcher} API changes
+
+If you used the `metric` parameter with the
+{ref}/watcher-api-stats.html[stats API], the response contained incorrect labels,
+which are fixed in 6.6 and later releases. If you choose to retrieve
+`queued_watches` metrics, it now returns a `queued_watches` list instead of a  `current_watches` list. Likewise, if you retrieve `pending_watches` metrics, it
+returns a `current_watches` list instead of a `queued_watches` list. The
+`pending_watches` metric is deprecated; use `current_watches` instead.
 
 [float]
 [[breaking_66_search_changes]]
@@ -142,12 +164,3 @@ previously created indexes.
 The following type parameters are deprecated for the `geo_shape` field type: `tree`,
 `precision`, `tree_levels`, `distance_error_pct`, `points_only`, and `strategy`. They
 will be removed in a future version.
-
-[float]
-[[breaking_66_ml_changes]]
-=== Machine learning changes
-
-The get jobs API and get job stats API can retrieve a maximum of 10,000 jobs.
-Likewise, the get datafeeds API and get datafeed stats API can retrieve a
-maximum of 10,000 datafeeds. Prior to version 6.6, there were no limits on the
-results from these APIs. 

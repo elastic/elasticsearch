@@ -215,7 +215,7 @@ public class ClusterStateChanges extends AbstractComponent {
         ElectMasterService electMasterService = new ElectMasterService(SETTINGS);
         nodeRemovalExecutor = new ZenDiscovery.NodeRemovalClusterStateTaskExecutor(allocationService, electMasterService,
             s -> { throw new AssertionError("rejoin not implemented"); }, logger);
-        joinTaskExecutor = new NodeJoinController.JoinTaskExecutor(allocationService, electMasterService, logger);
+        joinTaskExecutor = new NodeJoinController.JoinTaskExecutor(Settings.EMPTY, allocationService, electMasterService, logger);
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {

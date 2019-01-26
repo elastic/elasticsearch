@@ -127,9 +127,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     private static final IndexNameResolver.Rollover DEFAULT_ROLLOVER = IndexNameResolver.Rollover.DAILY;
     private static final Setting<IndexNameResolver.Rollover> ROLLOVER_SETTING =
             new Setting<>(setting("audit.index.rollover"), (s) -> DEFAULT_ROLLOVER.name(),
-                    s -> IndexNameResolver.Rollover.valueOf(s.toUpperCase(Locale.ENGLISH)), Property.NodeScope);
+                    s -> IndexNameResolver.Rollover.valueOf(s.toUpperCase(Locale.ENGLISH)), Property.NodeScope, Property.Deprecated);
     private static final Setting<Integer> QUEUE_SIZE_SETTING =
-            Setting.intSetting(setting("audit.index.queue_max_size"), DEFAULT_MAX_QUEUE_SIZE, 1, Property.NodeScope);
+            Setting.intSetting(setting("audit.index.queue_max_size"), DEFAULT_MAX_QUEUE_SIZE, 1, Property.NodeScope, Property.Deprecated);
     private static final String DEFAULT_CLIENT_NAME = "security-audit-client";
 
     private static final List<String> DEFAULT_EVENT_INCLUDES = Arrays.asList(
@@ -148,22 +148,22 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     private static final String FORBIDDEN_INDEX_SETTING = "index.mapper.dynamic";
 
     private static final Setting<Settings> INDEX_SETTINGS =
-            Setting.groupSetting(setting("audit.index.settings.index."), Property.NodeScope);
+            Setting.groupSetting(setting("audit.index.settings.index."), Property.NodeScope, Property.Deprecated);
     private static final Setting<List<String>> INCLUDE_EVENT_SETTINGS =
             Setting.listSetting(setting("audit.index.events.include"), DEFAULT_EVENT_INCLUDES, Function.identity(),
-                    Property.NodeScope);
+                    Property.NodeScope, Property.Deprecated);
     private static final Setting<List<String>> EXCLUDE_EVENT_SETTINGS =
             Setting.listSetting(setting("audit.index.events.exclude"), Collections.emptyList(),
-                    Function.identity(), Property.NodeScope);
+                    Function.identity(), Property.NodeScope, Property.Deprecated);
     private static final Setting<Boolean> INCLUDE_REQUEST_BODY =
-            Setting.boolSetting(setting("audit.index.events.emit_request_body"), false, Property.NodeScope);
+            Setting.boolSetting(setting("audit.index.events.emit_request_body"), false, Property.NodeScope, Property.Deprecated);
     private static final Setting<Settings> REMOTE_CLIENT_SETTINGS =
-            Setting.groupSetting(setting("audit.index.client."), Property.NodeScope);
-    private static final Setting<Integer> BULK_SIZE_SETTING =
-            Setting.intSetting(setting("audit.index.bulk_size"), DEFAULT_BULK_SIZE, 1, MAX_BULK_SIZE, Property.NodeScope);
+            Setting.groupSetting(setting("audit.index.client."), Property.NodeScope, Property.Deprecated);
+    private static final Setting<Integer> BULK_SIZE_SETTING = Setting.intSetting(setting("audit.index.bulk_size"), DEFAULT_BULK_SIZE, 1,
+            MAX_BULK_SIZE, Property.NodeScope, Property.Deprecated);
     private static final Setting<TimeValue> FLUSH_TIMEOUT_SETTING =
             Setting.timeSetting(setting("audit.index.flush_interval"), DEFAULT_FLUSH_INTERVAL,
-                    TimeValue.timeValueMillis(1L), Property.NodeScope);
+                    TimeValue.timeValueMillis(1L), Property.NodeScope, Property.Deprecated);
 
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
     private final Settings settings;

@@ -19,12 +19,14 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -43,6 +45,13 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetFieldMappingAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(RestGetFieldMappingAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get field mapping " +
+        "requests is deprecated. The parameter include_type_name should be provided and set to false to be " +
+        "compatible with the next major version.";
+
     public RestGetFieldMappingAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_mapping/field/{fields}", this);
@@ -63,10 +72,11 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
         final String[] fields = Strings.splitStringByCommaToArray(request.param("fields"));
 
-        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, true);
-        if (includeTypeName == false && types.length > 0) {
-            throw new IllegalArgumentException("Cannot set include_type_name=false and specify" +
-                " types at the same time.");
+        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+        if (includeTypeName) {
+            deprecationLogger.deprecatedAndMaybeLog("get_field_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
+        } else if (types.length > 0) {
+            throw new IllegalArgumentException("Cannot set include_type_name=false and specify types at the same time.");
         }
 
         GetFieldMappingsRequest getMappingsRequest = new GetFieldMappingsRequest();

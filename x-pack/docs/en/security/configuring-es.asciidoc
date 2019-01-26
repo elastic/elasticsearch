@@ -133,7 +133,7 @@ and <<auditing-settings>>.
 
 By default, events are logged to a dedicated `elasticsearch-access.log` file in
 `ES_HOME/logs`. You can also store the events in an {es} index for
-easier analysis and control what events are logged. 
+easier analysis and control what events are logged. deprecated[6.7.0]
 --
 
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/security/securing-communications/securing-elasticsearch.asciidoc

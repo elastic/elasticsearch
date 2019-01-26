@@ -38,6 +38,11 @@ public class GroupByDateHistogram extends GroupByKey {
 
     }
 
+    // For testing
+    public long interval() {
+        return interval;
+    }
+
     @Override
     protected CompositeValuesSourceBuilder<?> createSourceBuilder() {
         return new DateHistogramValuesSourceBuilder(id())

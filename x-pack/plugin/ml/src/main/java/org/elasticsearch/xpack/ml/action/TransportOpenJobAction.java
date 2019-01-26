@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -94,6 +93,9 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     private static final PersistentTasksCustomMetaData.Assignment AWAITING_LAZY_ASSIGNMENT =
         new PersistentTasksCustomMetaData.Assignment(null, "persistent task is awaiting node assignment.");
 
+    static final PersistentTasksCustomMetaData.Assignment AWAITING_MIGRATION =
+            new PersistentTasksCustomMetaData.Assignment(null, "job cannot be assigned until it has been migrated.");
+
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
@@ -143,18 +145,15 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         }
     }
 
-    static PersistentTasksCustomMetaData.Assignment selectLeastLoadedMlNode(String jobId, @Nullable Job job,
+    static PersistentTasksCustomMetaData.Assignment selectLeastLoadedMlNode(String jobId, Job job,
                                                                             ClusterState clusterState,
                                                                             int maxConcurrentJobAllocations,
                                                                             int fallbackMaxNumberOfOpenJobs,
                                                                             int maxMachineMemoryPercent,
                                                                             MlMemoryTracker memoryTracker,
                                                                             Logger logger) {
-        if (job == null) {
-            logger.debug("[{}] select node job is null", jobId);
-        }
+        String resultsIndexName = job.getResultsIndexName();
 
-        String resultsIndexName = job != null ? job.getResultsIndexName() : null;
         List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(resultsIndexName, clusterState);
         if (unavailableIndices.size() != 0) {
             String reason = "Not opening job [" + jobId + "], because not all primary shards are active for the following indices [" +
@@ -206,33 +205,31 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 continue;
             }
 
-            if (job != null) {
-                Set<String> compatibleJobTypes = Job.getCompatibleJobTypes(node.getVersion());
-                if (compatibleJobTypes.contains(job.getJobType()) == false) {
-                    String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node) +
-                            "], because this node does not support jobs of type [" + job.getJobType() + "]";
-                    logger.trace(reason);
-                    reasons.add(reason);
-                    continue;
-                }
+            Set<String> compatibleJobTypes = Job.getCompatibleJobTypes(node.getVersion());
+            if (compatibleJobTypes.contains(job.getJobType()) == false) {
+                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node) +
+                        "], because this node does not support jobs of type [" + job.getJobType() + "]";
+                logger.trace(reason);
+                reasons.add(reason);
+                continue;
+            }
 
-                if (jobHasRules(job) && node.getVersion().before(DetectionRule.VERSION_INTRODUCED)) {
-                    String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node) + "], because jobs using " +
-                            "custom_rules require a node of version [" + DetectionRule.VERSION_INTRODUCED + "] or higher";
-                    logger.trace(reason);
-                    reasons.add(reason);
-                    continue;
-                }
+            if (jobHasRules(job) && node.getVersion().before(DetectionRule.VERSION_INTRODUCED)) {
+                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node) + "], because jobs using " +
+                        "custom_rules require a node of version [" + DetectionRule.VERSION_INTRODUCED + "] or higher";
+                logger.trace(reason);
+                reasons.add(reason);
+                continue;
+            }
 
-                boolean jobConfigIsStoredInIndex = job.getJobVersion().onOrAfter(Version.V_6_6_0);
-                if (jobConfigIsStoredInIndex && node.getVersion().before(Version.V_6_6_0)) {
-                    String reason = "Not opening job [" + jobId + "] on node [" + nodeNameOrId(node)
-                            + "] version [" + node.getVersion() + "], because this node does not support " +
-                            "jobs of version [" + job.getJobVersion() + "]";
-                    logger.trace(reason);
-                    reasons.add(reason);
-                    continue;
-                }
+            boolean jobConfigIsStoredInIndex = job.getJobVersion().onOrAfter(Version.V_6_6_0);
+            if (jobConfigIsStoredInIndex && node.getVersion().before(Version.V_6_6_0)) {
+                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameOrId(node)
+                        + "] version [" + node.getVersion() + "], because this node does not support " +
+                        "jobs of version [" + job.getJobVersion() + "]";
+                logger.trace(reason);
+                reasons.add(reason);
+                continue;
             }
 
             long numberOfAssignedJobs = 0;
@@ -712,16 +709,14 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
         @Override
         public PersistentTasksCustomMetaData.Assignment getAssignment(OpenJobAction.JobParams params, ClusterState clusterState) {
-            Job foundJob = params.getJob();
-            if (foundJob == null) {
-                // The job was added to the persistent task parameters in 6.6.0
-                // if the field is not present the task was created before 6.6.0.
-                // In which case the job should still be in the clusterstate
-                foundJob = MlMetadata.getMlMetadata(clusterState).getJobs().get(params.getJobId());
+            // If the task parameters do not have a job field then the job
+            // was first opened on a pre v6.6 node and has not been migrated
+            if (params.getJob() == null) {
+                return AWAITING_MIGRATION;
             }
 
             PersistentTasksCustomMetaData.Assignment assignment = selectLeastLoadedMlNode(params.getJobId(),
-                foundJob,
+                params.getJob(),
                 clusterState,
                 maxConcurrentJobAllocations,
                 fallbackMaxNumberOfOpenJobs,

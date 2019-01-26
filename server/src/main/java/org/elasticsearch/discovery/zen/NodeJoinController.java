@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -67,9 +68,10 @@ public class NodeJoinController {
     private ElectionContext electionContext = null;
 
 
-    public NodeJoinController(MasterService masterService, AllocationService allocationService, ElectMasterService electMaster) {
+    public NodeJoinController(Settings settings, MasterService masterService, AllocationService allocationService,
+                              ElectMasterService electMaster) {
         this.masterService = masterService;
-        joinTaskExecutor = new JoinTaskExecutor(allocationService, electMaster, logger);
+        joinTaskExecutor = new JoinTaskExecutor(settings, allocationService, electMaster, logger);
     }
 
     /**
@@ -410,10 +412,14 @@ public class NodeJoinController {
 
         private final Logger logger;
 
-        public JoinTaskExecutor(AllocationService allocationService, ElectMasterService electMasterService, Logger logger) {
+        private final int minimumMasterNodesOnLocalNode;
+
+        public JoinTaskExecutor(Settings settings, AllocationService allocationService, ElectMasterService electMasterService,
+                                Logger logger) {
             this.allocationService = allocationService;
             this.electMasterService = electMasterService;
             this.logger = logger;
+            minimumMasterNodesOnLocalNode = ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
         }
 
         @Override
@@ -509,9 +515,11 @@ public class NodeJoinController {
             // or removed by us above
             ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).blocks(ClusterBlocks.builder()
                 .blocks(currentState.blocks())
-                .removeGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)).build();
-            tmpState = PersistentTasksCustomMetaData.deassociateDeadNodes(tmpState);
-            return ClusterState.builder(allocationService.deassociateDeadNodes(tmpState, false,
+                .removeGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID))
+                .minimumMasterNodesOnPublishingMaster(minimumMasterNodesOnLocalNode)
+                .build();
+            tmpState = PersistentTasksCustomMetaData.disassociateDeadNodes(tmpState);
+            return ClusterState.builder(allocationService.disassociateDeadNodes(tmpState, false,
                 "removed dead nodes on election"));
         }
 

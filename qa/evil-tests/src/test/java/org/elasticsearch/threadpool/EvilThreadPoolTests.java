@@ -219,6 +219,7 @@ public class EvilThreadPoolTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37708")
     public void testExecutionExceptionOnSinglePrioritizingThreadPoolExecutor() throws InterruptedException {
         final PrioritizedEsThreadPoolExecutor prioritizedExecutor = EsExecutors.newSinglePrioritizing("test",
             EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext(), threadPool.scheduler());

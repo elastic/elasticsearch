@@ -125,7 +125,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         modelSnapshotRetentionDays = in.readOptionalLong();
         resultsRetentionDays = in.readOptionalLong();
         if (in.readBoolean()) {
-            categorizationFilters = in.readList(StreamInput::readString);
+            categorizationFilters = in.readStringList();
         } else {
             categorizationFilters = null;
         }
@@ -168,7 +168,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         out.writeOptionalLong(resultsRetentionDays);
         out.writeBoolean(categorizationFilters != null);
         if (categorizationFilters != null) {
-            out.writeStringList(categorizationFilters);
+            out.writeStringCollection(categorizationFilters);
         }
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);

@@ -31,39 +31,39 @@ import java.util.Map;
  * All geohashes in a grid are of the same precision and held internally as a single long
  * for efficiency's sake.
  */
-public class InternalQuadkeyGrid extends InternalGeoGrid<InternalQuadkeyGridBucket> {
+public class InternalGeoTileGrid extends InternalGeoGrid<InternalGeoTileGridBucket> {
 
-    InternalQuadkeyGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
+    InternalGeoTileGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, requiredSize, buckets, pipelineAggregators, metaData);
     }
 
-    public InternalQuadkeyGrid(StreamInput in) throws IOException {
+    public InternalGeoTileGrid(StreamInput in) throws IOException {
         super(in);
     }
 
     @Override
     public InternalGeoGrid create(List<InternalGeoGridBucket> buckets) {
-        return new InternalQuadkeyGrid(name, requiredSize, buckets, pipelineAggregators(), metaData);
+        return new InternalGeoTileGrid(name, requiredSize, buckets, pipelineAggregators(), metaData);
     }
 
     @Override
     public InternalGeoGridBucket createBucket(InternalAggregations aggregations, InternalGeoGridBucket prototype) {
-        return new InternalQuadkeyGridBucket(prototype.hashAsLong, prototype.docCount, aggregations);
+        return new InternalGeoTileGridBucket(prototype.hashAsLong, prototype.docCount, aggregations);
     }
 
     @Override
     InternalGeoGrid create(String name, int requiredSize, List buckets, List list, Map metaData) {
-        return new InternalQuadkeyGrid(name, requiredSize, buckets, list, metaData);
+        return new InternalGeoTileGrid(name, requiredSize, buckets, list, metaData);
     }
 
     @Override
     Reader getBucketReader() {
-        return InternalQuadkeyGridBucket::new;
+        return InternalGeoTileGridBucket::new;
     }
 
     @Override
     public String getWriteableName() {
-        return QuadkeyGridAggregationBuilder.NAME;
+        return GeoTileGridAggregationBuilder.NAME;
     }
 }

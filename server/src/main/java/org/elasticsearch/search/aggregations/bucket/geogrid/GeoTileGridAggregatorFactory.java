@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.QuadkeyUtils;
+import org.elasticsearch.common.geo.GeoTileUtils;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -37,15 +37,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class QuadkeyGridAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, QuadkeyGridAggregatorFactory> {
+public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, GeoTileGridAggregatorFactory> {
 
     private final int precision;
     private final int requiredSize;
     private final int shardSize;
 
-    QuadkeyGridAggregatorFactory(String name, ValuesSourceConfig<GeoPoint> config, int precision, int requiredSize,
-            int shardSize, SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
-            Map<String, Object> metaData) throws IOException {
+    GeoTileGridAggregatorFactory(String name, ValuesSourceConfig<GeoPoint> config, int precision, int requiredSize,
+                                 int shardSize, SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+                                 Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.precision = precision;
         this.requiredSize = requiredSize;
@@ -55,7 +55,7 @@ public class QuadkeyGridAggregatorFactory extends ValuesSourceAggregatorFactory<
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        final InternalAggregation aggregation = new InternalQuadkeyGrid(name, requiredSize,
+        final InternalAggregation aggregation = new InternalGeoTileGrid(name, requiredSize,
                 Collections.emptyList(), pipelineAggregators, metaData);
         return new NonCollectingAggregator(name, context, parent, pipelineAggregators, metaData) {
             @Override
@@ -71,8 +71,8 @@ public class QuadkeyGridAggregatorFactory extends ValuesSourceAggregatorFactory<
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, context, parent);
         }
-        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, QuadkeyUtils::longEncode);
-        return new QuadkeyGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, context, parent,
+        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, GeoTileUtils::longEncode);
+        return new GeoTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, context, parent,
                 pipelineAggregators, metaData);
     }
 }

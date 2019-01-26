@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.QuadkeyUtils;
+import org.elasticsearch.common.geo.GeoTileUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -34,27 +34,27 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
-public class QuadkeyGridAggregationBuilder extends GeoGridAggregationBuilder {
-    public static final String NAME = "quadkey_grid";
+public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
+    public static final String NAME = "geotile_grid";
     public static final int DEFAULT_PRECISION = 7;
     public static final int DEFAULT_MAX_NUM_CELLS = 10000;
 
-    private static final ObjectParser<GeoGridAggregationBuilder, Void> PARSER = createParser(NAME, QuadkeyUtils::parsePrecision);
+    private static final ObjectParser<GeoGridAggregationBuilder, Void> PARSER = createParser(NAME, GeoTileUtils::parsePrecision);
 
-    public QuadkeyGridAggregationBuilder(String name) {
+    public GeoTileGridAggregationBuilder(String name) {
         super(name);
         precision(DEFAULT_PRECISION);
         size(DEFAULT_MAX_NUM_CELLS);
         shardSize = -1;
     }
 
-    public QuadkeyGridAggregationBuilder(StreamInput in) throws IOException {
+    public GeoTileGridAggregationBuilder(StreamInput in) throws IOException {
         super(in);
     }
 
     @Override
     public GeoGridAggregationBuilder precision(int precision) {
-        this.precision = QuadkeyUtils.checkPrecisionRange(precision);
+        this.precision = GeoTileUtils.checkPrecisionRange(precision);
         return this;
     }
 
@@ -64,22 +64,22 @@ public class QuadkeyGridAggregationBuilder extends GeoGridAggregationBuilder {
         SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
         Map<String, Object> metaData
     ) throws IOException {
-        return new QuadkeyGridAggregatorFactory(name, config, precision, requiredSize, shardSize, context, parent,
+        return new GeoTileGridAggregatorFactory(name, config, precision, requiredSize, shardSize, context, parent,
             subFactoriesBuilder, metaData);
     }
 
-    private QuadkeyGridAggregationBuilder(QuadkeyGridAggregationBuilder clone, AggregatorFactories.Builder factoriesBuilder,
+    private GeoTileGridAggregationBuilder(GeoTileGridAggregationBuilder clone, AggregatorFactories.Builder factoriesBuilder,
                                           Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);
     }
 
     @Override
     protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new QuadkeyGridAggregationBuilder(this, factoriesBuilder, metaData);
+        return new GeoTileGridAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     public static GeoGridAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new QuadkeyGridAggregationBuilder(aggregationName), null);
+        return PARSER.parse(parser, new GeoTileGridAggregationBuilder(aggregationName), null);
     }
 
     @Override

@@ -19,7 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.geo.QuadkeyUtils;
+import org.elasticsearch.common.geo.GeoTileUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,25 +31,25 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class QuadkeyGridParserTests extends ESTestCase {
+public class GeoTileGridParserTests extends ESTestCase {
     public void testParseValidFromInts() throws Exception {
-        int precision = randomIntBetween(0, QuadkeyUtils.MAX_ZOOM);
+        int precision = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
                 "{\"field\":\"my_loc\", \"precision\":" + precision + ", \"size\": 500, \"shard_size\": 550}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
-        assertNotNull(QuadkeyGridAggregationBuilder.parse("quadkey_grid", stParser));
+        assertNotNull(GeoTileGridAggregationBuilder.parse("geotile_grid", stParser));
     }
 
     public void testParseValidFromStrings() throws Exception {
-        int precision = randomIntBetween(0, QuadkeyUtils.MAX_ZOOM);
+        int precision = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
                 "{\"field\":\"my_loc\", \"precision\":\"" + precision + "\", \"size\": \"500\", \"shard_size\": \"550\"}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
-        assertNotNull(QuadkeyGridAggregationBuilder.parse("quadkey_grid", stParser));
+        assertNotNull(GeoTileGridAggregationBuilder.parse("geotile_grid", stParser));
     }
 
     public void testParseDistanceUnitPrecision() throws Exception {
@@ -64,7 +64,7 @@ public class QuadkeyGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
-        GeoGridAggregationBuilder builder = QuadkeyGridAggregationBuilder.parse("quadkey_grid", stParser);
+        GeoGridAggregationBuilder builder = GeoTileGridAggregationBuilder.parse("geotile_grid", stParser);
         assertNotNull(builder);
         assertThat(builder.precision(), greaterThanOrEqualTo(0));
         assertThat(builder.precision(), lessThanOrEqualTo(29));
@@ -76,8 +76,8 @@ public class QuadkeyGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         XContentParseException ex = expectThrows(XContentParseException.class,
-                () -> QuadkeyGridAggregationBuilder.parse("quadkey_grid", stParser));
-        assertThat(ex.getMessage(), containsString("[quadkey_grid] failed to parse field [precision]"));
+                () -> GeoTileGridAggregationBuilder.parse("geotile_grid", stParser));
+        assertThat(ex.getMessage(), containsString("[geotile_grid] failed to parse field [precision]"));
         assertThat(ex.getCause(), instanceOf(NumberFormatException.class));
         assertEquals("For input string: \"10kg\"", ex.getCause().getMessage());
     }
@@ -88,8 +88,8 @@ public class QuadkeyGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         XContentParseException ex = expectThrows(XContentParseException.class,
-                () -> QuadkeyGridAggregationBuilder.parse("quadkey_grid", stParser));
-        assertThat(ex.getMessage(), containsString("[quadkey_grid] failed to parse field [precision]"));
+                () -> GeoTileGridAggregationBuilder.parse("geotile_grid", stParser));
+        assertThat(ex.getMessage(), containsString("[geotile_grid] failed to parse field [precision]"));
         assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
         assertEquals("precision too high [1cm]", ex.getCause().getMessage());
     }
@@ -99,9 +99,9 @@ public class QuadkeyGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         XContentParseException e = expectThrows(XContentParseException.class,
-                () -> QuadkeyGridAggregationBuilder.parse("quadkey_grid", stParser));
+                () -> GeoTileGridAggregationBuilder.parse("geotile_grid", stParser));
         assertThat(ExceptionsHelper.detailedMessage(e),
-                containsString("[quadkey_grid] precision doesn't support values of type: VALUE_BOOLEAN"));
+                containsString("[geotile_grid] precision doesn't support values of type: VALUE_BOOLEAN"));
     }
 
     public void testParseErrorOnPrecisionOutOfRange() throws Exception {
@@ -109,11 +109,11 @@ public class QuadkeyGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         try {
-            QuadkeyGridAggregationBuilder.parse("quadkey_grid", stParser);
+            GeoTileGridAggregationBuilder.parse("geotile_grid", stParser);
             fail();
         } catch (XContentParseException ex) {
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
-            assertEquals("Invalid quadkey precision of 30. Must be between 0 and 29.", ex.getCause().getMessage());
+            assertEquals("Invalid geotile_grid precision of 30. Must be between 0 and 29.", ex.getCause().getMessage());
         }
     }
 }

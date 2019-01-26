@@ -34,7 +34,7 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
  * The string key is formatted as  "zoom/x/y"
  * The hash value (long) contains all three of those values.
  */
-public class QuadkeyUtils {
+public class GeoTileUtils {
 
     /**
      * Largest number of tiles (precision) to use.
@@ -54,19 +54,19 @@ public class QuadkeyUtils {
     private static final int ZOOM_SHIFT = 29 * 2;
 
     /**
-     * Mask of all the bits used by the quadkey in a hash
+     * Mask of all the bits used by the geotile in a hash
      */
-    private static final long QUADKEY_MASK = (1L << ZOOM_SHIFT) - 1;
+    private static final long GEOTILE_MASK = (1L << ZOOM_SHIFT) - 1;
 
     /**
-     * Parse quadkey hash as zoom, x, y integers.
+     * Parse geotile hash as zoom, x, y integers.
      */
     private static int[] parseHash(final long hash) {
         final int zoom = checkPrecisionRange((int) (hash >>> ZOOM_SHIFT));
         final int tiles = 1 << zoom;
 
-        // decode the quadkey bits as interleaved xTile and yTile
-        long val = hash & QUADKEY_MASK;
+        // decode the geotile bits as interleaved xTile and yTile
+        long val = hash & GEOTILE_MASK;
         int xTile = (int) BitUtil.deinterleave(val);
         int yTile = (int) BitUtil.deinterleave(val >>> 1);
         if (xTile < 0 || yTile < 0 || xTile >= tiles || yTile >= tiles) {
@@ -109,14 +109,14 @@ public class QuadkeyUtils {
 
     public static int checkPrecisionRange(int precision) {
         if (precision < 0 || precision > MAX_ZOOM) {
-            throw new IllegalArgumentException("Invalid quadkey precision of " +
+            throw new IllegalArgumentException("Invalid geotile_grid precision of " +
                 precision + ". Must be between 0 and " + MAX_ZOOM + ".");
         }
         return precision;
     }
 
     /**
-     * Encode lon/lat to the quadkey based long format.
+     * Encode lon/lat to the geotile based long format.
      * The resulting hash contains interleaved tile X and Y coordinates.
      * The precision itself is also encoded as a few high bits.
      */
@@ -146,14 +146,14 @@ public class QuadkeyUtils {
             yTile = tiles - 1;
         }
 
-        // Zoom value is placed in front of all the bits used for the quadkey
+        // Zoom value is placed in front of all the bits used for the geotile
         // e.g. if max zoom is 26, the largest index would use 52 bits (51st..0th),
         // leaving 12 bits unused for zoom. See MAX_ZOOM comment above.
         return BitUtil.interleave(xTile, yTile) | ((long) precision << ZOOM_SHIFT);
     }
 
     /**
-     * Encode to a quadkey string from the quadkey based long format
+     * Encode to a geotile string from the geotile based long format
      */
     public static String stringEncode(long hash) {
         int[] res = parseHash(hash);
@@ -176,7 +176,7 @@ public class QuadkeyUtils {
             // This will also handle NumberFormatException
             cause = e;
         }
-        throw new IllegalArgumentException("Invalid quadkey hash string of " +
+        throw new IllegalArgumentException("Invalid geotile_grid hash string of " +
             hashAsString + ". Must be three integers in a form \"zoom/x/y\".", cause);
     }
 
@@ -190,6 +190,6 @@ public class QuadkeyUtils {
             return new GeoPoint(lat, lon);
         }
         throw new IllegalArgumentException(
-            String.format(Locale.ROOT, "Invalid quadkey z/x/y values of %s/%s/%s", zoom, xTile, yTile));
+            String.format(Locale.ROOT, "Invalid geotile_grid z/x/y values of %s/%s/%s", zoom, xTile, yTile));
     }
 }

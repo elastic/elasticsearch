@@ -1,17 +1,17 @@
-[[search-aggregations-bucket-quadkeygrid-aggregation]]
-=== Quadkey Grid Aggregation
+[[search-aggregations-bucket-geotilegrid-aggregation]]
+=== GeoTile Grid Aggregation
 
 A multi-bucket aggregation that works on `geo_point` fields and groups points into buckets that represent cells in a grid.
 The resulting grid can be sparse and only contains cells that have matching data.
 Each cell corresponds to a https://en.wikipedia.org/wiki/Tiled_web_map[map tile] as used by many online map sites.
 Each cell is labeled using a "{zoom}/{x}/{y}" format, where zoom is equal to the user-specified precision.
 
-* High precision quadkeys have a larger range for x and y, and represent tiles that cover only a small area.
-* Low precision quadkeys have a smaller range for x and y, and represent tiles that each cover a large area.
+* High precision keys have a larger range for x and y, and represent tiles that cover only a small area.
+* Low precision keys have a smaller range for x and y, and represent tiles that each cover a large area.
 
-Quadkey used in this aggregation can have a choice of precision between 0 and 29.
+geotile used in this aggregation can have a choice of precision between 0 and 29.
 
-WARNING: The highest-precision quadkey of length 29 produces cells that cover less than a square metre of land and
+WARNING: The highest-precision geotile of length 29 produces cells that cover less than a square metre of land and
 so high-precision requests can be very costly in terms of RAM and result sizes.
 Please see the example below on how to first filter the aggregation to a smaller geographic area before requesting
 high-levels of detail.
@@ -53,7 +53,7 @@ POST /museums/_search?size=0
 {
     "aggregations" : {
         "large-grid" : {
-            "quadkey_grid" : {
+            "geotile_grid" : {
                 "field" : "location",
                 "precision" : 8
             }
@@ -111,7 +111,7 @@ POST /museums/_search?size=0
             },
             "aggregations":{
                 "zoom1":{
-                    "quadkey_grid" : {
+                    "geotile_grid" : {
                         "field": "location",
                         "precision": 22
                     }

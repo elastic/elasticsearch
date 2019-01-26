@@ -30,28 +30,28 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Aggregates data expressed as Quadkey longs (for efficiency's sake) but formats results as Quadkey strings.
+ * Aggregates data expressed as geotile longs (for efficiency's sake) but formats results as geotile strings.
  */
-public class QuadkeyGridAggregator extends GeoGridAggregator<InternalQuadkeyGrid> {
+public class GeoTileGridAggregator extends GeoGridAggregator<InternalGeoTileGrid> {
 
-    QuadkeyGridAggregator(String name, AggregatorFactories factories, CellIdSource valuesSource,
+    GeoTileGridAggregator(String name, AggregatorFactories factories, CellIdSource valuesSource,
                           int requiredSize, int shardSize, SearchContext aggregationContext, Aggregator parent,
                           List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, valuesSource, requiredSize, shardSize, aggregationContext, parent, pipelineAggregators, metaData);
     }
 
     @Override
-    InternalQuadkeyGrid buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
+    InternalGeoTileGrid buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
                                          List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalQuadkeyGrid(name, requiredSize, buckets, pipelineAggregators, metaData);
+        return new InternalGeoTileGrid(name, requiredSize, buckets, pipelineAggregators, metaData);
     }
 
     @Override
-    public InternalQuadkeyGrid buildEmptyAggregation() {
-        return new InternalQuadkeyGrid(name, requiredSize, Collections.emptyList(), pipelineAggregators(), metaData());
+    public InternalGeoTileGrid buildEmptyAggregation() {
+        return new InternalGeoTileGrid(name, requiredSize, Collections.emptyList(), pipelineAggregators(), metaData());
     }
 
     InternalGeoGridBucket newEmptyBucket() {
-        return new InternalQuadkeyGridBucket(0, 0, null);
+        return new InternalGeoTileGridBucket(0, 0, null);
     }
 }

@@ -30,8 +30,8 @@ import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBui
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.geogrid.InternalQuadkeyGrid;
-import org.elasticsearch.search.aggregations.bucket.geogrid.QuadkeyGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoTileGrid;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -253,10 +253,10 @@ public class AggregationBuilders {
     }
 
     /**
-     * Create a new {@link InternalQuadkeyGrid} aggregation with the given name.
+     * Create a new {@link InternalGeoTileGrid} aggregation with the given name.
      */
-    public static QuadkeyGridAggregationBuilder quadkeyGrid(String name) {
-        return new QuadkeyGridAggregationBuilder(name);
+    public static GeoTileGridAggregationBuilder geoTileGrid(String name) {
+        return new GeoTileGridAggregationBuilder(name);
     }
 
     /**

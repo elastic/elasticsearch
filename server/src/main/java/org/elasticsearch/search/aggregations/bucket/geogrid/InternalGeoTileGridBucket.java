@@ -19,25 +19,38 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.elasticsearch.common.geo.GeoTileUtils;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.QuadkeyUtils;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 
 import java.io.IOException;
 
-public class ParsedQuadkeyGridBucket extends ParsedGeoGridBucket {
+public class InternalGeoTileGridBucket extends InternalGeoGridBucket<InternalGeoTileGridBucket> {
+    InternalGeoTileGridBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
+        super(hashAsLong, docCount, aggregations);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public InternalGeoTileGridBucket(StreamInput in) throws IOException {
+        super(in);
+    }
 
     @Override
-    public GeoPoint getKey() {
-        return QuadkeyUtils.hashToGeoPoint(hashAsString);
+    InternalGeoTileGridBucket buildBucket(InternalGeoGridBucket bucket, long hashAsLong, long docCount,
+                                          InternalAggregations aggregations) {
+        return new InternalGeoTileGridBucket(hashAsLong, docCount, aggregations);
     }
 
     @Override
     public String getKeyAsString() {
-        return hashAsString;
+        return GeoTileUtils.stringEncode(hashAsLong);
     }
 
-    static ParsedQuadkeyGridBucket fromXContent(XContentParser parser) throws IOException {
-        return parseXContent(parser, false, ParsedQuadkeyGridBucket::new, (p, bucket) -> bucket.hashAsString = p.textOrNull());
+    @Override
+    public GeoPoint getKey() {
+        return GeoTileUtils.hashToGeoPoint(hashAsLong);
     }
 }

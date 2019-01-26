@@ -110,8 +110,8 @@ import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
-import org.elasticsearch.search.aggregations.bucket.geogrid.QuadkeyGridAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.geogrid.InternalQuadkeyGrid;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoTileGrid;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
@@ -424,8 +424,8 @@ public class SearchModule {
                 GeoDistanceAggregationBuilder::parse).addResultReader(InternalGeoDistance::new));
         registerAggregation(new AggregationSpec(GeoHashGridAggregationBuilder.NAME, GeoHashGridAggregationBuilder::new,
                 GeoHashGridAggregationBuilder::parse).addResultReader(InternalGeoHashGrid::new));
-        registerAggregation(new AggregationSpec(QuadkeyGridAggregationBuilder.NAME, QuadkeyGridAggregationBuilder::new,
-                QuadkeyGridAggregationBuilder::parse).addResultReader(InternalQuadkeyGrid::new));
+        registerAggregation(new AggregationSpec(GeoTileGridAggregationBuilder.NAME, GeoTileGridAggregationBuilder::new,
+                GeoTileGridAggregationBuilder::parse).addResultReader(InternalGeoTileGrid::new));
         registerAggregation(new AggregationSpec(NestedAggregationBuilder.NAME, NestedAggregationBuilder::new,
                 NestedAggregationBuilder::parse).addResultReader(InternalNested::new));
         registerAggregation(new AggregationSpec(ReverseNestedAggregationBuilder.NAME, ReverseNestedAggregationBuilder::new,

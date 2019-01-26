@@ -21,13 +21,13 @@ package org.elasticsearch.common.geo;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.common.geo.QuadkeyUtils.checkPrecisionRange;
-import static org.elasticsearch.common.geo.QuadkeyUtils.hashToGeoPoint;
-import static org.elasticsearch.common.geo.QuadkeyUtils.longEncode;
-import static org.elasticsearch.common.geo.QuadkeyUtils.stringEncode;
+import static org.elasticsearch.common.geo.GeoTileUtils.checkPrecisionRange;
+import static org.elasticsearch.common.geo.GeoTileUtils.hashToGeoPoint;
+import static org.elasticsearch.common.geo.GeoTileUtils.longEncode;
+import static org.elasticsearch.common.geo.GeoTileUtils.stringEncode;
 import static org.hamcrest.Matchers.containsString;
 
-public class QuadkeyUtilsTests extends ESTestCase {
+public class GeoTileUtilsTests extends ESTestCase {
 
     /**
      * Precision validation should throw an error if its outside of the valid range.
@@ -37,9 +37,9 @@ public class QuadkeyUtilsTests extends ESTestCase {
             assertEquals(i, checkPrecisionRange(i));
         }
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> checkPrecisionRange(-1));
-        assertThat(ex.getMessage(), containsString("Invalid quadkey precision of -1. Must be between 0 and 29."));
+        assertThat(ex.getMessage(), containsString("Invalid geotile_grid precision of -1. Must be between 0 and 29."));
         ex = expectThrows(IllegalArgumentException.class, () -> checkPrecisionRange(30));
-        assertThat(ex.getMessage(), containsString("Invalid quadkey precision of 30. Must be between 0 and 29."));
+        assertThat(ex.getMessage(), containsString("Invalid geotile_grid precision of 30. Must be between 0 and 29."));
     }
 
     /**
@@ -57,10 +57,10 @@ public class QuadkeyUtilsTests extends ESTestCase {
     }
 
     /**
-     * Ensure that for all points at all supported precision levels that the long encoding of a quadkey
+     * Ensure that for all points at all supported precision levels that the long encoding of a geotile
      * is compatible with its String based counterpart
      */
-    public void testQuadkeyAsLongRoutines() {
+    public void testGeoTileAsLongRoutines() {
         for (double lat=-90; lat<=90; lat++) {
             for (double lng=-180; lng<=180; lng++) {
                 for(int p=0; p<=29; p++) {

@@ -19,24 +19,24 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import static org.elasticsearch.common.geo.GeoTileUtils.MAX_ZOOM;
+import static org.elasticsearch.common.geo.GeoTileUtils.longEncode;
+import static org.elasticsearch.common.geo.GeoTileUtils.stringEncode;
 
-import java.io.IOException;
+public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<InternalGeoTileGridBucket> {
 
-public class ParsedQuadkeyGrid extends ParsedGeoGrid {
-
-    private static ObjectParser<ParsedGeoGrid, Void> PARSER = createParser(ParsedQuadkeyGrid::new,
-        ParsedQuadkeyGridBucket::fromXContent, ParsedQuadkeyGridBucket::fromXContent);
-
-    public static ParsedGeoGrid fromXContent(XContentParser parser, String name) throws IOException {
-        ParsedGeoGrid aggregation = PARSER.parse(parser, null);
-        aggregation.setName(name);
-        return aggregation;
+    @Override
+    protected int randomPrecision() {
+        return randomIntBetween(0, MAX_ZOOM);
     }
 
     @Override
-    public String getType() {
-        return QuadkeyGridAggregationBuilder.NAME;
+    protected String hashAsString(double lng, double lat, int precision) {
+        return stringEncode(longEncode(lng, lat, precision));
+    }
+
+    @Override
+    protected GeoGridAggregationBuilder createBuilder(String name) {
+        return new GeoTileGridAggregationBuilder(name);
     }
 }

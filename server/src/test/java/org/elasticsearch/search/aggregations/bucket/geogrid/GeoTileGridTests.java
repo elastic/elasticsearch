@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.QuadkeyUtils;
+import org.elasticsearch.common.geo.GeoTileUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -26,29 +26,29 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.geo.QuadkeyUtils.MAX_ZOOM;
+import static org.elasticsearch.common.geo.GeoTileUtils.MAX_ZOOM;
 
-public class QuadkeyGridTests extends GeoGridTestCase<InternalQuadkeyGridBucket, InternalQuadkeyGrid> {
+public class GeoTileGridTests extends GeoGridTestCase<InternalGeoTileGridBucket, InternalGeoTileGrid> {
 
     @Override
-    protected InternalQuadkeyGrid createInternalGeoGrid(String name, int size, List<InternalGeoGridBucket> buckets,
+    protected InternalGeoTileGrid createInternalGeoGrid(String name, int size, List<InternalGeoGridBucket> buckets,
                                                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalQuadkeyGrid(name, size, buckets, pipelineAggregators, metaData);
+        return new InternalGeoTileGrid(name, size, buckets, pipelineAggregators, metaData);
     }
 
     @Override
-    protected Writeable.Reader<InternalQuadkeyGrid> instanceReader() {
-        return InternalQuadkeyGrid::new;
+    protected Writeable.Reader<InternalGeoTileGrid> instanceReader() {
+        return InternalGeoTileGrid::new;
     }
 
     @Override
-    protected InternalQuadkeyGridBucket createInternalGeoGridBucket(Long key, long docCount, InternalAggregations aggregations) {
-        return new InternalQuadkeyGridBucket(key, docCount, aggregations);
+    protected InternalGeoTileGridBucket createInternalGeoGridBucket(Long key, long docCount, InternalAggregations aggregations) {
+        return new InternalGeoTileGridBucket(key, docCount, aggregations);
     }
 
     @Override
     protected long longEncode(double lng, double lat, int precision) {
-        return QuadkeyUtils.longEncode(lng, lat, precision);
+        return GeoTileUtils.longEncode(lng, lat, precision);
     }
 
     @Override

@@ -40,7 +40,7 @@ public interface RetentionLeaseSyncer {
      * @param retentionLeases the retention leases to sync
      * @param listener        the callback when sync completes
      */
-    void updateRetentionLeasesForShard(
+    void syncRetentionLeasesForShard(
             ShardId shardId,
             Collection<RetentionLease> retentionLeases,
             ActionListener<ReplicationResponse> listener);

@@ -403,7 +403,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     searchOperationListeners,
                     indexingOperationListeners,
                     () -> globalCheckpointSyncer.accept(shardId),
-                    (retentionLeases, listener) -> retentionLeaseSyncer.updateRetentionLeasesForShard(shardId, retentionLeases, listener),
+                    (retentionLeases, listener) -> retentionLeaseSyncer.syncRetentionLeasesForShard(shardId, retentionLeases, listener),
                     circuitBreakerService);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

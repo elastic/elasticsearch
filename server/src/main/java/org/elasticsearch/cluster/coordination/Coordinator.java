@@ -144,6 +144,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                        ClusterApplier clusterApplier, Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, Random random) {
 
         if (ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(settings)) {
+            // NOCOMMIT we are not going to do this in the finished PR, but we want to be sure that we've caught all places that still
+            // set this setting first
             throw new IllegalArgumentException("node setting [" + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()
                 + "] is not permitted and must be removed before starting this node");
         }

@@ -42,12 +42,12 @@ import java.util.Objects;
 /**
  * A {@link FieldMapper} that exposes Lucene's {@link FeatureField}.
  */
-public class FeatureFieldMapper extends FieldMapper {
+public class RankFeatureFieldMapper extends FieldMapper {
 
-    public static final String CONTENT_TYPE = "feature";
+    public static final String CONTENT_TYPE = "rank_feature";
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new FeatureFieldType();
+        public static final MappedFieldType FIELD_TYPE = new RankFeatureFieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
@@ -58,7 +58,7 @@ public class FeatureFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, FeatureFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder, RankFeatureFieldMapper> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -66,8 +66,8 @@ public class FeatureFieldMapper extends FieldMapper {
         }
 
         @Override
-        public FeatureFieldType fieldType() {
-            return (FeatureFieldType) super.fieldType();
+        public RankFeatureFieldType fieldType() {
+            return (RankFeatureFieldType) super.fieldType();
         }
 
         public Builder positiveScoreImpact(boolean v) {
@@ -76,9 +76,9 @@ public class FeatureFieldMapper extends FieldMapper {
         }
 
         @Override
-        public FeatureFieldMapper build(BuilderContext context) {
+        public RankFeatureFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            return new FeatureFieldMapper(
+            return new RankFeatureFieldMapper(
                     name, fieldType, defaultFieldType,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
@@ -87,7 +87,7 @@ public class FeatureFieldMapper extends FieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            FeatureFieldMapper.Builder builder = new FeatureFieldMapper.Builder(name);
+            RankFeatureFieldMapper.Builder builder = new RankFeatureFieldMapper.Builder(name);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = entry.getKey();
@@ -101,22 +101,22 @@ public class FeatureFieldMapper extends FieldMapper {
         }
     }
 
-    public static final class FeatureFieldType extends MappedFieldType {
+    public static final class RankFeatureFieldType extends MappedFieldType {
 
         private boolean positiveScoreImpact = true;
 
-        public FeatureFieldType() {
+        public RankFeatureFieldType() {
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
-        protected FeatureFieldType(FeatureFieldType ref) {
+        protected RankFeatureFieldType(RankFeatureFieldType ref) {
             super(ref);
             this.positiveScoreImpact = ref.positiveScoreImpact;
         }
 
-        public FeatureFieldType clone() {
-            return new FeatureFieldType(this);
+        public RankFeatureFieldType clone() {
+            return new RankFeatureFieldType(this);
         }
 
         @Override
@@ -124,7 +124,7 @@ public class FeatureFieldMapper extends FieldMapper {
             if (super.equals(o) == false) {
                 return false;
             }
-            FeatureFieldType other = (FeatureFieldType) o;
+            RankFeatureFieldType other = (RankFeatureFieldType) o;
             return Objects.equals(positiveScoreImpact, other.positiveScoreImpact);
         }
 
@@ -138,7 +138,7 @@ public class FeatureFieldMapper extends FieldMapper {
         @Override
         public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
             super.checkCompatibility(other, conflicts);
-            if (positiveScoreImpact != ((FeatureFieldType) other).positiveScoreImpact()) {
+            if (positiveScoreImpact != ((RankFeatureFieldType) other).positiveScoreImpact()) {
                 conflicts.add("mapper [" + name() + "] has different [positive_score_impact] values");
             }
         }
@@ -164,29 +164,29 @@ public class FeatureFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            throw new UnsupportedOperationException("[feature] fields do not support sorting, scripting or aggregating");
+            throw new UnsupportedOperationException("[rank_feature] fields do not support sorting, scripting or aggregating");
         }
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new UnsupportedOperationException("Queries on [feature] fields are not supported");
+            throw new UnsupportedOperationException("Queries on [rank_feature] fields are not supported");
         }
     }
 
-    private FeatureFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+    private RankFeatureFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
     }
 
     @Override
-    protected FeatureFieldMapper clone() {
-        return (FeatureFieldMapper) super.clone();
+    protected RankFeatureFieldMapper clone() {
+        return (RankFeatureFieldMapper) super.clone();
     }
 
     @Override
-    public FeatureFieldType fieldType() {
-        return (FeatureFieldType) super.fieldType();
+    public RankFeatureFieldType fieldType() {
+        return (RankFeatureFieldType) super.fieldType();
     }
 
     @Override
@@ -207,8 +207,8 @@ public class FeatureFieldMapper extends FieldMapper {
         }
 
         if (context.doc().getByKey(name()) != null) {
-            throw new IllegalArgumentException("[feature] fields do not support indexing multiple values for the same field [" + name() +
-                    "] in the same document");
+            throw new IllegalArgumentException("[rank_feature] fields do not support indexing multiple values for the same field [" +
+                name() + "] in the same document");
         }
 
         if (fieldType().positiveScoreImpact() == false) {

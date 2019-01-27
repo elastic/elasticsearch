@@ -165,6 +165,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
     private final Map<String, RetentionLease> retentionLeases = new HashMap<>();
 
+    private Collection<RetentionLease> copyRetentionLeases() {
+        assert Thread.holdsLock(this);
+        return Collections.unmodifiableCollection(new ArrayList<>(retentionLeases.values()));
+    }
+
     /**
      * Get all non-expired retention leases tracked on this shard. An unmodifiable copy of the retention leases is returned.
      *
@@ -208,9 +213,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             }
             retentionLease = new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source);
             retentionLeases.put(id, retentionLease);
-            currentRetentionLeases = retentionLeases.values();
+            currentRetentionLeases = copyRetentionLeases();
         }
-        onNewRetentionLease.accept(Collections.unmodifiableCollection(new ArrayList<>(currentRetentionLeases)), listener);
+        onNewRetentionLease.accept(currentRetentionLeases, listener);
         return retentionLease;
     }
 

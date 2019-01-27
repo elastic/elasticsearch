@@ -359,9 +359,7 @@ class ClusterFormationTasks {
         if (node.nodeVersion.before("7.0.0") && minimumMasterNodes > 0) {
             esConfig['discovery.zen.minimum_master_nodes'] = minimumMasterNodes
         }
-        if (node.config.numNodes > 1) {
-            esConfig['discovery.initial_state_timeout'] = '0s'
-        }
+        esConfig['discovery.initial_state_timeout'] = '0s'
         if (esConfig.containsKey('discovery.zen.master_election.wait_for_joins_timeout') == false) {
             // If a node decides to become master based on partial information from the pinging, don't let it hang for 30 seconds to correct
             // its mistake. Instead, only wait 5s to do another round of pinging.

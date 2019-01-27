@@ -1,8 +1,8 @@
-[[query-dsl-feature-query]]
-=== Feature Query
+[[query-dsl-rank-feature-query]]
+=== Rank Feature Query
 
-The `feature` query is a specialized query that only works on
-<<feature,`feature`>> fields and <<feature-vector,`feature_vector`>> fields.
+The `rank_feature` query is a specialized query that only works on
+<<rank-feature,`rank_feature`>> fields and <<rank-features,`rank_features`>> fields.
 Its goal is to boost the score of documents based on the values of numeric
 features. It is typically put in a `should` clause of a
 <<query-dsl-bool-query,`bool`>> query so that its score is added to the score
@@ -11,7 +11,7 @@ of the query.
 Compared to using <<query-dsl-function-score-query,`function_score`>> or other
 ways to modify the score, this query has the benefit of being able to
 efficiently skip non-competitive hits when
-<<search-uri-request,`track_total_hits`>> is set to `false`. Speedups may be
+<<search-uri-request,`track_total_hits`>> is not set to `true`. Speedups may be
 spectacular.
 
 Here is an example that indexes various features:
@@ -32,14 +32,14 @@ PUT test
   "mappings": {
     "properties": {
       "pagerank": {
-        "type": "feature"
+        "type": "rank_feature"
       },
       "url_length": {
-        "type": "feature",
+        "type": "rank_feature",
         "positive_score_impact": false
       },
       "topics": {
-        "type": "feature_vector"
+        "type": "rank_features"
       }
     }
   }
@@ -97,18 +97,18 @@ GET test/_search
       ],
       "should": [
         {
-          "feature": {
+          "rank_feature": {
             "field": "pagerank"
           }
         },
         {
-          "feature": {
+          "rank_feature": {
             "field": "url_length",
             "boost": 0.1
           }
         },
         {
-          "feature": {
+          "rank_feature": {
             "field": "topics.sports",
             "boost": 0.4
           }
@@ -123,8 +123,8 @@ GET test/_search
 [float]
 === Supported functions
 
-The `feature` query supports 3 functions in order to boost scores using the
-values of features. If you do not know where to start, we recommend that you
+The `rank_feature` query supports 3 functions in order to boost scores using the
+values of rank features. If you do not know where to start, we recommend that you
 start with the `saturation` function, which is the default when no function is
 provided.
 
@@ -132,11 +132,11 @@ provided.
 ==== Saturation
 
 This function gives a score that is equal to `S / (S + pivot)` where `S` is the
-value of the feature and `pivot` is a configurable pivot value so that the
+value of the rank feature and `pivot` is a configurable pivot value so that the
 result will be less than +0.5+ if `S` is less than pivot and greater than +0.5+
 otherwise. Scores are always is +(0, 1)+.
 
-If the feature has a negative score impact then the function will be computed as
+If the rank feature has a negative score impact then the function will be computed as
 `pivot / (S + pivot)`, which decreases when `S` increases.
 
 [source,js]
@@ -144,7 +144,7 @@ If the feature has a negative score impact then the function will be computed as
 GET test/_search
 {
   "query": {
-    "feature": {
+    "rank_feature": {
       "field": "pagerank",
       "saturation": {
         "pivot": 8
@@ -166,7 +166,7 @@ train a good pivot value.
 GET test/_search
 {
   "query": {
-    "feature": {
+    "rank_feature": {
       "field": "pagerank",
       "saturation": {}
     }
@@ -180,17 +180,17 @@ GET test/_search
 ==== Logarithm
 
 This function gives a score that is equal to `log(scaling_factor + S)` where
-`S` is the value of the feature and `scaling_factor` is a configurable scaling
+`S` is the value of the rank feature and `scaling_factor` is a configurable scaling
 factor. Scores are unbounded.
 
-This function only supports features that have a positive score impact.
+This function only supports rank features that have a positive score impact.
 
 [source,js]
 --------------------------------------------------
 GET test/_search
 {
   "query": {
-    "feature": {
+    "rank_feature": {
       "field": "pagerank",
       "log": {
         "scaling_factor": 4
@@ -219,7 +219,7 @@ that you stick to the `saturation` function instead.
 GET test/_search
 {
   "query": {
-    "feature": {
+    "rank_feature": {
       "field": "pagerank",
       "sigmoid": {
         "pivot": 7,

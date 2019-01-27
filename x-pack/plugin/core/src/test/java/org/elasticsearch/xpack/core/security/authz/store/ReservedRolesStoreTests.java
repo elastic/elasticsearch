@@ -49,14 +49,21 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
+import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
+import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
+import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
+import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -65,24 +72,32 @@ import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
+import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
+import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
+import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
@@ -815,14 +830,21 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         Role role = Role.builder(roleDescriptor, null).build();
         assertThat(role.cluster().check(CloseJobAction.NAME, request), is(true));
+        assertThat(role.cluster().check(DeleteCalendarAction.NAME, request), is(true));
+        assertThat(role.cluster().check(DeleteCalendarEventAction.NAME, request), is(true));
         assertThat(role.cluster().check(DeleteDatafeedAction.NAME, request), is(true));
         assertThat(role.cluster().check(DeleteExpiredDataAction.NAME, request), is(true));
         assertThat(role.cluster().check(DeleteFilterAction.NAME, request), is(true));
+        assertThat(role.cluster().check(DeleteForecastAction.NAME, request), is(true));
         assertThat(role.cluster().check(DeleteJobAction.NAME, request), is(true));
         assertThat(role.cluster().check(DeleteModelSnapshotAction.NAME, request), is(true));
         assertThat(role.cluster().check(FinalizeJobExecutionAction.NAME, request), is(false)); // internal use only
+        assertThat(role.cluster().check(FindFileStructureAction.NAME, request), is(true));
         assertThat(role.cluster().check(FlushJobAction.NAME, request), is(true));
+        assertThat(role.cluster().check(ForecastJobAction.NAME, request), is(true));
         assertThat(role.cluster().check(GetBucketsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetCalendarEventsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetCalendarsAction.NAME, request), is(true));
         assertThat(role.cluster().check(GetCategoriesAction.NAME, request), is(true));
         assertThat(role.cluster().check(GetDatafeedsAction.NAME, request), is(true));
         assertThat(role.cluster().check(GetDatafeedsStatsAction.NAME, request), is(true));
@@ -831,19 +853,26 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(GetJobsAction.NAME, request), is(true));
         assertThat(role.cluster().check(GetJobsStatsAction.NAME, request), is(true));
         assertThat(role.cluster().check(GetModelSnapshotsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetOverallBucketsAction.NAME, request), is(true));
         assertThat(role.cluster().check(GetRecordsAction.NAME, request), is(true));
         assertThat(role.cluster().check(IsolateDatafeedAction.NAME, request), is(false)); // internal use only
         assertThat(role.cluster().check(KillProcessAction.NAME, request), is(false)); // internal use only
+        assertThat(role.cluster().check(MlInfoAction.NAME, request), is(true));
         assertThat(role.cluster().check(OpenJobAction.NAME, request), is(true));
+        assertThat(role.cluster().check(PersistJobAction.NAME, request), is(true));
+        assertThat(role.cluster().check(PostCalendarEventsAction.NAME, request), is(true));
         assertThat(role.cluster().check(PostDataAction.NAME, request), is(true));
         assertThat(role.cluster().check(PreviewDatafeedAction.NAME, request), is(true));
+        assertThat(role.cluster().check(PutCalendarAction.NAME, request), is(true));
         assertThat(role.cluster().check(PutDatafeedAction.NAME, request), is(true));
         assertThat(role.cluster().check(PutFilterAction.NAME, request), is(true));
         assertThat(role.cluster().check(PutJobAction.NAME, request), is(true));
         assertThat(role.cluster().check(RevertModelSnapshotAction.NAME, request), is(true));
         assertThat(role.cluster().check(StartDatafeedAction.NAME, request), is(true));
         assertThat(role.cluster().check(StopDatafeedAction.NAME, request), is(true));
+        assertThat(role.cluster().check(UpdateCalendarJobAction.NAME, request), is(true));
         assertThat(role.cluster().check(UpdateDatafeedAction.NAME, request), is(true));
+        assertThat(role.cluster().check(UpdateFilterAction.NAME, request), is(true));
         assertThat(role.cluster().check(UpdateJobAction.NAME, request), is(true));
         assertThat(role.cluster().check(UpdateModelSnapshotAction.NAME, request), is(true));
         assertThat(role.cluster().check(UpdateProcessAction.NAME, request), is(false)); // internal use only
@@ -852,10 +881,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
         assertNoAccessAllowed(role, "foo");
+        assertNoAccessAllowed(role, AnomalyDetectorsIndexFields.CONFIG_INDEX); // internal use only
         assertOnlyReadAllowed(role, MlMetaIndex.INDEX_NAME);
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
         assertOnlyReadAllowed(role, AuditorField.NOTIFICATIONS_INDEX);
+        assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.INDEX_NAME);
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.NAMES_SET);
     }
@@ -869,14 +900,21 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         Role role = Role.builder(roleDescriptor, null).build();
         assertThat(role.cluster().check(CloseJobAction.NAME, request), is(false));
+        assertThat(role.cluster().check(DeleteCalendarAction.NAME, request), is(false));
+        assertThat(role.cluster().check(DeleteCalendarEventAction.NAME, request), is(false));
         assertThat(role.cluster().check(DeleteDatafeedAction.NAME, request), is(false));
         assertThat(role.cluster().check(DeleteExpiredDataAction.NAME, request), is(false));
         assertThat(role.cluster().check(DeleteFilterAction.NAME, request), is(false));
+        assertThat(role.cluster().check(DeleteForecastAction.NAME, request), is(false));
         assertThat(role.cluster().check(DeleteJobAction.NAME, request), is(false));
         assertThat(role.cluster().check(DeleteModelSnapshotAction.NAME, request), is(false));
         assertThat(role.cluster().check(FinalizeJobExecutionAction.NAME, request), is(false));
+        assertThat(role.cluster().check(FindFileStructureAction.NAME, request), is(true));
         assertThat(role.cluster().check(FlushJobAction.NAME, request), is(false));
+        assertThat(role.cluster().check(ForecastJobAction.NAME, request), is(false));
         assertThat(role.cluster().check(GetBucketsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetCalendarEventsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetCalendarsAction.NAME, request), is(true));
         assertThat(role.cluster().check(GetCategoriesAction.NAME, request), is(true));
         assertThat(role.cluster().check(GetDatafeedsAction.NAME, request), is(true));
         assertThat(role.cluster().check(GetDatafeedsStatsAction.NAME, request), is(true));
@@ -885,19 +923,26 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(GetJobsAction.NAME, request), is(true));
         assertThat(role.cluster().check(GetJobsStatsAction.NAME, request), is(true));
         assertThat(role.cluster().check(GetModelSnapshotsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetOverallBucketsAction.NAME, request), is(true));
         assertThat(role.cluster().check(GetRecordsAction.NAME, request), is(true));
         assertThat(role.cluster().check(IsolateDatafeedAction.NAME, request), is(false));
         assertThat(role.cluster().check(KillProcessAction.NAME, request), is(false));
+        assertThat(role.cluster().check(MlInfoAction.NAME, request), is(true));
         assertThat(role.cluster().check(OpenJobAction.NAME, request), is(false));
+        assertThat(role.cluster().check(PersistJobAction.NAME, request), is(false));
+        assertThat(role.cluster().check(PostCalendarEventsAction.NAME, request), is(false));
         assertThat(role.cluster().check(PostDataAction.NAME, request), is(false));
         assertThat(role.cluster().check(PreviewDatafeedAction.NAME, request), is(false));
+        assertThat(role.cluster().check(PutCalendarAction.NAME, request), is(false));
         assertThat(role.cluster().check(PutDatafeedAction.NAME, request), is(false));
         assertThat(role.cluster().check(PutFilterAction.NAME, request), is(false));
         assertThat(role.cluster().check(PutJobAction.NAME, request), is(false));
         assertThat(role.cluster().check(RevertModelSnapshotAction.NAME, request), is(false));
         assertThat(role.cluster().check(StartDatafeedAction.NAME, request), is(false));
         assertThat(role.cluster().check(StopDatafeedAction.NAME, request), is(false));
+        assertThat(role.cluster().check(UpdateCalendarJobAction.NAME, request), is(false));
         assertThat(role.cluster().check(UpdateDatafeedAction.NAME, request), is(false));
+        assertThat(role.cluster().check(UpdateFilterAction.NAME, request), is(false));
         assertThat(role.cluster().check(UpdateJobAction.NAME, request), is(false));
         assertThat(role.cluster().check(UpdateModelSnapshotAction.NAME, request), is(false));
         assertThat(role.cluster().check(UpdateProcessAction.NAME, request), is(false));
@@ -906,10 +951,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
         assertNoAccessAllowed(role, "foo");
+        assertNoAccessAllowed(role, AnomalyDetectorsIndexFields.CONFIG_INDEX);
         assertNoAccessAllowed(role, MlMetaIndex.INDEX_NAME);
         assertNoAccessAllowed(role, AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
         assertOnlyReadAllowed(role, AuditorField.NOTIFICATIONS_INDEX);
+        assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.INDEX_NAME);
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.NAMES_SET);
     }
@@ -971,6 +1018,16 @@ public class ReservedRolesStoreTests extends ESTestCase {
         }
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.NAMES_SET);
+    }
+
+    private void assertReadWriteDocsButNotDeleteIndexAllowed(Role role, String index) {
+        assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(UpdateAction.NAME).test(index), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(index), is(true));
     }
 
     private void assertOnlyReadAllowed(Role role, String index) {

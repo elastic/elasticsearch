@@ -663,6 +663,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 Collections.emptyList(),
                 Arrays.asList(listeners),
                 () -> {},
+                (leases, listener) -> {},
                 cbs);
     }
 

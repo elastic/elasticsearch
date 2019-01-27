@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,6 +38,7 @@ import org.elasticsearch.tasks.TaskId;
 import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.index.VersionType.EXTERNAL;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
 /**
@@ -104,7 +106,14 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             if (destination.version() != Versions.MATCH_ANY && destination.version() != Versions.MATCH_DELETED) {
                 e = addValidationError("unsupported version for internal versioning [" + destination.version() + ']', e);
             }
+        } else {
+            if (destination.opType() == DocWriteRequest.OpType.CREATE) {
+                e = addValidationError("create operations only support internal versioning. use index instead",
+                    e);
+                return e;
+            }
         }
+
         if (getRemoteInfo() != null) {
             if (getSearchRequest().source().query() != null) {
                 e = addValidationError("reindex from remote sources should use RemoteInfo's query instead of source's query", e);

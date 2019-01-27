@@ -136,7 +136,8 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("user_d", "GET", "/_nodes/hot_threads");
         assertAccessIsDenied("user_d", "GET", "/_nodes/infos");
         assertAccessIsDenied("user_d", "POST", "/_cluster/reroute");
-        assertAccessIsDenied("user_d", "PUT", "/_cluster/settings", "{ \"transient\" : { \"search.default_search_timeout\": \"1m\" } }");    }
+        assertAccessIsDenied("user_d", "PUT", "/_cluster/settings", "{ \"transient\" : { \"search.default_search_timeout\": \"1m\" } }");
+    }
 
     public void testThatSnapshotAndRestore() throws Exception {
         String repoJson = Strings.toString(jsonBuilder().startObject().field("type", "fs").startObject("settings").field("location",

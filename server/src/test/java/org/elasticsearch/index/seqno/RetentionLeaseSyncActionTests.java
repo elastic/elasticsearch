@@ -70,8 +70,13 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         threadPool = new TestThreadPool(getClass().getName());
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
-        transportService = transport.createCapturingTransportService(clusterService.getSettings(), threadPool,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR,  boundAddress -> clusterService.localNode(), null, Collections.emptySet());
+        transportService = transport.createCapturingTransportService(
+                clusterService.getSettings(),
+                threadPool,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                boundAddress -> clusterService.localNode(),
+                null,
+                Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
         shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);

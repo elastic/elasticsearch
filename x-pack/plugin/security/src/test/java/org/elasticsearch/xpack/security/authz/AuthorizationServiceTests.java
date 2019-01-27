@@ -246,8 +246,15 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         // A failure would throw an exception
         final Authentication authentication = createAuthentication(SystemUser.INSTANCE);
-        final String[] actions = { "indices:monitor/whatever", "internal:whatever", "cluster:monitor/whatever", "cluster:admin/reroute",
-                "indices:admin/mapping/put", "indices:admin/template/put", "indices:admin/seq_no/global_checkpoint_sync",
+        final String[] actions = {
+                "indices:monitor/whatever",
+                "internal:whatever",
+                "cluster:monitor/whatever",
+                "cluster:admin/reroute",
+                "indices:admin/mapping/put",
+                "indices:admin/template/put",
+                "indices:admin/seq_no/global_checkpoint_sync",
+                "indices:admin/seq_no/retention_lease_sync",
                 "indices:admin/settings/update" };
         for (String action : actions) {
             authorize(authentication, action, request);

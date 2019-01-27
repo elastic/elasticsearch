@@ -745,7 +745,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
             }
             return ua;
-        };
+        }
     }
 
     // to avoid creating duplicate functions
@@ -920,7 +920,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             }
             return p;
         }
-    };
+    }
 
     //
     // Handle aggs in HAVING. To help folding any aggs not found in Aggregation

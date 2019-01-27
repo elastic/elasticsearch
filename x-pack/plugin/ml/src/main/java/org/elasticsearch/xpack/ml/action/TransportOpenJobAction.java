@@ -49,7 +49,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
@@ -459,17 +458,9 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             );
 
             // Tell the job tracker to refresh the memory requirement for this job and all other jobs that have persistent tasks
-            ActionListener<Boolean> jobUpdateListener = ActionListener.wrap(
+            ActionListener<Boolean> getJobHandler = ActionListener.wrap(
                 response -> memoryTracker.refreshJobMemoryAndAllOthers(jobParams.getJobId(), memoryRequirementRefreshListener),
                 listener::onFailure
-            );
-
-            // Try adding state doc mapping
-            ActionListener<Void> getJobHandler = ActionListener.wrap(
-                    response -> {
-                        ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
-                                ElasticsearchMappings::stateMapping, client, state, jobUpdateListener);
-                    }, listener::onFailure
             );
 
             // Get the job config

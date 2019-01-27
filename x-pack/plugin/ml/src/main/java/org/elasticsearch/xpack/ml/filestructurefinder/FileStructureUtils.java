@@ -353,7 +353,7 @@ public final class FileStructureUtils {
             if (needClientTimezone) {
                 dateProcessorSettings.put("timezone", "{{ " + BEAT_TIMEZONE_FIELD + " }}");
             }
-            dateProcessorSettings.put("formats", timestampFormats);
+            dateProcessorSettings.put("formats", jodaBwcJavaTimestampFormatsForIngestPipeline(timestampFormats));
             processors.add(Collections.singletonMap("date", dateProcessorSettings));
         }
 
@@ -364,5 +364,20 @@ public final class FileStructureUtils {
 
         pipeline.put(Pipeline.PROCESSORS_KEY, processors);
         return pipeline;
+    }
+
+    // TODO: remove this method when Java time formats are the default
+    static List<String> jodaBwcJavaTimestampFormatsForIngestPipeline(List<String> javaTimestampFormats) {
+        return javaTimestampFormats.stream().map(format -> {
+            switch (format) {
+                case "ISO8601":
+                case "UNIX_MS":
+                case "UNIX":
+                case "TAI64N":
+                    return format;
+                default:
+                    return "8" + format;
+            }
+        }).collect(Collectors.toList());
     }
 }

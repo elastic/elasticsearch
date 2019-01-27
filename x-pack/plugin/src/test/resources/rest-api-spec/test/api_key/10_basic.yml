@@ -74,6 +74,58 @@ teardown:
   - match: { authentication_realm.type: "_es_api_key" }
 
 ---
+"Test get api key":
+  - skip:
+      features: transform_and_set
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk"
+      security.create_api_key:
+        body:  >
+            {
+              "name": "my-api-key",
+              "expiration": "1d",
+              "role_descriptors": {
+                "role-a": {
+                  "cluster": ["all"],
+                  "index": [
+                    {
+                      "names": ["index-a"],
+                      "privileges": ["read"]
+                    }
+                  ]
+                },
+                "role-b": {
+                  "cluster": ["manage"],
+                  "index": [
+                    {
+                      "names": ["index-b"],
+                      "privileges": ["all"]
+                    }
+                  ]
+                }
+              }
+            }
+  - match: { name: "my-api-key" }
+  - is_true: id
+  - is_true: api_key
+  - is_true: expiration
+  - set: { id: api_key_id }
+  - set: { name: api_key_name }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk"
+      security.get_api_key:
+        id: "$api_key_id"
+  - match: { "api_keys.0.id": "$api_key_id" }
+  - match: { "api_keys.0.name": "$api_key_name" }
+  - match: { "api_keys.0.username": "api_key_user" }
+  - match: { "api_keys.0.invalidated": false }
+  - is_true: "api_keys.0.creation"
+
+---
 "Test invalidate api key":
   - skip:
       features: transform_and_set

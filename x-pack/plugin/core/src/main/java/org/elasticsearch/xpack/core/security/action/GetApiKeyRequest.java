@@ -39,7 +39,7 @@ public final class GetApiKeyRequest extends ActionRequest {
         apiKeyName = in.readOptionalString();
     }
 
-    private GetApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
+    public GetApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
             @Nullable String apiKeyName) {
         this.realmName = realmName;
         this.userName = userName;

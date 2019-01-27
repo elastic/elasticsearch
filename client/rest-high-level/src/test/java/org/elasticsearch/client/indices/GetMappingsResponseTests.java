@@ -19,13 +19,11 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.test.ESTestCase;
@@ -43,30 +41,31 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 public class GetMappingsResponseTests extends ESTestCase {
 
     // Because the client-side class does not have a toXContent method, we test xContent serialization by creating
-    // a random server object, serializing it to xContent, then parsing it back as a client object. We check
-    // equality by converting the parsed client object to a server one, and comparing it to the original.
+    // a random client object, converting it to a server object then serializing it to xContent, and finally
+    // parsing it back as a client object. We check equality between the original client object, and the parsed one.
     public void testFromXContent() throws IOException {
         xContentTester(
             this::createParser,
             GetMappingsResponseTests::createTestInstance,
             GetMappingsResponseTests::toXContent,
-            GetMappingsResponseTests::fromXContent)
+            GetMappingsResponse::fromXContent)
             .supportsUnknownFields(true)
-            .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
+            .assertEqualsConsumer(GetMappingsResponseTests::assertEqualInstances)
+            .randomFieldsExcludeFilter(randomFieldsExcludeFilter())
             .test();
     }
 
     private static GetMappingsResponse createTestInstance() {
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
-        mappings.put(MapperService.SINGLE_MAPPING_NAME, randomMappingMetaData());
-
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> allMappings = ImmutableOpenMap.builder();
-        allMappings.put("index-" + randomAlphaOfLength(5), mappings.build());
-
-        return new GetMappingsResponse(allMappings.build());
+        Map<String, MappingMetaData> mappings = Collections.singletonMap(
+            "index-" + randomAlphaOfLength(5), randomMappingMetaData());
+        return new GetMappingsResponse(mappings);
     }
 
-    private Predicate<String> getRandomFieldsExcludeFilter() {
+    private static void assertEqualInstances(GetMappingsResponse expected, GetMappingsResponse actual) {
+        assertEquals(expected.mappings(), actual.mappings());
+    }
+
+    private Predicate<String> randomFieldsExcludeFilter() {
         return field -> !field.equals(MAPPINGS.getPreferredName());
     }
 
@@ -103,17 +102,6 @@ public class GetMappingsResponseTests extends ESTestCase {
     private static void toXContent(GetMappingsResponse response, XContentBuilder builder) throws IOException {
         Params params = new ToXContent.MapParams(
             Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "false"));
-
-        builder.startObject();
-        response.toXContent(builder, params);
-        builder.endObject();
-    }
-
-    private static GetMappingsResponse fromXContent(
-            XContentParser parser) throws IOException {
-        org.elasticsearch.client.indices.GetMappingsResponse response =
-            org.elasticsearch.client.indices.GetMappingsResponse.fromXContent(parser);
-
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> allMappings = ImmutableOpenMap.builder();
 
         for (Map.Entry<String, MappingMetaData> indexEntry : response.mappings().entrySet()) {
@@ -122,6 +110,11 @@ public class GetMappingsResponseTests extends ESTestCase {
             allMappings.put(indexEntry.getKey(), mappings.build());
         }
 
-        return new GetMappingsResponse(allMappings.build());
+        org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse serverResponse =
+            new org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse(allMappings.build());
+
+        builder.startObject();
+        serverResponse.toXContent(builder, params);
+        builder.endObject();
     }
 }

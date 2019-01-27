@@ -42,8 +42,10 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 public class RetentionLeaseSyncIT extends ESIntegTestCase  {
 
@@ -125,9 +127,19 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
             final RetentionLease currentRetentionLease = primary.addRetentionLease(id, retainingSequenceNumber, source, listener);
             final long now = System.nanoTime();
             latch.await();
-            final long later = System.nanoTime();
+
+            // check current retention leases have been synced to all replicas
+            for (final ShardRouting replicaShard : clusterService().state().routingTable().index("index").shard(0).replicaShards()) {
+                final String replicaShardNodeId = replicaShard.currentNodeId();
+                final String replicaShardNodeName = clusterService().state().nodes().get(replicaShardNodeId).getName();
+                final IndexShard replica = internalCluster()
+                        .getInstance(IndicesService.class, replicaShardNodeName)
+                        .getShardOrNull(new ShardId(resolveIndex("index"), 0));
+                assertThat(replica.getRetentionLeases(), hasItem(currentRetentionLease));
+            }
 
             // sleep long enough that *possibly* the current retention lease has expired, and certainly that any previous have
+            final long later = System.nanoTime();
             Thread.sleep(Math.max(0, retentionLeaseTimeToLive.millis() - TimeUnit.NANOSECONDS.toMillis(later - now)));
             final Collection<RetentionLease> currentRetentionLeases = primary.getRetentionLeases();
             assertThat(currentRetentionLeases, anyOf(empty(), contains(currentRetentionLease)));

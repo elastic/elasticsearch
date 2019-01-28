@@ -9,7 +9,8 @@ not exceed 500. The number of dimensions can be
 different across documents. A `dense_vector` field is
 a single-valued field.
 
-These vectors can be used for document scoring.
+These vectors can be used for
+{ref}/query-dsl-script-score-query.html#vector-functions[document scoring].
 For example, a document score can represent a distance between
 a given query vector and the indexed document vector.
 

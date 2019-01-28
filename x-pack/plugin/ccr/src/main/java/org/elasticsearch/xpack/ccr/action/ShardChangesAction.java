@@ -6,8 +6,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.MissingHistoryOperationsException;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
@@ -34,9 +34,9 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ccr.Ccr;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -392,21 +392,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             }
         }
 
-        @Override
-        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            ActionListener<Response> wrappedListener = ActionListener.wrap(listener::onResponse, e -> {
-                Throwable cause = ExceptionsHelper.unwrapCause(e);
-                if (cause instanceof IllegalStateException && cause.getMessage().contains("Not all operations between from_seqno [")) {
-                    String message = "Operations are no longer available for replicating. Maybe increase the retention setting [" +
-                        IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey() + "]?";
-                    listener.onFailure(new ElasticsearchException(message, e));
-                } else {
-                    listener.onFailure(e);
-                }
-            });
-            super.doExecute(task, request, wrappedListener);
-        }
-
         private void globalCheckpointAdvanced(
                 final ShardId shardId,
                 final long globalCheckpoint,
@@ -525,6 +510,14 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                     break;
                 }
             }
+        } catch (MissingHistoryOperationsException e) {
+            String message = "Operations are no longer available for replicating. Maybe increase the retention setting [" +
+                IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey() + "]?";
+            // Make it easy to detect this error in ShardFollowNodeTask:
+            // (adding a metadata header instead of introducing a new exception that extends ElasticsearchException)
+            ResourceNotFoundException wrapper = new ResourceNotFoundException(message, e);
+            wrapper.addMetadata(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY, Long.toString(fromSeqNo), Long.toString(toSeqNo));
+            throw wrapper;
         }
         return operations.toArray(EMPTY_OPERATIONS_ARRAY);
     }

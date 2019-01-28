@@ -398,7 +398,7 @@ public class RestClient implements Closeable {
         /*
          * Sort the nodes into living and dead lists.
          */
-        List<Node> livingNodes = new ArrayList<>(nodeTuple.nodes.size() - blacklist.size());
+        List<Node> livingNodes = new ArrayList<>(Math.max(0, nodeTuple.nodes.size() - blacklist.size()));
         List<DeadNode> deadNodes = new ArrayList<>(blacklist.size());
         for (Node node : nodeTuple.nodes) {
             DeadHostState deadness = blacklist.get(node.getHost());

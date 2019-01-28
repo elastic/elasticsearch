@@ -22,9 +22,11 @@ package org.elasticsearch.upgrades;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedFunction;
@@ -85,7 +87,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         index = getTestName().toLowerCase(Locale.ROOT);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37920")
     public void testSearch() throws Exception {
         int count;
         if (isRunningAgainstOldCluster()) {
@@ -124,6 +125,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.endObject();
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+            RequestOptions.Builder options = createIndex.getOptions().toBuilder();
+            options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+            createIndex.setOptions(options);
             client().performRequest(createIndex);
 
             count = randomIntBetween(2000, 3000);
@@ -153,7 +157,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertStoredBinaryFields(count);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37920")
     public void testNewReplicasWork() throws Exception {
         if (isRunningAgainstOldCluster()) {
             XContentBuilder mappingsAndSettings = jsonBuilder();
@@ -180,6 +183,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.endObject();
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+            RequestOptions.Builder options = createIndex.getOptions().toBuilder();
+            options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+            createIndex.setOptions(options);
             client().performRequest(createIndex);
 
             int numDocs = randomIntBetween(2000, 3000);
@@ -332,7 +338,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37920")
     public void testShrink() throws IOException {
         String shrunkenIndex = index + "_shrunk";
         int numDocs;
@@ -355,6 +360,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.endObject();
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+            RequestOptions.Builder options = createIndex.getOptions().toBuilder();
+            options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+            createIndex.setOptions(options);
             client().performRequest(createIndex);
 
             numDocs = randomIntBetween(512, 1024);
@@ -401,7 +409,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(numDocs, totalHits);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37920")
     public void testShrinkAfterUpgrade() throws IOException {
         String shrunkenIndex = index + "_shrunk";
         int numDocs;
@@ -424,6 +431,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.endObject();
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+            RequestOptions.Builder options = createIndex.getOptions().toBuilder();
+            options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+            createIndex.setOptions(options);
             client().performRequest(createIndex);
 
             numDocs = randomIntBetween(512, 1024);

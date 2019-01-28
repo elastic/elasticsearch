@@ -20,7 +20,9 @@
 package org.elasticsearch.qa.custom_logging;
 
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.test.hamcrest.RegexMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -30,10 +32,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.List;
 
 /**
  * This test verifies that Elasticsearch can startup successfully with a custom logging config using variables introduced in
@@ -41,28 +40,19 @@ import java.util.stream.Stream;
  * The intention is to confirm that users can still run their Elasticsearch instances with previous configurations.
  */
 public class CustomLoggingConfigIT extends ESRestTestCase {
-    private static final Pattern NODE_STARTED = Pattern.compile(
-        ".*node-0 \"cluster.uuid\": \"\\w*\", \"node.id\": \"\\w*\".*started.*");
+    private static final String NODE_STARTED = ".*node-0.*cluster.uuid.*node.id.*started.*";
 
     public void testSuccessfulStartupWithCustomConfig() throws Exception {
         assertBusy(() -> {
-            try (Stream<String> lines = streamLogLines(getLogFile())) {
-                assertTrue("Log line indicating successful startup not found\n"+streamLogLines(getLogFile())
-                        .collect(Collectors.joining("\n")),
-                    lines.anyMatch(line -> isStartupLine(line)));
-            }
+            List<String> lines = readAllLines(getLogFile());
+            assertThat(lines, Matchers.hasItem(RegexMatcher.matches(NODE_STARTED)));
         });
     }
 
-    private boolean isStartupLine(String line) {
-        Matcher matcher = NODE_STARTED.matcher(line);
-        return matcher.matches();
-    }
-
-    private Stream<String> streamLogLines(Path logFile) {
-        return AccessController.doPrivileged((PrivilegedAction<Stream<String>>) () -> {
+    private List<String> readAllLines(Path logFile) {
+        return AccessController.doPrivileged((PrivilegedAction<List<String>>) () -> {
             try {
-                return Files.lines(logFile, StandardCharsets.UTF_8);
+                return Files.readAllLines(logFile, StandardCharsets.UTF_8);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

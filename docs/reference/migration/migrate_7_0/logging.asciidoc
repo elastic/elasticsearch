@@ -1,10 +1,35 @@
 [float]
-[[70_logging_changes]]
+[[breaking_70_logging_changes]]
 === Logging changes
+
+[float]
+==== New JSON format log files in `log` directory
+
+Elasticsearch now will produce additional log files in JSON format. They will be stored in `*.json` suffix files.
+Following files should be expected now in log directory:
+* ${cluster_name}_server.json
+* ${cluster_name}_deprecation.json
+* ${cluster_name}_index_search_slowlog.json
+* ${cluster_name}_index_indexing_slowlog.json
+* ${cluster_name}.log
+* ${cluster_name}_deprecation.log
+* ${cluster_name}_index_search_slowlog.log
+* ${cluster_name}_index_indexing_slowlog.log
+* ${cluster_name}_audit.json
+* gc.log
+* http.ports
+* transport.ports
+
+Note: You can override additional files by removing the unwanted appenders in `log4j2.properties`.
 
 [float]
 ==== Log files ending with `*.log` deprecated
 
 Log files with `*.log` using old pattern layout format are now considered deprecated
 and newly added JSON logs ending `*.json` should be used.
-Note: GC logs in a file `gc.log` are not changed.
+Note: GC logs in a file `gc.log` are not going to be changed.
+
+[float]
+==== Docker output in JSON format
+
+All docker console logs are now in JSON format. You can distinguish logs streams with a `type` field.

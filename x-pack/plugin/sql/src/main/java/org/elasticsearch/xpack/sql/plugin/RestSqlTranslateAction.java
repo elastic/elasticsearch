@@ -27,9 +27,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * REST action for translating SQL queries into ES requests
  */
 public class RestSqlTranslateAction extends BaseRestHandler {
-
+//
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSqlTranslateAction.class));
-
+//
     public RestSqlTranslateAction(Settings settings, RestController controller) {
         super(settings);
         // TODO: remove deprecated endpoint in 8.0.0

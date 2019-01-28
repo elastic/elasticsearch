@@ -38,7 +38,8 @@ That time span is partitioned into buckets, whose length equals the bucket span
 of the associated job. The `doc_count` of those buckets are then compared with
 the job's finalized analysis buckets to see whether any data has arrived since
 the analysis. If there is indeed missing data due to their ingest delay, the end
-user is notified.
+user is notified. For example, you can see annotations in {kib} for the periods
+where these delays occur.
 
 ==== What to do about delayed data?
 

@@ -131,7 +131,7 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Request,
                 .array("node_settings", nodeSettingsIssues.toArray())
                 .field("index_settings")
                     .map(indexSettingsIssues)
-                .array("ml_settings", mlSettingsIssues)
+                .array("ml_settings", mlSettingsIssues.toArray())
                 .endObject();
         }
 

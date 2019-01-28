@@ -13,6 +13,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -31,6 +32,7 @@ import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.ccr.Ccr;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -89,18 +91,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo));
     private long bufferSizeInBytes = 0;
     private final LinkedHashMap<Long, Tuple<AtomicInteger, ElasticsearchException>> fetchExceptions;
-    private final Runnable recoveryExecutor;
 
     private volatile ElasticsearchException fatalException;
 
     ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
                         ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler, final LongSupplier relativeTimeProvider) {
-        this(id, type, action, description, parentTask, headers, params, scheduler, relativeTimeProvider, () -> {});
-    }
-
-    ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
-                        ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler, final LongSupplier relativeTimeProvider,
-                        Runnable recoveryExecutor) {
         super(id, type, action, description, parentTask, headers);
         this.params = params;
         this.scheduler = scheduler;
@@ -116,7 +111,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 return size() > params.getMaxOutstandingReadRequests();
             }
         };
-        this.recoveryExecutor = recoveryExecutor;
     }
 
     void start(
@@ -284,15 +278,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                         fetchExceptions.put(from, Tuple.tuple(retryCounter, ExceptionsHelper.convertToElastic(e)));
                     }
                     Throwable cause = ExceptionsHelper.unwrapCause(e);
-                    if (cause instanceof ElasticsearchException) {
-                        ElasticsearchException elasticsearchException = (ElasticsearchException) cause;
-                        if (elasticsearchException.getMetadataKeys().contains(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY)) {
+                    if (cause instanceof ResourceNotFoundException) {
+                        ResourceNotFoundException resourceNotFoundException = (ResourceNotFoundException) cause;
+                        if (resourceNotFoundException.getMetadataKeys().contains(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY)) {
                             handleFallenBehindLeaderShard(e, from, maxOperationCount, maxRequiredSeqNo, retryCounter);
                             return;
                         }
-                    } else if (cause.getMessage().contains("Not all operations between from_seqno")) {
-                        handleFallenBehindLeaderShard(e, from, maxOperationCount, maxRequiredSeqNo, retryCounter);
-                        return;
                     }
                     handleFailure(e, retryCounter, () -> sendShardChangesRequest(from, maxOperationCount, maxRequiredSeqNo, retryCounter));
                 });
@@ -319,7 +310,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         // can trigger another restore while the shard was restored already.
         // https://github.com/elastic/elasticsearch/pull/37562#discussion_r250009367
 
-        recoveryExecutor.run();
+        handleFailure(e, retryCounter, () -> sendShardChangesRequest(from, maxOperationCount, maxRequiredSeqNo, retryCounter));
     }
 
     /** Called when some operations are fetched from the leading */
@@ -483,10 +474,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             return true;
         }
 
-        // This is thrown when using a Client and its remote cluster alias went MIA
-        String noSuchRemoteClusterMessage = "no such remote cluster: " + remoteCluster;
-        // This is thrown when creating a Client and the remote cluster does not exist:
-        String unknownClusterMessage = "unknown cluster alias [" + remoteCluster + "]";
         final Throwable actual = ExceptionsHelper.unwrapCause(e);
         return actual instanceof ShardNotFoundException ||
             actual instanceof IllegalIndexShardStateException ||
@@ -498,9 +485,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             actual instanceof IndexClosedException || // If follow index is closed
             actual instanceof ConnectTransportException ||
             actual instanceof NodeClosedException ||
-            (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed")) ||
-            (actual instanceof IllegalArgumentException && (noSuchRemoteClusterMessage.equals(actual.getMessage()) ||
-                unknownClusterMessage.equals(actual.getMessage())));
+            actual instanceof NoSuchRemoteClusterException ||
+            (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed"));
     }
 
     // These methods are protected for testing purposes:

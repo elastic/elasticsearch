@@ -40,7 +40,6 @@ import static org.mockito.Mockito.when;
 
 public class MockRestHighLevelTests extends ESTestCase {
     private RestHighLevelClient client;
-    private WarningFailureException expectedException;
     private static final List<String> WARNINGS = Collections.singletonList("Some Warning");
 
     @Before
@@ -57,7 +56,7 @@ public class MockRestHighLevelTests extends ESTestCase {
         RequestLine requestLine = new BasicRequestLine(HttpGet.METHOD_NAME, "/_blah", protocol);
         when(mockResponse.getRequestLine()).thenReturn(requestLine);
 
-        expectedException = new WarningFailureException(mockResponse);
+        WarningFailureException expectedException = new WarningFailureException(mockResponse);
         doThrow(expectedException).when(mockClient).performRequest(any());
 
         client = new RestHighLevelClient(mockClient, RestClient::close, Collections.emptyList());

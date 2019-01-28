@@ -53,7 +53,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 public class AutodetectCommunicator implements Closeable {
 
@@ -66,7 +65,7 @@ public class AutodetectCommunicator implements Closeable {
     private final StateStreamer stateStreamer;
     private final DataCountsReporter dataCountsReporter;
     private final AutoDetectResultProcessor autoDetectResultProcessor;
-    private final Consumer<Exception> onFinishHandler;
+    private final BiConsumer<Exception, Boolean> onFinishHandler;
     private final ExecutorService autodetectWorkerExecutor;
     private final NamedXContentRegistry xContentRegistry;
     private final boolean includeTokensField;
@@ -75,7 +74,7 @@ public class AutodetectCommunicator implements Closeable {
 
     AutodetectCommunicator(Job job, Environment environment, AutodetectProcess process, StateStreamer stateStreamer,
                            DataCountsReporter dataCountsReporter, AutoDetectResultProcessor autoDetectResultProcessor,
-                           Consumer<Exception> onFinishHandler, NamedXContentRegistry xContentRegistry,
+                           BiConsumer<Exception, Boolean> onFinishHandler, NamedXContentRegistry xContentRegistry,
                            ExecutorService autodetectWorkerExecutor) {
         this.job = job;
         this.environment = environment;
@@ -159,7 +158,7 @@ public class AutodetectCommunicator implements Closeable {
                 }
                 autoDetectResultProcessor.awaitCompletion();
             } finally {
-                onFinishHandler.accept(restart ? new ElasticsearchException(reason) : null);
+                onFinishHandler.accept(restart ? new ElasticsearchException(reason) : null, true);
             }
             LOGGER.info("[{}] job closed", job.getId());
             return null;
@@ -182,6 +181,10 @@ public class AutodetectCommunicator implements Closeable {
     }
 
     public void killProcess(boolean awaitCompletion, boolean finish) throws IOException {
+        killProcess(awaitCompletion, finish, true);
+    }
+
+    public void killProcess(boolean awaitCompletion, boolean finish, boolean finalizeJob) throws IOException {
         try {
             processKilled = true;
             autoDetectResultProcessor.setProcessKilled();
@@ -197,7 +200,7 @@ public class AutodetectCommunicator implements Closeable {
             }
         } finally {
             if (finish) {
-                onFinishHandler.accept(null);
+                onFinishHandler.accept(null, finalizeJob);
             }
             destroyCategorizationAnalyzer();
         }

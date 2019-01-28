@@ -17,10 +17,17 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collections;
 
@@ -36,6 +43,18 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = new SecureString("passwd".toCharArray());
+
+    @Before
+    public void waitForSecurityIndexWritable() throws Exception {
+        // adds a dummy user to the native realm to force .security index creation
+        securityClient().preparePutUser("dummy_user", "password".toCharArray(), Hasher.BCRYPT, "missing_role").get();
+        assertSecurityIndexActive();
+    }
+
+    @After
+    public void cleanupSecurityIndex() throws Exception {
+        super.deleteSecurityIndex();
+    }
 
     @Override
     protected String configRoles() {
@@ -57,6 +76,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
                 "      privileges: [all]\n" +
                 "\n" +
                 "role_monitor_all_unrestricted_indices:\n" +
+                "  cluster: [monitor]\n" +
                 "  indices:\n" +
                 "    - names: '*'\n" +
                 "      privileges: [monitor]\n" +
@@ -143,8 +163,6 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
     public void testMonitorRestrictedWildcards() throws Exception {
 
-        assertSecurityIndexActive();
-
         IndexResponse indexResponse = index("foo", "type", jsonBuilder()
                 .startObject()
                 .field("name", "value")
@@ -197,6 +215,15 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
         final RecoveryResponse indicesRecoveryResponse = client.admin().indices().prepareRecoveries("*").get();
         assertThat(indicesRecoveryResponse.shardRecoveryStates().size(), is(3));
         assertThat(indicesRecoveryResponse.shardRecoveryStates().keySet(), containsInAnyOrder("foo", "foobar", "foobarfoo"));
+
+        // test _cat/indices with wildcards that cover unauthorized indices (".security" in this case)  
+        RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
+        optionsBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue("user_monitor", USERS_PASSWD));
+        RequestOptions options = optionsBuilder.build();
+        Request request = new Request("GET", "/_cat/indices/" + randomFrom("*", "_all", "foo*"));
+        request.setOptions(options);
+        Response response = getRestClient().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode() < 300, is(true));
     }
 
     public void testMultipleRoles() throws Exception {

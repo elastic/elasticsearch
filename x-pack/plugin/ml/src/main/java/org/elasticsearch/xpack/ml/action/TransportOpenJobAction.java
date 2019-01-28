@@ -135,8 +135,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                                                                             int maxMachineMemoryPercent,
                                                                             MlMemoryTracker memoryTracker,
                                                                             Logger logger) {
-        String resultsIndexName = job.getResultsIndexName();
-        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(resultsIndexName, clusterState);
+        String resultsWriteAlias = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
+        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(resultsWriteAlias, clusterState);
         if (unavailableIndices.size() != 0) {
             String reason = "Not opening job [" + jobId + "], because not all primary shards are active for the following indices [" +
                     String.join(",", unavailableIndices) + "]";
@@ -359,9 +359,10 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         return new String[]{AnomalyDetectorsIndex.jobStateIndexPattern(), resultsIndex, MlMetaIndex.INDEX_NAME};
     }
 
-    static List<String> verifyIndicesPrimaryShardsAreActive(String resultsIndex, ClusterState clusterState) {
+    static List<String> verifyIndicesPrimaryShardsAreActive(String resultsWriteIndex, ClusterState clusterState) {
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
-        String[] indices = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), indicesOfInterest(resultsIndex));
+        String[] indices = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(),
+            indicesOfInterest(resultsWriteIndex));
         List<String> unavailableIndices = new ArrayList<>(indices.length);
         for (String index : indices) {
             // Indices are created on demand from templates.

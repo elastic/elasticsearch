@@ -105,18 +105,19 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
             }
         }
 
-        IndexMetaData.Builder newIMD = IndexMetaData.builder(followerIMD);
         // Remove index.xpack.ccr.following_index setting
         Settings.Builder builder = Settings.builder();
         builder.put(followerIMD.getSettings());
         builder.remove(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey());
 
-        newIMD.settings(builder);
+        final IndexMetaData.Builder newIndexMetaData = IndexMetaData.builder(followerIMD);
+        newIndexMetaData.settings(builder);
+        newIndexMetaData.settingsVersion(followerIMD.getSettingsVersion() + 1);
         // Remove ccr custom metadata
-        newIMD.removeCustom(Ccr.CCR_CUSTOM_METADATA_KEY);
+        newIndexMetaData.removeCustom(Ccr.CCR_CUSTOM_METADATA_KEY);
 
         MetaData newMetaData = MetaData.builder(current.metaData())
-            .put(newIMD)
+            .put(newIndexMetaData)
             .build();
         return ClusterState.builder(current)
             .metaData(newMetaData)

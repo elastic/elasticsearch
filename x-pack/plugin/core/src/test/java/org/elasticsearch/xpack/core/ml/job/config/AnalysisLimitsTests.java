@@ -167,6 +167,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
         new AnalysisLimits(1L, 1L);
     }
 
+    @Override
     protected AnalysisLimits mutateInstance(AnalysisLimits instance) throws IOException {
         Long memoryModelLimit = instance.getModelMemoryLimit();
         Long categorizationExamplesLimit = instance.getCategorizationExamplesLimit();
@@ -197,5 +198,5 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
             throw new AssertionError("Illegal randomisation branch");
         }
         return new AnalysisLimits(memoryModelLimit, categorizationExamplesLimit);
-    };
+    }
 }

@@ -244,9 +244,7 @@ in the same way. They do not configure the prefix subfield.
 <<index-options,`index_options`>>::
 
     What information should be stored in the index, for search and highlighting
-    purposes. Defaults to `positions`. This option only configures the root
-    field. The shingle and prefix subfields, which can not be configured,
-    are set to `docs`.
+    purposes. Defaults to `positions`.
 
 <<mapping-store,`store`>>::
 

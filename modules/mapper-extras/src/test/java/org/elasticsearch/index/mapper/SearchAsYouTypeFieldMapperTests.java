@@ -19,6 +19,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -43,6 +44,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasProperty;
@@ -152,6 +154,33 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
             getShingleFieldMapper(defaultMapper, "a_field._3gram").fieldType(), 3, analyzerName, prefixFieldMapper.fieldType());
         assertShingleFieldType(
             getShingleFieldMapper(defaultMapper, "a_field._4gram").fieldType(), 4, analyzerName, prefixFieldMapper.fieldType());
+    }
+
+    public void testIndexOptions() throws IOException {
+        final String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+                .startObject("properties")
+                    .startObject("a_field")
+                        .field("type", "search_as_you_type")
+                        .field("index_options", "offsets")
+                    .endObject()
+                .endObject()
+            .endObject()
+            .endObject());
+
+        final DocumentMapper defaultMapper = createIndex("test")
+            .mapperService()
+            .documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        Stream.of(
+            getRootFieldMapper(defaultMapper, "a_field"),
+            getPrefixFieldMapper(defaultMapper, "a_field._index_prefix"),
+            getShingleFieldMapper(defaultMapper, "a_field._2gram"),
+            getShingleFieldMapper(defaultMapper, "a_field._3gram")
+        ).forEach(mapper -> assertThat("index options for " + mapper.name() + " is configurable",
+            mapper.fieldType().indexOptions(), equalTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS)));
     }
 
 

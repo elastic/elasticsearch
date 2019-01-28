@@ -120,8 +120,6 @@ Snapshot/Restore::
 [[release-notes-6.5.2]]
 == {es} version 6.5.2
 
-coming[6.5.2]
-
 Also see <<breaking-changes-6.5,Breaking changes in 6.5>>.
 
 

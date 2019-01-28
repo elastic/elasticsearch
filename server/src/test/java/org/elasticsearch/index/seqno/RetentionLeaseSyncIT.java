@@ -48,14 +48,14 @@ import static org.hamcrest.Matchers.hasItem;
 
 public class RetentionLeaseSyncIT extends ESIntegTestCase  {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37926")
     public void testRetentionLeasesSyncedOnAdd() throws Exception {
         final int numberOfReplicas = 2 - scaledRandomIntBetween(0, 2);
         internalCluster().ensureAtLeastNumDataNodes(1 + numberOfReplicas);
         final Settings settings = Settings.builder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", numberOfReplicas)
-                        .build();
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", numberOfReplicas)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .build();
         createIndex("index", settings);
         ensureGreen("index");
         final String primaryShardNodeId = clusterService().state().routingTable().index("index").shard(0).primaryShard().currentNodeId();
@@ -107,6 +107,7 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
         final Settings settings = Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", numberOfReplicas)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                 .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING.getKey(), retentionLeaseTimeToLive)
                 .build();
         createIndex("index", settings);

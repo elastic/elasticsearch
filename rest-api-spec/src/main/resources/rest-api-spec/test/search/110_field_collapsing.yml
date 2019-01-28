@@ -1,10 +1,10 @@
 setup:
   - do:
       indices.create:
+        include_type_name: false
         index:  test
         body:
           mappings:
-            test:
               properties:
                 numeric_group: { type: integer }
 
@@ -68,19 +68,19 @@ setup:
   - match: {hits.total: 6 }
   - length: {hits.hits: 3 }
   - match: {hits.hits.0._index: test }
-  - match: {hits.hits.0._type: test }
+  - match: {hits.hits.0._type: _doc }
   - match: {hits.hits.0.fields.numeric_group: [3] }
   - match: {hits.hits.0.sort: [36] }
   - match: {hits.hits.0._id: "6" }
   - is_false: hits.hits.0.inner_hits
   - match: {hits.hits.1._index: test }
-  - match: {hits.hits.1._type: test }
+  - match: {hits.hits.1._type: _doc }
   - match: {hits.hits.1.fields.numeric_group: [1] }
   - match: {hits.hits.1.sort: [24] }
   - match: {hits.hits.1._id: "3" }
   - is_false: hits.hits.1.inner_hits
   - match: {hits.hits.2._index: test }
-  - match: {hits.hits.2._type: test }
+  - match: {hits.hits.2._type: _doc }
   - match: {hits.hits.2.fields.numeric_group: [25] }
   - match: {hits.hits.2.sort: [10] }
   - match: {hits.hits.2._id: "4" }
@@ -101,7 +101,7 @@ setup:
   - match: {hits.total: 6 }
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: test }
-  - match: {hits.hits.0._type: test }
+  - match: {hits.hits.0._type: _doc }
   - match: {hits.hits.0.fields.numeric_group: [25]}
   - match: {hits.hits.0.sort: [10] }
   - match: {hits.hits.0._id: "4" }
@@ -121,7 +121,7 @@ setup:
   - match: { hits.total: 6 }
   - length: { hits.hits: 3 }
   - match: { hits.hits.0._index: test }
-  - match: { hits.hits.0._type: test }
+  - match: { hits.hits.0._type: _doc }
   - match: { hits.hits.0.fields.numeric_group: [3] }
   - match: { hits.hits.0.sort: [36] }
   - match: { hits.hits.0._id: "6" }
@@ -129,7 +129,7 @@ setup:
   - length: { hits.hits.0.inner_hits.sub_hits.hits.hits: 1 }
   - match: { hits.hits.0.inner_hits.sub_hits.hits.hits.0._id: "6" }
   - match: { hits.hits.1._index: test }
-  - match: { hits.hits.1._type: test }
+  - match: { hits.hits.1._type: _doc }
   - match: { hits.hits.1.fields.numeric_group: [1] }
   - match: { hits.hits.1.sort: [24] }
   - match: { hits.hits.1._id: "3" }
@@ -138,7 +138,7 @@ setup:
   - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.0._id: "2" }
   - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.1._id: "1" }
   - match: { hits.hits.2._index: test }
-  - match: { hits.hits.2._type: test }
+  - match: { hits.hits.2._type: _doc }
   - match: { hits.hits.2.fields.numeric_group: [25] }
   - match: { hits.hits.2.sort: [10] }
   - match: { hits.hits.2._id: "4" }
@@ -161,7 +161,7 @@ setup:
   - match: { hits.total: 6 }
   - length: { hits.hits: 3 }
   - match: { hits.hits.0._index: test }
-  - match: { hits.hits.0._type: test }
+  - match: { hits.hits.0._type: _doc }
   - match: { hits.hits.0.fields.numeric_group: [3] }
   - match: { hits.hits.0.sort: [36] }
   - match: { hits.hits.0._id: "6" }
@@ -169,7 +169,7 @@ setup:
   - length: { hits.hits.0.inner_hits.sub_hits.hits.hits: 1 }
   - match: { hits.hits.0.inner_hits.sub_hits.hits.hits.0._id: "6" }
   - match: { hits.hits.1._index: test }
-  - match: { hits.hits.1._type: test }
+  - match: { hits.hits.1._type: _doc }
   - match: { hits.hits.1.fields.numeric_group: [1] }
   - match: { hits.hits.1.sort: [24] }
   - match: { hits.hits.1._id: "3" }
@@ -178,7 +178,7 @@ setup:
   - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.0._id: "2" }
   - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.1._id: "1" }
   - match: { hits.hits.2._index: test }
-  - match: { hits.hits.2._type: test }
+  - match: { hits.hits.2._type: _doc }
   - match: { hits.hits.2.fields.numeric_group: [25] }
   - match: { hits.hits.2.sort: [10] }
   - match: { hits.hits.2._id: "4" }
@@ -282,7 +282,7 @@ setup:
   - match: { hits.total: 6 }
   - length: { hits.hits: 3 }
   - match: { hits.hits.0._index: test }
-  - match: { hits.hits.0._type: test }
+  - match: { hits.hits.0._type: _doc }
   - match: { hits.hits.0.fields.numeric_group: [3] }
   - match: { hits.hits.0.sort: [36] }
   - match: { hits.hits.0._id: "6" }
@@ -293,7 +293,7 @@ setup:
   - length: { hits.hits.0.inner_hits.sub_hits_desc.hits.hits: 1 }
   - match: { hits.hits.0.inner_hits.sub_hits_desc.hits.hits.0._id: "6" }
   - match: { hits.hits.1._index: test }
-  - match: { hits.hits.1._type: test }
+  - match: { hits.hits.1._type: _doc }
   - match: { hits.hits.1.fields.numeric_group: [1] }
   - match: { hits.hits.1.sort: [24] }
   - match: { hits.hits.1._id: "3" }
@@ -305,7 +305,7 @@ setup:
   - length: { hits.hits.1.inner_hits.sub_hits_desc.hits.hits: 1 }
   - match: { hits.hits.1.inner_hits.sub_hits_desc.hits.hits.0._id: "3" }
   - match: { hits.hits.2._index: test }
-  - match: { hits.hits.2._type: test }
+  - match: { hits.hits.2._type: _doc }
   - match: { hits.hits.2.fields.numeric_group: [25] }
   - match: { hits.hits.2.sort: [10] }
   - match: { hits.hits.2._id: "4" }
@@ -336,7 +336,7 @@ setup:
   - match: { hits.total: 6 }
   - length: { hits.hits: 3 }
   - match: { hits.hits.0._index: test }
-  - match: { hits.hits.0._type: test }
+  - match: { hits.hits.0._type: _doc }
   - match: { hits.hits.0.fields.numeric_group: [3] }
   - match: { hits.hits.0.sort: [36] }
   - match: { hits.hits.0._id: "6" }
@@ -346,7 +346,7 @@ setup:
   - match: { hits.hits.0.inner_hits.sub_hits.hits.hits.0._id: "6" }
   - match: { hits.hits.0.inner_hits.sub_hits.hits.hits.0._version: 66 }
   - match: { hits.hits.1._index: test }
-  - match: { hits.hits.1._type: test }
+  - match: { hits.hits.1._type: _doc }
   - match: { hits.hits.1.fields.numeric_group: [1] }
   - match: { hits.hits.1.sort: [24] }
   - match: { hits.hits.1._id: "3" }
@@ -358,7 +358,7 @@ setup:
   - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.1._id: "1" }
   - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.1._version: 11 }
   - match: { hits.hits.2._index: test }
-  - match: { hits.hits.2._type: test }
+  - match: { hits.hits.2._type: _doc }
   - match: { hits.hits.2.fields.numeric_group: [25] }
   - match: { hits.hits.2.sort: [10] }
   - match: { hits.hits.2._id: "4" }

@@ -106,7 +106,8 @@ public class ClientYamlTestExecutionContext {
             requestParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
         }
 
-        if (apiName.equals("index") && esVersion().before(Version.V_7_0_0) && requestParams.containsKey("type") == false) {
+        if ((apiName.equals("index") || apiName.equals("get")) && esVersion().before(Version.V_7_0_0)
+                && requestParams.containsKey("type") == false) {
             requestParams.put("type", "_doc");
         }
 

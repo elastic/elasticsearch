@@ -304,8 +304,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         }
 
         settingsRequest = new ClusterUpdateSettingsRequest();
-        ByteSizeValue defaultValue = CcrSettings.RECOVERY_MAX_BYTES_PER_SECOND.getDefault(Settings.EMPTY);
-        settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.RECOVERY_MAX_BYTES_PER_SECOND.getKey(), defaultValue));
+        ByteSizeValue nullValue = null;
+        settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.RECOVERY_MAX_BYTES_PER_SECOND.getKey(), nullValue));
         if (followerRateLimiting) {
             assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
         } else {
@@ -315,7 +315,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
     public void testIndividualActionsTimeout() throws Exception {
         ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
-        TimeValue timeValue = new TimeValue(100);
+        TimeValue timeValue = TimeValue.timeValueMillis(100);
         settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.getKey(), timeValue));
         assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
 
@@ -379,9 +379,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         }
 
         settingsRequest = new ClusterUpdateSettingsRequest();
-        TimeValue defaultValue = CcrSettings.INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.getDefault(Settings.EMPTY);
         settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.getKey(),
-            defaultValue));
+            (TimeValue) null));
         assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
     }
 

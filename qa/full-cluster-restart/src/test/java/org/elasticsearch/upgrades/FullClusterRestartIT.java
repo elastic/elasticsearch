@@ -22,9 +22,11 @@ package org.elasticsearch.upgrades;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedFunction;
@@ -123,6 +125,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.endObject();
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+            RequestOptions.Builder options = createIndex.getOptions().toBuilder();
+            options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+            createIndex.setOptions(options);
             client().performRequest(createIndex);
 
             count = randomIntBetween(2000, 3000);
@@ -178,6 +183,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.endObject();
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+            RequestOptions.Builder options = createIndex.getOptions().toBuilder();
+            options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+            createIndex.setOptions(options);
             client().performRequest(createIndex);
 
             int numDocs = randomIntBetween(2000, 3000);
@@ -352,6 +360,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.endObject();
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+            RequestOptions.Builder options = createIndex.getOptions().toBuilder();
+            options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+            createIndex.setOptions(options);
             client().performRequest(createIndex);
 
             numDocs = randomIntBetween(512, 1024);
@@ -420,6 +431,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.endObject();
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+            RequestOptions.Builder options = createIndex.getOptions().toBuilder();
+            options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+            createIndex.setOptions(options);
             client().performRequest(createIndex);
 
             numDocs = randomIntBetween(512, 1024);

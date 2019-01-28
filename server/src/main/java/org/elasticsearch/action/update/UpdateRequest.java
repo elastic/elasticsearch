@@ -179,18 +179,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             }
         }
 
-        if (ifSeqNo != UNASSIGNED_SEQ_NO && (
-            versionType != VersionType.INTERNAL || version != Versions.MATCH_ANY
-        )) {
-            validationException = addValidationError("compare and write operations can not use versioning", validationException);
-        }
-        if (ifPrimaryTerm == UNASSIGNED_PRIMARY_TERM && ifSeqNo != UNASSIGNED_SEQ_NO) {
-            validationException = addValidationError("ifSeqNo is set, but primary term is [0]", validationException);
-        }
-        if (ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM && ifSeqNo == UNASSIGNED_SEQ_NO) {
-            validationException =
-                addValidationError("ifSeqNo is unassigned, but primary term is [" + ifPrimaryTerm + "]", validationException);
-        }
+        validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
         if (ifSeqNo != UNASSIGNED_SEQ_NO && retryOnConflict > 0) {
             validationException = addValidationError("compare and write operations can not be retried", validationException);
@@ -562,7 +551,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
-     * only perform this update request if the document was last modification was assigned the given
+     * only perform this update request if the document's modification was assigned the given
      * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
      *
      * If the document last modification was assigned a different sequence number a
@@ -577,7 +566,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
-     * only performs this update request if the document was last modification was assigned the given
+     * only performs this update request if the document's last modification was assigned the given
      * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
      *
      * If the document last modification was assigned a different term a

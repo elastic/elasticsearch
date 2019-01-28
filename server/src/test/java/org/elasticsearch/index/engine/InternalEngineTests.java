@@ -1391,7 +1391,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.flush();
         }
         try (Engine.GetResult get = engine.get(
-            new Engine.Get(true, false, doc.type(), doc.id(), create.uid())
+            new Engine.Get(true, true, doc.type(), doc.id(), create.uid())
                 .setIfSeqNo(indexResult.getSeqNo()).setIfPrimaryTerm(primaryTerm.get()),
             searcherFactory)) {
             assertEquals(indexResult.getSeqNo(), get.docIdAndVersion().seqNo);

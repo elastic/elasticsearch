@@ -117,7 +117,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     public GetResult get(Engine.GetResult engineGetResult, String id, String type,
                             String[] fields, FetchSourceContext fetchSourceContext) {
         if (!engineGetResult.exists()) {
-            return new GetResult(shardId.getIndexName(), type, id, UNASSIGNED_SEQ_NO, 0, -1, false, null, null);
+            return new GetResult(shardId.getIndexName(), type, id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null);
         }
 
         currentMetric.inc();
@@ -173,7 +173,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
 
         if (get == null || get.exists() == false) {
-            return new GetResult(shardId.getIndexName(), type, id, UNASSIGNED_SEQ_NO, 0, -1, false, null, null);
+            return new GetResult(shardId.getIndexName(), type, id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null);
         }
 
         try {

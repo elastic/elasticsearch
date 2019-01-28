@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.service;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -527,7 +526,7 @@ public class MasterServiceTests extends ESTestCase {
         final ClusterStateTaskListener listener = new ClusterStateTaskListener() {
             @Override
             public void onFailure(String source, Exception e) {
-                fail(ExceptionsHelper.detailedMessage(e));
+                throw new AssertionError(e);
             }
 
             @Override

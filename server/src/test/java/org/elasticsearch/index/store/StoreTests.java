@@ -96,6 +96,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class StoreTests extends ESTestCase {
 
@@ -977,7 +978,7 @@ public class StoreTests extends ESTestCase {
         String uuid = Store.CORRUPTED + UUIDs.randomBase64UUID();
         try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION_STACK_TRACE);
-            output.writeString(ExceptionsHelper.detailedMessage(exception));
+            output.writeString(exception.getMessage());
             output.writeString(ExceptionsHelper.stackTrace(exception));
             CodecUtil.writeFooter(output);
         }
@@ -985,8 +986,7 @@ public class StoreTests extends ESTestCase {
             store.failIfCorrupted();
             fail("should be corrupted");
         } catch (CorruptIndexException e) {
-            assertTrue(e.getMessage().startsWith("[index][1] Preexisting corrupted index [" + uuid +
-                "] caused by: CorruptIndexException[foo (resource=bar)]"));
+            assertThat(e.getMessage(), startsWith("[index][1] Preexisting corrupted index [" + uuid + "] caused by: foo (resource=bar)"));
             assertTrue(e.getMessage().contains(ExceptionsHelper.stackTrace(exception)));
         }
 
@@ -994,15 +994,14 @@ public class StoreTests extends ESTestCase {
 
         try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION_START);
-            output.writeString(ExceptionsHelper.detailedMessage(exception));
+            output.writeString(exception.getMessage());
             CodecUtil.writeFooter(output);
         }
         try {
             store.failIfCorrupted();
             fail("should be corrupted");
         } catch (CorruptIndexException e) {
-            assertTrue(e.getMessage().startsWith("[index][1] Preexisting corrupted index [" + uuid +
-                "] caused by: CorruptIndexException[foo (resource=bar)]"));
+            assertThat(e.getMessage(), startsWith("[index][1] Preexisting corrupted index [" + uuid + "] caused by: foo (resource=bar)"));
             assertFalse(e.getMessage().contains(ExceptionsHelper.stackTrace(exception)));
         }
 

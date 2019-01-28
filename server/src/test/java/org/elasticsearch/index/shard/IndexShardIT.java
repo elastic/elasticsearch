@@ -120,6 +120,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexShardIT extends ESSingleNodeTestCase {
 
@@ -613,8 +614,9 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         Exception e = expectThrows(Exception.class,
                 () -> client().prepareSearch("test")
                     .addAggregation(AggregationBuilders.terms("foo_terms").field("foo.keyword")).get());
-        logger.info("--> got: {}", ExceptionsHelper.detailedMessage(e));
-        assertThat(ExceptionsHelper.detailedMessage(e), containsString("[parent] Data too large, data for [<agg [foo_terms]>]"));
+        logger.info("--> got an expected exception", e);
+        assertThat(e.getCause(), notNullValue());
+        assertThat(e.getCause().getMessage(), containsString("[parent] Data too large, data for [<agg [foo_terms]>]"));
 
         client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()

@@ -372,6 +372,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         final HasChildQueryBuilder queryBuilder
             = new HasChildQueryBuilder(CHILD_DOC, new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()), ScoreMode.None);
         queryBuilder.innerHit(new InnerHitBuilder("some_name"));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> InnerHitContextBuilder.extractInnerHits(queryBuilder, Collections.singletonMap("some_name", null)));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> InnerHitContextBuilder.extractInnerHits(queryBuilder, Collections.singletonMap("some_name", null)));
     }
 }

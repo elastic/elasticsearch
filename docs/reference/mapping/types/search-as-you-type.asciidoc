@@ -226,8 +226,8 @@ field and are specific to this field type
 The following parameters are accepted in a mapping for the `search_as_you_type`
 field due to its nature as a text-like field, and behave similarly to their
 behavior when configuring a field of the <<text,`text`>> datatype. Unless
-otherwise noted, these options configure the root fields and shingle subfields
-in the same way. They do not configure the prefix subfield.
+otherwise noted, these options configure the root fields subfields in
+the same way.
 
 <<analyzer,`analyzer`>>::
 
@@ -245,6 +245,13 @@ in the same way. They do not configure the prefix subfield.
 
     What information should be stored in the index, for search and highlighting
     purposes. Defaults to `positions`.
+
+<<norms,`norms`>>::
+
+    Whether field-length should be taken into account when scoring queries.
+    Accepts `true` or `false`. This option configures the root field
+    and shingle subfields, where its default is `true`. It does not configure
+    the prefix subfield, where it it `false`.
 
 <<mapping-store,`store`>>::
 
@@ -270,7 +277,8 @@ in the same way. They do not configure the prefix subfield.
 <<term-vector,`term_vector`>>::
 
     Whether term vectors should be stored for an <<mapping-index,`analyzed`>>
-    field. Defaults to `no`.
+    field. Defaults to `no`. This option configures the root field and shingle
+    subfields, but not the prefix subfield.
 
 
 [[prefix-queries]]

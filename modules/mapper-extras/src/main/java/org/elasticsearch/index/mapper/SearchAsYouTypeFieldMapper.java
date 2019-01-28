@@ -140,6 +140,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             String prefixFieldName = name() + PREFIX_FIELD_SUFFIX;
             PrefixFieldType prefixFieldType = new PrefixFieldType(name(), prefixFieldName, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
             prefixFieldType.setIndexOptions(fieldType().indexOptions());
+            prefixFieldType.setStored(fieldType().stored());
             // we wrap the index analyzer with shingle and edge-ngram
             SearchAsYouTypeAnalyzer indexWrapper = SearchAsYouTypeAnalyzer.withShingleAndPrefix(analyzer.analyzer(), maxShingleSize);
             // the search analyzer is wrapped with shingle only

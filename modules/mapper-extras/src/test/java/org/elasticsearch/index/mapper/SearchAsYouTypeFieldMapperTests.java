@@ -60,7 +60,7 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
         return pluginList(MapperExtrasPlugin.class);
     }
 
-    public void testIndex() throws IOException {
+    public void testIndexing() throws IOException {
         final String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()
             .startObject("_doc")
@@ -179,8 +179,145 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
             getPrefixFieldMapper(defaultMapper, "a_field._index_prefix"),
             getShingleFieldMapper(defaultMapper, "a_field._2gram"),
             getShingleFieldMapper(defaultMapper, "a_field._3gram")
-        ).forEach(mapper -> assertThat("index options for " + mapper.name() + " is configurable",
+        ).forEach(mapper -> assertThat("for " + mapper.name(),
             mapper.fieldType().indexOptions(), equalTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS)));
+    }
+
+    public void testStore() throws IOException {
+        final String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+                .startObject("properties")
+                    .startObject("a_field")
+                        .field("type", "search_as_you_type")
+                        .field("store", "true")
+                    .endObject()
+                .endObject()
+            .endObject()
+            .endObject());
+
+        final DocumentMapper defaultMapper = createIndex("test")
+            .mapperService()
+            .documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        Stream.of(
+            getRootFieldMapper(defaultMapper, "a_field"),
+            getPrefixFieldMapper(defaultMapper, "a_field._index_prefix"),
+            getShingleFieldMapper(defaultMapper, "a_field._2gram"),
+            getShingleFieldMapper(defaultMapper, "a_field._3gram")
+        ).forEach(mapper -> assertTrue("for " + mapper.name(), mapper.fieldType().stored()));
+    }
+
+    public void testIndex() throws IOException {
+        final String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+                .startObject("properties")
+                    .startObject("a_field")
+                        .field("type", "search_as_you_type")
+                        .field("index", "false")
+                    .endObject()
+                .endObject()
+            .endObject()
+            .endObject());
+
+        final DocumentMapper defaultMapper = createIndex("test")
+            .mapperService()
+            .documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        Stream.of(
+            getRootFieldMapper(defaultMapper, "a_field"),
+            getPrefixFieldMapper(defaultMapper, "a_field._index_prefix"),
+            getShingleFieldMapper(defaultMapper, "a_field._2gram"),
+            getShingleFieldMapper(defaultMapper, "a_field._3gram")
+        ).forEach(mapper -> assertThat("for " + mapper.name(), mapper.fieldType().indexOptions(), equalTo(IndexOptions.NONE)));
+    }
+
+    public void testTermVectors() throws IOException {
+        final String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+                .startObject("properties")
+                    .startObject("a_field")
+                        .field("type", "search_as_you_type")
+                        .field("term_vector", "yes")
+                    .endObject()
+                .endObject()
+            .endObject()
+            .endObject());
+
+        final DocumentMapper defaultMapper = createIndex("test")
+            .mapperService()
+            .documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        Stream.of(
+            getRootFieldMapper(defaultMapper, "a_field"),
+            getShingleFieldMapper(defaultMapper, "a_field._2gram"),
+            getShingleFieldMapper(defaultMapper, "a_field._3gram")
+        ).forEach(mapper -> assertTrue("for " + mapper.name(), mapper.fieldType().storeTermVectors()));
+
+        final PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(defaultMapper, "a_field._index_prefix");
+        assertFalse(prefixFieldMapper.fieldType().storeTermVectors());
+    }
+
+    public void testNorms() throws IOException {
+        // default setting
+        {
+            final String mapping = Strings.toString(XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("a_field")
+                            .field("type", "search_as_you_type")
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject());
+
+            final DocumentMapper defaultMapper = createIndex("test-1")
+                .mapperService()
+                .documentMapperParser()
+                .parse("_doc", new CompressedXContent(mapping));
+
+            Stream.of(
+                getRootFieldMapper(defaultMapper, "a_field"),
+                getShingleFieldMapper(defaultMapper, "a_field._2gram"),
+                getShingleFieldMapper(defaultMapper, "a_field._3gram")
+            ).forEach(mapper -> assertFalse("for " + mapper.name(), mapper.fieldType().omitNorms()));
+
+            final PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(defaultMapper, "a_field._index_prefix");
+            assertTrue(prefixFieldMapper.fieldType().omitNorms());
+        }
+
+        // can disable them on shingle fields
+        {
+            final String mapping = Strings.toString(XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("a_field")
+                            .field("type", "search_as_you_type")
+                            .field("norms", "false")
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject());
+
+            final DocumentMapper defaultMapper = createIndex("test-2")
+                .mapperService()
+                .documentMapperParser()
+                .parse("_doc", new CompressedXContent(mapping));
+
+            Stream.of(
+                getRootFieldMapper(defaultMapper, "a_field"),
+                getPrefixFieldMapper(defaultMapper, "a_field._index_prefix"),
+                getShingleFieldMapper(defaultMapper, "a_field._2gram"),
+                getShingleFieldMapper(defaultMapper, "a_field._3gram")
+            ).forEach(mapper -> assertTrue("for " + mapper.name(), mapper.fieldType().omitNorms()));
+        }
     }
 
 

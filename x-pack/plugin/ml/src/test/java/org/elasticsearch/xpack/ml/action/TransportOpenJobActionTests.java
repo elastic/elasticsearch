@@ -343,7 +343,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         when(job.getId()).thenReturn("incompatible_type_job");
         when(job.getJobVersion()).thenReturn(Version.CURRENT);
         when(job.getJobType()).thenReturn("incompatible_type");
-        when(job.getResultsIndexName()).thenReturn("shared");
+        when(job.getInitialResultsIndexName()).thenReturn("shared");
 
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);

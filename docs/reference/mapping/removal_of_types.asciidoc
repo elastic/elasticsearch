@@ -112,7 +112,7 @@ have looked something like this:
 
 [source,js]
 ----
-PUT twitter?include_type_name=true
+PUT twitter
 {
   "mappings": {
     "user": {
@@ -157,16 +157,16 @@ GET twitter/tweet/_search
 ----
 // NOTCONSOLE
 
-You could achieve the same thing by adding a custom `type` field as follows:
+You can achieve the same thing by adding a custom `type` field as follows:
 
 [source,js]
 ----
-PUT twitter?include_type_name=true
+PUT twitter?include_type_name=true <1>
 {
   "mappings": {
     "_doc": {
       "properties": {
-        "type": { "type": "keyword" }, <1>
+        "type": { "type": "keyword" }, <2>
         "name": { "type": "text" },
         "user_name": { "type": "keyword" },
         "email": { "type": "keyword" },
@@ -204,7 +204,7 @@ GET twitter/_search
       },
       "filter": {
         "match": {
-          "type": "tweet" <1>
+          "type": "tweet" <2>
         }
       }
     }
@@ -212,7 +212,9 @@ GET twitter/_search
 }
 ----
 // NOTCONSOLE
-<1> The explicit `type` field takes the place of the implicit `_type` field.
+<1> Use `include_type_name=true` in case need to use the "old" syntax including the "_doc" object like
+in this example 
+<2> The explicit `type` field takes the place of the implicit `_type` field.
 
 [float]
 ==== Parent/Child without mapping types
@@ -299,7 +301,7 @@ This first example splits our `twitter` index into a `tweets` index and a
 
 [source,js]
 ----
-PUT users?include_type_name=true
+PUT users
 {
   "settings": {
     "index.mapping.single_type": true
@@ -321,7 +323,7 @@ PUT users?include_type_name=true
   }
 }
 
-PUT tweets?include_type_name=true
+PUT tweets
 {
   "settings": {
     "index.mapping.single_type": true
@@ -376,7 +378,7 @@ documents of different types which have conflicting IDs:
 
 [source,js]
 ----
-PUT new_twitter?include_type_name=true
+PUT new_twitter
 {
   "mappings": {
     "_doc": {
@@ -427,10 +429,12 @@ POST _reindex
 [float]
 === Use `include_type_name=false` to prepare for upgrade to 8.0
 
-Index creation, mappings and document APIs support the `include_type_name`
-option. When set to `false`, this option enables the behavior that will become
-default in 8.0 when types are removed. See some examples of interactions with
-Elasticsearch with this option turned off:
+Index creation and mapping APIs support a new `include_type_name` url parameter 
+starting with version 6.7. It will default to `true` in version 6.7, default to
+`false` in version 7.0 and will be removed in version 8.0. When set to `true`, 
+this parameter enables the pre-7.0 behavior of using type names in the API.
+
+See some examples of interactions with Elasticsearch with this option turned off:
 
 [float]
 ==== Index creation

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.actions.jira;
 
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
@@ -65,11 +66,11 @@ public class ExecutableJiraActionTests extends ESTestCase {
         final String user = randomAlphaOfLength(10);
         final String password = randomAlphaOfLength(10);
 
-        Settings accountSettings = Settings.builder()
-                .put("url", url)
-                .put("user", user)
-                .put("password", password)
-                .build();
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(JiraAccount.SECURE_URL_SETTING.getKey(), url);
+        secureSettings.setString(JiraAccount.SECURE_USER_SETTING.getKey(), user);
+        secureSettings.setString(JiraAccount.SECURE_PASSWORD_SETTING.getKey(), password);
+        Settings accountSettings = Settings.builder().setSecureSettings(secureSettings).build();
 
         JiraAccount account = new JiraAccount("account1", accountSettings, httpClient);
 
@@ -261,10 +262,12 @@ public class ExecutableJiraActionTests extends ESTestCase {
     }
 
     private JiraAction.Simulated simulateExecution(Map<String, Object> actionFields, Map<String, String> accountFields) throws Exception {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(JiraAccount.SECURE_URL_SETTING.getKey(), "https://internal-jira.elastic.co:443");
+        secureSettings.setString(JiraAccount.SECURE_USER_SETTING.getKey(), "elastic");
+        secureSettings.setString(JiraAccount.SECURE_PASSWORD_SETTING.getKey(), "secret");
         Settings.Builder settings = Settings.builder()
-                .put("url", "https://internal-jira.elastic.co:443")
-                .put("user", "elastic")
-                .put("password", "secret")
+                .setSecureSettings(secureSettings)
                 .putProperties(accountFields, s -> "issue_defaults." + s);
 
         JiraAccount account = new JiraAccount("account", settings.build(), mock(HttpClient.class));

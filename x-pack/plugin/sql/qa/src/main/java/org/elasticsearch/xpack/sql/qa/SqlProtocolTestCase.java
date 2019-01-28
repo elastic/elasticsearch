@@ -28,8 +28,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
+import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 
 public abstract class SqlProtocolTestCase extends ESRestTestCase {
 
@@ -79,62 +81,76 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
     }
     
     public void testDateTimeIntervals() throws IOException {
-        assertQuery("SELECT INTERVAL '326' YEAR", "INTERVAL '326' YEAR", "interval_year", "P326Y", 7);
-        assertQuery("SELECT INTERVAL '50' MONTH", "INTERVAL '50' MONTH", "interval_month", "P50M", 7);
-        assertQuery("SELECT INTERVAL '520' DAY", "INTERVAL '520' DAY", "interval_day", "PT12480H", 23);
-        assertQuery("SELECT INTERVAL '163' HOUR", "INTERVAL '163' HOUR", "interval_hour", "PT163H", 23);
-        assertQuery("SELECT INTERVAL '163' MINUTE", "INTERVAL '163' MINUTE", "interval_minute", "PT2H43M", 23);
-        assertQuery("SELECT INTERVAL '223.16' SECOND", "INTERVAL '223.16' SECOND", "interval_second", "PT3M43.016S", 23);
-        assertQuery("SELECT INTERVAL '163-11' YEAR TO MONTH", "INTERVAL '163-11' YEAR TO MONTH", "interval_year_to_month", "P163Y11M", 7);
-        assertQuery("SELECT INTERVAL '163 12' DAY TO HOUR", "INTERVAL '163 12' DAY TO HOUR", "interval_day_to_hour", "PT3924H", 23);
+        assertQuery("SELECT INTERVAL '326' YEAR", "INTERVAL '326' YEAR", "interval_year", "P326Y", "+326-0", 7);
+        assertQuery("SELECT INTERVAL '50' MONTH", "INTERVAL '50' MONTH", "interval_month", "P50M", "+0-50", 7);
+        assertQuery("SELECT INTERVAL '520' DAY", "INTERVAL '520' DAY", "interval_day", "PT12480H", "+520 00:00:00.0", 23);
+        assertQuery("SELECT INTERVAL '163' HOUR", "INTERVAL '163' HOUR", "interval_hour", "PT163H", "+6 19:00:00.0", 23);
+        assertQuery("SELECT INTERVAL '163' MINUTE", "INTERVAL '163' MINUTE", "interval_minute", "PT2H43M", "+0 02:43:00.0", 23);
+        assertQuery("SELECT INTERVAL '223.16' SECOND", "INTERVAL '223.16' SECOND", "interval_second", "PT3M43.016S", "+0 00:03:43.16", 23);
+        assertQuery("SELECT INTERVAL '163-11' YEAR TO MONTH", "INTERVAL '163-11' YEAR TO MONTH", "interval_year_to_month", "P163Y11M",
+                "+163-11", 7);
+        assertQuery("SELECT INTERVAL '163 12' DAY TO HOUR", "INTERVAL '163 12' DAY TO HOUR", "interval_day_to_hour", "PT3924H",
+                "+163 12:00:00.0", 23);
         assertQuery("SELECT INTERVAL '163 12:39' DAY TO MINUTE", "INTERVAL '163 12:39' DAY TO MINUTE", "interval_day_to_minute",
-                "PT3924H39M", 23);
+                "PT3924H39M", "+163 12:39:00.0", 23);
         assertQuery("SELECT INTERVAL '163 12:39:59.163' DAY TO SECOND", "INTERVAL '163 12:39:59.163' DAY TO SECOND",
-                "interval_day_to_second", "PT3924H39M59.163S", 23);
+                "interval_day_to_second", "PT3924H39M59.163S", "+163 12:39:59.163", 23);
         assertQuery("SELECT INTERVAL -'163 23:39:56.23' DAY TO SECOND", "INTERVAL -'163 23:39:56.23' DAY TO SECOND",
-                "interval_day_to_second", "PT-3935H-39M-56.023S", 23);
+                "interval_day_to_second", "PT-3935H-39M-56.023S", "-163 23:39:56.23", 23);
         assertQuery("SELECT INTERVAL '163:39' HOUR TO MINUTE", "INTERVAL '163:39' HOUR TO MINUTE", "interval_hour_to_minute",
-                "PT163H39M", 23);
+                "PT163H39M", "+6 19:39:00.0", 23);
         assertQuery("SELECT INTERVAL '163:39:59.163' HOUR TO SECOND", "INTERVAL '163:39:59.163' HOUR TO SECOND", "interval_hour_to_second",
-                "PT163H39M59.163S", 23);
+                "PT163H39M59.163S", "+6 19:39:59.163", 23);
         assertQuery("SELECT INTERVAL '163:59.163' MINUTE TO SECOND", "INTERVAL '163:59.163' MINUTE TO SECOND", "interval_minute_to_second",
-                "PT2H43M59.163S", 23);
+                "PT2H43M59.163S", "+0 02:43:59.163", 23);
     }
 
-    @SuppressWarnings({ "unchecked" })
-    private void assertQuery(String sql, String columnName, String columnType, Object columnValue, int displaySize) throws IOException {
+    private void assertQuery(String sql, String columnName, String columnType, Object columnValue, int displaySize)
+            throws IOException {
+        assertQuery(sql, columnName, columnType, columnValue, null, displaySize);
+    }
+    
+    private void assertQuery(String sql, String columnName, String columnType, Object columnValue, Object cliColumnValue, int displaySize)
+            throws IOException {
         for (Mode mode : Mode.values()) {
-            Map<String, Object> response = runSql(mode.toString(), sql);
-            List<Object> columns = (ArrayList<Object>) response.get("columns");
-            assertEquals(1, columns.size());
+            boolean isCliCheck = mode == CLI && cliColumnValue != null;
+            assertQuery(sql, columnName, columnType, isCliCheck ? cliColumnValue : columnValue, displaySize, mode);
+        }
+    }
+    
+    @SuppressWarnings({ "unchecked" })
+    private void assertQuery(String sql, String columnName, String columnType, Object columnValue, int displaySize, Mode mode)
+            throws IOException {
+        Map<String, Object> response = runSql(mode.toString(), sql);
+        List<Object> columns = (ArrayList<Object>) response.get("columns");
+        assertEquals(1, columns.size());
 
-            Map<String, Object> column = (HashMap<String, Object>) columns.get(0);
-            assertEquals(columnName, column.get("name"));
-            assertEquals(columnType, column.get("type"));
-            if (mode != Mode.PLAIN) {
-                assertEquals(3, column.size());
-                assertEquals(displaySize, column.get("display_size"));
-            } else {
-                assertEquals(2, column.size());
-            }
-            
-            List<Object> rows = (ArrayList<Object>) response.get("rows");
-            assertEquals(1, rows.size());
-            List<Object> row = (ArrayList<Object>) rows.get(0);
-            assertEquals(1, row.size());
+        Map<String, Object> column = (HashMap<String, Object>) columns.get(0);
+        assertEquals(columnName, column.get("name"));
+        assertEquals(columnType, column.get("type"));
+        if (Mode.isDriver(mode)) {
+            assertEquals(3, column.size());
+            assertEquals(displaySize, column.get("display_size"));
+        } else {
+            assertEquals(2, column.size());
+        }
+        
+        List<Object> rows = (ArrayList<Object>) response.get("rows");
+        assertEquals(1, rows.size());
+        List<Object> row = (ArrayList<Object>) rows.get(0);
+        assertEquals(1, row.size());
 
-            // from xcontent we can get float or double, depending on the conversion 
-            // method of the specific xcontent format implementation
-            if (columnValue instanceof Float && row.get(0) instanceof Double) {
-                assertEquals(columnValue, (float)((Number) row.get(0)).doubleValue());
-            } else {
-                assertEquals(columnValue, row.get(0));
-            }
+        // from xcontent we can get float or double, depending on the conversion 
+        // method of the specific xcontent format implementation
+        if (columnValue instanceof Float && row.get(0) instanceof Double) {
+            assertEquals(columnValue, (float)((Number) row.get(0)).doubleValue());
+        } else {
+            assertEquals(columnValue, row.get(0));
         }
     }
     
     private Map<String, Object> runSql(String mode, String sql) throws IOException {
-        Request request = new Request("POST", "/_sql");
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         String requestContent = "{\"query\":\"" + sql + "\"" + mode(mode) + "}";
         String format = randomFrom(XContentType.values()).name().toLowerCase(Locale.ROOT);
         

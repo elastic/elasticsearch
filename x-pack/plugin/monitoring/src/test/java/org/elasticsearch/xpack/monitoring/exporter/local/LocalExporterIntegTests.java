@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE,
                               numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0, supportsDedicatedMasters = false)
 public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
-    private final String indexTimeFormat = randomFrom("YY", "YYYY", "YYYY.MM", "YYYY-MM", "MM.YYYY", "MM", null);
+    private final String indexTimeFormat = randomFrom("yy", "yyyy", "yyyy.MM", "yyyy-MM", "MM.yyyy", "MM", null);
 
     private void stopMonitoring() {
         // Now disabling the monitoring service, so that no more collection are started

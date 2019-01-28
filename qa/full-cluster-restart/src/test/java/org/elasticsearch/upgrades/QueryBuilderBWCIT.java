@@ -142,6 +142,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
         CANDIDATES.add(new Object[]{"{\"query\": {" + querySource + "}}", expectedQb});
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37920")
     public void testQueryBuilderBWC() throws Exception {
         String index = "queries";
         if (isRunningAgainstOldCluster()) {

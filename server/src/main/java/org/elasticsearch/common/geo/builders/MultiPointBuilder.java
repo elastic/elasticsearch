@@ -24,14 +24,16 @@ import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.geo.geometry.MultiPoint;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.Point;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
-public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, MultiPointBuilder> {
+public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, MultiPoint, MultiPointBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTIPOINT;
 
@@ -74,14 +76,9 @@ public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, Mul
     }
 
     @Override
-    public double[][] buildLucene() {
-        double[][] points = new double[coordinates.size()][];
-        Coordinate coord;
-        for (int i = 0; i < coordinates.size(); ++i) {
-            coord = coordinates.get(i);
-            points[i] = new double[] {coord.x, coord.y};
-        }
-        return points;
+    public MultiPoint buildGeometry() {
+        return new MultiPoint(coordinates.stream().map(coord -> new org.elasticsearch.geo.geometry.Point(coord.y, coord.x))
+            .collect(Collectors.toList()));
     }
 
     @Override

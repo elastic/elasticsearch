@@ -67,7 +67,7 @@ should also be changed in the template to explicitly define `tree` to one of `ge
 or `quadtree`. This will ensure compatibility with previously created indexes.
 
 [float]
-==== deprecated `geo_shape` parameters
+==== Deprecated `geo_shape` parameters
 
 The following type parameters are deprecated for the `geo_shape` field type: `tree`,
 `precision`, `tree_levels`, `distance_error_pct`, `points_only`, and `strategy`. They

@@ -83,6 +83,9 @@ void addProcessFilesTask(String type, boolean oss) {
       mkdir "${packagingFiles}/var/log/elasticsearch"
       mkdir "${packagingFiles}/var/lib/elasticsearch"
       mkdir "${packagingFiles}/usr/share/elasticsearch/plugins"
+
+      // bare empty dir for /etc/elasticsearch
+      mkdir "${packagingFiles}/elasticsearch"
     }
   }
 }
@@ -173,14 +176,22 @@ Closure commonPackageConfig(String type, boolean oss) {
       configurationFile '/etc/elasticsearch/users'
       configurationFile '/etc/elasticsearch/users_roles'
     }
-    into('/etc') {
+   from("${packagingFiles}") {
+     dirMode 02750
+     into('/etc')
+     permissionGroup 'elasticsearch'
+     includeEmptyDirs true
+     createDirectoryEntry true
+     include("elasticsearch") // empty dir, just to add directory entry
+   }
+   from("${packagingFiles}/etc/elasticsearch") {
+     into('/etc/elasticsearch')
       dirMode 02750
       fileMode 0660
       permissionGroup 'elasticsearch'
       includeEmptyDirs true
       createDirectoryEntry true
       fileType CONFIG | NOREPLACE
-      from "${packagingFiles}/etc"
     }
     String envFile = expansionsForDistribution(type, false)['path.env']
     configurationFile envFile

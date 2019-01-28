@@ -793,7 +793,11 @@ As for the response, we see the following parts:
 * `hits._score` and `max_score` - ignore these fields for now
 
 The accuracy of `hits.total` is controlled by the request parameter `track_total_hits`, when set to true
-the request will track the total hits accurately (`"relation": "eq"`).
+the request will track the total hits accurately (`"relation": "eq"`). It defaults to `10,000`
+which means that the total hit count is accurately tracked up to `10,000` documents.
+You can force an accurate count by setting `track_total_hits` to true explicitly.
+See the <<search-request-track-total-hits, request body>> documentation
+for more details.
 
 Here is the same exact search above using the alternative request body method:
 

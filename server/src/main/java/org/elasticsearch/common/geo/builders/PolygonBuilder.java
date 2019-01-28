@@ -38,6 +38,7 @@ import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -55,7 +56,7 @@ import static org.apache.lucene.geo.GeoUtils.orient;
  * Methods to wrap polygons at the dateline and building shapes from the data held by the
  * builder.
  */
-public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
+public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.geo.geometry.Geometry, PolygonBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.POLYGON;
 
@@ -233,14 +234,14 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
     }
 
     @Override
-    public Object buildLucene() {
+    public org.elasticsearch.geo.geometry.Geometry buildGeometry() {
         if (wrapdateline) {
             Coordinate[][][] polygons = coordinates();
             return polygons.length == 1
-                ? polygonLucene(polygons[0])
-                : multipolygonLucene(polygons);
+                ? polygonGeometry(polygons[0])
+                : multipolygon(polygons);
         }
-        return toPolygonLucene();
+        return toPolygonGeometry();
     }
 
     protected XContentBuilder coordinatesArray(XContentBuilder builder, Params params) throws IOException {
@@ -288,17 +289,19 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         return factory.createPolygon(shell, holes);
     }
 
-    public Object toPolygonLucene() {
-        final org.apache.lucene.geo.Polygon[] holes = new org.apache.lucene.geo.Polygon[this.holes.size()];
-        for (int i = 0; i < holes.length; ++i) {
-            holes[i] = linearRing(this.holes.get(i).coordinates);
+    public org.elasticsearch.geo.geometry.Polygon toPolygonGeometry() {
+        final List<org.elasticsearch.geo.geometry.LinearRing> holes = new ArrayList<>(this.holes.size());
+        for (int i = 0; i < this.holes.size(); ++i) {
+            holes.add(linearRing(this.holes.get(i).coordinates));
         }
-        return new org.apache.lucene.geo.Polygon(this.shell.coordinates.stream().mapToDouble(i -> normalizeLat(i.y)).toArray(),
-            this.shell.coordinates.stream().mapToDouble(i -> normalizeLon(i.x)).toArray(), holes);
+        return new org.elasticsearch.geo.geometry.Polygon(
+            new org.elasticsearch.geo.geometry.LinearRing(
+                this.shell.coordinates.stream().mapToDouble(i -> normalizeLat(i.y)).toArray(),
+                this.shell.coordinates.stream().mapToDouble(i -> normalizeLon(i.x)).toArray()), holes);
     }
 
-    protected static org.apache.lucene.geo.Polygon linearRing(List<Coordinate> coordinates) {
-        return new org.apache.lucene.geo.Polygon(coordinates.stream().mapToDouble(i -> normalizeLat(i.y)).toArray(),
+    protected static org.elasticsearch.geo.geometry.LinearRing linearRing(List<Coordinate> coordinates) {
+        return new org.elasticsearch.geo.geometry.LinearRing(coordinates.stream().mapToDouble(i -> normalizeLat(i.y)).toArray(),
             coordinates.stream().mapToDouble(i -> normalizeLon(i.x)).toArray());
     }
 
@@ -335,13 +338,13 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         return factory.createPolygon(shell, holes);
     }
 
-    protected static org.apache.lucene.geo.Polygon polygonLucene(Coordinate[][] polygon) {
-        org.apache.lucene.geo.Polygon[] holes;
+    protected static org.elasticsearch.geo.geometry.Polygon polygonGeometry(Coordinate[][] polygon) {
+        List<org.elasticsearch.geo.geometry.LinearRing> holes;
         Coordinate[] shell = polygon[0];
         if (polygon.length > 1) {
-            holes = new org.apache.lucene.geo.Polygon[polygon.length - 1];
-            for (int i = 0; i < holes.length; ++i) {
-                Coordinate[] coords = polygon[i+1];
+            holes = new ArrayList<>(polygon.length - 1);
+            for (int i = 1; i < polygon.length; ++i) {
+                Coordinate[] coords = polygon[i];
                 //We do not have holes on the dateline as they get eliminated
                 //when breaking the polygon around it.
                 double[] x = new double[coords.length];
@@ -350,10 +353,10 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
                     x[c] = normalizeLon(coords[c].x);
                     y[c] = normalizeLat(coords[c].y);
                 }
-                holes[i] = new org.apache.lucene.geo.Polygon(y, x);
+                holes.add(new org.elasticsearch.geo.geometry.LinearRing(y, x));
             }
         } else {
-            holes = new org.apache.lucene.geo.Polygon[0];
+            holes = Collections.emptyList();
         }
 
         double[] x = new double[shell.length];
@@ -365,7 +368,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
             y[i] = normalizeLat(shell[i].y);
         }
 
-        return new org.apache.lucene.geo.Polygon(y, x, holes);
+        return new org.elasticsearch.geo.geometry.Polygon(new org.elasticsearch.geo.geometry.LinearRing(y, x), holes);
     }
 
     /**
@@ -386,12 +389,12 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         return factory.createMultiPolygon(polygonSet);
     }
 
-    protected static org.apache.lucene.geo.Polygon[] multipolygonLucene(Coordinate[][][] polygons) {
-        org.apache.lucene.geo.Polygon[] polygonSet = new org.apache.lucene.geo.Polygon[polygons.length];
-        for (int i = 0; i < polygonSet.length; ++i) {
-            polygonSet[i] = polygonLucene(polygons[i]);
+    protected static org.elasticsearch.geo.geometry.MultiPolygon multipolygon(Coordinate[][][] polygons) {
+        List<org.elasticsearch.geo.geometry.Polygon> polygonSet = new ArrayList<>(polygons.length);
+        for (int i = 0; i < polygons.length; ++i) {
+            polygonSet.add(polygonGeometry(polygons[i]));
         }
-        return polygonSet;
+        return new org.elasticsearch.geo.geometry.MultiPolygon(polygonSet);
     }
 
     /**

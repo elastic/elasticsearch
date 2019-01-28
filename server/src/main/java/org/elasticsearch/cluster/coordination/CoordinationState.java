@@ -486,8 +486,8 @@ public class CoordinationState {
             }
             // if we receive a commit from a Zen1 master that has not recovered its state yet, the cluster uuid might not been known yet.
             assert lastAcceptedState.metaData().clusterUUID().equals(MetaData.UNKNOWN_CLUSTER_UUID) == false ||
-                lastAcceptedState.coordinationMetaData().getLastCommittedConfiguration().isEmpty() :
-                "received cluster state with empty cluster uuid but voting configuration: " + lastAcceptedState;
+                lastAcceptedState.term() == ZEN1_BWC_TERM :
+                "received cluster state with empty cluster uuid but not Zen1 BWC term: " + lastAcceptedState;
             if (lastAcceptedState.metaData().clusterUUID().equals(MetaData.UNKNOWN_CLUSTER_UUID) == false &&
                 lastAcceptedState.metaData().clusterUUIDCommitted() == false) {
                 if (metaDataBuilder == null) {

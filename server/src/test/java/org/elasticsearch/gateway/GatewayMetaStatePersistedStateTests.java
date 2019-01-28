@@ -213,7 +213,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         } while (coordinationMetaData.getLastAcceptedConfiguration().equals(coordinationMetaData.getLastCommittedConfiguration()));
 
         ClusterState state = createClusterState(randomNonNegativeLong(),
-                MetaData.builder().coordinationMetaData(coordinationMetaData).build());
+                MetaData.builder().coordinationMetaData(coordinationMetaData)
+                    .clusterUUID(randomAlphaOfLength(10)).build());
         gateway.setLastAcceptedState(state);
 
         gateway = maybeNew(gateway);
@@ -224,7 +225,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         CoordinationMetaData expectedCoordinationMetaData = CoordinationMetaData.builder(coordinationMetaData)
                 .lastCommittedConfiguration(coordinationMetaData.getLastAcceptedConfiguration()).build();
         ClusterState expectedClusterState =
-                ClusterState.builder(state).metaData(MetaData.builder().coordinationMetaData(expectedCoordinationMetaData).build()).build();
+                ClusterState.builder(state).metaData(MetaData.builder().coordinationMetaData(expectedCoordinationMetaData)
+                    .clusterUUID(state.metaData().clusterUUID()).clusterUUIDCommitted(true).build()).build();
 
         gateway = maybeNew(gateway);
         assertClusterStateEqual(expectedClusterState, gateway.getLastAcceptedState());

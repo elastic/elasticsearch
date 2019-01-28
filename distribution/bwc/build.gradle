@@ -134,9 +134,9 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
         String classifier = ""
         String extension = projectName
         if (bwcVersion.onOrAfter('7.0.0') && (projectName.contains('zip') || projectName.contains('tar'))) {
-          int ndx = projectName.indexOf('-')
-          classifier = "-${projectName.substring(0, ndx)}-x86_64"
-          extension = projectName.substring(ndx + 1)
+          int index = projectName.indexOf('-')
+          classifier = "-${projectName.substring(0, index)}-x86_64"
+          extension = projectName.substring(index + 1)
           if (extension.equals('tar')) {
             extension += '.gz'
           }
@@ -233,11 +233,11 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
         String artifactFileName = artifactFile.name
         String artifactName = artifactFileName.contains('oss') ? 'elasticsearch-oss' : 'elasticsearch'
         String suffix = artifactFile.toString()[-3..-1]
-        int archNdx = artifactFileName.indexOf('x86_64')
+        int archIndex = artifactFileName.indexOf('x86_64')
         String classifier = ''
-        if (archNdx != -1) {
-            int osNdx = artifactFileName.lastIndexOf('-', archNdx - 2)
-            classifier = "${artifactFileName.substring(osNdx + 1, archNdx - 1)}-x86_64"
+        if (archIndex != -1) {
+            int osIndex = artifactFileName.lastIndexOf('-', archIndex - 2)
+            classifier = "${artifactFileName.substring(osIndex + 1, archIndex - 1)}-x86_64"
         }
         configurations.create(projectName)
         artifacts {

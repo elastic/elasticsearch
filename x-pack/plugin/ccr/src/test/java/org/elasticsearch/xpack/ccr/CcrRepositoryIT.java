@@ -308,6 +308,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37887")
     public void testFollowerMappingIsUpdated() throws IOException {
         String leaderClusterRepoName = CcrRepository.NAME_PREFIX + "leader_cluster";
         String leaderIndex = "index1";

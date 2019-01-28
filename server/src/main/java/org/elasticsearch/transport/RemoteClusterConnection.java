@@ -676,7 +676,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
             if (currentIterator.hasNext()) {
                 return currentIterator.next();
             } else {
-                throw new IllegalStateException("No node available for cluster: " + clusterAlias);
+                throw new NoSuchRemoteClusterException(clusterAlias);
             }
         }
 

@@ -353,7 +353,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     RemoteClusterConnection getRemoteClusterConnection(String cluster) {
         RemoteClusterConnection connection = remoteClusters.get(cluster);
         if (connection == null) {
-            throw new IllegalArgumentException("no such remote cluster: " + cluster);
+            throw new NoSuchRemoteClusterException(cluster);
         }
         return connection;
     }
@@ -479,7 +479,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         Map<String, RemoteClusterConnection> remoteClusters = this.remoteClusters;
         for (String cluster : clusters) {
             if (remoteClusters.containsKey(cluster) == false) {
-                listener.onFailure(new IllegalArgumentException("no such remote cluster: [" + cluster + "]"));
+                listener.onFailure(new NoSuchRemoteClusterException(cluster));
                 return;
             }
         }
@@ -520,7 +520,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      */
     public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
-            throw new IllegalArgumentException("unknown cluster alias [" + clusterAlias + "]");
+            throw new NoSuchRemoteClusterException(clusterAlias);
         }
         return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias);
     }

@@ -552,14 +552,6 @@ public class ShardStateAction {
             List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(tasks.size());
             Set<ShardRouting> seenShardRoutings = new HashSet<>(); // to prevent duplicates
             for (StartedShardEntry task : tasks) {
-                final IndexMetaData indexMetaData = currentState.metaData().index(task.shardId.getIndex());
-                if (indexMetaData == null) {
-                    // tasks that correspond to non-existent indices are marked as successful
-                    logger.debug("{} ignoring shard started task [{}] (unknown index {})", task.shardId, task, task.shardId.getIndex());
-                    builder.success(task);
-                    continue;
-                }
-
                 final ShardRouting matched = currentState.getRoutingTable().getByAllocationId(task.shardId, task.allocationId);
                 if (matched == null) {
                     // tasks that correspond to non-existent shards are marked as successful. The reason is that we resend shard started
@@ -570,6 +562,8 @@ public class ShardStateAction {
                     builder.success(task);
                 } else {
                     if (matched.primary() && task.primaryTerm > 0) {
+                        final IndexMetaData indexMetaData = currentState.metaData().index(task.shardId.getIndex());
+                        assert indexMetaData != null;
                         final long currentPrimaryTerm = indexMetaData.primaryTerm(task.shardId.id());
                         if (currentPrimaryTerm != task.primaryTerm) {
                             assert currentPrimaryTerm > task.primaryTerm : "received a primary term with a higher term than in the " +

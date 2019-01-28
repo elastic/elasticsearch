@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -187,16 +188,22 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
 
     public void testPrimaryTermsMismatch() throws Exception {
         final String indexName = "test";
-        ClusterState clusterState = state(indexName, randomBoolean(), ShardRoutingState.INITIALIZING, ShardRoutingState.INITIALIZING);
-        final IndexMetaData indexMetaData = clusterState.metaData().index(indexName);
-        final ShardId shardId = new ShardId(indexMetaData.getIndex(), 0);
+        final int shard = 0;
+        final int primaryTerm = 2 + randomInt(200);
 
-        final long primaryTerm = indexMetaData.primaryTerm(shardId.id());
+        ClusterState clusterState = state(indexName, randomBoolean(), ShardRoutingState.INITIALIZING, ShardRoutingState.INITIALIZING);
+        clusterState = ClusterState.builder(clusterState)
+            .metaData(MetaData.builder(clusterState.metaData())
+                .put(IndexMetaData.builder(clusterState.metaData().index(indexName))
+                    .primaryTerm(shard, primaryTerm)
+                    .build(), true)
+                .build())
+            .build();
+        final ShardId shardId = new ShardId(clusterState.metaData().index(indexName).getIndex(), shard);
         final String primaryAllocationId = clusterState.routingTable().shardRoutingTable(shardId).primaryShard().allocationId().getId();
         {
-
             final StartedShardEntry task =
-                new StartedShardEntry(shardId, primaryAllocationId, primaryTerm -1, "primary terms does not match on primary");
+                new StartedShardEntry(shardId, primaryAllocationId, primaryTerm - 1, "primary terms does not match on primary");
 
             final ClusterStateTaskExecutor.ClusterTasksResult result = executeTasks(clusterState, singletonList(task));
             assertSame(clusterState, result.resultingState);

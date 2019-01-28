@@ -11,6 +11,10 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
@@ -31,6 +35,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
@@ -38,6 +43,8 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
@@ -90,7 +97,7 @@ import static org.elasticsearch.common.settings.Setting.Property;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class AutodetectProcessManager {
+public class AutodetectProcessManager implements ClusterStateListener {
 
     // We should be able from the job config to estimate the memory/cpu a job needs to have,
     // and if we know that then we can prior to assigning a job to a node fail based on the
@@ -132,11 +139,13 @@ public class AutodetectProcessManager {
 
     private final Auditor auditor;
 
+    private volatile boolean upgradeInProgress;
+
     public AutodetectProcessManager(Environment environment, Settings settings, Client client, ThreadPool threadPool,
                                     JobManager jobManager, JobResultsProvider jobResultsProvider, JobResultsPersister jobResultsPersister,
                                     JobDataCountsPersister jobDataCountsPersister,
                                     AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory,
-                                    NamedXContentRegistry xContentRegistry, Auditor auditor) {
+                                    NamedXContentRegistry xContentRegistry, Auditor auditor, ClusterService clusterService) {
         this.environment = environment;
         this.client = client;
         this.threadPool = threadPool;
@@ -150,6 +159,7 @@ public class AutodetectProcessManager {
         this.jobDataCountsPersister = jobDataCountsPersister;
         this.auditor = auditor;
         this.nativeStorageProvider = new NativeStorageProvider(environment, MIN_DISK_SPACE_OFF_HEAP.get(settings));
+        clusterService.addListener(this);
     }
 
     public void onNodeStartup() {
@@ -179,6 +189,7 @@ public class AutodetectProcessManager {
                     .setAwaitCompletion(awaitCompletion)
                     .setFinish(true)
                     .setReason(reason)
+                    .setShouldFinalizeJob(upgradeInProgress == false)
                     .kill();
         } else {
             // If the process is missing but the task exists this is most likely
@@ -412,71 +423,87 @@ public class AutodetectProcessManager {
         }
     }
 
-    public void openJob(JobTask jobTask, Consumer<Exception> closeHandler) {
+    public void openJob(JobTask jobTask, ClusterState clusterState, BiConsumer<Exception, Boolean> closeHandler) {
         String jobId = jobTask.getJobId();
         logger.info("Opening job [{}]", jobId);
 
-        jobManager.getJob(jobId, ActionListener.wrap(
-                job -> {
-                    if (job.getJobVersion() == null) {
-                        closeHandler.accept(ExceptionsHelper.badRequestException("Cannot open job [" + jobId
-                                + "] because jobs created prior to version 5.5 are not supported"));
-                        return;
-                    }
+        // Start the process
+        ActionListener<Boolean> stateAliasHandler = ActionListener.wrap(
+            r -> {
+                jobManager.getJob(jobId, ActionListener.wrap(
+                    job -> {
+                        if (job.getJobVersion() == null) {
+                            closeHandler.accept(ExceptionsHelper.badRequestException("Cannot open job [" + jobId
+                                + "] because jobs created prior to version 5.5 are not supported"), true);
+                            return;
+                        }
 
-
-                    processByAllocation.putIfAbsent(jobTask.getAllocationId(), new ProcessContext(jobTask));
-                    jobResultsProvider.getAutodetectParams(job, params -> {
-                        // We need to fork, otherwise we restore model state from a network thread (several GET api calls):
-                        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
-                            @Override
-                            public void onFailure(Exception e) {
-                                closeHandler.accept(e);
-                            }
-
-                            @Override
-                            protected void doRun() {
-                                ProcessContext processContext = processByAllocation.get(jobTask.getAllocationId());
-                                if (processContext == null) {
-                                    logger.debug("Aborted opening job [{}] as it has been closed", jobId);
-                                    return;
+                        processByAllocation.putIfAbsent(jobTask.getAllocationId(), new ProcessContext(jobTask));
+                        jobResultsProvider.getAutodetectParams(job, params -> {
+                            // We need to fork, otherwise we restore model state from a network thread (several GET api calls):
+                            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
+                                @Override
+                                public void onFailure(Exception e) {
+                                    closeHandler.accept(e, true);
                                 }
-                                if (processContext.getState() !=  ProcessContext.ProcessStateName.NOT_RUNNING) {
-                                    logger.debug("Cannot open job [{}] when its state is [{}]",
+
+                                @Override
+                                protected void doRun() {
+                                    ProcessContext processContext = processByAllocation.get(jobTask.getAllocationId());
+                                    if (processContext == null) {
+                                        logger.debug("Aborted opening job [{}] as it has been closed", jobId);
+                                        return;
+                                    }
+                                    if (processContext.getState() !=  ProcessContext.ProcessStateName.NOT_RUNNING) {
+                                        logger.debug("Cannot open job [{}] when its state is [{}]",
                                             jobId, processContext.getState().getClass().getName());
-                                    return;
-                                }
+                                        return;
+                                    }
 
-                                try {
-                                    createProcessAndSetRunning(processContext, job, params, closeHandler);
-                                    processContext.getAutodetectCommunicator().init(params.modelSnapshot());
-                                    setJobState(jobTask, JobState.OPENED);
-                                } catch (Exception e1) {
-                                    // No need to log here as the persistent task framework will log it
                                     try {
-                                        // Don't leave a partially initialised process hanging around
-                                        processContext.newKillBuilder()
+                                        createProcessAndSetRunning(processContext, job, params, closeHandler);
+                                        processContext.getAutodetectCommunicator().init(params.modelSnapshot());
+                                        setJobState(jobTask, JobState.OPENED);
+                                    } catch (Exception e1) {
+                                        // No need to log here as the persistent task framework will log it
+                                        try {
+                                            // Don't leave a partially initialised process hanging around
+                                            processContext.newKillBuilder()
                                                 .setAwaitCompletion(false)
                                                 .setFinish(false)
                                                 .kill();
-                                        processByAllocation.remove(jobTask.getAllocationId());
-                                    } finally {
-                                        setJobState(jobTask, JobState.FAILED, e2 -> closeHandler.accept(e1));
+                                            processByAllocation.remove(jobTask.getAllocationId());
+                                        } finally {
+                                            setJobState(jobTask, JobState.FAILED, e2 -> closeHandler.accept(e1, true));
+                                        }
                                     }
                                 }
-                            }
+                            });
+                        }, e1 -> {
+                            logger.warn("Failed to gather information required to open job [" + jobId + "]", e1);
+                            setJobState(jobTask, JobState.FAILED, e2 -> closeHandler.accept(e1, true));
                         });
-                    }, e1 -> {
-                        logger.warn("Failed to gather information required to open job [" + jobId + "]", e1);
-                        setJobState(jobTask, JobState.FAILED, e2 -> closeHandler.accept(e1));
-                    });
-                },
-                closeHandler
-        ));
+                    },
+                    e -> closeHandler.accept(e, true)
+                ));
+            },
+            e -> closeHandler.accept(e, true));
 
+        // Make sure the state index and alias exist
+        ActionListener<Boolean> resultsMappingUpdateHandler = ActionListener.wrap(
+            ack -> AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, stateAliasHandler),
+            e -> closeHandler.accept(e, true)
+        );
+
+        // Try adding the results doc mapping - this updates to the latest version if an old mapping is present
+        ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
+            ElasticsearchMappings::resultsMapping, client, clusterState, resultsMappingUpdateHandler);
     }
 
-    private void createProcessAndSetRunning(ProcessContext processContext, Job job, AutodetectParams params, Consumer<Exception> handler) {
+    private void createProcessAndSetRunning(ProcessContext processContext,
+                                            Job job,
+                                            AutodetectParams params,
+                                            BiConsumer<Exception, Boolean> handler) {
         // At this point we lock the process context until the process has been started.
         // The reason behind this is to ensure closing the job does not happen before
         // the process is started as that can result to the job getting seemingly closed
@@ -493,7 +520,7 @@ public class AutodetectProcessManager {
         }
     }
 
-    AutodetectCommunicator create(JobTask jobTask, Job job, AutodetectParams autodetectParams, Consumer<Exception> handler) {
+    AutodetectCommunicator create(JobTask jobTask, Job job, AutodetectParams autodetectParams, BiConsumer<Exception, Boolean> handler) {
         // Closing jobs can still be using some or all threads in MachineLearning.AUTODETECT_THREAD_POOL_NAME
         // that an open job uses, so include them too when considering if enough threads are available.
         int currentRunningJobs = processByAllocation.size();
@@ -753,6 +780,11 @@ public class AutodetectProcessManager {
 
     public ByteSizeValue getMinLocalStorageAvailable() {
         return nativeStorageProvider.getMinLocalStorageAvailable();
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        upgradeInProgress = MlMetadata.getMlMetadata(event.state()).isUpgradeMode();
     }
 
     /*

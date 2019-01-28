@@ -56,6 +56,7 @@ import org.elasticsearch.client.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.client.indexlifecycle.RolloverAction;
 import org.elasticsearch.client.indexlifecycle.SetPriorityAction;
 import org.elasticsearch.client.indexlifecycle.ShrinkAction;
+import org.elasticsearch.client.indexlifecycle.UnfollowAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -645,7 +646,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(19, namedXContents.size());
+        assertEquals(20, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -669,7 +670,8 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(MeanReciprocalRank.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
         assertTrue(names.contains(ExpectedReciprocalRank.NAME));
-        assertEquals(Integer.valueOf(8), categories.get(LifecycleAction.class));
+        assertEquals(Integer.valueOf(9), categories.get(LifecycleAction.class));
+        assertTrue(names.contains(UnfollowAction.NAME));
         assertTrue(names.contains(AllocateAction.NAME));
         assertTrue(names.contains(DeleteAction.NAME));
         assertTrue(names.contains(ForceMergeAction.NAME));
@@ -713,6 +715,10 @@ public class RestHighLevelClientTests extends ESTestCase {
             "nodes.reload_secure_settings",
             "search_shards",
         };
+        List<String> booleanReturnMethods = Arrays.asList(
+            "security.enable_user",
+            "security.disable_user",
+            "security.change_password");
         Set<String> deprecatedMethods = new HashSet<>();
         deprecatedMethods.add("indices.force_merge");
         deprecatedMethods.add("multi_get");
@@ -721,55 +727,58 @@ public class RestHighLevelClientTests extends ESTestCase {
 
         ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load("/rest-api-spec/api");
         Set<String> apiSpec = restSpec.getApis().stream().map(ClientYamlSuiteRestApi::getName).collect(Collectors.toSet());
+        Set<String> apiUnsupported = new HashSet<>(apiSpec);
+        Set<String> apiNotFound = new HashSet<>();
 
         Set<String> topLevelMethodsExclusions = new HashSet<>();
         topLevelMethodsExclusions.add("getLowLevelClient");
         topLevelMethodsExclusions.add("close");
 
-        Map<String, Method> methods = Arrays.stream(RestHighLevelClient.class.getMethods())
+        Map<String, Set<Method>> methods = Arrays.stream(RestHighLevelClient.class.getMethods())
                 .filter(method -> method.getDeclaringClass().equals(RestHighLevelClient.class)
                         && topLevelMethodsExclusions.contains(method.getName()) == false)
                 .map(method -> Tuple.tuple(toSnakeCase(method.getName()), method))
                 .flatMap(tuple -> tuple.v2().getReturnType().getName().endsWith("Client")
                         ? getSubClientMethods(tuple.v1(), tuple.v2().getReturnType()) : Stream.of(tuple))
-                .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
+                .filter(tuple -> tuple.v2().getAnnotation(Deprecated.class) == null)
+                .collect(Collectors.groupingBy(Tuple::v1,
+                    Collectors.mapping(Tuple::v2, Collectors.toSet())));
 
-        Set<String> apiNotFound = new HashSet<>();
-
-        for (Map.Entry<String, Method> entry : methods.entrySet()) {
-            Method method = entry.getValue();
+        for (Map.Entry<String, Set<Method>> entry : methods.entrySet()) {
             String apiName = entry.getKey();
 
-            assertTrue("method [" + apiName + "] is not final",
+            for (Method method : entry.getValue()) {
+                assertTrue("method [" + apiName + "] is not final",
                     Modifier.isFinal(method.getClass().getModifiers()) || Modifier.isFinal(method.getModifiers()));
-            assertTrue("method [" + method + "] should be public", Modifier.isPublic(method.getModifiers()));
+                assertTrue("method [" + method + "] should be public", Modifier.isPublic(method.getModifiers()));
 
-            //we convert all the method names to snake case, hence we need to look for the '_async' suffix rather than 'Async'
-            if (apiName.endsWith("_async")) {
-                assertAsyncMethod(methods, method, apiName);
-            } else if (isSubmitTaskMethod(apiName)) {
-                assertSubmitTaskMethod(methods, method, apiName, restSpec);
-            } else {
-                assertSyncMethod(method, apiName);
-                boolean remove = apiSpec.remove(apiName);
-                if (remove == false) {
-                    if (deprecatedMethods.contains(apiName)) {
-                        assertTrue("method [" + method.getName() + "], api [" + apiName + "] should be deprecated",
-                            method.isAnnotationPresent(Deprecated.class));
-                    } else {
-                        //TODO xpack api are currently ignored, we need to load xpack yaml spec too
-                        if (apiName.startsWith("xpack.") == false &&
-                            apiName.startsWith("license.") == false &&
-                            apiName.startsWith("machine_learning.") == false &&
-                            apiName.startsWith("rollup.") == false &&
-                            apiName.startsWith("watcher.") == false &&
-                            apiName.startsWith("graph.") == false &&
-                            apiName.startsWith("migration.") == false &&
-                            apiName.startsWith("security.") == false &&
-                            apiName.startsWith("index_lifecycle.") == false &&
-                            apiName.startsWith("ccr.") == false &&
-                            apiName.endsWith("freeze") == false) {
-                            apiNotFound.add(apiName);
+                //we convert all the method names to snake case, hence we need to look for the '_async' suffix rather than 'Async'
+                if (apiName.endsWith("_async")) {
+                    assertAsyncMethod(methods, method, apiName);
+                } else if (isSubmitTaskMethod(apiName)) {
+                    assertSubmitTaskMethod(methods, method, apiName, restSpec);
+                } else {
+                    assertSyncMethod(method, apiName, booleanReturnMethods);
+                    apiUnsupported.remove(apiName);
+                    if (apiSpec.contains(apiName) == false) {
+                        if (deprecatedMethods.contains(apiName)) {
+                            assertTrue("method [" + method.getName() + "], api [" + apiName + "] should be deprecated",
+                                method.isAnnotationPresent(Deprecated.class));
+                        } else {
+                            //TODO xpack api are currently ignored, we need to load xpack yaml spec too
+                            if (apiName.startsWith("xpack.") == false &&
+                                apiName.startsWith("license.") == false &&
+                                apiName.startsWith("machine_learning.") == false &&
+                                apiName.startsWith("rollup.") == false &&
+                                apiName.startsWith("watcher.") == false &&
+                                apiName.startsWith("graph.") == false &&
+                                apiName.startsWith("migration.") == false &&
+                                apiName.startsWith("security.") == false &&
+                                apiName.startsWith("index_lifecycle.") == false &&
+                                apiName.startsWith("ccr.") == false &&
+                                apiName.endsWith("freeze") == false) {
+                                apiNotFound.add(apiName);
+                            }
                         }
                     }
                 }
@@ -779,16 +788,16 @@ public class RestHighLevelClientTests extends ESTestCase {
             apiNotFound.size(), equalTo(0));
 
         //we decided not to support cat API in the high-level REST client, they are supposed to be used from a low-level client
-        apiSpec.removeIf(api -> api.startsWith("cat."));
+        apiUnsupported.removeIf(api -> api.startsWith("cat."));
         Stream.concat(Arrays.stream(notYetSupportedApi), Arrays.stream(notRequiredApi)).forEach(
             api -> assertTrue(api + " API is either not defined in the spec or already supported by the high-level client",
-                apiSpec.remove(api)));
-        assertThat("Some API are not supported but they should be: " + apiSpec, apiSpec.size(), equalTo(0));
+                apiUnsupported.remove(api)));
+        assertThat("Some API are not supported but they should be: " + apiUnsupported, apiUnsupported.size(), equalTo(0));
     }
 
-    private static void assertSyncMethod(Method method, String apiName) {
+    private static void assertSyncMethod(Method method, String apiName, List<String> booleanReturnMethods) {
         //A few methods return a boolean rather than a response object
-        if (apiName.equals("ping") || apiName.contains("exist")) {
+        if (apiName.equals("ping") || apiName.contains("exist") || booleanReturnMethods.contains(apiName)) {
             assertThat("the return type for method [" + method + "] is incorrect",
                 method.getReturnType().getSimpleName(), equalTo("boolean"));
         } else {
@@ -807,14 +816,22 @@ public class RestHighLevelClientTests extends ESTestCase {
                 method.getParameterTypes()[0], equalTo(RequestOptions.class));
         } else {
             assertEquals("incorrect number of arguments for method [" + method + "]", 2, method.getParameterTypes().length);
-            assertThat("the first parameter to method [" + method + "] is the wrong type",
-                method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
-            assertThat("the second parameter to method [" + method + "] is the wrong type",
-                method.getParameterTypes()[1], equalTo(RequestOptions.class));
+            // This is no longer true for all methods. Some methods can contain these 2 args backwards because of deprecation
+            if (method.getParameterTypes()[0].equals(RequestOptions.class)) {
+                assertThat("the first parameter to method [" + method + "] is the wrong type",
+                    method.getParameterTypes()[0], equalTo(RequestOptions.class));
+                assertThat("the second parameter to method [" + method + "] is the wrong type",
+                    method.getParameterTypes()[1].getSimpleName(), endsWith("Request"));
+            } else {
+                assertThat("the first parameter to method [" + method + "] is the wrong type",
+                    method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
+                assertThat("the second parameter to method [" + method + "] is the wrong type",
+                    method.getParameterTypes()[1], equalTo(RequestOptions.class));
+            }
         }
     }
 
-    private static void assertAsyncMethod(Map<String, Method> methods, Method method, String apiName) {
+    private static void assertAsyncMethod(Map<String, Set<Method>> methods, Method method, String apiName) {
         assertTrue("async method [" + method.getName() + "] doesn't have corresponding sync method",
                 methods.containsKey(apiName.substring(0, apiName.length() - 6)));
         assertThat("async method [" + method + "] should return void", method.getReturnType(), equalTo(Void.TYPE));
@@ -825,16 +842,24 @@ public class RestHighLevelClientTests extends ESTestCase {
             assertThat(method.getParameterTypes()[1], equalTo(ActionListener.class));
         } else {
             assertEquals("async method [" + method + "] has the wrong number of arguments", 3, method.getParameterTypes().length);
-            assertThat("the first parameter to async method [" + method + "] should be a request type",
-                method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
-            assertThat("the second parameter to async method [" + method + "] is the wrong type",
-                method.getParameterTypes()[1], equalTo(RequestOptions.class));
+            // This is no longer true for all methods. Some methods can contain these 2 args backwards because of deprecation
+            if (method.getParameterTypes()[0].equals(RequestOptions.class)) {
+                assertThat("the first parameter to async method [" + method + "] should be a request type",
+                    method.getParameterTypes()[0], equalTo(RequestOptions.class));
+                assertThat("the second parameter to async method [" + method + "] is the wrong type",
+                    method.getParameterTypes()[1].getSimpleName(), endsWith("Request"));
+            } else {
+                assertThat("the first parameter to async method [" + method + "] should be a request type",
+                    method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
+                assertThat("the second parameter to async method [" + method + "] is the wrong type",
+                    method.getParameterTypes()[1], equalTo(RequestOptions.class));
+            }
             assertThat("the third parameter to async method [" + method + "] is the wrong type",
                 method.getParameterTypes()[2], equalTo(ActionListener.class));
         }
     }
 
-    private static void assertSubmitTaskMethod(Map<String, Method> methods, Method method, String apiName,
+    private static void assertSubmitTaskMethod(Map<String, Set<Method>> methods, Method method, String apiName,
                                                ClientYamlSuiteRestSpec restSpec) {
         String methodName = extractMethodName(apiName);
         assertTrue("submit task method [" + method.getName() + "] doesn't have corresponding sync method",

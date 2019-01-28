@@ -146,6 +146,9 @@ public class RandomSearchRequestGenerator {
             builder.version(randomBoolean());
         }
         if (randomBoolean()) {
+            builder.seqNoAndPrimaryTerm(randomBoolean());
+        }
+        if (randomBoolean()) {
             builder.trackScores(randomBoolean());
         }
         if (randomBoolean()) {
@@ -162,7 +165,7 @@ public class RandomSearchRequestGenerator {
                 builder.trackTotalHits(randomBoolean());
             } else {
                 builder.trackTotalHitsUpTo(
-                    randomIntBetween(SearchContext.TRACK_TOTAL_HITS_DISABLED, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO)
+                    randomIntBetween(SearchContext.TRACK_TOTAL_HITS_DISABLED, SearchContext.TRACK_TOTAL_HITS_ACCURATE)
                 );
             }
         }

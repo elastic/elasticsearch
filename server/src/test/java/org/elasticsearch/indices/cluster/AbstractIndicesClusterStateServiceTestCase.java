@@ -31,6 +31,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -233,7 +234,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 final PeerRecoveryTargetService.RecoveryListener recoveryListener,
                 final RepositoriesService repositoriesService,
                 final Consumer<IndexShard.ShardFailure> onShardFailure,
-                final Consumer<ShardId> globalCheckpointSyncer) throws IOException {
+                final Consumer<ShardId> globalCheckpointSyncer,
+                final RetentionLeaseSyncer retentionLeaseSyncer) throws IOException {
             failRandomly();
             MockIndexService indexService = indexService(recoveryState.getShardId().getIndex());
             MockIndexShard indexShard = indexService.createShard(shardRouting);

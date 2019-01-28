@@ -10,15 +10,13 @@ the specified value so that it can be indexed and searched.  For instance:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "status_code": {
-          "type":       "keyword",
-          "null_value": "NULL" <1>
-        }
+    "properties": {
+      "status_code": {
+        "type":       "keyword",
+        "null_value": "NULL" <1>
       }
     }
   }

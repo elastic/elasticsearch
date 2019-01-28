@@ -9,15 +9,13 @@ Imagine that you are selling shirts that have the following properties:
 
 [source,js]
 --------------------------------------------------
-PUT /shirts?include_type_name=true
+PUT /shirts
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "brand": { "type": "keyword"},
-                "color": { "type": "keyword"},
-                "model": { "type": "keyword"}
-            }
+        "properties": {
+            "brand": { "type": "keyword"},
+            "color": { "type": "keyword"},
+            "model": { "type": "keyword"}
         }
     }
 }

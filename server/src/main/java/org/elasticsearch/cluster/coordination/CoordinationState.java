@@ -484,6 +484,10 @@ public class CoordinationState {
                 metaDataBuilder = MetaData.builder(lastAcceptedState.metaData());
                 metaDataBuilder.coordinationMetaData(coordinationMetaData);
             }
+            // if we receive a commit from a Zen1 master that has not recovered its state yet, the cluster uuid might not been known yet.
+            assert lastAcceptedState.metaData().clusterUUID().equals(MetaData.UNKNOWN_CLUSTER_UUID) == false ||
+                lastAcceptedState.coordinationMetaData().getLastCommittedConfiguration().isEmpty() :
+                "received cluster state with empty cluster uuid but voting configuration: " + lastAcceptedState;
             if (lastAcceptedState.metaData().clusterUUID().equals(MetaData.UNKNOWN_CLUSTER_UUID) == false &&
                 lastAcceptedState.metaData().clusterUUIDCommitted() == false) {
                 if (metaDataBuilder == null) {

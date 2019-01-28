@@ -41,8 +41,6 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -72,6 +70,8 @@ import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
+import org.elasticsearch.client.indices.GetMappingsRequest;
+import org.elasticsearch.client.indices.GetMappingsResponse;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
@@ -95,6 +95,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetFieldMappingAction;
+import org.elasticsearch.rest.action.admin.indices.RestGetMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutMappingAction;
 
 import java.io.IOException;
@@ -527,8 +528,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         mappingBuilder.endObject().endObject().endObject();
         putMappingRequest.source(mappingBuilder);
 
-        AcknowledgedResponse putMappingResponse =
-            execute(putMappingRequest, highLevelClient().indices()::putMapping, highLevelClient().indices()::putMappingAsync);
+        AcknowledgedResponse putMappingResponse = execute(putMappingRequest,
+            highLevelClient().indices()::putMapping,
+            highLevelClient().indices()::putMappingAsync);
         assertTrue(putMappingResponse.isAcknowledged());
 
         Map<String, Object> getIndexResponse = getAsMap(indexName);
@@ -536,8 +538,48 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         GetMappingsRequest request = new GetMappingsRequest().indices(indexName);
 
-        GetMappingsResponse getMappingsResponse =
-            execute(request, highLevelClient().indices()::getMapping, highLevelClient().indices()::getMappingAsync);
+        GetMappingsResponse getMappingsResponse = execute(
+            request,
+            highLevelClient().indices()::getMapping,
+            highLevelClient().indices()::getMappingAsync);
+
+        Map<String, Object> mappings = getMappingsResponse.mappings().get(indexName).sourceAsMap();
+        Map<String, String> type = new HashMap<>();
+        type.put("type", "text");
+        Map<String, Object> field = new HashMap<>();
+        field.put("field", type);
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("properties", field);
+        assertThat(mappings, equalTo(expected));
+    }
+
+    public void testGetMappingWithTypes() throws IOException {
+        String indexName = "test";
+        createIndex(indexName, Settings.EMPTY);
+
+        PutMappingRequest putMappingRequest = new PutMappingRequest(indexName);
+        XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
+        mappingBuilder.startObject().startObject("properties").startObject("field");
+        mappingBuilder.field("type", "text");
+        mappingBuilder.endObject().endObject().endObject();
+        putMappingRequest.source(mappingBuilder);
+
+        AcknowledgedResponse putMappingResponse = execute(putMappingRequest,
+            highLevelClient().indices()::putMapping,
+            highLevelClient().indices()::putMappingAsync);
+        assertTrue(putMappingResponse.isAcknowledged());
+
+        Map<String, Object> getIndexResponse = getAsMap(indexName);
+        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type", getIndexResponse));
+
+        org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest request =
+            new org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest().indices(indexName);
+
+        org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse getMappingsResponse = execute(
+            request,
+            highLevelClient().indices()::getMapping,
+            highLevelClient().indices()::getMappingAsync,
+            expectWarnings(RestGetMappingAction.TYPES_DEPRECATION_MESSAGE));
 
         Map<String, Object> mappings = getMappingsResponse.getMappings().get(indexName).get("_doc").sourceAsMap();
         Map<String, String> type = new HashMap<>();

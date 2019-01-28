@@ -24,8 +24,8 @@ Note: You can configure which of these files are written by editing `log4j2.prop
 ==== Log files ending with `*.log` deprecated
 Log files with the `.log` file extension using the old pattern layout format
 are now considered deprecated and the newly added JSON log file format with
-the .json file extension should be used instead.
-Note: GC logs which are written to the file gc.log will not be changed.
+the `.json` file extension should be used instead.
+Note: GC logs which are written to the file `gc.log` will not be changed.
 
 [float]
 ==== Docker output in JSON format

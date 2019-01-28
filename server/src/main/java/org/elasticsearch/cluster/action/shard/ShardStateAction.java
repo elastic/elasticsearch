@@ -558,8 +558,18 @@ public class ShardStateAction {
                     logger.debug("{} ignoring shard started task [{}] (unknown index {})", task.shardId, task, task.shardId.getIndex());
                     builder.success(task);
                     continue;
+                }
+
+                final ShardRouting matched = currentState.getRoutingTable().getByAllocationId(task.shardId, task.allocationId);
+                if (matched == null) {
+                    // tasks that correspond to non-existent shards are marked as successful. The reason is that we resend shard started
+                    // events on every cluster state publishing that does not contain the shard as started yet. This means that old stale
+                    // requests might still be in flight even after the shard has already been started or failed on the master. We just
+                    // ignore these requests for now.
+                    logger.debug("{} ignoring shard started task [{}] (shard does not exist anymore)", task.shardId, task);
+                    builder.success(task);
                 } else {
-                    if (task.primaryTerm > 0) {
+                    if (matched.primary() && task.primaryTerm > 0) {
                         final long currentPrimaryTerm = indexMetaData.primaryTerm(task.shardId.id());
                         if (currentPrimaryTerm != task.primaryTerm) {
                             assert currentPrimaryTerm > task.primaryTerm : "received a primary term with a higher term than in the " +
@@ -570,17 +580,6 @@ public class ShardStateAction {
                             continue;
                         }
                     }
-                }
-
-                ShardRouting matched = currentState.getRoutingTable().getByAllocationId(task.shardId, task.allocationId);
-                if (matched == null) {
-                    // tasks that correspond to non-existent shards are marked as successful. The reason is that we resend shard started
-                    // events on every cluster state publishing that does not contain the shard as started yet. This means that old stale
-                    // requests might still be in flight even after the shard has already been started or failed on the master. We just
-                    // ignore these requests for now.
-                    logger.debug("{} ignoring shard started task [{}] (shard does not exist anymore)", task.shardId, task);
-                    builder.success(task);
-                } else {
                     if (matched.initializing() == false) {
                         assert matched.active() : "expected active shard routing for task " + task + " but found " + matched;
                         // same as above, this might have been a stale in-flight request, so we just ignore.

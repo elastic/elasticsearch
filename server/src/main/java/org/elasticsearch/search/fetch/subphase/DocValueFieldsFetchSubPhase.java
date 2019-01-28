@@ -32,7 +32,6 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -49,6 +48,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import static org.elasticsearch.search.DocValueFormat.withNanosecondResolution;
 
 /**
  * Query sub phase which pulls data from doc values
@@ -95,6 +97,7 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
             MappedFieldType fieldType = context.mapperService().fullName(field);
             if (fieldType != null) {
                 final IndexFieldData<?> indexFieldData = context.getForField(fieldType);
+                boolean isNanosecond = ((IndexNumericFieldData) indexFieldData).getNumericType() == NumericType.DATE_NANOSECONDS;
                 final DocValueFormat format;
                 if (fieldAndFormat.format == null) {
                     format = null;
@@ -103,7 +106,11 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                     if (Objects.equals(formatDesc, DocValueFieldsContext.USE_DEFAULT_FORMAT)) {
                         formatDesc = null;
                     }
-                    format = fieldType.docValueFormat(formatDesc, null);
+                    if (isNanosecond) {
+                        format = withNanosecondResolution(fieldType.docValueFormat(formatDesc, null));
+                    } else {
+                        format = fieldType.docValueFormat(formatDesc, null);
+                    }
                 }
                 LeafReaderContext subReaderContext = null;
                 AtomicFieldData data = null;
@@ -112,8 +119,6 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                 SortedNumericDocValues longValues = null; // int / date fields
                 SortedNumericDoubleValues doubleValues = null; // floating-point fields
                 for (SearchHit hit : hits) {
-                    // TODO this is not yet nice, improve!
-                    boolean isNanosecondHit = false;
                     // if the reader index has changed we need to get a new doc values reader instance
                     if (subReaderContext == null || hit.docId() >= subReaderContext.docBase + subReaderContext.reader().maxDoc()) {
                         int readerIndex = ReaderUtil.subIndex(hit.docId(), context.searcher().getIndexReader().leaves());
@@ -122,7 +127,7 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                             data = indexFieldData.load(subReaderContext);
                             scriptValues = data.getLegacyFieldValues();
                         } else if (indexFieldData instanceof IndexNumericFieldData) {
-                            IndexNumericFieldData.NumericType numericType = ((IndexNumericFieldData) indexFieldData).getNumericType();
+                            NumericType numericType = ((IndexNumericFieldData) indexFieldData).getNumericType();
                             if (numericType.isFloatingPoint()) {
                                 data = indexFieldData.load(subReaderContext);
                                 doubleValues = ((AtomicNumericFieldData) data).getDoubleValues();
@@ -130,9 +135,9 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                                 // by default nanoseconds are cut to milliseconds within aggregations
                                 // however for doc value fields we need the original nanosecond longs
                                 // TODO this is not yet nice, improve!
-                                if (numericType == IndexNumericFieldData.NumericType.DATE_NANOSECONDS) {
-                                    isNanosecondHit = true;
-                                    data = ((SortedNumericDVIndexFieldData)indexFieldData).loadNanosecondFieldData(subReaderContext);
+                                if (isNanosecond) {
+                                    SortedNumericDVIndexFieldData numericDVIndexFieldData = (SortedNumericDVIndexFieldData) indexFieldData;
+                                    data = numericDVIndexFieldData.loadNanosecondFieldData(subReaderContext);
                                 } else {
                                     data = indexFieldData.load(subReaderContext);
                                 }
@@ -164,16 +169,9 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                             }
                         }
                     } else if (longValues != null) {
-                        // TODO this is not yet nice, improve!
-                        final DocValueFormat replacedFormat;
-                        if (isNanosecondHit) {
-                            replacedFormat = DocValueFormat.withResolution(format, DateFieldMapper.Resolution.NANOSECONDS);
-                        } else {
-                            replacedFormat = format;
-                        }
                         if (longValues.advanceExact(subDocId)) {
                             for (int i = 0, count = longValues.docValueCount(); i < count; ++i) {
-                                values.add(replacedFormat.format(longValues.nextValue()));
+                                values.add(format.format(longValues.nextValue()));
                             }
                         }
                     } else if (doubleValues != null) {

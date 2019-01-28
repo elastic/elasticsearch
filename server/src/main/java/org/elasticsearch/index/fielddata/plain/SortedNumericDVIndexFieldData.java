@@ -42,6 +42,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -141,42 +142,62 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
             case DOUBLE:
                 return new SortedNumericDoubleFieldData(reader, field);
             case DATE_NANOSECONDS:
-                // TODO this is not yet nice, improve!
-                return new SortedNumericLongFieldData(reader, field, numericType) {
-                    @Override
-                    public SortedNumericDocValues getLongValues() {
-                        try {
-                            final SortedNumericDocValues dv = DocValues.getSortedNumeric(reader, field);
-                            return new AbstractSortedNumericDocValues() {
-
-                                @Override
-                                public boolean advanceExact(int target) throws IOException {
-                                    return dv.advanceExact(target);
-                                }
-
-                                @Override
-                                public long nextValue() throws IOException {
-                                    return dv.nextValue() / 1_000_000L;
-                                }
-
-                                @Override
-                                public int docValueCount() {
-                                    return dv.docValueCount();
-                                }
-                            };
-                        } catch (IOException e) {
-                            throw new IllegalStateException("Cannot load doc values", e);
-                        }
-                    }
-                };
+                return new NanoSecondFieldData(reader, field, numericType, DateFieldMapper.Resolution.MILLISECONDS);
             default:
                 return new SortedNumericLongFieldData(reader, field, numericType);
         }
     }
 
-    // TODO this is not yet nice, improve!
     public AtomicNumericFieldData loadNanosecondFieldData(LeafReaderContext context) {
-        return new SortedNumericLongFieldData(context.reader(), fieldName, numericType);
+        return new NanoSecondFieldData(context.reader(), fieldName, numericType, DateFieldMapper.Resolution.NANOSECONDS);
+    }
+
+    /**
+     * A small helper class that can be configured to load nanosecond field data either in nanosecond resolution retaining the original
+     * values or in millisecond resolution converting the nanosecond values to milliseconds
+     */
+    class NanoSecondFieldData extends AtomicLongFieldData {
+
+        private final LeafReader reader;
+        private final String fieldName;
+        private final DateFieldMapper.Resolution resolution;
+
+        NanoSecondFieldData(LeafReader reader, String fieldName, NumericType numericType, DateFieldMapper.Resolution resolution) {
+            super(0L, numericType);
+            this.reader = reader;
+            this.fieldName = fieldName;
+            this.resolution = resolution;
+        }
+
+        @Override
+        public SortedNumericDocValues getLongValues() {
+            try {
+                final SortedNumericDocValues dv = DocValues.getSortedNumeric(reader, fieldName);
+                if (resolution == DateFieldMapper.Resolution.MILLISECONDS) {
+                    return new AbstractSortedNumericDocValues() {
+
+                        @Override
+                        public boolean advanceExact(int target) throws IOException {
+                            return dv.advanceExact(target);
+                        }
+
+                        @Override
+                        public long nextValue() throws IOException {
+                            return dv.nextValue() / 1_000_000L;
+                        }
+
+                        @Override
+                        public int docValueCount() {
+                            return dv.docValueCount();
+                        }
+                    };
+                } else {
+                    return dv;
+                }
+            } catch (IOException e) {
+                throw new IllegalStateException("Cannot load doc values", e);
+            }
+        }
     }
 
     /**
@@ -190,7 +211,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
      * {@link DocValues#unwrapSingleton(SortedNumericDocValues)} will return
      * the underlying single-valued NumericDocValues representation.
      */
-    class SortedNumericLongFieldData extends AtomicLongFieldData {
+    final class SortedNumericLongFieldData extends AtomicLongFieldData {
         final LeafReader reader;
         final String field;
 

@@ -111,9 +111,9 @@ public class DateFieldMapper extends FieldMapper {
             return numericType;
         }
 
-        abstract public long convert(Instant instant);
+        public abstract long convert(Instant instant);
 
-        abstract public Instant toInstant(long value);
+        public abstract Instant toInstant(long value);
 
         public static Resolution ofOrdinal(int ord) {
             for (Resolution resolution : values()) {
@@ -472,7 +472,6 @@ public class DateFieldMapper extends FieldMapper {
             if (timeZone == null) {
                 timeZone = ZoneOffset.UTC;
             }
-            // TODO this is not yet nice, improve!
             // the resolution here is always set to milliseconds, as aggregations use this formatter mainly and those are always in
             // milliseconds. The only special case here is docvalue fields, which are handled somewhere else
             return new DocValueFormat.DateTime(dateTimeFormatter, timeZone, Resolution.MILLISECONDS);

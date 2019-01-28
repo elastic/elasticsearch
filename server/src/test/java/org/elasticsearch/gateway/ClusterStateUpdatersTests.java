@@ -263,11 +263,11 @@ public class ClusterStateUpdatersTests extends ESTestCase {
                 .blocks(ClusterBlocks.builder().addGlobalBlock(CLUSTER_READ_ONLY_BLOCK).build())
                 .metaData(metaData)
                 .build();
-        assertThat(recoveredState.metaData().clusterUUID(), equalTo("_na_"));
+        assertThat(recoveredState.metaData().clusterUUID(), equalTo(MetaData.UNKNOWN_CLUSTER_UUID));
 
         final ClusterState updatedState = mixCurrentStateAndRecoveredState(currentState, recoveredState);
 
-        assertThat(updatedState.metaData().clusterUUID(), not(equalTo("_na_")));
+        assertThat(updatedState.metaData().clusterUUID(), not(equalTo(MetaData.UNKNOWN_CLUSTER_UUID)));
         assertFalse(MetaData.isGlobalStateEquals(metaData, updatedState.metaData()));
         assertThat(updatedState.metaData().index("test"), equalTo(indexMetaData));
         assertTrue(updatedState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));

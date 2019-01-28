@@ -31,7 +31,7 @@ public class AuthenticateResponse extends ActionResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_7_0_0)) {
+        if (out.getVersion().before(Version.V_6_6_0)) {
             User.writeTo(authentication.getUser(), out);
         } else {
             authentication.writeTo(out);
@@ -41,7 +41,7 @@ public class AuthenticateResponse extends ActionResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().before(Version.V_7_0_0)) {
+        if (in.getVersion().before(Version.V_6_6_0)) {
             final User user = User.readFrom(in);
             final Authentication.RealmRef unknownRealm = new Authentication.RealmRef("__unknown", "__unknown", "__unknown");
             authentication = new Authentication(user, unknownRealm, unknownRealm);

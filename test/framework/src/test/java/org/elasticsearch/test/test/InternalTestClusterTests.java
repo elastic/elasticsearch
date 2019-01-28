@@ -422,6 +422,7 @@ public class InternalTestClusterTests extends ESTestCase {
                     assertTrue(rolePaths.add(path.toString()));
                 }
             }
+            cluster.validateClusterFormed();
             cluster.fullRestart();
 
             Map<DiscoveryNode.Role, Set<String>> result = new HashMap<>();

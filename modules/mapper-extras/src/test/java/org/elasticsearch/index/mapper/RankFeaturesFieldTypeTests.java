@@ -17,20 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.common.component;
+package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
+public class RankFeaturesFieldTypeTests extends FieldTypeTestCase {
 
-/**
- * @deprecated declare your own logger
- */
-@Deprecated
-public abstract class AbstractComponent {
-
-    protected final Logger logger;
-
-    public AbstractComponent() {
-        this.logger = LogManager.getLogger(getClass());
+    @Override
+    protected MappedFieldType createDefaultFieldType() {
+        return new RankFeaturesFieldMapper.RankFeaturesFieldType();
     }
+
 }

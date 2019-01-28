@@ -30,7 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 
 import java.util.Collection;
-import java.util.Comparator;
+import java.util.Collections;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -106,7 +106,8 @@ public class Reconfigurator {
          *  There are three true/false properties of each node in play: live/non-live, retired/non-retired and in-config/not-in-config.
          *  Firstly we divide the nodes into disjoint sets based on these properties:
          *
-         *  - nonRetiredInConfigNotLiveIds
+         *  - nonRetiredMaster
+         *  - nonRetiredNotMasterInConfigNotLiveIds
          *  - nonRetiredInConfigLiveIds
          *  - nonRetiredLiveNotInConfigIds
          *
@@ -127,8 +128,19 @@ public class Reconfigurator {
         final Set<String> nonRetiredInConfigNotLiveIds = new TreeSet<>(inConfigNotLiveIds);
         nonRetiredInConfigNotLiveIds.removeAll(retiredNodeIds);
 
-        final Set<String> nonRetiredInConfigLiveIds = masterFirstTreeSet(liveInConfigIds, currentMaster);
+        final Set<String> nonRetiredInConfigLiveIds = new TreeSet<>(liveInConfigIds);
         nonRetiredInConfigLiveIds.removeAll(retiredNodeIds);
+
+        final Set<String> nonRetiredInConfigLiveMasterIds;
+        final Set<String> nonRetiredInConfigLiveNotMasterIds;
+        if (nonRetiredInConfigLiveIds.contains(currentMaster.getId())) {
+            nonRetiredInConfigLiveNotMasterIds = new TreeSet<>(nonRetiredInConfigLiveIds);
+            nonRetiredInConfigLiveNotMasterIds.remove(currentMaster.getId());
+            nonRetiredInConfigLiveMasterIds = Collections.singleton(currentMaster.getId());
+        } else {
+            nonRetiredInConfigLiveNotMasterIds = nonRetiredInConfigLiveIds;
+            nonRetiredInConfigLiveMasterIds = Collections.emptySet();
+        }
 
         final Set<String> nonRetiredLiveNotInConfigIds = Sets.sortedDifference(liveNodeIds, currentConfig.getNodeIds());
         nonRetiredLiveNotInConfigIds.removeAll(retiredNodeIds);
@@ -156,9 +168,9 @@ public class Reconfigurator {
          * The new configuration is formed by taking this many nodes in the following preference order:
          */
         final VotingConfiguration newConfig = new VotingConfiguration(
-            // live nodes first, preferring the current config, and if we need more then use non-live nodes
-            Stream.of(nonRetiredInConfigLiveIds, nonRetiredLiveNotInConfigIds, nonRetiredInConfigNotLiveIds)
-                .flatMap(Collection::stream).limit(targetSize).collect(Collectors.toSet()));
+            // live master first, then other live nodes, preferring the current config, and if we need more then use non-live nodes
+            Stream.of(nonRetiredInConfigLiveMasterIds, nonRetiredInConfigLiveNotMasterIds, nonRetiredLiveNotInConfigIds,
+                nonRetiredInConfigNotLiveIds).flatMap(Collection::stream).limit(targetSize).collect(Collectors.toSet()));
 
         if (newConfig.hasQuorum(liveNodeIds)) {
             return newConfig;
@@ -166,13 +178,5 @@ public class Reconfigurator {
             // If there are not enough live nodes to form a quorum in the newly-proposed configuration, it's better to do nothing.
             return currentConfig;
         }
-    }
-
-    private TreeSet<String> masterFirstTreeSet(Collection<? extends String> items, DiscoveryNode masterNode) {
-        final String masterNodeId = masterNode.getId();
-        final TreeSet<String> set = new TreeSet<>(Comparator.<String>comparingInt(s -> s.equals(masterNodeId) ? 0 : 1)
-            .thenComparing(Comparator.naturalOrder()));
-        set.addAll(items);
-        return set;
     }
 }

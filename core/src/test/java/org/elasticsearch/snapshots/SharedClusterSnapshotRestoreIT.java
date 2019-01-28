@@ -2706,7 +2706,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(createSnapshotResponse.getSnapshotInfo().snapshotId().getName(), equalTo(snapshotName));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31054")
     public void testGetSnapshotsRequest() throws Exception {
         final String repositoryName = "test-repo";
         final String indexName = "test-idx";

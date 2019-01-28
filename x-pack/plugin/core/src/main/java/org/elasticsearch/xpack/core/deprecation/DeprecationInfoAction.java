@@ -172,13 +172,13 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Request,
          * @return The list of deprecation issues found in the cluster
          */
         public static DeprecationInfoAction.Response from(List<NodeInfo> nodesInfo, List<NodeStats> nodesStats, ClusterState state,
-                                                      IndexNameExpressionResolver indexNameExpressionResolver,
-                                                      String[] indices, IndicesOptions indicesOptions,
-                                                      List<DatafeedConfig> datafeeds,
-                                                      List<Function<ClusterState,DeprecationIssue>>clusterSettingsChecks,
-                                                      List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> nodeSettingsChecks,
-                                                      List<Function<IndexMetaData, DeprecationIssue>> indexSettingsChecks,
-                                                      List<Function<DatafeedConfig, DeprecationIssue>> mlSettingsCheck) {
+                                                  IndexNameExpressionResolver indexNameExpressionResolver,
+                                                  String[] indices, IndicesOptions indicesOptions,
+                                                  List<DatafeedConfig> datafeeds,
+                                                  List<Function<ClusterState,DeprecationIssue>>clusterSettingsChecks,
+                                                  List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> nodeSettingsChecks,
+                                                  List<Function<IndexMetaData, DeprecationIssue>> indexSettingsChecks,
+                                                  List<Function<DatafeedConfig, DeprecationIssue>> mlSettingsCheck) {
             List<DeprecationIssue> clusterSettingsIssues = filterChecks(clusterSettingsChecks,
                 (c) -> c.apply(state));
             List<DeprecationIssue> nodeSettingsIssues = filterChecks(nodeSettingsChecks,

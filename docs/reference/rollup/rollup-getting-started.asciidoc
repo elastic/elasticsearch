@@ -30,7 +30,7 @@ one hour or greater.  A rollup job might look like this:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/rollup/job/sensor
+PUT _rollup/job/sensor
 {
     "index_pattern": "sensor-*",
     "rollup_index": "sensor_rollup",
@@ -60,7 +60,7 @@ PUT _xpack/rollup/job/sensor
 // CONSOLE
 // TEST[setup:sensor_index]
 
-We give the job the ID of "sensor" (in the url: `PUT _xpack/rollup/job/sensor`), and tell it to rollup the index pattern `"sensor-*"`.
+We give the job the ID of "sensor" (in the url: `PUT _rollup/job/sensor`), and tell it to rollup the index pattern `"sensor-*"`.
 This job will find and rollup any index that matches that pattern. Rollup summaries are then stored in the `"sensor_rollup"` index.
 
 The `cron` parameter controls when and how often the job activates.  When a rollup job's cron schedule triggers, it will begin rolling up
@@ -114,7 +114,7 @@ To start the job, execute this command:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/rollup/job/sensor/_start
+POST _rollup/job/sensor/_start
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sensor_rollup_job]
@@ -158,7 +158,10 @@ If you were to execute that query, you'd receive a result that looks like a norm
   "terminated_early" : false,
   "_shards" : ... ,
   "hits" : {
-    "total" : 0,
+    "total" : {
+        "value": 0,
+        "relation": "eq"
+    },
     "max_score" : 0.0,
     "hits" : [ ]
   },
@@ -229,7 +232,10 @@ Which returns a corresponding response:
    "terminated_early" : false,
    "_shards" : ... ,
    "hits" : {
-     "total" : 0,
+     "total" : {
+        "value": 0,
+        "relation": "eq"
+     },
      "max_score" : 0.0,
      "hits" : [ ]
    },

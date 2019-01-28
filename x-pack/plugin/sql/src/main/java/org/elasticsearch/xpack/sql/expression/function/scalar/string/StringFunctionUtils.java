@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
-import org.elasticsearch.xpack.sql.type.DataType;
-
 abstract class StringFunctionUtils {
 
     /**
@@ -15,7 +12,7 @@ abstract class StringFunctionUtils {
      *
      * @param s       the original String
      * @param start   starting position for the substring within the original string. 0-based index position
-     * @param length  length in characters of the substracted substring
+     * @param length  length in characters of the subtracted substring
      * @return the resulting String
      */
     static String substring(String s, int start, int length) {
@@ -74,15 +71,5 @@ abstract class StringFunctionUtils {
         return (s != null && s.length() > 0);
     }
     
-    static TypeResolution resolveStringInputType(DataType inputType, String functionName) {
-        return inputType.isString() ? 
-                TypeResolution.TYPE_RESOLVED : 
-                new TypeResolution("'%s' requires a string type, received %s", functionName, inputType.esType);
-    }
-    
-    static TypeResolution resolveNumericInputType(DataType inputType, String functionName) {
-        return inputType.isNumeric() ? 
-                TypeResolution.TYPE_RESOLVED : 
-                new TypeResolution("'%s' requires a numeric type, received %s", functionName, inputType.esType);
-    }
+
 }

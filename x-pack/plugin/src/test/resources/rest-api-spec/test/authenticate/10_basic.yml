@@ -8,7 +8,7 @@ setup:
           wait_for_status: yellow
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "authenticate_user"
         body:  >
           {
@@ -20,7 +20,7 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "authenticate_user"
         ignore: 404
 
@@ -30,7 +30,7 @@ teardown:
   - do:
       headers:
         Authorization: "Basic YXV0aGVudGljYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
-      xpack.security.authenticate: {}
+      security.authenticate: {}
 
   - match: { username: "authenticate_user" }
   - match: { roles.0:  "superuser" }

@@ -100,10 +100,22 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
 
         sh.run("echo foobar | " + installation.executables().elasticsearchKeystore + " add --stdin foo.bar");
         Stream.of(
-            installation.config("elasticsearch.yml"),
-            installation.config("jvm.options"),
-            installation.config("log4j2.properties")
-        ).forEach(path -> append(path, "# foo"));
+            "elasticsearch.yml",
+            "jvm.options",
+            "log4j2.properties"
+        )
+            .map(each -> installation.config(each))
+            .forEach(path -> append(path, "# foo"));
+        if (distribution().isDefault()) {
+            Stream.of(
+                "role_mapping.yml",
+                "roles.yml",
+                "users",
+                "users_roles"
+            )
+                .map(each -> installation.config(each))
+                .forEach(path -> append(path, "# foo"));
+        }
 
         remove(distribution());
         assertRemoved(distribution());
@@ -131,11 +143,22 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
             "elasticsearch.yml",
             "jvm.options",
             "log4j2.properties"
-        ).forEach(configFile -> {
-            final Path original = installation.config(configFile);
-            final Path saved = installation.config(configFile + ".rpmsave");
-            assertFalse(original + " should not exist", Files.exists(original));
-            assertTrue(saved + " should exist", Files.exists(saved));
-        });
+        ).forEach(this::assertConfFilePreserved);
+
+        if (distribution().isDefault()) {
+            Stream.of(
+                "role_mapping.yml",
+                "roles.yml",
+                "users",
+                "users_roles"
+            ).forEach(this::assertConfFilePreserved);
+        }
+    }
+
+    private void assertConfFilePreserved(String configFile) {
+        final Path original = installation.config(configFile);
+        final Path saved = installation.config(configFile + ".rpmsave");
+        assertFalse(original + " should not exist", Files.exists(original));
+        assertTrue(saved + " should exist", Files.exists(saved));
     }
 }

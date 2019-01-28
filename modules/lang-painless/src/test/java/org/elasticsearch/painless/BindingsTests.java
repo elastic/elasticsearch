@@ -19,46 +19,100 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
+import org.elasticsearch.script.ScriptContext;
 
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class BindingsTests extends ScriptTestCase {
 
-    public void testBasicBinding() {
+    public static class InstanceBindingTestClass {
+        private int value;
+
+        public InstanceBindingTestClass(int value) {
+            this.value = value;
+        }
+
+        public void setInstanceBindingValue(int value) {
+            this.value = value;
+        }
+
+        public int getInstanceBindingValue() {
+            return value;
+        }
+    }
+
+    public abstract static class BindingsTestScript {
+        public static final String[] PARAMETERS = { "test", "bound" };
+        public abstract int execute(int test, int bound);
+        public interface Factory {
+            BindingsTestScript newInstance();
+        }
+        public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("bindings_test", Factory.class);
+    }
+
+    @Override
+    protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
+        Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
+        List<Whitelist> whitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+
+        InstanceBindingTestClass instanceBindingTestClass = new InstanceBindingTestClass(1);
+        WhitelistInstanceBinding getter = new WhitelistInstanceBinding("test", instanceBindingTestClass,
+                "setInstanceBindingValue", "void", Collections.singletonList("int"));
+        WhitelistInstanceBinding setter = new WhitelistInstanceBinding("test", instanceBindingTestClass,
+                "getInstanceBindingValue", "int", Collections.emptyList());
+        List<WhitelistInstanceBinding> instanceBindingsList = new ArrayList<>();
+        instanceBindingsList.add(getter);
+        instanceBindingsList.add(setter);
+        Whitelist instanceBindingsWhitelist = new Whitelist(instanceBindingTestClass.getClass().getClassLoader(),
+                Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), instanceBindingsList);
+        whitelists.add(instanceBindingsWhitelist);
+
+        contexts.put(BindingsTestScript.CONTEXT, whitelists);
+        return contexts;
+    }
+
+    public void testBasicClassBinding() {
         assertEquals(15, exec("testAddWithState(4, 5, 6, 0.0)"));
     }
 
-    public void testRepeatedBinding() {
-        String script = "testAddWithState(4, 5, params.test, 0.0)";
-        Map<String, Object> params = new HashMap<>();
-        ExecutableScript.Factory factory = scriptEngine.compile(null, script, ExecutableScript.CONTEXT, Collections.emptyMap());
-        ExecutableScript executableScript = factory.newInstance(params);
+    public void testRepeatedClassBinding() {
+        String script = "testAddWithState(4, 5, test, 0.0)";
+        BindingsTestScript.Factory factory = scriptEngine.compile(null, script, BindingsTestScript.CONTEXT, Collections.emptyMap());
+        BindingsTestScript executableScript = factory.newInstance();
 
-        executableScript.setNextVar("test", 5);
-        assertEquals(14, executableScript.run());
-
-        executableScript.setNextVar("test", 4);
-        assertEquals(13, executableScript.run());
-
-        executableScript.setNextVar("test", 7);
-        assertEquals(16, executableScript.run());
+        assertEquals(14, executableScript.execute(5, 0));
+        assertEquals(13, executableScript.execute(4, 0));
+        assertEquals(16, executableScript.execute(7, 0));
     }
 
-    public void testBoundBinding() {
-        String script = "testAddWithState(4, params.bound, params.test, 0.0)";
-        Map<String, Object> params = new HashMap<>();
-        ExecutableScript.Factory factory = scriptEngine.compile(null, script, ExecutableScript.CONTEXT, Collections.emptyMap());
-        ExecutableScript executableScript = factory.newInstance(params);
+    public void testBoundClassBinding() {
+        String script = "testAddWithState(4, bound, test, 0.0)";
+        BindingsTestScript.Factory factory = scriptEngine.compile(null, script, BindingsTestScript.CONTEXT, Collections.emptyMap());
+        BindingsTestScript executableScript = factory.newInstance();
 
-        executableScript.setNextVar("test", 5);
-        executableScript.setNextVar("bound", 1);
-        assertEquals(10, executableScript.run());
+        assertEquals(10, executableScript.execute(5, 1));
+        assertEquals(9, executableScript.execute(4, 2));
+    }
 
-        executableScript.setNextVar("test", 4);
-        executableScript.setNextVar("bound", 2);
-        assertEquals(9, executableScript.run());
+    public void testInstanceBinding() {
+        String script = "getInstanceBindingValue() + test + bound";
+        BindingsTestScript.Factory factory = scriptEngine.compile(null, script, BindingsTestScript.CONTEXT, Collections.emptyMap());
+        BindingsTestScript executableScript = factory.newInstance();
+        assertEquals(3, executableScript.execute(1, 1));
+
+        script = "setInstanceBindingValue(test + bound); getInstanceBindingValue()";
+        factory = scriptEngine.compile(null, script, BindingsTestScript.CONTEXT, Collections.emptyMap());
+        executableScript = factory.newInstance();
+        assertEquals(4, executableScript.execute(-2, 6));
+
+        script = "getInstanceBindingValue() + test + bound";
+        factory = scriptEngine.compile(null, script, BindingsTestScript.CONTEXT, Collections.emptyMap());
+        executableScript = factory.newInstance();
+        assertEquals(8, executableScript.execute(-2, 6));
     }
 }

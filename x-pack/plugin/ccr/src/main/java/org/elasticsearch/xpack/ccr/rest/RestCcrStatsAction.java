@@ -6,9 +6,7 @@
 
 package org.elasticsearch.xpack.ccr.rest;
 
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -23,7 +21,6 @@ public class RestCcrStatsAction extends BaseRestHandler {
     public RestCcrStatsAction(final Settings settings, final RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET, "/_ccr/stats", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_ccr/stats/{index}", this);
     }
 
     @Override
@@ -33,9 +30,7 @@ public class RestCcrStatsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) throws IOException {
-        final CcrStatsAction.StatsRequest request = new CcrStatsAction.StatsRequest();
-        request.setIndices(Strings.splitStringByCommaToArray(restRequest.param("index")));
-        request.setIndicesOptions(IndicesOptions.fromRequest(restRequest, request.indicesOptions()));
+        final CcrStatsAction.Request request = new CcrStatsAction.Request();
         return channel -> client.execute(CcrStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

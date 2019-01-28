@@ -1,17 +1,23 @@
-[[java-rest-high-update-aliases]]
+--
+:api: update-aliases
+:request: IndicesAliasesRequest
+:response: IndicesAliasesResponse
+--
+
+[id="{upid}-{api}"]
 === Index Aliases API
 
-[[java-rest-high-update-aliases-request]]
+[id="{upid}-{api}-request"]
 ==== Indices Aliases Request
 
 The Index Aliases API allows aliasing an index with a name, with all APIs
 automatically converting the alias name to the actual index name.
 
-An `IndicesAliasesRequest` must have at least one `AliasActions`:
+An +{request}+ must have at least one `AliasActions`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[update-aliases-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Creates an `IndicesAliasesRequest`
 <2> Creates an `AliasActions` that aliases index `test1` with `alias1`
@@ -23,7 +29,7 @@ index.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[update-aliases-request2]
+include-tagged::{doc-tests-file}[{api}-request2]
 --------------------------------------------------
 <1> Creates an alias `alias1` with an optional filter on field `year`
 <2> Creates an alias `alias2` associated with two indices and with an optional routing
@@ -35,63 +41,28 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[update-aliases-request-timeout]
+include-tagged::{doc-tests-file}[{api}-request-timeout]
 --------------------------------------------------
 <1> Timeout to wait for the all the nodes to acknowledge the operation as a `TimeValue`
 <2> Timeout to wait for the all the nodes to acknowledge the operation as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[update-aliases-request-masterTimeout]
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
 <2> Timeout to connect to the master node as a `String`
 
-[[java-rest-high-update-aliases-sync]]
-==== Synchronous Execution
+include::../execution.asciidoc[]
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[update-aliases-execute]
---------------------------------------------------
-
-[[java-rest-high-update-aliases-async]]
-==== Asynchronous Execution
-
-The asynchronous execution of an update index aliases request requires both the `IndicesAliasesRequest`
-instance and an `ActionListener` instance to be passed to the asynchronous
-method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[update-aliases-execute-async]
---------------------------------------------------
-<1> The `IndicesAliasesRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `IndicesAliasesResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[update-aliases-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument
-<2> Called in case of failure. The raised exception is provided as an argument
-
-[[java-rest-high-update-aliases-response]]
+[id="{upid}-{api}-response"]
 ==== Indices Aliases Response
 
-The returned `IndicesAliasesResponse` allows to retrieve information about the
+The returned +{response}+ allows to retrieve information about the
 executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[update-aliases-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> Indicates whether all of the nodes have acknowledged the request

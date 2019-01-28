@@ -31,6 +31,6 @@ public class ExpressionPlugin extends Plugin implements ScriptPlugin {
 
     @Override
     public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-        return new ExpressionScriptEngine(settings);
+        return new ExpressionScriptEngine();
     }
 }

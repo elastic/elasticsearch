@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -40,10 +39,9 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     private final SearchPhaseController searchPhaseController;
 
     @Inject
-    public TransportSearchScrollAction(Settings settings, TransportService transportService,
-                                       ClusterService clusterService, ActionFilters actionFilters,
+    public TransportSearchScrollAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters,
                                        SearchTransportService searchTransportService, SearchPhaseController searchPhaseController) {
-        super(settings, SearchScrollAction.NAME, transportService, actionFilters,
+        super(SearchScrollAction.NAME, transportService, actionFilters,
             (Writeable.Reader<SearchScrollRequest>) SearchScrollRequest::new);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;

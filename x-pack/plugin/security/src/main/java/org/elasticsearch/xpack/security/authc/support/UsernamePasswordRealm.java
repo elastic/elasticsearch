@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 
 abstract class UsernamePasswordRealm extends Realm {
 
-    UsernamePasswordRealm(String type, RealmConfig config) {
-        super(type, config);
+    UsernamePasswordRealm(RealmConfig config) {
+        super(config);
     }
 
     @Override

@@ -1,5 +1,5 @@
 [[release-notes-7.0.0-alpha1]]
-== 7.0.0-alpha1 Release Notes
+== {es} version 7.0.0-alpha1
 
 The changes listed below have been released for the first time in Elasticsearch 7.0.0-alpha1.
 
@@ -16,6 +16,8 @@ Cross-Cluster-Search::
 
 Rest API::
 * The Clear Cache API only supports `POST` as HTTP method
+* `CircuitBreakingException` was previously mapped to HTTP status code 503 and is now
+   mapped as HTTP status code 429.
 
 Aggregations::
 * The Percentiles and PercentileRanks aggregations now return `null` in the REST response,

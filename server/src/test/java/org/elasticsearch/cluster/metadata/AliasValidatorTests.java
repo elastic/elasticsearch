@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.test.ESTestCase;
 
@@ -27,7 +26,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class AliasValidatorTests extends ESTestCase {
     public void testValidatesAliasNames() {
-        AliasValidator validator = new AliasValidator(Settings.EMPTY);
+        AliasValidator validator = new AliasValidator();
         Exception e = expectThrows(InvalidAliasNameException.class, () -> validator.validateAliasStandalone(".", null));
         assertEquals("Invalid alias name [.]: must not be '.' or '..'", e.getMessage());
         e = expectThrows(InvalidAliasNameException.class, () -> validator.validateAliasStandalone("..", null));

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -35,7 +36,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -62,8 +62,9 @@ import java.util.function.Consumer;
  * Every time the timer runs, gathers information about the disk usage and
  * shard sizes across the cluster.
  */
-public class InternalClusterInfoService extends AbstractComponent
-    implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
+public class InternalClusterInfoService implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
+
+    private static final Logger logger = LogManager.getLogger(InternalClusterInfoService.class);
 
     public static final Setting<TimeValue> INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING =
         Setting.timeSetting("cluster.info.update.interval", TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(10),
@@ -88,7 +89,6 @@ public class InternalClusterInfoService extends AbstractComponent
 
     public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client,
                                       Consumer<ClusterInfo> listener) {
-        super(settings);
         this.leastAvailableSpaceUsages = ImmutableOpenMap.of();
         this.mostAvailableSpaceUsages = ImmutableOpenMap.of();
         this.shardRoutingToDataPath = ImmutableOpenMap.of();
@@ -102,7 +102,8 @@ public class InternalClusterInfoService extends AbstractComponent
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING, this::setFetchTimeout);
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING, this::setUpdateFrequency);
-        clusterSettings.addSettingsUpdateConsumer(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
+        clusterSettings.addSettingsUpdateConsumer(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
+                                                  this::setEnabled);
 
         // Add InternalClusterInfoService to listen for Master changes
         this.clusterService.addLocalNodeMasterListener(this);
@@ -129,17 +130,17 @@ public class InternalClusterInfoService extends AbstractComponent
         if (logger.isTraceEnabled()) {
             logger.trace("I have been elected master, scheduling a ClusterInfoUpdateJob");
         }
+
+        // Submit a job that will start after DEFAULT_STARTING_INTERVAL, and reschedule itself after running
+        threadPool.scheduleUnlessShuttingDown(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
+
         try {
-            // Submit a job that will start after DEFAULT_STARTING_INTERVAL, and reschedule itself after running
-            threadPool.schedule(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
             if (clusterService.state().getNodes().getDataNodes().size() > 1) {
                 // Submit an info update job to be run immediately
                 threadPool.executor(executorName()).execute(() -> maybeRefresh());
             }
         } catch (EsRejectedExecutionException ex) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Couldn't schedule cluster info update task - node might be shutting down", ex);
-            }
+            logger.debug("Couldn't schedule cluster info update task - node might be shutting down", ex);
         }
     }
 
@@ -222,11 +223,7 @@ public class InternalClusterInfoService extends AbstractComponent
                             if (logger.isTraceEnabled()) {
                                 logger.trace("Scheduling next run for updating cluster info in: {}", updateFrequency.toString());
                             }
-                            try {
-                                threadPool.schedule(updateFrequency, executorName(), this);
-                            } catch (EsRejectedExecutionException ex) {
-                                logger.debug("Reschedule cluster info service was rejected", ex);
-                            }
+                            threadPool.scheduleUnlessShuttingDown(updateFrequency, executorName(), this);
                         }
                     }
                 });
@@ -344,17 +341,19 @@ public class InternalClusterInfoService extends AbstractComponent
         });
 
         try {
-            nodeLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS);
+            if (nodeLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS) == false) {
+                logger.warn("Failed to update node information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt(); // restore interrupt status
-            logger.warn("Failed to update node information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
         }
 
         try {
-            indicesLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS);
+            if (indicesLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS) == false) {
+                logger.warn("Failed to update shard information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt(); // restore interrupt status
-            logger.warn("Failed to update shard information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
         }
         ClusterInfo clusterInfo = getClusterInfo();
         try {
@@ -400,7 +399,8 @@ public class InternalClusterInfoService extends AbstractComponent
                 String nodeId = nodeStats.getNode().getId();
                 String nodeName = nodeStats.getNode().getName();
                 if (logger.isTraceEnabled()) {
-                    logger.trace("node: [{}], most available: total disk: {}, available disk: {} / least available: total disk: {}, available disk: {}",
+                    logger.trace("node: [{}], most available: total disk: {}," +
+                            " available disk: {} / least available: total disk: {}, available disk: {}",
                             nodeId, mostAvailablePath.getTotal(), leastAvailablePath.getAvailable(),
                             leastAvailablePath.getTotal(), leastAvailablePath.getAvailable());
                 }
@@ -410,7 +410,8 @@ public class InternalClusterInfoService extends AbstractComponent
                                 nodeId, leastAvailablePath.getTotal().getBytes());
                     }
                 } else {
-                    newLeastAvaiableUsages.put(nodeId, new DiskUsage(nodeId, nodeName, leastAvailablePath.getPath(), leastAvailablePath.getTotal().getBytes(), leastAvailablePath.getAvailable().getBytes()));
+                    newLeastAvaiableUsages.put(nodeId, new DiskUsage(nodeId, nodeName, leastAvailablePath.getPath(),
+                        leastAvailablePath.getTotal().getBytes(), leastAvailablePath.getAvailable().getBytes()));
                 }
                 if (mostAvailablePath.getTotal().getBytes() < 0) {
                     if (logger.isTraceEnabled()) {
@@ -418,7 +419,8 @@ public class InternalClusterInfoService extends AbstractComponent
                                 nodeId, mostAvailablePath.getTotal().getBytes());
                     }
                 } else {
-                    newMostAvaiableUsages.put(nodeId, new DiskUsage(nodeId, nodeName, mostAvailablePath.getPath(), mostAvailablePath.getTotal().getBytes(), mostAvailablePath.getAvailable().getBytes()));
+                    newMostAvaiableUsages.put(nodeId, new DiskUsage(nodeId, nodeName, mostAvailablePath.getPath(),
+                        mostAvailablePath.getTotal().getBytes(), mostAvailablePath.getAvailable().getBytes()));
                 }
 
             }

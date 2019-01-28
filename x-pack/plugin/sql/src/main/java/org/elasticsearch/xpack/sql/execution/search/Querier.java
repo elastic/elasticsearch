@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
@@ -13,7 +14,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,11 +32,11 @@ import org.elasticsearch.xpack.sql.execution.search.extractor.ConstantExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.MetricAggExtractor;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.AggExtractorInput;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.AggPathInput;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.HitExtractorInput;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ReferenceInput;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggExtractorInput;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggPathInput;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.HitExtractorInput;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.ReferenceInput;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.querydsl.container.ComputedRef;
 import org.elasticsearch.xpack.sql.querydsl.container.GlobalCountRef;
@@ -61,7 +61,7 @@ import static java.util.Collections.singletonList;
 // TODO: add retry/back-off
 public class Querier {
 
-    private final Logger log = Loggers.getLogger(getClass());
+    private final Logger log = LogManager.getLogger(getClass());
 
     private final TimeValue keepAlive, timeout;
     private final int size;
@@ -111,8 +111,13 @@ public class Querier {
     }
 
     public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, String... indices) {
-        SearchRequest search = client.prepareSearch(indices).setSource(source).setTimeout(timeout).request();
-        search.allowPartialSearchResults(false);
+        SearchRequest search = client.prepareSearch(indices)
+            // always track total hits accurately
+            .setTrackTotalHits(true)
+            .setAllowPartialSearchResults(false)
+            .setSource(source)
+            .setTimeout(timeout)
+            .request();
         return search;
     }
 
@@ -253,8 +258,9 @@ public class Querier {
             List<FieldExtraction> refs = query.columns();
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
+            ConstantExtractor totalCount = new ConstantExtractor(response.getHits().getTotalHits().value);
             for (FieldExtraction ref : refs) {
-                exts.add(createExtractor(ref, new ConstantExtractor(response.getHits().getTotalHits())));
+                exts.add(createExtractor(ref, totalCount));
             }
             return exts;
         }
@@ -262,7 +268,7 @@ public class Querier {
         private BucketExtractor createExtractor(FieldExtraction ref, BucketExtractor totalCount) {
             if (ref instanceof GroupByRef) {
                 GroupByRef r = (GroupByRef) ref;
-                return new CompositeKeyExtractor(r.key(), r.property(), r.timeZone());
+                return new CompositeKeyExtractor(r.key(), r.property(), r.zoneId());
             }
 
             if (ref instanceof MetricAggRef) {
@@ -275,12 +281,12 @@ public class Querier {
             }
 
             if (ref instanceof ComputedRef) {
-                ProcessorDefinition proc = ((ComputedRef) ref).processor();
+                Pipe proc = ((ComputedRef) ref).processor();
 
                 // wrap only agg inputs
                 proc = proc.transformDown(l -> {
                     BucketExtractor be = createExtractor(l.context(), totalCount);
-                    return new AggExtractorInput(l.location(), l.expression(), l.action(), be);
+                    return new AggExtractorInput(l.source(), l.expression(), l.action(), be);
                 }, AggPathInput.class);
 
                 return new ComputingExtractor(proc.asProcessor());
@@ -317,19 +323,20 @@ public class Querier {
             // there are some results
             if (hits.length > 0) {
                 String scrollId = response.getScrollId();
-
+                SchemaSearchHitRowSet hitRowSet = new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), scrollId);
+                
                 // if there's an id, try to setup next scroll
                 if (scrollId != null &&
                         // is all the content already retrieved?
-                        (Boolean.TRUE.equals(response.isTerminatedEarly()) || response.getHits().getTotalHits() == hits.length
-                        // or maybe the limit has been reached
-                        || (hits.length >= query.limit() && query.limit() > -1))) {
+                        (Boolean.TRUE.equals(response.isTerminatedEarly()) 
+                                || response.getHits().getTotalHits().value == hits.length
+                                || hitRowSet.isLimitReached())) {
                     // if so, clear the scroll
                     clear(response.getScrollId(), ActionListener.wrap(
                             succeeded -> listener.onResponse(new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), null)),
                             listener::onFailure));
                 } else {
-                    listener.onResponse(new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), scrollId));
+                    listener.onResponse(hitRowSet);
                 }
             }
             // no hits
@@ -351,7 +358,7 @@ public class Querier {
             }
 
             if (ref instanceof ComputedRef) {
-                ProcessorDefinition proc = ((ComputedRef) ref).processor();
+                Pipe proc = ((ComputedRef) ref).processor();
                 // collect hitNames
                 Set<String> hitNames = new LinkedHashSet<>();
                 proc = proc.transformDown(l -> {
@@ -362,7 +369,7 @@ public class Querier {
                         throw new SqlIllegalArgumentException("Multi-level nested fields [{}] not supported yet", hitNames);
                     }
 
-                    return new HitExtractorInput(l.location(), l.expression(), he);
+                    return new HitExtractorInput(l.source(), l.expression(), he);
                 }, ReferenceInput.class);
                 String hitName = null;
                 if (hitNames.size() == 1) {

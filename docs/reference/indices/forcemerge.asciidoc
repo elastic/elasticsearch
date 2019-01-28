@@ -55,7 +55,11 @@ POST /kimchy/_forcemerge?only_expunge_deletes=false&max_num_segments=100&flush=t
 === Multi Index
 
 The force merge API can be applied to more than one index with a single call, or
-even on `_all` the indices.
+even on `_all` the indices. Multi index operations are executed one shard at a
+time per node. Force merge makes the storage for the shard being merged
+temporarily increase, up to double its size in case `max_num_segments` is set
+to `1`, as all segments need to be rewritten into a new one.
+
 
 [source,js]
 --------------------------------------------------

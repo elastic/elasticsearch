@@ -3,7 +3,7 @@
   - do:
       index:
         index:        src
-        type:         test
+        type:         _doc
         id:           1
         body:         { "company": "cat" }
   - do:
@@ -22,7 +22,7 @@
   - do:
       get:
         index:   dest
-        type:    test
+        type:    _doc
         id:      1
         routing: cat
   - match: { _routing: cat }
@@ -32,7 +32,7 @@
   - do:
       index:
         index:        src
-        type:         test
+        type:         _doc
         id:           1
         body:         { "company": "cat" }
         routing:      null
@@ -52,6 +52,6 @@
   - do:
       get:
         index:   dest
-        type:    test
+        type:    _doc
         id:      1
   - is_false: _routing

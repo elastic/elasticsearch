@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -79,7 +78,7 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
         secondTriggerServiceStats.inc("foo.bar.baz", 1024);
         when(triggerService.stats()).thenReturn(firstTriggerServiceStats, secondTriggerServiceStats);
 
-        action = new TransportWatcherStatsAction(Settings.EMPTY, transportService, clusterService, threadPool, new
+        action = new TransportWatcherStatsAction(transportService, clusterService, threadPool, new
             ActionFilters(Collections.emptySet()), watcherLifeCycleService, executionService, triggerService);
     }
 

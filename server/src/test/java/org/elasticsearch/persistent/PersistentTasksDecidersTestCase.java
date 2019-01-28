@@ -58,10 +58,10 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         clusterService = createClusterService(threadPool);
-        PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(clusterService.getSettings(), emptyList()) {
+        PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(emptyList()) {
             @Override
             public <Params extends PersistentTaskParams> PersistentTasksExecutor<Params> getPersistentTaskExecutorSafe(String taskName) {
-                return new PersistentTasksExecutor<Params>(clusterService.getSettings(), taskName, null) {
+                return new PersistentTasksExecutor<Params>(taskName, null) {
                     @Override
                     protected void nodeOperation(AllocatedPersistentTask task, Params params, PersistentTaskState state) {
                         logger.debug("Executing task {}", task);
@@ -69,11 +69,12 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
                 };
             }
         };
-        persistentTasksClusterService = new PersistentTasksClusterService(clusterService.getSettings(), registry, clusterService);
+        persistentTasksClusterService = new PersistentTasksClusterService(clusterService.getSettings(), registry, clusterService,
+            threadPool);
     }
 
     @AfterClass
-    public static void tearDownThreadPool() throws Exception {
+    public static void tearDownThreadPool() {
         terminate(threadPool);
     }
 

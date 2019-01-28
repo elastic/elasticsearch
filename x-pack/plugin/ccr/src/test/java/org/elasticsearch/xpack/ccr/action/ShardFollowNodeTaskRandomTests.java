@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.shard.ShardId;
@@ -38,37 +40,38 @@ import static org.hamcrest.Matchers.hasSize;
 public class ShardFollowNodeTaskRandomTests extends ESTestCase {
 
     public void testSingleReaderWriter() throws Exception {
-        TestRun testRun = createTestRun(randomNonNegativeLong(), randomNonNegativeLong(), randomIntBetween(1, 2048));
+        TestRun testRun = createTestRun(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+            randomIntBetween(1, 2048));
         ShardFollowNodeTask task = createShardFollowTask(1, testRun);
         startAndAssertAndStopTask(task, testRun);
     }
 
     public void testMultipleReaderWriter() throws Exception {
         int concurrency = randomIntBetween(2, 8);
-        TestRun testRun = createTestRun(0, 0, between(1, 1024));
+        TestRun testRun = createTestRun(0, 0, 0, between(1, 1024));
         ShardFollowNodeTask task = createShardFollowTask(concurrency, testRun);
         startAndAssertAndStopTask(task, testRun);
     }
 
     private void startAndAssertAndStopTask(ShardFollowNodeTask task, TestRun testRun) throws Exception {
-        task.start(testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1);
+        task.start("uuid", testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1);
         assertBusy(() -> {
             ShardFollowNodeTaskStatus status = task.getStatus();
             assertThat(status.leaderGlobalCheckpoint(), equalTo(testRun.finalExpectedGlobalCheckpoint));
             assertThat(status.followerGlobalCheckpoint(), equalTo(testRun.finalExpectedGlobalCheckpoint));
             final long numberOfFailedFetches =
                     testRun.responses.values().stream().flatMap(List::stream).filter(f -> f.exception != null).count();
-            assertThat(status.numberOfFailedFetches(), equalTo(numberOfFailedFetches));
+            assertThat(status.failedReadRequests(), equalTo(numberOfFailedFetches));
             // the failures were able to be retried so fetch failures should have cleared
-            assertThat(status.fetchExceptions().entrySet(), hasSize(0));
-            assertThat(status.mappingVersion(), equalTo(testRun.finalMappingVersion));
+            assertThat(status.readExceptions().entrySet(), hasSize(0));
+            assertThat(status.followerMappingVersion(), equalTo(testRun.finalMappingVersion));
         });
 
         task.markAsCompleted();
         assertBusy(() -> {
             ShardFollowNodeTaskStatus status = task.getStatus();
-            assertThat(status.numberOfConcurrentReads(), equalTo(0));
-            assertThat(status.numberOfConcurrentWrites(), equalTo(0));
+            assertThat(status.outstandingReadRequests(), equalTo(0));
+            assertThat(status.outstandingWriteRequests(), equalTo(0));
         });
     }
 
@@ -79,13 +82,15 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             new ShardId("follow_index", "", 0),
             new ShardId("leader_index", "", 0),
             testRun.maxOperationCount,
+            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             concurrency,
-            TransportFollowIndexAction.DEFAULT_MAX_BATCH_SIZE_IN_BYTES,
+            testRun.maxOperationCount,
+            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             concurrency,
             10240,
+            new ByteSizeValue(512, ByteSizeUnit.MB),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
-            "uuid",
             Collections.emptyMap()
         );
 
@@ -102,18 +107,25 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                 1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler, System::nanoTime) {
 
             private volatile long mappingVersion = 0L;
+            private volatile long settingsVersion = 0L;
             private final Map<Long, Integer> fromToSlot = new HashMap<>();
 
             @Override
-            protected void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler) {
+            protected void innerUpdateMapping(long minRequiredMappingVersion, LongConsumer handler, Consumer<Exception> errorHandler) {
                 handler.accept(mappingVersion);
             }
 
             @Override
+            protected void innerUpdateSettings(LongConsumer handler, Consumer<Exception> errorHandler) {
+                handler.accept(settingsVersion);
+            }
+
+            @Override
             protected void innerSendBulkShardOperationsRequest(
-                    List<Translog.Operation> operations,
-                    Consumer<BulkShardOperationsResponse> handler,
-                    Consumer<Exception> errorHandler) {
+                String followerHistoryUUID, List<Translog.Operation> operations,
+                long maxSeqNoOfUpdates,
+                Consumer<BulkShardOperationsResponse> handler,
+                Consumer<Exception> errorHandler) {
                 for(Translog.Operation op : operations) {
                     tracker.markSeqNoAsCompleted(op.seqNo());
                 }
@@ -148,6 +160,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                             // if too many invocations occur with the same from then AOBE occurs, this ok and then something is wrong.
                         }
                         mappingVersion = testResponse.mappingVersion;
+                        settingsVersion = testResponse.settingsVersion;
                         if (testResponse.exception != null) {
                             errorHandler.accept(testResponse.exception);
                         } else {
@@ -157,7 +170,8 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         assert from >= testRun.finalExpectedGlobalCheckpoint;
                         final long globalCheckpoint = tracker.getCheckpoint();
                         final long maxSeqNo = tracker.getMaxSeqNo();
-                        handler.accept(new ShardChangesAction.Response(0L,globalCheckpoint, maxSeqNo, new Translog.Operation[0]));
+                        handler.accept(new ShardChangesAction.Response(0L, 0L, globalCheckpoint, maxSeqNo, randomNonNegativeLong(),
+                            new Translog.Operation[0], 1L));
                     }
                 };
                 threadPool.generic().execute(task);
@@ -200,9 +214,10 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
         };
     }
 
-    private static TestRun createTestRun(long startSeqNo, long startMappingVersion, int maxOperationCount) {
+    private static TestRun createTestRun(long startSeqNo, long startMappingVersion, long startSettingsVersion, int maxOperationCount) {
         long prevGlobalCheckpoint = startSeqNo;
         long mappingVersion = startMappingVersion;
+        long settingsVersion = startSettingsVersion;
         int numResponses = randomIntBetween(16, 256);
         Map<Long, List<TestResponse>> responses = new HashMap<>(numResponses);
         for (int i = 0; i < numResponses; i++) {
@@ -210,13 +225,16 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             if (sometimes()) {
                 mappingVersion++;
             }
+            if (sometimes()) {
+                settingsVersion++;
+            }
 
             if (sometimes()) {
                 List<TestResponse> item = new ArrayList<>();
                 // Sometimes add a random retryable error
                 if (sometimes()) {
                     Exception error = new UnavailableShardsException(new ShardId("test", "test", 0), "");
-                    item.add(new TestResponse(error, mappingVersion, null));
+                    item.add(new TestResponse(error, mappingVersion, settingsVersion, null));
                 }
                 List<Translog.Operation> ops = new ArrayList<>();
                 for (long seqNo = prevGlobalCheckpoint; seqNo <= nextGlobalCheckPoint; seqNo++) {
@@ -227,11 +245,15 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                 item.add(new TestResponse(
                     null,
                     mappingVersion,
+                    settingsVersion,
                     new ShardChangesAction.Response(
                         mappingVersion,
+                        settingsVersion,
                         nextGlobalCheckPoint,
                         nextGlobalCheckPoint,
-                        ops.toArray(EMPTY))
+                        randomNonNegativeLong(),
+                        ops.toArray(EMPTY),
+                        randomNonNegativeLong())
                     )
                 );
                 responses.put(prevGlobalCheckpoint, item);
@@ -245,17 +267,20 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     // Sometimes add a random retryable error
                     if (sometimes()) {
                         Exception error = new UnavailableShardsException(new ShardId("test", "test", 0), "");
-                        item.add(new TestResponse(error, mappingVersion, null));
+                        item.add(new TestResponse(error, mappingVersion, settingsVersion, null));
                     }
                     // Sometimes add an empty shard changes response to also simulate a leader shard lagging behind
                     if (sometimes()) {
                         ShardChangesAction.Response response = new ShardChangesAction.Response(
                             mappingVersion,
+                            settingsVersion,
                             prevGlobalCheckpoint,
                             prevGlobalCheckpoint,
-                            EMPTY
+                            randomNonNegativeLong(),
+                            EMPTY,
+                            randomNonNegativeLong()
                         );
-                        item.add(new TestResponse(null, mappingVersion, response));
+                        item.add(new TestResponse(null, mappingVersion, settingsVersion, response));
                     }
                     List<Translog.Operation> ops = new ArrayList<>();
                     for (long seqNo = fromSeqNo; seqNo <= toSeqNo; seqNo++) {
@@ -267,11 +292,14 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     long localLeaderGCP = randomBoolean() ? ops.get(ops.size() - 1).seqNo() : toSeqNo;
                     ShardChangesAction.Response response = new ShardChangesAction.Response(
                         mappingVersion,
+                        settingsVersion,
                         localLeaderGCP,
                         localLeaderGCP,
-                        ops.toArray(EMPTY)
+                        randomNonNegativeLong(),
+                        ops.toArray(EMPTY),
+                        randomNonNegativeLong()
                     );
-                    item.add(new TestResponse(null, mappingVersion, response));
+                    item.add(new TestResponse(null, mappingVersion, settingsVersion, response));
                     responses.put(fromSeqNo, Collections.unmodifiableList(item));
                 }
             }
@@ -311,11 +339,13 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
 
         final Exception exception;
         final long mappingVersion;
+        final long settingsVersion;
         final ShardChangesAction.Response response;
 
-        private TestResponse(Exception exception, long mappingVersion, ShardChangesAction.Response response) {
+        private TestResponse(Exception exception, long mappingVersion, long settingsVersion, ShardChangesAction.Response response) {
             this.exception = exception;
             this.mappingVersion = mappingVersion;
+            this.settingsVersion = settingsVersion;
             this.response = response;
         }
     }

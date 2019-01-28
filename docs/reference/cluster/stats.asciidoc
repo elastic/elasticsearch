@@ -123,6 +123,12 @@ Will return, for example:
                "count": 1
             }
          ],
+         "pretty_names": [
+            {
+               "pretty_name": "Mac OS X",
+               "count": 1
+            }
+         ],
          "mem" : {
             "total" : "16gb",
             "total_in_bytes" : 17179869184,
@@ -180,45 +186,36 @@ Will return, for example:
           "classname": "org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin",
           "has_native_controller": false
         },
-        {
-          "name": "ingest-geoip",
-          "version": "{version}",
-          "description": "Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database",
-          "classname": "org.elasticsearch.ingest.geoip.IngestGeoIpPlugin",
-          "has_native_controller": false
-        },
-        {
-          "name": "ingest-user-agent",
-          "version": "{version}",
-          "description": "Ingest processor that extracts information from a user agent",
-          "classname": "org.elasticsearch.ingest.useragent.IngestUserAgentPlugin",
-          "has_native_controller": false
-        },
         ...
       ],
-      ...
+      "network_types": {
+        ...
+      },
+      "discovery_types": {
+        ...
+      }
    }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"plugins": \[[^\]]*\]/"plugins": $body.$_path/]
-// TESTRESPONSE[s/\.\.\./"network_types": "replace_me"/]
+// TESTRESPONSE[s/"network_types": \{[^\}]*\}/"network_types": $body.$_path/]
+// TESTRESPONSE[s/"discovery_types": \{[^\}]*\}/"discovery_types": $body.$_path/]
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
 // These replacements do a few things:
 // 1. Ignore the contents of the `plugins` object because we don't know all of
 //    the plugins that will be in it. And because we figure folks don't need to
 //    see an exhaustive list anyway.
-// 2. The last ... contains more things that we don't think are important to
-//    include in the output.
+// 2. Similarly, ignore the contents of `network_types` and `discovery_types`.
 // 3. All of the numbers and strings on the right hand side of *every* field in
 //    the response are ignored. So we're really only asserting things about the
 //    the shape of this response, not the values in it.
 
-This API can be restricted to a subset of the nodes using the `?nodeId`
-parameter, which accepts <<cluster-nodes,node filters>>:
+This API can be restricted to a subset of the nodes using <<cluster-nodes,node
+filters>>:
 
 [source,js]
 --------------------------------------------------
-GET /_cluster/stats?nodeId=node1,node*,master:false
+GET /_cluster/stats/nodes/node1,node*,master:false
 --------------------------------------------------
 // CONSOLE

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.actions.email;
 
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -42,12 +43,14 @@ public class EmailMessageIdTests extends ESTestCase {
     public void startSmtpServer() {
         server = EmailServer.localhost(logger);
 
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.notification.email.account.test.smtp.secure_password", EmailServer.PASSWORD);
         Settings settings = Settings.builder()
                 .put("xpack.notification.email.account.test.smtp.auth", true)
                 .put("xpack.notification.email.account.test.smtp.user", EmailServer.USERNAME)
-                .put("xpack.notification.email.account.test.smtp.password", EmailServer.PASSWORD)
                 .put("xpack.notification.email.account.test.smtp.port", server.port())
                 .put("xpack.notification.email.account.test.smtp.host", "localhost")
+                .setSecureSettings(secureSettings)
                 .build();
 
         Set<Setting<?>> registeredSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -72,7 +75,7 @@ public class EmailMessageIdTests extends ESTestCase {
         ExecutableEmailAction secondEmailAction = new ExecutableEmailAction(emailAction, logger, emailService, textTemplateEngine,
                 htmlSanitizer, Collections.emptyMap());
 
-        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         firstEmailAction.execute("my_first_action_id", ctx, Payload.EMPTY);
         secondEmailAction.execute("my_second_action_id", ctx, Payload.EMPTY);
 

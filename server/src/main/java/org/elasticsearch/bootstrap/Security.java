@@ -29,6 +29,7 @@ import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.SocketPermission;
@@ -368,7 +369,7 @@ final class Security {
      * @param settings        the {@link Settings} instance to read the transport settings from
      */
     private static void addSocketPermissionForTransport(final Permissions policy, final Settings settings) {
-        final String transportRange = TcpTransport.PORT.get(settings);
+        final String transportRange = TransportSettings.PORT.get(settings);
         addSocketPermissionForPortRange(policy, transportRange);
     }
 

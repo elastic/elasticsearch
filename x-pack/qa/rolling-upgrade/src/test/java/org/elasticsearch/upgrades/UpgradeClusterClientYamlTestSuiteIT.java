@@ -7,7 +7,6 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -29,7 +28,7 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
      */
     @Before
     public void waitForTemplates() throws Exception {
-        XPackRestTestHelper.waitForMlTemplates(client());
+        XPackRestTestHelper.waitForTemplates(client(), XPackRestTestHelper.ML_POST_V660_TEMPLATES);
     }
 
     @Override
@@ -39,6 +38,16 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
 
     @Override
     protected boolean preserveTemplatesUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveRollupJobsUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveILMPoliciesUponCompletion() {
         return true;
     }
 

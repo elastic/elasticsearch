@@ -27,7 +27,6 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.appender.CountingNoOpAppender;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.apache.logging.log4j.spi.ExtendedLogger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cli.UserException;
@@ -82,7 +81,7 @@ public class EvilLoggerTests extends ESTestCase {
     public void testLocationInfoTest() throws IOException, UserException {
         setupLogging("location_info");
 
-        final Logger testLogger = ESLoggerFactory.getLogger("test");
+        final Logger testLogger = LogManager.getLogger("test");
 
         testLogger.error("This is an error message");
         testLogger.warn("This is a warning message");
@@ -108,7 +107,7 @@ public class EvilLoggerTests extends ESTestCase {
     public void testDeprecationLogger() throws IOException, UserException {
         setupLogging("deprecation");
 
-        final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
+        final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger("deprecation"));
 
         final int deprecatedIterations = randomIntBetween(0, 256);
         for (int i = 0; i < deprecatedIterations; i++) {
@@ -127,7 +126,7 @@ public class EvilLoggerTests extends ESTestCase {
             assertLogLine(
                     deprecationEvents.get(i),
                     Level.WARN,
-                    "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
+                    "org.elasticsearch.common.logging.DeprecationLogger\\$2\\.run",
                     "This is a deprecation message");
         }
     }
@@ -135,7 +134,7 @@ public class EvilLoggerTests extends ESTestCase {
     public void testConcurrentDeprecationLogger() throws IOException, UserException, BrokenBarrierException, InterruptedException {
         setupLogging("deprecation");
 
-        final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
+        final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger("deprecation"));
 
         final int numberOfThreads = randomIntBetween(2, 4);
         final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
@@ -201,7 +200,7 @@ public class EvilLoggerTests extends ESTestCase {
             assertLogLine(
                     deprecationEvents.get(i),
                     Level.WARN,
-                    "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
+                    "org.elasticsearch.common.logging.DeprecationLogger\\$2\\.run",
                     "This is a maybe logged deprecation message" + i);
         }
 
@@ -214,7 +213,7 @@ public class EvilLoggerTests extends ESTestCase {
     public void testDeprecationLoggerMaybeLog() throws IOException, UserException {
         setupLogging("deprecation");
 
-        final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
+        final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger("deprecation"));
 
         final int iterations = randomIntBetween(1, 16);
 
@@ -243,13 +242,13 @@ public class EvilLoggerTests extends ESTestCase {
         assertLogLine(
                 deprecationEvents.get(0),
                 Level.WARN,
-                "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
+                "org.elasticsearch.common.logging.DeprecationLogger\\$2\\.run",
                 "This is a maybe logged deprecation message");
         for (int k = 0; k < 128; k++) {
             assertLogLine(
                     deprecationEvents.get(1 + k),
                     Level.WARN,
-                    "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
+                    "org.elasticsearch.common.logging.DeprecationLogger\\$2\\.run",
                     "This is a maybe logged deprecation message" + k);
         }
     }
@@ -277,7 +276,7 @@ public class EvilLoggerTests extends ESTestCase {
             assertLogLine(
                     deprecationEvents.get(0),
                     Level.WARN,
-                    "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
+                    "org.elasticsearch.common.logging.DeprecationLogger\\$2\\.run",
                     "\\[deprecated.foo\\] setting was deprecated in Elasticsearch and will be removed in a future release! " +
                             "See the breaking changes documentation for the next major version.");
         }
@@ -286,12 +285,12 @@ public class EvilLoggerTests extends ESTestCase {
     public void testFindAppender() throws IOException, UserException {
         setupLogging("find_appender");
 
-        final Logger hasConsoleAppender = ESLoggerFactory.getLogger("has_console_appender");
+        final Logger hasConsoleAppender = LogManager.getLogger("has_console_appender");
 
         final Appender testLoggerConsoleAppender = Loggers.findAppender(hasConsoleAppender, ConsoleAppender.class);
         assertNotNull(testLoggerConsoleAppender);
         assertThat(testLoggerConsoleAppender.getName(), equalTo("console"));
-        final Logger hasCountingNoOpAppender = ESLoggerFactory.getLogger("has_counting_no_op_appender");
+        final Logger hasCountingNoOpAppender = LogManager.getLogger("has_counting_no_op_appender");
         assertNull(Loggers.findAppender(hasCountingNoOpAppender, ConsoleAppender.class));
         final Appender countingNoOpAppender = Loggers.findAppender(hasCountingNoOpAppender, CountingNoOpAppender.class);
         assertThat(countingNoOpAppender.getName(), equalTo("counting_no_op"));
@@ -301,7 +300,7 @@ public class EvilLoggerTests extends ESTestCase {
         setupLogging("prefix");
 
         final String prefix = randomAlphaOfLength(16);
-        final Logger logger = new PrefixLogger((ExtendedLogger) LogManager.getLogger("prefix_test"), "prefix_test", prefix);
+        final Logger logger = new PrefixLogger(LogManager.getLogger("prefix_test"), prefix);
         logger.info("test");
         logger.info("{}", "test");
         final Exception e = new Exception("exception");
@@ -332,7 +331,7 @@ public class EvilLoggerTests extends ESTestCase {
         final int prefixes = 1 << 19; // to ensure enough markers that the GC should collect some when we force a GC below
         for (int i = 0; i < prefixes; i++) {
             // this has the side effect of caching a marker with this prefix
-            new PrefixLogger((ExtendedLogger) LogManager.getLogger("prefix" + i), "prefix" + i, "prefix" + i);
+            new PrefixLogger(LogManager.getLogger("logger" + i), "prefix" + i);
         }
 
         System.gc(); // this will free the weakly referenced keys in the marker cache

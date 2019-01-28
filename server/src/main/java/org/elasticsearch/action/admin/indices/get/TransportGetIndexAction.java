@@ -54,11 +54,11 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
     private final SettingsFilter settingsFilter;
 
     @Inject
-    public TransportGetIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportGetIndexAction(TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, SettingsFilter settingsFilter, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService,
                                    IndexScopedSettings indexScopedSettings) {
-        super(settings, GetIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, GetIndexRequest::new,
+        super(GetIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, GetIndexRequest::new,
                 indexNameExpressionResolver);
         this.indicesService = indicesService;
         this.settingsFilter = settingsFilter;

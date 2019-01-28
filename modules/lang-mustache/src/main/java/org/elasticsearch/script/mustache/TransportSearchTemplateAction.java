@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -54,10 +53,9 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     private final NodeClient client;
 
     @Inject
-    public TransportSearchTemplateAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
+    public TransportSearchTemplateAction(TransportService transportService, ActionFilters actionFilters,
                                          ScriptService scriptService, NamedXContentRegistry xContentRegistry, NodeClient client) {
-        super(settings, SearchTemplateAction.NAME, transportService, actionFilters,
-            (Supplier<SearchTemplateRequest>) SearchTemplateRequest::new);
+        super(SearchTemplateAction.NAME, transportService, actionFilters, (Supplier<SearchTemplateRequest>) SearchTemplateRequest::new);
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;

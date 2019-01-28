@@ -249,7 +249,7 @@ public class SuggestionTests extends ESTestCase {
                     + "}", xContent.utf8ToString());
         }
         {
-            Map<String, Set<CharSequence>> contexts = Collections.singletonMap("key", Collections.singleton("value"));
+            Map<String, Set<String>> contexts = Collections.singletonMap("key", Collections.singleton("value"));
             CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(1, new Text("someText"), 1.3f, contexts);
             CompletionSuggestion.Entry entry = new CompletionSuggestion.Entry(new Text("entryText"), 42, 313);
             entry.addOption(option);

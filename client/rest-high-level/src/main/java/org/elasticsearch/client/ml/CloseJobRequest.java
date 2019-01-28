@@ -114,7 +114,7 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
         this.timeout = timeout;
     }
 
-    public Boolean isForce() {
+    public Boolean getForce() {
         return force;
     }
 
@@ -129,7 +129,7 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
         this.force = force;
     }
 
-    public Boolean isAllowNoJobs() {
+    public Boolean getAllowNoJobs() {
         return this.allowNoJobs;
     }
 

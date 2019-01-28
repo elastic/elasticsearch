@@ -137,7 +137,6 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
         String datafeedIndex = "ml-transport-client-test";
         String datatype = "type-bar";
         datafeed.setIndices(Collections.singletonList(datafeedIndex));
-        datafeed.setTypes(Collections.singletonList("type-bar"));
 
         mlClient.putDatafeed(new PutDatafeedAction.Request(datafeed.build())).actionGet();
 

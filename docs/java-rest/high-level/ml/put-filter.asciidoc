@@ -1,0 +1,53 @@
+--
+:api: put-filter
+:request: PutFilterRequest
+:response: PutFilterResponse
+--
+[id="{upid}-{api}"]
+=== Put Filter API
+
+The Put Filter API can be used to create a new {ml} filter
+in the cluster. The API accepts a +{request}+ object
+as a request and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Put Filter Request
+
+A +{request}+ requires the following argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The configuration of the {ml} filter to create as a `MlFilter`
+
+[id="{upid}-{api}-config"]
+==== Filter Configuration
+
+The `MlFilter` object contains all the details about the {ml} filter
+configuration.
+
+A `MlFilter` contains the following arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config]
+--------------------------------------------------
+<1> Required, the filter ID
+<2> Optional, the filter description
+<3> Optional, the items of the filter. A wildcard * can be used at the beginning or the end of an item.
+Up to 10000 items are allowed in each filter.
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ returns the full representation of
+the new {ml} filter if it has been successfully created.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The newly created `MlFilter`

@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-preview-datafeed]]
-=== Preview {dfeeds-cap} API
+=== Preview {dfeeds} API
 ++++
-<titleabbrev>Preview {dfeeds-cap}</titleabbrev>
+<titleabbrev>Preview {dfeeds}</titleabbrev>
 ++++
 
 Previews a {dfeed}.
@@ -11,7 +11,7 @@ Previews a {dfeed}.
 
 ==== Request
 
-`GET _xpack/ml/datafeeds/<datafeed_id>/_preview`
+`GET _ml/datafeeds/<datafeed_id>/_preview`
 
 
 ==== Description
@@ -29,16 +29,17 @@ structure of the data that will be passed to the anomaly detection engine.
 
 ==== Authorization
 
-You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+If {es} {security-features} are enabled, you must have `monitor_ml`, `monitor`,
+`manage_ml`, or `manage` cluster privileges to use this API. For more
+information, see
+{stack-ov}/security-privileges.html[Security Privileges].
 
 
 ==== Security Integration
 
-When {security} is enabled, the {dfeed} query will be previewed using the
-credentials of the user calling the preview {dfeed} API.  When the {dfeed}
-is started it will run the query using the roles of the last user to
+When {es} {security-features} are enabled, the {dfeed} query is previewed using
+the credentials of the user calling the preview {dfeed} API.  When the {dfeed}
+is started it runs the query using the roles of the last user to
 create or update it.  If the two sets of roles differ then the preview may
 not accurately reflect what the {dfeed} will return when started.  To avoid
 such problems, the same user that creates/updates the {dfeed} should preview
@@ -51,7 +52,7 @@ The following example obtains a preview of the `datafeed-farequote` {dfeed}:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/datafeeds/datafeed-farequote/_preview
+GET _ml/datafeeds/datafeed-farequote/_preview
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup:farequote_datafeed]

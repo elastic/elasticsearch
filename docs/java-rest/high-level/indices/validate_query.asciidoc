@@ -1,15 +1,21 @@
-[[java-rest-high-indices-validate-query]]
+--
+:api: indices-validate-query
+:request: ValidateQueryRequest
+:response: ValidateQueryResponse
+--
+
+[id="{upid}-{api}"]
 === Validate Query API
 
-[[java-rest-high-indices-validate-query-request]]
+[id="{upid}-{api}-request"]
 ==== Validate Query Request
 
-A `ValidateQueryRequest` requires one or more `indices` on which the query is validated. If no index
+A +{request}+ requires one or more `indices` on which the query is validated. If no index
 is provided the request is executed on all indices.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[validate-query-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> The index on which to run the request.
 
@@ -18,7 +24,7 @@ The following code snippet builds a sample boolean query.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[validate-query-request-query]
+include-tagged::{doc-tests-file}[{api}-request-query]
 --------------------------------------------------
 <1> Build the desired query.
 <2> Set it to the request.
@@ -28,7 +34,7 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[validate-query-request-explain]
+include-tagged::{doc-tests-file}[{api}-request-explain]
 --------------------------------------------------
 <1> The explain parameter can be set to true to get more detailed information about why a query failed
 
@@ -38,7 +44,7 @@ query rewrite the `allShards` parameter should be used to get response from all 
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[validate-query-request-allShards]
+include-tagged::{doc-tests-file}[{api}-request-allShards]
 --------------------------------------------------
 <1> Set the allShards parameter.
 
@@ -47,57 +53,21 @@ the explanation is more detailed showing the actual Lucene query that will be ex
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[validate-query-request-rewrite]
+include-tagged::{doc-tests-file}[{api}-request-rewrite]
 --------------------------------------------------
 <1> Set the rewrite parameter.
 
-[[java-rest-high-indices-validate-query-sync]]
-==== Synchronous Execution
+include::../execution.asciidoc[]
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[validate-query-execute]
---------------------------------------------------
-<1> Execute the request and get back the response in a ValidateQueryResponse object.
-
-[[java-rest-high-indices-validate-query-async]]
-==== Asynchronous Execution
-
-The asynchronous execution of a validate query request requires both the `ValidateQueryRequest`
-instance and an `ActionListener` instance to be passed to the asynchronous
-method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[validate-query-execute-async]
---------------------------------------------------
-<1> The `ValidateQueryRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `ValidateQueryResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[validate-query-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument
-<2> Called in case of failure. The raised exception is provided as an argument
-
-[[java-rest-high-indices-validate-query-response]]
+[id="{upid}-{api}-response"]
 ==== Validate Query Response
 
-The returned `ValidateQueryResponse` allows to retrieve information about the executed
+The returned +{response}+ allows to retrieve information about the executed
  operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[validate-query-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> Check if the query is valid or not.
 <2> Get total number of shards.

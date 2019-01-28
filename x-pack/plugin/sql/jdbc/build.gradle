@@ -36,12 +36,18 @@ dependencyLicenses {
     ignoreSha 'elasticsearch'
 }
 
-shadowJar {
-    relocate 'com.fasterxml', 'org.elasticsearch.fasterxml'
+unitTest {
+    // don't use the shaded jar for tests
+    classpath += project.tasks.compileJava.outputs.files
+    classpath -= project.tasks.shadowJar.outputs.files
 }
 
-// We don't need normal jar, we use shadow jar instead
-jar.enabled = false
+shadowJar {
+    relocate 'com.fasterxml', 'org.elasticsearch.fasterxml'
+    // set the shaded configuration back to runtime instead of bundle because
+    // we need tests to use the non-shaded deps to allow editing/testing in intellij
+    configurations = [project.configurations.runtime]
+}
 
 // We need a no-depenencies jar though for qa testing so it doesn't conflict with cli
 configurations {
@@ -55,5 +61,16 @@ task nodepsJar(type: Jar) {
 
 artifacts  {
     nodeps nodepsJar
-    archives shadowJar
+}
+
+publishing {
+    publications {
+        nebula {
+            artifactId = archivesBaseName
+            pom.withXml {
+                // Nebula is mistakenly including all dependencies that are already shadowed into the shadow jar
+                asNode().remove(asNode().dependencies)
+            }
+        }
+    }
 }

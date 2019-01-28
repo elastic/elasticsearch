@@ -129,6 +129,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: unmapped
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "val3"]} } } }
 
@@ -140,6 +141,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val3"]} } } }
 
@@ -152,6 +154,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: [test, unmapped]
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "val3"]} } } }
 
@@ -165,6 +168,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: [test, unmapped]
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "val3"], "missing" : {"val2" : 10} } } } }
 
@@ -179,6 +183,7 @@ setup:
   - do:
       catch: /parsing_exception/
       search:
+        rest_total_hits_as_int: true
         index: test
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2"], "script" : { "my_script" : {"source" : "1 + doc['val1'].value", "lang" : "js"} } } } } }
 
@@ -188,5 +193,6 @@ setup:
   - do:
       catch: /parsing_exception/
       search:
+        rest_total_hits_as_int: true
         index: test
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "val3"], "script" : { "my_script" : {"source" : "my_var + doc['val1'].value", "params" : { "my_var" : 1 }, "lang" : "js" } } } } } }

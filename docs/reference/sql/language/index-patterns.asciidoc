@@ -3,6 +3,8 @@
 [[sql-index-patterns]]
 == Index patterns
 
+beta[]
+
 {es-sql} supports two types of patterns for matching multiple indices or tables:
 
 * {es} multi-index
@@ -21,6 +23,17 @@ Notice the pattern is surrounded by double quotes `"`. It enumerated `*` meaning
 it excludes (due to `-`) all indices that start with `l`.
 This notation is very convenient and powerful as it allows both inclusion and exclusion, depending on
 the target naming convention.
+
+The same kind of patterns can also be used to query multiple indices or tables.
+
+For example:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[fromTablePatternQuoted]
+----
+
+NOTE: There is the restriction that all resolved concrete tables have the exact same mapping.
 
 * SQL `LIKE` notation
 
@@ -49,9 +62,11 @@ an empty table is returned.
 
 In a nutshell, the differences between the two type of patterns are:
 
-[cols="^h,^,^",options="header"]
+[cols="^h,^,^"]
 |===
-| Feature | Multi index | SQL `LIKE`
+s|Feature
+s|Multi index
+s|SQL `LIKE`
 
 | Type of quoting    | `"` | `'`
 | Inclusion          | Yes | Yes

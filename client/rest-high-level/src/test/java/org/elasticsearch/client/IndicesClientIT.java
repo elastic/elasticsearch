@@ -33,8 +33,6 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -43,11 +41,6 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -60,7 +53,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
@@ -70,6 +63,18 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
+import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.CreateIndexResponse;
+import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.GetFieldMappingsRequest;
+import org.elasticsearch.client.indices.GetFieldMappingsResponse;
+import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
+import org.elasticsearch.client.indices.GetMappingsRequest;
+import org.elasticsearch.client.indices.GetMappingsResponse;
+import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
+import org.elasticsearch.client.indices.PutMappingRequest;
+import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -84,15 +89,22 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
+import org.elasticsearch.rest.action.admin.indices.RestGetFieldMappingAction;
+import org.elasticsearch.rest.action.admin.indices.RestGetMappingAction;
+import org.elasticsearch.rest.action.admin.indices.RestPutMappingAction;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -103,7 +115,9 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -200,7 +214,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             mappingBuilder.startObject().startObject("properties").startObject("field");
             mappingBuilder.field("type", "text");
             mappingBuilder.endObject().endObject().endObject();
-            createIndexRequest.mapping("type_name", mappingBuilder);
+            createIndexRequest.mapping(mappingBuilder);
 
             CreateIndexResponse createIndexResponse =
                     execute(createIndexRequest, highLevelClient().indices()::create, highLevelClient().indices()::createAsync);
@@ -217,7 +231,71 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             Map<String, Object> term = (Map) filter.get("term");
             assertEquals(2016, term.get("year"));
 
-            assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.type_name.properties.field.type", getIndexResponse));
+            assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type", getIndexResponse));
+        }
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public void testCreateIndexWithTypes() throws IOException {
+        {
+            // Create index
+            String indexName = "plain_index";
+            assertFalse(indexExists(indexName));
+
+            org.elasticsearch.action.admin.indices.create.CreateIndexRequest createIndexRequest =
+                new org.elasticsearch.action.admin.indices.create.CreateIndexRequest(indexName);
+
+            org.elasticsearch.action.admin.indices.create.CreateIndexResponse createIndexResponse = execute(
+                createIndexRequest,
+                highLevelClient().indices()::create,
+                highLevelClient().indices()::createAsync,
+                expectWarnings(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE));
+            assertTrue(createIndexResponse.isAcknowledged());
+
+            assertTrue(indexExists(indexName));
+        }
+        {
+            // Create index with mappings, aliases and settings
+            String indexName = "rich_index";
+            assertFalse(indexExists(indexName));
+
+            org.elasticsearch.action.admin.indices.create.CreateIndexRequest createIndexRequest =
+                new org.elasticsearch.action.admin.indices.create.CreateIndexRequest(indexName);
+
+            Alias alias = new Alias("alias_name");
+            alias.filter("{\"term\":{\"year\":2016}}");
+            alias.routing("1");
+            createIndexRequest.alias(alias);
+
+            Settings.Builder settings = Settings.builder();
+            settings.put(SETTING_NUMBER_OF_REPLICAS, 2);
+            createIndexRequest.settings(settings);
+
+            XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
+            mappingBuilder.startObject().startObject("properties").startObject("field");
+            mappingBuilder.field("type", "text");
+            mappingBuilder.endObject().endObject().endObject();
+            createIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder);
+
+            org.elasticsearch.action.admin.indices.create.CreateIndexResponse createIndexResponse = execute(
+                createIndexRequest,
+                highLevelClient().indices()::create,
+                highLevelClient().indices()::createAsync,
+                expectWarnings(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE));
+            assertTrue(createIndexResponse.isAcknowledged());
+
+            Map<String, Object> getIndexResponse = getAsMap(indexName);
+            assertEquals("2", XContentMapValues.extractValue(indexName + ".settings.index.number_of_replicas", getIndexResponse));
+
+            Map<String, Object> aliasData =
+                (Map<String, Object>)XContentMapValues.extractValue(indexName + ".aliases.alias_name", getIndexResponse);
+            assertNotNull(aliasData);
+            assertEquals("1", aliasData.get("index_routing"));
+            Map<String, Object> filter = (Map) aliasData.get("filter");
+            Map<String, Object> term = (Map) filter.get("term");
+            assertEquals(2016, term.get("year"));
+
+            assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type", getIndexResponse));
         }
     }
 
@@ -331,7 +409,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .put(SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
-        String mappings = "\"type-1\":{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}";
+        String mappings = "\"properties\":{\"field-1\":{\"type\":\"integer\"}}";
         createIndex(indexName, basicSettings, mappings);
 
         GetIndexRequest getIndexRequest = new GetIndexRequest()
@@ -344,8 +422,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertEquals("1", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_SHARDS));
         assertEquals("0", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_REPLICAS));
         assertNotNull(getIndexResponse.getMappings().get(indexName));
-        assertNotNull(getIndexResponse.getMappings().get(indexName).get("type-1"));
-        Object o = getIndexResponse.getMappings().get(indexName).get("type-1").getSourceAsMap().get("properties");
+        assertNotNull(getIndexResponse.getMappings().get(indexName).get("_doc"));
+        Object o = getIndexResponse.getMappings().get(indexName).get("_doc").getSourceAsMap().get("properties");
         assertThat(o, instanceOf(Map.class));
         //noinspection unchecked
         assertThat(((Map<String, Object>) o).get("field-1"), instanceOf(Map.class));
@@ -361,7 +439,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .put(SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
-        String mappings = "\"type-1\":{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}";
+        String mappings = "\"properties\":{\"field-1\":{\"type\":\"integer\"}}";
         createIndex(indexName, basicSettings, mappings);
 
         GetIndexRequest getIndexRequest = new GetIndexRequest()
@@ -375,8 +453,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertEquals("1", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_SHARDS));
         assertEquals("0", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_REPLICAS));
         assertNotNull(getIndexResponse.getMappings().get(indexName));
-        assertNotNull(getIndexResponse.getMappings().get(indexName).get("type-1"));
-        Object o = getIndexResponse.getMappings().get(indexName).get("type-1").getSourceAsMap().get("properties");
+        assertNotNull(getIndexResponse.getMappings().get(indexName).get("_doc"));
+        Object o = getIndexResponse.getMappings().get(indexName).get("_doc").getSourceAsMap().get("properties");
         assertThat(o, instanceOf(Map.class));
         assertThat(((Map<String, Object>) o).get("field-1"), instanceOf(Map.class));
         Map<String, Object> fieldMapping = (Map<String, Object>) ((Map<String, Object>) o).get("field-1");
@@ -394,24 +472,49 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testPutMapping() throws IOException {
-        // Add mappings to index
         String indexName = "mapping_index";
         createIndex(indexName, Settings.EMPTY);
 
         PutMappingRequest putMappingRequest = new PutMappingRequest(indexName);
-        putMappingRequest.type("type_name");
         XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
         mappingBuilder.startObject().startObject("properties").startObject("field");
         mappingBuilder.field("type", "text");
         mappingBuilder.endObject().endObject().endObject();
         putMappingRequest.source(mappingBuilder);
 
-        AcknowledgedResponse putMappingResponse =
-                execute(putMappingRequest, highLevelClient().indices()::putMapping, highLevelClient().indices()::putMappingAsync);
+        AcknowledgedResponse putMappingResponse = execute(putMappingRequest,
+            highLevelClient().indices()::putMapping,
+            highLevelClient().indices()::putMappingAsync);
         assertTrue(putMappingResponse.isAcknowledged());
 
         Map<String, Object> getIndexResponse = getAsMap(indexName);
-        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.type_name.properties.field.type", getIndexResponse));
+        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type",
+            getIndexResponse));
+    }
+
+    public void testPutMappingWithTypes() throws IOException {
+        String indexName = "mapping_index";
+        createIndex(indexName, Settings.EMPTY);
+
+        org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest =
+            new org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest(indexName);
+        putMappingRequest.type("some_type");
+
+        XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
+        mappingBuilder.startObject().startObject("properties").startObject("field");
+        mappingBuilder.field("type", "text");
+        mappingBuilder.endObject().endObject().endObject();
+        putMappingRequest.source(mappingBuilder);
+
+        AcknowledgedResponse putMappingResponse = execute(putMappingRequest,
+            highLevelClient().indices()::putMapping,
+            highLevelClient().indices()::putMappingAsync,
+            expectWarnings(RestPutMappingAction.TYPES_DEPRECATION_MESSAGE));
+        assertTrue(putMappingResponse.isAcknowledged());
+
+        Map<String, Object> getIndexResponse = getAsMap(indexName);
+        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type",
+            getIndexResponse));
     }
 
     public void testGetMapping() throws IOException {
@@ -419,26 +522,64 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         createIndex(indexName, Settings.EMPTY);
 
         PutMappingRequest putMappingRequest = new PutMappingRequest(indexName);
-        putMappingRequest.type("_doc");
         XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
         mappingBuilder.startObject().startObject("properties").startObject("field");
         mappingBuilder.field("type", "text");
         mappingBuilder.endObject().endObject().endObject();
         putMappingRequest.source(mappingBuilder);
 
-        AcknowledgedResponse putMappingResponse =
-            execute(putMappingRequest, highLevelClient().indices()::putMapping, highLevelClient().indices()::putMappingAsync);
+        AcknowledgedResponse putMappingResponse = execute(putMappingRequest,
+            highLevelClient().indices()::putMapping,
+            highLevelClient().indices()::putMappingAsync);
         assertTrue(putMappingResponse.isAcknowledged());
 
         Map<String, Object> getIndexResponse = getAsMap(indexName);
-        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings._doc.properties.field.type", getIndexResponse));
+        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type", getIndexResponse));
 
-        GetMappingsRequest request = new GetMappingsRequest()
-            .indices(indexName)
-            .types("_doc");
+        GetMappingsRequest request = new GetMappingsRequest().indices(indexName);
 
-        GetMappingsResponse getMappingsResponse =
-            execute(request, highLevelClient().indices()::getMapping, highLevelClient().indices()::getMappingAsync);
+        GetMappingsResponse getMappingsResponse = execute(
+            request,
+            highLevelClient().indices()::getMapping,
+            highLevelClient().indices()::getMappingAsync);
+
+        Map<String, Object> mappings = getMappingsResponse.mappings().get(indexName).sourceAsMap();
+        Map<String, String> type = new HashMap<>();
+        type.put("type", "text");
+        Map<String, Object> field = new HashMap<>();
+        field.put("field", type);
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("properties", field);
+        assertThat(mappings, equalTo(expected));
+    }
+
+    public void testGetMappingWithTypes() throws IOException {
+        String indexName = "test";
+        createIndex(indexName, Settings.EMPTY);
+
+        PutMappingRequest putMappingRequest = new PutMappingRequest(indexName);
+        XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
+        mappingBuilder.startObject().startObject("properties").startObject("field");
+        mappingBuilder.field("type", "text");
+        mappingBuilder.endObject().endObject().endObject();
+        putMappingRequest.source(mappingBuilder);
+
+        AcknowledgedResponse putMappingResponse = execute(putMappingRequest,
+            highLevelClient().indices()::putMapping,
+            highLevelClient().indices()::putMappingAsync);
+        assertTrue(putMappingResponse.isAcknowledged());
+
+        Map<String, Object> getIndexResponse = getAsMap(indexName);
+        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type", getIndexResponse));
+
+        org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest request =
+            new org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest().indices(indexName);
+
+        org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse getMappingsResponse = execute(
+            request,
+            highLevelClient().indices()::getMapping,
+            highLevelClient().indices()::getMappingAsync,
+            expectWarnings(RestGetMappingAction.TYPES_DEPRECATION_MESSAGE));
 
         Map<String, Object> mappings = getMappingsResponse.getMappings().get(indexName).get("_doc").sourceAsMap();
         Map<String, String> type = new HashMap<>();
@@ -455,7 +596,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         createIndex(indexName, Settings.EMPTY);
 
         PutMappingRequest putMappingRequest = new PutMappingRequest(indexName);
-        putMappingRequest.type("_doc");
         XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
         mappingBuilder.startObject().startObject("properties").startObject("field");
         mappingBuilder.field("type", "text");
@@ -468,7 +608,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         GetFieldMappingsRequest getFieldMappingsRequest = new GetFieldMappingsRequest()
             .indices(indexName)
-            .types("_doc")
             .fields("field");
 
         GetFieldMappingsResponse getFieldMappingsResponse =
@@ -477,10 +616,46 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 highLevelClient().indices()::getFieldMappingAsync);
 
         final Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fieldMappingMap =
-            getFieldMappingsResponse.mappings().get(indexName).get("_doc");
+            getFieldMappingsResponse.mappings().get(indexName);
 
         final GetFieldMappingsResponse.FieldMappingMetaData metaData =
             new GetFieldMappingsResponse.FieldMappingMetaData("field",
+                new BytesArray("{\"field\":{\"type\":\"text\"}}"));
+        assertThat(fieldMappingMap, equalTo(Collections.singletonMap("field", metaData)));
+    }
+
+    public void testGetFieldMappingWithTypes() throws IOException {
+        String indexName = "test";
+        createIndex(indexName, Settings.EMPTY);
+
+        PutMappingRequest putMappingRequest = new PutMappingRequest(indexName);
+        XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
+        mappingBuilder.startObject().startObject("properties").startObject("field");
+        mappingBuilder.field("type", "text");
+        mappingBuilder.endObject().endObject().endObject();
+        putMappingRequest.source(mappingBuilder);
+
+        AcknowledgedResponse putMappingResponse =
+            execute(putMappingRequest, highLevelClient().indices()::putMapping, highLevelClient().indices()::putMappingAsync);
+        assertTrue(putMappingResponse.isAcknowledged());
+
+        org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest =
+            new org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest()
+            .indices(indexName)
+            .types("_doc")
+            .fields("field");
+
+        org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse getFieldMappingsResponse =
+            execute(getFieldMappingsRequest,
+                highLevelClient().indices()::getFieldMapping,
+                highLevelClient().indices()::getFieldMappingAsync,
+                expectWarnings(RestGetFieldMappingAction.TYPES_DEPRECATION_MESSAGE));
+
+        final Map<String, org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData>
+            fieldMappingMap = getFieldMappingsResponse.mappings().get(indexName).get("_doc");
+
+        final  org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData metaData =
+            new  org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData("field",
                 new BytesArray("{\"field\":{\"type\":\"text\"}}"));
         assertThat(fieldMappingMap, equalTo(Collections.singletonMap("field", metaData)));
     }
@@ -522,6 +697,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
         AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index(index).aliases(alias);
+        if (randomBoolean()) {
+            addAction.writeIndex(randomBoolean());
+        }
         addAction.routing("routing").searchRouting("search_routing").filter("{\"term\":{\"year\":2016}}");
         aliasesAddRequest.addAliasAction(addAction);
         AcknowledgedResponse aliasesAddResponse = execute(aliasesAddRequest, highLevelClient().indices()::updateAliases,
@@ -535,6 +713,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         Map<String, Object> filter = (Map<String, Object>) getAlias.get("filter");
         Map<String, Object> term = (Map<String, Object>) filter.get("term");
         assertEquals(2016, term.get("year"));
+        Boolean isWriteIndex = (Boolean) getAlias.get("is_write_index");
+        assertThat(isWriteIndex, equalTo(addAction.writeIndex()));
 
         String alias2 = "alias2";
         IndicesAliasesRequest aliasesAddRemoveRequest = new IndicesAliasesRequest();
@@ -573,7 +753,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(nonExistentIndexRequest,
                 highLevelClient().indices()::updateAliases, highLevelClient().indices()::updateAliasesAsync));
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
-        assertThat(exception.getMessage(), equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+        assertThat(exception.getMessage(),
+            equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         assertThat(exception.getMetadata("es.index"), hasItem(nonExistentIndex));
 
         createIndex(index, Settings.EMPTY);
@@ -583,7 +764,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         exception = expectThrows(ElasticsearchStatusException.class,
                 () -> execute(mixedRequest, highLevelClient().indices()::updateAliases, highLevelClient().indices()::updateAliasesAsync));
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
-        assertThat(exception.getMessage(), equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+        assertThat(exception.getMessage(),
+            equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         assertThat(exception.getMetadata("es.index"), hasItem(nonExistentIndex));
         assertThat(exception.getMetadata("es.index"), not(hasItem(index)));
         assertThat(aliasExists(index, alias), equalTo(false));
@@ -595,7 +777,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         exception = expectThrows(ElasticsearchException.class, () -> execute(removeIndexRequest, highLevelClient().indices()::updateAliases,
                 highLevelClient().indices()::updateAliasesAsync));
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
-        assertThat(exception.getMessage(), equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+        assertThat(exception.getMessage(),
+            equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         assertThat(exception.getMetadata("es.index"), hasItem(nonExistentIndex));
         assertThat(exception.getMetadata("es.index"), not(hasItem(index)));
         assertThat(aliasExists(index, alias), equalTo(false));
@@ -839,7 +1022,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                         .put("index.number_of_replicas", 0)
                         .putNull("index.routing.allocation.require._name")
                         .build();
-        resizeRequest.setTargetIndex(new CreateIndexRequest("target").settings(targetSettings).alias(new Alias("alias")));
+        resizeRequest.setTargetIndex(new org.elasticsearch.action.admin.indices.create.CreateIndexRequest("target")
+            .settings(targetSettings)
+            .alias(new Alias("alias")));
         ResizeResponse resizeResponse = execute(resizeRequest, highLevelClient().indices()::shrink,
                 highLevelClient().indices()::shrinkAsync);
         assertTrue(resizeResponse.isAcknowledged());
@@ -862,7 +1047,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
         resizeRequest.setResizeType(ResizeType.SPLIT);
         Settings targetSettings = Settings.builder().put("index.number_of_shards", 4).put("index.number_of_replicas", 0).build();
-        resizeRequest.setTargetIndex(new CreateIndexRequest("target").settings(targetSettings).alias(new Alias("alias")));
+        resizeRequest.setTargetIndex(new org.elasticsearch.action.admin.indices.create.CreateIndexRequest("target")
+            .settings(targetSettings)
+            .alias(new Alias("alias")));
         ResizeResponse resizeResponse = execute(resizeRequest, highLevelClient().indices()::split, highLevelClient().indices()::splitAsync);
         assertTrue(resizeResponse.isAcknowledged());
         assertTrue(resizeResponse.isShardsAcknowledged());
@@ -892,8 +1079,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertEquals("test_new", rolloverResponse.getNewIndex());
         }
 
-        highLevelClient().index(new IndexRequest("test", "type", "1").source("field", "value"), RequestOptions.DEFAULT);
-        highLevelClient().index(new IndexRequest("test", "type", "2").source("field", "value")
+        highLevelClient().index(new IndexRequest("test").id("1").source("field", "value"), RequestOptions.DEFAULT);
+        highLevelClient().index(new IndexRequest("test").id("2").source("field", "value")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL), RequestOptions.DEFAULT);
         //without the refresh the rollover may not happen as the number of docs seen may be off
 
@@ -1060,7 +1247,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                     highLevelClient().indices()::getAliasAsync);
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(getAliasesResponse.getException().getMessage(),
-                    equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+                    equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]"));
         }
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest(alias);
@@ -1077,7 +1264,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                     highLevelClient().indices()::getAliasAsync);
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(getAliasesResponse.getException().getMessage(),
-                    equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+                    equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         }
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest().indices(index, "non_existent_index").aliases(alias);
@@ -1085,7 +1272,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                     highLevelClient().indices()::getAliasAsync);
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(getAliasesResponse.getException().getMessage(),
-                    equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+                    equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         }
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest().indices("non_existent_index*");
@@ -1137,7 +1324,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         createIndex(index, Settings.EMPTY);
 
         assertThat(dynamicSetting.getDefault(Settings.EMPTY), not(dynamicSettingValue));
-        UpdateSettingsRequest dynamicSettingRequest = new UpdateSettingsRequest();
+        UpdateSettingsRequest dynamicSettingRequest = new UpdateSettingsRequest(index);
         dynamicSettingRequest.settings(Settings.builder().put(dynamicSettingKey, dynamicSettingValue).build());
         AcknowledgedResponse response = execute(dynamicSettingRequest, highLevelClient().indices()::putSettings,
                 highLevelClient().indices()::putSettingsAsync);
@@ -1147,7 +1334,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(indexSettingsAsMap.get(dynamicSettingKey), equalTo(String.valueOf(dynamicSettingValue)));
 
         assertThat(staticSetting.getDefault(Settings.EMPTY), not(staticSettingValue));
-        UpdateSettingsRequest staticSettingRequest = new UpdateSettingsRequest();
+        UpdateSettingsRequest staticSettingRequest = new UpdateSettingsRequest(index);
         staticSettingRequest.settings(Settings.builder().put(staticSettingKey, staticSettingValue).build());
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(staticSettingRequest,
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
@@ -1167,7 +1354,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(indexSettingsAsMap.get(staticSettingKey), equalTo(staticSettingValue));
 
         assertThat(unmodifiableSetting.getDefault(Settings.EMPTY), not(unmodifiableSettingValue));
-        UpdateSettingsRequest unmodifiableSettingRequest = new UpdateSettingsRequest();
+        UpdateSettingsRequest unmodifiableSettingRequest = new UpdateSettingsRequest(index);
         unmodifiableSettingRequest.settings(Settings.builder().put(unmodifiableSettingKey, unmodifiableSettingValue).build());
         exception = expectThrows(ElasticsearchException.class, () -> execute(unmodifiableSettingRequest,
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
@@ -1199,7 +1386,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(indexUpdateSettingsRequest,
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
-        assertThat(exception.getMessage(), equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+        assertThat(exception.getMessage(),
+            equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]"));
 
         createIndex(index, Settings.EMPTY);
         exception = expectThrows(ElasticsearchException.class, () -> execute(indexUpdateSettingsRequest,
@@ -1232,8 +1420,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(extractRawValues("my-template.index_patterns", templates), contains("pattern-1", "name-*"));
         assertThat(extractValue("my-template.settings.index.number_of_shards", templates), equalTo("3"));
         assertThat(extractValue("my-template.settings.index.number_of_replicas", templates), equalTo("0"));
-        assertThat(extractValue("my-template.mappings.doc.properties.host_name.type", templates), equalTo("keyword"));
-        assertThat(extractValue("my-template.mappings.doc.properties.description.type", templates), equalTo("text"));
+        assertThat(extractValue("my-template.mappings.properties.host_name.type", templates), equalTo("keyword"));
+        assertThat(extractValue("my-template.mappings.properties.description.type", templates), equalTo("text"));
         assertThat((Map<String, String>) extractValue("my-template.aliases.alias-1", templates), hasEntry("index_routing", "abc"));
         assertThat((Map<String, String>) extractValue("my-template.aliases.{index}-write", templates), hasEntry("search_routing", "xyz"));
     }
@@ -1285,7 +1473,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         String index = "shakespeare";
 
         createIndex(index, Settings.EMPTY);
-        Request postDoc = new Request(HttpPost.METHOD_NAME, "/" + index + "/1");
+        Request postDoc = new Request(HttpPost.METHOD_NAME, "/" + index + "/_doc");
         postDoc.setJsonEntity(
             "{\"type\":\"act\",\"line_id\":1,\"play_name\":\"Henry IV\", \"speech_number\":\"\"," +
                 "\"line_number\":\"\",\"speaker\":\"\",\"text_entry\":\"ACT I\"}");
@@ -1301,7 +1489,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertFalse(response.isValid());
     }
 
-    public void testGetIndexTemplate() throws Exception {
+    public void testCRUDIndexTemplate() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         PutIndexTemplateRequest putTemplate1 = new PutIndexTemplateRequest().name("template-1")
@@ -1314,7 +1502,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(execute(putTemplate2, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged(),
             equalTo(true));
 
-        GetIndexTemplatesResponse getTemplate1 = execute(new GetIndexTemplatesRequest().names("template-1"),
+        GetIndexTemplatesResponse getTemplate1 = execute(new GetIndexTemplatesRequest("template-1"),
             client.indices()::getTemplate, client.indices()::getTemplateAsync);
         assertThat(getTemplate1.getIndexTemplates(), hasSize(1));
         IndexTemplateMetaData template1 = getTemplate1.getIndexTemplates().get(0);
@@ -1322,7 +1510,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(template1.patterns(), contains("pattern-1", "name-1"));
         assertTrue(template1.aliases().containsKey("alias-1"));
 
-        GetIndexTemplatesResponse getTemplate2 = execute(new GetIndexTemplatesRequest().names("template-2"),
+        GetIndexTemplatesResponse getTemplate2 = execute(new GetIndexTemplatesRequest("template-2"),
             client.indices()::getTemplate, client.indices()::getTemplateAsync);
         assertThat(getTemplate2.getIndexTemplates(), hasSize(1));
         IndexTemplateMetaData template2 = getTemplate2.getIndexTemplates().get(0);
@@ -1332,20 +1520,69 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(template2.settings().get("index.number_of_shards"), equalTo("2"));
         assertThat(template2.settings().get("index.number_of_replicas"), equalTo("0"));
 
-        GetIndexTemplatesRequest getBothRequest = new GetIndexTemplatesRequest();
-        if (randomBoolean()) {
-            getBothRequest.names("*-1", "template-2");
-        } else {
-            getBothRequest.names("template-*");
-        }
+        List<String> names = randomBoolean()
+            ? Arrays.asList("*-1", "template-2")
+            : Arrays.asList("template-*");
+        GetIndexTemplatesRequest getBothRequest = new GetIndexTemplatesRequest(names);
         GetIndexTemplatesResponse getBoth = execute(getBothRequest, client.indices()::getTemplate, client.indices()::getTemplateAsync);
         assertThat(getBoth.getIndexTemplates(), hasSize(2));
         assertThat(getBoth.getIndexTemplates().stream().map(IndexTemplateMetaData::getName).toArray(),
             arrayContainingInAnyOrder("template-1", "template-2"));
 
-        ElasticsearchException notFound = expectThrows(ElasticsearchException.class, () -> execute(
-            new GetIndexTemplatesRequest().names("the-template-*"), client.indices()::getTemplate, client.indices()::getTemplateAsync));
-        assertThat(notFound.status(), equalTo(RestStatus.NOT_FOUND));
+        GetIndexTemplatesRequest getAllRequest = new GetIndexTemplatesRequest();
+        GetIndexTemplatesResponse getAll = execute(getAllRequest, client.indices()::getTemplate, client.indices()::getTemplateAsync);
+        assertThat(getAll.getIndexTemplates().size(), greaterThanOrEqualTo(2));
+        assertThat(getAll.getIndexTemplates().stream().map(IndexTemplateMetaData::getName).collect(Collectors.toList()),
+            hasItems("template-1", "template-2"));
+
+        assertTrue(execute(new DeleteIndexTemplateRequest("template-1"),
+            client.indices()::deleteTemplate, client.indices()::deleteTemplateAsync).isAcknowledged());
+        assertThat(expectThrows(ElasticsearchException.class, () -> execute(new GetIndexTemplatesRequest("template-1"),
+            client.indices()::getTemplate, client.indices()::getTemplateAsync)).status(), equalTo(RestStatus.NOT_FOUND));
+        assertThat(expectThrows(ElasticsearchException.class, () -> execute(new DeleteIndexTemplateRequest("template-1"),
+            client.indices()::deleteTemplate, client.indices()::deleteTemplateAsync)).status(), equalTo(RestStatus.NOT_FOUND));
+
+        assertThat(execute(new GetIndexTemplatesRequest("template-*"),
+            client.indices()::getTemplate, client.indices()::getTemplateAsync).getIndexTemplates(), hasSize(1));
+        assertThat(execute(new GetIndexTemplatesRequest("template-*"),
+            client.indices()::getTemplate, client.indices()::getTemplateAsync).getIndexTemplates().get(0).name(), equalTo("template-2"));
+
+        assertTrue(execute(new DeleteIndexTemplateRequest("template-*"),
+            client.indices()::deleteTemplate, client.indices()::deleteTemplateAsync).isAcknowledged());
+        assertThat(expectThrows(ElasticsearchException.class, () -> execute(new GetIndexTemplatesRequest("template-*"),
+            client.indices()::getTemplate, client.indices()::getTemplateAsync)).status(), equalTo(RestStatus.NOT_FOUND));
+    }
+
+    public void testIndexTemplatesExist() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+
+        {
+            for (String suffix : Arrays.asList("1", "2")) {
+
+                final PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest()
+                    .name("template-" + suffix)
+                    .patterns(Arrays.asList("pattern-" + suffix, "name-" + suffix))
+                    .alias(new Alias("alias-" + suffix));
+                assertTrue(execute(putRequest, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged());
+
+                final IndexTemplatesExistRequest existsRequest = new IndexTemplatesExistRequest("template-" + suffix);
+                assertTrue(execute(existsRequest, client.indices()::existsTemplate, client.indices()::existsTemplateAsync));
+            }
+        }
+
+        {
+            final List<String> templateNames = randomBoolean()
+                ? Arrays.asList("*-1", "template-2")
+                : Arrays.asList("template-*");
+
+            final IndexTemplatesExistRequest bothRequest = new IndexTemplatesExistRequest(templateNames);
+            assertTrue(execute(bothRequest, client.indices()::existsTemplate, client.indices()::existsTemplateAsync));
+        }
+
+        {
+            final IndexTemplatesExistRequest neitherRequest = new IndexTemplatesExistRequest("neither-*");
+            assertFalse(execute(neitherRequest, client.indices()::existsTemplate, client.indices()::existsTemplateAsync));
+        }
     }
 
     public void testAnalyze() throws Exception {
@@ -1361,6 +1598,20 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         AnalyzeResponse detailsResponse = execute(detailsRequest, client.indices()::analyze, client.indices()::analyzeAsync);
 
         assertNotNull(detailsResponse.detail());
+    }
 
+    public void testFreezeAndUnfreeze() throws IOException {
+        createIndex("test", Settings.EMPTY);
+        RestHighLevelClient client = highLevelClient();
+
+        ShardsAcknowledgedResponse freeze = execute(new FreezeIndexRequest("test"), client.indices()::freeze,
+            client.indices()::freezeAsync);
+        assertTrue(freeze.isShardsAcknowledged());
+        assertTrue(freeze.isAcknowledged());
+
+        ShardsAcknowledgedResponse unfreeze = execute(new UnfreezeIndexRequest("test"), client.indices()::unfreeze,
+            client.indices()::unfreezeAsync);
+        assertTrue(unfreeze.isShardsAcknowledged());
+        assertTrue(unfreeze.isAcknowledged());
     }
 }

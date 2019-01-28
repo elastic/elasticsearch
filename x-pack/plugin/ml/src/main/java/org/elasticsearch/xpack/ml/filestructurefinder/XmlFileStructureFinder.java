@@ -15,6 +15,7 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -38,7 +39,8 @@ public class XmlFileStructureFinder implements FileStructureFinder {
     private final FileStructure structure;
 
     static XmlFileStructureFinder makeXmlFileStructureFinder(List<String> explanation, String sample, String charsetName,
-                                                             Boolean hasByteOrderMarker, FileStructureOverrides overrides)
+                                                             Boolean hasByteOrderMarker, FileStructureOverrides overrides,
+                                                             TimeoutChecker timeoutChecker)
         throws IOException, ParserConfigurationException, SAXException {
 
         String messagePrefix;
@@ -46,9 +48,7 @@ public class XmlFileStructureFinder implements FileStructureFinder {
             messagePrefix = scanner.next();
         }
 
-        DocumentBuilderFactory docBuilderFactory = DocumentBuilderFactory.newInstance();
-        docBuilderFactory.setNamespaceAware(false);
-        docBuilderFactory.setValidating(false);
+        DocumentBuilderFactory docBuilderFactory = makeDocBuilderFactory();
 
         List<String> sampleMessages = new ArrayList<>();
         List<Map<String, ?>> sampleRecords = new ArrayList<>();
@@ -66,6 +66,7 @@ public class XmlFileStructureFinder implements FileStructureFinder {
                 sampleRecords.add(docToMap(docBuilder.parse(is)));
                 sampleMessages.add(sampleDoc);
                 linesConsumed += numNewlinesIn(sampleDoc);
+                timeoutChecker.check("XML parsing");
             } catch (SAXException e) {
                 // Tolerate an incomplete last record as long as we have one complete record
                 if (sampleRecords.isEmpty() || i < sampleDocEnds.length - 1) {
@@ -90,16 +91,21 @@ public class XmlFileStructureFinder implements FileStructureFinder {
             .setNumMessagesAnalyzed(sampleRecords.size())
             .setMultilineStartPattern("^\\s*<" + topLevelTag);
 
-        Tuple<String, TimestampMatch> timeField = FileStructureUtils.guessTimestampField(explanation, sampleRecords, overrides);
+        Tuple<String, TimestampMatch> timeField =
+            FileStructureUtils.guessTimestampField(explanation, sampleRecords, overrides, timeoutChecker);
         if (timeField != null) {
+            boolean needClientTimeZone = timeField.v2().hasTimezoneDependentParsing();
+
             structureBuilder.setTimestampField(timeField.v1())
                 .setJodaTimestampFormats(timeField.v2().jodaTimestampFormats)
                 .setJavaTimestampFormats(timeField.v2().javaTimestampFormats)
-                .setNeedClientTimezone(timeField.v2().hasTimezoneDependentParsing());
+                .setNeedClientTimezone(needClientTimeZone)
+                .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, topLevelTag + "." + timeField.v1(),
+                    timeField.v2().javaTimestampFormats, needClientTimeZone));
         }
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =
-            FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords);
+            FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
 
         if (mappingsAndFieldStats.v2() != null) {
             structureBuilder.setFieldStats(mappingsAndFieldStats.v2());
@@ -122,6 +128,25 @@ public class XmlFileStructureFinder implements FileStructureFinder {
             .build();
 
         return new XmlFileStructureFinder(sampleMessages, structure);
+    }
+
+    private static DocumentBuilderFactory makeDocBuilderFactory() throws ParserConfigurationException {
+
+        DocumentBuilderFactory docBuilderFactory = DocumentBuilderFactory.newInstance();
+        docBuilderFactory.setNamespaceAware(false);
+        docBuilderFactory.setValidating(false);
+        docBuilderFactory.setXIncludeAware(false);
+        docBuilderFactory.setExpandEntityReferences(false);
+        docBuilderFactory.setIgnoringComments(true);
+        docBuilderFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        docBuilderFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        // The next 5 should be irrelevant given the previous 1, but it doesn't hurt to set them just in case
+        docBuilderFactory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+        docBuilderFactory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+        docBuilderFactory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+        docBuilderFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        docBuilderFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+        return docBuilderFactory;
     }
 
     private XmlFileStructureFinder(List<String> sampleMessages, FileStructure structure) {

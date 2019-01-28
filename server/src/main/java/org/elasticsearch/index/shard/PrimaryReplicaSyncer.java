@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -26,11 +27,10 @@ import org.elasticsearch.action.resync.ResyncReplicationRequest;
 import org.elasticsearch.action.resync.ResyncReplicationResponse;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
+
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -52,7 +52,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Objects.requireNonNull;
 
-public class PrimaryReplicaSyncer extends AbstractComponent {
+public class PrimaryReplicaSyncer {
+
+    private static final Logger logger = LogManager.getLogger(PrimaryReplicaSyncer.class);
 
     private final TaskManager taskManager;
     private final SyncAction syncAction;
@@ -62,13 +64,12 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
     private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
 
     @Inject
-    public PrimaryReplicaSyncer(Settings settings, TransportService transportService, TransportResyncReplicationAction syncAction) {
-        this(settings, transportService.getTaskManager(), syncAction);
+    public PrimaryReplicaSyncer(TransportService transportService, TransportResyncReplicationAction syncAction) {
+        this(transportService.getTaskManager(), syncAction);
     }
 
     // for tests
-    public PrimaryReplicaSyncer(Settings settings, TaskManager taskManager, SyncAction syncAction) {
-        super(settings);
+    public PrimaryReplicaSyncer(TaskManager taskManager, SyncAction syncAction) {
         this.taskManager = taskManager;
         this.syncAction = syncAction;
     }

@@ -485,7 +485,8 @@ public class Cache<K, V> {
             promote(tuple.v1(), now);
         }
         if (replaced) {
-            removalListener.onRemoval(new RemovalNotification<>(tuple.v2().key, tuple.v2().value, RemovalNotification.RemovalReason.REPLACED));
+            removalListener.onRemoval(new RemovalNotification<>(tuple.v2().key, tuple.v2().value,
+                RemovalNotification.RemovalReason.REPLACED));
         }
     }
 

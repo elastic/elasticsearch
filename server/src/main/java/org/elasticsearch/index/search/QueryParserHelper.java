@@ -24,6 +24,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.SearchModule;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -85,7 +86,7 @@ public final class QueryParserHelper {
                 !multiField, !allField, fieldSuffix);
             resolvedFields.putAll(fieldMap);
         }
-        checkForTooManyFields(resolvedFields);
+        checkForTooManyFields(resolvedFields, context);
         return resolvedFields;
     }
 
@@ -141,22 +142,23 @@ public final class QueryParserHelper {
             if (acceptAllTypes == false) {
                 try {
                     fieldType.termQuery("", context);
-                } catch (QueryShardException |UnsupportedOperationException e) {
+                } catch (QueryShardException | UnsupportedOperationException e) {
                     // field type is never searchable with term queries (eg. geo point): ignore
                     continue;
-                } catch (IllegalArgumentException |ElasticsearchParseException e) {
+                } catch (IllegalArgumentException | ElasticsearchParseException e) {
                     // other exceptions are parsing errors or not indexed fields: keep
                 }
             }
             fields.put(fieldName, weight);
         }
-        checkForTooManyFields(fields);
+        checkForTooManyFields(fields, context);
         return fields;
     }
 
-    private static void checkForTooManyFields(Map<String, Float> fields) {
-        if (fields.size() > 1024) {
-            throw new IllegalArgumentException("field expansion matches too many fields, limit: 1024, got: " + fields.size());
+    private static void checkForTooManyFields(Map<String, Float> fields, QueryShardContext context) {
+        Integer limit = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.get(context.getIndexSettings().getSettings());
+        if (fields.size() > limit) {
+            throw new IllegalArgumentException("field expansion matches too many fields, limit: " + limit + ", got: " + fields.size());
         }
     }
 }

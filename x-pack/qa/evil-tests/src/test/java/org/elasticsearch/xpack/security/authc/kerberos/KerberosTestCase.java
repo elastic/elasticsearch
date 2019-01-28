@@ -6,17 +6,21 @@
 
 package org.elasticsearch.xpack.security.authc.kerberos;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import javax.security.auth.Subject;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -27,8 +31,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-
-import javax.security.auth.Subject;
 
 /**
  * Base Test class for Kerberos.
@@ -41,6 +43,8 @@ import javax.security.auth.Subject;
  */
 public abstract class KerberosTestCase extends ESTestCase {
 
+    protected static final String REALM_NAME = "test-kerb-realm";
+
     protected Settings globalSettings;
     protected Settings settings;
     protected List<String> serviceUserNames;
@@ -51,6 +55,7 @@ public abstract class KerberosTestCase extends ESTestCase {
 
     private static Locale restoreLocale;
     private static Set<String> unsupportedLocaleLanguages;
+
     static {
         unsupportedLocaleLanguages = new HashSet<>();
         /*
@@ -76,14 +81,15 @@ public abstract class KerberosTestCase extends ESTestCase {
         unsupportedLocaleLanguages.add("my");
         unsupportedLocaleLanguages.add("ps");
         unsupportedLocaleLanguages.add("ur");
+        unsupportedLocaleLanguages.add("pa");
     }
 
     @BeforeClass
     public static void setupKerberos() throws Exception {
         if (isLocaleUnsupported()) {
-            Logger logger = Loggers.getLogger(KerberosTestCase.class);
+            Logger logger = LogManager.getLogger(KerberosTestCase.class);
             logger.warn("Attempting to run Kerberos test on {} locale, but that breaks SimpleKdcServer. Switching to English.",
-                    Locale.getDefault());
+                Locale.getDefault());
             restoreLocale = Locale.getDefault();
             Locale.setDefault(Locale.ENGLISH);
         }
@@ -125,7 +131,7 @@ public abstract class KerberosTestCase extends ESTestCase {
                 throw ExceptionsHelper.convertToRuntime(e);
             }
         });
-        settings = KerberosRealmTestCase.buildKerberosRealmSettings(ktabPathForService.toString());
+        settings =  KerberosRealmTestCase.buildKerberosRealmSettings(REALM_NAME, ktabPathForService.toString());
     }
 
     @After
@@ -135,10 +141,15 @@ public abstract class KerberosTestCase extends ESTestCase {
         }
     }
 
+    protected Path getKeytabPath(Environment env) {
+        final Setting<String> setting = KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.getConcreteSettingForNamespace(REALM_NAME);
+        return env.configFile().resolve(setting.get(settings));
+    }
+
     /**
      * Creates principals and exports them to the keytab created in the directory.
      *
-     * @param dir Directory where the key tab would be created.
+     * @param dir        Directory where the key tab would be created.
      * @param princNames principal names to be created
      * @return {@link Path} to key tab file.
      * @throws Exception thrown if principal or keytab could not be created
@@ -153,7 +164,7 @@ public abstract class KerberosTestCase extends ESTestCase {
      * Creates principal with given name and password.
      *
      * @param principalName Principal name
-     * @param password Password
+     * @param password      Password
      * @throws Exception thrown if principal could not be created
      */
     protected void createPrincipal(final String principalName, final char[] password) throws Exception {
@@ -174,8 +185,8 @@ public abstract class KerberosTestCase extends ESTestCase {
      * Invokes Subject.doAs inside a doPrivileged block
      *
      * @param subject {@link Subject}
-     * @param action {@link PrivilegedExceptionAction} action for performing inside
-     *            Subject.doAs
+     * @param action  {@link PrivilegedExceptionAction} action for performing inside
+     *                Subject.doAs
      * @return T Type of value as returned by PrivilegedAction
      * @throws PrivilegedActionException when privileged action threw exception
      */

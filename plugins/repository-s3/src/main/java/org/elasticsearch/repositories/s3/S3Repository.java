@@ -20,10 +20,13 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.auth.BasicAWSCredentials;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -45,11 +48,14 @@ import java.util.function.Function;
  * <dt>{@code bucket}</dt><dd>S3 bucket</dd>
  * <dt>{@code base_path}</dt><dd>Specifies the path within bucket to repository data. Defaults to root directory.</dd>
  * <dt>{@code concurrent_streams}</dt><dd>Number of concurrent read/write stream (per repository on each node). Defaults to 5.</dd>
- * <dt>{@code chunk_size}</dt><dd>Large file can be divided into chunks. This parameter specifies the chunk size. Defaults to not chucked.</dd>
+ * <dt>{@code chunk_size}</dt>
+ * <dd>Large file can be divided into chunks. This parameter specifies the chunk size. Defaults to not chucked.</dd>
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
 class S3Repository extends BlobStoreRepository {
+    private static final Logger logger = LogManager.getLogger(S3Repository.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     static final String TYPE = "s3";
 
@@ -142,6 +148,8 @@ class S3Repository extends BlobStoreRepository {
      */
     static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path");
 
+    private final Settings settings;
+
     private final S3Service service;
 
     private final String bucket;
@@ -172,6 +180,7 @@ class S3Repository extends BlobStoreRepository {
                  final NamedXContentRegistry namedXContentRegistry,
                  final S3Service service) {
         super(metadata, settings, namedXContentRegistry);
+        this.settings = settings;
         this.service = service;
 
         // Parse and validate the user's S3 Storage Class setting
@@ -236,7 +245,7 @@ class S3Repository extends BlobStoreRepository {
     protected S3BlobStore createBlobStore() {
         if (reference != null) {
             assert S3ClientSettings.checkDeprecatedCredentials(metadata.settings()) : metadata.name();
-            return new S3BlobStore(settings, service, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass) {
+            return new S3BlobStore(service, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass) {
                 @Override
                 public AmazonS3Reference clientReference() {
                     if (reference.tryIncRef()) {
@@ -247,7 +256,7 @@ class S3Repository extends BlobStoreRepository {
                 }
             };
         } else {
-            return new S3BlobStore(settings, service, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
+            return new S3BlobStore(service, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
         }
     }
 

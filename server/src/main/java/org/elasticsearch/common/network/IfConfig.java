@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.network;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 import java.net.Inet6Address;
@@ -36,7 +36,7 @@ import java.util.Locale;
  */
 public final class IfConfig {
 
-    private static final Logger logger = Loggers.getLogger(IfConfig.class);
+    private static final Logger logger = LogManager.getLogger(IfConfig.class);
     private static final String INDENT = "        ";
 
     /** log interface configuration at debug level, if its enabled */

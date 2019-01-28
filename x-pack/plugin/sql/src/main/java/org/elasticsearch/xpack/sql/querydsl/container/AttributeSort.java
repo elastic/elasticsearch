@@ -5,16 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import java.util.Objects;
-
 import org.elasticsearch.xpack.sql.expression.Attribute;
+
+import java.util.Objects;
 
 public class AttributeSort extends Sort {
 
     private final Attribute attribute;
 
-    public AttributeSort(Attribute attribute, Direction direction) {
-        super(direction);
+    public AttributeSort(Attribute attribute, Direction direction, Missing missing) {
+        super(direction, missing);
         this.attribute = attribute;
     }
 
@@ -24,7 +24,7 @@ public class AttributeSort extends Sort {
 
     @Override
     public int hashCode() {
-        return Objects.hash(attribute, direction());
+        return Objects.hash(attribute, direction(), missing());
     }
 
     @Override
@@ -39,6 +39,7 @@ public class AttributeSort extends Sort {
         
         AttributeSort other = (AttributeSort) obj;
         return Objects.equals(direction(), other.direction())
+                && Objects.equals(missing(), other.missing())
                 && Objects.equals(attribute, other.attribute);
     }
 }

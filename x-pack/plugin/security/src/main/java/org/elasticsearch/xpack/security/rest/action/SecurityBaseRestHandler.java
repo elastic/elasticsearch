@@ -24,6 +24,7 @@ import java.io.IOException;
  */
 public abstract class SecurityBaseRestHandler extends BaseRestHandler {
 
+    private final Settings settings;
     protected final XPackLicenseState licenseState;
 
     /**
@@ -32,6 +33,7 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
      */
     protected SecurityBaseRestHandler(Settings settings, XPackLicenseState licenseState) {
         super(settings);
+        this.settings = settings;
         this.licenseState = licenseState;
     }
 

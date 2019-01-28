@@ -12,14 +12,29 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.LiteralTests;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.AggExtractorInput;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
+import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDateTime;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggExtractorInput;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipesTests;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate;
-import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InPipe;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.tree.NodeTests.ChildrenAreAProperty;
 import org.elasticsearch.xpack.sql.tree.NodeTests.Dummy;
 import org.elasticsearch.xpack.sql.tree.NodeTests.NoChildren;
@@ -38,6 +53,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -75,6 +91,11 @@ import static org.mockito.Mockito.mock;
  * </ul>
  */
 public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCase {
+
+
+    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = Arrays.<Class<?>> asList(IfNull.class, In.class, InPipe.class,
+            Percentile.class, Percentiles.class, PercentileRanks.class);
+
     private final Class<T> subclass;
 
     public NodeSubclassTests(Class<T> subclass) {
@@ -231,7 +252,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
              * Transforming using the way we did above should only change
              * the one property of the node that we intended to transform.
              */
-            assertEquals(node.location(), transformed.location());
+            assertEquals(node.source(), transformed.source());
             List<Object> op = node.properties();
             List<Object> tp = transformed.properties();
             for (int p = 0; p < op.size(); p++) {
@@ -339,20 +360,14 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
      */
     @SuppressWarnings("unchecked")
     private static Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
+
         if (argType instanceof ParameterizedType) {
             ParameterizedType pt = (ParameterizedType) argType;
             if (pt.getRawType() == Map.class) {
-                Map<Object, Object> map = new HashMap<>();
-                int size = between(0, 10);
-                while (map.size() < size) {
-                    Object key = makeArg(toBuildClass, pt.getActualTypeArguments()[0]);
-                    Object value = makeArg(toBuildClass, pt.getActualTypeArguments()[1]);
-                    map.put(key, value);
-                }
-                return map;
+                return makeMap(toBuildClass, pt);
             }
             if (pt.getRawType() == List.class) {
-                return makeList(toBuildClass, pt, between(1, 10));
+                return makeList(toBuildClass, pt);
             }
             if (pt.getRawType() == EnumSet.class) {
                 @SuppressWarnings("rawtypes")
@@ -414,7 +429,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             }
         } else if (toBuildClass == ChildrenAreAProperty.class) {
             /*
-             * While any subclass of Dummy will do here we want to prevent
+             * While any subclass of DummyFunction will do here we want to prevent
              * stack overflow so we use the one without children.
              */
             if (argClass == Dummy.class) {
@@ -436,16 +451,21 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                 }
                 return b.toString();
             }
-        } else if (toBuildClass == LikePattern.class) {
-            /*
-             * The pattern and escape character have to be valid together
-             * so we pick an escape character that isn't used
-             */
-            if (argClass == char.class) {
-                return randomFrom('\\', '|', '/', '`');
+        } else if (toBuildClass == Like.class) {
+
+            if (argClass == LikePattern.class) {
+                return new LikePattern(randomAlphaOfLength(16), randomFrom('\\', '|', '/', '`'));
+            }
+
+        } else if (toBuildClass == Histogram.class) {
+            if (argClass == Expression.class) {
+                return LiteralTests.randomLiteral();
+            }
+        } else if (toBuildClass == CurrentDateTime.class) {
+            if (argClass == Expression.class) {
+                return Literal.of(SourceTests.randomSource(), randomInt(9));
             }
         }
-
         if (Expression.class == argClass) {
             /*
              * Rather than use any old subclass of expression lets
@@ -454,6 +474,23 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
              */
             return UnresolvedAttributeTests.randomUnresolvedAttribute();
         }
+
+        if (Pipe.class == argClass) {
+            /*
+             * Similar to expressions, mock pipes to avoid
+             * stackoverflow errors while building the tree.
+             */
+            return BinaryPipesTests.randomUnaryPipe();
+        }
+
+        if (Processor.class == argClass) {
+            /*
+             * Similar to expressions, mock pipes to avoid
+             * stackoverflow errors while building the tree.
+             */
+            return new ConstantProcessor(randomAlphaOfLength(16));
+        }
+
         if (Node.class.isAssignableFrom(argClass)) {
             /*
              * Rather than attempting to mock subclasses of node
@@ -480,9 +517,9 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             // Nor strings
             return randomAlphaOfLength(5);
         }
-        if (argClass == Location.class) {
+        if (argClass == Source.class) {
             // Location is final and can't be mocked but we have a handy method to generate ones.
-            return LocationTests.randomLocation();
+            return SourceTests.randomSource();
         }
         try {
             return mock(argClass);
@@ -491,12 +528,37 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         }
     }
 
+    private static List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
+        return makeList(toBuildClass, listType, randomSizeForCollection(toBuildClass));
+    }
+
     private static List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
         List<Object> list = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             list.add(makeArg(toBuildClass, listType.getActualTypeArguments()[0]));
         }
         return list;
+    }
+
+    private static Object makeMap(Class<? extends Node<?>> toBuildClass, ParameterizedType pt) throws Exception {
+        Map<Object, Object> map = new HashMap<>();
+        int size = randomSizeForCollection(toBuildClass);
+        while (map.size() < size) {
+            Object key = makeArg(toBuildClass, pt.getActualTypeArguments()[0]);
+            Object value = makeArg(toBuildClass, pt.getActualTypeArguments()[1]);
+            map.put(key, value);
+        }
+        return map;
+    }
+
+    private static int randomSizeForCollection(Class<? extends Node<?>> toBuildClass) {
+        int minCollectionLength = 0;
+        int maxCollectionLength = 10;
+
+        if (CLASSES_WITH_MIN_TWO_CHILDREN.stream().anyMatch(c -> c == toBuildClass)) {
+            minCollectionLength = 2;
+        }
+        return between(minCollectionLength, maxCollectionLength);
     }
 
     private List<?> makeListOfSameSizeOtherThan(Type listType, List<?> original) throws Exception {
@@ -536,7 +598,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     /**
      * Find all subclasses of a particular class.
      */
-    private static <T> List<Class<? extends T>> subclassesOf(Class<T> clazz) throws IOException {
+    public static <T> List<Class<? extends T>> subclassesOf(Class<T> clazz) throws IOException {
         @SuppressWarnings("unchecked") // The map is built this way
         List<Class<? extends T>> lookup = (List<Class<? extends T>>) subclassCache.get(clazz);
         if (lookup != null) {

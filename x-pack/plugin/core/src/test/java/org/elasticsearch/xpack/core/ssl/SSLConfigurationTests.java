@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.TrustConfig.CombiningTrustConfig;
 
 import javax.net.ssl.KeyManager;
@@ -22,6 +23,7 @@ import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
@@ -35,10 +37,8 @@ public class SSLConfigurationTests extends ESTestCase {
         assertThat(globalConfig.keyConfig(), sameInstance(KeyConfig.NONE));
         assertThat(globalConfig.trustConfig(), is(not((globalConfig.keyConfig()))));
         assertThat(globalConfig.trustConfig(), instanceOf(DefaultJDKTrustConfig.class));
-
-        SSLConfiguration scopedConfig = new SSLConfiguration(Settings.EMPTY, globalConfig);
-        assertThat(scopedConfig.keyConfig(), sameInstance(globalConfig.keyConfig()));
-        assertThat(scopedConfig.trustConfig(), sameInstance(globalConfig.trustConfig()));
+        assertThat(globalConfig.supportedProtocols(), equalTo(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS));
+        assertThat(globalConfig.supportedProtocols(), not(hasItem("TLSv1")));
     }
 
     public void testThatOnlyKeystoreInSettingsSetsTruststoreSettings() {
@@ -50,22 +50,17 @@ public class SSLConfigurationTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         // Pass settings in as component settings
-        SSLConfiguration globalSettings = new SSLConfiguration(settings);
-        SSLConfiguration scopedSettings = new SSLConfiguration(settings, globalSettings);
-        SSLConfiguration scopedEmptyGlobalSettings =
-                new SSLConfiguration(settings, new SSLConfiguration(Settings.EMPTY));
-        for (SSLConfiguration sslConfiguration : Arrays.asList(globalSettings, scopedSettings, scopedEmptyGlobalSettings)) {
-            assertThat(sslConfiguration.keyConfig(), instanceOf(StoreKeyConfig.class));
-            StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
+        SSLConfiguration sslConfiguration = new SSLConfiguration(settings);
+        assertThat(sslConfiguration.keyConfig(), instanceOf(StoreKeyConfig.class));
+        StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
 
-            assertThat(ksKeyInfo.keyStorePath, is(equalTo(path)));
-            assertThat(ksKeyInfo.keyStorePassword, is(equalTo("testnode")));
-            assertThat(ksKeyInfo.keyStoreType, is(equalTo("jks")));
-            assertThat(ksKeyInfo.keyPassword, is(equalTo(ksKeyInfo.keyStorePassword)));
-            assertThat(ksKeyInfo.keyStoreAlgorithm, is(KeyManagerFactory.getDefaultAlgorithm()));
-            assertThat(sslConfiguration.trustConfig(), is(instanceOf(CombiningTrustConfig.class)));
-            assertCombiningTrustConfigContainsCorrectIssuers(sslConfiguration);
-        }
+        assertThat(ksKeyInfo.keyStorePath, is(equalTo(path)));
+        assertThat(ksKeyInfo.keyStorePassword, is(equalTo("testnode")));
+        assertThat(ksKeyInfo.keyStoreType, is(equalTo("jks")));
+        assertThat(ksKeyInfo.keyPassword, is(equalTo(ksKeyInfo.keyStorePassword)));
+        assertThat(ksKeyInfo.keyStoreAlgorithm, is(KeyManagerFactory.getDefaultAlgorithm()));
+        assertThat(sslConfiguration.trustConfig(), is(instanceOf(CombiningTrustConfig.class)));
+        assertCombiningTrustConfigContainsCorrectIssuers(sslConfiguration);
     }
 
     public void testKeystorePassword() {
@@ -188,46 +183,6 @@ public class SSLConfigurationTests extends ESTestCase {
         assertThat(ksKeyInfo.keyStoreType, is(equalTo(type)));
     }
 
-    public void testThatProfileSettingsOverrideServiceSettings() {
-        MockSecureSettings profileSecureSettings = new MockSecureSettings();
-        profileSecureSettings.setString("keystore.secure_password", "password");
-        profileSecureSettings.setString("keystore.secure_key_password", "key");
-        profileSecureSettings.setString("truststore.secure_password", "password for trust");
-        Settings profileSettings = Settings.builder()
-                .put("keystore.path", "path")
-                .put("keystore.algorithm", "algo")
-                .put("truststore.path", "trust path")
-                .put("truststore.algorithm", "trusted")
-                .setSecureSettings(profileSecureSettings)
-                .build();
-
-        MockSecureSettings serviceSecureSettings = new MockSecureSettings();
-        serviceSecureSettings.setString("xpack.ssl.keystore.secure_password", "comp password");
-        serviceSecureSettings.setString("xpack.ssl.keystore.secure_key_password", "comp key");
-        serviceSecureSettings.setString("xpack.ssl.truststore.secure_password", "comp password for trust");
-        Settings serviceSettings = Settings.builder()
-                .put("xpack.ssl.keystore.path", "comp path")
-                .put("xpack.ssl.keystore.algorithm", "comp algo")
-                .put("xpack.ssl.truststore.path", "comp trust path")
-                .put("xpack.ssl.truststore.algorithm", "comp trusted")
-                .setSecureSettings(serviceSecureSettings)
-                .build();
-
-        SSLConfiguration globalSettings = new SSLConfiguration(serviceSettings);
-        SSLConfiguration sslConfiguration = new SSLConfiguration(profileSettings, globalSettings);
-        assertThat(sslConfiguration.keyConfig(), instanceOf(StoreKeyConfig.class));
-        StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
-        assertThat(ksKeyInfo.keyStorePath, is(equalTo("path")));
-        assertThat(ksKeyInfo.keyStorePassword, is(equalTo("password")));
-        assertThat(ksKeyInfo.keyPassword, is(equalTo("key")));
-        assertThat(ksKeyInfo.keyStoreAlgorithm, is(equalTo("algo")));
-        assertThat(sslConfiguration.trustConfig(), instanceOf(StoreTrustConfig.class));
-        StoreTrustConfig ksTrustInfo = (StoreTrustConfig) sslConfiguration.trustConfig();
-        assertThat(ksTrustInfo.trustStorePath, is(equalTo("trust path")));
-        assertThat(ksTrustInfo.trustStorePassword, is(equalTo("password for trust")));
-        assertThat(ksTrustInfo.trustStoreAlgorithm, is(equalTo("trusted")));
-    }
-
     public void testThatEmptySettingsAreEqual() {
         SSLConfiguration sslConfiguration = new SSLConfiguration(Settings.EMPTY);
         SSLConfiguration sslConfiguration1 = new SSLConfiguration(Settings.EMPTY);
@@ -235,11 +190,6 @@ public class SSLConfigurationTests extends ESTestCase {
         assertThat(sslConfiguration1.equals(sslConfiguration), is(equalTo(true)));
         assertThat(sslConfiguration.equals(sslConfiguration), is(equalTo(true)));
         assertThat(sslConfiguration1.equals(sslConfiguration1), is(equalTo(true)));
-
-        SSLConfiguration profileSSLConfiguration = new SSLConfiguration(Settings.EMPTY, sslConfiguration);
-        assertThat(sslConfiguration.equals(profileSSLConfiguration), is(equalTo(true)));
-        assertThat(profileSSLConfiguration.equals(sslConfiguration), is(equalTo(true)));
-        assertThat(profileSSLConfiguration.equals(profileSSLConfiguration), is(equalTo(true)));
     }
 
     public void testThatSettingsWithDifferentKeystoresAreNotEqual() {
@@ -272,9 +222,6 @@ public class SSLConfigurationTests extends ESTestCase {
         SSLConfiguration sslConfiguration = new SSLConfiguration(Settings.EMPTY);
         SSLConfiguration sslConfiguration1 = new SSLConfiguration(Settings.EMPTY);
         assertThat(sslConfiguration.hashCode(), is(equalTo(sslConfiguration1.hashCode())));
-
-        SSLConfiguration profileSettings = new SSLConfiguration(Settings.EMPTY, sslConfiguration);
-        assertThat(profileSettings.hashCode(), is(equalTo(sslConfiguration.hashCode())));
     }
 
     public void testThatSettingsWithDifferentKeystoresHaveDifferentHashCode() {
@@ -390,7 +337,8 @@ public class SSLConfigurationTests extends ESTestCase {
     private void assertCombiningTrustConfigContainsCorrectIssuers(SSLConfiguration sslConfiguration) {
         X509Certificate[] trustConfAcceptedIssuers = sslConfiguration.trustConfig().createTrustManager(null).getAcceptedIssuers();
         X509Certificate[] keyConfAcceptedIssuers = sslConfiguration.keyConfig().createTrustManager(null).getAcceptedIssuers();
-        X509Certificate[] defaultAcceptedIssuers = DefaultJDKTrustConfig.INSTANCE.createTrustManager(null).getAcceptedIssuers();
+        X509Certificate[] defaultAcceptedIssuers = new DefaultJDKTrustConfig(null).createTrustManager(null)
+            .getAcceptedIssuers();
         assertEquals(keyConfAcceptedIssuers.length + defaultAcceptedIssuers.length, trustConfAcceptedIssuers.length);
         assertThat(Arrays.asList(keyConfAcceptedIssuers), everyItem(isIn(trustConfAcceptedIssuers)));
         assertThat(Arrays.asList(defaultAcceptedIssuers), everyItem(isIn(trustConfAcceptedIssuers)));

@@ -1,12 +1,15 @@
+[float]
 [[breaking_70_analysis_changes]]
 === Analysis changes
 
+[float]
 ==== Limiting the number of tokens produced by _analyze
 
 To safeguard against out of memory errors, the number of tokens that can be produced
 using the `_analyze` endpoint has been limited to 10000. This default limit can be changed
 for a particular index with the index setting `index.analyze.max_token_count`.
 
+[float]
 ==== Limiting the length of an analyzed text during highlighting
 
 Highlighting a text that was indexed without offsets or term vectors,
@@ -16,6 +19,7 @@ To protect against this, the maximum number of characters that will be analyzed 
 limited to 1000000. This default limit can be changed
 for a particular index with the index setting `index.highlight.max_analyzed_offset`.
 
+[float]
 ==== `delimited_payload_filter` renaming
 
 The `delimited_payload_filter` was deprecated and renamed to `delimited_payload` in 6.2.
@@ -23,6 +27,15 @@ Using it in indices created before 7.0 will issue deprecation warnings. Using th
 name in new indices created in 7.0 will throw an error. Use the new name `delimited_payload`
 instead.
 
+[float]
 ==== `standard` filter has been removed
 
 The `standard` token filter has been removed because it doesn't change anything in the stream.
+
+[float]
+==== Deprecated standard_html_strip analyzer
+
+The `standard_html_strip` analyzer has been deprecated, and should be replaced
+with a combination of the `standard` tokenizer and `html_strip` char_filter.
+Indexes created using this analyzer will still be readable in elasticsearch 7.0,
+but it will not be possible to create new indexes using it.

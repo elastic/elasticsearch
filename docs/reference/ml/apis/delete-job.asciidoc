@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-job]]
-=== Delete Jobs API
+=== Delete jobs API
 ++++
-<titleabbrev>Delete Jobs</titleabbrev>
+<titleabbrev>Delete jobs</titleabbrev>
 ++++
 
 Deletes an existing anomaly detection job.
@@ -11,7 +11,7 @@ Deletes an existing anomaly detection job.
 
 ==== Request
 
-`DELETE _xpack/ml/anomaly_detectors/<job_id>`
+`DELETE _ml/anomaly_detectors/<job_id>`
 
 
 ==== Description
@@ -19,9 +19,9 @@ Deletes an existing anomaly detection job.
 All job configuration, model state and results are deleted.
 
 IMPORTANT:  Deleting a job must be done via this API only. Do not delete the
-            job directly from the `.ml-*` indices using the Elasticsearch
-            DELETE Document API. When {security} is enabled, make sure no `write`
-            privileges are granted to anyone over the `.ml-*` indices.
+job directly from the `.ml-*` indices using the Elasticsearch delete document
+API. When {es} {security-features} are enabled, make sure no `write` privileges
+are granted to anyone over the `.ml-*` indices.
 
 Before you can delete a job, you must delete the {dfeeds} that are associated
 with it. See <<ml-delete-datafeed,Delete {dfeeds-cap}>>. Unless the `force` parameter
@@ -41,11 +41,15 @@ separated list.
   (boolean) Use to forcefully delete an opened job; this method is quicker than
   closing and deleting the job.
 
+`wait_for_completion`::
+  (boolean) Specifies whether the request should return immediately or wait
+  until the job deletion completes. Defaults to `true`.
 
 ==== Authorization
 
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
+If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
+cluster privileges to use this API.
+For more information, see {stack-ov}/security-privileges.html[Security Privileges].
 
 
 ==== Examples
@@ -54,7 +58,7 @@ The following example deletes the `total-requests` job:
 
 [source,js]
 --------------------------------------------------
-DELETE _xpack/ml/anomaly_detectors/total-requests
+DELETE _ml/anomaly_detectors/total-requests
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup:server_metrics_job]
@@ -67,3 +71,22 @@ When the job is deleted, you receive the following results:
 }
 ----
 // TESTRESPONSE
+
+In the next example we delete the `total-requests` job asynchronously:
+
+[source,js]
+--------------------------------------------------
+DELETE _ml/anomaly_detectors/total-requests?wait_for_completion=false
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:setup:server_metrics_job]
+
+When `wait_for_completion` is set to `false`, the response contains the id
+of the job deletion task:
+[source,js]
+----
+{
+  "task": "oTUltX4IQMOUUVeiohTt8A:39"
+}
+----
+// TESTRESPONSE[s/"task": "oTUltX4IQMOUUVeiohTt8A:39"/"task": $body.task/]

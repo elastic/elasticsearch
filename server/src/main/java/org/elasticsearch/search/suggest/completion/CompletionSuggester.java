@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
-import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -34,9 +33,7 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggester;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -59,15 +56,17 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 new Text(spare.toString()), 0, spare.length());
             completionSuggestion.addTerm(completionSuggestEntry);
             int shardSize = suggestionContext.getShardSize() != null ? suggestionContext.getShardSize() : suggestionContext.getSize();
-            TopSuggestDocsCollector collector = new TopDocumentsCollector(shardSize, suggestionContext.isSkipDuplicates());
+            TopSuggestGroupDocsCollector collector = new TopSuggestGroupDocsCollector(shardSize, suggestionContext.isSkipDuplicates());
             suggest(searcher, suggestionContext.toQuery(), collector);
             int numResult = 0;
-            for (TopSuggestDocs.SuggestScoreDoc suggestScoreDoc : collector.get().scoreLookupDocs()) {
-                TopDocumentsCollector.SuggestDoc suggestDoc = (TopDocumentsCollector.SuggestDoc) suggestScoreDoc;
+            for (TopSuggestDocs.SuggestScoreDoc suggestDoc : collector.get().scoreLookupDocs()) {
                 // collect contexts
-                Map<String, Set<CharSequence>> contexts = Collections.emptyMap();
-                if (fieldType.hasContextMappings() && suggestDoc.getContexts().isEmpty() == false) {
-                    contexts = fieldType.getContextMappings().getNamedContexts(suggestDoc.getContexts());
+                Map<String, Set<String>> contexts = Collections.emptyMap();
+                if (fieldType.hasContextMappings()) {
+                    List<CharSequence> rawContexts = collector.getContexts(suggestDoc.doc);
+                    if (rawContexts.size() > 0) {
+                        contexts = fieldType.getContextMappings().getNamedContexts(rawContexts);
+                    }
                 }
                 if (numResult++ < suggestionContext.getSize()) {
                     CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(suggestDoc.doc,
@@ -95,122 +94,6 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                     // continue with the following leaf
                 }
             }
-        }
-    }
-
-    /**
-     * TODO: this should be refactored and moved to lucene see https://issues.apache.org/jira/browse/LUCENE-6880
-     *
-     * Custom collector that returns top documents from the completion suggester.
-     * When suggestions are augmented with contexts values this collector groups suggestions coming from the same document
-     * but matching different contexts together. Each document is counted as 1 entry and the provided size is the expected number
-     * of documents that should be returned (not the number of suggestions).
-     * This collector is also able to filter duplicate suggestion coming from different documents.
-     * When different contexts match the same suggestion form only the best one (sorted by weight) is kept.
-     * In order to keep this feature fast, the de-duplication of suggestions with different contexts is done
-     * only on the top N*num_contexts (where N is the number of documents to return) suggestions per segment.
-     * This means that skip_duplicates will visit at most N*num_contexts suggestions per segment to find unique suggestions
-     * that match the input. If more than N*num_contexts suggestions are duplicated with different contexts this collector
-     * will not be able to return more than one suggestion even when N is greater than 1.
-     **/
-    private static final class TopDocumentsCollector extends TopSuggestDocsCollector {
-
-        /**
-         * Holds a list of suggest meta data for a doc
-         */
-        private static final class SuggestDoc extends TopSuggestDocs.SuggestScoreDoc {
-
-            private List<TopSuggestDocs.SuggestScoreDoc> suggestScoreDocs;
-
-            SuggestDoc(int doc, CharSequence key, CharSequence context, float score) {
-                super(doc, key, context, score);
-            }
-
-            void add(CharSequence key, CharSequence context, float score) {
-                if (suggestScoreDocs == null) {
-                    suggestScoreDocs = new ArrayList<>(1);
-                }
-                suggestScoreDocs.add(new TopSuggestDocs.SuggestScoreDoc(doc, key, context, score));
-            }
-
-            public List<CharSequence> getKeys() {
-                if (suggestScoreDocs == null) {
-                    return Collections.singletonList(key);
-                } else {
-                    List<CharSequence> keys = new ArrayList<>(suggestScoreDocs.size() + 1);
-                    keys.add(key);
-                    for (TopSuggestDocs.SuggestScoreDoc scoreDoc : suggestScoreDocs) {
-                        keys.add(scoreDoc.key);
-                    }
-                    return keys;
-                }
-            }
-
-            public List<CharSequence> getContexts() {
-                if (suggestScoreDocs == null) {
-                    if (context != null) {
-                        return Collections.singletonList(context);
-                    } else {
-                        return Collections.emptyList();
-                    }
-                } else {
-                    List<CharSequence> contexts = new ArrayList<>(suggestScoreDocs.size() + 1);
-                    contexts.add(context);
-                    for (TopSuggestDocs.SuggestScoreDoc scoreDoc : suggestScoreDocs) {
-                        contexts.add(scoreDoc.context);
-                    }
-                    return contexts;
-                }
-            }
-        }
-
-        private final Map<Integer, SuggestDoc> docsMap;
-
-        TopDocumentsCollector(int num, boolean skipDuplicates) {
-            super(Math.max(1, num), skipDuplicates);
-            this.docsMap = new LinkedHashMap<>(num);
-        }
-
-        @Override
-        public void collect(int docID, CharSequence key, CharSequence context, float score) throws IOException {
-            int globalDoc = docID + docBase;
-            if (docsMap.containsKey(globalDoc)) {
-                docsMap.get(globalDoc).add(key, context, score);
-            } else {
-                docsMap.put(globalDoc, new SuggestDoc(globalDoc, key, context, score));
-                super.collect(docID, key, context, score);
-            }
-        }
-
-        @Override
-        public TopSuggestDocs get() throws IOException {
-            TopSuggestDocs entries = super.get();
-            if (entries.scoreDocs.length == 0) {
-                return TopSuggestDocs.EMPTY;
-            }
-            // The parent class returns suggestions, not documents, and dedup only the surface form (without contexts).
-            // The following code groups suggestions matching different contexts by document id and dedup the surface form + contexts
-            // if needed (skip_duplicates).
-            int size = entries.scoreDocs.length;
-            final List<TopSuggestDocs.SuggestScoreDoc> suggestDocs = new ArrayList<>(size);
-            final CharArraySet seenSurfaceForms = doSkipDuplicates() ? new CharArraySet(size, false) : null;
-            for (TopSuggestDocs.SuggestScoreDoc suggestEntry : entries.scoreLookupDocs()) {
-                final SuggestDoc suggestDoc;
-                if (docsMap != null) {
-                    suggestDoc = docsMap.get(suggestEntry.doc);
-                } else {
-                    suggestDoc = new SuggestDoc(suggestEntry.doc, suggestEntry.key, suggestEntry.context, suggestEntry.score);
-                }
-                if (doSkipDuplicates()) {
-                    if (seenSurfaceForms.contains(suggestDoc.key)) {
-                        continue;
-                    }
-                    seenSurfaceForms.add(suggestDoc.key);
-                }
-                suggestDocs.add(suggestDoc);
-            }
-            return new TopSuggestDocs(entries.totalHits,
-                suggestDocs.toArray(new TopSuggestDocs.SuggestScoreDoc[0]));
         }
     }
 }

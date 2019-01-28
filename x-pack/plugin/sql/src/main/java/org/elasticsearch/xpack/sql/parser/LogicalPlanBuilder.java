@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.FromClauseContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.GroupByContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.JoinCriteriaContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.JoinRelationContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.JoinTypeContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LimitClauseContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.NamedQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryContext;
@@ -33,7 +32,6 @@ import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.Join;
-import org.elasticsearch.xpack.sql.plan.logical.Join.JoinType;
 import org.elasticsearch.xpack.sql.plan.logical.Limit;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
@@ -43,7 +41,7 @@ import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.session.EmptyExecutable;
+import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.LinkedHashMap;
@@ -69,7 +67,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         Map<String, SubQueryAlias> cteRelations = new LinkedHashMap<>(namedQueries.size());
         for (SubQueryAlias namedQuery : namedQueries) {
             if (cteRelations.put(namedQuery.alias(), namedQuery) != null) {
-                throw new ParsingException(namedQuery.location(), "Duplicate alias {}", namedQuery.alias());
+                throw new ParsingException(namedQuery.source(), "Duplicate alias {}", namedQuery.alias());
             }
         }
 
@@ -106,7 +104,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitQuerySpecification(QuerySpecificationContext ctx) {
         LogicalPlan query;
         if (ctx.fromClause() == null) {
-            query = new LocalRelation(source(ctx), new EmptyExecutable(emptyList()));
+            query = new LocalRelation(source(ctx), new SingletonExecutable());
         } else {
             query = plan(ctx.fromClause());
         }
@@ -121,7 +119,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         // SELECT a, b, c ...
         if (!ctx.selectItem().isEmpty()) {
             selectTarget = expressions(ctx.selectItem()).stream()
-                    .map(e -> (e instanceof NamedExpression) ? (NamedExpression) e : new UnresolvedAlias(e.location(), e))
+                    .map(e -> (e instanceof NamedExpression) ? (NamedExpression) e : new UnresolvedAlias(e.source(), e))
                     .collect(toList());
         }
 
@@ -168,39 +166,20 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
         LogicalPlan result = plan(ctx.relationPrimary());
         for (JoinRelationContext j : ctx.joinRelation()) {
-            result = doJoin(result, j);
+            result = doJoin(j);
         }
 
         return result;
     }
 
-    private Join doJoin(LogicalPlan left, JoinRelationContext ctx) {
-        JoinTypeContext joinType = ctx.joinType();
+    private Join doJoin(JoinRelationContext ctx) {
 
-        Join.JoinType type = JoinType.INNER;
-        if (joinType != null) {
-            if (joinType.FULL() != null) {
-                type = JoinType.FULL;
-            }
-            if (joinType.LEFT() != null) {
-                type = JoinType.LEFT;
-            }
-            if (joinType.RIGHT() != null) {
-                type = JoinType.RIGHT;
-            }
-        }
-
-        Expression condition = null;
         JoinCriteriaContext criteria = ctx.joinCriteria();
         if (criteria != null) {
             if (criteria.USING() != null) {
                 throw new UnsupportedOperationException();
             }
-            if (criteria.booleanExpression() != null) {
-                condition = expression(criteria.booleanExpression());
-            }
         }
-
         // We would return this if we actually supported JOINs, but we don't yet.
         // new Join(source(ctx), left, plan(ctx.right), type, condition);
         throw new ParsingException(source(ctx), "Queries with JOIN are not yet supported");

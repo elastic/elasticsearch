@@ -5,16 +5,18 @@
  */
 package org.elasticsearch.xpack.sql.expression.function;
 
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.Function;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-import static java.util.Collections.emptyList;
-
 import java.util.List;
+
+import static java.util.Collections.emptyList;
 
 /**
  * Function referring to the {@code _score} in a search. Only available
@@ -22,8 +24,8 @@ import java.util.List;
  * with other function.
  */
 public class Score extends Function {
-    public Score(Location location) {
-        super(location, emptyList());
+    public Score(Source source) {
+        super(source, emptyList());
     }
 
     @Override
@@ -43,7 +45,7 @@ public class Score extends Function {
 
     @Override
     public Attribute toAttribute() {
-        return new ScoreAttribute(location());
+        return new ScoreAttribute(source());
     }
 
     @Override
@@ -52,11 +54,21 @@ public class Score extends Function {
             return false;
         }
         Score other = (Score) obj;
-        return location().equals(other.location());
+        return source().equals(other.source());
     }
 
     @Override
     public int hashCode() {
-        return location().hashCode();
+        return source().hashCode();
+    }
+
+    @Override
+    protected Pipe makePipe() {
+        throw new SqlIllegalArgumentException("Scoring cannot be computed on the client");
+    }
+
+    @Override
+    public ScriptTemplate asScript() {
+        throw new SqlIllegalArgumentException("Scoring cannot be scripted");
     }
 }

@@ -1,18 +1,21 @@
 ---
 "Array of objects":
+
+  - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
+
   - do:
       bulk:
         refresh: true
         body:
           - index:
               _index: test_index
-              _type:  test_type
               _id:    test_id
           - f1: v1
             f2: 42
           - index:
               _index: test_index
-              _type:  test_type
               _id:    test_id2
           - f1: v2
             f2: 47
@@ -25,23 +28,25 @@
 
 ---
 "Empty _id":
+
+  - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
+
   - do:
       bulk:
         refresh: true
         body:
           - index:
               _index: test
-              _type: type
               _id: ''
           - f: 1
           - index:
               _index: test
-              _type: type
               _id: id
           - f: 2
           - index:
               _index: test
-              _type: type
           - f: 3
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
@@ -59,12 +64,17 @@
 ---
 "empty action":
 
+  - skip:
+      version: " - 6.99.99"
+      features: headers
+      reason: types are required in requests before 7.0.0
+
   - do:
       catch: /Malformed action\/metadata line \[3\], expected FIELD_NAME but found \[END_OBJECT\]/
       headers:
         Content-Type: application/json
       bulk:
         body: |
-           {"index": {"_index": "test_index", "_type": "test_type", "_id": "test_id"}}
+           {"index": {"_index": "test_index", "_id": "test_id"}}
            {"f1": "v1", "f2": 42}
            {}

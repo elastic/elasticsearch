@@ -32,10 +32,6 @@ import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLHandshakeException;
-import javax.net.ssl.TrustManagerFactory;
-
 import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -48,10 +44,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.TrustManagerFactory;
+
+import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForPEMFiles;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class SslIntegrationTests extends SecurityIntegTestCase {
 
@@ -62,8 +62,9 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put("xpack.security.http.ssl.enabled", true).build();
+        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+        addSSLSettingsForNodePEMFiles(builder, "xpack.security.http.", randomBoolean());
+        return builder.put("xpack.security.http.ssl.enabled", true).build();
     }
 
     @Override
@@ -83,7 +84,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
                 .put(transportClientSettings())
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
-                .putList("xpack.ssl.cipher_suites", unconfiguredCiphers)
+                .putList("xpack.security.transport.ssl.cipher_suites", unconfiguredCiphers)
                 .build(), LocalStateSecurity.class)) {
 
             TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());
@@ -96,14 +97,13 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
         }
     }
 
-    // no SSL exception as this is the exception is returned when connecting
     public void testThatTransportClientUsingSSLv3ProtocolIsRejected() {
         assumeFalse("Can't run in a FIPS JVM as SSLv3 SSLContext not available", inFipsJvm());
         try (TransportClient transportClient = new TestXPackTransportClient(Settings.builder()
                 .put(transportClientSettings())
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
-                .putList("xpack.ssl.supported_protocols", new String[]{"SSLv3"})
+                .putList("xpack.security.transport.ssl.supported_protocols", new String[]{"SSLv3"})
                 .build(), LocalStateSecurity.class)) {
 
             TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());
@@ -122,13 +122,14 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
             builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem",
             "testclient",
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
+            "xpack.security.http.",
             Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         SSLService service = new SSLService(builder.build(), null);
 
         CredentialsProvider provider = new BasicCredentialsProvider();
         provider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(nodeClientUsername(),
                 new String(nodeClientPassword().getChars())));
-        SSLConfiguration sslConfiguration = service.getSSLConfiguration("xpack.ssl");
+        SSLConfiguration sslConfiguration = service.getSSLConfiguration("xpack.security.http.ssl");
         try (CloseableHttpClient client = HttpClients.custom()
                 .setSSLSocketFactory(new SSLConnectionSocketFactory(service.sslSocketFactory(sslConfiguration),
                         SSLConnectionSocketFactory.getDefaultHostnameVerifier()))
@@ -150,10 +151,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
         SSLConnectionSocketFactory sf = new SSLConnectionSocketFactory(sslContext, new String[]{ "SSLv3" }, null,
                 NoopHostnameVerifier.INSTANCE);
         try (CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(sf).build()) {
-            CloseableHttpResponse result = SocketAccess.doPrivileged(() -> client.execute(new HttpGet(getNodeUrl())));
-            fail("Expected a connection error due to SSLv3 not being supported by default");
-        } catch (Exception e) {
-            assertThat(e, is(instanceOf(SSLHandshakeException.class)));
+            expectThrows(SSLHandshakeException.class, () -> SocketAccess.doPrivileged(() -> client.execute(new HttpGet(getNodeUrl()))));
         }
     }
 

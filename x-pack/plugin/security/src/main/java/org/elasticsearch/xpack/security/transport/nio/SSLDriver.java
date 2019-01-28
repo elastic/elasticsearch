@@ -327,7 +327,7 @@ public class SSLDriver implements AutoCloseable {
         private void startHandshake() throws SSLException {
             handshakeStatus = engine.getHandshakeStatus();
             if (handshakeStatus != SSLEngineResult.HandshakeStatus.NEED_UNWRAP &&
-                    handshakeStatus != SSLEngineResult.HandshakeStatus.NEED_WRAP) {
+                handshakeStatus != SSLEngineResult.HandshakeStatus.NEED_WRAP) {
                 try {
                     handshake();
                 } catch (SSLException e) {
@@ -403,8 +403,8 @@ public class SSLDriver implements AutoCloseable {
         @Override
         public boolean needsNonApplicationWrite() {
             return handshakeStatus == SSLEngineResult.HandshakeStatus.NEED_WRAP
-                    || handshakeStatus == SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING
-                    || handshakeStatus == SSLEngineResult.HandshakeStatus.FINISHED;
+                || handshakeStatus == SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING
+                || handshakeStatus == SSLEngineResult.HandshakeStatus.FINISHED;
         }
 
         @Override
@@ -465,7 +465,7 @@ public class SSLDriver implements AutoCloseable {
                 networkReadBuffer.flip();
                 SSLEngineResult result = unwrap(buffer);
                 boolean renegotiationRequested = result.getStatus() != SSLEngineResult.Status.CLOSED
-                        && maybeRenegotiation(result.getHandshakeStatus());
+                    && maybeRenegotiation(result.getHandshakeStatus());
                 continueUnwrap = result.bytesProduced() > 0 && renegotiationRequested == false;
             }
         }
@@ -533,17 +533,24 @@ public class SSLDriver implements AutoCloseable {
             } else {
                 engine.closeOutbound();
             }
-
         }
 
         @Override
         public void read(InboundChannelBuffer buffer) throws SSLException {
+            if (needToReceiveClose == false) {
+                // There is an issue where receiving handshake messages after initiating the close process
+                // can place the SSLEngine back into handshaking mode. In order to handle this, if we
+                // initiate close during a handshake we do not wait to receive close. As we do not need to
+                // receive close, we will not handle reads.
+                return;
+            }
+
             ensureApplicationBufferSize(buffer);
             boolean continueUnwrap = true;
             while (continueUnwrap && networkReadBuffer.position() > 0) {
                 networkReadBuffer.flip();
                 SSLEngineResult result = unwrap(buffer);
-                continueUnwrap = result.bytesProduced() > 0;
+                continueUnwrap = result.bytesProduced() > 0 || result.bytesConsumed() > 0;
             }
             if (engine.isInboundDone()) {
                 needToReceiveClose = false;
@@ -598,7 +605,7 @@ public class SSLDriver implements AutoCloseable {
             try {
                 engine.closeInbound();
             } catch (SSLException e) {
-                if (e.getMessage().startsWith("Inbound closed before receiving peer's close_notify") == false) {
+                if (e.getMessage().contains("before receiving peer's close_notify") == false) {
                     throw e;
                 }
             }

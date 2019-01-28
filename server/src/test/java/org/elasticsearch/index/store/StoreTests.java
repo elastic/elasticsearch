@@ -193,9 +193,10 @@ public class StoreTests extends ESTestCase {
 
     public void testVerifyingIndexOutputOnEmptyFile() throws IOException {
         Directory dir = newDirectory();
-        IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(new StoreFileMetaData("foo.bar", 0, Store.digestToString(0),
-            MIN_SUPPORTED_LUCENE_VERSION),
-            dir.createOutput("foo1.bar", IOContext.DEFAULT));
+        IndexOutput verifyingOutput =
+            new Store.LuceneVerifyingIndexOutput(new StoreFileMetaData("foo.bar", 0, Store.digestToString(0),
+                MIN_SUPPORTED_LUCENE_VERSION),
+                dir.createOutput("foo1.bar", IOContext.DEFAULT));
         try {
             Store.verify(verifyingOutput);
             fail("should be a corrupted index");
@@ -296,13 +297,15 @@ public class StoreTests extends ESTestCase {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
         // set default codec - all segments need checksums
-        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec()));
+        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(),
+            new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec()));
         int docs = 1 + random().nextInt(100);
 
         for (int i = 0; i < docs; i++) {
             Document doc = new Document();
             doc.add(new TextField("id", "" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-            doc.add(new TextField("body", TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+            doc.add(new TextField("body",
+                TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
             doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
             writer.addDocument(doc);
         }
@@ -311,7 +314,8 @@ public class StoreTests extends ESTestCase {
                 if (random().nextBoolean()) {
                     Document doc = new Document();
                     doc.add(new TextField("id", "" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-                    doc.add(new TextField("body", TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+                    doc.add(new TextField("body",
+                        TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
                     writer.updateDocument(new Term("id", "" + i), doc);
                 }
             }
@@ -364,10 +368,8 @@ public class StoreTests extends ESTestCase {
 
         }
 
-        final long luceneChecksum;
         try (IndexInput indexInput = dir.openInput("lucene_checksum.bin", IOContext.DEFAULT)) {
             assertEquals(luceneFileLength, indexInput.length());
-            luceneChecksum = CodecUtil.retrieveChecksum(indexInput);
         }
 
         dir.close();
@@ -461,10 +463,13 @@ public class StoreTests extends ESTestCase {
 
     public static void assertConsistent(Store store, Store.MetadataSnapshot metadata) throws IOException {
         for (String file : store.directory().listAll()) {
-            if (!IndexWriter.WRITE_LOCK_NAME.equals(file) && !IndexFileNames.OLD_SEGMENTS_GEN.equals(file) && file.startsWith("extra") == false) {
-                assertTrue(file + " is not in the map: " + metadata.asMap().size() + " vs. " + store.directory().listAll().length, metadata.asMap().containsKey(file));
+            if (!IndexWriter.WRITE_LOCK_NAME.equals(file) &&
+                    !IndexFileNames.OLD_SEGMENTS_GEN.equals(file) && file.startsWith("extra") == false) {
+                assertTrue(file + " is not in the map: " + metadata.asMap().size() + " vs. " +
+                    store.directory().listAll().length, metadata.asMap().containsKey(file));
             } else {
-                assertFalse(file + " is not in the map: " + metadata.asMap().size() + " vs. " + store.directory().listAll().length, metadata.asMap().containsKey(file));
+                assertFalse(file + " is not in the map: " + metadata.asMap().size() + " vs. " +
+                    store.directory().listAll().length, metadata.asMap().containsKey(file));
             }
         }
     }
@@ -475,7 +480,8 @@ public class StoreTests extends ESTestCase {
         for (int i = 0; i < numDocs; i++) {
             Document doc = new Document();
             doc.add(new StringField("id", "" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-            doc.add(new TextField("body", TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+            doc.add(new TextField("body",
+                TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
             doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
             docs.add(doc);
         }
@@ -597,14 +603,17 @@ public class StoreTests extends ESTestCase {
         Store.MetadataSnapshot newCommitMetaData = store.getMetadata(null);
         Store.RecoveryDiff newCommitDiff = newCommitMetaData.recoveryDiff(metadata);
         if (delFile != null) {
-            assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetaData.size() - 5)); // segments_N, del file, cfs, cfe, si for the new segment
+            assertThat(newCommitDiff.identical.size(),
+                equalTo(newCommitMetaData.size() - 5)); // segments_N, del file, cfs, cfe, si for the new segment
             assertThat(newCommitDiff.different.size(), equalTo(1)); // the del file must be different
             assertThat(newCommitDiff.different.get(0).name(), endsWith(".liv"));
             assertThat(newCommitDiff.missing.size(), equalTo(4)); // segments_N,cfs, cfe, si for the new segment
         } else {
-            assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetaData.size() - 4)); // segments_N, cfs, cfe, si for the new segment
+            assertThat(newCommitDiff.identical.size(),
+                equalTo(newCommitMetaData.size() - 4)); // segments_N, cfs, cfe, si for the new segment
             assertThat(newCommitDiff.different.size(), equalTo(0));
-            assertThat(newCommitDiff.missing.size(), equalTo(4)); // an entire segment must be missing (single doc segment got dropped)  plus the commit is different
+            assertThat(newCommitDiff.missing.size(),
+                equalTo(4)); // an entire segment must be missing (single doc segment got dropped)  plus the commit is different
         }
 
         deleteContent(store.directory());
@@ -615,7 +624,8 @@ public class StoreTests extends ESTestCase {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
         // this time random codec....
-        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec());
+        IndexWriterConfig indexWriterConfig =
+            newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec());
         // we keep all commits and that allows us clean based on multiple snapshots
         indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
         IndexWriter writer = new IndexWriter(store.directory(), indexWriterConfig);
@@ -628,7 +638,8 @@ public class StoreTests extends ESTestCase {
             }
             Document doc = new Document();
             doc.add(new TextField("id", "" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-            doc.add(new TextField("body", TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+            doc.add(new TextField("body",
+                TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
             doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
             writer.addDocument(doc);
 
@@ -637,7 +648,8 @@ public class StoreTests extends ESTestCase {
             writer.commit();
             Document doc = new Document();
             doc.add(new TextField("id", "" + docs++, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-            doc.add(new TextField("body", TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+            doc.add(new TextField("body",
+                TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
             doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
             writer.addDocument(doc);
         }
@@ -649,7 +661,8 @@ public class StoreTests extends ESTestCase {
                 if (random().nextBoolean()) {
                     Document doc = new Document();
                     doc.add(new TextField("id", "" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-                    doc.add(new TextField("body", TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+                    doc.add(new TextField("body",
+                        TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
                     writer.updateDocument(new Term("id", "" + i), doc);
                 }
             }
@@ -663,7 +676,6 @@ public class StoreTests extends ESTestCase {
         if (randomBoolean()) {
             store.cleanupAndVerify("test", firstMeta);
             String[] strings = store.directory().listAll();
-            int numChecksums = 0;
             int numNotFound = 0;
             for (String file : strings) {
                 if (file.startsWith("extra")) {
@@ -679,7 +691,6 @@ public class StoreTests extends ESTestCase {
         } else {
             store.cleanupAndVerify("test", secondMeta);
             String[] strings = store.directory().listAll();
-            int numChecksums = 0;
             int numNotFound = 0;
             for (String file : strings) {
                 if (file.startsWith("extra")) {
@@ -699,7 +710,8 @@ public class StoreTests extends ESTestCase {
     }
 
     public void testOnCloseCallback() throws IOException {
-        final ShardId shardId = new ShardId(new Index(randomRealisticUnicodeOfCodepointLengthBetween(1, 10), "_na_"), randomIntBetween(0, 100));
+        final ShardId shardId =
+            new ShardId(new Index(randomRealisticUnicodeOfCodepointLengthBetween(1, 10), "_na_"), randomIntBetween(0, 100));
         final AtomicInteger count = new AtomicInteger(0);
         final ShardLock lock = new DummyShardLock(shardId);
 
@@ -801,8 +813,10 @@ public class StoreTests extends ESTestCase {
     }
 
     protected Store.MetadataSnapshot createMetaDataSnapshot() {
-        StoreFileMetaData storeFileMetaData1 = new StoreFileMetaData("segments", 1, "666", MIN_SUPPORTED_LUCENE_VERSION);
-        StoreFileMetaData storeFileMetaData2 = new StoreFileMetaData("no_segments", 1, "666", MIN_SUPPORTED_LUCENE_VERSION);
+        StoreFileMetaData storeFileMetaData1 =
+            new StoreFileMetaData("segments", 1, "666", MIN_SUPPORTED_LUCENE_VERSION);
+        StoreFileMetaData storeFileMetaData2 =
+            new StoreFileMetaData("no_segments", 1, "666", MIN_SUPPORTED_LUCENE_VERSION);
         Map<String, StoreFileMetaData> storeFileMetaDataMap = new HashMap<>();
         storeFileMetaDataMap.put(storeFileMetaData1.name(), storeFileMetaData1);
         storeFileMetaDataMap.put(storeFileMetaData2.name(), storeFileMetaData2);
@@ -843,7 +857,9 @@ public class StoreTests extends ESTestCase {
 
     public void testStreamStoreFilesMetaData() throws Exception {
         Store.MetadataSnapshot metadataSnapshot = createMetaDataSnapshot();
-        TransportNodesListShardStoreMetaData.StoreFilesMetaData outStoreFileMetaData = new TransportNodesListShardStoreMetaData.StoreFilesMetaData(new ShardId("test", "_na_", 0),metadataSnapshot);
+        TransportNodesListShardStoreMetaData.StoreFilesMetaData outStoreFileMetaData =
+            new TransportNodesListShardStoreMetaData.StoreFilesMetaData(new ShardId("test", "_na_", 0),
+                metadataSnapshot);
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         org.elasticsearch.Version targetNodeVersion = randomVersion(random());
@@ -852,7 +868,8 @@ public class StoreTests extends ESTestCase {
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
         in.setVersion(targetNodeVersion);
-        TransportNodesListShardStoreMetaData.StoreFilesMetaData inStoreFileMetaData = TransportNodesListShardStoreMetaData.StoreFilesMetaData.readStoreFilesMetaData(in);
+        TransportNodesListShardStoreMetaData.StoreFilesMetaData inStoreFileMetaData =
+            TransportNodesListShardStoreMetaData.StoreFilesMetaData.readStoreFilesMetaData(in);
         Iterator<StoreFileMetaData> outFiles = outStoreFileMetaData.iterator();
         for (StoreFileMetaData inFile : inStoreFileMetaData) {
             assertThat(inFile.name(), equalTo(outFiles.next().name()));
@@ -871,7 +888,8 @@ public class StoreTests extends ESTestCase {
         for (int i = 0; i < numDocs; i++) {
             Document doc = new Document();
             doc.add(new StringField("id", "" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-            doc.add(new TextField("body", TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+            doc.add(new TextField("body",
+                TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
             doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
             docs.add(doc);
         }
@@ -897,7 +915,8 @@ public class StoreTests extends ESTestCase {
             // expected
         }
         assertTrue(store.isMarkedCorrupted());
-        Lucene.cleanLuceneIndex(store.directory()); // we have to remove the index since it's corrupted and might fail the MocKDirWrapper checkindex call
+        // we have to remove the index since it's corrupted and might fail the MocKDirWrapper checkindex call
+        Lucene.cleanLuceneIndex(store.directory());
         store.close();
     }
 
@@ -906,17 +925,17 @@ public class StoreTests extends ESTestCase {
         IndexWriterConfig iwc = newIndexWriterConfig();
         Path tempDir = createTempDir();
         final BaseDirectoryWrapper dir = newFSDirectory(tempDir);
-        assertFalse(Store.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
+        assertFalse(StoreUtils.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
         IndexWriter writer = new IndexWriter(dir, iwc);
         Document doc = new Document();
         doc.add(new StringField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         writer.addDocument(doc);
         writer.commit();
         writer.close();
-        assertTrue(Store.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
+        assertTrue(StoreUtils.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
         Store store = new Store(shardId, INDEX_SETTINGS, dir, new DummyShardLock(shardId));
         store.markStoreCorrupted(new CorruptIndexException("foo", "bar"));
-        assertFalse(Store.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
+        assertFalse(StoreUtils.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
         store.close();
     }
 
@@ -966,7 +985,8 @@ public class StoreTests extends ESTestCase {
             store.failIfCorrupted();
             fail("should be corrupted");
         } catch (CorruptIndexException e) {
-            assertTrue(e.getMessage().startsWith("[index][1] Preexisting corrupted index [" + uuid +"] caused by: CorruptIndexException[foo (resource=bar)]"));
+            assertTrue(e.getMessage().startsWith("[index][1] Preexisting corrupted index [" + uuid +
+                "] caused by: CorruptIndexException[foo (resource=bar)]"));
             assertTrue(e.getMessage().contains(ExceptionsHelper.stackTrace(exception)));
         }
 
@@ -981,7 +1001,8 @@ public class StoreTests extends ESTestCase {
             store.failIfCorrupted();
             fail("should be corrupted");
         } catch (CorruptIndexException e) {
-            assertTrue(e.getMessage().startsWith("[index][1] Preexisting corrupted index [" + uuid + "] caused by: CorruptIndexException[foo (resource=bar)]"));
+            assertTrue(e.getMessage().startsWith("[index][1] Preexisting corrupted index [" + uuid +
+                "] caused by: CorruptIndexException[foo (resource=bar)]"));
             assertFalse(e.getMessage().contains(ExceptionsHelper.stackTrace(exception)));
         }
 
@@ -1014,7 +1035,7 @@ public class StoreTests extends ESTestCase {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         try (Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId))) {
 
-            store.createEmpty();
+            store.createEmpty(Version.LATEST);
 
             // remove the history uuid
             IndexWriterConfig iwc = new IndexWriterConfig(null)
@@ -1046,7 +1067,7 @@ public class StoreTests extends ESTestCase {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         try (Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId))) {
 
-            store.createEmpty();
+            store.createEmpty(Version.LATEST);
 
             SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
             assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));

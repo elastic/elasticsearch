@@ -1,0 +1,23 @@
+{
+    "properties" : {
+        "emp_no" : {
+            "type" : "integer",
+            "doc_values" : false
+        },
+        "first_name" : {
+            "type" : "text"
+        },
+        "gender" : {
+            "type" : "keyword"
+        },
+        "languages" : {
+            "type" : "byte"
+        },
+        "last_name" : {
+            "type" : "text"
+        },
+        "salary" : {
+            "type" : "integer"
+        }
+    }
+}

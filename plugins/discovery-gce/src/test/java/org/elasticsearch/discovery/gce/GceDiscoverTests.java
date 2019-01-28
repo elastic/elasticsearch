@@ -73,11 +73,6 @@ public class GceDiscoverTests extends ESIntegTestCase {
             .build();
     }
 
-    @Override
-    protected boolean addTestZenDiscovery() {
-        return false;
-    }
-
     public void testJoin() {
         // start master node
         final String masterNode = internalCluster().startMasterOnlyNode();
@@ -168,6 +163,16 @@ public class GceDiscoverTests extends ESIntegTestCase {
 
                         return instances;
                     });
+                }
+
+                @Override
+                public String projectId() {
+                    return PROJECT_SETTING.get(settings);
+                }
+
+                @Override
+                public List<String> zones() {
+                    return ZONE_SETTING.get(settings);
                 }
 
                 @Override

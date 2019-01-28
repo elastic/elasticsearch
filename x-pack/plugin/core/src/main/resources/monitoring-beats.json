@@ -9,7 +9,7 @@
     "index.number_of_replicas": 0,
     "index.number_of_shards": 1
   },
-  "version": 7000001,
+  "version": 7000099,
   "mappings": {
     "doc": {
       "dynamic": false,
@@ -50,6 +50,9 @@
                       "type": "keyword"
                     },
                     "name": {
+                      "type": "keyword"
+                    },
+                    "hostname": {
                       "type": "keyword"
                     },
                     "os": {
@@ -221,6 +224,23 @@
                           "type": "long"
                         }
                       }
+                    },
+                    "handles": {
+                      "properties": {
+                        "open": {
+                          "type": "long"
+                        },
+                        "limit": {
+                          "properties": {
+                            "hard": {
+                              "type": "long"
+                            },
+                            "soft": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
                     }
                   }
                 },
@@ -278,6 +298,9 @@
                                   "type": "long"
                                 },
                                 "unauthorized": {
+                                  "type": "long"
+                                },
+                                "internal": {
                                   "type": "long"
                                 },
                                 "decode": {
@@ -487,6 +510,13 @@
                               "type": "long"
                             }
                           }
+                        },
+                        "span": {
+                          "properties": {
+                            "transformations": {
+                              "type": "long"
+                            }
+                          }
                         }
                       }
                     }
@@ -537,6 +567,9 @@
                               "type": "long"
                             },
                             "total": {
+                              "type": "long"
+                            },
+                            "toomany": {
                               "type": "long"
                             }
                           }

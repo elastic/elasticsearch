@@ -38,6 +38,10 @@ public final class FetchSearchResult extends SearchPhaseResult {
     public FetchSearchResult() {
     }
 
+    public FetchSearchResult(StreamInput in) throws IOException {
+        readFrom(in);
+    }
+
     public FetchSearchResult(long id, SearchShardTarget shardTarget) {
         this.requestId = id;
         setSearchShardTarget(shardTarget);

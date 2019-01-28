@@ -5,15 +5,17 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 
-import static java.util.Collections.singletonList;
-
 import java.util.Collections;
 import java.util.List;
+
+import static java.util.Collections.singletonList;
 
 /**
  * An {@code Alias} is a {@code NamedExpression} that gets renamed to something else through the Alias.
@@ -34,20 +36,20 @@ public class Alias extends NamedExpression {
      */
     private Attribute lazyAttribute;
 
-    public Alias(Location location, String name, Expression child) {
-        this(location, name, null, child, null);
+    public Alias(Source source, String name, Expression child) {
+        this(source, name, null, child, null);
     }
 
-    public Alias(Location location, String name, String qualifier, Expression child) {
-        this(location, name, qualifier, child, null);
+    public Alias(Source source, String name, String qualifier, Expression child) {
+        this(source, name, qualifier, child, null);
     }
 
-    public Alias(Location location, String name, String qualifier, Expression child, ExpressionId id) {
-        this(location, name, qualifier, child, id, false);
+    public Alias(Source source, String name, String qualifier, Expression child, ExpressionId id) {
+        this(source, name, qualifier, child, id, false);
     }
 
-    public Alias(Location location, String name, String qualifier, Expression child, ExpressionId id, boolean synthetic) {
-        super(location, name, singletonList(child), id, synthetic);
+    public Alias(Source source, String name, String qualifier, Expression child, ExpressionId id, boolean synthetic) {
+        super(source, name, singletonList(child), id, synthetic);
         this.child = child;
         this.qualifier = qualifier;
     }
@@ -62,7 +64,7 @@ public class Alias extends NamedExpression {
         if (newChildren.size() != 1) {
             throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
         }
-        return new Alias(location(), name(), qualifier, newChildren.get(0), id(), synthetic());
+        return new Alias(source(), name(), qualifier, newChildren.get(0), id(), synthetic());
     }
 
     public Expression child() {
@@ -74,7 +76,7 @@ public class Alias extends NamedExpression {
     }
 
     @Override
-    public boolean nullable() {
+    public Nullability nullable() {
         return child.nullable();
     }
 
@@ -91,23 +93,28 @@ public class Alias extends NamedExpression {
         return lazyAttribute;
     }
 
+    @Override
+    public ScriptTemplate asScript() {
+        throw new SqlIllegalArgumentException("Encountered a bug; an alias should never be scripted");
+    }
+
     private Attribute createAttribute() {
         if (resolved()) {
             Expression c = child();
 
             Attribute attr = Expressions.attribute(c);
             if (attr != null) {
-                return attr.clone(location(), name(), qualifier, child.nullable(), id(), synthetic());
+                return attr.clone(source(), name(), qualifier, child.nullable(), id(), synthetic());
             }
             else {
                 // TODO: WE need to fix this fake Field
-                return new FieldAttribute(location(), null, name(),
+                return new FieldAttribute(source(), null, name(),
                         new EsField(name(), child.dataType(), Collections.emptyMap(), true),
                         qualifier, child.nullable(), id(), synthetic());
             }
         }
 
-        return new UnresolvedAttribute(location(), name(), qualifier);
+        return new UnresolvedAttribute(source(), name(), qualifier);
     }
 
     @Override

@@ -25,6 +25,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
@@ -198,13 +199,14 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             Future<Void> fut = shards.asyncRecoverReplica(replica,
                 (shard, node) -> new RecoveryTarget(shard, node, recoveryListener, v -> {}){
                     @Override
-                    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
+                    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps,
+                                                             ActionListener<Void> listener) {
                         try {
                             indexedOnPrimary.await();
                         } catch (InterruptedException e) {
                             throw new AssertionError(e);
                         }
-                        super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps);
+                        super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, listener);
                     }
                 });
             fut.get();
@@ -381,7 +383,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                     indexOnReplica(replicationRequest, shards, replica, primaryPrimaryTerm);
                     successFullyIndexed.set(true);
                 } catch (IllegalStateException ise) {
-                    assertThat(ise.getMessage(), either(containsString("is too old")).or(containsString("cannot be a replication target")));
+                    assertThat(ise.getMessage(), either(containsString("is too old"))
+                        .or(containsString("cannot be a replication target")).or(containsString("engine is closed")));
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

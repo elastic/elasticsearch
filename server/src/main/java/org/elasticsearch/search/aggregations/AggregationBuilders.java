@@ -28,8 +28,8 @@ import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
+import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -83,6 +83,8 @@ import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCount;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviation;
 
 import java.util.Map;
 
@@ -242,10 +244,10 @@ public class AggregationBuilders {
     }
 
     /**
-     * Create a new {@link GeoHashGrid} aggregation with the given name.
+     * Create a new {@link InternalGeoHashGrid} aggregation with the given name.
      */
-    public static GeoGridAggregationBuilder geohashGrid(String name) {
-        return new GeoGridAggregationBuilder(name);
+    public static GeoHashGridAggregationBuilder geohashGrid(String name) {
+        return new GeoHashGridAggregationBuilder(name);
     }
 
     /**
@@ -314,6 +316,13 @@ public class AggregationBuilders {
      */
     public static PercentileRanksAggregationBuilder percentileRanks(String name, double[] values) {
         return new PercentileRanksAggregationBuilder(name, values);
+    }
+
+    /**
+     * Create a new {@link MedianAbsoluteDeviation} aggregation with the given name
+     */
+    public static MedianAbsoluteDeviationAggregationBuilder medianAbsoluteDeviation(String name) {
+        return new MedianAbsoluteDeviationAggregationBuilder(name);
     }
 
     /**

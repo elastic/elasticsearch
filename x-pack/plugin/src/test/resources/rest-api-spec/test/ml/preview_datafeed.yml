@@ -75,7 +75,7 @@ setup:
 "Test preview scroll datafeed":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: preview-datafeed-job
         body:  >
           {
@@ -89,17 +89,16 @@ setup:
           }
 
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: preview-datafeed-feed
         body:  >
           {
             "job_id":"preview-datafeed-job",
-            "indexes":"airline-data",
-            "types":"response"
+            "indexes":"airline-data"
           }
 
   - do:
-      xpack.ml.preview_datafeed:
+      ml.preview_datafeed:
         datafeed_id: preview-datafeed-feed
   - length: { $body: 4 }
   - match: { 0.time: 1487376000000 }
@@ -119,7 +118,7 @@ setup:
 "Test preview aggregation datafeed with doc_count":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: aggregation-doc-count-job
         body:  >
           {
@@ -134,13 +133,12 @@ setup:
           }
 
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: aggregation-doc-count-feed
         body:  >
           {
             "job_id":"aggregation-doc-count-job",
             "indexes":"airline-data",
-            "types":"response",
             "aggregations": {
               "buckets": {
                 "histogram": {
@@ -172,7 +170,7 @@ setup:
           }
 
   - do:
-      xpack.ml.preview_datafeed:
+      ml.preview_datafeed:
         datafeed_id: aggregation-doc-count-feed
   - length: { $body: 3 }
   - match: { 0.time: 1487377800000 }
@@ -192,7 +190,7 @@ setup:
 "Test preview single metric aggregation datafeed with different summary count field":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: aggregation-custom-single-metric-summary-job
         body:  >
           {
@@ -207,13 +205,12 @@ setup:
           }
 
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: aggregation-custom-single-metric-summary-feed
         body:  >
           {
             "job_id":"aggregation-custom-single-metric-summary-job",
             "indexes":"airline-data",
-            "types":"response",
             "aggregations": {
               "buckets": {
                 "histogram": {
@@ -237,7 +234,7 @@ setup:
           }
 
   - do:
-      xpack.ml.preview_datafeed:
+      ml.preview_datafeed:
         datafeed_id: aggregation-custom-single-metric-summary-feed
   - length: { $body: 2 }
   - match: { 0.time: 1487377800000 }
@@ -251,7 +248,7 @@ setup:
 "Test preview multi metric aggregation datafeed with different summary count field":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: aggregation-custom-multi-metric-summary-job
         body:  >
           {
@@ -266,13 +263,12 @@ setup:
           }
 
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: aggregation-custom-multi-metric-summary-feed
         body:  >
           {
             "job_id":"aggregation-custom-multi-metric-summary-job",
             "indexes":"airline-data",
-            "types":"response",
             "aggregations": {
               "buckets": {
                 "histogram": {
@@ -308,7 +304,7 @@ setup:
           }
 
   - do:
-      xpack.ml.preview_datafeed:
+      ml.preview_datafeed:
         datafeed_id: aggregation-custom-multi-metric-summary-feed
   - length: { $body: 3 }
   - match: { 0.time: 1487377800000 }
@@ -332,14 +328,14 @@ setup:
 
   - do:
       catch: missing
-      xpack.ml.preview_datafeed:
+      ml.preview_datafeed:
         datafeed_id: missing-feed
 
 ---
 "Test preview datafeed with unavailable index":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: unavailable-job
         body:  >
           {
@@ -353,25 +349,24 @@ setup:
           }
 
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: unavailable-feed
         body:  >
           {
             "job_id":"unavailable-job",
-            "indexes":"unavailable-data",
-            "types":"response"
+            "indexes":"unavailable-data"
           }
 
   - do:
       catch: missing
-      xpack.ml.preview_datafeed:
+      ml.preview_datafeed:
         datafeed_id: unavailable-feed
 
 ---
 "Test preview datafeed with query that matches nothing":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: empty-job
         body:  >
           {
@@ -385,19 +380,18 @@ setup:
           }
 
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: empty-feed
         body:  >
           {
             "job_id":"empty-job",
             "indexes":"airline-data",
-            "types":"response",
             "query": {
               "term": {"airline":"missing"}
             }
           }
 
   - do:
-      xpack.ml.preview_datafeed:
+      ml.preview_datafeed:
         datafeed_id: empty-feed
   - length: { $body: 0 }

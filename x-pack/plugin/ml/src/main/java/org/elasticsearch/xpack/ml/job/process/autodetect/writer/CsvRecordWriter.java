@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.writer.RecordWriter;
+import org.elasticsearch.xpack.core.ml.process.writer.RecordWriter;
 import org.supercsv.io.CsvListWriter;
 import org.supercsv.prefs.CsvPreference;
 

@@ -20,6 +20,7 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -199,8 +200,9 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         permits.close();
         expectThrows(IndexShardClosedException.class, () -> permits.blockOperations(randomInt(10), TimeUnit.MINUTES,
             () -> { throw new IllegalArgumentException("fake error"); }));
-        expectThrows(IndexShardClosedException.class, () -> permits.asyncBlockOperations(randomInt(10), TimeUnit.MINUTES,
-            () -> { throw new IllegalArgumentException("fake error"); }, e -> { throw new AssertionError(e); }));
+        expectThrows(IndexShardClosedException.class,
+            () -> permits.asyncBlockOperations(wrap(() -> { throw new IllegalArgumentException("fake error");}),
+                randomInt(10), TimeUnit.MINUTES));
     }
 
     public void testOperationsDelayedIfBlock() throws ExecutionException, InterruptedException, TimeoutException {
@@ -220,17 +222,11 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         try (Releasable ignored = blockAndWait()) {
             permits.acquire(future, ThreadPool.Names.GENERIC, true, "");
 
-            permits.asyncBlockOperations(
-                30,
-                TimeUnit.MINUTES,
-                () -> {
-                    blocked.set(true);
-                    blockAcquired.countDown();
-                    releaseBlock.await();
-                },
-                e -> {
-                    throw new RuntimeException(e);
-                });
+            permits.asyncBlockOperations(wrap(() -> {
+                blocked.set(true);
+                blockAcquired.countDown();
+                releaseBlock.await();
+            }), 30, TimeUnit.MINUTES);
             assertFalse(blocked.get());
             assertFalse(future.isDone());
         }
@@ -292,7 +288,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         future2.get(1, TimeUnit.HOURS).close();
     }
 
-    protected Releasable blockAndWait() throws InterruptedException {
+    private Releasable blockAndWait() throws InterruptedException {
         CountDownLatch blockAcquired = new CountDownLatch(1);
         CountDownLatch releaseBlock = new CountDownLatch(1);
         CountDownLatch blockReleased = new CountDownLatch(1);
@@ -334,17 +330,11 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         final CountDownLatch blockAcquired = new CountDownLatch(1);
         final CountDownLatch releaseBlock = new CountDownLatch(1);
         final AtomicBoolean blocked = new AtomicBoolean();
-        permits.asyncBlockOperations(
-                30,
-                TimeUnit.MINUTES,
-                () -> {
-                    blocked.set(true);
-                    blockAcquired.countDown();
-                    releaseBlock.await();
-                },
-                e -> {
-                    throw new RuntimeException(e);
-                });
+        permits.asyncBlockOperations(wrap(() -> {
+                blocked.set(true);
+                blockAcquired.countDown();
+                releaseBlock.await();
+            }), 30, TimeUnit.MINUTES);
         blockAcquired.await();
         assertTrue(blocked.get());
 
@@ -392,16 +382,10 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         // now we will delay operations while the first operation is still executing (because it is latched)
         final CountDownLatch blockedLatch = new CountDownLatch(1);
         final AtomicBoolean onBlocked = new AtomicBoolean();
-        permits.asyncBlockOperations(
-                30,
-                TimeUnit.MINUTES,
-                () -> {
-                    onBlocked.set(true);
-                    blockedLatch.countDown();
-                }, e -> {
-                    throw new RuntimeException(e);
-                });
-
+        permits.asyncBlockOperations(wrap(() -> {
+            onBlocked.set(true);
+            blockedLatch.countDown();
+        }), 30, TimeUnit.MINUTES);
         assertFalse(onBlocked.get());
 
         // if we submit another operation, it should be delayed
@@ -486,15 +470,10 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             } catch (final BrokenBarrierException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
-            permits.asyncBlockOperations(
-                    30,
-                    TimeUnit.MINUTES,
-                    () -> {
-                        values.add(operations);
-                        operationLatch.countDown();
-                    }, e -> {
-                        throw new RuntimeException(e);
-                    });
+            permits.asyncBlockOperations(wrap(() -> {
+                values.add(operations);
+                operationLatch.countDown();
+            }), 30, TimeUnit.MINUTES);
         });
         blockingThread.start();
 
@@ -559,16 +538,20 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     public void testAsyncBlockOperationsOnFailure() throws InterruptedException {
         final AtomicReference<Exception> reference = new AtomicReference<>();
         final CountDownLatch onFailureLatch = new CountDownLatch(1);
-        permits.asyncBlockOperations(
-                10,
-                TimeUnit.MINUTES,
-                () -> {
+        permits.asyncBlockOperations(new ActionListener<Releasable>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                try (Releasable ignored = releasable) {
                     throw new RuntimeException("simulated");
-                },
-                e -> {
-                    reference.set(e);
-                    onFailureLatch.countDown();
-                });
+                }
+            }
+
+            @Override
+            public void onFailure(final Exception e) {
+                reference.set(e);
+                onFailureLatch.countDown();
+            }
+        }, 10, TimeUnit.MINUTES);
         onFailureLatch.await();
         assertThat(reference.get(), instanceOf(RuntimeException.class));
         assertThat(reference.get(), hasToString(containsString("simulated")));
@@ -596,14 +579,18 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         {
             final AtomicReference<Exception> reference = new AtomicReference<>();
             final CountDownLatch onFailureLatch = new CountDownLatch(1);
-            permits.asyncBlockOperations(
-                    1,
-                    TimeUnit.MILLISECONDS,
-                    () -> {},
-                    e -> {
-                        reference.set(e);
-                        onFailureLatch.countDown();
-                    });
+            permits.asyncBlockOperations(new ActionListener<Releasable>() {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    releasable.close();
+                }
+
+                @Override
+                public void onFailure(final Exception e) {
+                    reference.set(e);
+                    onFailureLatch.countDown();
+                }
+            }, 1, TimeUnit.MILLISECONDS);
             onFailureLatch.await();
             assertThat(reference.get(), hasToString(containsString("timeout while blocking operations")));
         }
@@ -715,5 +702,23 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         }
         assertThat(permits.getActiveOperationsCount(), equalTo(0));
         assertThat(permits.getActiveOperations(), emptyIterable());
+    }
+
+    private static ActionListener<Releasable> wrap(final CheckedRunnable<Exception> onResponse) {
+        return new ActionListener<Releasable>() {
+            @Override
+            public void onResponse(final Releasable releasable) {
+                try (Releasable ignored = releasable) {
+                    onResponse.run();
+                } catch (final Exception e) {
+                    onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(final Exception e) {
+                throw new AssertionError(e);
+            }
+        };
     }
 }

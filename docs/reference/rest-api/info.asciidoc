@@ -57,24 +57,30 @@ Example response:
    },
    "license" : {
       "uid" : "893361dc-9749-4997-93cb-xxx",
-      "type" : "basic",
-      "mode" : "basic",
-      "status" : "active"
+      "type" : "trial",
+      "mode" : "trial",
+      "status" : "active",
+      "expiry_date_in_millis" : 1542665112332
    },
    "features" : {
       "graph" : {
          "description" : "Graph Data Exploration for the Elastic Stack",
-         "available" : false,
+         "available" : true,
+         "enabled" : true
+      },
+      "ilm" : {
+         "description" : "Index lifecycle management for the Elastic Stack",
+         "available" : true,
          "enabled" : true
       },
       "logstash" : {
          "description" : "Logstash management component for X-Pack",
-         "available" : false,
+         "available" : true,
          "enabled" : true
       },
       "ml" : {
          "description" : "Machine Learning for the Elastic Stack",
-         "available" : false,
+         "available" : true,
          "enabled" : true,
          "native_code_info" : {
            "version" : "7.0.0-alpha1-SNAPSHOT",
@@ -93,12 +99,17 @@ Example response:
       },
       "security" : {
          "description" : "Security for the Elastic Stack",
-         "available" : false,
+         "available" : true,
+         "enabled" : false
+      },
+      "sql" : {
+         "description" : "SQL access to Elasticsearch",
+         "available" : true,
          "enabled" : true
       },
       "watcher" : {
          "description" : "Alerting, Notification and Automation for the Elastic Stack",
-         "available" : false,
+         "available" : true,
          "enabled" : true
       }
    },
@@ -108,7 +119,7 @@ Example response:
 // TESTRESPONSE[s/"hash" : "2798b1a3ce779b3611bb53a0082d4d741e4d3168",/"hash" : "$body.build.hash",/]
 // TESTRESPONSE[s/"date" : "2015-04-07T13:34:42Z"/"date" : "$body.build.date"/]
 // TESTRESPONSE[s/"uid" : "893361dc-9749-4997-93cb-xxx",/"uid": "$body.license.uid",/]
-// TESTRESPONSE[s/"expiry_date_in_millis" : 1914278399999/"expiry_date_in_millis" : "$body.license.expiry_date_in_millis"/]
+// TESTRESPONSE[s/"expiry_date_in_millis" : 1542665112332/"expiry_date_in_millis" : "$body.license.expiry_date_in_millis"/]
 // TESTRESPONSE[s/"version" : "7.0.0-alpha1-SNAPSHOT",/"version": "$body.features.ml.native_code_info.version",/]
 // TESTRESPONSE[s/"build_hash" : "99a07c016d5a73"/"build_hash": "$body.features.ml.native_code_info.build_hash"/]
 // So much s/// but at least we test that the layout is close to matching....

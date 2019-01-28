@@ -16,4 +16,4 @@ while [ -h "$SCRIPT" ] ; do
 done
 
 source $(dirname "${SCRIPT}")/java-versions.properties
-JAVA_HOME="${HOME}"/.java/${ES_BUILD_JAVA} ./gradlew resolveAllDependencies --parallel
+JAVA_HOME="${HOME}"/.java/${ES_BUILD_JAVA} ./gradlew --parallel  resolveAllDependencies composePull

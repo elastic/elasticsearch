@@ -1,15 +1,18 @@
 [role="xpack"]
 [[security-api-get-user]]
 === Get users API
+++++
+<titleabbrev>Get users</titleabbrev>
+++++
 
 Retrieves information about users in the native realm. 
 
 
 ==== Request
 
-`GET /_xpack/security/user` +
+`GET /_security/user` +
 
-`GET /_xpack/security/user/<username>` 
+`GET /_security/user/<username>` 
 
 ==== Description
 
@@ -31,12 +34,12 @@ To use this API, you must have at least the `manage_security` cluster privilege.
 
 ==== Examples
 
-To retrieve a native user, submit a GET request to the `/_xpack/security/user/<username>`
+To retrieve a native user, submit a GET request to the `/_security/user/<username>`
 endpoint:
 
 [source,js]
 --------------------------------------------------
-GET /_xpack/security/user/jacknich
+GET /_security/user/jacknich
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:jacknich_user]
@@ -68,7 +71,7 @@ Omit the username to retrieve all users:
 
 [source,js]
 --------------------------------------------------
-GET /_xpack/security/user
+GET /_security/user
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

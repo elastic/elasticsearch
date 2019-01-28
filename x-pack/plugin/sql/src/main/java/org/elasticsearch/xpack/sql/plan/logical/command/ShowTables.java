@@ -7,11 +7,11 @@ package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.List;
@@ -25,8 +25,8 @@ public class ShowTables extends Command {
     private final String index;
     private final LikePattern pattern;
 
-    public ShowTables(Location location, String index, LikePattern pattern) {
-        super(location);
+    public ShowTables(Source source, String index, LikePattern pattern) {
+        super(source);
         this.index = index;
         this.pattern = pattern;
     }

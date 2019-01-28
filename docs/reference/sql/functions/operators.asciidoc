@@ -3,7 +3,9 @@
 [[sql-operators]]
 === Comparison Operators
 
-Boolean operator for comparing one or two expressions.
+beta[]
+
+Boolean operator for comparing against one or multiple expressions.
 
 * Equality (`=`)
 
@@ -12,7 +14,19 @@ Boolean operator for comparing one or two expressions.
 include-tagged::{sql-specs}/filter.sql-spec[whereFieldEquality]
 --------------------------------------------------
 
-* Inequality (`<>` or `!=` or `<=>`)
+* Null safe Equality (`<=>`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[nullEqualsCompareWithNull]
+--------------------------------------------------
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[nullEqualsCompareTwoNulls]
+--------------------------------------------------
+
+* Inequality (`<>` or `!=`)
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -33,15 +47,24 @@ include-tagged::{sql-specs}/filter.sql-spec[whereFieldLessThan]
 include-tagged::{sql-specs}/filter.sql-spec[whereBetween]
 --------------------------------------------------
 
-* `IS NULL`/`IS NOT NULL`
+* `IS NULL/IS NOT NULL`
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/filter.sql-spec[whereIsNotNullAndIsNull]
 --------------------------------------------------
 
+* `IN (<value1>, <value2>, ...)`
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/filter.sql-spec[whereWithInAndMultipleValues]
+--------------------------------------------------
+
 [[sql-operators-logical]]
 === Logical Operators
+
+beta[]
 
 Boolean operator for evaluating one or two expressions.
 
@@ -68,6 +91,8 @@ include-tagged::{sql-specs}/filter.sql-spec[whereFieldEqualityNot]
 
 [[sql-operators-math]]
 === Math Operators
+
+beta[]
 
 Perform mathematical operations affecting one or two values.
 The result is a value of numeric type.

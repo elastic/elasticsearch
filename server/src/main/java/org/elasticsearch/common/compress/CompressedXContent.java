@@ -146,7 +146,7 @@ public final class CompressedXContent {
         }
     }
 
-    public String string() throws IOException {
+    public String string() {
         return new BytesRef(uncompressed()).utf8ToString();
     }
 
@@ -188,10 +188,6 @@ public final class CompressedXContent {
 
     @Override
     public String toString() {
-        try {
-            return string();
-        } catch (IOException e) {
-            return "_na_";
-        }
+        return string();
     }
 }

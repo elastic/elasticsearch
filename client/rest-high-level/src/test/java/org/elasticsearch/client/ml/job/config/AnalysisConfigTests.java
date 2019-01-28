@@ -89,12 +89,6 @@ public class AnalysisConfigTests extends AbstractXContentTestCase<AnalysisConfig
         if (randomBoolean()) {
             builder.setMultivariateByFields(randomBoolean());
         }
-        if (randomBoolean()) {
-            builder.setOverlappingBuckets(randomBoolean());
-        }
-        if (randomBoolean()) {
-            builder.setResultFinalizationWindow(randomNonNegativeLong());
-        }
 
         builder.setInfluencers(Arrays.asList(generateRandomStringArray(10, 10, false)));
         return builder;

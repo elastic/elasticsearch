@@ -21,11 +21,9 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -42,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -114,7 +111,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         }
     }
 
-    private static List<BooleanClause> getBooleanClauses(List<QueryBuilder> queryBuilders, BooleanClause.Occur occur, QueryShardContext context) throws IOException {
+    private static List<BooleanClause> getBooleanClauses(List<QueryBuilder> queryBuilders,
+                                                            BooleanClause.Occur occur, QueryShardContext context) throws IOException {
         List<BooleanClause> clauses = new ArrayList<>();
         for (QueryBuilder query : queryBuilders) {
             Query innerQuery = query.toQuery(context);
@@ -176,24 +174,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         }
     }
 
-    public void testDefaultMinShouldMatch() throws Exception {
-        // Queries have a minShouldMatch of 0
-        BooleanQuery bq = (BooleanQuery) parseQuery(boolQuery().must(termQuery("foo", "bar"))).toQuery(createShardContext());
-        assertEquals(0, bq.getMinimumNumberShouldMatch());
-
-        bq = (BooleanQuery) parseQuery(boolQuery().should(termQuery("foo", "bar"))).toQuery(createShardContext());
-        assertEquals(0, bq.getMinimumNumberShouldMatch());
-
-        // Filters have a minShouldMatch of 0/1
-        ConstantScoreQuery csq = (ConstantScoreQuery) parseQuery(constantScoreQuery(boolQuery().must(termQuery("foo", "bar")))).toQuery(createShardContext());
-        bq = (BooleanQuery) csq.getQuery();
-        assertEquals(0, bq.getMinimumNumberShouldMatch());
-
-        csq = (ConstantScoreQuery) parseQuery(constantScoreQuery(boolQuery().should(termQuery("foo", "bar")))).toQuery(createShardContext());
-        bq = (BooleanQuery) csq.getQuery();
-        assertEquals(1, bq.getMinimumNumberShouldMatch());
-    }
-
     public void testMinShouldMatchFilterWithoutShouldClauses() throws Exception {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.filter(new BoolQueryBuilder().must(new MatchAllQueryBuilder()));
@@ -212,29 +192,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         BooleanClause innerBooleanClause = innerBooleanQuery.clauses().get(0);
         assertThat(innerBooleanClause.getOccur(), equalTo(BooleanClause.Occur.MUST));
         assertThat(innerBooleanClause.getQuery(), instanceOf(MatchAllDocsQuery.class));
-    }
-
-    public void testMinShouldMatchFilterWithShouldClauses() throws Exception {
-        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.filter(new BoolQueryBuilder().must(new MatchAllQueryBuilder()).should(new MatchAllQueryBuilder()));
-        Query query = boolQueryBuilder.toQuery(createShardContext());
-        assertThat(query, instanceOf(BooleanQuery.class));
-        BooleanQuery booleanQuery = (BooleanQuery) query;
-        assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(0));
-        assertThat(booleanQuery.clauses().size(), equalTo(1));
-        BooleanClause booleanClause = booleanQuery.clauses().get(0);
-        assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.FILTER));
-        assertThat(booleanClause.getQuery(), instanceOf(BooleanQuery.class));
-        BooleanQuery innerBooleanQuery = (BooleanQuery) booleanClause.getQuery();
-        //we didn't set minimum should match initially, but there are should clauses so it should be 1
-        assertThat(innerBooleanQuery.getMinimumNumberShouldMatch(), equalTo(1));
-        assertThat(innerBooleanQuery.clauses().size(), equalTo(2));
-        BooleanClause innerBooleanClause1 = innerBooleanQuery.clauses().get(0);
-        assertThat(innerBooleanClause1.getOccur(), equalTo(BooleanClause.Occur.MUST));
-        assertThat(innerBooleanClause1.getQuery(), instanceOf(MatchAllDocsQuery.class));
-        BooleanClause innerBooleanClause2 = innerBooleanQuery.clauses().get(1);
-        assertThat(innerBooleanClause2.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-        assertThat(innerBooleanClause2.getQuery(), instanceOf(MatchAllDocsQuery.class));
     }
 
     public void testMinShouldMatchBiggerThanNumberOfShouldClauses() throws Exception {
@@ -332,30 +289,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertEquals("no [query] registered for [unknown_query]", ex.getMessage());
     }
 
-    /**
-     * test that two queries in object throws error
-     */
-    public void testTooManyQueriesInObject() throws IOException {
-        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
-            XContent.isStrictDuplicateDetectionEnabled());
-        String clauseType = randomFrom("must", "should", "must_not", "filter");
-        // should also throw error if invalid query is preceded by a valid one
-        String query = "{\n" +
-                "  \"bool\": {\n" +
-                "    \"" + clauseType + "\": {\n" +
-                "      \"match\": {\n" +
-                "        \"foo\": \"bar\"\n" +
-                "      },\n" +
-                "      \"match\": {\n" +
-                "        \"baz\": \"buzz\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
-        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query));
-        assertEquals("[match] malformed query, expected [END_OBJECT] but found [FIELD_NAME]", ex.getMessage());
-    }
-
     public void testRewrite() throws IOException {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolean mustRewrite = false;
@@ -436,7 +369,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
         boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.must(new TermQueryBuilder("foo","bar"));
-        boolQueryBuilder.filter(new BoolQueryBuilder().should(new TermQueryBuilder("foo","bar")).filter(new MatchNoneQueryBuilder()));
+        boolQueryBuilder.filter(new BoolQueryBuilder().should(new TermQueryBuilder("foo","bar"))
+            .filter(new MatchNoneQueryBuilder()));
         rewritten = Rewriteable.rewrite(boolQueryBuilder, createShardContext());
         assertEquals(new MatchNoneQueryBuilder(), rewritten);
     }

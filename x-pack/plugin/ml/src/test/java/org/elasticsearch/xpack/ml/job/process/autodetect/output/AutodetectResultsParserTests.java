@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
@@ -22,12 +21,6 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * Tests for parsing the JSON output of autodetect
@@ -237,169 +230,179 @@ public class AutodetectResultsParserTests extends ESTestCase {
             + "\"event_count\":1159}" + "]";
 
     public void testParser() throws IOException {
-        InputStream inputStream = new ByteArrayInputStream(METRIC_OUTPUT_SAMPLE.getBytes(StandardCharsets.UTF_8));
-        AutodetectResultsParser parser = new AutodetectResultsParser(Settings.EMPTY);
-        List<AutodetectResult> results = new ArrayList<>();
-        parser.parseResults(inputStream).forEachRemaining(results::add);
-        List<Bucket> buckets = results.stream().map(AutodetectResult::getBucket)
+        try (InputStream inputStream = new ByteArrayInputStream(METRIC_OUTPUT_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
+            AutodetectResultsParser parser = new AutodetectResultsParser();
+            List<AutodetectResult> results = new ArrayList<>();
+            parser.parseResults(inputStream).forEachRemaining(results::add);
+            List<Bucket> buckets = results.stream().map(AutodetectResult::getBucket)
                 .filter(b -> b != null)
                 .collect(Collectors.toList());
 
-        assertEquals(2, buckets.size());
-        assertEquals(new Date(1359450000000L), buckets.get(0).getTimestamp());
+            assertEquals(2, buckets.size());
+            assertEquals(new Date(1359450000000L), buckets.get(0).getTimestamp());
 
-        assertEquals(buckets.get(0).getEventCount(), 806);
+            assertEquals(buckets.get(0).getEventCount(), 806);
 
-        List<BucketInfluencer> bucketInfluencers = buckets.get(0).getBucketInfluencers();
-        assertEquals(1, bucketInfluencers.size());
-        assertEquals(0.0, bucketInfluencers.get(0).getRawAnomalyScore(), EPSILON);
-        assertEquals(0.0, bucketInfluencers.get(0).getAnomalyScore(), EPSILON);
-        assertEquals(0.0, bucketInfluencers.get(0).getProbability(), EPSILON);
-        assertEquals("bucket_time", bucketInfluencers.get(0).getInfluencerFieldName());
+            List<BucketInfluencer> bucketInfluencers = buckets.get(0).getBucketInfluencers();
+            assertEquals(1, bucketInfluencers.size());
+            assertEquals(0.0, bucketInfluencers.get(0).getRawAnomalyScore(), EPSILON);
+            assertEquals(0.0, bucketInfluencers.get(0).getAnomalyScore(), EPSILON);
+            assertEquals(0.0, bucketInfluencers.get(0).getProbability(), EPSILON);
+            assertEquals("bucket_time", bucketInfluencers.get(0).getInfluencerFieldName());
 
-        assertEquals(new Date(1359453600000L), buckets.get(1).getTimestamp());
+            assertEquals(new Date(1359453600000L), buckets.get(1).getTimestamp());
 
-        assertEquals(buckets.get(1).getEventCount(), 820);
-        bucketInfluencers = buckets.get(1).getBucketInfluencers();
-        assertEquals(2, bucketInfluencers.size());
-        assertEquals(0.0140005, bucketInfluencers.get(0).getRawAnomalyScore(), EPSILON);
-        assertEquals(20.22688, bucketInfluencers.get(0).getAnomalyScore(), EPSILON);
-        assertEquals(0.01, bucketInfluencers.get(0).getProbability(), EPSILON);
-        assertEquals("bucket_time", bucketInfluencers.get(0).getInfluencerFieldName());
-        assertEquals(0.005, bucketInfluencers.get(1).getRawAnomalyScore(), EPSILON);
-        assertEquals(10.5, bucketInfluencers.get(1).getAnomalyScore(), EPSILON);
-        assertEquals(0.03, bucketInfluencers.get(1).getProbability(), EPSILON);
-        assertEquals("foo", bucketInfluencers.get(1).getInfluencerFieldName());
+            assertEquals(buckets.get(1).getEventCount(), 820);
+            bucketInfluencers = buckets.get(1).getBucketInfluencers();
+            assertEquals(2, bucketInfluencers.size());
+            assertEquals(0.0140005, bucketInfluencers.get(0).getRawAnomalyScore(), EPSILON);
+            assertEquals(20.22688, bucketInfluencers.get(0).getAnomalyScore(), EPSILON);
+            assertEquals(0.01, bucketInfluencers.get(0).getProbability(), EPSILON);
+            assertEquals("bucket_time", bucketInfluencers.get(0).getInfluencerFieldName());
+            assertEquals(0.005, bucketInfluencers.get(1).getRawAnomalyScore(), EPSILON);
+            assertEquals(10.5, bucketInfluencers.get(1).getAnomalyScore(), EPSILON);
+            assertEquals(0.03, bucketInfluencers.get(1).getProbability(), EPSILON);
+            assertEquals("foo", bucketInfluencers.get(1).getInfluencerFieldName());
 
-        Bucket secondBucket = buckets.get(1);
+            Bucket secondBucket = buckets.get(1);
 
-        assertEquals(0.0637541, secondBucket.getRecords().get(0).getProbability(), EPSILON);
-        assertEquals("airline", secondBucket.getRecords().get(0).getByFieldName());
-        assertEquals("JZA", secondBucket.getRecords().get(0).getByFieldValue());
-        assertEquals(1020.08, secondBucket.getRecords().get(0).getTypical().get(0), EPSILON);
-        assertEquals(1042.14, secondBucket.getRecords().get(0).getActual().get(0), EPSILON);
-        assertEquals("responsetime", secondBucket.getRecords().get(0).getFieldName());
-        assertEquals("max", secondBucket.getRecords().get(0).getFunction());
-        assertEquals("", secondBucket.getRecords().get(0).getPartitionFieldName());
-        assertEquals("", secondBucket.getRecords().get(0).getPartitionFieldValue());
+            assertEquals(0.0637541, secondBucket.getRecords().get(0).getProbability(), EPSILON);
+            assertEquals("airline", secondBucket.getRecords().get(0).getByFieldName());
+            assertEquals("JZA", secondBucket.getRecords().get(0).getByFieldValue());
+            assertEquals(1020.08, secondBucket.getRecords().get(0).getTypical().get(0), EPSILON);
+            assertEquals(1042.14, secondBucket.getRecords().get(0).getActual().get(0), EPSILON);
+            assertEquals("responsetime", secondBucket.getRecords().get(0).getFieldName());
+            assertEquals("max", secondBucket.getRecords().get(0).getFunction());
+            assertEquals("", secondBucket.getRecords().get(0).getPartitionFieldName());
+            assertEquals("", secondBucket.getRecords().get(0).getPartitionFieldValue());
 
-        assertEquals(0.00748292, secondBucket.getRecords().get(1).getProbability(), EPSILON);
-        assertEquals("airline", secondBucket.getRecords().get(1).getByFieldName());
-        assertEquals("AMX", secondBucket.getRecords().get(1).getByFieldValue());
-        assertEquals(20.2137, secondBucket.getRecords().get(1).getTypical().get(0), EPSILON);
-        assertEquals(22.8855, secondBucket.getRecords().get(1).getActual().get(0), EPSILON);
-        assertEquals("responsetime", secondBucket.getRecords().get(1).getFieldName());
-        assertEquals("max", secondBucket.getRecords().get(1).getFunction());
-        assertEquals("", secondBucket.getRecords().get(1).getPartitionFieldName());
-        assertEquals("", secondBucket.getRecords().get(1).getPartitionFieldValue());
+            assertEquals(0.00748292, secondBucket.getRecords().get(1).getProbability(), EPSILON);
+            assertEquals("airline", secondBucket.getRecords().get(1).getByFieldName());
+            assertEquals("AMX", secondBucket.getRecords().get(1).getByFieldValue());
+            assertEquals(20.2137, secondBucket.getRecords().get(1).getTypical().get(0), EPSILON);
+            assertEquals(22.8855, secondBucket.getRecords().get(1).getActual().get(0), EPSILON);
+            assertEquals("responsetime", secondBucket.getRecords().get(1).getFieldName());
+            assertEquals("max", secondBucket.getRecords().get(1).getFunction());
+            assertEquals("", secondBucket.getRecords().get(1).getPartitionFieldName());
+            assertEquals("", secondBucket.getRecords().get(1).getPartitionFieldValue());
 
-        assertEquals(0.023494, secondBucket.getRecords().get(2).getProbability(), EPSILON);
-        assertEquals("airline", secondBucket.getRecords().get(2).getByFieldName());
-        assertEquals("DAL", secondBucket.getRecords().get(2).getByFieldValue());
-        assertEquals(382.177, secondBucket.getRecords().get(2).getTypical().get(0), EPSILON);
-        assertEquals(358.934, secondBucket.getRecords().get(2).getActual().get(0), EPSILON);
-        assertEquals("responsetime", secondBucket.getRecords().get(2).getFieldName());
-        assertEquals("min", secondBucket.getRecords().get(2).getFunction());
-        assertEquals("", secondBucket.getRecords().get(2).getPartitionFieldName());
-        assertEquals("", secondBucket.getRecords().get(2).getPartitionFieldValue());
+            assertEquals(0.023494, secondBucket.getRecords().get(2).getProbability(), EPSILON);
+            assertEquals("airline", secondBucket.getRecords().get(2).getByFieldName());
+            assertEquals("DAL", secondBucket.getRecords().get(2).getByFieldValue());
+            assertEquals(382.177, secondBucket.getRecords().get(2).getTypical().get(0), EPSILON);
+            assertEquals(358.934, secondBucket.getRecords().get(2).getActual().get(0), EPSILON);
+            assertEquals("responsetime", secondBucket.getRecords().get(2).getFieldName());
+            assertEquals("min", secondBucket.getRecords().get(2).getFunction());
+            assertEquals("", secondBucket.getRecords().get(2).getPartitionFieldName());
+            assertEquals("", secondBucket.getRecords().get(2).getPartitionFieldValue());
 
-        assertEquals(0.0473552, secondBucket.getRecords().get(3).getProbability(), EPSILON);
-        assertEquals("airline", secondBucket.getRecords().get(3).getByFieldName());
-        assertEquals("SWA", secondBucket.getRecords().get(3).getByFieldValue());
-        assertEquals(152.148, secondBucket.getRecords().get(3).getTypical().get(0), EPSILON);
-        assertEquals(96.6425, secondBucket.getRecords().get(3).getActual().get(0), EPSILON);
-        assertEquals("responsetime", secondBucket.getRecords().get(3).getFieldName());
-        assertEquals("min", secondBucket.getRecords().get(3).getFunction());
-        assertEquals("", secondBucket.getRecords().get(3).getPartitionFieldName());
-        assertEquals("", secondBucket.getRecords().get(3).getPartitionFieldValue());
+            assertEquals(0.0473552, secondBucket.getRecords().get(3).getProbability(), EPSILON);
+            assertEquals("airline", secondBucket.getRecords().get(3).getByFieldName());
+            assertEquals("SWA", secondBucket.getRecords().get(3).getByFieldValue());
+            assertEquals(152.148, secondBucket.getRecords().get(3).getTypical().get(0), EPSILON);
+            assertEquals(96.6425, secondBucket.getRecords().get(3).getActual().get(0), EPSILON);
+            assertEquals("responsetime", secondBucket.getRecords().get(3).getFieldName());
+            assertEquals("min", secondBucket.getRecords().get(3).getFunction());
+            assertEquals("", secondBucket.getRecords().get(3).getPartitionFieldName());
+            assertEquals("", secondBucket.getRecords().get(3).getPartitionFieldValue());
 
-        List<Quantiles> quantiles = results.stream().map(AutodetectResult::getQuantiles)
+            List<Quantiles> quantiles = results.stream().map(AutodetectResult::getQuantiles)
                 .filter(q -> q != null)
                 .collect(Collectors.toList());
-        assertEquals(3, quantiles.size());
-        assertEquals("foo", quantiles.get(0).getJobId());
-        assertEquals(new Date(1359450000000L), quantiles.get(0).getTimestamp());
-        assertEquals("[normalizer 1.1, normalizer 2.1]", quantiles.get(0).getQuantileState());
-        assertEquals("foo", quantiles.get(1).getJobId());
-        assertEquals(new Date(1359453600000L), quantiles.get(1).getTimestamp());
-        assertEquals("[normalizer 1.2, normalizer 2.2]", quantiles.get(1).getQuantileState());
-        assertEquals("foo", quantiles.get(2).getJobId());
-        assertEquals(new Date(1359453600000L), quantiles.get(2).getTimestamp());
-        assertEquals("[normalizer 1.3, normalizer 2.3]", quantiles.get(2).getQuantileState());
+            assertEquals(3, quantiles.size());
+            assertEquals("foo", quantiles.get(0).getJobId());
+            assertEquals(new Date(1359450000000L), quantiles.get(0).getTimestamp());
+            assertEquals("[normalizer 1.1, normalizer 2.1]", quantiles.get(0).getQuantileState());
+            assertEquals("foo", quantiles.get(1).getJobId());
+            assertEquals(new Date(1359453600000L), quantiles.get(1).getTimestamp());
+            assertEquals("[normalizer 1.2, normalizer 2.2]", quantiles.get(1).getQuantileState());
+            assertEquals("foo", quantiles.get(2).getJobId());
+            assertEquals(new Date(1359453600000L), quantiles.get(2).getTimestamp());
+            assertEquals("[normalizer 1.3, normalizer 2.3]", quantiles.get(2).getQuantileState());
+        }
     }
 
     @AwaitsFix(bugUrl = "rewrite this test so it doesn't use ~200 lines of json")
     public void testPopulationParser() throws IOException {
-        InputStream inputStream = new ByteArrayInputStream(POPULATION_OUTPUT_SAMPLE.getBytes(StandardCharsets.UTF_8));
-        AutodetectResultsParser parser = new AutodetectResultsParser(Settings.EMPTY);
-        List<AutodetectResult> results = new ArrayList<>();
-        parser.parseResults(inputStream).forEachRemaining(results::add);
-        List<Bucket> buckets = results.stream().map(AutodetectResult::getBucket)
+        try (InputStream inputStream = new ByteArrayInputStream(POPULATION_OUTPUT_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
+            AutodetectResultsParser parser = new AutodetectResultsParser();
+            List<AutodetectResult> results = new ArrayList<>();
+            parser.parseResults(inputStream).forEachRemaining(results::add);
+            List<Bucket> buckets = results.stream().map(AutodetectResult::getBucket)
                 .filter(b -> b != null)
                 .collect(Collectors.toList());
 
-        assertEquals(2, buckets.size());
-        assertEquals(new Date(1379590200000L), buckets.get(0).getTimestamp());
-        assertEquals(buckets.get(0).getEventCount(), 1235);
+            assertEquals(2, buckets.size());
+            assertEquals(new Date(1379590200000L), buckets.get(0).getTimestamp());
+            assertEquals(buckets.get(0).getEventCount(), 1235);
 
-        Bucket firstBucket = buckets.get(0);
-        assertEquals(1.38951e-08, firstBucket.getRecords().get(0).getProbability(), EPSILON);
-        assertEquals("sum_cs_bytes_", firstBucket.getRecords().get(0).getFieldName());
-        assertEquals("max", firstBucket.getRecords().get(0).getFunction());
-        assertEquals("cs_host", firstBucket.getRecords().get(0).getOverFieldName());
-        assertEquals("mail.google.com", firstBucket.getRecords().get(0).getOverFieldValue());
-        assertNotNull(firstBucket.getRecords().get(0).getCauses());
+            Bucket firstBucket = buckets.get(0);
+            assertEquals(1.38951e-08, firstBucket.getRecords().get(0).getProbability(), EPSILON);
+            assertEquals("sum_cs_bytes_", firstBucket.getRecords().get(0).getFieldName());
+            assertEquals("max", firstBucket.getRecords().get(0).getFunction());
+            assertEquals("cs_host", firstBucket.getRecords().get(0).getOverFieldName());
+            assertEquals("mail.google.com", firstBucket.getRecords().get(0).getOverFieldValue());
+            assertNotNull(firstBucket.getRecords().get(0).getCauses());
 
-        assertEquals(new Date(1379590800000L), buckets.get(1).getTimestamp());
-        assertEquals(buckets.get(1).getEventCount(), 1159);
+            assertEquals(new Date(1379590800000L), buckets.get(1).getTimestamp());
+            assertEquals(buckets.get(1).getEventCount(), 1159);
+        }
     }
 
     public void testParse_GivenEmptyArray() throws ElasticsearchParseException, IOException {
         String json = "[]";
-        InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
-        AutodetectResultsParser parser = new AutodetectResultsParser(Settings.EMPTY);
-        assertFalse(parser.parseResults(inputStream).hasNext());
+        try (InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8))) {
+            AutodetectResultsParser parser = new AutodetectResultsParser();
+            assertFalse(parser.parseResults(inputStream).hasNext());
+        }
     }
 
     public void testParse_GivenModelSizeStats() throws ElasticsearchParseException, IOException {
         String json = "[{\"model_size_stats\": {\"job_id\": \"foo\", \"model_bytes\":300}}]";
-        InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
+        try (InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8))) {
 
-        AutodetectResultsParser parser = new AutodetectResultsParser(Settings.EMPTY);
-        List<AutodetectResult> results = new ArrayList<>();
-        parser.parseResults(inputStream).forEachRemaining(results::add);
+            AutodetectResultsParser parser = new AutodetectResultsParser();
+            List<AutodetectResult> results = new ArrayList<>();
+            parser.parseResults(inputStream).forEachRemaining(results::add);
 
-        assertEquals(1, results.size());
-        assertEquals(300, results.get(0).getModelSizeStats().getModelBytes());
+            assertEquals(1, results.size());
+            assertEquals(300, results.get(0).getModelSizeStats().getModelBytes());
+        }
     }
 
     public void testParse_GivenCategoryDefinition() throws IOException {
         String json = "[{\"category_definition\": {\"job_id\":\"foo\", \"category_id\":18}}]";
-        InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
-        AutodetectResultsParser parser = new AutodetectResultsParser(Settings.EMPTY);
-        List<AutodetectResult> results = new ArrayList<>();
-        parser.parseResults(inputStream).forEachRemaining(results::add);
+        try (InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8))) {
+            AutodetectResultsParser parser = new AutodetectResultsParser();
+            List<AutodetectResult> results = new ArrayList<>();
+            parser.parseResults(inputStream).forEachRemaining(results::add);
 
-        assertEquals(1, results.size());
-        assertEquals(18, results.get(0).getCategoryDefinition().getCategoryId());
+
+            assertEquals(1, results.size());
+            assertEquals(18, results.get(0).getCategoryDefinition().getCategoryId());
+        }
     }
 
     public void testParse_GivenUnknownObject() throws ElasticsearchParseException, IOException {
         String json = "[{\"unknown\":{\"id\": 18}}]";
-        InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
-        AutodetectResultsParser parser = new AutodetectResultsParser(Settings.EMPTY);
-        XContentParseException e = expectThrows(XContentParseException.class,
-                () -> parser.parseResults(inputStream).forEachRemaining(a -> {}));
-        assertEquals("[1:3] [autodetect_result] unknown field [unknown], parser not found", e.getMessage());
+        try (InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8))) {
+            AutodetectResultsParser parser = new AutodetectResultsParser();
+            XContentParseException e = expectThrows(XContentParseException.class,
+                () -> parser.parseResults(inputStream).forEachRemaining(a -> {
+                }));
+            assertEquals("[1:3] [autodetect_result] unknown field [unknown], parser not found", e.getMessage());
+        }
     }
 
     public void testParse_GivenArrayContainsAnotherArray() throws ElasticsearchParseException, IOException {
         String json = "[[]]";
-        InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
-        AutodetectResultsParser parser = new AutodetectResultsParser(Settings.EMPTY);
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-                () -> parser.parseResults(inputStream).forEachRemaining(a -> {}));
-        assertEquals("unexpected token [START_ARRAY]", e.getMessage());
+        try (InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8))) {
+            AutodetectResultsParser parser = new AutodetectResultsParser();
+            ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
+                () -> parser.parseResults(inputStream).forEachRemaining(a -> {
+                }));
+            assertEquals("unexpected token [START_ARRAY]", e.getMessage());
+        }
     }
 
     /**
@@ -411,22 +414,9 @@ public class AutodetectResultsParserTests extends ESTestCase {
                 + "\"by_field_name\":\"airline\",\"by_field_value\":\"JZA\", \"typical\":[1020.08],\"actual\":[0],"
                 + "\"field_name\":\"responsetime\",\"function\":\"max\",\"partition_field_name\":\"\",\"partition_field_value\":\"\"}]}}]";
         InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
-        AutodetectResultsParser parser = new AutodetectResultsParser(Settings.EMPTY);
+        AutodetectResultsParser parser = new AutodetectResultsParser();
 
         expectThrows(XContentParseException.class,
                 () -> parser.parseResults(inputStream).forEachRemaining(a -> {}));
-    }
-
-    public void testConsumeAndCloseStream() throws IOException {
-        String json = "some string of data";
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
-
-        AutodetectResultsParser.consumeAndCloseStream(inputStream);
-        assertEquals(0, inputStream.available());
-
-        InputStream mockStream = mock(InputStream.class);
-        when(mockStream.read(any())).thenReturn(-1);
-        AutodetectResultsParser.consumeAndCloseStream(mockStream);
-        verify(mockStream, times(1)).close();
     }
 }

@@ -1,10 +1,30 @@
 [[breaking-changes-7.0]]
 == Breaking changes in 7.0
+++++
+<titleabbrev>7.0</titleabbrev>
+++++
 
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 7.0.
 
 See also <<release-highlights>> and <<es-release-notes>>.
+
+* <<breaking_70_aggregations_changes>>
+* <<breaking_70_cluster_changes>>
+* <<breaking_70_discovery_changes>>
+* <<breaking_70_indices_changes>>
+* <<breaking_70_mappings_changes>>
+* <<breaking_70_search_changes>>
+* <<breaking_70_packaging_changes>>
+* <<breaking_70_plugins_changes>>
+* <<breaking_70_analysis_changes>>
+* <<breaking_70_api_changes>>
+* <<breaking_70_java_changes>>
+* <<breaking_70_settings_changes>>
+* <<breaking_70_scripting_changes>>
+* <<breaking_70_snapshotstats_changes>>
+* <<breaking_70_restclient_changes>>
+* <<breaking_70_low_level_restclient_changes>>
 
 [float]
 === Indices created before 7.0
@@ -22,28 +42,10 @@ Elasticsearch 6.x in order to be readable by Elasticsearch 7.x.
 
 =========================================
 
-[float]
-=== Also see:
-
-* <<breaking_70_aggregations_changes>>
-* <<breaking_70_cluster_changes>>
-* <<breaking_70_indices_changes>>
-* <<breaking_70_mappings_changes>>
-* <<breaking_70_search_changes>>
-* <<breaking_70_packaging_changes>>
-* <<breaking_70_plugins_changes>>
-* <<breaking_70_analysis_changes>>
-* <<breaking_70_api_changes>>
-* <<breaking_70_java_changes>>
-* <<breaking_70_settings_changes>>
-* <<breaking_70_scripting_changes>>
-* <<breaking_70_snapshotstats_changes>>
-* <<breaking_70_restclient_changes>>
-* <<breaking_70_low_level_restclient_changes>>
-
 include::migrate_7_0/aggregations.asciidoc[]
 include::migrate_7_0/analysis.asciidoc[]
 include::migrate_7_0/cluster.asciidoc[]
+include::migrate_7_0/discovery.asciidoc[]
 include::migrate_7_0/indices.asciidoc[]
 include::migrate_7_0/mappings.asciidoc[]
 include::migrate_7_0/search.asciidoc[]

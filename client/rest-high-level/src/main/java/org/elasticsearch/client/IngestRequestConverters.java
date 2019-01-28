@@ -30,7 +30,9 @@ import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 
 import java.io.IOException;
 
-public class IngestRequestConverters {
+final class IngestRequestConverters {
+
+    private IngestRequestConverters() {}
 
     static Request getPipeline(GetPipelineRequest getPipelineRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()

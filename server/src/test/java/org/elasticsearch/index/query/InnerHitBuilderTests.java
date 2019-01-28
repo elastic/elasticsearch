@@ -46,6 +46,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -139,6 +140,11 @@ public class InnerHitBuilderTests extends ESTestCase {
         }
     }
 
+    public static InnerHitBuilder randomNestedInnerHits() {
+        InnerHitBuilder innerHitBuilder = randomInnerHits();
+        innerHitBuilder.setSeqNoAndPrimaryTerm(false); // not supported by nested queries
+        return innerHitBuilder;
+    }
     public static InnerHitBuilder randomInnerHits() {
         InnerHitBuilder innerHits = new InnerHitBuilder();
         innerHits.setName(randomAlphaOfLengthBetween(1, 16));
@@ -146,6 +152,7 @@ public class InnerHitBuilderTests extends ESTestCase {
         innerHits.setSize(randomIntBetween(0, 32));
         innerHits.setExplain(randomBoolean());
         innerHits.setVersion(randomBoolean());
+        innerHits.setSeqNoAndPrimaryTerm(randomBoolean());
         innerHits.setTrackScores(randomBoolean());
         if (randomBoolean()) {
             innerHits.setStoredFieldNames(randomListStuff(16, () -> randomAlphaOfLengthBetween(1, 16)));
@@ -188,6 +195,7 @@ public class InnerHitBuilderTests extends ESTestCase {
         modifiers.add(() -> copy.setSize(randomValueOtherThan(copy.getSize(), () -> randomIntBetween(0, 128))));
         modifiers.add(() -> copy.setExplain(!copy.isExplain()));
         modifiers.add(() -> copy.setVersion(!copy.isVersion()));
+        modifiers.add(() -> copy.setSeqNoAndPrimaryTerm(!copy.isSeqNoAndPrimaryTerm()));
         modifiers.add(() -> copy.setTrackScores(!copy.isTrackScores()));
         modifiers.add(() -> copy.setName(randomValueOtherThan(copy.getName(), () -> randomAlphaOfLengthBetween(1, 16))));
         modifiers.add(() -> {
@@ -279,4 +287,12 @@ public class InnerHitBuilderTests extends ESTestCase {
         return ESTestCase.copyWriteable(original, namedWriteableRegistry, InnerHitBuilder::new);
     }
 
+    public void testSetDocValueFormat() {
+        InnerHitBuilder innerHit = new InnerHitBuilder();
+        innerHit.addDocValueField("foo");
+        innerHit.addDocValueField("@timestamp", "epoch_millis");
+        assertEquals(
+                Arrays.asList(new FieldAndFormat("foo", null), new FieldAndFormat("@timestamp", "epoch_millis")),
+                innerHit.getDocValueFields());
+    }
 }

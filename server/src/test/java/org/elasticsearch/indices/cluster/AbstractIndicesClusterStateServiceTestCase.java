@@ -31,6 +31,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -226,12 +227,15 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public MockIndexShard createShard(ShardRouting shardRouting, RecoveryState recoveryState,
-                                          PeerRecoveryTargetService recoveryTargetService,
-                                          PeerRecoveryTargetService.RecoveryListener recoveryListener,
-                                          RepositoriesService repositoriesService,
-                                          Consumer<IndexShard.ShardFailure> onShardFailure,
-                                          Consumer<ShardId> globalCheckpointSyncer) throws IOException {
+        public MockIndexShard createShard(
+                final ShardRouting shardRouting,
+                final RecoveryState recoveryState,
+                final PeerRecoveryTargetService recoveryTargetService,
+                final PeerRecoveryTargetService.RecoveryListener recoveryListener,
+                final RepositoriesService repositoriesService,
+                final Consumer<IndexShard.ShardFailure> onShardFailure,
+                final Consumer<ShardId> globalCheckpointSyncer,
+                final RetentionLeaseSyncer retentionLeaseSyncer) throws IOException {
             failRandomly();
             MockIndexService indexService = indexService(recoveryState.getShardId().getIndex());
             MockIndexShard indexShard = indexService.createShard(shardRouting);
@@ -279,10 +283,10 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public void updateMetaData(IndexMetaData indexMetaData) {
-            indexSettings.updateIndexMetaData(indexMetaData);
+        public void updateMetaData(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) {
+            indexSettings.updateIndexMetaData(newIndexMetaData);
             for (MockIndexShard shard: shards.values()) {
-                shard.updateTerm(indexMetaData.primaryTerm(shard.shardId().id()));
+                shard.updateTerm(newIndexMetaData.primaryTerm(shard.shardId().id()));
             }
         }
 
@@ -324,7 +328,6 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
      * Mock for {@link IndexShard}
      */
     protected class MockIndexShard implements IndicesClusterStateService.Shard {
-        private volatile long clusterStateVersion;
         private volatile ShardRouting shardRouting;
         private volatile RecoveryState recoveryState;
         private volatile Set<String> inSyncAllocationIds;
@@ -372,7 +375,6 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             this.shardRouting = shardRouting;
             if (shardRouting.primary()) {
                 term = newPrimaryTerm;
-                this.clusterStateVersion = applyingClusterStateVersion;
                 this.inSyncAllocationIds = inSyncAllocationIds;
                 this.routingTable = routingTable;
             }

@@ -1,0 +1,77 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-delete-auto-follow-pattern]]
+=== Delete auto-follow pattern API
+++++
+<titleabbrev>Delete auto-follow pattern</titleabbrev>
+++++
+
+beta[]
+
+Delete auto-follow patterns.
+
+==== Description
+
+This API deletes a configured collection of
+{stack-ov}/ccr-auto-follow.html[auto-follow patterns].
+
+==== Request
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT /_ccr/auto_follow/my_auto_follow_pattern
+{
+  "remote_cluster" : "remote_cluster",
+  "leader_index_patterns" :
+  [
+    "leader_index"
+  ],
+  "follow_index_pattern" : "{{leader_index}}-follower"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:remote_cluster]
+// TESTSETUP
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+DELETE /_ccr/auto_follow/<auto_follow_pattern_name>
+--------------------------------------------------
+// CONSOLE
+// TEST[s/<auto_follow_pattern_name>/my_auto_follow_pattern/]
+
+==== Path Parameters
+`auto_follow_pattern_name` (required)::
+  (string) specifies the auto-follow pattern collection to delete
+
+==== Authorization
+
+If the {es} {security-features} are enabled, you must have `manage_ccr` cluster
+privileges on the cluster that contains the follower index. For more information,
+see {stack-ov}/security-privileges.html[Security privileges].
+
+==== Example
+
+This example deletes an auto-follow pattern collection named
+`my_auto_follow_pattern`:
+
+[source,js]
+--------------------------------------------------
+DELETE /_ccr/auto_follow/my_auto_follow_pattern
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:remote_cluster]
+
+The API returns the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "acknowledged" : true
+}
+--------------------------------------------------
+// TESTRESPONSE

@@ -7,6 +7,9 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
+import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
+import org.elasticsearch.xpack.ml.datafeed.extractor.fields.TimeBasedExtractedFields;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 
 import java.io.ByteArrayOutputStream;
@@ -23,7 +26,8 @@ public class SearchHitToJsonProcessorTests extends ESTestCase {
         ExtractedField missingField = ExtractedField.newField("missing", ExtractedField.ExtractionMethod.DOC_VALUE);
         ExtractedField singleField = ExtractedField.newField("single", ExtractedField.ExtractionMethod.DOC_VALUE);
         ExtractedField arrayField = ExtractedField.newField("array", ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedFields extractedFields = new ExtractedFields(timeField, Arrays.asList(timeField, missingField, singleField, arrayField));
+        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField,
+                Arrays.asList(timeField, missingField, singleField, arrayField));
 
         SearchHit hit = new SearchHitBuilder(8)
                 .addField("time", 1000L)
@@ -41,7 +45,8 @@ public class SearchHitToJsonProcessorTests extends ESTestCase {
         ExtractedField missingField = ExtractedField.newField("missing", ExtractedField.ExtractionMethod.DOC_VALUE);
         ExtractedField singleField = ExtractedField.newField("single", ExtractedField.ExtractionMethod.DOC_VALUE);
         ExtractedField arrayField = ExtractedField.newField("array", ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedFields extractedFields = new ExtractedFields(timeField, Arrays.asList(timeField, missingField, singleField, arrayField));
+        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField,
+                Arrays.asList(timeField, missingField, singleField, arrayField));
 
         SearchHit hit1 = new SearchHitBuilder(8)
                 .addField("time", 1000L)

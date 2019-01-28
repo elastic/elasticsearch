@@ -74,7 +74,6 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         int recCount = randomIntBetween(200, 600);
-        int numberOfTypes = randomIntBetween(1, 5);
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         for (int rec = 0; rec < recCount; rec++) {
             String type = "type";
@@ -87,7 +86,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh().execute().actionGet();
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
         SearchResponse response = client().prepareSearch("test").setSize(0).execute().actionGet();
-        assertThat(response.getHits().getTotalHits(), equalTo((long) recCount));
+        assertThat(response.getHits().getTotalHits().value, equalTo((long) recCount));
 
         logger.info("checking all the fields are in the mappings");
 
@@ -231,7 +230,8 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
                         ImmutableOpenMap<String, MappingMetaData> mappings = getMappingResponse.getMappings().get(indexName);
                         assertThat(mappings.containsKey(typeName), equalTo(true));
-                        assertThat(((Map<String, Object>) mappings.get(typeName).getSourceAsMap().get("properties")).keySet(), Matchers.hasItem(fieldName));
+                        assertThat(((Map<String, Object>) mappings.get(typeName).getSourceAsMap().get("properties")).keySet(),
+                            Matchers.hasItem(fieldName));
                     }
                 } catch (Exception e) {
                     threadException.set(e);

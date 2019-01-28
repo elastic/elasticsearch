@@ -23,13 +23,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.support.HandledTransportAction.ChannelActionListener;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -60,13 +60,12 @@ import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
-import java.util.function.Supplier;
 
 /**
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
  * transport.
  */
-public class SearchTransportService extends AbstractComponent {
+public class SearchTransportService {
 
     public static final String FREE_CONTEXT_SCROLL_ACTION_NAME = "indices:data/read/search[free_context/scroll]";
     public static final String FREE_CONTEXT_ACTION_NAME = "indices:data/read/search[free_context]";
@@ -84,9 +83,8 @@ public class SearchTransportService extends AbstractComponent {
     private final BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper;
     private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
-    public SearchTransportService(Settings settings, TransportService transportService,
+    public SearchTransportService(TransportService transportService,
                                   BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper) {
-        super(settings);
         this.transportService = transportService;
         this.responseWrapper = responseWrapper;
     }
@@ -119,7 +117,7 @@ public class SearchTransportService extends AbstractComponent {
 
     public void sendClearAllScrollContexts(Transport.Connection connection, final ActionListener<TransportResponse> listener) {
         transportService.sendRequest(connection, CLEAR_SCROLL_CONTEXTS_ACTION_NAME, TransportRequest.Empty.INSTANCE,
-            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, () -> TransportResponse.Empty.INSTANCE));
+            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, (in) -> TransportResponse.Empty.INSTANCE));
     }
 
     public void sendExecuteDfs(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task,
@@ -133,11 +131,11 @@ public class SearchTransportService extends AbstractComponent {
         // we optimize this and expect a QueryFetchSearchResult if we only have a single shard in the search request
         // this used to be the QUERY_AND_FETCH which doesn't exist anymore.
         final boolean fetchDocuments = request.numberOfShards() == 1;
-        Supplier<SearchPhaseResult> supplier = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
+        Writeable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
 
         final ActionListener handler = responseWrapper.apply(connection, listener);
         transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task,
-                new ConnectionCountingHandler<>(handler, supplier, clientConnections, connection.getNode().getId()));
+                new ConnectionCountingHandler<>(handler, reader, clientConnections, connection.getNode().getId()));
     }
 
     public void sendExecuteQuery(Transport.Connection connection, final QuerySearchRequest request, SearchTask task,
@@ -155,8 +153,8 @@ public class SearchTransportService extends AbstractComponent {
     public void sendExecuteScrollFetch(Transport.Connection connection, final InternalScrollSearchRequest request, SearchTask task,
                                        final SearchActionListener<ScrollQueryFetchSearchResult> listener) {
         transportService.sendChildRequest(connection, QUERY_FETCH_SCROLL_ACTION_NAME, request, task,
-                new ConnectionCountingHandler<>(listener, ScrollQueryFetchSearchResult::new,
-                        clientConnections, connection.getNode().getId()));
+                new ConnectionCountingHandler<>(listener, ScrollQueryFetchSearchResult::new, clientConnections,
+                    connection.getNode().getId()));
     }
 
     public void sendExecuteFetch(Transport.Connection connection, final ShardFetchSearchRequest request, SearchTask task,
@@ -279,6 +277,10 @@ public class SearchTransportService extends AbstractComponent {
         SearchFreeContextResponse() {
         }
 
+        SearchFreeContextResponse(StreamInput in) throws IOException {
+            freed = in.readBoolean();
+        }
+
         SearchFreeContextResponse(boolean freed) {
             this.freed = freed;
         }
@@ -306,22 +308,20 @@ public class SearchTransportService extends AbstractComponent {
                 boolean freed = searchService.freeContext(request.id());
                 channel.sendResponse(new SearchFreeContextResponse(freed));
         });
-        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_SCROLL_ACTION_NAME,
-                (Supplier<TransportResponse>) SearchFreeContextResponse::new);
+        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_SCROLL_ACTION_NAME, SearchFreeContextResponse::new);
         transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, ThreadPool.Names.SAME, SearchFreeContextRequest::new,
             (request, channel, task) -> {
                 boolean freed = searchService.freeContext(request.id());
                 channel.sendResponse(new SearchFreeContextResponse(freed));
         });
-        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME,
-                (Supplier<TransportResponse>) SearchFreeContextResponse::new);
+        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, SearchFreeContextResponse::new);
         transportService.registerRequestHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, () -> TransportRequest.Empty.INSTANCE,
             ThreadPool.Names.SAME, (request, channel, task) -> {
                 searchService.freeAllScrollContexts();
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
         });
         TransportActionProxy.registerProxyAction(transportService, CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
-                () -> TransportResponse.Empty.INSTANCE);
+            (in) -> TransportResponse.Empty.INSTANCE);
 
         transportService.registerRequestHandler(DFS_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
             (request, channel, task) -> {
@@ -352,8 +352,8 @@ public class SearchTransportService extends AbstractComponent {
                 searchService.executeQueryPhase(request, (SearchTask) task, new ChannelActionListener<>(
                     channel, QUERY_ACTION_NAME, request));
             });
-        TransportActionProxy.registerProxyAction(transportService, QUERY_ACTION_NAME,
-                (request) -> ((ShardSearchRequest)request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new);
+        TransportActionProxy.registerProxyActionWithDynamicResponseType(transportService, QUERY_ACTION_NAME,
+            (request) -> ((ShardSearchRequest)request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new);
 
         transportService.registerRequestHandler(QUERY_ID_ACTION_NAME, ThreadPool.Names.SAME, QuerySearchRequest::new,
             (request, channel, task) -> {
@@ -395,19 +395,18 @@ public class SearchTransportService extends AbstractComponent {
             (request, channel, task) -> {
                 searchService.canMatch(request, new ChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request));
             });
-        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME,
-                (Supplier<TransportResponse>) SearchService.CanMatchResponse::new);
+        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, SearchService.CanMatchResponse::new);
     }
 
 
     /**
      * Returns a connection to the given node on the provided cluster. If the cluster alias is <code>null</code> the node will be resolved
      * against the local cluster.
-     * @param clusterAlias the cluster alias the node should be resolve against
+     * @param clusterAlias the cluster alias the node should be resolved against
      * @param node the node to resolve
      * @return a connection to the given node belonging to the cluster with the provided alias.
      */
-    Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+    Transport.Connection getConnection(@Nullable String clusterAlias, DiscoveryNode node) {
         if (clusterAlias == null) {
             return transportService.getConnection(node);
         } else {
@@ -419,9 +418,9 @@ public class SearchTransportService extends AbstractComponent {
         private final Map<String, Long> clientConnections;
         private final String nodeId;
 
-        ConnectionCountingHandler(final ActionListener<? super Response> listener, final Supplier<Response> responseSupplier,
+        ConnectionCountingHandler(final ActionListener<? super Response> listener, final Writeable.Reader<Response> responseReader,
                                   final Map<String, Long> clientConnections, final String nodeId) {
-            super(listener, responseSupplier);
+            super(listener, responseReader);
             this.clientConnections = clientConnections;
             this.nodeId = nodeId;
             // Increment the number of connections for this node by one

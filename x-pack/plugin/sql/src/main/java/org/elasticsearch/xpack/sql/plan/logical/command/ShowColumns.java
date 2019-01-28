@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.sql.plan.logical.command;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.KeywordEsField;
@@ -32,8 +32,8 @@ public class ShowColumns extends Command {
     private final String index;
     private final LikePattern pattern;
 
-    public ShowColumns(Location location, String index, LikePattern pattern) {
-        super(location);
+    public ShowColumns(Source source, String index, LikePattern pattern) {
+        super(source);
         this.index = index;
         this.pattern = pattern;
     }
@@ -53,14 +53,16 @@ public class ShowColumns extends Command {
 
     @Override
     public List<Attribute> output() {
-        return asList(new FieldAttribute(location(), "column", new KeywordEsField("column")),
-                new FieldAttribute(location(), "type", new KeywordEsField("type")));    }
+        return asList(new FieldAttribute(source(), "column", new KeywordEsField("column")),
+                new FieldAttribute(source(), "type", new KeywordEsField("type")),
+                new FieldAttribute(source(), "mapping", new KeywordEsField("mapping")));
+    }
 
     @Override
     public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
         String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
         String regex = pattern != null ? pattern.asJavaRegex() : null;
-        session.indexResolver().resolveWithSameMapping(idx, regex, ActionListener.wrap(
+        session.indexResolver().resolveAsMergedMapping(idx, regex, ActionListener.wrap(
                 indexResult -> {
                     List<List<?>> rows = emptyList();
                     if (indexResult.isValid()) {
@@ -69,8 +71,7 @@ public class ShowColumns extends Command {
                     }
                     listener.onResponse(Rows.of(output(), rows));
                 },
-                listener::onFailure
-                ));
+                listener::onFailure));
     }
 
     private void fillInRows(Map<String, EsField> mapping, String prefix, List<List<?>> rows) {
@@ -79,7 +80,8 @@ public class ShowColumns extends Command {
             DataType dt = field.getDataType();
             String name = e.getKey();
             if (dt != null) {
-                rows.add(asList(prefix != null ? prefix + "." + name : name, dt.sqlName()));
+                // show only fields that exist in ES
+                rows.add(asList(prefix != null ? prefix + "." + name : name, dt.sqlName(), dt.esType));
                 if (field.getProperties().isEmpty() == false) {
                     String newPrefix = prefix != null ? prefix + "." + name : name;
                     fillInRows(field.getProperties(), newPrefix, rows);

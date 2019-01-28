@@ -33,9 +33,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.IngestInfo;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -48,11 +47,11 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
     private final NodeClient client;
 
     @Inject
-    public PutPipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public PutPipelineTransportAction(ThreadPool threadPool, TransportService transportService,
         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
         IngestService ingestService, NodeClient client) {
         super(
-            settings, PutPipelineAction.NAME, transportService, ingestService.getClusterService(),
+            PutPipelineAction.NAME, transportService, ingestService.getClusterService(),
             threadPool, actionFilters, indexNameExpressionResolver, PutPipelineRequest::new
         );
         this.client = client;
@@ -70,7 +69,8 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
     }
 
     @Override
-    protected void masterOperation(PutPipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) throws Exception {
+    protected void masterOperation(PutPipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+            throws Exception {
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
         nodesInfoRequest.clear();
         nodesInfoRequest.ingest(true);

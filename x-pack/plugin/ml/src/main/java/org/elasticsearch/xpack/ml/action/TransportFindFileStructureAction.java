@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -25,9 +24,8 @@ public class TransportFindFileStructureAction
     private final ThreadPool threadPool;
 
     @Inject
-    public TransportFindFileStructureAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
-                                            ThreadPool threadPool) {
-        super(settings, FindFileStructureAction.NAME, transportService, actionFilters, FindFileStructureAction.Request::new);
+    public TransportFindFileStructureAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool) {
+        super(FindFileStructureAction.NAME, transportService, actionFilters, FindFileStructureAction.Request::new);
         this.threadPool = threadPool;
     }
 
@@ -48,10 +46,10 @@ public class TransportFindFileStructureAction
 
     private FindFileStructureAction.Response buildFileStructureResponse(FindFileStructureAction.Request request) throws Exception {
 
-        FileStructureFinderManager structureFinderManager = new FileStructureFinderManager();
+        FileStructureFinderManager structureFinderManager = new FileStructureFinderManager(threadPool.scheduler());
 
         FileStructureFinder fileStructureFinder = structureFinderManager.findFileStructure(request.getLinesToSample(),
-            request.getSample().streamInput(), new FileStructureOverrides(request));
+            request.getSample().streamInput(), new FileStructureOverrides(request), request.getTimeout());
 
         return new FindFileStructureAction.Response(fileStructureFinder.getStructure());
     }

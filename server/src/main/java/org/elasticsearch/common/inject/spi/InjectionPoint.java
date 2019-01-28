@@ -345,7 +345,8 @@ public final class InjectionPoint {
     }
 
     private static <M extends Member & AnnotatedElement> void addInjectionPoints(TypeLiteral<?> type,
-                                                                                 Factory<M> factory, boolean statics, Collection<InjectionPoint> injectionPoints,
+                                                                                 Factory<M> factory, boolean statics,
+                                                                                 Collection<InjectionPoint> injectionPoints,
                                                                                  Errors errors) {
         if (type.getType() == Object.class) {
             return;

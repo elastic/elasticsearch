@@ -94,7 +94,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     }
 
     public void testIndexCleanup() throws Exception {
-        final String masterNode = internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false));
+        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false));
         final String node_1 = internalCluster().startNode(Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false));
         final String node_2 = internalCluster().startNode(Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false));
         logger.info("--> creating index [test] with one shard and on replica");
@@ -325,7 +325,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     }
 
     public void testShardActiveElsewhereDoesNotDeleteAnother() throws Exception {
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        internalCluster().startMasterOnlyNode();
         final List<String> nodes = internalCluster().startDataOnlyNodes(4);
 
         final String node1 = nodes.get(0);
@@ -340,7 +340,8 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                         .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", node4)
         ));
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForNoRelocatingShards(true).setWaitForGreenStatus().setWaitForNodes("5").get().isTimedOut());
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNoRelocatingShards(true).setWaitForGreenStatus()
+            .setWaitForNodes("5").get().isTimedOut());
 
         // disable allocation to control the situation more easily
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
@@ -406,7 +407,9 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         final int numShards = scaledRandomIntBetween(2, 10);
         assertAcked(prepareCreate("test")
-                        .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards))
+                        .setSettings(Settings.builder()
+                            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards))
         );
         ensureGreen("test");
 
@@ -424,9 +427,12 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         // disable relocations when we do this, to make sure the shards are not relocated from node2
         // due to rebalancing, and delete its content
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)).get();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE))
+            .get();
 
-        ClusterApplierService clusterApplierService = internalCluster().getInstance(ClusterService.class, nonMasterNode).getClusterApplierService();
+        ClusterApplierService clusterApplierService = internalCluster().getInstance(ClusterService.class, nonMasterNode)
+            .getClusterApplierService();
         ClusterState currentState = clusterApplierService.state();
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         for (int j = 0; j < numShards; j++) {

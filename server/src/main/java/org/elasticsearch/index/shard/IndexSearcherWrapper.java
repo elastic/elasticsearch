@@ -24,8 +24,8 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 
 import java.io.IOException;
@@ -68,7 +68,8 @@ public class IndexSearcherWrapper {
      * This is invoked each time a {@link Engine.Searcher} is requested to do an operation. (for example search)
      */
     public final Engine.Searcher wrap(Engine.Searcher engineSearcher) throws IOException {
-        final ElasticsearchDirectoryReader elasticsearchDirectoryReader = ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(engineSearcher.getDirectoryReader());
+        final ElasticsearchDirectoryReader elasticsearchDirectoryReader =
+            ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(engineSearcher.getDirectoryReader());
         if (elasticsearchDirectoryReader == null) {
             throw new IllegalStateException("Can't wrap non elasticsearch directory reader");
         }
@@ -76,8 +77,9 @@ public class IndexSearcherWrapper {
         DirectoryReader reader = wrap(nonClosingReaderWrapper);
         if (reader != nonClosingReaderWrapper) {
             if (reader.getReaderCacheHelper() != elasticsearchDirectoryReader.getReaderCacheHelper()) {
-                throw new IllegalStateException("wrapped directory reader doesn't delegate IndexReader#getCoreCacheKey, wrappers must override this method and delegate" +
-                        " to the original readers core cache key. Wrapped readers can't be used as cache keys since their are used only per request which would lead to subtle bugs");
+                throw new IllegalStateException("wrapped directory reader doesn't delegate IndexReader#getCoreCacheKey," +
+                    " wrappers must override this method and delegate to the original readers core cache key. Wrapped readers can't be " +
+                    "used as cache keys since their are used only per request which would lead to subtle bugs");
             }
             if (ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(reader) != elasticsearchDirectoryReader) {
                 // prevent that somebody wraps with a non-filter reader
@@ -97,21 +99,11 @@ public class IndexSearcherWrapper {
         if (reader == nonClosingReaderWrapper && indexSearcher == innerIndexSearcher) {
             return engineSearcher;
         } else {
-            return new Engine.Searcher(engineSearcher.source(), indexSearcher) {
-                @Override
-                public void close() throws ElasticsearchException {
-                    try {
-                        reader().close();
-                        // we close the reader to make sure wrappers can release resources if needed....
-                        // our NonClosingReaderWrapper makes sure that our reader is not closed
-                    } catch (IOException e) {
-                        throw new ElasticsearchException("failed to close reader", e);
-                    } finally {
-                        engineSearcher.close();
-                    }
-
-                }
-            };
+            // we close the reader to make sure wrappers can release resources if needed....
+            // our NonClosingReaderWrapper makes sure that our reader is not closed
+            return new Engine.Searcher(engineSearcher.source(), indexSearcher, () ->
+                IOUtils.close(indexSearcher.getIndexReader(), // this will close the wrappers excluding the NonClosingReaderWrapper
+                engineSearcher)); // this will run the closeable on the wrapped engine searcher
         }
     }
 

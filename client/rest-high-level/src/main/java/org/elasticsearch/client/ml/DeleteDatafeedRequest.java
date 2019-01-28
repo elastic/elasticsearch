@@ -29,7 +29,7 @@ import java.util.Objects;
 public class DeleteDatafeedRequest extends ActionRequest {
 
     private String datafeedId;
-    private boolean force;
+    private Boolean force;
 
     public DeleteDatafeedRequest(String datafeedId) {
         this.datafeedId = Objects.requireNonNull(datafeedId, "[datafeed_id] must not be null");
@@ -39,7 +39,7 @@ public class DeleteDatafeedRequest extends ActionRequest {
         return datafeedId;
     }
 
-    public boolean isForce() {
+    public Boolean getForce() {
         return force;
     }
 
@@ -49,7 +49,7 @@ public class DeleteDatafeedRequest extends ActionRequest {
      *
      * @param force When {@code true} forcefully delete a started datafeed. Defaults to {@code false}
      */
-    public void setForce(boolean force) {
+    public void setForce(Boolean force) {
         this.force = force;
     }
 

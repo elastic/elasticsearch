@@ -56,8 +56,8 @@ releases 2.0 and later do not support rivers.
 * https://github.com/jprante/elasticsearch-jdbc[JDBC importer]:
   The Java Database Connection (JDBC) importer allows to fetch data from JDBC sources for indexing into Elasticsearch (by Jörg Prante)
 
-* https://github.com/reachkrishnaraj/kafka-elasticsearch-standalone-consumer/tree/branch2.0[Kafka Standalone Consumer(Indexer)]:
-  Kafka Standalone Consumer [Indexer] will read messages from Kafka in batches, processes(as implemented) and bulk-indexes them into Elasticsearch. Flexible and scalable. More documentation in above GitHub repo's Wiki.(Please use branch 2.0)!
+* https://github.com/BigDataDevs/kafka-elasticsearch-consumer [Kafka Standalone Consumer(Indexer)]:
+  Kafka Standalone Consumer [Indexer] will read messages from Kafka in batches, processes(as implemented) and bulk-indexes them into Elasticsearch. Flexible and scalable. More documentation in above GitHub repo's Wiki.
 
 * https://github.com/ozlerhakan/mongolastic[Mongolastic]:
   A tool that clones data from Elasticsearch to MongoDB and vice versa
@@ -191,7 +191,7 @@ releases 2.0 and later do not support rivers.
 ==== Supported by the community:
 
 * https://github.com/kodcu/pes[Pes]:
-  A pluggable elastic Javascript query DSL builder for Elasticsearch
+  A pluggable elastic JavaScript query DSL builder for Elasticsearch
 
 * https://www.wireshark.org/[Wireshark]:
   Protocol dissection for Zen discovery, HTTP and the binary protocol

@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.rest.filter;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -18,17 +20,24 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 public class RestUpdateFilterAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(RestUpdateFilterAction.class));
 
     public RestUpdateFilterAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST,
-                MachineLearning.BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}/_update", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            POST, MachineLearning.BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}/_update", this,
+            POST, MachineLearning.PRE_V7_BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}/_update", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_ml_update_filter_action";
+        return "ml_update_filter_action";
     }
 
     @Override

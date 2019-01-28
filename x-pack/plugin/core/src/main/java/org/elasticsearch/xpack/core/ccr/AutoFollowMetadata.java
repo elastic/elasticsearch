@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -164,86 +165,124 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AutoFollowMetadata that = (AutoFollowMetadata) o;
-        return Objects.equals(patterns, that.patterns);
+        return Objects.equals(patterns, that.patterns) &&
+               Objects.equals(followedLeaderIndexUUIDs, that.followedLeaderIndexUUIDs) &&
+               Objects.equals(headers, that.headers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(patterns);
+        return Objects.hash(patterns, followedLeaderIndexUUIDs, headers);
     }
 
     public static class AutoFollowPattern implements Writeable, ToXContentObject {
 
+        public static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
         public static final ParseField LEADER_PATTERNS_FIELD = new ParseField("leader_index_patterns");
         public static final ParseField FOLLOW_PATTERN_FIELD = new ParseField("follow_index_pattern");
-        public static final ParseField MAX_BATCH_OPERATION_COUNT = new ParseField("max_batch_operation_count");
-        public static final ParseField MAX_CONCURRENT_READ_BATCHES = new ParseField("max_concurrent_read_batches");
-        public static final ParseField MAX_BATCH_SIZE_IN_BYTES = new ParseField("max_batch_size_in_bytes");
-        public static final ParseField MAX_CONCURRENT_WRITE_BATCHES = new ParseField("max_concurrent_write_batches");
+        public static final ParseField MAX_READ_REQUEST_OPERATION_COUNT = new ParseField("max_read_request_operation_count");
+        public static final ParseField MAX_READ_REQUEST_SIZE = new ParseField("max_read_request_size");
+        public static final ParseField MAX_OUTSTANDING_READ_REQUESTS = new ParseField("max_outstanding_read_requests");
+        public static final ParseField MAX_WRITE_REQUEST_OPERATION_COUNT = new ParseField("max_write_request_operation_count");
+        public static final ParseField MAX_WRITE_REQUEST_SIZE = new ParseField("max_write_request_size");
+        public static final ParseField MAX_OUTSTANDING_WRITE_REQUESTS = new ParseField("max_outstanding_write_requests");
+        public static final ParseField MAX_WRITE_BUFFER_COUNT = new ParseField("max_write_buffer_count");
         public static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
         public static final ParseField MAX_RETRY_DELAY = new ParseField("max_retry_delay");
-        public static final ParseField POLL_TIMEOUT = new ParseField("poll_timeout");
+        public static final ParseField READ_POLL_TIMEOUT = new ParseField("read_poll_timeout");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<AutoFollowPattern, Void> PARSER =
             new ConstructingObjectParser<>("auto_follow_pattern",
-                args -> new AutoFollowPattern((List<String>) args[0], (String) args[1], (Integer) args[2], (Integer) args[3],
-                    (Long) args[4], (Integer) args[5], (Integer) args[6], (TimeValue) args[7], (TimeValue) args[8]));
+                args -> new AutoFollowPattern((String) args[0], (List<String>) args[1], (String) args[2], (Integer) args[3],
+                    (ByteSizeValue) args[4], (Integer) args[5], (Integer) args[6], (ByteSizeValue) args[7], (Integer) args[8],
+                    (Integer) args[9], (ByteSizeValue) args[10], (TimeValue) args[11], (TimeValue) args[12]));
 
         static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), REMOTE_CLUSTER_FIELD);
             PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), LEADER_PATTERNS_FIELD);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FOLLOW_PATTERN_FIELD);
-            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_BATCH_OPERATION_COUNT);
-            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_CONCURRENT_READ_BATCHES);
-            PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MAX_BATCH_SIZE_IN_BYTES);
-            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_CONCURRENT_WRITE_BATCHES);
-            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_WRITE_BUFFER_SIZE);
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_READ_REQUEST_OPERATION_COUNT);
+            PARSER.declareField(
+                    ConstructingObjectParser.optionalConstructorArg(),
+                    (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_READ_REQUEST_SIZE.getPreferredName()),
+                    MAX_READ_REQUEST_SIZE,
+                    ObjectParser.ValueType.STRING);
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_OUTSTANDING_READ_REQUESTS);
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_WRITE_REQUEST_OPERATION_COUNT);
+            PARSER.declareField(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_REQUEST_SIZE.getPreferredName()),
+                MAX_WRITE_REQUEST_SIZE,
+                ObjectParser.ValueType.STRING);
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_OUTSTANDING_WRITE_REQUESTS);
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_WRITE_BUFFER_COUNT);
+            PARSER.declareField(
+                    ConstructingObjectParser.optionalConstructorArg(),
+                    (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_BUFFER_SIZE.getPreferredName()),
+                    MAX_WRITE_BUFFER_SIZE,
+                    ObjectParser.ValueType.STRING);
             PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY.getPreferredName()),
                 MAX_RETRY_DELAY, ObjectParser.ValueType.STRING);
             PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.text(), POLL_TIMEOUT.getPreferredName()),
-                POLL_TIMEOUT, ObjectParser.ValueType.STRING);
+                (p, c) -> TimeValue.parseTimeValue(p.text(), READ_POLL_TIMEOUT.getPreferredName()),
+                READ_POLL_TIMEOUT, ObjectParser.ValueType.STRING);
         }
 
+        private final String remoteCluster;
         private final List<String> leaderIndexPatterns;
         private final String followIndexPattern;
-        private final Integer maxBatchOperationCount;
-        private final Integer maxConcurrentReadBatches;
-        private final Long maxOperationSizeInBytes;
-        private final Integer maxConcurrentWriteBatches;
-        private final Integer maxWriteBufferSize;
+        private final Integer maxReadRequestOperationCount;
+        private final ByteSizeValue maxReadRequestSize;
+        private final Integer maxOutstandingReadRequests;
+        private final Integer maxWriteRequestOperationCount;
+        private final ByteSizeValue maxWriteRequestSize;
+        private final Integer maxOutstandingWriteRequests;
+        private final Integer maxWriteBufferCount;
+        private final ByteSizeValue maxWriteBufferSize;
         private final TimeValue maxRetryDelay;
         private final TimeValue pollTimeout;
 
-        public AutoFollowPattern(List<String> leaderIndexPatterns,
+        public AutoFollowPattern(String remoteCluster,
+                                 List<String> leaderIndexPatterns,
                                  String followIndexPattern,
-                                 Integer maxBatchOperationCount,
-                                 Integer maxConcurrentReadBatches,
-                                 Long maxOperationSizeInBytes,
-                                 Integer maxConcurrentWriteBatches,
-                                 Integer maxWriteBufferSize,
-                                 TimeValue maxRetryDelay,
+                                 Integer maxReadRequestOperationCount,
+                                 ByteSizeValue maxReadRequestSize,
+                                 Integer maxOutstandingReadRequests,
+                                 Integer maxWriteRequestOperationCount,
+                                 ByteSizeValue maxWriteRequestSize,
+                                 Integer maxOutstandingWriteRequests,
+                                 Integer maxWriteBufferCount,
+                                 ByteSizeValue maxWriteBufferSize, TimeValue maxRetryDelay,
                                  TimeValue pollTimeout) {
+            this.remoteCluster = remoteCluster;
             this.leaderIndexPatterns = leaderIndexPatterns;
             this.followIndexPattern = followIndexPattern;
-            this.maxBatchOperationCount = maxBatchOperationCount;
-            this.maxConcurrentReadBatches = maxConcurrentReadBatches;
-            this.maxOperationSizeInBytes = maxOperationSizeInBytes;
-            this.maxConcurrentWriteBatches = maxConcurrentWriteBatches;
+            this.maxReadRequestOperationCount = maxReadRequestOperationCount;
+            this.maxReadRequestSize = maxReadRequestSize;
+            this.maxOutstandingReadRequests = maxOutstandingReadRequests;
+            this.maxWriteRequestOperationCount = maxWriteRequestOperationCount;
+            this.maxWriteRequestSize = maxWriteRequestSize;
+            this.maxOutstandingWriteRequests = maxOutstandingWriteRequests;
+            this.maxWriteBufferCount = maxWriteBufferCount;
             this.maxWriteBufferSize = maxWriteBufferSize;
             this.maxRetryDelay = maxRetryDelay;
             this.pollTimeout = pollTimeout;
         }
 
         public AutoFollowPattern(StreamInput in) throws IOException {
-            leaderIndexPatterns = in.readList(StreamInput::readString);
+            remoteCluster = in.readString();
+            leaderIndexPatterns = in.readStringList();
             followIndexPattern = in.readOptionalString();
-            maxBatchOperationCount = in.readOptionalVInt();
-            maxConcurrentReadBatches = in.readOptionalVInt();
-            maxOperationSizeInBytes = in.readOptionalLong();
-            maxConcurrentWriteBatches = in.readOptionalVInt();
-            maxWriteBufferSize = in.readOptionalVInt();
+            maxReadRequestOperationCount = in.readOptionalVInt();
+            maxReadRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
+            maxOutstandingReadRequests = in.readOptionalVInt();
+            maxWriteRequestOperationCount = in.readOptionalVInt();
+            maxWriteRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
+            maxOutstandingWriteRequests = in.readOptionalVInt();
+            maxWriteBufferCount = in.readOptionalVInt();
+            maxWriteBufferSize = in.readOptionalWriteable(ByteSizeValue::new);
             maxRetryDelay = in.readOptionalTimeValue();
             pollTimeout = in.readOptionalTimeValue();
         }
@@ -256,6 +295,10 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             return Regex.simpleMatch(leaderIndexPatterns, indexName);
         }
 
+        public String getRemoteCluster() {
+            return remoteCluster;
+        }
+
         public List<String> getLeaderIndexPatterns() {
             return leaderIndexPatterns;
         }
@@ -264,23 +307,35 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             return followIndexPattern;
         }
 
-        public Integer getMaxBatchOperationCount() {
-            return maxBatchOperationCount;
+        public Integer getMaxReadRequestOperationCount() {
+            return maxReadRequestOperationCount;
         }
 
-        public Integer getMaxConcurrentReadBatches() {
-            return maxConcurrentReadBatches;
+        public Integer getMaxOutstandingReadRequests() {
+            return maxOutstandingReadRequests;
         }
 
-        public Long getMaxOperationSizeInBytes() {
-            return maxOperationSizeInBytes;
+        public ByteSizeValue getMaxReadRequestSize() {
+            return maxReadRequestSize;
         }
 
-        public Integer getMaxConcurrentWriteBatches() {
-            return maxConcurrentWriteBatches;
+        public Integer getMaxWriteRequestOperationCount() {
+            return maxWriteRequestOperationCount;
         }
 
-        public Integer getMaxWriteBufferSize() {
+        public ByteSizeValue getMaxWriteRequestSize() {
+            return maxWriteRequestSize;
+        }
+
+        public Integer getMaxOutstandingWriteRequests() {
+            return maxOutstandingWriteRequests;
+        }
+
+        public Integer getMaxWriteBufferCount() {
+            return maxWriteBufferCount;
+        }
+
+        public ByteSizeValue getMaxWriteBufferSize() {
             return maxWriteBufferSize;
         }
 
@@ -294,43 +349,57 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringList(leaderIndexPatterns);
+            out.writeString(remoteCluster);
+            out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexPattern);
-            out.writeOptionalVInt(maxBatchOperationCount);
-            out.writeOptionalVInt(maxConcurrentReadBatches);
-            out.writeOptionalLong(maxOperationSizeInBytes);
-            out.writeOptionalVInt(maxConcurrentWriteBatches);
-            out.writeOptionalVInt(maxWriteBufferSize);
+            out.writeOptionalVInt(maxReadRequestOperationCount);
+            out.writeOptionalWriteable(maxReadRequestSize);
+            out.writeOptionalVInt(maxOutstandingReadRequests);
+            out.writeOptionalVInt(maxWriteRequestOperationCount);
+            out.writeOptionalWriteable(maxWriteRequestSize);
+            out.writeOptionalVInt(maxOutstandingWriteRequests);
+            out.writeOptionalVInt(maxWriteBufferCount);
+            out.writeOptionalWriteable(maxWriteBufferSize);
             out.writeOptionalTimeValue(maxRetryDelay);
             out.writeOptionalTimeValue(pollTimeout);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
             builder.array(LEADER_PATTERNS_FIELD.getPreferredName(), leaderIndexPatterns.toArray(new String[0]));
             if (followIndexPattern != null) {
                 builder.field(FOLLOW_PATTERN_FIELD.getPreferredName(), followIndexPattern);
             }
-            if (maxBatchOperationCount != null) {
-                builder.field(MAX_BATCH_OPERATION_COUNT.getPreferredName(), maxBatchOperationCount);
+            if (maxReadRequestOperationCount != null) {
+                builder.field(MAX_READ_REQUEST_OPERATION_COUNT.getPreferredName(), maxReadRequestOperationCount);
             }
-            if (maxConcurrentReadBatches != null) {
-                builder.field(MAX_CONCURRENT_READ_BATCHES.getPreferredName(), maxConcurrentReadBatches);
+            if (maxReadRequestSize != null) {
+                builder.field(MAX_READ_REQUEST_SIZE.getPreferredName(), maxReadRequestSize.getStringRep());
             }
-            if (maxOperationSizeInBytes != null) {
-                builder.field(MAX_BATCH_SIZE_IN_BYTES.getPreferredName(), maxOperationSizeInBytes);
+            if (maxOutstandingReadRequests != null) {
+                builder.field(MAX_OUTSTANDING_READ_REQUESTS.getPreferredName(), maxOutstandingReadRequests);
             }
-            if (maxConcurrentWriteBatches != null) {
-                builder.field(MAX_CONCURRENT_WRITE_BATCHES.getPreferredName(), maxConcurrentWriteBatches);
+            if (maxWriteRequestOperationCount != null) {
+                builder.field(MAX_WRITE_REQUEST_OPERATION_COUNT.getPreferredName(), maxWriteRequestOperationCount);
             }
-            if (maxWriteBufferSize != null){
-                builder.field(MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize);
+            if (maxWriteRequestSize != null) {
+                builder.field(MAX_WRITE_REQUEST_SIZE.getPreferredName(), maxWriteRequestSize.getStringRep());
+            }
+            if (maxOutstandingWriteRequests != null) {
+                builder.field(MAX_OUTSTANDING_WRITE_REQUESTS.getPreferredName(), maxOutstandingWriteRequests);
+            }
+            if (maxWriteBufferCount != null){
+                builder.field(MAX_WRITE_BUFFER_COUNT.getPreferredName(), maxWriteBufferCount);
+            }
+            if (maxWriteBufferSize != null) {
+                builder.field(MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize.getStringRep());
             }
             if (maxRetryDelay != null) {
                 builder.field(MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay);
             }
             if (pollTimeout != null) {
-                builder.field(POLL_TIMEOUT.getPreferredName(), pollTimeout);
+                builder.field(READ_POLL_TIMEOUT.getPreferredName(), pollTimeout);
             }
             return builder;
         }
@@ -345,30 +414,37 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             AutoFollowPattern that = (AutoFollowPattern) o;
-            return Objects.equals(leaderIndexPatterns, that.leaderIndexPatterns) &&
-                Objects.equals(followIndexPattern, that.followIndexPattern) &&
-                Objects.equals(maxBatchOperationCount, that.maxBatchOperationCount) &&
-                Objects.equals(maxConcurrentReadBatches, that.maxConcurrentReadBatches) &&
-                Objects.equals(maxOperationSizeInBytes, that.maxOperationSizeInBytes) &&
-                Objects.equals(maxConcurrentWriteBatches, that.maxConcurrentWriteBatches) &&
-                Objects.equals(maxWriteBufferSize, that.maxWriteBufferSize) &&
-                Objects.equals(maxRetryDelay, that.maxRetryDelay) &&
-                Objects.equals(pollTimeout, that.pollTimeout);
+            return Objects.equals(remoteCluster, that.remoteCluster) &&
+                    Objects.equals(leaderIndexPatterns, that.leaderIndexPatterns) &&
+                    Objects.equals(followIndexPattern, that.followIndexPattern) &&
+                    Objects.equals(maxReadRequestOperationCount, that.maxReadRequestOperationCount) &&
+                    Objects.equals(maxReadRequestSize, that.maxReadRequestSize) &&
+                    Objects.equals(maxOutstandingReadRequests, that.maxOutstandingReadRequests) &&
+                    Objects.equals(maxWriteRequestOperationCount, that.maxWriteRequestOperationCount) &&
+                    Objects.equals(maxWriteRequestSize, that.maxWriteRequestSize) &&
+                    Objects.equals(maxOutstandingWriteRequests, that.maxOutstandingWriteRequests) &&
+                    Objects.equals(maxWriteBufferCount, that.maxWriteBufferCount) &&
+                    Objects.equals(maxWriteBufferSize, that.maxWriteBufferSize) &&
+                    Objects.equals(maxRetryDelay, that.maxRetryDelay) &&
+                    Objects.equals(pollTimeout, that.pollTimeout);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(
-                leaderIndexPatterns,
-                followIndexPattern,
-                maxBatchOperationCount,
-                maxConcurrentReadBatches,
-                maxOperationSizeInBytes,
-                maxConcurrentWriteBatches,
-                maxWriteBufferSize,
-                maxRetryDelay,
-                pollTimeout
-            );
+                    remoteCluster,
+                    leaderIndexPatterns,
+                    followIndexPattern,
+                    maxReadRequestOperationCount,
+                    maxReadRequestSize,
+                    maxOutstandingReadRequests,
+                    maxWriteRequestOperationCount,
+                    maxWriteRequestSize,
+                    maxOutstandingWriteRequests,
+                    maxWriteBufferCount,
+                    maxWriteBufferSize,
+                    maxRetryDelay,
+                    pollTimeout);
         }
     }
 

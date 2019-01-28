@@ -1,3 +1,6 @@
+setup:
+  - skip:
+      features: headers
 ---
 "Reindex as same user works":
 
@@ -44,13 +47,13 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
             match:
               text: test
   - match: { hits.total: 1 }
-
 
 ---
 "Reindex with runas user with minimal privileges works":
@@ -77,13 +80,13 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
             match:
               text: test
   - match: { hits.total: 1 }
-
 
 ---
 "Reindex as readonly user is forbidden":
@@ -165,10 +168,12 @@
   - do:
       catch: missing
       search:
+        rest_total_hits_as_int: true
         index: other_dest
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
   - length:   { hits.hits: 1  }
   - match: { hits.hits.0._index: dest }
@@ -205,6 +210,7 @@
   # We copied just one doc, presumably the one without the hidden field
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -215,6 +221,7 @@
   # We didn't copy the doc with the hidden field
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -247,6 +254,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -256,6 +264,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -265,6 +274,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -313,3 +323,51 @@
             index: dest
           dest:
             index: source
+
+---
+"Reindex wait_for_completion=false as minimal with task API":
+
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      headers: {es-security-runas-user: minimal_with_task_user}
+      reindex:
+        refresh: true
+        wait_for_completion: false
+        body:
+          source:
+            index: source
+          dest:
+            index: dest
+  - set: {task: task}
+
+  - do:
+      headers: {es-security-runas-user: minimal_with_task_user}
+      tasks.get:
+        wait_for_completion: true
+        task_id: $task
+  - match: {response.created: 1}
+
+  - do:
+      search:
+        index: dest
+        rest_total_hits_as_int: true
+        body:
+          query:
+            match:
+              text: test
+  - match: { hits.total: 1 }
+
+  # the minimal user doesn't have permission to read the tasks API
+  - do:
+      headers: {es-security-runas-user: minimal_user}
+      catch: forbidden
+      tasks.get:
+        task_id: $task

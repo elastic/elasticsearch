@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.template.put;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -34,7 +35,6 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -69,7 +69,7 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
  */
 public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest, ToXContent {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(PutIndexTemplateRequest.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(PutIndexTemplateRequest.class));
 
     private String name;
 
@@ -313,7 +313,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             if (name.equals("template")) {
                 // This is needed to allow for bwc (beats, logstash) with pre-5.0 templates (#21009)
                 if(entry.getValue() instanceof String) {
-                    DEPRECATION_LOGGER.deprecated("Deprecated field [template] used, replaced by [index_patterns]");
+                    deprecationLogger.deprecated("Deprecated field [template] used, replaced by [index_patterns]");
                     patterns(Collections.singletonList((String) entry.getValue()));
                 }
             } else if (name.equals("index_patterns")) {
@@ -461,7 +461,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         name = in.readString();
 
         if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            indexPatterns = in.readList(StreamInput::readString);
+            indexPatterns = in.readStringList();
         } else {
             indexPatterns = Collections.singletonList(in.readString());
         }
@@ -495,7 +495,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         out.writeString(cause);
         out.writeString(name);
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            out.writeStringList(indexPatterns);
+            out.writeStringCollection(indexPatterns);
         } else {
             out.writeString(indexPatterns.size() > 0 ? indexPatterns.get(0) : "");
         }

@@ -21,8 +21,9 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.IntervalFilterScript;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
+import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -40,12 +41,12 @@ public class ScriptModule {
     public static final Map<String, ScriptContext<?>> CORE_CONTEXTS;
     static {
         CORE_CONTEXTS = Stream.of(
-            SearchScript.CONTEXT,
-            SearchScript.AGGS_CONTEXT,
+            FieldScript.CONTEXT,
+            AggregationScript.CONTEXT,
             ScoreScript.CONTEXT,
-            SearchScript.SCRIPT_SORT_CONTEXT,
+            NumberSortScript.CONTEXT,
+            StringSortScript.CONTEXT,
             TermsSetQueryScript.CONTEXT,
-            ExecutableScript.CONTEXT,
             UpdateScript.CONTEXT,
             BucketAggregationScript.CONTEXT,
             BucketAggregationSelectorScript.CONTEXT,
@@ -60,7 +61,8 @@ public class ScriptModule {
             ScriptedMetricAggContexts.InitScript.CONTEXT,
             ScriptedMetricAggContexts.MapScript.CONTEXT,
             ScriptedMetricAggContexts.CombineScript.CONTEXT,
-            ScriptedMetricAggContexts.ReduceScript.CONTEXT
+            ScriptedMetricAggContexts.ReduceScript.CONTEXT,
+            IntervalFilterScript.CONTEXT
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
 

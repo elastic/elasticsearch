@@ -9,7 +9,7 @@ public class TextLogFileStructureFinderFactoryTests extends FileStructureTestCas
 
     private FileStructureFinderFactory factory = new TextLogFileStructureFinderFactory();
 
-    // No need to check JSON, XML, CSV, TSV, semi-colon delimited values or pipe
+    // No need to check NDJSON, XML, CSV, TSV, semi-colon delimited values or pipe
     // delimited values because they come earlier in the order we check formats
 
     public void testCanCreateFromSampleGivenText() {

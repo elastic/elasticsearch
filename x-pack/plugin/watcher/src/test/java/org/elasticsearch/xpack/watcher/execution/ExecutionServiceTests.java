@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -53,7 +54,6 @@ import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.input.Input;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
@@ -88,6 +88,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -1015,7 +1016,7 @@ public class ExecutionServiceTests extends ESTestCase {
 
     public void testUpdateWatchStatusDoesNotUpdateState() throws Exception {
         WatchStatus status = new WatchStatus(DateTime.now(UTC), Collections.emptyMap());
-        Watch watch = new Watch("_id", new ManualTrigger(), new ExecutableNoneInput(logger), InternalAlwaysCondition.INSTANCE, null, null,
+        Watch watch = new Watch("_id", new ManualTrigger(), new ExecutableNoneInput(), InternalAlwaysCondition.INSTANCE, null, null,
                 Collections.emptyList(), null, status, 1L);
 
         final AtomicBoolean assertionsTriggered = new AtomicBoolean(false);
@@ -1148,7 +1149,8 @@ public class ExecutionServiceTests extends ESTestCase {
             if (request.id().equals(id)) {
                 listener.onResponse(response);
             } else {
-                GetResult notFoundResult = new GetResult(request.index(), request.type(), request.id(), -1, false, null, null);
+                GetResult notFoundResult =
+                    new GetResult(request.index(), request.type(), request.id(), UNASSIGNED_SEQ_NO, 0, -1, false, null, null);
                 listener.onResponse(new GetResponse(notFoundResult));
             }
             return null;
@@ -1162,7 +1164,8 @@ public class ExecutionServiceTests extends ESTestCase {
             if (request.id().equals(id)) {
                 listener.onFailure(e);
             } else {
-                GetResult notFoundResult = new GetResult(request.index(), request.type(), request.id(), -1, false, null, null);
+                GetResult notFoundResult =
+                    new GetResult(request.index(), request.type(), request.id(), UNASSIGNED_SEQ_NO, 0, -1, false, null, null);
                 listener.onResponse(new GetResponse(notFoundResult));
             }
             return null;

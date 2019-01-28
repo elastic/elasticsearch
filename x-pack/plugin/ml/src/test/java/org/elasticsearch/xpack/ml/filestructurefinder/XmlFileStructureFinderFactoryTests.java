@@ -9,7 +9,7 @@ public class XmlFileStructureFinderFactoryTests extends FileStructureTestCase {
 
     private FileStructureFinderFactory factory = new XmlFileStructureFinderFactory();
 
-    // No need to check JSON because it comes earlier in the order we check formats
+    // No need to check NDJSON because it comes earlier in the order we check formats
 
     public void testCanCreateFromSampleGivenXml() {
 

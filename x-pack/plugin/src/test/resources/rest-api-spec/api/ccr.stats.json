@@ -1,16 +1,12 @@
 {
   "ccr.stats": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-stats.html",
     "methods": [ "GET" ],
     "url": {
       "path": "/_ccr/stats",
-      "paths": [ "/_ccr/stats", "/_ccr/stats/{index}" ],
-      "parts": {
-        "index": {
-          "type": "list",
-          "description": "A comma-separated list of index names; use `_all` or empty string to perform the operation on all indices"
-        }
-      }
+      "paths": [ "/_ccr/stats" ],
+      "parts": {},
+      "body": null
     }
   }
 }

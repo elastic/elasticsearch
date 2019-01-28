@@ -19,81 +19,79 @@ setup:
 ---
 "Test old and mixed cluster datafeeds":
   - do:
-      xpack.ml.get_datafeeds:
+      ml.get_datafeeds:
         datafeed_id: old-cluster-datafeed
   - match: { datafeeds.0.datafeed_id: "old-cluster-datafeed"}
   - length: { datafeeds.0.indices: 1 }
-  - length: { datafeeds.0.types: 1 }
   - gte: { datafeeds.0.scroll_size: 2000 }
 
   - do:
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: old-cluster-datafeed
   - match: { datafeeds.0.state: "stopped"}
   - is_false: datafeeds.0.node
 
   - do:
-      xpack.ml.get_datafeeds:
+      ml.get_datafeeds:
         datafeed_id: mixed-cluster-datafeed
   - match: { datafeeds.0.datafeed_id: "mixed-cluster-datafeed"}
   - length: { datafeeds.0.indices: 1 }
-  - length: { datafeeds.0.types: 1 }
   - gte: { datafeeds.0.scroll_size: 2000 }
 
   - do:
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: mixed-cluster-datafeed
   - match: { datafeeds.0.state: "stopped"}
   - is_false: datafeeds.0.node
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: old-cluster-datafeed-job
 
   - do:
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         datafeed_id: old-cluster-datafeed
         start: 0
 
   - do:
-      xpack.ml.stop_datafeed:
+      ml.stop_datafeed:
         datafeed_id: old-cluster-datafeed
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: old-cluster-datafeed-job
 
   - do:
-      xpack.ml.delete_datafeed:
+      ml.delete_datafeed:
         datafeed_id: old-cluster-datafeed
 
   - do:
-      xpack.ml.delete_job:
+      ml.delete_job:
         job_id: old-cluster-datafeed-job
   - match: { acknowledged: true }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: mixed-cluster-datafeed-job
 
   - do:
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         datafeed_id: mixed-cluster-datafeed
         start: 0
 
   - do:
-      xpack.ml.stop_datafeed:
+      ml.stop_datafeed:
         datafeed_id: mixed-cluster-datafeed
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: mixed-cluster-datafeed-job
 
   - do:
-      xpack.ml.delete_datafeed:
+      ml.delete_datafeed:
         datafeed_id: mixed-cluster-datafeed
 
   - do:
-      xpack.ml.delete_job:
+      ml.delete_job:
         job_id: mixed-cluster-datafeed-job
   - match: { acknowledged: true }

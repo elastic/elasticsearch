@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -55,7 +54,7 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
 
-        final IndexRecoveryCollector collector = new IndexRecoveryCollector(Settings.EMPTY, clusterService, licenseState, client);
+        final IndexRecoveryCollector collector = new IndexRecoveryCollector(clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
         if (isElectedMaster) {
@@ -65,14 +64,14 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
 
     public void testShouldCollectReturnsFalseIfNotMaster() {
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
-        final IndexRecoveryCollector collector = new IndexRecoveryCollector(Settings.EMPTY, clusterService, licenseState, client);
+        final IndexRecoveryCollector collector = new IndexRecoveryCollector(clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(false), is(false));
     }
 
     public void testShouldCollectReturnsTrue() {
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
-        final IndexRecoveryCollector collector = new IndexRecoveryCollector(Settings.EMPTY, clusterService, licenseState, client);
+        final IndexRecoveryCollector collector = new IndexRecoveryCollector(clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(true), is(true));
         verify(licenseState).isMonitoringAllowed();
@@ -138,7 +137,7 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
         final Client client = mock(Client.class);
         when(client.admin()).thenReturn(adminClient);
 
-        final IndexRecoveryCollector collector = new IndexRecoveryCollector(Settings.EMPTY, clusterService, licenseState, client);
+        final IndexRecoveryCollector collector = new IndexRecoveryCollector(clusterService, licenseState, client);
         assertEquals(timeout, collector.getCollectionTimeout());
         assertEquals(recoveryOnly, collector.getActiveRecoveriesOnly());
 

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.sql.plan.QueryPlan;
 
 import java.util.LinkedHashMap;
@@ -16,6 +17,10 @@ public abstract class Functions {
 
     public static boolean isAggregate(Expression e) {
         return e instanceof AggregateFunction;
+    }
+
+    public static boolean isGrouping(Expression e) {
+        return e instanceof GroupingFunction;
     }
 
     public static Map<String, Function> collectFunctions(QueryPlan<?> plan) {

@@ -54,7 +54,8 @@ public class SimpleAllocationIT extends ESIntegTestCase {
                 assertThat(node.size(), equalTo(2));
             }
         }
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 0)).execute().actionGet();
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 0)).execute().actionGet();
         ensureGreen();
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
 
@@ -69,7 +70,8 @@ public class SimpleAllocationIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test2", 3));
         ensureGreen();
 
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1)).execute().actionGet();
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1)).execute().actionGet();
         ensureGreen();
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
 

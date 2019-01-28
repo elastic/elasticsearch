@@ -16,6 +16,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -71,7 +72,7 @@ public class HistoryStoreTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(settings));
         BulkProcessor.Listener listener = mock(BulkProcessor.Listener.class);
         BulkProcessor bulkProcessor = BulkProcessor.builder(client, listener).setConcurrentRequests(0).setBulkActions(1).build();
-        historyStore = new HistoryStore(settings, bulkProcessor);
+        historyStore = new HistoryStore(bulkProcessor);
     }
 
     public void testPut() throws Exception {
@@ -121,7 +122,11 @@ public class HistoryStoreTests extends ESTestCase {
         final String password = randomFrom("secret", "supersecret", "123456");
         final String url = "https://" + randomFrom("localhost", "internal-jira.elastic.co") + ":" + randomFrom(80, 8080, 449, 9443);
 
-        Settings settings = Settings.builder().put("url", url).put("user", username).put("password", password).build();
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("secure_url", url);
+        secureSettings.setString("secure_user", username);
+        secureSettings.setString("secure_password", password);
+        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
         JiraAccount account = new JiraAccount("_account", settings, httpClient);
 
         JiraIssue jiraIssue = account.createIssue(singletonMap("foo", "bar"), null);

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.client;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpEntityEnclosingRequest;
@@ -59,6 +61,7 @@ import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -70,10 +73,12 @@ import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.elasticsearch.client.RestClientTestUtil.getOkStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.randomStatusCode;
 import static org.elasticsearch.client.SyncResponseListenerTests.assertExceptionStackContainsCallingMethod;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -89,6 +94,7 @@ import static org.mockito.Mockito.when;
  * Relies on a mock http client to intercept requests and return desired responses based on request path.
  */
 public class RestClientSingleHostTests extends RestClientTestCase {
+    private static final Log logger = LogFactory.getLog(RestClientSingleHostTests.class);
 
     private ExecutorService exec = Executors.newFixedThreadPool(1);
     private RestClient restClient;
@@ -96,6 +102,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     private Node node;
     private CloseableHttpAsyncClient httpClient;
     private HostsTrackingFailureListener failureListener;
+    private boolean strictDeprecationMode;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -147,8 +154,9 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         defaultHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header-default");
         node = new Node(new HttpHost("localhost", 9200));
         failureListener = new HostsTrackingFailureListener();
+        strictDeprecationMode = randomBoolean();
         restClient = new RestClient(httpClient, 10000, defaultHeaders,
-                singletonList(node), null, failureListener, NodeSelector.ANY);
+                singletonList(node), null, failureListener, NodeSelector.ANY, strictDeprecationMode);
     }
 
     /**
@@ -331,7 +339,109 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             }
             assertThat(esResponse.getStatusLine().getStatusCode(), equalTo(statusCode));
             assertHeaders(defaultHeaders, requestHeaders, esResponse.getHeaders(), Collections.<String>emptySet());
+            assertFalse(esResponse.hasWarnings());
         }
+    }
+
+    public void testDeprecationWarnings() throws IOException {
+        String chars = randomAsciiAlphanumOfLength(5);
+        assertDeprecationWarnings(singletonList("poorly formatted " + chars), singletonList("poorly formatted " + chars));
+        assertDeprecationWarnings(singletonList(formatWarning(chars)), singletonList(chars));
+        assertDeprecationWarnings(
+                Arrays.asList(formatWarning(chars), "another one", "and another"),
+                Arrays.asList(chars,                "another one", "and another"));
+        assertDeprecationWarnings(
+                Arrays.asList("ignorable one", "and another"),
+                Arrays.asList("ignorable one", "and another"));
+        assertDeprecationWarnings(singletonList("exact"), singletonList("exact"));
+        assertDeprecationWarnings(Collections.<String>emptyList(), Collections.<String>emptyList());
+    }
+
+    private enum DeprecationWarningOption {
+        PERMISSIVE {
+            protected WarningsHandler warningsHandler() {
+                return WarningsHandler.PERMISSIVE;
+            }
+        },
+        STRICT {
+            protected WarningsHandler warningsHandler() {
+                return WarningsHandler.STRICT;
+            }
+        },
+        FILTERED {
+            protected WarningsHandler warningsHandler() {
+                return new WarningsHandler() {
+                    @Override
+                    public boolean warningsShouldFailRequest(List<String> warnings) {
+                        for (String warning : warnings) {
+                            if (false == warning.startsWith("ignorable")) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+                };
+            }
+        },
+        EXACT {
+            protected WarningsHandler warningsHandler() {
+                return new WarningsHandler() {
+                    @Override
+                    public boolean warningsShouldFailRequest(List<String> warnings) {
+                        return false == warnings.equals(Arrays.asList("exact"));
+                    }
+                };
+            }
+        };
+
+        protected abstract WarningsHandler warningsHandler();
+    }
+
+    private void assertDeprecationWarnings(List<String> warningHeaderTexts, List<String> warningBodyTexts) throws IOException {
+        String method = randomFrom(getHttpMethods());
+        Request request = new Request(method, "/200");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        for (String warningHeaderText : warningHeaderTexts) {
+            options.addHeader("Warning", warningHeaderText);
+        }
+
+        final boolean expectFailure;
+        if (randomBoolean()) {
+            logger.info("checking strictWarningsMode=[" + strictDeprecationMode + "] and warnings=" + warningBodyTexts);
+            expectFailure = strictDeprecationMode && false == warningBodyTexts.isEmpty();
+        } else {
+            DeprecationWarningOption warningOption = randomFrom(DeprecationWarningOption.values());
+            logger.info("checking warningOption=" + warningOption + " and warnings=" + warningBodyTexts);
+            options.setWarningsHandler(warningOption.warningsHandler());
+            expectFailure = warningOption.warningsHandler().warningsShouldFailRequest(warningBodyTexts);
+        }
+        request.setOptions(options);
+
+        Response response;
+        if (expectFailure) {
+            try {
+                restClient.performRequest(request);
+                fail("expected ResponseException from warnings");
+                return;
+            } catch (ResponseException e) {
+                if (false == warningBodyTexts.isEmpty()) {
+                    assertThat(e.getMessage(), containsString("\nWarnings: " + warningBodyTexts));
+                }
+                response = e.getResponse();
+            }
+        } else {
+            response = restClient.performRequest(request);
+        }
+        assertEquals(false == warningBodyTexts.isEmpty(), response.hasWarnings());
+        assertEquals(warningBodyTexts, response.getWarnings());
+    }
+
+    /**
+     * Emulates Elasticsearch's DeprecationLogger.formatWarning in simple
+     * cases. We don't have that available because we're testing against 1.7.
+     */
+    private static String formatWarning(String warningBody) {
+        return "299 Elasticsearch-1.2.2-SNAPSHOT-eeeeeee \"" + warningBody + "\" \"Mon, 01 Jan 2001 00:00:00 GMT\"";
     }
 
     private HttpUriRequest performRandomRequest(String method) throws Exception {

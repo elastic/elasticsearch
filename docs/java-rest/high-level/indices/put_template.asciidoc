@@ -1,15 +1,21 @@
-[[java-rest-high-put-template]]
+--
+:api: put-template
+:request: PutIndexTemplateRequest
+:response: PutIndexTemplateResponse
+--
+
+[id="{upid}-{api}"]
 === Put Template API
 
-[[java-rest-high-put-template-request]]
+[id="{upid}-{api}-request"]
 ==== Put Index Template Request
 
-A `PutIndexTemplateRequest` specifies the `name` of a template and `patterns`
+A +{request}+ specifies the `name` of a template and `patterns`
 which controls whether the template should be applied to the new index.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> The name of the template
 <2> The patterns of the template
@@ -20,7 +26,7 @@ template's patterns.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-request-settings]
+include-tagged::{doc-tests-file}[{api}-request-settings]
 --------------------------------------------------
 <1> Settings for this template
 
@@ -31,7 +37,7 @@ template's patterns.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-request-mappings-json]
+include-tagged::{doc-tests-file}[{api}-request-mappings-json]
 --------------------------------------------------
 <1> The type to define
 <2> The mapping for this type, provided as a JSON string
@@ -41,21 +47,21 @@ The mapping source can be provided in different ways in addition to the
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-request-mappings-map]
+include-tagged::{doc-tests-file}[{api}-request-mappings-map]
 --------------------------------------------------
 <1> Mapping source provided as a `Map` which gets automatically converted
 to JSON format
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-request-mappings-xcontent]
+include-tagged::{doc-tests-file}[{api}-request-mappings-xcontent]
 --------------------------------------------------
 <1> Mapping source provided as an `XContentBuilder` object, the Elasticsearch
 built-in helpers to generate JSON content
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-request-mappings-shortcut]
+include-tagged::{doc-tests-file}[{api}-request-mappings-shortcut]
 --------------------------------------------------
 <1> Mapping source provided as `Object` key-pairs, which gets converted to
 JSON format
@@ -66,7 +72,7 @@ template's patterns. A placeholder `{index}` can be used in an alias of a templa
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-request-aliases]
+include-tagged::{doc-tests-file}[{api}-request-aliases]
 --------------------------------------------------
 <1> The alias to define
 <2> The alias to define with placeholder
@@ -78,7 +84,7 @@ Templates with lower orders are applied first, and higher orders override them.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-request-order]
+include-tagged::{doc-tests-file}[{api}-request-order]
 --------------------------------------------------
 <1> The order of the template
 
@@ -88,7 +94,7 @@ management by external systems.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-request-version]
+include-tagged::{doc-tests-file}[{api}-request-version]
 --------------------------------------------------
 <1> The version number of the template
 
@@ -98,7 +104,7 @@ can also be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-whole-source]
+include-tagged::{doc-tests-file}[{api}-whole-source]
 --------------------------------------------------
 <1> The source provided as a JSON string. It can also be provided as a `Map`
 or an `XContentBuilder`.
@@ -108,61 +114,27 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-request-create]
+include-tagged::{doc-tests-file}[{api}-request-create]
 --------------------------------------------------
 <1> To force to only create a new template; do not overwrite the existing template
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-request-masterTimeout]
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
 <2> Timeout to connect to the master node as a `String`
 
-[[java-rest-high-put-template-sync]]
-==== Synchronous Execution
+include::../execution.asciidoc[]
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-execute]
---------------------------------------------------
-
-[[java-rest-high-put-template-async]]
-==== Asynchronous Execution
-
-The asynchronous execution of a put template request requires both the `PutIndexTemplateRequest`
-instance and an `ActionListener` instance to be passed to the asynchronous method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-execute-async]
---------------------------------------------------
-<1> The `PutIndexTemplateRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `PutIndexTemplateResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument
-<2> Called in case of failure. The raised exception is provided as an argument
-
-[[java-rest-high-put-template-response]]
+[id="{upid}-{api}-response"]
 ==== Put Index Template Response
 
-The returned `PutIndexTemplateResponse` allows to retrieve information about the
+The returned +{response}+ allows to retrieve information about the
 executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> Indicates whether all of the nodes have acknowledged the request

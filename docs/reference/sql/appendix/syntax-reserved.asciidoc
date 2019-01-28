@@ -1,8 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
-[appendix]
 [[sql-syntax-reserved]]
-= Reserved Keywords
+== Reserved keywords
+
+beta[]
 
 Table with reserved keywords that need to be quoted. Also provide an example to make it more obvious.
 
@@ -15,11 +16,13 @@ be quoted (using double quotes) in order to be used as an identifier, for exampl
 SELECT "AS" FROM index
 ----
 
-[cols="^,^,^",options="header"]
+[cols="^,^,^"]
 
 |===
 
-|Keyword                      |SQL:2016      |SQL-92
+s|Keyword
+s|SQL:2016
+s|SQL-92
 
 
 |`ALL`                        |reserved      |reserved

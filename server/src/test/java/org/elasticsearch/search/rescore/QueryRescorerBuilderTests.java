@@ -200,13 +200,13 @@ public class QueryRescorerBuilderTests extends ESTestCase {
         rescoreBuilder.setQueryWeight(randomFloat());
         rescoreBuilder.setRescoreQueryWeight(randomFloat());
         rescoreBuilder.setScoreMode(QueryRescoreMode.Max);
+        rescoreBuilder.windowSize(randomIntBetween(0, 100));
 
-        QueryRescoreContext rescoreContext = (QueryRescoreContext) rescoreBuilder.buildContext(mockShardContext);
         QueryRescorerBuilder rescoreRewritten = rescoreBuilder.rewrite(mockShardContext);
         assertEquals(rescoreRewritten.getQueryWeight(), rescoreBuilder.getQueryWeight(), 0.01f);
         assertEquals(rescoreRewritten.getRescoreQueryWeight(), rescoreBuilder.getRescoreQueryWeight(), 0.01f);
         assertEquals(rescoreRewritten.getScoreMode(), rescoreBuilder.getScoreMode());
-
+        assertEquals(rescoreRewritten.windowSize(), rescoreBuilder.windowSize());
     }
 
     /**

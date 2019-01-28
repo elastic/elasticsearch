@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.common.settings.Setting;
@@ -78,6 +79,12 @@ public class XPackSettings {
     public static final Setting<Boolean> BEATS_ENABLED = Setting.boolSetting("xpack.beats.enabled", true,
         Setting.Property.NodeScope);
 
+    /**
+     * Setting for enabling or disabling the index lifecycle extension. Defaults to true.
+     */
+    public static final Setting<Boolean> INDEX_LIFECYCLE_ENABLED = Setting.boolSetting("xpack.ilm.enabled", true,
+        Setting.Property.NodeScope);
+
     /** Setting for enabling or disabling TLS. Defaults to false. */
     public static final Setting<Boolean> TRANSPORT_SSL_ENABLED = Setting.boolSetting("xpack.security.transport.ssl.enabled", false,
             Property.NodeScope);
@@ -132,7 +139,7 @@ public class XPackSettings {
      * Do not allow insecure hashing algorithms to be used for password hashing
      */
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
-        "xpack.security.authc.password_hashing.algorithm", "bcrypt", Function.identity(), (v, s) -> {
+        "xpack.security.authc.password_hashing.algorithm", "bcrypt", Function.identity(), v -> {
         if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
             throw new IllegalArgumentException("Invalid algorithm: " + v + ". Valid values for password hashing are " +
                 Hasher.getAvailableAlgoStoredHash().toString());
@@ -147,14 +154,10 @@ public class XPackSettings {
         }
     }, Setting.Property.NodeScope);
 
-    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1.2", "TLSv1.1", "TLSv1");
+    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1.2", "TLSv1.1");
     public static final SSLClientAuth CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED;
     public static final SSLClientAuth HTTP_CLIENT_AUTH_DEFAULT = SSLClientAuth.NONE;
     public static final VerificationMode VERIFICATION_MODE_DEFAULT = VerificationMode.FULL;
-
-    // global settings that apply to everything!
-    public static final String GLOBAL_SSL_PREFIX = "xpack.ssl.";
-    private static final SSLConfigurationSettings GLOBAL_SSL = SSLConfigurationSettings.withPrefix(GLOBAL_SSL_PREFIX);
 
     // http specific settings
     public static final String HTTP_SSL_PREFIX = SecurityField.setting("http.ssl.");
@@ -167,7 +170,6 @@ public class XPackSettings {
     /** Returns all settings created in {@link XPackSettings}. */
     public static List<Setting<?>> getAllSettings() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
-        settings.addAll(GLOBAL_SSL.getAllSettings());
         settings.addAll(HTTP_SSL.getAllSettings());
         settings.addAll(TRANSPORT_SSL.getAllSettings());
         settings.add(SECURITY_ENABLED);
@@ -186,6 +188,7 @@ public class XPackSettings {
         settings.add(USER_SETTING);
         settings.add(ROLLUP_ENABLED);
         settings.add(PASSWORD_HASHING_ALGORITHM);
+        settings.add(INDEX_LIFECYCLE_ENABLED);
         return Collections.unmodifiableList(settings);
     }
 

@@ -82,7 +82,8 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+                                                      ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -108,7 +109,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static final class RoutingFieldType extends TermBasedFieldType {
+    static final class RoutingFieldType extends StringFieldType {
 
         RoutingFieldType() {
         }

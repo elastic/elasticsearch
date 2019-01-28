@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -31,19 +32,20 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
     public void testDoNotFillGaps() throws Exception {
         Settings settings = Settings.builder()
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .build();
         final IndexShard indexShard = newStartedShard(false, settings, new FollowingEngineFactory());
 
         long seqNo = -1;
         for (int i = 0; i < 8; i++) {
             final String id = Long.toString(i);
-            SourceToParse sourceToParse = SourceToParse.source(indexShard.shardId().getIndexName(), "_doc", id,
+            SourceToParse sourceToParse = new SourceToParse(indexShard.shardId().getIndexName(), "_doc", id,
                 new BytesArray("{}"), XContentType.JSON);
             indexShard.applyIndexOperationOnReplica(++seqNo, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
         }
         long seqNoBeforeGap = seqNo;
         seqNo += 8;
-        SourceToParse sourceToParse = SourceToParse.source(indexShard.shardId().getIndexName(), "_doc", "9",
+        SourceToParse sourceToParse = new SourceToParse(indexShard.shardId().getIndexName(), "_doc", "9",
             new BytesArray("{}"), XContentType.JSON);
         indexShard.applyIndexOperationOnReplica(seqNo, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
 

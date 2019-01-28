@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.LoggedExec
-
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -38,6 +36,7 @@ integTestCluster {
     dependsOn copyKeyCerts
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.ml.enabled', 'true'
+    setting 'xpack.watcher.enabled', 'false'
     setting 'logger.org.elasticsearch.xpack.ml.datafeed', 'TRACE'
     setting 'xpack.monitoring.enabled', 'false'
     setting 'xpack.security.authc.token.enabled', 'true'
@@ -47,6 +46,7 @@ integTestCluster {
     setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
     setting 'xpack.security.audit.enabled', 'true'
     setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.ml.min_disk_space_off_heap', '200mb'
 
     keystoreSetting 'bootstrap.password', 'x-pack-test-password'
     keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'

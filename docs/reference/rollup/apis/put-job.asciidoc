@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-put-job]]
-=== Create Job API
+=== Create job API
 ++++
-<titleabbrev>Create Job</titleabbrev>
+<titleabbrev>Create job</titleabbrev>
 ++++
 
 experimental[]
@@ -13,7 +13,7 @@ started with the <<rollup-start-job,Start Job API>>.
 
 ==== Request
 
-`PUT _xpack/rollup/job/<job_id>`
+`PUT _rollup/job/<job_id>`
 
 //===== Description
 
@@ -59,7 +59,7 @@ The following example creates a rollup job named "sensor", targeting the "sensor
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/rollup/job/sensor
+PUT _rollup/job/sensor
 {
     "index_pattern": "sensor-*",
     "rollup_index": "sensor_rollup",

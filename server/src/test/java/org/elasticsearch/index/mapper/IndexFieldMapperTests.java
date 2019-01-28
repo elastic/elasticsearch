@@ -44,10 +44,11 @@ public class IndexFieldMapperTests extends ESSingleNodeTestCase {
     public void testDefaultDisabledIndexMapper() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject());
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "value")
                         .endObject()),

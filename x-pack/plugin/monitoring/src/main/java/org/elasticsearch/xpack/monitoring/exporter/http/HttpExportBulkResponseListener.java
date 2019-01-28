@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
@@ -23,7 +23,7 @@ import java.util.Objects;
  */
 class HttpExportBulkResponseListener implements ResponseListener {
 
-    private static final Logger logger = Loggers.getLogger(HttpExportBulkResponseListener.class);
+    private static final Logger logger = LogManager.getLogger(HttpExportBulkResponseListener.class);
 
     /**
      * Singleton instance.

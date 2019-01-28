@@ -20,7 +20,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -116,10 +115,6 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         if (pageSize <= 0) {
             throw new IllegalArgumentException("Page size is mandatory and  must be a positive long");
         }
-        // Cron doesn't have a parse helper method to see if the cron is valid,
-        // so just construct a temporary cron object and if the cron is bad, it'll
-        // throw an exception
-        Cron testCron = new Cron(cron);
         if (groupConfig == null && (metricsConfig == null || metricsConfig.isEmpty())) {
             throw new IllegalArgumentException("At least one grouping or metric must be configured");
         }
@@ -222,7 +217,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
                 builder.endArray();
             }
             if (timeout != null) {
-                builder.field(TIMEOUT, timeout);
+                builder.field(TIMEOUT, timeout.getStringRep());
             }
             builder.field(PAGE_SIZE, pageSize);
         }

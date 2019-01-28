@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringStringProcessor.BinaryStringStringOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.function.BiFunction;
@@ -19,8 +19,8 @@ import java.util.function.BiFunction;
  */
 public class Position extends BinaryStringStringFunction {
 
-    public Position(Location location, Expression left, Expression right) {
-        super(location, left, right);
+    public Position(Source source, Expression left, Expression right) {
+        super(source, left, right);
     }
 
     @Override
@@ -30,14 +30,14 @@ public class Position extends BinaryStringStringFunction {
 
     @Override
     protected Position replaceChildren(Expression newLeft, Expression newRight) {
-        return new Position(location(), newLeft, newRight);
+        return new Position(source(), newLeft, newRight);
     }
 
     @Override
-    protected ProcessorDefinition makeProcessorDefinition() {
-        return new BinaryStringStringProcessorDefinition(location(), this,
-                ProcessorDefinitions.toProcessorDefinition(left()),
-                ProcessorDefinitions.toProcessorDefinition(right()),
+    protected Pipe makePipe() {
+        return new BinaryStringStringPipe(source(), this,
+                Expressions.pipe(left()),
+                Expressions.pipe(right()),
                 BinaryStringStringOperation.POSITION);
     }
 
@@ -45,5 +45,4 @@ public class Position extends BinaryStringStringFunction {
     protected NodeInfo<Position> info() {
         return NodeInfo.create(this, Position::new, left(), right());
     }
-
 }

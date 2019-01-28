@@ -441,7 +441,7 @@ setup:
   - gte: { hits.hits.1.inner_hits.sub_hits.hits.hits.1._seq_no: 0 }
   - gte: { hits.hits.1.inner_hits.sub_hits.hits.hits.1._primary_term: 1 }
   - match: { hits.hits.2._index: test }
-  - match: { hits.hits.2._type: test }
+  - match: { hits.hits.2._type: _doc }
   - match: { hits.hits.2.fields.numeric_group: [25] }
   - match: { hits.hits.2.sort: [10] }
   - match: { hits.hits.2._id: "4" }

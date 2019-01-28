@@ -111,26 +111,32 @@ public class ClientYamlTestExecutionContext {
             requestParams.put("type", "_doc");
         }
 
-        if (apiName.equals("bulk") && esVersion().before(Version.V_7_0_0)) {
-            for (int i = 0; i < bodies.size(); i++) {
-                Map<String, Object> body = bodies.get(i);
-                Map<String, Object> action_metadata;
-                if (body.containsKey("index")) {
-                    action_metadata = (Map<String, Object>) body.get("index");
-                    i++;
-                } else if (body.containsKey("create")) {
-                    action_metadata = (Map<String, Object>) body.get("create");
-                    i++;
-                } else if (body.containsKey("update")) {
-                    action_metadata = (Map<String, Object>) body.get("update");
-                    i++;
-                } else if (body.containsKey("delete")) {
-                    action_metadata = (Map<String, Object>) body.get("delete");
-                } else {
-                    throw new IllegalStateException("Error getting action_metadata");
-                }
-                if (action_metadata.containsKey("_type") == false) {
-                    action_metadata.put("_type", "_doc");
+        if (apiName.equals("bulk") && esVersion().before(Version.V_7_0_0) && requestParams.containsKey("type") == false) {
+            if (requestParams.containsKey("index")) {
+                requestParams.put("type", "_doc");
+            } else {
+                for (int i = 0; i < bodies.size(); i++) {
+                    Map<String, Object> body = bodies.get(i);
+                    Map<String, Object> action_metadata;
+                    if (body.containsKey("index")) {
+                        action_metadata = (Map<String, Object>) body.get("index");
+                        i++;
+                    } else if (body.containsKey("create")) {
+                        action_metadata = (Map<String, Object>) body.get("create");
+                        i++;
+                    } else if (body.containsKey("update")) {
+                        action_metadata = (Map<String, Object>) body.get("update");
+                        i++;
+                    } else if (body.containsKey("delete")) {
+                        action_metadata = (Map<String, Object>) body.get("delete");
+                    } else {
+                        // action metadata is malformed so leave it malformed since
+                        // the test is probably testing for malformed action metadata
+                        continue;
+                    }
+                    if (action_metadata.containsKey("_type") == false) {
+                        action_metadata.put("_type", "_doc");
+                    }
                 }
             }
         }

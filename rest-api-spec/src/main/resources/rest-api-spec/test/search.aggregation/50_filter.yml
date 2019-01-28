@@ -32,6 +32,10 @@ setup:
 ---
 "Filter aggs with terms lookup and ensure it's cached":
   # Because the filter agg rewrites the terms lookup in the rewrite phase the request can be cached
+  - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
+
   - do:
       search:
         rest_total_hits_as_int: true

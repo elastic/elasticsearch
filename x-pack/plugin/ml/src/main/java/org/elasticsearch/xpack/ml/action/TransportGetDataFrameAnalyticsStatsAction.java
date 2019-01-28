@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -66,7 +65,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
                 List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats = new ArrayList(response.getResources().results().size());
                 response.getResources().results().forEach(c -> stats.add(buildStats(c.getId(), tasks, state)));
                 listener.onResponse(new GetDataFrameAnalyticsStatsAction.Response(new QueryPage<>(stats, stats.size(),
-                    new ParseField("stats"))));
+                    GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)));
             },
             listener::onFailure
         );

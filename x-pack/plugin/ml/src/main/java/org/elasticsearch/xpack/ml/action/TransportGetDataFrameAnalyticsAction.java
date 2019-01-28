@@ -31,7 +31,7 @@ public class TransportGetDataFrameAnalyticsAction extends AbstractTransportGetRe
 
     @Override
     protected ParseField getResultsField() {
-        return GetDataFrameAnalyticsAction.Response.CONFIGS;
+        return GetDataFrameAnalyticsAction.Response.RESULTS_FIELD;
     }
 
     @Override

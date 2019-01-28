@@ -25,7 +25,7 @@ public class GetDataFrameAnalyticsAction extends Action<GetDataFrameAnalyticsAct
 
     @Override
     public Response newResponse() {
-        return new Response(new QueryPage<>(Collections.emptyList(), 0, Response.CONFIGS));
+        return new Response(new QueryPage<>(Collections.emptyList(), 0, Response.RESULTS_FIELD));
     }
 
     public static class Request extends AbstractGetResourcesRequest {
@@ -38,7 +38,7 @@ public class GetDataFrameAnalyticsAction extends Action<GetDataFrameAnalyticsAct
 
     public static class Response extends AbstractGetResourcesResponse<DataFrameAnalyticsConfig> {
 
-        public static final ParseField CONFIGS = new ParseField("configs");
+        public static final ParseField RESULTS_FIELD = new ParseField("data_frame_analytics");
 
         public Response(QueryPage<DataFrameAnalyticsConfig> analytics) {
             super(analytics);

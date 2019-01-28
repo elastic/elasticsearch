@@ -318,21 +318,28 @@ public class MetaDataCreateIndexService {
                             if (mappings.containsKey(cursor.key)) {
                                 XContentHelper.mergeDefaults(mappings.get(cursor.key),
                                     MapperService.parseMapping(xContentRegistry, mappingString));
-                            } else if (mappings.size() > 0 && template.mappings().size() == 1 &&
-                                    (cursor.key.equals(MapperService.SINGLE_MAPPING_NAME) ||
-                                            mappings.containsKey(MapperService.SINGLE_MAPPING_NAME))) {
-                                // The user is mixing a typeless index creation call with a typed template or vice-versa.
-                                // In such cases we give precedence to the index creation call.
+                            } else if (mappings.size() == 1 && cursor.key.equals(MapperService.SINGLE_MAPPING_NAME)) {
+                                // Typeless template with typed mapping
                                 Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mappingString);
-                                assert templateMapping.size() == 1 : templateMapping.size();
+                                assert templateMapping.size() == 1 : templateMapping;
                                 assert cursor.key.equals(templateMapping.keySet().iterator().next()) :
                                     cursor.key + " != " + templateMapping;
-                                for (Map.Entry<String, Map<String, Object>> mappingEntry : mappings.entrySet()) {
-                                    templateMapping = Collections.singletonMap(
-                                            mappingEntry.getKey(),                       // reuse type name from the mapping
-                                            templateMapping.values().iterator().next()); // but actual mappings from the template
-                                    XContentHelper.mergeDefaults(mappingEntry.getValue(), templateMapping);
-                                }
+                                Map.Entry<String, Map<String, Object>> mappingEntry = mappings.entrySet().iterator().next();
+                                templateMapping = Collections.singletonMap(
+                                        mappingEntry.getKey(),                       // reuse type name from the mapping
+                                        templateMapping.values().iterator().next()); // but actual mappings from the template
+                                XContentHelper.mergeDefaults(mappingEntry.getValue(), templateMapping);
+                            } else if (template.mappings().size() == 1 && mappings.containsKey(MapperService.SINGLE_MAPPING_NAME)) {
+                                // Typed template with typeless mapping
+                                Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mappingString);
+                                assert templateMapping.size() == 1 : templateMapping;
+                                assert cursor.key.equals(templateMapping.keySet().iterator().next()) :
+                                    cursor.key + " != " + templateMapping;
+                                Map<String, Object> mapping = mappings.get(MapperService.SINGLE_MAPPING_NAME);
+                                templateMapping = Collections.singletonMap(
+                                        MapperService.SINGLE_MAPPING_NAME,           // make template mapping typeless
+                                        templateMapping.values().iterator().next());
+                                XContentHelper.mergeDefaults(mapping, templateMapping);
                             } else {
                                 mappings.put(cursor.key,
                                     MapperService.parseMapping(xContentRegistry, mappingString));

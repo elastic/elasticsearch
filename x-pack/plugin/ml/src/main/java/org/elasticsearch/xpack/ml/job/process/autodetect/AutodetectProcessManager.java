@@ -816,7 +816,7 @@ public class AutodetectProcessManager {
         }
 
         @Override
-        public void execute(Runnable command) {
+        public synchronized void execute(Runnable command) {
             if (isShutdown()) {
                 EsRejectedExecutionException rejected = new EsRejectedExecutionException("autodetect worker service has shutdown", true);
                 if (command instanceof AbstractRunnable) {
@@ -846,15 +846,17 @@ public class AutodetectProcessManager {
                     }
                 }
 
-                // if shutdown with tasks pending notify the handlers
-                if (queue.isEmpty() == false) {
-                    List<Runnable> notExecuted = new ArrayList<>();
-                    queue.drainTo(notExecuted);
+                synchronized (this) {
+                    // if shutdown with tasks pending notify the handlers
+                    if (queue.isEmpty() == false) {
+                        List<Runnable> notExecuted = new ArrayList<>();
+                        queue.drainTo(notExecuted);
 
-                    for (Runnable runnable : notExecuted) {
-                        if (runnable instanceof AbstractRunnable) {
-                            ((AbstractRunnable) runnable).onRejection(
+                        for (Runnable runnable : notExecuted) {
+                            if (runnable instanceof AbstractRunnable) {
+                                ((AbstractRunnable) runnable).onRejection(
                                     new EsRejectedExecutionException("unable to process as autodetect worker service has shutdown", true));
+                            }
                         }
                     }
                 }

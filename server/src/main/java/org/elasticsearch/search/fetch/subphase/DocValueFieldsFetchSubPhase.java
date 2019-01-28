@@ -97,7 +97,12 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
             MappedFieldType fieldType = context.mapperService().fullName(field);
             if (fieldType != null) {
                 final IndexFieldData<?> indexFieldData = context.getForField(fieldType);
-                boolean isNanosecond = ((IndexNumericFieldData) indexFieldData).getNumericType() == NumericType.DATE_NANOSECONDS;
+                final boolean isNanosecond;
+                if (indexFieldData instanceof IndexNumericFieldData) {
+                    isNanosecond = ((IndexNumericFieldData) indexFieldData).getNumericType() == NumericType.DATE_NANOSECONDS;
+                } else {
+                    isNanosecond = false;
+                }
                 final DocValueFormat format;
                 if (fieldAndFormat.format == null) {
                     format = null;

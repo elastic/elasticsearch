@@ -167,7 +167,7 @@ public class PipelineAggregationHelperTests extends ESTestCase {
                 factory = new DateHistogramAggregatorFactory("name", mock(ValuesSourceConfig.class), 0L,
                     mock(InternalOrder.class), false, 0L, mock(Rounding.class), mock(Rounding.class),
                     mock(ExtendedBounds.class), mock(SearchContext.class), mock(AggregatorFactory.class),
-                    new AggregatorFactories.Builder(), Collections.emptyMap(), false);
+                    new AggregatorFactories.Builder(), Collections.emptyMap());
                 break;
             case 2:
             default:

@@ -88,6 +88,12 @@ machine learning APIs and in advanced job configuration options in Kibana.
 
 * <<ml-delete-expired-data,Delete expired data>>
 
+[float]
+[[ml-set-upgrade-mode-endpoint]]
+=== Set Upgrade Mode
+
+* <<set-upgrade-mode, Set Upgrade Mode>>
+
 //ADD
 include::post-calendar-event.asciidoc[]
 include::put-calendar-job.asciidoc[]
@@ -133,6 +139,7 @@ include::get-record.asciidoc[]
 include::open-job.asciidoc[]
 //POST
 include::post-data.asciidoc[]
+include::set-upgrade-mode.asciidoc[]
 //PREVIEW
 include::preview-datafeed.asciidoc[]
 //REVERT

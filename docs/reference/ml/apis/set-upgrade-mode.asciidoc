@@ -1,0 +1,85 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-set-upgrade-mode]]
+=== Set Upgrade Mode API
+++++
+<titleabbrev>Set Upgrade mode</titleabbrev>
+++++
+
+This sets a cluster wide setting for preparing {ml} indices for an upgrade.
+
+==== Request
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+POST /_ml/set_upgrade_mode?enabled=false&timeout=10m
+--------------------------------------------------
+// CONSOLE
+// TEST
+// TEARDOWN
+
+//////////////////////////
+
+
+`POST _ml/set_upgrade_mode`
+
+==== Description
+
+Before indices related to {ml} jobs and {dfeeds} can be locked and upgraded, all
+currently running jobs and {dfeeds} should be paused. When `enabled=true` this API
+pauses all job and {dfeed} tasks. This allows a clean upgrade for {ml} related
+indices without failing jobs. Calling `enabled=false` will then
+allow {ml} tasks to start executing normally again.
+
+You can see the current value for `upgrade_mode` via the <<get-ml-info, Get {ml} Info>>
+endpoint.
+
+IMPORTANT:  No new {ml} job may be opened while this setting is set to `enabled=true`.
+
+==== Query Parameters
+
+`enabled`::
+  (boolean) When `true` this enables `upgrade_mode`.
+  Defaults to `false`
+
+`timeout`::
+  (time) The time to wait for the request to be completed.
+  The default value is 30 seconds.
+
+==== Authorization
+
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+
+
+==== Examples
+
+The following example enables `upgrade_mode` for the cluster
+
+[source,js]
+--------------------------------------------------
+POST _ml/set_upgrade_mode?enabled=true&timeout=10m
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+When the call is successful, an acknowledged response is returned
+[source,js]
+----
+{
+  "acknowledged": true
+}
+----
+// TESTRESPONSE
+
+
+When upgrading is complete, be sure to set `enabled=false` or
+{ml} jobs will not start running again.
+[source,js]
+--------------------------------------------------
+POST _ml/set_upgrade_mode?enabled=false&timeout=10m
+--------------------------------------------------
+// CONSOLE
+// TEST

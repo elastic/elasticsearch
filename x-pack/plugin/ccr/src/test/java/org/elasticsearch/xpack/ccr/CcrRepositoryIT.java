@@ -304,8 +304,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         }
 
         settingsRequest = new ClusterUpdateSettingsRequest();
-        ByteSizeValue nullValue = null;
-        settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.RECOVERY_MAX_BYTES_PER_SECOND.getKey(), nullValue));
+        ByteSizeValue defaultValue = CcrSettings.RECOVERY_MAX_BYTES_PER_SECOND.getDefault(Settings.EMPTY);
+        settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.RECOVERY_MAX_BYTES_PER_SECOND.getKey(), defaultValue));
         if (followerRateLimiting) {
             assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
         } else {
@@ -379,8 +379,9 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         }
 
         settingsRequest = new ClusterUpdateSettingsRequest();
+        TimeValue defaultValue = CcrSettings.INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.getDefault(Settings.EMPTY);
         settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.getKey(),
-            (TimeValue) null));
+            defaultValue));
         assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
     }
 

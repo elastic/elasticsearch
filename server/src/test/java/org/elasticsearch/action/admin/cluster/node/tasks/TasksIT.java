@@ -291,7 +291,7 @@ public class TasksIT extends ESIntegTestCase {
         }
     }
 
-
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37893")
     public void testTransportBulkTasks() {
         registerTaskManageListeners(BulkAction.NAME);  // main task
         registerTaskManageListeners(BulkAction.NAME + "[s]");  // shard task

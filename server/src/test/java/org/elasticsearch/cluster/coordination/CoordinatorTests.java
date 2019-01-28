@@ -1038,7 +1038,7 @@ public class CoordinatorTests extends ESTestCase {
                 "*failed to join*"));
         Logger joinLogger = LogManager.getLogger(JoinHelper.class);
         Loggers.addAppender(joinLogger, mockAppender);
-        cluster1.runFor(10000, "failing join validation");
+        cluster1.runFor(DEFAULT_STABILISATION_TIME, "failing join validation");
         try {
             mockAppender.assertAllExpectationsMatched();
         } finally {

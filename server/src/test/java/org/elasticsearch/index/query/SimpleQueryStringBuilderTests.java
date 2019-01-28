@@ -58,6 +58,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -737,6 +738,15 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 .add(new TermQuery(new Term(STRING_FIELD_NAME, "second")), BooleanClause.Occur.MUST)
                 .build();
         assertEquals(expected, query);
+    }
+
+    public void testNegativeFieldBoost() {
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+            () -> new SimpleQueryStringBuilder("the quick fox")
+                .field(STRING_FIELD_NAME, -1.0f)
+                .field(STRING_FIELD_NAME_2)
+                .toQuery(createShardContext()));
+        assertThat(exc.getMessage(), containsString("negative [boost]"));
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

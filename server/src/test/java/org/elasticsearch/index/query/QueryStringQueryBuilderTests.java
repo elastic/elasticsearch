@@ -59,6 +59,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
 
@@ -1486,6 +1487,15 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .toQuery(createShardContext());
         Query expected = new PrefixQuery(new Term(STRING_FIELD_NAME, "quick"));
         assertEquals(expected, query);
+    }
+
+    public void testNegativeFieldBoost() {
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+            () -> new QueryStringQueryBuilder("the quick fox")
+                .field(STRING_FIELD_NAME, -1.0f)
+                .field(STRING_FIELD_NAME_2)
+                .toQuery(createShardContext()));
+        assertThat(exc.getMessage(), CoreMatchers.containsString("negative [boost]"));
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

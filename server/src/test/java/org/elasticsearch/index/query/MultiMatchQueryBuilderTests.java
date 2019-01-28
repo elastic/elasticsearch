@@ -483,6 +483,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertEquals(expected, query);
     }
 
+<<<<<<< HEAD
     public void testDisMaxDeprecation() throws Exception {
         String json =
                 "{\n" +
@@ -494,6 +495,15 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
 
         parseQuery(json);
         assertWarnings("Deprecated field [use_dis_max] used, replaced by [use tie_breaker instead]");
+=======
+    public void testNegativeFieldBoost() {
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+            () -> new MultiMatchQueryBuilder("the quick fox")
+                .field(STRING_FIELD_NAME, -1.0f)
+                .field(STRING_FIELD_NAME_2)
+                .toQuery(createShardContext()));
+        assertThat(exc.getMessage(), containsString("negative [boost]"));
+>>>>>>> 89e57f53acc... Forbid negative field boosts in analyzed queries
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

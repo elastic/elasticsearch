@@ -34,7 +34,6 @@
                 "index" : {
                   "index" : {
                     "index" : "my-index",
-                    "doc_type" : "my-type",
                     "doc_id" : "my-id"
                   }
                 }
@@ -47,7 +46,6 @@
   - do:
       get:
         index: my-index
-        type: my-type
         id: my-id
 
   - match: { _source.first.foo: "bar" }

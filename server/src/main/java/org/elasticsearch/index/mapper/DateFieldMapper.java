@@ -247,7 +247,7 @@ public class DateFieldMapper extends FieldMapper {
         }
 
         long parse(String value) {
-            return DateFormatters.toZonedDateTime(dateTimeFormatter().parse(value)).toInstant().toEpochMilli();
+            return DateFormatters.from(dateTimeFormatter().parse(value)).toInstant().toEpochMilli();
         }
 
         @Override

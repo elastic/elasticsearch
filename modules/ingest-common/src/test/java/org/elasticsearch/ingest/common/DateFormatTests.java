@@ -19,27 +19,51 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class DateFormatTests extends ESTestCase {
 
-    public void testParseJoda() {
-        Function<String, DateTime> jodaFunction = DateFormat.Java.getFunction("MMM dd HH:mm:ss Z",
+    public void testParseJava() {
+        Function<String, DateTime> javaFunction = DateFormat.Java.getFunction("MMM dd HH:mm:ss Z",
                 DateTimeZone.forOffsetHours(-8), Locale.ENGLISH);
-        assertThat(Instant.ofEpochMilli(jodaFunction.apply("Nov 24 01:29:01 -0800").getMillis())
+        assertThat(Instant.ofEpochMilli(javaFunction.apply("Nov 24 01:29:01 -0800").getMillis())
                         .atZone(ZoneId.of("GMT-8"))
                         .format(DateTimeFormatter.ofPattern("MM dd HH:mm:ss", Locale.ENGLISH)),
                 equalTo("11 24 01:29:01"));
+    }
+
+    public void testParseJodaDefaultYear() {
+        String format = randomFrom("dd/MM");
+        DateTimeZone timezone = DateUtils.zoneIdToDateTimeZone(ZoneId.of("Europe/Amsterdam"));
+        Function<String, DateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ENGLISH);
+        int year = ZonedDateTime.now(ZoneOffset.UTC).getYear();
+        DateTime dateTime = javaFunction.apply("12/06");
+        assertThat(dateTime.getYear(), is(year));
+        assertThat(dateTime.toString(), is(year + "-06-12T00:00:00.000+02:00"));
+    }
+
+    public void testParseJavaDefaultYear() {
+        String format = randomFrom("8dd/MM");
+        DateTimeZone timezone = DateUtils.zoneIdToDateTimeZone(ZoneId.of("Europe/Amsterdam"));
+        Function<String, DateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ENGLISH);
+        int year = ZonedDateTime.now(ZoneOffset.UTC).getYear();
+        DateTime dateTime = javaFunction.apply("12/06");
+        assertThat(dateTime.getYear(), is(year));
+        assertThat(dateTime.toString(), is(year + "-06-12T00:00:00.000+02:00"));
     }
 
     public void testParseUnixMs() {

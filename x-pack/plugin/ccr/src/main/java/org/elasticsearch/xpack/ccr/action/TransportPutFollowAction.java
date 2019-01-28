@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
@@ -175,12 +176,12 @@ public final class TransportPutFollowAction
 
                 @Override
                 public void onResponse(PutFollowAction.Response response) {
-                    logger.debug("put follow completed with {}", response);
+                    logger.debug("put follow {} completed with {}", request, response);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.debug("put follow failed during the restore process", e);
+                    logger.debug(() -> new ParameterizedMessage("put follow {} failed during the restore process", request), e);
                 }
             };
         } else {
@@ -199,7 +200,7 @@ public final class TransportPutFollowAction
                 } else if (restoreInfo.failedShards() == 0) {
                     initiateFollowing(clientWithHeaders, request, listener);
                 } else {
-                    // Has failed shards
+                    assert restoreInfo.failedShards() > 0 : "Should have failed shards";
                     listener.onResponse(new PutFollowAction.Response(true, false, false));
                 }
             }

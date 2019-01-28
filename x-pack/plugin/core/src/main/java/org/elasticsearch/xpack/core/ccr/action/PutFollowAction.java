@@ -248,6 +248,16 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
         public int hashCode() {
             return Objects.hash(remoteCluster, leaderIndex, waitForActiveShards, followRequest);
         }
+
+        @Override
+        public String toString() {
+            return "PutFollowAction.Request{" +
+                "remoteCluster='" + remoteCluster + '\'' +
+                ", leaderIndex='" + leaderIndex + '\'' +
+                ", waitForActiveShards=" + waitForActiveShards +
+                ", followRequest=" + followRequest +
+                '}';
+        }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {

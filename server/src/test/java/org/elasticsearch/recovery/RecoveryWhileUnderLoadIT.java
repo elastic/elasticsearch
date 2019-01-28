@@ -115,7 +115,6 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37895")
     public void testRecoverWhileUnderLoadAllocateReplicasRelocatePrimariesTest() throws Exception {
         logger.info("--> creating test index ...");
         int numberOfShards = numberOfShards();
@@ -300,8 +299,11 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         SearchResponse[] iterationResults = new SearchResponse[iterations];
         boolean error = false;
         for (int i = 0; i < iterations; i++) {
-            SearchResponse searchResponse = client().prepareSearch().setSize((int) numberOfDocs).setQuery(matchAllQuery())
-                    .addSort("id", SortOrder.ASC).get();
+            SearchResponse searchResponse = client().prepareSearch()
+                .setSize((int) numberOfDocs)
+                .setQuery(matchAllQuery())
+                .setTrackTotalHits(true)
+                .addSort("id", SortOrder.ASC).get();
             logSearchResponse(numberOfShards, numberOfDocs, i, searchResponse);
             iterationResults[i] = searchResponse;
             if (searchResponse.getHits().getTotalHits().value != numberOfDocs) {
@@ -340,7 +342,11 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             assertTrue(awaitBusy(() -> {
                                 boolean errorOccurred = false;
                                 for (int i = 0; i < iterations; i++) {
-                                    SearchResponse searchResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
+                                    SearchResponse searchResponse = client().prepareSearch()
+                                        .setTrackTotalHits(true)
+                                        .setSize(0)
+                                        .setQuery(matchAllQuery())
+                                        .get();
                                     if (searchResponse.getHits().getTotalHits().value != numberOfDocs) {
                                         errorOccurred = true;
                                     }

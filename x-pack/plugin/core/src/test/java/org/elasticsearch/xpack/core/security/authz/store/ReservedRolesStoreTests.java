@@ -87,6 +87,7 @@ import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
@@ -893,6 +894,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(PutFilterAction.NAME, request), is(true));
         assertThat(role.cluster().check(PutJobAction.NAME, request), is(true));
         assertThat(role.cluster().check(RevertModelSnapshotAction.NAME, request), is(true));
+        assertThat(role.cluster().check(SetUpgradeModeAction.NAME, request), is(true));
         assertThat(role.cluster().check(StartDatafeedAction.NAME, request), is(true));
         assertThat(role.cluster().check(StopDatafeedAction.NAME, request), is(true));
         assertThat(role.cluster().check(UpdateCalendarJobAction.NAME, request), is(true));
@@ -963,6 +965,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(PutFilterAction.NAME, request), is(false));
         assertThat(role.cluster().check(PutJobAction.NAME, request), is(false));
         assertThat(role.cluster().check(RevertModelSnapshotAction.NAME, request), is(false));
+        assertThat(role.cluster().check(SetUpgradeModeAction.NAME, request), is(false));
         assertThat(role.cluster().check(StartDatafeedAction.NAME, request), is(false));
         assertThat(role.cluster().check(StopDatafeedAction.NAME, request), is(false));
         assertThat(role.cluster().check(UpdateCalendarJobAction.NAME, request), is(false));

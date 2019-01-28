@@ -61,6 +61,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             // Policy with the same name must exist in follower cluster too:
             putILMPolicy(policyName, "50GB", null, TimeValue.timeValueHours(7*24));
             followIndex(indexName, indexName);
+            ensureGreen(indexName);
             // Aliases are not copied from leader index, so we need to add that for the rollover action in follower cluster:
             client().performRequest(new Request("PUT", "/" + indexName + "/_alias/logs"));
 
@@ -116,6 +117,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         } else if ("follow".equals(targetCluster)) {
             createNewSingletonPolicy("unfollow-only", "hot", new UnfollowAction(), TimeValue.ZERO);
             followIndex(indexName, indexName);
+            ensureGreen(indexName);
 
             // Create the repository before taking the snapshot.
             Request request = new Request("PUT", "/_snapshot/repo");

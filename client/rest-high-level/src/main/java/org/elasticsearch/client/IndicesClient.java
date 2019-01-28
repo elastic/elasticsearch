@@ -27,8 +27,6 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -37,8 +35,8 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
+import org.elasticsearch.client.indices.GetFieldMappingsRequest;
+import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -59,6 +57,8 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryReques
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
+import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
@@ -120,9 +120,10 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public CreateIndexResponse create(CreateIndexRequest createIndexRequest, RequestOptions options) throws IOException {
+    public CreateIndexResponse create(CreateIndexRequest createIndexRequest,
+                                      RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(createIndexRequest, IndicesRequestConverters::createIndex, options,
-                CreateIndexResponse::fromXContent, emptySet());
+            CreateIndexResponse::fromXContent, emptySet());
     }
 
     /**
@@ -133,9 +134,54 @@ public final class IndicesClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void createAsync(CreateIndexRequest createIndexRequest, RequestOptions options, ActionListener<CreateIndexResponse> listener) {
+    public void createAsync(CreateIndexRequest createIndexRequest,
+                            RequestOptions options,
+                            ActionListener<CreateIndexResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(createIndexRequest, IndicesRequestConverters::createIndex, options,
-                CreateIndexResponse::fromXContent, listener, emptySet());
+            CreateIndexResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Creates an index using the Create Index API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html">
+     * Create Index API on elastic.co</a>
+     * @param createIndexRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     *
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The
+     * method {@link #create(CreateIndexRequest, RequestOptions)} should be used instead, which accepts a new
+     * request object.
+     */
+    @Deprecated
+    public org.elasticsearch.action.admin.indices.create.CreateIndexResponse create(
+            org.elasticsearch.action.admin.indices.create.CreateIndexRequest createIndexRequest,
+            RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(createIndexRequest,
+            IndicesRequestConverters::createIndex, options,
+            org.elasticsearch.action.admin.indices.create.CreateIndexResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously creates an index using the Create Index API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html">
+     * Create Index API on elastic.co</a>
+     * @param createIndexRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     *
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The
+     * method {@link #createAsync(CreateIndexRequest, RequestOptions, ActionListener)} should be used instead,
+     * which accepts a new request object.
+     */
+    @Deprecated
+    public void createAsync(org.elasticsearch.action.admin.indices.create.CreateIndexRequest createIndexRequest,
+                            RequestOptions options,
+                            ActionListener<org.elasticsearch.action.admin.indices.create.CreateIndexResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(createIndexRequest,
+            IndicesRequestConverters::createIndex, options,
+            org.elasticsearch.action.admin.indices.create.CreateIndexResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -241,11 +287,16 @@ public final class IndicesClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
+     *
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
+     * {@link #getFieldMapping(GetFieldMappingsRequest, RequestOptions)} should be used instead, which accepts a new request object.
      */
-    public GetFieldMappingsResponse getFieldMapping(GetFieldMappingsRequest getFieldMappingsRequest,
-                                                    RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(getFieldMappingsRequest, IndicesRequestConverters::getFieldMapping, options,
-            GetFieldMappingsResponse::fromXContent, emptySet());
+    @Deprecated
+    public org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse getFieldMapping(
+            org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest,
+            RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(getFieldMappingsRequest, IndicesRequestConverters::getFieldMapping,
+            options, org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse::fromXContent, emptySet());
     }
 
     /**
@@ -255,9 +306,45 @@ public final class IndicesClient {
      * @param getFieldMappingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     *
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The
+     * method {@link #getFieldMappingAsync(GetFieldMappingsRequest, RequestOptions, ActionListener)} should be used instead,
+     * which accepts a new request object.
      */
-    public void getFieldMappingAsync(GetFieldMappingsRequest getFieldMappingsRequest, RequestOptions options,
-                                     ActionListener<GetFieldMappingsResponse> listener) {
+    @Deprecated
+    public void getFieldMappingAsync(org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest,
+            RequestOptions options,
+            ActionListener<org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(getFieldMappingsRequest, IndicesRequestConverters::getFieldMapping, options,
+            org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Retrieves the field mappings on an index or indices using the Get Field Mapping API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-field-mapping.html">
+     * Get Field Mapping API on elastic.co</a>
+     * @param getFieldMappingsRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetFieldMappingsResponse getFieldMapping(GetFieldMappingsRequest getFieldMappingsRequest,
+            RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(getFieldMappingsRequest, IndicesRequestConverters::getFieldMapping,
+            options, GetFieldMappingsResponse::fromXContent, emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously retrieves the field mappings on an index or indices using the Get Field Mapping API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-field-mapping.html">
+     * Get Field Mapping API on elastic.co</a>
+     * @param getFieldMappingsRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getFieldMappingAsync(GetFieldMappingsRequest getFieldMappingsRequest,
+            RequestOptions options, ActionListener<GetFieldMappingsResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(getFieldMappingsRequest, IndicesRequestConverters::getFieldMapping, options,
             GetFieldMappingsResponse::fromXContent, listener, emptySet());
     }

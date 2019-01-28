@@ -338,4 +338,8 @@ if (isEclipse == false || project.path == ":server-tests") {
   }
   check.dependsOn integTest
   integTest.mustRunAfter test
+  task internalClusterTest {
+     dependsOn integTest    
+  }
 }
+

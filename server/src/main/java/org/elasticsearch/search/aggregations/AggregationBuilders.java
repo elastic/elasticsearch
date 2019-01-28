@@ -255,7 +255,7 @@ public class AggregationBuilders {
     /**
      * Create a new {@link InternalGeoTileGrid} aggregation with the given name.
      */
-    public static GeoTileGridAggregationBuilder geoTileGrid(String name) {
+    public static GeoTileGridAggregationBuilder geotileGrid(String name) {
         return new GeoTileGridAggregationBuilder(name);
     }
 

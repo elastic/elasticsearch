@@ -82,6 +82,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -538,6 +539,15 @@ public class SnapshotsServiceTests extends ESTestCase {
                                     actionFilters,
                                     indexNameExpressionResolver)),
                     new GlobalCheckpointSyncAction(
+                            settings,
+                            transportService,
+                            clusterService,
+                            indicesService,
+                            threadPool,
+                            shardStateAction,
+                            actionFilters,
+                            indexNameExpressionResolver),
+                    new RetentionLeaseSyncAction(
                             settings,
                             transportService,
                             clusterService,

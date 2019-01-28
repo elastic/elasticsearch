@@ -1,9 +1,10 @@
 [[cross-cluster-configuring]]
-=== Cross Cluster Search and Security
+=== Cross cluster search and security
 
-{ref}/modules-cross-cluster-search.html[Cross Cluster Search] enables
+{ref}/modules-cross-cluster-search.html[Cross cluster search] enables
 federated search across multiple clusters. When using cross cluster search
-with secured clusters, all clusters must have {security} enabled.
+with secured clusters, all clusters must have the {es} {security-features}
+enabled.
 
 The local cluster (the cluster used to initiate cross cluster search) must be
 allowed to connect to the remote clusters, which means that the CA used to
@@ -22,8 +23,8 @@ This feature was added as Beta in {es} `v5.3` with further improvements made in
 
 To use cross cluster search with secured clusters:
 
-* Enable {security} on every node in each connected cluster. For more
-information about the `xpack.security.enabled` setting, see
+* Enable the {es} {security-features} on every node in each connected cluster.
+For more information about the `xpack.security.enabled` setting, see
 {ref}/security-settings.html[Security Settings in {es}].
 
 * Enable encryption globally. To encrypt communications, you must enable

@@ -51,7 +51,7 @@ public class RestBulkActionTests extends ESTestCase {
         new RestBulkAction(settings(Version.CURRENT).build(), mock(RestController.class))
             .handleRequest(
                 new FakeRestRequest.Builder(
-                    xContentRegistry()).withPath("my_index/my_type/_bulk").withParams(params)
+                    xContentRegistry()).withPath("my_index/_bulk").withParams(params)
                     .withContent(
                         new BytesArray(
                             "{\"index\":{\"_id\":\"1\"}}\n" +

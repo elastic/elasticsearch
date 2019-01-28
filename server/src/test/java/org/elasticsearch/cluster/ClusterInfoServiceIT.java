@@ -111,13 +111,17 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal))
             // manual collection or upon cluster forming.
             .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
-            .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), "1s")
             .build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(TestPlugin.class, MockTransportService.TestPlugin.class);
+    }
+
+    private void setClusterInfoTimeout(String timeValue) {
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+            .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), timeValue).build()));
     }
 
     public void testClusterInfoServiceCollectsInformation() throws Exception {
@@ -204,6 +208,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                 });
         }
 
+        setClusterInfoTimeout("1s");
         // timeouts shouldn't clear the info
         timeout.set(true);
         info = infoService.refresh();
@@ -237,6 +242,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         // check we recover
         blockingActionFilter.blockActions();
+        setClusterInfoTimeout("15s");
         info = infoService.refresh();
         assertNotNull("info should not be null", info);
         assertThat(info.getNodeLeastAvailableDiskUsages().size(), equalTo(2));

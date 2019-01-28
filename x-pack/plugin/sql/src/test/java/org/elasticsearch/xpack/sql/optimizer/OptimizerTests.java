@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.sql.expression.function.Function;
@@ -23,8 +24,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.IsoWeekOfYear;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ACos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ASin;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Ascii;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
@@ -82,23 +84,24 @@ import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowTables;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.TimeZone;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
-import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
+import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.Matchers.contains;
 
 public class OptimizerTests extends ESTestCase {
@@ -116,8 +119,8 @@ public class OptimizerTests extends ESTestCase {
 
         private final int id;
 
-        public DummyBooleanExpression(Location location, int id) {
-            super(location, Collections.emptyList());
+        public DummyBooleanExpression(Source source, int id) {
+            super(source, Collections.emptyList());
             this.id = id;
         }
 
@@ -132,8 +135,8 @@ public class OptimizerTests extends ESTestCase {
         }
 
         @Override
-        public boolean nullable() {
-            return false;
+        public Nullability nullable() {
+            return Nullability.FALSE;
         }
 
         @Override
@@ -320,15 +323,14 @@ public class OptimizerTests extends ESTestCase {
 
     public void testConstantFoldingLikes() {
         assertEquals(Literal.TRUE,
-                new ConstantFolding().rule(new Like(EMPTY, Literal.of(EMPTY, "test_emp"), new LikePattern(EMPTY, "test%", (char) 0)))
+                new ConstantFolding().rule(new Like(EMPTY, Literal.of(EMPTY, "test_emp"), new LikePattern("test%", (char) 0)))
                         .canonical());
         assertEquals(Literal.TRUE,
-                new ConstantFolding().rule(new RLike(EMPTY, Literal.of(EMPTY, "test_emp"), Literal.of(EMPTY, "test.emp"))).canonical());
+                new ConstantFolding().rule(new RLike(EMPTY, Literal.of(EMPTY, "test_emp"), "test.emp")).canonical());
     }
 
     public void testConstantFoldingDatetime() {
-        final TimeZone UTC = TimeZone.getTimeZone("UTC");
-        Expression cast = new Cast(EMPTY, Literal.of(EMPTY, "2018-01-19T10:23:27Z"), DataType.DATE);
+        Expression cast = new Cast(EMPTY, Literal.of(EMPTY, "2018-01-19T10:23:27Z"), DataType.DATETIME);
         assertEquals(2018, foldFunction(new Year(EMPTY, cast, UTC)));
         assertEquals(1, foldFunction(new MonthOfYear(EMPTY, cast, UTC)));
         assertEquals(19, foldFunction(new DayOfMonth(EMPTY, cast, UTC)));
@@ -392,6 +394,8 @@ public class OptimizerTests extends ESTestCase {
         return ((Literal) new ConstantFolding().rule(b)).value();
     }
 
+    // Null folding
+
     public void testNullFoldingIsNull() {
         FoldNull foldNull = new FoldNull();
         assertEquals(true, foldNull.rule(new IsNull(EMPTY, Literal.NULL)).fold());
@@ -407,7 +411,7 @@ public class OptimizerTests extends ESTestCase {
     public void testGenericNullableExpression() {
         FoldNull rule = new FoldNull();
         // date-time
-        assertNullLiteral(rule.rule(new DayName(EMPTY, Literal.NULL, randomTimeZone())));
+        assertNullLiteral(rule.rule(new DayName(EMPTY, Literal.NULL, randomZone())));
         // math function
         assertNullLiteral(rule.rule(new Cos(EMPTY, Literal.NULL)));
         // string function
@@ -418,7 +422,35 @@ public class OptimizerTests extends ESTestCase {
         // comparison
         assertNullLiteral(rule.rule(new GreaterThan(EMPTY, getFieldAttribute(), Literal.NULL)));
         // regex
-        assertNullLiteral(rule.rule(new RLike(EMPTY, getFieldAttribute(), Literal.NULL)));
+        assertNullLiteral(rule.rule(new RLike(EMPTY, Literal.NULL, "123")));
+    }
+
+    public void testNullFoldingDoesNotApplyOnLogicalExpressions() {
+        FoldNull rule = new FoldNull();
+
+        Or or = new Or(EMPTY, Literal.NULL, Literal.TRUE);
+        assertEquals(or, rule.rule(or));
+        or = new Or(EMPTY, Literal.NULL, Literal.NULL);
+        assertEquals(or, rule.rule(or));
+
+        And and = new And(EMPTY, Literal.NULL, Literal.TRUE);
+        assertEquals(and, rule.rule(and));
+        and = new And(EMPTY, Literal.NULL, Literal.NULL);
+        assertEquals(and, rule.rule(and));
+    }
+
+    public void testNullFoldingDoesNotApplyOnConditionals() {
+        FoldNull rule = new FoldNull();
+
+        Coalesce coalesce = new Coalesce(EMPTY, Arrays.asList(Literal.NULL, ONE, TWO));
+        assertEquals(coalesce, rule.rule(coalesce));
+        coalesce = new Coalesce(EMPTY, Arrays.asList(Literal.NULL, NULL, NULL));
+        assertEquals(coalesce, rule.rule(coalesce));
+
+        Greatest greatest = new Greatest(EMPTY, Arrays.asList(Literal.NULL, ONE, TWO));
+        assertEquals(greatest, rule.rule(greatest));
+        greatest = new Greatest(EMPTY, Arrays.asList(Literal.NULL, ONE, TWO));
+        assertEquals(greatest, rule.rule(greatest));
     }
 
     public void testSimplifyCoalesceNulls() {
@@ -520,6 +552,13 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(ONE, e.children().get(0));
         assertEquals(TWO, e.children().get(1));
     }
+    
+    public void testConcatFoldingIsNotNull() {
+        FoldNull foldNull = new FoldNull();
+        assertEquals(1, foldNull.rule(new Concat(EMPTY, Literal.NULL, ONE)).fold());
+        assertEquals(1, foldNull.rule(new Concat(EMPTY, ONE, Literal.NULL)).fold());
+        assertEquals(StringUtils.EMPTY, foldNull.rule(new Concat(EMPTY, Literal.NULL, Literal.NULL)).fold());
+    }
 
     //
     // Logical simplifications
@@ -546,18 +585,18 @@ public class OptimizerTests extends ESTestCase {
         BooleanLiteralsOnTheRight swapLiteralsToRight = new BooleanLiteralsOnTheRight();
         BinaryComparisonSimplification bcSimpl = new BinaryComparisonSimplification();
         FieldAttribute fa = getFieldAttribute();
-        Location loc = new Location(1, 10);
+        Source source = new Source(1, 10, "IS_NULL(a)");
 
-        Expression e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(loc, fa, NULL)));
+        Expression e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(source, fa, NULL)));
         assertEquals(IsNull.class, e.getClass());
         IsNull isNull = (IsNull) e;
-        assertEquals(loc, isNull.location());
+        assertEquals(source, isNull.source());
         assertEquals("IS_NULL(a)", isNull.name());
 
-        e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(loc, NULL, fa)));
+        e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(source, NULL, fa)));
         assertEquals(IsNull.class, e.getClass());
         isNull = (IsNull) e;
-        assertEquals(loc, isNull.location());
+        assertEquals(source, isNull.source());
         assertEquals("IS_NULL(a)", isNull.name());
     }
 

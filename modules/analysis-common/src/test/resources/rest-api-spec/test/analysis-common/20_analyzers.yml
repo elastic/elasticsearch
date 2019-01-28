@@ -69,14 +69,15 @@
 
 ---
 "standard_html_strip":
+    - skip:
+        version: " - 6.99.99"
+        reason:  only starting from version 7.x this throws an error
     - do:
+        catch: /\[standard_html_strip\] analyzer is not supported for new indices, use a custom analyzer using \[standard\] tokenizer and \[html_strip\] char_filter, plus \[lowercase\] filter/
         indices.analyze:
           body:
             text:     <bold/> <italic/>
             analyzer: standard_html_strip
-    - length: { tokens: 2 }
-    - match:  { tokens.0.token: bold }
-    - match:  { tokens.1.token: italic }
 
 ---
 "pattern":

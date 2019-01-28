@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-post-pause-follow]]
-=== Pause Follower API
+=== Pause follower API
 ++++
-<titleabbrev>Pause Follower</titleabbrev>
+<titleabbrev>Pause follower</titleabbrev>
 ++++
 
 beta[]

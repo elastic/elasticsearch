@@ -77,7 +77,8 @@ dependencies {
   compile "org.elasticsearch:elasticsearch-core:${version}"
   compile "org.elasticsearch:elasticsearch-secure-sm:${version}"
   compile "org.elasticsearch:elasticsearch-x-content:${version}"
-
+  compile "org.elasticsearch:elasticsearch-geo:${version}"
+  
   compileOnly project(':libs:plugin-classloader')
   testRuntime project(':libs:plugin-classloader')
 
@@ -161,6 +162,19 @@ forbiddenPatterns {
   exclude '**/*.st'
 }
 
+testingConventions {
+  naming.clear()
+  naming {
+    Tests {
+      baseClass "org.apache.lucene.util.LuceneTestCase"
+    }
+    IT {
+      baseClass "org.elasticsearch.test.ESIntegTestCase"
+      baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
+    }
+  }
+}
+
 task generateModulesList {
   List<String> modules = project(':modules').subprojects.collect { it.name }
   modules.add('x-pack')
@@ -192,9 +206,7 @@ processResources {
   dependsOn generateModulesList, generatePluginsList
 }
 
-thirdPartyAudit.excludes = [
-  // classes are missing!
-
+thirdPartyAudit.ignoreMissingClasses (
   // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
   'com.fasterxml.jackson.databind.ObjectMapper',
 
@@ -301,11 +313,11 @@ thirdPartyAudit.excludes = [
   'com.google.common.geometry.S2Projections',
   'com.google.common.geometry.S2Point',
   'com.google.common.geometry.S2$Metric',
-  'com.google.common.geometry.S2LatLng',
-]
+  'com.google.common.geometry.S2LatLng'
+)
 
 if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.excludes += ['javax.xml.bind.DatatypeConverter']
+  thirdPartyAudit.ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
 }
 
 dependencyLicenses {
@@ -322,7 +334,7 @@ if (isEclipse == false || project.path == ":server-tests") {
   task integTest(type: RandomizedTestingTask,
                  group: JavaBasePlugin.VERIFICATION_GROUP,
                  description: 'Multi-node tests',
-                 dependsOn: test.dependsOn) {
+                 dependsOn: unitTest.dependsOn) {
     include '**/*IT.class'
   }
   check.dependsOn integTest

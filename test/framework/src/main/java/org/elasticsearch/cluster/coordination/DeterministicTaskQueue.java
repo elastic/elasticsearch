@@ -405,7 +405,7 @@ public class DeterministicTaskQueue {
 
             @Override
             public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
-                throw new UnsupportedOperationException();
+                return super.scheduleWithFixedDelay(command, interval, executor);
             }
 
             @Override
@@ -430,7 +430,92 @@ public class DeterministicTaskQueue {
 
             @Override
             public ScheduledExecutorService scheduler() {
-                throw new UnsupportedOperationException();
+                return new ScheduledExecutorService() {
+                    @Override
+                    public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public void shutdown() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public List<Runnable> shutdownNow() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public boolean isShutdown() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public boolean isTerminated() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public boolean awaitTermination(long timeout, TimeUnit unit) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public <T> Future<T> submit(Callable<T> task) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public <T> Future<T> submit(Runnable task, T result) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public Future<?> submit(Runnable task) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public <T> T invokeAny(Collection<? extends Callable<T>> tasks) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public <T> T invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public void execute(Runnable command) {
+                        throw new UnsupportedOperationException();
+                    }
+                };
             }
         };
     }

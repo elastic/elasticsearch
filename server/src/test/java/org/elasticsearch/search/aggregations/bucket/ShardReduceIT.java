@@ -24,7 +24,7 @@ import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -301,7 +301,7 @@ public class ShardReduceIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        GeoHashGrid grid = response.getAggregations().get("grid");
+        GeoGrid grid = response.getAggregations().get("grid");
         Histogram histo = grid.getBuckets().iterator().next().getAggregations().get("histo");
         assertThat(histo.getBuckets().size(), equalTo(4));
     }

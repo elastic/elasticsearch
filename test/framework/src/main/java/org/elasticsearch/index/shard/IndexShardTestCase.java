@@ -23,6 +23,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -67,6 +68,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoveryResponse;
 import org.elasticsearch.indices.recovery.RecoverySourceHandler;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
@@ -133,18 +135,26 @@ public abstract class IndexShardTestCase extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new TestThreadPool(getClass().getName(), threadPoolSettings());
+        threadPool = setUpThreadPool();
         primaryTerm = randomIntBetween(1, 100); // use random but fixed term for creating shards
         failOnShardFailures();
+    }
+
+    protected ThreadPool setUpThreadPool() {
+        return new TestThreadPool(getClass().getName(), threadPoolSettings());
     }
 
     @Override
     public void tearDown() throws Exception {
         try {
-            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+            tearDownThreadPool();
         } finally {
             super.tearDown();
         }
+    }
+
+    protected void tearDownThreadPool() {
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 
     /**
@@ -357,10 +367,26 @@ public abstract class IndexShardTestCase extends ESTestCase {
             };
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(nodeSettings, clusterSettings);
-            indexShard = new IndexShard(routing, indexSettings, shardPath, store, () -> null, indexCache, mapperService, similarityService,
-                engineFactory, indexEventListener, indexSearcherWrapper, threadPool,
-                BigArrays.NON_RECYCLING_INSTANCE, warmer, Collections.emptyList(), Arrays.asList(listeners), globalCheckpointSyncer,
-                breakerService);
+            indexShard = new IndexShard(
+                    routing,
+                    indexSettings,
+                    shardPath,
+                    store,
+                    () -> null,
+                    indexCache,
+                    mapperService,
+                    similarityService,
+                    engineFactory,
+                    indexEventListener,
+                    indexSearcherWrapper,
+                    threadPool,
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    warmer,
+                    Collections.emptyList(),
+                    Arrays.asList(listeners),
+                    globalCheckpointSyncer,
+                    (leases, listener) -> {},
+                    breakerService);
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
         } finally {
@@ -436,6 +462,16 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     protected IndexShard newStartedShard(final boolean primary) throws IOException {
         return newStartedShard(primary, Settings.EMPTY, new InternalEngineFactory());
+    }
+
+    /**
+     * Creates a new empty shard and starts it.
+     *
+     * @param primary controls whether the shard will be a primary or a replica.
+     * @param settings the settings to use for this shard
+     */
+    protected IndexShard newStartedShard(final boolean primary, Settings settings) throws IOException {
+        return newStartedShard(primary, settings, new InternalEngineFactory());
     }
 
     /**
@@ -530,7 +566,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         recoverReplica(replica, primary,
             (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener, version -> {
             }),
-            true, true);
+            true, startReplica);
     }
 
     /** recovers a replica from the given primary **/
@@ -590,13 +626,13 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final StartRecoveryRequest request = new StartRecoveryRequest(replica.shardId(), targetAllocationId,
             pNode, rNode, snapshot, replica.routingEntry().primary(), 0, startingSeqNo);
         final RecoverySourceHandler recovery = new RecoverySourceHandler(
-                primary,
-                recoveryTarget,
-                request,
-                (int) ByteSizeUnit.MB.toBytes(1));
+            primary, recoveryTarget, request, Math.toIntExact(ByteSizeUnit.MB.toBytes(1)), between(1, 8));
         primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null,
             currentClusterStateVersion.incrementAndGet(), inSyncIds, routingTable, Collections.emptySet());
-        recovery.recoverToTarget();
+
+        PlainActionFuture<RecoveryResponse> future = new PlainActionFuture<>();
+        recovery.recoverToTarget(future);
+        future.actionGet();
         recoveryTarget.markAsDone();
     }
 
@@ -697,8 +733,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
     protected Engine.IndexResult indexDoc(IndexShard shard, String type, String id, String source, XContentType xContentType,
                                           String routing)
         throws IOException {
-        SourceToParse sourceToParse = SourceToParse.source(shard.shardId().getIndexName(), type, id, new BytesArray(source), xContentType);
-        sourceToParse.routing(routing);
+        SourceToParse sourceToParse = new SourceToParse(
+            shard.shardId().getIndexName(), type, id, new BytesArray(source), xContentType, routing);
         Engine.IndexResult result;
         if (shard.routingEntry().primary()) {
             result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, sourceToParse,

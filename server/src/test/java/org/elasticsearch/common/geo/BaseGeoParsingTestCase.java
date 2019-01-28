@@ -62,7 +62,7 @@ abstract class BaseGeoParsingTestCase extends ESTestCase {
             if (useJTS) {
                 ElasticsearchGeoAssertions.assertEquals(expected, ShapeParser.parse(parser).buildS4J());
             } else {
-                ElasticsearchGeoAssertions.assertEquals(expected, ShapeParser.parse(parser).buildLucene());
+                ElasticsearchGeoAssertions.assertEquals(expected, ShapeParser.parse(parser).buildGeometry());
             }
         }
     }

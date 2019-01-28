@@ -68,7 +68,7 @@ Which returns:
         {"name": "author",       "type": "text"},
         {"name": "name",         "type": "text"},
         {"name": "page_count",   "type": "short"},
-        {"name": "release_date", "type": "date"}
+        {"name": "release_date", "type": "datetime"}
     ],
     "rows": [
         ["Peter F. Hamilton",  "Pandora's Star",       768, "2004-03-02T00:00:00.000Z"],
@@ -186,7 +186,7 @@ Douglas Adams  |The Hitchhiker's Guide to the Galaxy|180            |1979-10-12T
 In addition to the `query` and `cursor` fields, the request can
 contain `fetch_size` and `time_zone`. `fetch_size` is a hint for how
 many results to return in each page. SQL might chose to return more
-or fewer results though. `time_zone` is the time zone to use for date
-functions and date parsing. `time_zone` defaults to `utc` and can take
+or fewer results though. `time_zone` is the time zone to use for datetime
+functions and datetime parsing. `time_zone` defaults to `utc` and can take
 any values documented
 http://www.joda.org/joda-time/apidocs/org/joda/time/DateTimeZone.html[here].

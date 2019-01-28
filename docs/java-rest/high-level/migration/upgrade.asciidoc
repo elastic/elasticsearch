@@ -8,7 +8,7 @@
 [[java-rest-high-migration-upgrade]]
 === Migration Upgrade
 
-[[java-rest-high-migraton-upgrade-request]]
+[[java-rest-high-migration-upgrade-request]]
 ==== Index Upgrade Request
 
 An +{request}+ requires an index argument. Only one index at the time should be upgraded:
@@ -32,7 +32,7 @@ include-tagged::{doc-tests-file}[{api}-execute]
 The returned +{response}+ contains information about the executed operation
 
 
-[[java-rest-high-migraton-async-upgrade-request]]
+[[java-rest-high-migration-async-upgrade-request]]
 ==== Asynchronous Execution
 
 The asynchronous execution of an upgrade request requires both the +{request}+

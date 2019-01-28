@@ -36,7 +36,7 @@ dependencyLicenses {
     ignoreSha 'elasticsearch'
 }
 
-test {
+unitTest {
     // don't use the shaded jar for tests
     classpath += project.tasks.compileJava.outputs.files
     classpath -= project.tasks.shadowJar.outputs.files

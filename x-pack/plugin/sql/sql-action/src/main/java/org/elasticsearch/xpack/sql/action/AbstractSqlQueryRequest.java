@@ -21,10 +21,10 @@ import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.TimeZone;
 import java.util.function.Supplier;
 
 /**
@@ -33,7 +33,7 @@ import java.util.function.Supplier;
 public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest implements CompositeIndicesRequest, ToXContentFragment {
 
     private String query = "";
-    private TimeZone timeZone = Protocol.TIME_ZONE;
+    private ZoneId zoneId = Protocol.TIME_ZONE;
     private int fetchSize = Protocol.FETCH_SIZE;
     private TimeValue requestTimeout = Protocol.REQUEST_TIMEOUT;
     private TimeValue pageTimeout = Protocol.PAGE_TIMEOUT;
@@ -56,12 +56,12 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         super();
     }
 
-    public AbstractSqlQueryRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, TimeZone timeZone,
+    public AbstractSqlQueryRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, ZoneId zoneId,
                                    int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
         super(requestInfo);
         this.query = query;
         this.params = params;
-        this.timeZone = timeZone;
+        this.zoneId = zoneId;
         this.fetchSize = fetchSize;
         this.requestTimeout = requestTimeout;
         this.pageTimeout = pageTimeout;
@@ -76,7 +76,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         parser.declareString((request, mode) -> request.mode(Mode.fromString(mode)), MODE);
         parser.declareString((request, clientId) -> request.clientId(clientId), CLIENT_ID);
         parser.declareObjectArray(AbstractSqlQueryRequest::params, (p, c) -> SqlTypedParamValue.fromXContent(p), PARAMS);
-        parser.declareString((request, zoneId) -> request.timeZone(TimeZone.getTimeZone(zoneId)), TIME_ZONE);
+        parser.declareString((request, zoneId) -> request.zoneId(ZoneId.of(zoneId)), TIME_ZONE);
         parser.declareInt(AbstractSqlQueryRequest::fetchSize, FETCH_SIZE);
         parser.declareString((request, timeout) -> request.requestTimeout(TimeValue.parseTimeValue(timeout, Protocol.REQUEST_TIMEOUT,
             "request_timeout")), REQUEST_TIMEOUT);
@@ -121,15 +121,15 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     /**
      * The client's time zone
      */
-    public TimeZone timeZone() {
-        return timeZone;
+    public ZoneId zoneId() {
+        return zoneId;
     }
 
-    public AbstractSqlQueryRequest timeZone(TimeZone timeZone) {
-        if (timeZone == null) {
+    public AbstractSqlQueryRequest zoneId(ZoneId zoneId) {
+        if (zoneId == null) {
             throw new IllegalArgumentException("time zone may not be null.");
         }
-        this.timeZone = timeZone;
+        this.zoneId = zoneId;
         return this;
     }
 
@@ -194,7 +194,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         super(in);
         query = in.readString();
         params = in.readList(AbstractSqlQueryRequest::readSqlTypedParamValue);
-        timeZone = TimeZone.getTimeZone(in.readString());
+        zoneId = ZoneId.of(in.readString());
         fetchSize = in.readVInt();
         requestTimeout = in.readTimeValue();
         pageTimeout = in.readTimeValue();
@@ -218,7 +218,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         for (SqlTypedParamValue param: params) {
             writeSqlTypedParamValue(out, param);
         }
-        out.writeString(timeZone.getID());
+        out.writeString(zoneId.getId());
         out.writeVInt(fetchSize);
         out.writeTimeValue(requestTimeout);
         out.writeTimeValue(pageTimeout);
@@ -240,7 +240,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         return fetchSize == that.fetchSize &&
                 Objects.equals(query, that.query) &&
                 Objects.equals(params, that.params) &&
-                Objects.equals(timeZone, that.timeZone) &&
+                Objects.equals(zoneId, that.zoneId) &&
                 Objects.equals(requestTimeout, that.requestTimeout) &&
                 Objects.equals(pageTimeout, that.pageTimeout) &&
                 Objects.equals(filter, that.filter);
@@ -248,6 +248,6 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), query, timeZone, fetchSize, requestTimeout, pageTimeout, filter);
+        return Objects.hash(super.hashCode(), query, zoneId, fetchSize, requestTimeout, pageTimeout, filter);
     }
 }

@@ -10,13 +10,13 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Locale;
-import java.util.TimeZone;
 
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
@@ -28,8 +28,8 @@ abstract class NamedDateTimeFunction extends BaseDateTimeFunction {
 
     private final NameExtractor nameExtractor;
 
-    NamedDateTimeFunction(Location location, Expression field, TimeZone timeZone, NameExtractor nameExtractor) {
-        super(location, field, timeZone);
+    NamedDateTimeFunction(Source source, Expression field, ZoneId zoneId, NameExtractor nameExtractor) {
+        super(source, field, zoneId);
         this.nameExtractor = nameExtractor;
     }
 
@@ -45,13 +45,13 @@ abstract class NamedDateTimeFunction extends BaseDateTimeFunction {
                         StringUtils.underscoreToLowerCamelCase(nameExtractor.name()))),
                 paramsBuilder()
                   .variable(field.name())
-                  .variable(timeZone().getID()).build(),
+                  .variable(zoneId().getId()).build(),
                 dataType());
     }
 
     @Override
     protected Processor makeProcessor() {
-        return new NamedDateTimeProcessor(nameExtractor, timeZone());
+        return new NamedDateTimeProcessor(nameExtractor, zoneId());
     }
 
     @Override

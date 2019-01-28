@@ -111,8 +111,13 @@ public class Querier {
     }
 
     public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, String... indices) {
-        SearchRequest search = client.prepareSearch(indices).setSource(source).setTimeout(timeout).request();
-        search.allowPartialSearchResults(false);
+        SearchRequest search = client.prepareSearch(indices)
+            // always track total hits accurately
+            .setTrackTotalHits(true)
+            .setAllowPartialSearchResults(false)
+            .setSource(source)
+            .setTimeout(timeout)
+            .request();
         return search;
     }
 
@@ -263,7 +268,7 @@ public class Querier {
         private BucketExtractor createExtractor(FieldExtraction ref, BucketExtractor totalCount) {
             if (ref instanceof GroupByRef) {
                 GroupByRef r = (GroupByRef) ref;
-                return new CompositeKeyExtractor(r.key(), r.property(), r.timeZone());
+                return new CompositeKeyExtractor(r.key(), r.property(), r.zoneId());
             }
 
             if (ref instanceof MetricAggRef) {
@@ -281,7 +286,7 @@ public class Querier {
                 // wrap only agg inputs
                 proc = proc.transformDown(l -> {
                     BucketExtractor be = createExtractor(l.context(), totalCount);
-                    return new AggExtractorInput(l.location(), l.expression(), l.action(), be);
+                    return new AggExtractorInput(l.source(), l.expression(), l.action(), be);
                 }, AggPathInput.class);
 
                 return new ComputingExtractor(proc.asProcessor());
@@ -364,7 +369,7 @@ public class Querier {
                         throw new SqlIllegalArgumentException("Multi-level nested fields [{}] not supported yet", hitNames);
                     }
 
-                    return new HitExtractorInput(l.location(), l.expression(), he);
+                    return new HitExtractorInput(l.source(), l.expression(), he);
                 }, ReferenceInput.class);
                 String hitName = null;
                 if (hitNames.size() == 1) {

@@ -41,7 +41,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
     private final IndicesOptions indicesOptions;
     private final Script template;
     private final BytesReference searchSource;
-    private boolean restTotalHitsAsInt;
+    private boolean restTotalHitsAsInt = true;
 
     public WatcherSearchTemplateRequest(String[] indices, String[] types, SearchType searchType, IndicesOptions indicesOptions,
                                         BytesReference searchSource) {
@@ -184,7 +184,8 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
         IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
         BytesReference searchSource = null;
         Script template = null;
-        boolean totalHitsAsInt = false;
+        // TODO this is to retain BWC compatibility in 7.0 and can be removed for 8.0
+        boolean totalHitsAsInt = true;
 
         XContentParser.Token token;
         String currentFieldName = null;

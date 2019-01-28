@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -31,6 +32,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -42,6 +44,9 @@ import static org.elasticsearch.rest.RestStatus.OK;
  * The REST handler for get template and head template APIs.
  */
 public class RestGetIndexTemplateAction extends BaseRestHandler {
+
+    private static final Set<String> RESPONSE_PARAMETERS = Collections.unmodifiableSet(Sets.union(
+        Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER), Settings.FORMAT_PARAMS));
 
     public RestGetIndexTemplateAction(final Settings settings, final RestController controller) {
         super(settings);
@@ -79,7 +84,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return Settings.FORMAT_PARAMS;
+        return RESPONSE_PARAMETERS;
     }
 
 }

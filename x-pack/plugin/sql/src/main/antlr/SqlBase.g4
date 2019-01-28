@@ -55,7 +55,6 @@ statement
     | (DESCRIBE | DESC) (tableLike=likePattern | tableIdent=tableIdentifier)                              #showColumns
     | SHOW FUNCTIONS (likePattern)?                                                                       #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
-    | SYS CATALOGS                                                                                        #sysCatalogs
     | SYS TABLES (CATALOG clusterLike=likePattern)?
                  (tableLike=likePattern | tableIdent=tableIdentifier)?
                  (TYPE string (',' string)* )?                                                            #sysTables
@@ -63,7 +62,6 @@ statement
                   (TABLE tableLike=likePattern | tableIdent=tableIdentifier)?
                   (columnPattern=likePattern)?                                                            #sysColumns
     | SYS TYPES ((PLUS | MINUS)?  type=number)?                                                           #sysTypes
-    | SYS TABLE TYPES                                                                                     #sysTableTypes  
     ;
     
 query
@@ -186,7 +184,7 @@ predicated
 // instead the property kind is used to differentiate
 predicate
     : NOT? kind=BETWEEN lower=valueExpression AND upper=valueExpression
-    | NOT? kind=IN '(' expression (',' expression)* ')'
+    | NOT? kind=IN '(' valueExpression (',' valueExpression)* ')'
     | NOT? kind=IN '(' query ')'
     | NOT? kind=LIKE pattern
     | NOT? kind=RLIKE regex=string
@@ -342,7 +340,7 @@ nonReserved
     | CATALOGS | COLUMNS | CURRENT 
     | DAY | DEBUG  
     | EXECUTABLE | EXPLAIN 
-    | FIRST | FORMAT | FUNCTIONS 
+    | FIRST | FORMAT | FULL | FUNCTIONS
     | GRAPHVIZ
     | HOUR
     | INTERVAL

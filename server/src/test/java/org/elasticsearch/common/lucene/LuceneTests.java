@@ -531,24 +531,26 @@ public class LuceneTests extends ESTestCase {
     }
 
     public static Object randomSortValue() {
-        switch(randomIntBetween(0, 8)) {
+        switch(randomIntBetween(0, 9)) {
             case 0:
-                return randomAlphaOfLengthBetween(3, 10);
+                return null;
             case 1:
-                return randomInt();
+                return randomAlphaOfLengthBetween(3, 10);
             case 2:
-                return randomLong();
+                return randomInt();
             case 3:
-                return randomFloat();
+                return randomLong();
             case 4:
-                return randomDouble();
+                return randomFloat();
             case 5:
-                return randomByte();
+                return randomDouble();
             case 6:
-                return randomShort();
+                return randomByte();
             case 7:
-                return randomBoolean();
+                return randomShort();
             case 8:
+                return randomBoolean();
+            case 9:
                 return new BytesRef(randomAlphaOfLengthBetween(3, 10));
             default:
                 throw new UnsupportedOperationException();

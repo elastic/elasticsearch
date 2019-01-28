@@ -100,7 +100,13 @@ public class PluginsService {
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
-    public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory, Collection<Class<? extends Plugin>> classpathPlugins) {
+    public PluginsService(
+        Settings settings,
+        Path configPath,
+        Path modulesDirectory,
+        Path pluginsDirectory,
+        Collection<Class<? extends Plugin>> classpathPlugins
+    ) {
         this.settings = settings;
         this.configPath = configPath;
 

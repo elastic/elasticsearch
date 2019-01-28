@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -112,7 +113,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     public GetResult get(Engine.GetResult engineGetResult, String id, String type,
                             String[] fields, FetchSourceContext fetchSourceContext) {
         if (!engineGetResult.exists()) {
-            return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
+            return new GetResult(shardId.getIndexName(), type, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, -1, false, null, null);
         }
 
         currentMetric.inc();
@@ -168,7 +169,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
 
         if (get == null || get.exists() == false) {
-            return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
+            return new GetResult(shardId.getIndexName(), type, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, -1, false, null, null);
         }
 
         try {
@@ -233,7 +234,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
-        return new GetResult(shardId.getIndexName(), type, id, get.version(), get.exists(), source, fields);
+        return new GetResult(shardId.getIndexName(), type, id, get.docIdAndVersion().seqNo, get.docIdAndVersion().primaryTerm,
+            get.version(), get.exists(), source, fields);
     }
 
     private static FieldsVisitor buildFieldsVisitors(String[] fields, FetchSourceContext fetchSourceContext) {

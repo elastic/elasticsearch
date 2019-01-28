@@ -58,13 +58,18 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
         UpdateScript.Factory factory = (params, ctx) -> new UpdateScript(Collections.emptyMap(), ctx) {
             @Override
             public void execute() {
-                scriptBody.accept(ctx);
+                scriptBody.accept(getCtx());
             }
-        };;
+        };
         when(scriptService.compile(any(), eq(UpdateScript.CONTEXT))).thenReturn(factory);
         AbstractAsyncBulkByScrollAction<Request> action = action(scriptService, request().setScript(mockScript("")));
         RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkByScrollAction.wrap(index), doc);
         return (result != null) ? (T) result.self() : null;
+    }
+
+    public void testTypeDeprecation() {
+        applyScript((Map<String, Object> ctx) -> ctx.get("_type"));
+        assertWarnings("[types removal] Looking up doc types [_type] in scripts is deprecated.");
     }
 
     public void testScriptAddingJunkToCtxIsError() {

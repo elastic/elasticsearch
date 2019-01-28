@@ -557,7 +557,7 @@ public abstract class DataTypeConversion {
         }
 
         private static Function<Object, Object> fromDateTime(Function<Long, Object> converter) {
-            return l -> converter.apply(((ZonedDateTime) l).toEpochSecond());
+            return l -> converter.apply(((ZonedDateTime) l).toInstant().toEpochMilli());
         }
 
         private static Function<Object, Object> toDateTime(Conversion conversion) {

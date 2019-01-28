@@ -30,9 +30,9 @@ import static org.elasticsearch.client.ResponseException.buildMessage;
  */
 // This class extends RuntimeException in order to deal with wrapping that is done in FutureUtils on exception.
 // if the exception is not of type ElasticsearchException or RuntimeException it will be wrapped in a UncategorizedExecutionException
-public class WarningFailureException extends RuntimeException {
+public final class WarningFailureException extends RuntimeException {
 
-    private Response response;
+    private final Response response;
 
     public WarningFailureException(Response response) throws IOException {
         super(buildMessage(response));

@@ -25,7 +25,6 @@ import org.apache.http.RequestLine;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -65,11 +64,11 @@ public class MockRestHighLevelTests extends ESTestCase {
     }
 
     public void testWarningFailure() {
-        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+        WarningFailureException exception = expectThrows(WarningFailureException.class,
             () -> client.info(RequestOptions.DEFAULT));
-        assertThat(exception.getMessage(), equalTo("Warnings/Deprecations caused response to fail"));
-        assertThat(exception.getCause(), equalTo(expectedException));
-        WarningFailureException warningFailureException = (WarningFailureException) exception.getCause();
-        assertThat(warningFailureException.getResponse().getWarnings(), equalTo(WARNINGS));
+        assertThat(exception.getMessage(), equalTo("method [GET], host [http://localhost:9200], URI [/_blah], " +
+            "status line [HTTP/1.1 200 OK]"));
+        assertNull(exception.getCause());
+        assertThat(exception.getResponse().getWarnings(), equalTo(WARNINGS));
     }
 }

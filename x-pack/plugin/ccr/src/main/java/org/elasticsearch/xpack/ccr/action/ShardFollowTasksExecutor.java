@@ -122,7 +122,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             client.execute(RecoverFollowerAction.INSTANCE, new RecoverFollowerRequest(remoteCluster, leaderIndex, followerIndex));
         };
         return new ShardFollowNodeTask(id, type, action, getDescription(taskInProgress), parentTaskId, headers, params,
-            scheduler, System::nanoTime, recoveryExecutor) {
+            scheduler, System::nanoTime) {
 
             @Override
             protected void innerUpdateMapping(long minRequiredMappingVersion, LongConsumer handler, Consumer<Exception> errorHandler) {

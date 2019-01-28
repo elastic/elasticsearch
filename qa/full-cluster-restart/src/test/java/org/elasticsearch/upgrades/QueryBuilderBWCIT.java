@@ -22,9 +22,7 @@ package org.elasticsearch.upgrades;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -48,6 +46,7 @@ import org.elasticsearch.index.query.SpanNearQueryBuilder;
 import org.elasticsearch.index.query.SpanTermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
+import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.elasticsearch.search.SearchModule;
 
 import java.io.ByteArrayInputStream;
@@ -186,9 +185,8 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
             }
             mappingsAndSettings.endObject();
             Request request = new Request("PUT", "/" + index);
-            RequestOptions.Builder options = request.getOptions().toBuilder();
-            options.setWarningsHandler(WarningsHandler.PERMISSIVE);
-            request.setOptions(options);
+            request.setOptions(expectVersionSpecificWarnings(v -> v.compatible(
+                RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE_6_7_0)));
             request.setJsonEntity(Strings.toString(mappingsAndSettings));
             Response rsp = client().performRequest(request);
             assertEquals(200, rsp.getStatusLine().getStatusCode());

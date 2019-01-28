@@ -7,14 +7,13 @@ package org.elasticsearch.xpack.restart;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -72,9 +71,8 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
                 "\"airline\": {\"type\": \"keyword\"}," +
                 "\"responsetime\": {\"type\": \"float\"}" +
                 "}}}}");
-        RequestOptions.Builder options = createTestIndex.getOptions().toBuilder();
-        options.setWarningsHandler(WarningsHandler.PERMISSIVE);
-        createTestIndex.setOptions(options);
+        createTestIndex.setOptions(expectVersionSpecificWarnings(
+            v -> v.compatible(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE_6_7_0)));
         client().performRequest(createTestIndex);
     }
 

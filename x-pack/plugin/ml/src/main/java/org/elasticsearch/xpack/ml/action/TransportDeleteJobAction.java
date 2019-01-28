@@ -267,26 +267,25 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     private void deleteJobDocuments(ParentTaskAssigningClient parentTaskClient, String jobId,
                                     CheckedConsumer<Boolean, Exception> finishedHandler, Consumer<Exception> failureHandler) {
 
-        AtomicReference<String> indexName = new AtomicReference<>();
+        AtomicReference<String[]> indexNames = new AtomicReference<>();
 
         final ActionListener<AcknowledgedResponse> completionHandler = ActionListener.wrap(
                 response -> finishedHandler.accept(response.isAcknowledged()),
                 failureHandler);
 
-        // Step 8. If we did not drop the index and after DBQ state done, we delete the aliases
+        // Step 8. If we did not drop the indices and after DBQ state done, we delete the aliases
         ActionListener<BulkByScrollResponse> dbqHandler = ActionListener.wrap(
                 bulkByScrollResponse -> {
-                    if (bulkByScrollResponse == null) { // no action was taken by DBQ, assume Index was deleted
+                    if (bulkByScrollResponse == null) { // no action was taken by DBQ, assume indices were deleted
                         completionHandler.onResponse(new AcknowledgedResponse(true));
                     } else {
                         if (bulkByScrollResponse.isTimedOut()) {
-                            logger.warn("[{}] DeleteByQuery for indices [{}, {}] timed out.", jobId, indexName.get(),
-                                    indexName.get() + "-*");
+                            logger.warn("[{}] DeleteByQuery for indices [{}] timed out.", jobId, String.join(", ", indexNames.get()));
                         }
                         if (!bulkByScrollResponse.getBulkFailures().isEmpty()) {
-                            logger.warn("[{}] {} failures and {} conflicts encountered while running DeleteByQuery on indices [{}, {}].",
+                            logger.warn("[{}] {} failures and {} conflicts encountered while running DeleteByQuery on indices [{}].",
                                     jobId, bulkByScrollResponse.getBulkFailures().size(), bulkByScrollResponse.getVersionConflicts(),
-                                    indexName.get(), indexName.get() + "-*");
+                                    String.join(", ", indexNames.get()));
                             for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
                                 logger.warn("DBQ failure: " + failure);
                             }
@@ -296,13 +295,12 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 },
                 failureHandler);
 
-        // Step 7. If we did not delete the index, we run a delete by query
+        // Step 7. If we did not delete the indices, we run a delete by query
         ActionListener<Boolean> deleteByQueryExecutor = ActionListener.wrap(
                 response -> {
-                    if (response) {
-                        String indexPattern = indexName.get() + "-*";
-                        logger.info("Running DBQ on [" + indexName.get() + "," + indexPattern + "] for job [" + jobId + "]");
-                        DeleteByQueryRequest request = new DeleteByQueryRequest(indexName.get(), indexPattern);
+                    if (response && indexNames.get().length > 0) {
+                        logger.info("Running DBQ on [" + String.join(", ", indexNames.get()) + "] for job [" + jobId + "]");
+                        DeleteByQueryRequest request = new DeleteByQueryRequest(indexNames.get());
                         ConstantScoreQueryBuilder query =
                                 new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
                         request.setQuery(query);
@@ -318,15 +316,15 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 },
                 failureHandler);
 
-        // Step 6. If we have any hits, that means we are NOT the only job on this index, and should not delete it
-        // if we do not have any hits, we can drop the index and then skip the DBQ and alias deletion
+        // Step 6. If we have any hits, that means we are NOT the only job on these indices, and should not delete the indices.
+        // If we do not have any hits, we can drop the indices and then skip the DBQ and alias deletion.
         ActionListener<SearchResponse> customIndexSearchHandler = ActionListener.wrap(
                 searchResponse -> {
                     if (searchResponse == null || searchResponse.getHits().getTotalHits().value > 0) {
                         deleteByQueryExecutor.onResponse(true); // We need to run DBQ and alias deletion
                     } else {
-                        logger.info("Running DELETE Index on [" + indexName.get() + "] for job [" + jobId + "]");
-                        DeleteIndexRequest request = new DeleteIndexRequest(indexName.get());
+                        logger.info("Running DELETE Index on [" + String.join(", ", indexNames.get()) + "] for job [" + jobId + "]");
+                        DeleteIndexRequest request = new DeleteIndexRequest(indexNames.get());
                         request.indicesOptions(IndicesOptions.lenientExpandOpen());
                         // If we have deleted the index, then we don't need to delete the aliases or run the DBQ
                         executeAsyncWithOrigin(
@@ -348,14 +346,28 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 }
         );
 
-        // Step 5. Determine if we are on a shared index by looking at `.ml-anomalies-shared` or the custom index's aliases
+        // Step 5. Determine if we are on shared indices by looking at whether the initial index was ".ml-anomalies-shared"
+        // or whether the indices that the job's results alias points to contain any documents from other jobs.
+        // TODO: this check is currently assuming that a job's results indices are either ALL shared or ALL
+        // dedicated to the job.  We have considered functionality like rolling jobs that generate large
+        // volumes of results from shared to dedicated indices.  On deletion such a job would have a mix of
+        // shared indices requiring DBQ and dedicated indices that could be simply dropped.  The current
+        // functionality would apply DBQ to all these indices, which is safe but suboptimal.  So this functionality
+        // should be revisited when we add rolling results index functionality, especially if we add the ability
+        // to switch a job over to a dedicated index for future results.
         ActionListener<Job.Builder> getJobHandler = ActionListener.wrap(
                 builder -> {
                     Job job = builder.build();
-                    indexName.set(job.getResultsIndexName());
-                    if (indexName.get().equals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX +
-                            AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT)) {
-                        //don't bother searching the index any further, we are on the default shared
+                    indexNames.set(indexNameExpressionResolver.concreteIndexNames(clusterService.state(),
+                        IndicesOptions.lenientExpandOpen(), AnomalyDetectorsIndex.jobResultsAliasedName(jobId)));
+                    // The job may no longer be using the initial shared index, but if it started off on a
+                    // shared index then it will still be on a shared index even if it's been reindexed
+                    if (job.getInitialResultsIndexName()
+                            .equals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT)) {
+                        // don't bother searching the index any further, we are on the default shared
+                        customIndexSearchHandler.onResponse(null);
+                    } else if (indexNames.get().length == 0) {
+                        // don't bother searching the index any further - it's already been closed or deleted
                         customIndexSearchHandler.onResponse(null);
                     } else {
                         SearchSourceBuilder source = new SearchSourceBuilder()
@@ -364,7 +376,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                                 .query(QueryBuilders.boolQuery().filter(
                                         QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))));
 
-                        SearchRequest searchRequest = new SearchRequest(indexName.get());
+                        SearchRequest searchRequest = new SearchRequest(indexNames.get());
                         searchRequest.source(source);
                         executeAsyncWithOrigin(parentTaskClient, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, customIndexSearchHandler);
                     }
@@ -372,7 +384,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 failureHandler
         );
 
-        // Step 4. Get the job as the result index name is required
+        // Step 4. Get the job as the initial result index name is required
         ActionListener<Boolean> deleteCategorizerStateHandler = ActionListener.wrap(
                 response -> {
                     jobConfigProvider.getJob(jobId, getJobHandler);

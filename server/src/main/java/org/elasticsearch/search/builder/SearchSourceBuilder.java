@@ -69,7 +69,6 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
-import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
@@ -158,7 +157,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private boolean trackScores = false;
 
-    private int trackTotalHitsUpTo = DEFAULT_TRACK_TOTAL_HITS_UP_TO;
+    private Integer trackTotalHitsUpTo;
 
     private SearchAfterBuilder searchAfterBuilder;
 
@@ -261,7 +260,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
         collapse = in.readOptionalWriteable(CollapseBuilder::new);
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            trackTotalHitsUpTo = in.readInt();
+            trackTotalHitsUpTo = in.readOptionalInt();
         } else {
             trackTotalHitsUpTo = in.readBoolean() ? TRACK_TOTAL_HITS_ACCURATE : TRACK_TOTAL_HITS_DISABLED;
         }
@@ -327,9 +326,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalWriteable(sliceBuilder);
         out.writeOptionalWriteable(collapse);
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeInt(trackTotalHitsUpTo);
+            out.writeOptionalInt(trackTotalHitsUpTo);
         } else {
-            out.writeBoolean(trackTotalHitsUpTo > SearchContext.TRACK_TOTAL_HITS_DISABLED);
+            out.writeBoolean(trackTotalHitsUpTo == null ? true : trackTotalHitsUpTo > SearchContext.TRACK_TOTAL_HITS_DISABLED);
         }
     }
 
@@ -568,16 +567,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Indicates if the total hit count for the query should be tracked.
      */
-    public boolean trackTotalHits() {
-        return trackTotalHitsUpTo == TRACK_TOTAL_HITS_ACCURATE;
-    }
-
     public SearchSourceBuilder trackTotalHits(boolean trackTotalHits) {
         this.trackTotalHitsUpTo = trackTotalHits ? TRACK_TOTAL_HITS_ACCURATE : TRACK_TOTAL_HITS_DISABLED;
         return this;
     }
 
-    public int trackTotalHitsUpTo() {
+    /**
+     * Returns the total hit count that should be tracked or null if the value is unset.
+     * Defaults to null.
+     */
+    @Nullable
+    public Integer trackTotalHitsUpTo() {
         return trackTotalHitsUpTo;
     }
 
@@ -1289,7 +1289,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(TRACK_SCORES_FIELD.getPreferredName(), true);
         }
 
-        if (trackTotalHitsUpTo != SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO) {
+        if (trackTotalHitsUpTo != null) {
             builder.field(TRACK_TOTAL_HITS_FIELD.getPreferredName(), trackTotalHitsUpTo);
         }
 

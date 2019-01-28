@@ -324,7 +324,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
                     return new LazyLeafReader(reader);
-                };
+                }
             });
             this.delegate = reader;
             this.engine = engine;

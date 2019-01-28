@@ -51,6 +51,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -85,7 +86,6 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         "org.elasticsearch.discovery:TRACE,org.elasticsearch.action.support.replication:TRACE," +
         "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE," +
         "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37810")
     public void testAckedIndexing() throws Exception {
 
         final int seconds = !(TEST_NIGHTLY && rarely()) ? 1 : 5;
@@ -110,7 +110,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         List<Semaphore> semaphores = new ArrayList<>(nodes.size());
         final AtomicInteger idGenerator = new AtomicInteger(0);
         final AtomicReference<CountDownLatch> countDownLatchRef = new AtomicReference<>();
-        final List<Exception> exceptedExceptions = Collections.synchronizedList(new ArrayList<Exception>());
+        final List<Exception> exceptedExceptions = new CopyOnWriteArrayList<>();
 
         logger.info("starting indexers");
         try {
@@ -216,18 +216,18 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 logger.info("done validating (iteration [{}])", iter);
             }
         } finally {
+            logger.info("shutting down indexers");
+            stop.set(true);
+            for (Thread indexer : indexers) {
+                indexer.interrupt();
+                indexer.join(60000);
+            }
             if (exceptedExceptions.size() > 0) {
                 StringBuilder sb = new StringBuilder();
                 for (Exception e : exceptedExceptions) {
                     sb.append("\n").append(e.getMessage());
                 }
                 logger.debug("Indexing exceptions during disruption: {}", sb);
-            }
-            logger.info("shutting down indexers");
-            stop.set(true);
-            for (Thread indexer : indexers) {
-                indexer.interrupt();
-                indexer.join(60000);
             }
         }
     }

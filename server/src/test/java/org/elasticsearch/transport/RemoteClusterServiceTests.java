@@ -657,7 +657,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                             });
                         failLatch.await();
                         assertNotNull(ex.get());
-                        assertTrue(ex.get() instanceof IllegalArgumentException);
+                        assertTrue(ex.get() instanceof NoSuchRemoteClusterException);
                         assertEquals("no such remote cluster: [no such cluster]", ex.get().getMessage());
                     }
                     {

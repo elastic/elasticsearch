@@ -39,7 +39,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
         assertNotNull(match);
         assertEquals("field1", match.v1());
-        assertThat(match.v2().jodaTimestampFormats, contains("ISO8601"));
+        assertThat(match.v2().javaTimestampFormats, contains("yyyy-MM-dd'T'HH:mm:ss,SSS"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
@@ -52,7 +52,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             overrides, NOOP_TIMEOUT_CHECKER);
         assertNotNull(match);
         assertEquals("field1", match.v1());
-        assertThat(match.v2().jodaTimestampFormats, contains("ISO8601"));
+        assertThat(match.v2().javaTimestampFormats, contains("yyyy-MM-dd'T'HH:mm:ss,SSS"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
@@ -77,20 +77,20 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             overrides, NOOP_TIMEOUT_CHECKER);
         assertNotNull(match);
         assertEquals("field1", match.v1());
-        assertThat(match.v2().jodaTimestampFormats, contains("ISO8601"));
+        assertThat(match.v2().javaTimestampFormats, contains("yyyy-MM-dd'T'HH:mm:ss,SSS"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
     public void testGuessTimestampGivenSingleSampleSingleFieldAndImpossibleTimeFormatOverride() {
 
-        FileStructureOverrides overrides = FileStructureOverrides.builder().setTimestampFormat("EEE MMM dd HH:mm:ss YYYY").build();
+        FileStructureOverrides overrides = FileStructureOverrides.builder().setTimestampFormat("EEE MMM dd HH:mm:ss yyyy").build();
 
         Map<String, String> sample = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> FileStructureUtils.guessTimestampField(explanation, Collections.singletonList(sample), overrides,
                 NOOP_TIMEOUT_CHECKER));
 
-        assertEquals("Specified timestamp format [EEE MMM dd HH:mm:ss YYYY] does not match for record [{field1=2018-05-24T17:28:31,735}]",
+        assertEquals("Specified timestamp format [EEE MMM dd HH:mm:ss yyyy] does not match for record [{field1=2018-05-24T17:28:31,735}]",
             e.getMessage());
     }
 
@@ -101,7 +101,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
         assertNotNull(match);
         assertEquals("field1", match.v1());
-        assertThat(match.v2().jodaTimestampFormats, contains("ISO8601"));
+        assertThat(match.v2().javaTimestampFormats, contains("yyyy-MM-dd'T'HH:mm:ss,SSS"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
@@ -130,7 +130,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
         assertNotNull(match);
         assertEquals("time", match.v1());
-        assertThat(match.v2().jodaTimestampFormats, contains("YYYY-MM-dd HH:mm:ss,SSS"));
+        assertThat(match.v2().javaTimestampFormats, contains("yyyy-MM-dd HH:mm:ss,SSS"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
@@ -147,7 +147,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
         assertNotNull(match);
         assertEquals("time", match.v1());
-        assertThat(match.v2().jodaTimestampFormats, contains("YYYY-MM-dd HH:mm:ss,SSS"));
+        assertThat(match.v2().javaTimestampFormats, contains("yyyy-MM-dd HH:mm:ss,SSS"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
@@ -178,7 +178,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
         assertNotNull(match);
         assertEquals("time", match.v1());
-        assertThat(match.v2().jodaTimestampFormats, contains("YYYY-MM-dd HH:mm:ss,SSS"));
+        assertThat(match.v2().javaTimestampFormats, contains("yyyy-MM-dd HH:mm:ss,SSS"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
@@ -195,7 +195,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
         assertNotNull(match);
         assertEquals("time", match.v1());
-        assertThat(match.v2().jodaTimestampFormats, contains("MMM dd YYYY HH:mm:ss", "MMM  d YYYY HH:mm:ss"));
+        assertThat(match.v2().javaTimestampFormats, contains("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss"));
         assertEquals("CISCOTIMESTAMP", match.v2().grokPatternName);
     }
 
@@ -228,7 +228,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
         assertNotNull(match);
         assertEquals("time2", match.v1());
-        assertThat(match.v2().jodaTimestampFormats, contains("MMM dd YYYY HH:mm:ss", "MMM  d YYYY HH:mm:ss"));
+        assertThat(match.v2().javaTimestampFormats, contains("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss"));
         assertEquals("CISCOTIMESTAMP", match.v2().grokPatternName);
     }
 
@@ -331,7 +331,8 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("foo"));
         Map<String, String> expectedTimeMapping = new HashMap<>();
         expectedTimeMapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date");
-        expectedTimeMapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, "YYYY-MM-dd HH:mm:ss,SSS");
+        // TODO: remove the "8" prefix when Java time formats are the default
+        expectedTimeMapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, "8" + "yyyy-MM-dd HH:mm:ss,SSS");
         assertEquals(expectedTimeMapping, mappings.get("time"));
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("bar"));
         assertNull(mappings.get("nothing"));
@@ -354,7 +355,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
     public void testMakeIngestPipelineDefinitionGivenStructuredWithTimestamp() {
 
         String timestampField = randomAlphaOfLength(10);
-        List<String> timestampFormats = randomFrom(TimestampFormatFinder.ORDERED_CANDIDATE_FORMATS).jodaTimestampFormats;
+        List<String> timestampFormats = randomFrom(TimestampFormatFinder.ORDERED_CANDIDATE_FORMATS).javaTimestampFormats;
         boolean needClientTimezone = randomBoolean();
 
         Map<String, Object> pipeline =
@@ -371,7 +372,8 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         assertNotNull(dateProcessor);
         assertEquals(timestampField, dateProcessor.get("field"));
         assertEquals(needClientTimezone, dateProcessor.containsKey("timezone"));
-        assertEquals(timestampFormats, dateProcessor.get("formats"));
+        // TODO: remove the call to jodaBwcJavaTimestampFormatsForIngestPipeline() when Java time formats are the default
+        assertEquals(FileStructureUtils.jodaBwcJavaTimestampFormatsForIngestPipeline(timestampFormats), dateProcessor.get("formats"));
 
         // After removing the two expected fields there should be nothing left in the pipeline
         assertEquals(Collections.emptyMap(), pipeline);
@@ -382,7 +384,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
 
         String grokPattern = randomAlphaOfLength(100);
         String timestampField = randomAlphaOfLength(10);
-        List<String> timestampFormats = randomFrom(TimestampFormatFinder.ORDERED_CANDIDATE_FORMATS).jodaTimestampFormats;
+        List<String> timestampFormats = randomFrom(TimestampFormatFinder.ORDERED_CANDIDATE_FORMATS).javaTimestampFormats;
         boolean needClientTimezone = randomBoolean();
 
         Map<String, Object> pipeline =
@@ -404,7 +406,8 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         assertNotNull(dateProcessor);
         assertEquals(timestampField, dateProcessor.get("field"));
         assertEquals(needClientTimezone, dateProcessor.containsKey("timezone"));
-        assertEquals(timestampFormats, dateProcessor.get("formats"));
+        // TODO: remove the call to jodaBwcJavaTimestampFormatsForIngestPipeline() when Java time formats are the default
+        assertEquals(FileStructureUtils.jodaBwcJavaTimestampFormatsForIngestPipeline(timestampFormats), dateProcessor.get("formats"));
 
         Map<String, Object> removeProcessor = (Map<String, Object>) processors.get(2).get("remove");
         assertNotNull(removeProcessor);

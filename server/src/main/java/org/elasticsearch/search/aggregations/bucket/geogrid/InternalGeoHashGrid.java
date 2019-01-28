@@ -51,7 +51,7 @@ public class InternalGeoHashGrid extends InternalGeoGrid<InternalGeoHashGridBuck
 
     @Override
     public InternalGeoGridBucket createBucket(InternalAggregations aggregations, InternalGeoGridBucket prototype) {
-        return new InternalGeoHashGridBucket(prototype.geohashAsLong, prototype.docCount, aggregations);
+        return new InternalGeoHashGridBucket(prototype.hashAsLong, prototype.docCount, aggregations);
     }
 
     @Override

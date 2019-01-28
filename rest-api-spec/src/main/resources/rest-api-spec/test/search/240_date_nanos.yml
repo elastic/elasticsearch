@@ -1,4 +1,8 @@
 setup:
+  - skip:
+      version: " - 6.99.99"
+      reason:  "Implemented in 7.0"
+
   - do:
       indices.create:
           index: date_ns

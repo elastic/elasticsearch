@@ -148,7 +148,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      */
     @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.test.disruption:TRACE")
     public void testStaleMasterNotHijackingMajority() throws Exception {
-        // 3 node cluster with unicast discovery and minimum_master_nodes set to the default of 2:
+        // 3 node cluster with unicast discovery:
         final List<String> nodes = startCluster(3);
 
         // Save the current master node as old master node, because that node will get frozen

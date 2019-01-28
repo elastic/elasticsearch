@@ -228,6 +228,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 index(leaderClient, indexName, "1");
                 assertDocumentExists(leaderClient, indexName, "1");
 
+                ensureGreen(indexName);
                 assertBusy(() -> {
                     assertDocumentExists(client(), indexName, "1");
                     // Sanity check that following_index setting has been set, so that we can verify later that this setting has been unset:

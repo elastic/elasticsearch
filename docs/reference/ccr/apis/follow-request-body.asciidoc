@@ -1,3 +1,5 @@
+[role="xpack"]
+[testenv="platinum"]
 `max_read_request_operation_count`::
   (integer) the maximum number of operations to pull per read from the remote
   cluster

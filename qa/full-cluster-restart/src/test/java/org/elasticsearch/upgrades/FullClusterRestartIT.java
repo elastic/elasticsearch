@@ -85,6 +85,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         index = getTestName().toLowerCase(Locale.ROOT);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37920")
     public void testSearch() throws Exception {
         int count;
         if (isRunningAgainstOldCluster()) {
@@ -152,6 +153,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertStoredBinaryFields(count);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37920")
     public void testNewReplicasWork() throws Exception {
         if (isRunningAgainstOldCluster()) {
             XContentBuilder mappingsAndSettings = jsonBuilder();
@@ -330,6 +332,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37920")
     public void testShrink() throws IOException {
         String shrunkenIndex = index + "_shrunk";
         int numDocs;
@@ -398,6 +401,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(numDocs, totalHits);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37920")
     public void testShrinkAfterUpgrade() throws IOException {
         String shrunkenIndex = index + "_shrunk";
         int numDocs;

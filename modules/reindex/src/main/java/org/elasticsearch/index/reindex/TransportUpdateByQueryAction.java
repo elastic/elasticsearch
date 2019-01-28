@@ -83,7 +83,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest> {
 
-        private final boolean useSeqNoForOCC;
+        private final boolean useSeqNoForCAS;
 
         AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                 ThreadPool threadPool, UpdateByQueryRequest request, ScriptService scriptService, ClusterState clusterState,
@@ -94,7 +94,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 // all nodes support sequence number powered optimistic concurrency control and we can use it
                 clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0),
                 logger, client, threadPool, request, scriptService, listener);
-            useSeqNoForOCC = clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0);
+            useSeqNoForCAS = clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0);
         }
 
         @Override
@@ -113,7 +113,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             index.type(doc.getType());
             index.id(doc.getId());
             index.source(doc.getSource(), doc.getXContentType());
-            if (useSeqNoForOCC) {
+            if (useSeqNoForCAS) {
                 index.setIfSeqNo(doc.getSeqNo());
                 index.setIfPrimaryTerm(doc.getPrimaryTerm());
             } else {

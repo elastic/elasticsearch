@@ -37,7 +37,6 @@ import org.elasticsearch.index.reindex.ScrollableHitSource.BasicHit;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.SearchHits;
 
 import java.io.IOException;
@@ -97,8 +96,6 @@ final class RemoteResponseParsers {
         // Pre-2.0.0 routing come back in "fields"
         class Fields {
             String routing;
-            long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            long primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
         }
         ObjectParser<Fields, XContentType> fieldsParser = new ObjectParser<>("fields", Fields::new);
         HIT_PARSER.declareObject((hit, fields) -> {
@@ -107,8 +104,6 @@ final class RemoteResponseParsers {
         fieldsParser.declareString((fields, routing) -> fields.routing = routing, routingField);
         fieldsParser.declareLong((fields, ttl) -> {}, ttlField); // ignore ttls since they have been removed
         fieldsParser.declareString((fields, parent) -> {}, parentField); // ignore parents since they have been removed
-        fieldsParser.declareLong((fields, seqNo) -> fields.seqNo = seqNo, seqNoField);
-        fieldsParser.declareLong((fields, primaryTerm) -> fields.primaryTerm = primaryTerm, primaryTermField);
     }
 
     /**

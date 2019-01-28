@@ -56,29 +56,55 @@ NOTE:   Replica shards may not all be started when an indexing operation success
 [[index-creation]]
 === Automatic Index Creation
 
-The index operation automatically creates an index if it has not been
-created before (check out the
-<<indices-create-index,create index API>> for manually
-creating an index), and also automatically creates a
-dynamic mapping if one has not yet been
-created (check out the <<indices-put-mapping,put mapping>>
-API for manually creating a mapping).
+The index operation automatically creates an index if it does not already
+exist, and applies any <<indices-templates,index templates>> that are
+configured. The index operation also creates a dynamic mapping if one does not
+already exist. By default, new fields and objects will automatically be added
+to the mapping definition if needed. Check out the <<mapping,mapping>> section
+for more information on mapping definitions, and the the
+<<indices-put-mapping,put mapping>> API for information about updating mappings
+manually.
 
-The mapping itself is very flexible and is schema-free. New fields and
-objects will automatically be added to the mapping definition.
-Check out the <<mapping,mapping>>
-section for more information on mapping definitions.
+Automatic index creation is controlled by the `action.auto_create_index`
+setting. This setting defaults to `true`, meaning that indices are always
+automatically created. Automatic index creation can be permitted only for
+indices matching certain patterns by changing the value of this setting to a
+comma-separated list of these patterns. It can also be explicitly permitted and
+forbidden by prefixing patterns in the list with a `+` or `-`.  Finally it can
+be completely disabled by changing this setting to `false`.
 
-Automatic index creation can be disabled by setting
-`action.auto_create_index` to `false` in the config file of all nodes, 
-or via the cluster update settings API.
-Automatic mapping creation can be disabled by setting
-`index.mapper.dynamic` to `false` per-index as an index setting.
+[source,js]
+--------------------------------------------------
+PUT _cluster/settings
+{
+    "persistent": {
+        "action.auto_create_index": "twitter,index10,-index1*,+ind*" <1>
+    }
+}
 
-Automatic index creation can include a pattern based white/black list,
-for example, set `action.auto_create_index` to `+aaa*,-bbb*,+ccc*,-*` (+
-meaning allowed, and - meaning disallowed).
+PUT _cluster/settings
+{
+    "persistent": {
+        "action.auto_create_index": "false" <2>
+    }
+}
 
+PUT _cluster/settings
+{
+    "persistent": {
+        "action.auto_create_index": "true" <3>
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> Permit only the auto-creation of indices called `twitter`, `index10`, no
+other index matching `index1*`, and any other index matching `ind*`. The
+patterns are matched in the order in which they are given.
+
+<2> Completely disable the auto-creation of indices.
+
+<3> Permit the auto-creation of indices with any name. This is the default.
 
 [float]
 [[operation-type]]

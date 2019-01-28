@@ -78,7 +78,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
                     ForecastParams params = paramsBuilder.build();
                     processManager.forecastJob(task, params, e -> {
                         if (e == null) {
-;                           getForecastRequestStats(request.getJobId(), params.getForecastId(), listener);
+                            getForecastRequestStats(request.getJobId(), params.getForecastId(), listener);
                         } else {
                             listener.onFailure(e);
                         }

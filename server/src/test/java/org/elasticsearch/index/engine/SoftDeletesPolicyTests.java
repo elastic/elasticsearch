@@ -30,12 +30,14 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -46,7 +48,7 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
      */
     public void testSoftDeletesRetentionLock() {
         long retainedOps = between(0, 10000);
-        AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        AtomicLong globalCheckpoint = new AtomicLong(NO_OPS_PERFORMED);
         final AtomicLong[] retainingSequenceNumbers = new AtomicLong[randomIntBetween(0, 8)];
         for (int i = 0; i < retainingSequenceNumbers.length; i++) {
             retainingSequenceNumbers[i] = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
@@ -116,4 +118,18 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
         assertThat(policy.getMinRetainedSeqNo(), equalTo(minRetainedSeqNo));
     }
 
+    public void testAlwaysFetchLatestRetentionLeases() {
+        final AtomicLong globalCheckpoint = new AtomicLong(NO_OPS_PERFORMED);
+        final Set<RetentionLease> leases = new HashSet<>();
+        final int numLeases = between(0, 10);
+        for (int i = 0; i < numLeases; i++) {
+            leases.add(new RetentionLease(Integer.toString(i), randomLongBetween(NO_OPS_PERFORMED, 1000), randomNonNegativeLong(), "test"));
+        }
+        final Supplier<Collection<RetentionLease>> leasesSupplier = () -> Collections.unmodifiableSet(new HashSet<>(leases));
+        final SoftDeletesPolicy policy = new SoftDeletesPolicy(globalCheckpoint::get, between(1, 1000), between(0, 1000), leasesSupplier);
+        if (randomBoolean()) {
+            policy.acquireRetentionLock();
+        }
+        assertThat(policy.getRetentionPolicy().v2(), equalTo(leases));
+    }
 }

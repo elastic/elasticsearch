@@ -257,7 +257,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         if (customTimeFormat == null) {
             customTimeFormat = "YYYY.MM.dd";
         }
-//TODO confirm this is the right format
+
         DateFormatter dateParser = DateFormatter.forPattern("strict_date_time");
         DateFormatter dateFormatter = DateFormatter.forPattern(customTimeFormat).withZone(ZoneOffset.UTC);
 

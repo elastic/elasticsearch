@@ -123,7 +123,6 @@ public abstract class MonitoringDoc implements ToXContentObject {
      * @return a string representing the timestamp
      */
     public static String toUTC(final long timestamp) {
-        //TODO that would break the formatting
         return Instant.ofEpochMilli(timestamp).atZone(ZoneOffset.UTC).toString();
     }
 

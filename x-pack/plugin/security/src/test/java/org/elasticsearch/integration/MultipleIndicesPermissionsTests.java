@@ -142,6 +142,9 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
     }
 
     public void testMonitorRestrictedWildcards() throws Exception {
+
+        assertSecurityIndexActive();
+
         IndexResponse indexResponse = index("foo", "type", jsonBuilder()
                 .startObject()
                 .field("name", "value")

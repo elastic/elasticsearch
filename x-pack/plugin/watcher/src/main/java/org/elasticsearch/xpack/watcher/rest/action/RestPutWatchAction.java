@@ -58,6 +58,8 @@ public class RestPutWatchAction extends WatcherRestHandler implements RestReques
         PutWatchRequest putWatchRequest =
                 new PutWatchRequest(request.param("id"), request.content(), request.getXContentType());
         putWatchRequest.setVersion(request.paramAsLong("version", Versions.MATCH_ANY));
+        putWatchRequest.setIfSeqNo(request.paramAsLong("if_seq_no", putWatchRequest.getIfSeqNo()));
+        putWatchRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", putWatchRequest.getIfPrimaryTerm()));
         putWatchRequest.setActive(request.paramAsBoolean("active", putWatchRequest.isActive()));
         return channel -> client.putWatch(putWatchRequest, new RestBuilderListener<PutWatchResponse>(channel) {
             @Override

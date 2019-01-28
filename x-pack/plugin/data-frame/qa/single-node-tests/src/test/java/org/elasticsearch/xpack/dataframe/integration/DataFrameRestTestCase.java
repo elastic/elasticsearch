@@ -101,12 +101,20 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         client().performRequest(bulkRequest);
     }
 
-    protected void createPivotReviewsTransform(String transformId, String dataFrameIndex) throws IOException {
+    protected void createPivotReviewsTransform(String transformId, String dataFrameIndex, String query) throws IOException {
         final Request createDataframeTransformRequest = new Request("PUT", DATAFRAME_ENDPOINT + transformId);
-        createDataframeTransformRequest.setJsonEntity("{"
+
+        String config = "{"
                 + " \"source\": \"reviews\","
-                + " \"dest\": \"" + dataFrameIndex + "\","
-                + " \"pivot\": {"
+                + " \"dest\": \"" + dataFrameIndex + "\",";
+
+        if (query != null) {
+            config += "\"query\": {"
+                    + query
+                    + "},";
+        }
+
+        config += " \"pivot\": {"
                 + "   \"group_by\": [ {"
                 + "     \"reviewer\": {"
                 + "       \"terms\": {"
@@ -117,7 +125,9 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
                 + "       \"avg\": {"
                 + "         \"field\": \"stars\""
                 + " } } } }"
-                + "}");
+                + "}";
+
+        createDataframeTransformRequest.setJsonEntity(config);
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
         assertTrue(indexExists(dataFrameIndex));

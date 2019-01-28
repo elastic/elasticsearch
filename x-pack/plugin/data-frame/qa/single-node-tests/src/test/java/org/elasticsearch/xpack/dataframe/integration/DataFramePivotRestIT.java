@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
-    private boolean indicesCreated = false;
+    private static boolean indicesCreated = false;
 
     // preserve indices in order to reuse source indices in several test cases
     @Override
@@ -44,16 +44,9 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         String transformId = "simplePivot";
         String dataFrameIndex = "pivot_reviews";
 
-        createPivotReviewsTransform(transformId, dataFrameIndex);
+        createPivotReviewsTransform(transformId, dataFrameIndex, null);
 
-        // start the transform
-        final Request startTransformRequest = new Request("POST", DATAFRAME_ENDPOINT + transformId + "/_start");
-        Map<String, Object> startTransformResponse = entityAsMap(client().performRequest(startTransformRequest));
-        assertThat(startTransformResponse.get("started"), equalTo(Boolean.TRUE));
-
-        // wait until the dataframe has been created and all data is available
-        waitForDataFrameGeneration(transformId);
-        refreshIndex(dataFrameIndex);
+        startAndWaitForTransform(transformId, dataFrameIndex);
 
         // we expect 27 documents as there shall be 27 user_id's
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
@@ -66,6 +59,34 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_20", 3.769230769);
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_26", 3.918918918);
     }
+
+    public void testSimplePivotWithQuery() throws Exception {
+        String transformId = "simplePivotWithQuery";
+        String dataFrameIndex = "pivot_reviews_user_id_above_20";
+        String query = "\"match\": {\"user_id\": \"user_26\"}";
+
+        createPivotReviewsTransform(transformId, dataFrameIndex, query);
+
+        startAndWaitForTransform(transformId, dataFrameIndex);
+
+        // we expect only 1 document due to the query
+        Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
+        assertEquals(1, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_26", 3.918918918);
+    }
+
+    private void startAndWaitForTransform(String transformId, String dataFrameIndex) throws IOException, Exception {
+        // start the transform
+        final Request startTransformRequest = new Request("POST", DATAFRAME_ENDPOINT + transformId + "/_start");
+        Map<String, Object> startTransformResponse = entityAsMap(client().performRequest(startTransformRequest));
+        assertThat(startTransformResponse.get("started"), equalTo(Boolean.TRUE));
+
+        // wait until the dataframe has been created and all data is available
+        waitForDataFrameGeneration(transformId);
+        refreshIndex(dataFrameIndex);
+    }
+
+
 
     private void waitForDataFrameGeneration(String transformId) throws Exception {
         assertBusy(() -> {

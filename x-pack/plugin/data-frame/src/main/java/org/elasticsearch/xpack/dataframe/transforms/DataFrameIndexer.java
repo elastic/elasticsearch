@@ -46,8 +46,9 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     @Override
     protected void onStartJob(long now) {
-        // for now a match all, to be replaced
-        QueryBuilder queryBuilder = new MatchAllQueryBuilder();
+        QueryConfig queryConfig = getConfig().getQueryConfig();
+        QueryBuilder queryBuilder = queryConfig != null ? queryConfig.getQuery() : new MatchAllQueryBuilder();
+
         pivot = new Pivot(getConfig().getSource(), queryBuilder, getConfig().getPivotConfig());
     }
 

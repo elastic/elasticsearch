@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.dataframe.action;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -15,10 +16,12 @@ import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,6 +38,10 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
 
     public static final GetDataFrameTransformsAction INSTANCE = new GetDataFrameTransformsAction();
     public static final String NAME = "cluster:monitor/data_frame/get";
+
+    private static final ParseField INVALID_TRANSFORMS = new ParseField("invalid_transforms_count");
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+            LogManager.getLogger(GetDataFrameTransformsAction.class));
 
     private GetDataFrameTransformsAction() {
         super(NAME);
@@ -161,6 +168,8 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            int invalidTransforms = 0;
+
             builder.startObject();
             builder.field(DataFrameField.COUNT.getPreferredName(), transformConfigurations.size());
             // XContentBuilder does not support passing the params object for Iterables
@@ -168,8 +177,16 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
             builder.startArray();
             for (DataFrameTransformConfig configResponse : transformConfigurations) {
                 configResponse.toXContent(builder, params);
+                if (configResponse.isValid() == false) {
+                    ++invalidTransforms;
+                }
             }
             builder.endArray();
+            if (invalidTransforms != 0) {
+                builder.field(INVALID_TRANSFORMS.getPreferredName(), invalidTransforms);
+                deprecationLogger.deprecated("Found [{}] invalid transforms", invalidTransforms);
+            }
+
             builder.endObject();
             return builder;
         }

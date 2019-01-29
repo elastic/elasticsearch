@@ -41,6 +41,7 @@ public class EarlyTerminatingCollector extends FilterCollector {
     private final int maxCountHits;
     private int numCollected;
     private boolean forceTermination;
+    private boolean earlyTerminated;
 
     /**
      * Ctr
@@ -58,6 +59,7 @@ public class EarlyTerminatingCollector extends FilterCollector {
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
         if (numCollected >= maxCountHits) {
+            earlyTerminated = true;
             if (forceTermination) {
                 throw new EarlyTerminationException("early termination [CountBased]");
             } else {
@@ -68,6 +70,7 @@ public class EarlyTerminatingCollector extends FilterCollector {
             @Override
             public void collect(int doc) throws IOException {
                 if (++numCollected > maxCountHits) {
+                    earlyTerminated = true;
                     if (forceTermination) {
                         throw new EarlyTerminationException("early termination [CountBased]");
                     } else {
@@ -75,7 +78,14 @@ public class EarlyTerminatingCollector extends FilterCollector {
                     }
                 }
                 super.collect(doc);
-            };
+            }
         };
+    }
+
+    /**
+     * Returns true if this collector has early terminated.
+     */
+    public boolean hasEarlyTerminated() {
+        return earlyTerminated;
     }
 }

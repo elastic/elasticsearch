@@ -125,7 +125,7 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
         final Collection<RetentionLease> leases = new ArrayList<>();
         final int numLeases = randomIntBetween(0, 10);
         for (int i = 0; i < numLeases; i++) {
-            leases.add(new RetentionLease(Integer.toString(i), randomLongBetween(NO_OPS_PERFORMED, 1000), randomNonNegativeLong(), "test"));
+            leases.add(new RetentionLease(Integer.toString(i), randomLongBetween(0, 1000), randomNonNegativeLong(), "test"));
         }
         final Supplier<Collection<RetentionLease>> leasesSupplier = () -> Collections.unmodifiableCollection(new ArrayList<>(leases));
         final SoftDeletesPolicy policy =

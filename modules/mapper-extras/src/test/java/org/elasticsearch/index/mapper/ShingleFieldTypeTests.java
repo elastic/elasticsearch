@@ -42,21 +42,10 @@ public class ShingleFieldTypeTests extends FieldTypeTestCase {
 
     @Override
     protected MappedFieldType createDefaultFieldType() {
-        final ShingleFieldType shingleFieldType = new ShingleFieldType(1);
+        final ShingleFieldType shingleFieldType = new ShingleFieldType(Defaults.FIELD_TYPE, 1);
         shingleFieldType.setName(NAME);
         shingleFieldType.setPrefixFieldType(new PrefixFieldType(NAME, PREFIX_NAME, Defaults.MIN_GRAM, Defaults.MAX_GRAM));
         return shingleFieldType;
-    }
-
-    @Before
-    public void setupProperties() {
-        addModifier(new Modifier("shingle_size", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                final ShingleFieldType shingleFieldType = (ShingleFieldType) ft;
-                shingleFieldType.setShingleSize(4);
-            }
-        });
     }
 
     public void testTermQuery() {

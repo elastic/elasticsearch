@@ -74,6 +74,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.IntPredicate;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
@@ -687,69 +688,12 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         private Query analyzePhrasePrefix(TokenStream stream, int slop, int maxExpansions) throws IOException {
-            final MultiPhrasePrefixQuery query = createPhrasePrefixQuery(stream, name(), slop, maxExpansions);
-
-            if (slop > 0
-                    || prefixFieldType == null
-                    || prefixFieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
-                return query;
-            }
-
-            int lastPos = query.getTerms().length - 1;
-            final Term[][] terms = query.getTerms();
-            final int[] positions = query.getPositions();
-            for (Term term : terms[lastPos]) {
-                String value = term.text();
-                if (value.length() < prefixFieldType.minChars || value.length() > prefixFieldType.maxChars) {
-                    return query;
-                }
-            }
-
-            if (terms.length == 1) {
-                Term[] newTerms = Arrays.stream(terms[0])
-                    .map(term -> new Term(prefixFieldType.name(), term.bytes()))
-                    .toArray(Term[]::new);
-                return new SynonymQuery(newTerms);
-            }
-
-            SpanNearQuery.Builder spanQuery = new SpanNearQuery.Builder(name(), true);
-            spanQuery.setSlop(slop);
-            int previousPos = -1;
-            for (int i = 0; i < terms.length; i++) {
-                Term[] posTerms = terms[i];
-                int posInc = positions[i] - previousPos;
-                previousPos = positions[i];
-                if (posInc > 1) {
-                    spanQuery.addGap(posInc - 1);
-                }
-                if (i == lastPos) {
-                    if (posTerms.length == 1) {
-                        FieldMaskingSpanQuery fieldMask =
-                            new FieldMaskingSpanQuery(new SpanTermQuery(new Term(prefixFieldType.name(), posTerms[0].bytes())), name());
-                        spanQuery.addClause(fieldMask);
-                    } else {
-                        SpanQuery[] queries = Arrays.stream(posTerms)
-                            .map(term -> new FieldMaskingSpanQuery(
-                                new SpanTermQuery(new Term(prefixFieldType.name(), term.bytes())), name())
-                            )
-                            .toArray(SpanQuery[]::new);
-                        spanQuery.addClause(new SpanOrQuery(queries));
-                    }
-                } else {
-                    if (posTerms.length == 1) {
-                        spanQuery.addClause(new SpanTermQuery(posTerms[0]));
-                    } else {
-                        SpanTermQuery[] queries = Arrays.stream(posTerms)
-                            .map(SpanTermQuery::new)
-                            .toArray(SpanTermQuery[]::new);
-                        spanQuery.addClause(new SpanOrQuery(queries));
-                    }
-                }
-            }
-            return spanQuery.build();
+            String prefixField = prefixFieldType == null || slop > 0 ? null : prefixFieldType.name();
+            IntPredicate usePrefix = (len) -> len >= prefixFieldType.minChars && len <= prefixFieldType.maxChars;
+            return createPhrasePrefixQuery(stream, name(), slop, maxExpansions, prefixField, usePrefix);
         }
 
-        private static boolean hasGaps(TokenStream stream) throws IOException {
+        static boolean hasGaps(TokenStream stream) throws IOException {
             assert stream instanceof CachingTokenFilter;
             PositionIncrementAttribute posIncAtt = stream.getAttribute(PositionIncrementAttribute.class);
             stream.reset();
@@ -963,8 +907,8 @@ public class TextFieldMapper extends FieldMapper {
         return mpqb.build();
     }
 
-    public static MultiPhrasePrefixQuery createPhrasePrefixQuery(TokenStream stream, String field,
-                                                                 int slop, int maxExpansions) throws IOException {
+    public static Query createPhrasePrefixQuery(TokenStream stream, String field, int slop, int maxExpansions,
+                                                String prefixField, IntPredicate usePrefixField) throws IOException {
         MultiPhrasePrefixQuery builder = new MultiPhrasePrefixQuery(field);
         builder.setSlop(slop);
         builder.setMaxExpansions(maxExpansions);
@@ -987,6 +931,61 @@ public class TextFieldMapper extends FieldMapper {
             currentTerms.add(new Term(field, termAtt.getBytesRef()));
         }
         builder.add(currentTerms.toArray(new Term[0]), position);
-        return builder;
+        if (prefixField == null) {
+            return builder;
+        }
+
+        int lastPos = builder.getTerms().length - 1;
+        final Term[][] terms = builder.getTerms();
+        final int[] positions = builder.getPositions();
+        for (Term term : terms[lastPos]) {
+            String value = term.text();
+            if (usePrefixField.test(value.length()) == false) {
+                return builder;
+            }
+        }
+
+        if (terms.length == 1) {
+            Term[] newTerms = Arrays.stream(terms[0])
+                .map(term -> new Term(prefixField, term.bytes()))
+                .toArray(Term[]::new);
+            return new SynonymQuery(newTerms);
+        }
+
+        SpanNearQuery.Builder spanQuery = new SpanNearQuery.Builder(field, true);
+        spanQuery.setSlop(slop);
+        int previousPos = -1;
+        for (int i = 0; i < terms.length; i++) {
+            Term[] posTerms = terms[i];
+            int posInc = positions[i] - previousPos;
+            previousPos = positions[i];
+            if (posInc > 1) {
+                spanQuery.addGap(posInc - 1);
+            }
+            if (i == lastPos) {
+                if (posTerms.length == 1) {
+                    FieldMaskingSpanQuery fieldMask =
+                        new FieldMaskingSpanQuery(new SpanTermQuery(new Term(prefixField, posTerms[0].bytes())), field);
+                    spanQuery.addClause(fieldMask);
+                } else {
+                    SpanQuery[] queries = Arrays.stream(posTerms)
+                        .map(term -> new FieldMaskingSpanQuery(
+                            new SpanTermQuery(new Term(prefixField, term.bytes())), field)
+                        )
+                        .toArray(SpanQuery[]::new);
+                    spanQuery.addClause(new SpanOrQuery(queries));
+                }
+            } else {
+                if (posTerms.length == 1) {
+                    spanQuery.addClause(new SpanTermQuery(posTerms[0]));
+                } else {
+                    SpanTermQuery[] queries = Arrays.stream(posTerms)
+                        .map(SpanTermQuery::new)
+                        .toArray(SpanTermQuery[]::new);
+                    spanQuery.addClause(new SpanOrQuery(queries));
+                }
+            }
+        }
+        return spanQuery.build();
     }
 }

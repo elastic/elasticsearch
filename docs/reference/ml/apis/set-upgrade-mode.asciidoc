@@ -26,11 +26,13 @@ POST /_ml/set_upgrade_mode?enabled=false&timeout=10m
 
 ==== Description
 
-Before indices related to {ml} jobs and {dfeeds} can be locked and upgraded, all
-currently running jobs and {dfeeds} should be paused. When `enabled=true` this API
-pauses all job and {dfeed} tasks. This allows a clean upgrade for {ml} related
-indices without failing jobs. Calling `enabled=false` will then
-allow {ml} tasks to start executing normally again.
+Before starting the upgrade process on {ml} related indices, all {dfeed} and job
+tasks must stop executing. This API provides this functionality and allows
+for the tasks to be easily started again once upgrading is complete.
+
+When `enabled=true` this API stops all job and {dfeed} tasks and
+prohibits new job and {dfeed} tasks from starting.
+Setting `enabled=false` will then allow {ml} tasks to start executing normally again.
 
 You can see the current value for `upgrade_mode` via the <<get-ml-info, Get {ml} Info>>
 endpoint.

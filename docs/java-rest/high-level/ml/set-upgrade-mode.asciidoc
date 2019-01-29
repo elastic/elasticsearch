@@ -6,7 +6,9 @@
 [id="{upid}-{api}"]
 === Set Upgrade Mode API
 
-The Set Upgrade Mode API provides the ability pause all {ml} jobs and {dfeeds}.
+The Set Upgrade Mode API provides the ability stop all {ml} job and {dfeed} tasks
+from executing.
+
 It accepts a +{request}+ object and responds
 with a +{response}+ object.
 
@@ -16,7 +18,7 @@ be running. Be sure to set `enabled=false` once upgrade actions are completed.
 [id="{upid}-{api}-request"]
 ==== Set Upgrade Mode Request
 
-An +{request}+ object gets created setting the desired `enabled` state.
+A +{request}+ object gets created setting the desired `enabled` state.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

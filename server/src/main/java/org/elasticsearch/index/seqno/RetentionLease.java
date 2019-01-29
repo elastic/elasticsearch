@@ -168,7 +168,8 @@ public final class RetentionLease implements Writeable {
 
     /**
      * Encodes a collection of retention leases as a string. This encoding can be decoed by {@link #decodeRetentionLeases(String)}. The
-     * encoding is a comma-separated encoding of each retention lease as encoded by {@link #encodeRetentionLease(RetentionLease)}.
+     * encoding is a comma-separated encoding of each retention lease as encoded by {@link #encodeRetentionLease(RetentionLease)}, prefixed
+     * by the version of the retention lease collection.
      *
      * @param retentionLeases the retention leases
      * @return the encoding of the retention leases

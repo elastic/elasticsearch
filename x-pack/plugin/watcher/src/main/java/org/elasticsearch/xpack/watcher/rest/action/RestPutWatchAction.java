@@ -64,11 +64,7 @@ public class RestPutWatchAction extends WatcherRestHandler implements RestReques
         return channel -> client.putWatch(putWatchRequest, new RestBuilderListener<PutWatchResponse>(channel) {
             @Override
             public RestResponse buildResponse(PutWatchResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject()
-                        .field("_id", response.getId())
-                        .field("_version", response.getVersion())
-                        .field("created", response.isCreated())
-                        .endObject();
+                response.toXContent(builder, request);
                 RestStatus status = response.isCreated() ? CREATED : OK;
                 return new BytesRestResponse(status, builder);
             }

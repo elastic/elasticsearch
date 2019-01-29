@@ -41,6 +41,7 @@ if [ -x "$JAVA_HOME/bin/java" ]; then
 else
   set +e
   JAVA=`which java`
+  echo "warning: Falling back to java on path. This behavior is deprecated. Specify JAVA_HOME"
   set -e
 fi
 

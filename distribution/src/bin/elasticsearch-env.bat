@@ -20,6 +20,7 @@ rem now set the path to java
 if defined JAVA_HOME (
   set JAVA="%JAVA_HOME%\bin\java.exe"
 ) else (
+  echo warning: Falling back to java on path. This behavior is deprecated. Specify JAVA_HOME
   for %%I in (java.exe) do set JAVA="%%~$PATH:I"
 )
 

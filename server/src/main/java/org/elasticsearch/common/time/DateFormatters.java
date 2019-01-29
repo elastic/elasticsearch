@@ -1581,7 +1581,6 @@ public class DateFormatters {
      *
      * @return The converted zoned date time
      */
-    @SuppressForbidden(reason = "LocalDate.of is fine here")
     public static ZonedDateTime from(TemporalAccessor accessor) {
         if (accessor instanceof ZonedDateTime) {
             return (ZonedDateTime) accessor;
@@ -1608,7 +1607,7 @@ public class DateFormatters {
             return ZonedDateTime.of(LOCALDATE_EPOCH, localTime, zoneId);
         } else if (accessor.isSupported(ChronoField.YEAR)) {
             if (accessor.isSupported(MONTH_OF_YEAR)) {
-                return LocalDate.of(accessor.get(ChronoField.YEAR), accessor.get(MONTH_OF_YEAR), 1).atStartOfDay(zoneId);
+                return getFirstOfMonth(accessor).atStartOfDay(zoneId);
             } else {
                 return Year.of(accessor.get(ChronoField.YEAR)).atDay(1).atStartOfDay(zoneId);
             }
@@ -1629,5 +1628,10 @@ public class DateFormatters {
         // we should not reach this piece of code, everything being parsed we should be able to
         // convert to a zoned date time! If not, we have to extend the above methods
         throw new IllegalArgumentException("temporal accessor [" + accessor + "] cannot be converted to zoned date time");
+    }
+
+    @SuppressForbidden(reason = "LocalDate.of is fine here")
+    private static LocalDate getFirstOfMonth(TemporalAccessor accessor) {
+        return LocalDate.of(accessor.get(ChronoField.YEAR), accessor.get(MONTH_OF_YEAR), 1);
     }
 }

@@ -66,6 +66,21 @@ public class DateFormatTests extends ESTestCase {
         assertThat(dateTime.toString(), is(year + "-06-12T00:00:00.000+02:00"));
     }
 
+    // if there is a time around end of year, which is different in UTC make sure the result is the same
+    public void testParseDefaultYearBackwardsCompatible() {
+        ZoneId zoneId = ZoneId.of("America/New_York");
+        DateTimeZone timezone = DateUtils.zoneIdToDateTimeZone(zoneId);
+        int year = ZonedDateTime.now(zoneId).getYear();
+        int nextYear = year + 1;
+
+        DateTime javaDateTime = DateFormat.Java.getFunction("8dd/MM HH:mm", timezone, Locale.ENGLISH).apply("31/12 23:59");
+        DateTime jodaDateTime = DateFormat.Java.getFunction("dd/MM HH:mm", timezone, Locale.ENGLISH).apply("31/12 23:59");
+        assertThat(javaDateTime.getYear(), is(jodaDateTime.getYear()));
+        assertThat(year, is(jodaDateTime.getYear()));
+        assertThat(javaDateTime.withZone(DateTimeZone.UTC), is(jodaDateTime.withZone(DateTimeZone.UTC)));
+        assertThat(nextYear, is(jodaDateTime.withZone(DateTimeZone.UTC).getYear()));
+    }
+
     public void testParseUnixMs() {
         assertThat(DateFormat.UnixMs.getFunction(null, DateTimeZone.UTC, null).apply("1000500").getMillis(), equalTo(1000500L));
     }

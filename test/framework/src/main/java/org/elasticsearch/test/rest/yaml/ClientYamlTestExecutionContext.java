@@ -106,11 +106,16 @@ public class ClientYamlTestExecutionContext {
             requestParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
         }
 
+        // When running tests against a mixed 7.x/6.x cluster we need to add the type to the document API
+        // requests if its not already included.
         if ((apiName.equals("index") || apiName.equals("update") || apiName.equals("delete") || apiName.equals("get"))
                 && esVersion().before(Version.V_7_0_0) && requestParams.containsKey("type") == false) {
             requestParams.put("type", "_doc");
         }
 
+        // When running tests against a mixed 7.x/6.x cluster we need to add the type to the bulk API requests
+        // if its not already included. The type can either be on the request parameters or in the action metadata
+        // in the body of the request so we need to be sensitive to both scenarios
         if (apiName.equals("bulk") && esVersion().before(Version.V_7_0_0) && requestParams.containsKey("type") == false) {
             if (requestParams.containsKey("index")) {
                 requestParams.put("type", "_doc");

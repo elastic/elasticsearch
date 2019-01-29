@@ -41,21 +41,23 @@ driven specifically from those nodes. Remote clusters set via the
 in the cluster.
 
 The `elasticsearch.yml` config file for a node that connects to remote clusters
-needs to list the remote clusters that should be connected to, for instance:
+needs to list the remote clusters that should be connected to. The format for each 
+`seeds` entry is `remote_host`:`transport.tcp.port`, for instance:
 
 [source,yaml]
 --------------------------------
 cluster:
     remote:
         cluster_one: <1>
-            seeds: 127.0.0.1:9300
-        cluster_two: <1>
             seeds: 127.0.0.1:9301
+        cluster_two: <1>
+            seeds: 127.0.0.1:9302
 
 --------------------------------
 <1> `cluster_one` and `cluster_two` are arbitrary _cluster aliases_ representing
 the connection to each cluster. These names are subsequently used to distinguish
-between local and remote indices.
+between local and remote indices. In this example, `cluster_one` is using port `9301` 
+for transport, and `cluster_two` is using port `9302`. 
 
 The equivalent example using the <<cluster-update-settings,cluster settings
 API>> to add remote clusters to all nodes in the cluster would look like the

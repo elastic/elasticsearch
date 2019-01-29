@@ -17,6 +17,7 @@ You can define an index lifecycle policy which enables you to:
 * Move the old index to warm nodes, where it can be shrunk to a single shard and force-merged down to a single segment for optimized storage and querying. 
 * Later, move the index to cold nodes for cheaper storage.
 
+See <<index-lifecycle-management>>. 
 [float]
 === Frozen indices
 

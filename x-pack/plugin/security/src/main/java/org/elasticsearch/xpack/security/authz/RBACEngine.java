@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.security.authz;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
@@ -39,16 +37,12 @@ import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
-import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -62,13 +56,10 @@ public class RBACEngine implements AuthorizationEngine {
 
     private static final Predicate<String> SAME_USER_PRIVILEGE = Automatons.predicate(
         ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME);
-    private static final Predicate<String> MONITOR_INDEX_PREDICATE = IndexPrivilege.MONITOR.predicate();
     private static final String INDEX_SUB_REQUEST_PRIMARY = IndexAction.NAME + "[p]";
     private static final String INDEX_SUB_REQUEST_REPLICA = IndexAction.NAME + "[r]";
     private static final String DELETE_SUB_REQUEST_PRIMARY = DeleteAction.NAME + "[p]";
     private static final String DELETE_SUB_REQUEST_REPLICA = DeleteAction.NAME + "[r]";
-
-    private static final Logger logger = LogManager.getLogger(RBACEngine.class);
 
     private final CompositeRolesStore rolesStore;
     private final FieldPermissionsCache fieldPermissionsCache;
@@ -314,35 +305,11 @@ public class RBACEngine implements AuthorizationEngine {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
             final IndicesAccessControl accessControl = role.authorize(action, indices, aliasAndIndexLookup, fieldPermissionsCache);
-            if (accessControl.isGranted() && hasSecurityIndexAccess(accessControl) && MONITOR_INDEX_PREDICATE.test(action) == false
-                && isSuperuser(authentication.getUser()) == false) {
-                // only superusers are allowed to work with this index, but we should allow indices monitoring actions through
-                // for debugging
-                // purposes. These monitor requests also sometimes resolve indices concretely and then requests them
-                logger.debug("user [{}] attempted to directly perform [{}] against the security index [{}]",
-                    authentication.getUser().principal(), action, SecurityIndexManager.SECURITY_INDEX_NAME);
-                listener.onResponse(new IndexAuthorizationResult(true, new IndicesAccessControl(false, Collections.emptyMap())));
-            } else {
-                listener.onResponse(new IndexAuthorizationResult(true, accessControl));
-            }
+            listener.onResponse(new IndexAuthorizationResult(true, accessControl));
         } else {
             listener.onFailure(new IllegalArgumentException("unsupported authorization info:" +
                 authorizationInfo.getClass().getSimpleName()));
         }
-    }
-
-    private static boolean hasSecurityIndexAccess(IndicesAccessControl indicesAccessControl) {
-        for (String index : SecurityIndexManager.indexNames()) {
-            final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
-            if (indexPermissions != null && indexPermissions.isGranted()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean isSuperuser(User user) {
-        return Arrays.asList(user.roles()).contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
     }
 
     private static boolean checkChangePasswordAction(Authentication authentication) {

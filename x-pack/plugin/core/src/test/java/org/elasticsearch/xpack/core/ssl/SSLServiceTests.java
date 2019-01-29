@@ -74,6 +74,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -478,6 +479,7 @@ public class SSLServiceTests extends ESTestCase {
         List<String> requestedCiphers = new ArrayList<>(0);
         ArgumentCaptor<HostnameVerifier> verifier = ArgumentCaptor.forClass(HostnameVerifier.class);
         SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
+        TLSv1DeprecationHandler deprecationHandler = TLSv1DeprecationHandler.disabled();
 
         when(sslService.sslConfiguration(settings)).thenReturn(sslConfig);
         when(sslService.sslContext(sslConfig)).thenReturn(sslContext);
@@ -487,10 +489,11 @@ public class SSLServiceTests extends ESTestCase {
         when(sslService.sslIOSessionStrategy(eq(sslContext), eq(protocols), eq(ciphers), verifier.capture())).thenReturn(sslStrategy);
 
         // ensure it actually goes through and calls the real method
-        when(sslService.sslIOSessionStrategy(settings)).thenCallRealMethod();
-        when(sslService.sslIOSessionStrategy(sslConfig)).thenCallRealMethod();
+        when(sslService.sslIOSessionStrategy(settings, deprecationHandler)).thenCallRealMethod();
+        when(sslService.sslIOSessionStrategy(sslConfig, deprecationHandler)).thenCallRealMethod();
+        when(sslService.wrapHostnameVerifier(any(HostnameVerifier.class), eq(deprecationHandler))).thenCallRealMethod();
 
-        assertThat(sslService.sslIOSessionStrategy(settings), sameInstance(sslStrategy));
+        assertThat(sslService.sslIOSessionStrategy(settings, deprecationHandler), sameInstance(sslStrategy));
 
         if (mode.isHostnameVerificationEnabled()) {
             assertThat(verifier.getValue(), instanceOf(DefaultHostnameVerifier.class));
@@ -774,7 +777,7 @@ public class SSLServiceTests extends ESTestCase {
         SSLService sslService = new SSLService(Settings.EMPTY, env);
         SSLConfiguration sslConfiguration = globalConfiguration(sslService);
         logger.info("SSL Configuration: {}", sslConfiguration);
-        SSLIOSessionStrategy sslStrategy = sslService.sslIOSessionStrategy(sslConfiguration);
+        SSLIOSessionStrategy sslStrategy = sslService.sslIOSessionStrategy(sslConfiguration, TLSv1DeprecationHandler.disabled());
         try (CloseableHttpAsyncClient client = getAsyncHttpClient(sslStrategy)) {
             client.start();
 
@@ -794,7 +797,8 @@ public class SSLServiceTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         final SSLService sslService = new SSLService(settings, env);
-        SSLIOSessionStrategy sslStrategy = sslService.sslIOSessionStrategy(globalConfiguration(sslService));
+        final TLSv1DeprecationHandler deprecationHandler = TLSv1DeprecationHandler.disabled();
+        SSLIOSessionStrategy sslStrategy = sslService.sslIOSessionStrategy(globalConfiguration(sslService), deprecationHandler);
         try (CloseableHttpAsyncClient client = getAsyncHttpClient(sslStrategy)) {
             client.start();
 

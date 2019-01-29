@@ -155,18 +155,20 @@ public class SSLService extends AbstractComponent {
      *
      * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix. An empty settings will return
      *                 a context created from the default configuration
+     * @param tlsDeprecationHandler a handler in case TLSv1.0 is used for an SSL connection under this strategy
      * @return Never {@code null}.
      * @deprecated This method will fail if the SSL configuration uses a {@link org.elasticsearch.common.settings.SecureSetting} but the
      * {@link org.elasticsearch.common.settings.SecureSettings} have been closed. Use {@link #getSSLConfiguration(String)}
-     * and {@link #sslIOSessionStrategy(SSLConfiguration)} (Deprecated, but not removed because monitoring uses dynamic SSL settings)
+     * and {@link #sslIOSessionStrategy(SSLConfiguration, TLSv1DeprecationHandler)}
+     * (Deprecated, but not removed because monitoring uses dynamic SSL settings)
      */
     @Deprecated
-    public SSLIOSessionStrategy sslIOSessionStrategy(Settings settings) {
+    public SSLIOSessionStrategy sslIOSessionStrategy(Settings settings, TLSv1DeprecationHandler tlsDeprecationHandler) {
         SSLConfiguration config = sslConfiguration(settings);
-        return sslIOSessionStrategy(config);
+        return sslIOSessionStrategy(config, tlsDeprecationHandler);
     }
 
-    public SSLIOSessionStrategy sslIOSessionStrategy(SSLConfiguration config) {
+    public SSLIOSessionStrategy sslIOSessionStrategy(SSLConfiguration config, TLSv1DeprecationHandler tlsDeprecationHandler) {
         SSLContext sslContext = sslContext(config);
         String[] ciphers = supportedCiphers(sslParameters(sslContext).getCipherSuites(), config.cipherSuites(), false);
         String[] supportedProtocols = config.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
@@ -177,8 +179,22 @@ public class SSLService extends AbstractComponent {
         } else {
             verifier = NoopHostnameVerifier.INSTANCE;
         }
+        verifier = wrapHostnameVerifier(verifier, tlsDeprecationHandler);
 
         return sslIOSessionStrategy(sslContext, supportedProtocols, ciphers, verifier);
+    }
+
+    public HostnameVerifier wrapHostnameVerifier(final HostnameVerifier verifier, TLSv1DeprecationHandler tlsDeprecationHandler) {
+        // Using the hostname verifier for this is just ugly, but HTTP client doesn't expose the SSLSession in many places
+        // and this is the easiest one to hook into in a non-intrusive way
+        if (tlsDeprecationHandler.shouldLogWarnings()) {
+            return (hostname, session) -> {
+                tlsDeprecationHandler.checkAndLog(session, () -> "http connection to " + hostname);
+                return verifier.verify(hostname, session);
+            };
+        } else {
+            return verifier;
+        }
     }
 
     /**
@@ -194,8 +210,8 @@ public class SSLService extends AbstractComponent {
     }
 
     /**
-     * This method only exists to simplify testing of {@link #sslIOSessionStrategy(Settings)} because {@link SSLIOSessionStrategy} does
-     * not expose any of the parameters that you give it.
+     * This method only exists to simplify testing of {@link #sslIOSessionStrategy(Settings, TLSv1DeprecationHandler)} because
+     * {@link SSLIOSessionStrategy} does not expose any of the parameters that you give it.
      *
      * @param sslContext SSL Context used to handle SSL / TCP requests
      * @param protocols Supported protocols

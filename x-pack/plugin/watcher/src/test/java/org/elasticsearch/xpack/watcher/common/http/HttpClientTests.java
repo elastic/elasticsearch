@@ -24,6 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
@@ -40,6 +41,8 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -201,6 +204,35 @@ public class HttpClientTests extends ESTestCase {
         }
     }
 
+    public void testHttpsWithTLSv1GeneratesWarnings() throws Exception {
+        Path trustedCertPath = getDataPath("/org/elasticsearch/xpack/security/keystore/truststore-testnode-only.crt");
+        Path certPath = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.crt");
+        Path keyPath = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.pem");
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        Settings settings = Settings.builder()
+                .put("xpack.http.ssl.certificate_authorities", trustedCertPath)
+                .setSecureSettings(secureSettings)
+                .build();
+
+        try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null)) {
+            secureSettings = new MockSecureSettings();
+            secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
+            Settings settings2 = Settings.builder()
+                .put("xpack.security.http.ssl.key", keyPath)
+                .put("xpack.security.http.ssl.certificate", certPath)
+                .put("xpack.watcher.enabled", false)
+                .setSecureSettings(secureSettings)
+                .build();
+
+            TestsSSLService sslService = new TestsSSLService(settings2, environment);
+            testSslMockWebserver(client, sslService.sslContext("xpack.security.http.ssl."), false, Collections.singletonList("TLSv1"));
+        }
+
+        assertWarnings("a TLS v1.0 session was used for [http connection to localhost]," +
+            " this protocol will be disabled by default in a future version." +
+            " The [xpack.http.ssl.supported_protocols] setting can be used to control this.");
+    }
+
     public void testHttpsDisableHostnameVerification() throws Exception {
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.crt");
         Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.pem");
@@ -269,7 +301,12 @@ public class HttpClientTests extends ESTestCase {
     }
 
     private void testSslMockWebserver(HttpClient client, SSLContext sslContext, boolean needClientAuth) throws IOException {
-        try (MockWebServer mockWebServer = new MockWebServer(sslContext, needClientAuth)) {
+        testSslMockWebserver(client, sslContext, needClientAuth, XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS);
+    }
+
+    private void testSslMockWebserver(HttpClient client, SSLContext sslContext, boolean needClientAuth, List<String> supportedProtocols)
+        throws IOException {
+        try (MockWebServer mockWebServer = new MockWebServer(sslContext, needClientAuth, supportedProtocols)) {
             mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
             mockWebServer.start();
 

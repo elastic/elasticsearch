@@ -74,7 +74,7 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
             latch.await();
 
             // check retention leases have been committed on the primary
-            final RetentionLeases primaryCommittedRetentionLeases = RetentionLease.decodeRetentionLeases(
+            final RetentionLeases primaryCommittedRetentionLeases = RetentionLeases.decodeRetentionLeases(
                     primary.acquireLastIndexCommit(false).getIndexCommit().getUserData().get(Engine.RETENTION_LEASES));
             assertThat(currentRetentionLeases, equalTo(toMap(primaryCommittedRetentionLeases)));
 
@@ -89,7 +89,7 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
                 assertThat(retentionLeasesOnReplica, equalTo(currentRetentionLeases));
 
                 // check retention leases have been committed on the replica
-                final RetentionLeases replicaCommittedRetentionLeases = RetentionLease.decodeRetentionLeases(
+                final RetentionLeases replicaCommittedRetentionLeases = RetentionLeases.decodeRetentionLeases(
                         replica.acquireLastIndexCommit(false).getIndexCommit().getUserData().get(Engine.RETENTION_LEASES));
                 assertThat(currentRetentionLeases, equalTo(toMap(replicaCommittedRetentionLeases)));
             }

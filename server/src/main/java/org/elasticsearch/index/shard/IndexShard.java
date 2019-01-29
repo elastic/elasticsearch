@@ -1447,7 +1447,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (committedRetentionLeases == null) {
             return RetentionLeases.EMPTY;
         }
-        return RetentionLease.decodeRetentionLeases(committedRetentionLeases);
+        return RetentionLeases.decodeRetentionLeases(committedRetentionLeases);
     }
 
     private void trimUnsafeCommits() throws IOException {

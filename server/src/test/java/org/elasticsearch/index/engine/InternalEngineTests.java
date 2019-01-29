@@ -5325,7 +5325,7 @@ public class InternalEngineTests extends EngineTestCase {
                 } else {
                     assertThat(
                             engine.getLastCommittedSegmentInfos().getUserData().get(Engine.RETENTION_LEASES),
-                            equalTo(RetentionLease.encodeRetentionLeases(leases)));
+                            equalTo(RetentionLeases.encodeRetentionLeases(leases)));
                 }
             }
             if (rarely()) {

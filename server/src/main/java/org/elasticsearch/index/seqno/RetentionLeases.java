@@ -25,9 +25,12 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Represents a versioned collection of retention leases. We version the collection of retention leases to ensure that sync requests that
@@ -102,6 +105,52 @@ public class RetentionLeases implements Writeable {
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeVLong(version);
         out.writeCollection(retentionLeases);
+    }
+
+    /**
+     * Encodes a retention lease collection as a string. This encoding can be decoded by
+     * {@link RetentionLeases#decodeRetentionLeases(String)}. The encoding is a comma-separated encoding of each retention lease as encoded
+     * by {@link RetentionLease#encodeRetentionLease(RetentionLease)}, prefixed by the version of the retention lease collection.
+     *
+     * @param retentionLeases the retention lease collection
+     * @return the encoding of the retention lease collection
+     */
+    public static String encodeRetentionLeases(final RetentionLeases retentionLeases) {
+        Objects.requireNonNull(retentionLeases);
+        return String.format(
+                Locale.ROOT,
+                "version:%d;%s",
+                retentionLeases.version(),
+                retentionLeases.retentionLeases().stream().map(RetentionLease::encodeRetentionLease).collect(Collectors.joining(",")));
+    }
+
+    /**
+     * Decodes retention leases encoded by {@link #encodeRetentionLeases(RetentionLeases)}.
+     *
+     * @param encodedRetentionLeases an encoded retention lease collection
+     * @return the decoded retention lease collection
+     */
+    public static RetentionLeases decodeRetentionLeases(final String encodedRetentionLeases) {
+        Objects.requireNonNull(encodedRetentionLeases);
+        if (encodedRetentionLeases.isEmpty()) {
+            return EMPTY;
+        }
+        assert encodedRetentionLeases.matches("version:\\d+;.*") : encodedRetentionLeases;
+        final int firstSemicolon = encodedRetentionLeases.indexOf(";");
+        final long version = Long.parseLong(encodedRetentionLeases.substring("version:".length(), firstSemicolon));
+        final Collection<RetentionLease> retentionLeases;
+        if (firstSemicolon + 1 == encodedRetentionLeases.length()) {
+            retentionLeases = Collections.emptyList();
+        } else {
+            assert Arrays.stream(encodedRetentionLeases.substring(firstSemicolon + 1).split(","))
+                    .allMatch(s -> s.matches("id:[^:;,]+;retaining_seq_no:\\d+;timestamp:\\d+;source:[^:;,]+"))
+                    : encodedRetentionLeases;
+            retentionLeases = Arrays.stream(encodedRetentionLeases.substring(firstSemicolon + 1).split(","))
+                    .map(RetentionLease::decodeRetentionLease)
+                    .collect(Collectors.toList());
+        }
+
+        return new RetentionLeases(version, retentionLeases);
     }
 
     @Override

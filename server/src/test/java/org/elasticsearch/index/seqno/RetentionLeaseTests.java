@@ -107,26 +107,4 @@ public class RetentionLeaseTests extends ESTestCase {
         assertThat(RetentionLease.decodeRetentionLease(RetentionLease.encodeRetentionLease(retentionLease)), equalTo(retentionLease));
     }
 
-    public void testRetentionLeasesEncoding() {
-        final long version = randomNonNegativeLong();
-        final int length = randomIntBetween(0, 8);
-        final List<RetentionLease> retentionLeases = new ArrayList<>(length);
-        for (int i = 0; i < length; i++) {
-            final String id = randomAlphaOfLength(8);
-            final long retainingSequenceNumber = randomNonNegativeLong();
-            final long timestamp = randomNonNegativeLong();
-            final String source = randomAlphaOfLength(8);
-            final RetentionLease retentionLease = new RetentionLease(id, retainingSequenceNumber, timestamp, source);
-            retentionLeases.add(retentionLease);
-        }
-        final RetentionLeases decodedRetentionLeases =
-                RetentionLease.decodeRetentionLeases(RetentionLease.encodeRetentionLeases(new RetentionLeases(version, retentionLeases)));
-        assertThat(decodedRetentionLeases.version(), equalTo(version));
-        if (length == 0) {
-            assertThat(decodedRetentionLeases.retentionLeases(), empty());
-        } else {
-            assertThat(decodedRetentionLeases.retentionLeases(), contains(retentionLeases.toArray(new RetentionLease[0])));
-        }
-    }
-
 }

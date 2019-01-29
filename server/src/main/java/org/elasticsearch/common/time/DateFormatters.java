@@ -1598,13 +1598,13 @@ public class DateFormatters {
 
         // the first two cases are the most common, so this allows us to exit early when parsing dates
         if (isLocalDateSet && isLocalTimeSet) {
-            return of(zoneId, localDate, localTime);
+            return of(localDate, localTime, zoneId);
         } else if (accessor.isSupported(ChronoField.INSTANT_SECONDS) && accessor.isSupported(NANO_OF_SECOND)) {
             return Instant.from(accessor).atZone(zoneId);
         } else if (isLocalDateSet) {
             return localDate.atStartOfDay(zoneId);
         } else if (isLocalTimeSet) {
-            return of(zoneId, LOCALDATE_EPOCH, localTime);
+            return of(LOCALDATE_EPOCH, localTime, zoneId);
         } else if (accessor.isSupported(ChronoField.YEAR)) {
             if (accessor.isSupported(MONTH_OF_YEAR)) {
                 return getFirstOfMonth(accessor).atStartOfDay(zoneId);
@@ -1631,7 +1631,7 @@ public class DateFormatters {
     }
 
     @SuppressForbidden(reason = "ZonedDateTime.of is fine here")
-    private static ZonedDateTime of(ZoneId zoneId, LocalDate localDate, LocalTime localTime) {
+    private static ZonedDateTime of(LocalDate localDate, LocalTime localTime, ZoneId zoneId) {
         return ZonedDateTime.of(localDate, localTime, zoneId);
     }
 

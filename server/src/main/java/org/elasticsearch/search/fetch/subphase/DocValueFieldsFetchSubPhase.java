@@ -133,20 +133,17 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                             scriptValues = data.getLegacyFieldValues();
                         } else if (indexFieldData instanceof IndexNumericFieldData) {
                             NumericType numericType = ((IndexNumericFieldData) indexFieldData).getNumericType();
+                            data = indexFieldData.load(subReaderContext);
                             if (numericType.isFloatingPoint()) {
-                                data = indexFieldData.load(subReaderContext);
                                 doubleValues = ((AtomicNumericFieldData) data).getDoubleValues();
                             } else {
                                 // by default nanoseconds are cut to milliseconds within aggregations
                                 // however for doc value fields we need the original nanosecond longs
-                                // TODO this is not yet nice, improve!
                                 if (isNanosecond) {
-                                    SortedNumericDVIndexFieldData numericDVIndexFieldData = (SortedNumericDVIndexFieldData) indexFieldData;
-                                    data = numericDVIndexFieldData.loadNanosecondFieldData(subReaderContext);
+                                    longValues = ((SortedNumericDVIndexFieldData.NanoSecondFieldData) data).getLongValuesAsNanos();
                                 } else {
-                                    data = indexFieldData.load(subReaderContext);
+                                    longValues = ((AtomicNumericFieldData) data).getLongValues();
                                 }
-                                longValues = ((AtomicNumericFieldData) data).getLongValues();
                             }
                         } else {
                             data = indexFieldData.load(subReaderContext);

@@ -56,7 +56,8 @@ abstract class AtomicLongFieldData implements AtomicNumericFieldData {
     public final ScriptDocValues<?> getLegacyFieldValues() {
         switch (numericType) {
             case DATE:
-                final ScriptDocValues.Dates realDV = new ScriptDocValues.Dates(getLongValues(), false);
+            case DATE_NANOSECONDS:
+                final ScriptDocValues.Dates realDV = new ScriptDocValues.Dates(getLongValues());
                 return new ScriptDocValues<DateTime>() {
 
                     @Override
@@ -75,26 +76,6 @@ abstract class AtomicLongFieldData implements AtomicNumericFieldData {
                         realDV.setNextDocId(docId);
                     }
                 };
-            case DATE_NANOSECONDS:
-                final ScriptDocValues.Dates nanosDV = new ScriptDocValues.Dates(getLongValues(), true);
-                return new ScriptDocValues<JodaCompatibleZonedDateTime>() {
-
-                    @Override
-                    public int size() {
-                        return nanosDV.size();
-                    }
-
-                    @Override
-                    public JodaCompatibleZonedDateTime get(int index) {
-                        return nanosDV.get(index);
-                    }
-
-                    @Override
-                    public void setNextDocId(int docId) throws IOException {
-                        nanosDV.setNextDocId(docId);
-                    }
-                };
-
             default:
                 return getScriptValues();
         }
@@ -103,10 +84,10 @@ abstract class AtomicLongFieldData implements AtomicNumericFieldData {
     @Override
     public final ScriptDocValues<?> getScriptValues() {
         switch (numericType) {
+        // for now, dates and nanoseconds are treated the same, which also means, that the precision is only on millisecond level
         case DATE:
-            return new ScriptDocValues.Dates(getLongValues(), false);
         case DATE_NANOSECONDS:
-            return new ScriptDocValues.Dates(getLongValues(), true);
+            return new ScriptDocValues.Dates(getLongValues());
         case BOOLEAN:
             return new ScriptDocValues.Booleans(getLongValues());
         default:

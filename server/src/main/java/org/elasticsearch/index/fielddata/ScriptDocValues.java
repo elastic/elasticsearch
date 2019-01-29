@@ -26,7 +26,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.IOException;
@@ -133,7 +132,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     public static final class Dates extends ScriptDocValues<JodaCompatibleZonedDateTime> {
 
         private final SortedNumericDocValues in;
-        private final boolean timeAsNanos;
 
         /**
          * Values wrapped in {@link java.time.ZonedDateTime} objects.
@@ -144,9 +142,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         /**
          * Standard constructor.
          */
-        public Dates(SortedNumericDocValues in, boolean timeAsNanos) {
+        public Dates(SortedNumericDocValues in) {
             this.in = in;
-            this.timeAsNanos = timeAsNanos;
         }
 
         /**
@@ -198,11 +195,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 dates = new JodaCompatibleZonedDateTime[count];
             }
             for (int i = 0; i < count; ++i) {
-                if (timeAsNanos) {
-                    dates[i] = new JodaCompatibleZonedDateTime(DateUtils.toInstant(in.nextValue()), ZoneOffset.UTC);
-                } else {
-                    dates[i] = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
-                }
+                dates[i] = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
             }
         }
     }

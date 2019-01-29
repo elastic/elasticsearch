@@ -39,8 +39,7 @@ teardown:
               "test_index": {
                 "throttle_period" : "10s",
                 "index": {
-                  "index": "test",
-                  "doc_type": "test2"
+                  "index": "test"
                 }
               }
             }

@@ -40,8 +40,10 @@ public final class RandomCreateIndexGenerator {
     private RandomCreateIndexGenerator() {}
 
     /**
-     * Returns a random {@link CreateIndexRequest}. Randomizes the index name, the aliases,
-     * mappings and settings associated with the index.
+     * Returns a random {@link CreateIndexRequest}.
+     *
+     * Randomizes the index name, the aliases, mappings and settings associated with the
+     * index. If present, the mapping definition will be nested under a type name.
      */
     public static CreateIndexRequest randomCreateIndexRequest() throws IOException {
         String index = randomAlphaOfLength(5);
@@ -76,20 +78,6 @@ public final class RandomCreateIndexGenerator {
         }
 
         return builder.build();
-    }
-
-
-    /**
-     * Creates a random mapping, with no mention of types.
-     */
-    public static XContentBuilder randomMapping() throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        builder.startObject();
-
-        randomMappingFields(builder, true);
-
-        builder.endObject();
-        return builder;
     }
 
     /**

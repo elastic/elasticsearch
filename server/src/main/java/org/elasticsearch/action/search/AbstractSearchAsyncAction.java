@@ -114,9 +114,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             //no search shards to search on, bail with empty response
             //(it happens with search across _all with no indices around and consistent with broadcast operations)
 
-            boolean withTotalHits = request.source() != null ?
-                // total hits is null in the response if the tracking of total hits is disabled
-                request.source().trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_DISABLED : true;
+            int trackTotalHitsUpTo = request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO :
+                request.source().trackTotalHitsUpTo() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO :
+                    request.source().trackTotalHitsUpTo();
+            // total hits is null in the response if the tracking of total hits is disabled
+            boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
             listener.onResponse(new SearchResponse(InternalSearchResponse.empty(withTotalHits), null, 0, 0, 0, buildTookInMillis(),
                 ShardSearchFailure.EMPTY_ARRAY, clusters));
             return;

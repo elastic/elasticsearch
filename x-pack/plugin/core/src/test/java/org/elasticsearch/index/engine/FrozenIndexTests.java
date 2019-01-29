@@ -45,6 +45,7 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.equalTo;
 
 public class FrozenIndexTests extends ESSingleNodeTestCase {
 
@@ -323,5 +324,20 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertAcked(xPackClient.freeze(new TransportFreezeIndexAction.FreezeRequest("idx").setFreeze(false)));
         assertEquals(IndexMetaData.State.OPEN,
             client().admin().cluster().prepareState().get().getState().metaData().index("idx").getState());
+    }
+
+    public void testFreezeIndexIncreasesIndexSettingsVersion() throws ExecutionException, InterruptedException {
+        final String index = "test";
+        createIndex(index, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        client().prepareIndex(index, "_doc").setSource("field", "value").execute().actionGet();
+
+        final long settingsVersion = client().admin().cluster().prepareState().get()
+            .getState().metaData().index(index).getSettingsVersion();
+
+        XPackClient xPackClient = new XPackClient(client());
+        assertAcked(xPackClient.freeze(new TransportFreezeIndexAction.FreezeRequest(index)));
+        assertIndexFrozen(index);
+        assertThat(client().admin().cluster().prepareState().get().getState().metaData().index(index).getSettingsVersion(),
+            equalTo(settingsVersion + 1));
     }
 }

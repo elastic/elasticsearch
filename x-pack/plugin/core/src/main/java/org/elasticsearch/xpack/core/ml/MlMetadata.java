@@ -57,8 +57,9 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
     public static final String TYPE = "ml";
     private static final ParseField JOBS_FIELD = new ParseField("jobs");
     private static final ParseField DATAFEEDS_FIELD = new ParseField("datafeeds");
+    public static final ParseField UPGRADE_MODE = new ParseField("upgrade_mode");
 
-    public static final MlMetadata EMPTY_METADATA = new MlMetadata(Collections.emptySortedMap(), Collections.emptySortedMap());
+    public static final MlMetadata EMPTY_METADATA = new MlMetadata(Collections.emptySortedMap(), Collections.emptySortedMap(), false);
     // This parser follows the pattern that metadata is parsed leniently (to allow for enhancements)
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = new ObjectParser<>("ml_metadata", true, Builder::new);
 
@@ -66,16 +67,20 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         LENIENT_PARSER.declareObjectArray(Builder::putJobs, (p, c) -> Job.LENIENT_PARSER.apply(p, c).build(), JOBS_FIELD);
         LENIENT_PARSER.declareObjectArray(Builder::putDatafeeds,
                 (p, c) -> DatafeedConfig.LENIENT_PARSER.apply(p, c).build(), DATAFEEDS_FIELD);
+        LENIENT_PARSER.declareBoolean(Builder::isUpgradeMode, UPGRADE_MODE);
+
     }
 
     private final SortedMap<String, Job> jobs;
     private final SortedMap<String, DatafeedConfig> datafeeds;
+    private final boolean upgradeMode;
     private final GroupOrJobLookup groupOrJobLookup;
 
-    private MlMetadata(SortedMap<String, Job> jobs, SortedMap<String, DatafeedConfig> datafeeds) {
+    private MlMetadata(SortedMap<String, Job> jobs, SortedMap<String, DatafeedConfig> datafeeds, boolean upgradeMode) {
         this.jobs = Collections.unmodifiableSortedMap(jobs);
         this.datafeeds = Collections.unmodifiableSortedMap(datafeeds);
         this.groupOrJobLookup = new GroupOrJobLookup(jobs.values());
+        this.upgradeMode = upgradeMode;
     }
 
     public Map<String, Job> getJobs() {
@@ -117,6 +122,10 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
                 .expand(expression);
     }
 
+    public boolean isUpgradeMode() {
+        return upgradeMode;
+    }
+
     @Override
     public Version getMinimalSupportedVersion() {
         return Version.V_5_4_0;
@@ -151,12 +160,20 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         }
         this.datafeeds = datafeeds;
         this.groupOrJobLookup = new GroupOrJobLookup(jobs.values());
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
+            this.upgradeMode = in.readBoolean();
+        } else {
+            this.upgradeMode = false;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         writeMap(jobs, out);
         writeMap(datafeeds, out);
+        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+            out.writeBoolean(upgradeMode);
+        }
     }
 
     private static <T extends Writeable> void writeMap(Map<String, T> map, StreamOutput out) throws IOException {
@@ -173,6 +190,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
                 new DelegatingMapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"), params);
         mapValuesToXContent(JOBS_FIELD, jobs, builder, extendedParams);
         mapValuesToXContent(DATAFEEDS_FIELD, datafeeds, builder, extendedParams);
+        builder.field(UPGRADE_MODE.getPreferredName(), upgradeMode);
         return builder;
     }
 
@@ -193,10 +211,12 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
         final Diff<Map<String, Job>> jobs;
         final Diff<Map<String, DatafeedConfig>> datafeeds;
+        final boolean upgradeMode;
 
         MlMetadataDiff(MlMetadata before, MlMetadata after) {
             this.jobs = DiffableUtils.diff(before.jobs, after.jobs, DiffableUtils.getStringKeySerializer());
             this.datafeeds = DiffableUtils.diff(before.datafeeds, after.datafeeds, DiffableUtils.getStringKeySerializer());
+            this.upgradeMode = after.upgradeMode;
         }
 
         public MlMetadataDiff(StreamInput in) throws IOException {
@@ -204,6 +224,11 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
                     MlMetadataDiff::readJobDiffFrom);
             this.datafeeds = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), DatafeedConfig::new,
                     MlMetadataDiff::readDatafeedDiffFrom);
+            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
+                upgradeMode = in.readBoolean();
+            } else {
+                upgradeMode = false;
+            }
         }
 
         /**
@@ -215,13 +240,16 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         public MetaData.Custom apply(MetaData.Custom part) {
             TreeMap<String, Job> newJobs = new TreeMap<>(jobs.apply(((MlMetadata) part).jobs));
             TreeMap<String, DatafeedConfig> newDatafeeds = new TreeMap<>(datafeeds.apply(((MlMetadata) part).datafeeds));
-            return new MlMetadata(newJobs, newDatafeeds);
+            return new MlMetadata(newJobs, newDatafeeds, upgradeMode);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             jobs.writeTo(out);
             datafeeds.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+                out.writeBoolean(upgradeMode);
+            }
         }
 
         @Override
@@ -246,7 +274,8 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             return false;
         MlMetadata that = (MlMetadata) o;
         return Objects.equals(jobs, that.jobs) &&
-                Objects.equals(datafeeds, that.datafeeds);
+                Objects.equals(datafeeds, that.datafeeds) &&
+                Objects.equals(upgradeMode, that.upgradeMode);
     }
 
     @Override
@@ -256,13 +285,14 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobs, datafeeds);
+        return Objects.hash(jobs, datafeeds, upgradeMode);
     }
 
     public static class Builder {
 
         private TreeMap<String, Job> jobs;
         private TreeMap<String, DatafeedConfig> datafeeds;
+        private boolean upgradeMode;
 
         public Builder() {
             jobs = new TreeMap<>();
@@ -276,6 +306,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             } else {
                 jobs = new TreeMap<>(previous.jobs);
                 datafeeds = new TreeMap<>(previous.datafeeds);
+                upgradeMode = previous.upgradeMode;
             }
         }
 
@@ -395,8 +426,13 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             return this;
         }
 
+        public Builder isUpgradeMode(boolean upgradeMode) {
+            this.upgradeMode = upgradeMode;
+            return this;
+        }
+
         public MlMetadata build() {
-            return new MlMetadata(jobs, datafeeds);
+            return new MlMetadata(jobs, datafeeds, upgradeMode);
         }
 
         public void markJobAsDeleting(String jobId, PersistentTasksCustomMetaData tasks, boolean allowDeleteOpenJob) {

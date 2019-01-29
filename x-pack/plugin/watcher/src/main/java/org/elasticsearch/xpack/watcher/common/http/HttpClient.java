@@ -44,6 +44,7 @@ import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.TLSv1DeprecationHandler;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 
 import javax.net.ssl.HostnameVerifier;
@@ -84,9 +85,11 @@ public class HttpClient extends AbstractComponent implements Closeable {
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
 
         // ssl setup
+        TLSv1DeprecationHandler tlsDeprecationHandler = new TLSv1DeprecationHandler(SETTINGS_SSL_PREFIX, settings, logger);
         SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(SETTINGS_SSL_PREFIX);
         boolean isHostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
         HostnameVerifier verifier = isHostnameVerificationEnabled ? new DefaultHostnameVerifier() : NoopHostnameVerifier.INSTANCE;
+        verifier = sslService.wrapHostnameVerifier(verifier, tlsDeprecationHandler);
         SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslConfiguration), verifier);
         clientBuilder.setSSLSocketFactory(factory);
 

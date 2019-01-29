@@ -33,12 +33,15 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
                     "role_c:\n" +
                     "  indices:\n" +
                     "    - names: 'someindex'\n" +
-                    "      privileges: [ all ]\n";
+                    "      privileges: [ all ]\n" +
+                    "role_d:\n" +
+                    "  cluster: [ create_snapshot ]\n";
 
     private static final String USERS_ROLES =
                     "role_a:user_a\n" +
                     "role_b:user_b\n" +
-                    "role_c:user_c\n";
+                    "role_c:user_c\n" +
+                    "role_d:user_d\n";
 
     private static Path repositoryLocation;
 
@@ -72,8 +75,8 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         return super.configUsers() +
             "user_a:" + usersPasswdHashed + "\n" +
             "user_b:" + usersPasswdHashed + "\n" +
-            "user_c:" + usersPasswdHashed + "\n";
-
+            "user_c:" + usersPasswdHashed + "\n" +
+            "user_d:" + usersPasswdHashed + "\n";
     }
 
     @Override
@@ -119,6 +122,18 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("user_c", "GET", "/_nodes/infos");
         assertAccessIsDenied("user_c", "POST", "/_cluster/reroute");
         assertAccessIsDenied("user_c", "PUT", "/_cluster/settings", "{ \"transient\" : { \"search.default_search_timeout\": \"1m\" } }");
+
+        // user_d can view repos and create and view snapshots on existings repos, everything else is DENIED
+        assertAccessIsDenied("user_d", "GET", "/_cluster/state");
+        assertAccessIsDenied("user_d", "GET", "/_cluster/health");
+        assertAccessIsDenied("user_d", "GET", "/_cluster/settings");
+        assertAccessIsDenied("user_d", "GET", "/_cluster/stats");
+        assertAccessIsDenied("user_d", "GET", "/_cluster/pending_tasks");
+        assertAccessIsDenied("user_d", "GET", "/_nodes/stats");
+        assertAccessIsDenied("user_d", "GET", "/_nodes/hot_threads");
+        assertAccessIsDenied("user_d", "GET", "/_nodes/infos");
+        assertAccessIsDenied("user_d", "POST", "/_cluster/reroute");
+        assertAccessIsDenied("user_d", "PUT", "/_cluster/settings", "{ \"transient\" : { \"search.default_search_timeout\": \"1m\" } }");
     }
 
     public void testThatSnapshotAndRestore() throws Exception {
@@ -126,6 +141,7 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
                 repositoryLocation.toString()).endObject().endObject());
         assertAccessIsDenied("user_b", "PUT", "/_snapshot/my-repo", repoJson);
         assertAccessIsDenied("user_c", "PUT", "/_snapshot/my-repo", repoJson);
+        assertAccessIsDenied("user_d", "PUT", "/_snapshot/my-repo", repoJson);
         assertAccessIsAllowed("user_a", "PUT", "/_snapshot/my-repo", repoJson);
 
         Request createBar = new Request("PUT", "/someindex/bar/1");
@@ -133,6 +149,7 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         createBar.addParameter("refresh", "true");
         assertAccessIsDenied("user_a", createBar);
         assertAccessIsDenied("user_b", createBar);
+        assertAccessIsDenied("user_d", createBar);
         assertAccessIsAllowed("user_c", createBar);
 
         assertAccessIsDenied("user_b", "PUT", "/_snapshot/my-repo/my-snapshot", "{ \"indices\": \"someindex\" }");
@@ -142,30 +159,38 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("user_b", "GET", "/_snapshot/my-repo/my-snapshot/_status");
         assertAccessIsDenied("user_c", "GET", "/_snapshot/my-repo/my-snapshot/_status");
         assertAccessIsAllowed("user_a", "GET", "/_snapshot/my-repo/my-snapshot/_status");
+        assertAccessIsAllowed("user_d", "GET", "/_snapshot/my-repo/my-snapshot/_status");
 
         // This snapshot needs to be finished in order to be restored
         waitForSnapshotToFinish("my-repo", "my-snapshot");
+        // user_d can create snapshots, but not concurrently
+        assertAccessIsAllowed("user_d", "PUT", "/_snapshot/my-repo/my-snapshot-d", "{ \"indices\": \"someindex\" }");
 
         assertAccessIsDenied("user_a", "DELETE", "/someindex");
         assertAccessIsDenied("user_b", "DELETE", "/someindex");
+        assertAccessIsDenied("user_d", "DELETE", "/someindex");
         assertAccessIsAllowed("user_c", "DELETE", "/someindex");
 
         Request restoreSnapshotRequest = new Request("POST", "/_snapshot/my-repo/my-snapshot/_restore");
         restoreSnapshotRequest.addParameter("wait_for_completion", "true");
         assertAccessIsDenied("user_b", restoreSnapshotRequest);
         assertAccessIsDenied("user_c", restoreSnapshotRequest);
+        assertAccessIsDenied("user_d", restoreSnapshotRequest);
         assertAccessIsAllowed("user_a", restoreSnapshotRequest);
 
         assertAccessIsDenied("user_a", "GET", "/someindex/bar/1");
         assertAccessIsDenied("user_b", "GET", "/someindex/bar/1");
+        assertAccessIsDenied("user_d", "GET", "/someindex/bar/1");
         assertAccessIsAllowed("user_c", "GET", "/someindex/bar/1");
 
         assertAccessIsDenied("user_b", "DELETE", "/_snapshot/my-repo/my-snapshot");
         assertAccessIsDenied("user_c", "DELETE", "/_snapshot/my-repo/my-snapshot");
+        assertAccessIsDenied("user_d", "DELETE", "/_snapshot/my-repo/my-snapshot");
         assertAccessIsAllowed("user_a", "DELETE", "/_snapshot/my-repo/my-snapshot");
 
         assertAccessIsDenied("user_b", "DELETE", "/_snapshot/my-repo");
         assertAccessIsDenied("user_c", "DELETE", "/_snapshot/my-repo");
+        assertAccessIsDenied("user_d", "DELETE", "/_snapshot/my-repo");
         assertAccessIsAllowed("user_a", "DELETE", "/_snapshot/my-repo");
     }
 

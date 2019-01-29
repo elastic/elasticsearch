@@ -9,7 +9,6 @@ import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
-
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -79,13 +78,13 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         String userTemplates = "cn={0},ou=people,o=sevenSeas";
 
         Settings settings = Settings.builder()
-                .put(buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING, "1ms") //1 millisecond
-                .put("path.home", createTempDir())
-                .build();
+            .put(buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .put(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING, "1ms") //1 millisecond
+            .put("path.home", createTempDir())
+            .build();
 
         RealmConfig config = new RealmConfig("ldap_realm", settings, globalSettings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
         String user = "Horatio Hornblower";
         SecureString userPass = new SecureString("pass");
@@ -93,7 +92,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         ldapServer.setProcessingDelayMillis(500L);
         try {
             UncategorizedExecutionException e =
-                    expectThrows(UncategorizedExecutionException.class, () -> session(sessionFactory, user, userPass));
+                expectThrows(UncategorizedExecutionException.class, () -> session(sessionFactory, user, userPass));
             assertThat(e.getCause(), instanceOf(ExecutionException.class));
             assertThat(e.getCause().getCause(), instanceOf(LDAPException.class));
             assertThat(e.getCause().getCause().getMessage(), containsString("A client-side timeout was encountered while waiting "));
@@ -104,14 +103,14 @@ public class LdapSessionFactoryTests extends LdapTestCase {
 
     public void testBindWithTemplates() throws Exception {
         String groupSearchBase = "o=sevenSeas";
-        String[] userTemplates = new String[] {
-                "cn={0},ou=something,ou=obviously,ou=incorrect,o=sevenSeas",
-                "wrongname={0},ou=people,o=sevenSeas",
-                "cn={0},ou=people,o=sevenSeas", //this last one should work
+        String[] userTemplates = new String[]{
+            "cn={0},ou=something,ou=obviously,ou=incorrect,o=sevenSeas",
+            "wrongname={0},ou=people,o=sevenSeas",
+            "cn={0},ou=people,o=sevenSeas", //this last one should work
         };
         RealmConfig config = new RealmConfig("ldap_realm",
-                buildLdapSettings(ldapUrls(), userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE),
-                globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+            buildLdapSettings(ldapUrls(), userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE),
+            globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
 
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
@@ -128,14 +127,14 @@ public class LdapSessionFactoryTests extends LdapTestCase {
 
     public void testBindWithBogusTemplates() throws Exception {
         String groupSearchBase = "o=sevenSeas";
-        String[] userTemplates = new String[] {
-                "cn={0},ou=something,ou=obviously,ou=incorrect,o=sevenSeas",
-                "wrongname={0},ou=people,o=sevenSeas",
-                "asdf={0},ou=people,o=sevenSeas", //none of these should work
+        String[] userTemplates = new String[]{
+            "cn={0},ou=something,ou=obviously,ou=incorrect,o=sevenSeas",
+            "wrongname={0},ou=people,o=sevenSeas",
+            "asdf={0},ou=people,o=sevenSeas", //none of these should work
         };
         RealmConfig config = new RealmConfig("ldap_realm",
-                buildLdapSettings(ldapUrls(), userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE),
-                globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+            buildLdapSettings(ldapUrls(), userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE),
+            globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
 
         LdapSessionFactory ldapFac = new LdapSessionFactory(config, sslService, threadPool);
 
@@ -153,8 +152,8 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
         RealmConfig config = new RealmConfig("ldap_realm",
-                buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE),
-                globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+            buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE),
+            globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
 
         LdapSessionFactory ldapFac = new LdapSessionFactory(config, sslService, threadPool);
 
@@ -173,8 +172,8 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         String groupSearchBase = "ou=crews,ou=groups,o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
         RealmConfig config = new RealmConfig("ldap_realm",
-                buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL),
-                globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+            buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL),
+            globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
 
         LdapSessionFactory ldapFac = new LdapSessionFactory(config, sslService, threadPool);
 
@@ -192,8 +191,8 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         String groupSearchBase = "cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
         RealmConfig config = new RealmConfig("ldap_realm",
-                buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.BASE),
-                globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+            buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.BASE),
+            globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
 
         LdapSessionFactory ldapFac = new LdapSessionFactory(config, sslService, threadPool);
 
@@ -255,5 +254,32 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         assertThat(session.userDn(), is("cn=Horatio Hornblower,ou=people,o=sevenSeas"));
 
         session.close();
+    }
+
+    public void testDeprecationWarningIfTls1IsUsed() throws Exception {
+        InMemoryDirectoryServer ldapServer = randomFrom(ldapServers);
+        String ldapUrl = new LDAPURL("ldaps", "localhost", ldapServer.getListenPort("ldaps-tls1"), null, null, null, null).toString();
+        String groupSearchBase = "o=sevenSeas";
+        String userTemplates = "cn={0},ou=people,o=sevenSeas";
+
+        Settings settings = Settings.builder()
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .build();
+
+        final Environment environment = TestEnvironment.newEnvironment(settings);
+        RealmConfig config = new RealmConfig("ldap_realm", settings, globalSettings, environment, new ThreadContext(settings));
+        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
+        String user = "Horatio Hornblower";
+        SecureString userPass = new SecureString("pass");
+
+        LdapSession session = session(sessionFactory, user, userPass);
+        assertThat(session.userDn(), is("cn=Horatio Hornblower,ou=people,o=sevenSeas"));
+        session.close();
+
+        assertWarnings("a TLS v1.0 session was used for [ldap host localhost]," +
+            " this protocol will be disabled by default in a future version." +
+            " The [xpack.security.authc.realms.ldap_realm.ssl.supported_protocols] setting can be used to control this.");
+
     }
 }

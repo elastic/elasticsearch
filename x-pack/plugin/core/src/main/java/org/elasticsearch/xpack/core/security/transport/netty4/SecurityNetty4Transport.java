@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
@@ -31,17 +32,20 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.TLSv1DeprecationHandler;
 
 import javax.net.ssl.SNIHostName;
 import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSession;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
@@ -55,6 +59,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
     private final SSLConfiguration sslConfiguration;
     private final Map<String, SSLConfiguration> profileConfiguration;
     private final boolean sslEnabled;
+    private final Map<String, TLSv1DeprecationHandler> tlsDeprecation;
 
     public SecurityNetty4Transport(
             final Settings settings,
@@ -72,10 +77,34 @@ public class SecurityNetty4Transport extends Netty4Transport {
             this.sslConfiguration = sslService.getSSLConfiguration(setting("transport.ssl."));
             Map<String, SSLConfiguration> profileConfiguration = getTransportProfileConfigurations(settings, sslService, sslConfiguration);
             this.profileConfiguration = Collections.unmodifiableMap(profileConfiguration);
+            this.tlsDeprecation = buildTlsDeprecationHandlers(settings, profileConfiguration.keySet());
         } else {
             this.profileConfiguration = Collections.emptyMap();
             this.sslConfiguration = null;
+            this.tlsDeprecation = Collections.emptyMap();
         }
+    }
+
+    // Package protected for testing
+    static Map<String, TLSv1DeprecationHandler> buildTlsDeprecationHandlers(Settings settings, Set<String> profileNames) {
+        TLSv1DeprecationHandler defaultTlsDeprecationHandler = new TLSv1DeprecationHandler(setting("transport.ssl."), settings, logger);
+        if (defaultTlsDeprecationHandler.shouldLogWarnings()) {
+            final Map<String, TLSv1DeprecationHandler> handlers = new HashMap<>();
+            profileNames.forEach(name -> {
+                if (TransportSettings.DEFAULT_PROFILE.equals(name)) {
+                    handlers.put(name, defaultTlsDeprecationHandler);
+                } else {
+                    handlers.put(name, new TLSv1DeprecationHandler(getTransportProfileSslPrefix(name) + ".", settings, logger));
+                }
+            });
+            return Collections.unmodifiableMap(handlers);
+        } else {
+            return Collections.emptyMap();
+        }
+    }
+
+    private static String getTransportProfileSslPrefix(String name) {
+        return "transport.profiles." + name + "." + setting("ssl") ;
     }
 
     public static Map<String, SSLConfiguration> getTransportProfileConfigurations(Settings settings, SSLService sslService,
@@ -83,7 +112,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
         Set<String> profileNames = settings.getGroups("transport.profiles.", true).keySet();
         Map<String, SSLConfiguration> profileConfiguration = new HashMap<>(profileNames.size() + 1);
         for (String profileName : profileNames) {
-            SSLConfiguration configuration = sslService.getSSLConfiguration("transport.profiles." + profileName + "." + setting("ssl"));
+            SSLConfiguration configuration = sslService.getSSLConfiguration(getTransportProfileSslPrefix(profileName));
             profileConfiguration.put(profileName, configuration);
         }
 
@@ -155,9 +184,13 @@ public class SecurityNetty4Transport extends Netty4Transport {
     public class SslChannelInitializer extends ServerChannelInitializer {
         private final SSLConfiguration configuration;
 
-        public SslChannelInitializer(String name, SSLConfiguration configuration) {
+        @Nullable
+        private final Consumer<SSLSession> handshakeListener;
+
+        public SslChannelInitializer(String name, SSLConfiguration configuration, Consumer<SSLSession> handshakeListener) {
             super(name);
             this.configuration = configuration;
+            this.handshakeListener = handshakeListener;
         }
 
         @Override
@@ -167,11 +200,30 @@ public class SecurityNetty4Transport extends Netty4Transport {
             serverEngine.setUseClientMode(false);
             final SslHandler sslHandler = new SslHandler(serverEngine);
             ch.pipeline().addFirst("sslhandler", sslHandler);
+            if (handshakeListener != null) {
+                sslHandler.handshakeFuture().addListener(fut -> {
+                    SSLSession session = serverEngine.getSession();
+                    handshakeListener.accept(session);
+                });
+            }
         }
     }
 
     protected ServerChannelInitializer getSslChannelInitializer(final String name, final SSLConfiguration configuration) {
-        return new SslChannelInitializer(name, sslConfiguration);
+        return new SslChannelInitializer(name, sslConfiguration, getSslHandshakeListenerForProfile(name));
+    }
+
+    @Nullable
+    protected Consumer<SSLSession> getSslHandshakeListenerForProfile(String name) {
+        // This is handled here (rather than as an interceptor) so we know which profile was used, and can
+        // provide the correct setting to report on (this may be technically also possible in a transport interceptor, but the
+        // existing security interceptor doesn't have that now, and adding it would be a more intrusive change).
+        final TLSv1DeprecationHandler deprecationHandler = tlsDeprecation.get(name);
+        if (deprecationHandler != null && deprecationHandler.shouldLogWarnings()) {
+            return session -> deprecationHandler.checkAndLog(session, () -> "transport profile: " + name);
+        } else {
+            return null;
+        }
     }
 
     private class SecurityClientChannelInitializer extends ClientChannelInitializer {

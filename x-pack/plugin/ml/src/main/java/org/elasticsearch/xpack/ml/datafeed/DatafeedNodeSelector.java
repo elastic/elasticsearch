@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -14,6 +15,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -23,6 +25,8 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 
 public class DatafeedNodeSelector {
 
@@ -44,6 +48,13 @@ public class DatafeedNodeSelector {
     }
 
     public void checkDatafeedTaskCanBeCreated() {
+        if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
+            String msg = "Unable to start datafeed [" + datafeedId +"] explanation [" + AWAITING_UPGRADE.getExplanation() + "]";
+            LOGGER.debug(msg);
+            Exception detail = new IllegalStateException(msg);
+            throw new ElasticsearchStatusException("Could not start datafeed [" + datafeedId +"] as indices are being upgraded",
+                RestStatus.TOO_MANY_REQUESTS, detail);
+        }
         AssignmentFailure assignmentFailure = checkAssignment(findJobTask());
         if (assignmentFailure != null && assignmentFailure.isCriticalForTaskCreation) {
             String msg = "No node found to start datafeed [" + datafeedId + "], " +
@@ -54,6 +65,10 @@ public class DatafeedNodeSelector {
     }
 
     public PersistentTasksCustomMetaData.Assignment selectNode() {
+        if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
+            return AWAITING_UPGRADE;
+        }
+
         PersistentTasksCustomMetaData.PersistentTask<?> jobTask = findJobTask();
         AssignmentFailure assignmentFailure = checkAssignment(jobTask);
         if (assignmentFailure == null) {

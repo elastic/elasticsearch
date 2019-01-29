@@ -759,6 +759,42 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertThat(getStepKeyForIndex(originalIndex), equalTo(TerminalPolicyStep.KEY)));
     }
 
+    public void testMoveToInjectedStep() throws Exception {
+        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
+        createNewSingletonPolicy("warm", new ShrinkAction(1), TimeValue.timeValueHours(12));
+
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
+
+        assertBusy(() -> assertThat(getStepKeyForIndex(index), equalTo(new StepKey("new", "complete", "complete"))));
+
+        // Move to a step from the injected unfollow action
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
+        moveToStepRequest.setJsonEntity("{\n" +
+            "  \"current_step\": { \n" +
+            "    \"phase\": \"new\",\n" +
+            "    \"action\": \"complete\",\n" +
+            "    \"name\": \"complete\"\n" +
+            "  },\n" +
+            "  \"next_step\": { \n" +
+            "    \"phase\": \"warm\",\n" +
+            "    \"action\": \"unfollow\",\n" +
+            "    \"name\": \"wait-for-indexing-complete\"\n" +
+            "  }\n" +
+            "}");
+        // If we get an OK on this request we have successfully moved to the injected step
+        assertOK(client().performRequest(moveToStepRequest));
+
+        // Make sure we actually move on to and execute the shrink action
+        assertBusy(() -> {
+            assertTrue(indexExists(shrunkenIndex));
+            assertTrue(aliasExists(shrunkenIndex, index));
+            assertThat(getStepKeyForIndex(shrunkenIndex), equalTo(TerminalPolicyStep.KEY));
+        });
+    }
+
     private void createFullPolicy(TimeValue hotTime) throws IOException {
         Map<String, LifecycleAction> hotActions = new HashMap<>();
         hotActions.put(SetPriorityAction.NAME, new SetPriorityAction(100));

@@ -53,7 +53,7 @@ public class RetentionLeaseTests extends ESTestCase {
     }
 
     public void testRetainingSequenceNumberOutOfRange() {
-        final long retainingSequenceNumber = randomLongBetween(Long.MIN_VALUE, UNASSIGNED_SEQ_NO - 1);
+        final long retainingSequenceNumber = randomLongBetween(Long.MIN_VALUE, -1);
         final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> new RetentionLease("id", retainingSequenceNumber, randomNonNegativeLong(), "source"));

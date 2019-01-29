@@ -931,8 +931,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         final IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
         try {
-            final IndexShard indexShard = indexService.createShard(routing, id -> {
-            });
+            final IndexShard indexShard = indexService.createShard(routing, id -> {}, (s, leases, listener) -> {});
             indexShard.markAsRecovering("store", new RecoveryState(indexShard.routingEntry(), node, null));
             indexShard.recoverFromStore();
             assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));

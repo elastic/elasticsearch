@@ -27,6 +27,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -72,6 +73,95 @@ public class RestGetAliasesAction extends BaseRestHandler {
         return "get_aliases_action";
     }
 
+    static RestResponse buildRestResponse(boolean aliasesExplicitlyRequested, String[] requestedAliases,
+            ImmutableOpenMap<String, List<AliasMetaData>> responseAliasMap, XContentBuilder builder) throws Exception {
+        final Set<String> indicesToDisplay = new HashSet<>();
+        final Set<String> returnedAliasNames = new HashSet<>();
+        for (final ObjectObjectCursor<String, List<AliasMetaData>> cursor : responseAliasMap) {
+            for (final AliasMetaData aliasMetaData : cursor.value) {
+                if (aliasesExplicitlyRequested) {
+                    // only display indices that have aliases
+                    indicesToDisplay.add(cursor.key);
+                }
+                returnedAliasNames.add(aliasMetaData.alias());
+            }
+        }
+        // compute explicitly requested aliases that have are not returned in the result
+        final SortedSet<String> missingAliases = new TreeSet<>();
+        // first wildcard index, leading "-" as an alias name after this index means
+        // that it is an exclusion
+        int firstWildcardIndex = requestedAliases.length;
+        for (int i = 0; i < requestedAliases.length; i++) {
+            if (Regex.isSimpleMatchPattern(requestedAliases[i])) {
+                firstWildcardIndex = i;
+                break;
+            }
+        }
+        for (int i = 0; i < requestedAliases.length; i++) {
+            if (MetaData.ALL.equals(requestedAliases[i]) || Regex.isSimpleMatchPattern(requestedAliases[i])
+                    || (i > firstWildcardIndex && requestedAliases[i].charAt(0) == '-')) {
+                // only explicitly requested aliases will be called out as missing (404)
+                continue;
+            }
+            // check if aliases[i] is subsequently excluded
+            int j = Math.max(i + 1, firstWildcardIndex);
+            for (; j < requestedAliases.length; j++) {
+                if (requestedAliases[j].charAt(0) == '-') {
+                    // this is an exclude pattern
+                    if (Regex.simpleMatch(requestedAliases[j].substring(1), requestedAliases[i]) || MetaData.ALL.equals(requestedAliases[j].substring(1))) {
+                        // aliases[i] is excluded by aliases[j]
+                        break;
+                    }
+                }
+            }
+            if (j == requestedAliases.length) {
+                // explicitly requested aliases[i] is not excluded by any subsequent "-" wildcard in expression
+                if (false == returnedAliasNames.contains(requestedAliases[i])) {
+                    // aliases[i] is not in the result set
+                    missingAliases.add(requestedAliases[i]);
+                }
+            }
+        }
+
+        final RestStatus status;
+        builder.startObject();
+        {
+            if (missingAliases.isEmpty()) {
+                status = RestStatus.OK;
+            } else {
+                status = RestStatus.NOT_FOUND;
+                final String message;
+                if (missingAliases.size() == 1) {
+                    message = String.format(Locale.ROOT, "alias [%s] missing",
+                            Strings.collectionToCommaDelimitedString(missingAliases));
+                } else {
+                    message = String.format(Locale.ROOT, "aliases [%s] missing",
+                            Strings.collectionToCommaDelimitedString(missingAliases));
+                }
+                builder.field("error", message);
+                builder.field("status", status.getStatus());
+            }
+
+            for (final ObjectObjectCursor<String, List<AliasMetaData>> entry : responseAliasMap) {
+                if (aliasesExplicitlyRequested == false || (aliasesExplicitlyRequested && indicesToDisplay.contains(entry.key))) {
+                    builder.startObject(entry.key);
+                    {
+                        builder.startObject("aliases");
+                        {
+                            for (final AliasMetaData alias : entry.value) {
+                                AliasMetaData.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
+                            }
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+            }
+        }
+        builder.endObject();
+        return new BytesRestResponse(status, builder);
+    }
+
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         // The TransportGetAliasesAction was improved do the same post processing as is happening here.
@@ -91,93 +181,8 @@ public class RestGetAliasesAction extends BaseRestHandler {
         return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<GetAliasesResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetAliasesResponse response, XContentBuilder builder) throws Exception {
-                final Set<String> indicesToDisplay = new HashSet<>();
-                final Set<String> returnedAliasNames = new HashSet<>();
-                for (final ObjectObjectCursor<String, List<AliasMetaData>> cursor : response.getAliases()) {
-                    for (final AliasMetaData aliasMetaData : cursor.value) {
-                        if (namesProvided) {
-                            // only display indices that have aliases
-                            indicesToDisplay.add(cursor.key);
-                        }
-                        returnedAliasNames.add(aliasMetaData.alias());
-                    }
-                }
-                // compute explicitly requested aliases that have are not returned in the result
-                final SortedSet<String> missingAliases = new TreeSet<>();
-                // first wildcard index, leading "-" as an alias name after this index means
-                // that it is an exclusion
-                int firstWildcardIndex = aliases.length;
-                for (int i = 0; i < aliases.length; i++) {
-                    if (Regex.isSimpleMatchPattern(aliases[i])) {
-                        firstWildcardIndex = i;
-                        break;
-                    }
-                }
-                for (int i = 0; i < aliases.length; i++) {
-                    if (MetaData.ALL.equals(aliases[i]) || Regex.isSimpleMatchPattern(aliases[i])
-                            || (i > firstWildcardIndex && aliases[i].charAt(0) == '-')) {
-                        // only explicitly requested aliases will be called out as missing (404)
-                        continue;
-                    }
-                    // check if aliases[i] is subsequently excluded
-                    int j = Math.max(i + 1, firstWildcardIndex);
-                    for (; j < aliases.length; j++) {
-                        if (aliases[j].charAt(0) == '-') {
-                            // this is an exclude pattern
-                            if (Regex.simpleMatch(aliases[j].substring(1), aliases[i]) || MetaData.ALL.equals(aliases[j].substring(1))) {
-                                // aliases[i] is excluded by aliases[j]
-                                break;
-                            }
-                        }
-                    }
-                    if (j == aliases.length) {
-                        // explicitly requested aliases[i] is not excluded by any subsequent "-" wildcard in expression
-                        if (false == returnedAliasNames.contains(aliases[i])) {
-                            // aliases[i] is not in the result set
-                            missingAliases.add(aliases[i]);
-                        }
-                    }
-                }
-
-                final RestStatus status;
-                builder.startObject();
-                {
-                    if (missingAliases.isEmpty()) {
-                        status = RestStatus.OK;
-                    } else {
-                        status = RestStatus.NOT_FOUND;
-                        final String message;
-                        if (missingAliases.size() == 1) {
-                            message = String.format(Locale.ROOT, "alias [%s] missing",
-                                    Strings.collectionToCommaDelimitedString(missingAliases));
-                        } else {
-                            message = String.format(Locale.ROOT, "aliases [%s] missing",
-                                    Strings.collectionToCommaDelimitedString(missingAliases));
-                        }
-                        builder.field("error", message);
-                        builder.field("status", status.getStatus());
-                    }
-
-                    for (final ObjectObjectCursor<String, List<AliasMetaData>> entry : response.getAliases()) {
-                        if (namesProvided == false || (namesProvided && indicesToDisplay.contains(entry.key))) {
-                            builder.startObject(entry.key);
-                            {
-                                builder.startObject("aliases");
-                                {
-                                    for (final AliasMetaData alias : entry.value) {
-                                        AliasMetaData.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
-                                    }
-                                }
-                                builder.endObject();
-                            }
-                            builder.endObject();
-                        }
-                    }
-                }
-                builder.endObject();
-                return new BytesRestResponse(status, builder);
+                return buildRestResponse(namesProvided, aliases, response.getAliases(), builder);
             }
-
         });
     }
 

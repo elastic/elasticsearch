@@ -18,7 +18,7 @@ You can define an index lifecycle policy which allows you to:
 * Later, move the index to cold nodes for cheaper storage.
 
 [float]
-=== Frozen Indices
+=== Frozen indices
 
 Frozen indices allow for a much higher ratio of disk storage to heap memory, at the expense of search latency. When an index is frozen, it takes up no heap 
 memory, allowing a single node to easily manage thousands of indices with very low overhead. When a search targets frozen indices, the query will fully open,

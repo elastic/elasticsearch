@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.client.ParentTaskAssigningClient;
@@ -31,20 +32,20 @@ import org.elasticsearch.threadpool.ThreadPool;
  * Implementation of delete-by-query using scrolling and bulk.
  */
 public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<DeleteByQueryRequest> {
+    private final boolean useSeqNoForCAS;
+
     public AsyncDeleteByQueryAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                                     ThreadPool threadPool, DeleteByQueryRequest request, ScriptService scriptService,
                                     ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
-        super(task, logger, client, threadPool, request, scriptService, clusterState, listener);
+        super(task,
+            // not all nodes support sequence number powered optimistic concurrency control, we fall back to version
+            clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0) == false,
+            // all nodes support sequence number powered optimistic concurrency control and we can use it
+            clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0),
+            logger, client, threadPool, request, scriptService, listener);
+        useSeqNoForCAS = clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0);
     }
 
-    @Override
-    protected boolean needsSourceDocumentVersions() {
-        /*
-         * We always need the version of the source document so we can report a version conflict if we try to delete it and it has been
-         * changed.
-         */
-        return true;
-    }
 
     @Override
     protected boolean accept(ScrollableHitSource.Hit doc) {
@@ -59,7 +60,12 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
         delete.index(doc.getIndex());
         delete.type(doc.getType());
         delete.id(doc.getId());
-        delete.version(doc.getVersion());
+        if (useSeqNoForCAS) {
+            delete.setIfSeqNo(doc.getSeqNo());
+            delete.setIfPrimaryTerm(doc.getPrimaryTerm());
+        } else {
+            delete.version(doc.getVersion());
+        }
         return wrap(delete);
     }
 

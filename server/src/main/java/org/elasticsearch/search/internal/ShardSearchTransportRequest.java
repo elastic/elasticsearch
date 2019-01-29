@@ -150,7 +150,7 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public Boolean allowPartialSearchResults() {
+    public boolean allowPartialSearchResults() {
         return shardSearchLocalRequest.allowPartialSearchResults();
     }
 

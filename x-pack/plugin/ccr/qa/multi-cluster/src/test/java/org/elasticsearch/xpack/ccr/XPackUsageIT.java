@@ -56,7 +56,11 @@ public class XPackUsageIT extends ESCCRRestTestCase {
             Map<?, ?> ccrUsage = getCcrUsage();
             assertThat(ccrUsage.get("follower_indices_count"), equalTo(previousFollowerIndicesCount));
             assertThat(ccrUsage.get("auto_follow_patterns_count"), equalTo(previousAutoFollowPatternsCount));
-            assertThat(ccrUsage.get("last_follow_time_in_millis"), nullValue());
+            if (previousFollowerIndicesCount == 0) {
+                assertThat(ccrUsage.get("last_follow_time_in_millis"), nullValue());
+            } else {
+                assertThat((Integer) ccrUsage.get("last_follow_time_in_millis"), greaterThanOrEqualTo(0));
+            }
         });
     }
 

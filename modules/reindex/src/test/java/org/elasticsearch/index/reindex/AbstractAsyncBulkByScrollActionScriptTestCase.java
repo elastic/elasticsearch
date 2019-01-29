@@ -60,7 +60,7 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
             public void execute() {
                 scriptBody.accept(getCtx());
             }
-        };;
+        };
         when(scriptService.compile(any(), eq(UpdateScript.CONTEXT))).thenReturn(factory);
         AbstractAsyncBulkByScrollAction<Request, ?> action = action(scriptService, request().setScript(mockScript("")));
         RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkByScrollAction.wrap(index), doc);

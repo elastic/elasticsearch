@@ -17,20 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.common.component;
+package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 /**
- * @deprecated declare your own logger
+ * An exception that remote cluster is missing or
+ * connectivity to the remote connection is failing
  */
-@Deprecated
-public abstract class AbstractComponent {
+public final class NoSuchRemoteClusterException extends ResourceNotFoundException {
 
-    protected final Logger logger;
-
-    public AbstractComponent() {
-        this.logger = LogManager.getLogger(getClass());
+    NoSuchRemoteClusterException(String clusterName) {
+        //No node available for cluster
+        super("no such remote cluster: [" + clusterName + "]");
     }
+
+    public NoSuchRemoteClusterException(StreamInput in) throws IOException {
+        super(in);
+    }
+
 }

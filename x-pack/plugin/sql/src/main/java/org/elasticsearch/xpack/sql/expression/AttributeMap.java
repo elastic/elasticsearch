@@ -138,7 +138,7 @@ public class AttributeMap<E> {
         public String toString() {
             return set.toString();
         }
-    };
+    }
 
     private final Map<AttributeWrapper, E> delegate;
     private Set<Attribute> keySet = null;

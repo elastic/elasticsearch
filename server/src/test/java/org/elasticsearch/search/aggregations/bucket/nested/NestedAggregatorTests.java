@@ -174,7 +174,11 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 assertEquals(MAX_AGG_NAME, max.getName());
                 assertEquals(expectedMaxValue, max.getValue(), Double.MIN_VALUE);
 
-                assertTrue(AggregationInspectionHelper.hasValue(nested));
+                if (expectedNestedDocs > 0) {
+                    assertTrue(AggregationInspectionHelper.hasValue(nested));
+                } else {
+                    assertFalse(AggregationInspectionHelper.hasValue(nested));
+                }
             }
         }
     }
@@ -224,7 +228,11 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 assertEquals(MAX_AGG_NAME, max.getName());
                 assertEquals(expectedMaxValue, max.getValue(), Double.MIN_VALUE);
 
-                assertTrue(AggregationInspectionHelper.hasValue(nested));
+                if (expectedNestedDocs > 0) {
+                    assertTrue(AggregationInspectionHelper.hasValue(nested));
+                } else {
+                    assertFalse(AggregationInspectionHelper.hasValue(nested));
+                }
             }
         }
     }

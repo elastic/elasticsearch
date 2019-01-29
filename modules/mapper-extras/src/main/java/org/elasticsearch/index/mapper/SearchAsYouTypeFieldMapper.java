@@ -195,6 +195,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     static class SearchAsYouTypeFieldType extends StringFieldType {
+
         PrefixFieldType prefixField;
         ShingleFieldType[] shingleFields = new ShingleFieldType[0];
 
@@ -204,6 +205,18 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         SearchAsYouTypeFieldType(SearchAsYouTypeFieldType other) {
             super(other);
+
+            if (other.prefixField != null) {
+                this.prefixField = other.prefixField.clone();
+            }
+            if (other.shingleFields != null) {
+                this.shingleFields = new ShingleFieldType[other.shingleFields.length];
+                for (int i = 0; i < this.shingleFields.length; i++) {
+                    if (other.shingleFields[i] != null) {
+                        this.shingleFields[i] = other.shingleFields[i].clone();
+                    }
+                }
+            }
         }
 
         public void setPrefixField(PrefixFieldType prefixField) {

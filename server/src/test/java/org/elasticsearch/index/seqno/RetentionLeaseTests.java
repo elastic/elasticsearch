@@ -87,7 +87,7 @@ public class RetentionLeaseTests extends ESTestCase {
 
     public void testRetentionLeaseSerialization() throws IOException {
         final String id = randomAlphaOfLength(8);
-        final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+        final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
         final long timestamp = randomNonNegativeLong();
         final String source = randomAlphaOfLength(8);
         final RetentionLease retentionLease = new RetentionLease(id, retainingSequenceNumber, timestamp, source);

@@ -15,6 +15,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class XPackUsageIT extends ESCCRRestTestCase {
 
@@ -39,7 +40,7 @@ public class XPackUsageIT extends ESCCRRestTestCase {
             Map<?, ?> ccrUsage = getCcrUsage();
             assertThat(ccrUsage.get("follower_indices_count"), equalTo(previousFollowerIndicesCount + 2));
             assertThat(ccrUsage.get("auto_follow_patterns_count"), equalTo(previousAutoFollowPatternsCount + 1));
-            assertThat((Integer) ccrUsage.get("time_since_last_index_followed"), greaterThanOrEqualTo(0));
+            assertThat((Integer) ccrUsage.get("last_follow_time_in_millis"), greaterThanOrEqualTo(0));
         });
 
         deleteAutoFollowPattern("my_pattern");
@@ -55,7 +56,7 @@ public class XPackUsageIT extends ESCCRRestTestCase {
             Map<?, ?> ccrUsage = getCcrUsage();
             assertThat(ccrUsage.get("follower_indices_count"), equalTo(previousFollowerIndicesCount));
             assertThat(ccrUsage.get("auto_follow_patterns_count"), equalTo(previousAutoFollowPatternsCount));
-            assertThat((Integer) ccrUsage.get("time_since_last_index_followed"), greaterThanOrEqualTo(0));
+            assertThat(ccrUsage.get("last_follow_time_in_millis"), nullValue());
         });
     }
 

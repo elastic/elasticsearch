@@ -79,10 +79,17 @@ public class CCRFeatureSet implements XPackFeatureSet {
         }
         AutoFollowMetadata autoFollowMetadata = metaData.custom(AutoFollowMetadata.TYPE);
         int numberOfAutoFollowPatterns = autoFollowMetadata != null ? autoFollowMetadata.getPatterns().size() : 0;
-        long timeSinceLastIndexFollowed = Math.max(0, Instant.now().toEpochMilli() - lastFollowerIndexCreationDate);
+
+        Long lastFollowTimeInMillis;
+        if (numberOfFollowerIndices == 0) {
+            // Otherwise we would return a value that makes no sense.
+            lastFollowTimeInMillis = null;
+        } else {
+            lastFollowTimeInMillis = Math.max(0, Instant.now().toEpochMilli() - lastFollowerIndexCreationDate);
+        }
 
         Usage usage =
-            new Usage(available(), enabled(), numberOfFollowerIndices, numberOfAutoFollowPatterns, timeSinceLastIndexFollowed);
+            new Usage(available(), enabled(), numberOfFollowerIndices, numberOfAutoFollowPatterns, lastFollowTimeInMillis);
         listener.onResponse(usage);
     }
 
@@ -90,24 +97,28 @@ public class CCRFeatureSet implements XPackFeatureSet {
 
         private final int numberOfFollowerIndices;
         private final int numberOfAutoFollowPatterns;
-        private final long timeSinceLastIndexFollowed;
+        private final Long lastFollowTimeInMillis;
 
         public Usage(boolean available,
                      boolean enabled,
                      int numberOfFollowerIndices,
                      int numberOfAutoFollowPatterns,
-                     long timeSinceLastIndexFollowed) {
+                     Long lastFollowTimeInMillis) {
             super(XPackField.CCR, available, enabled);
             this.numberOfFollowerIndices = numberOfFollowerIndices;
             this.numberOfAutoFollowPatterns = numberOfAutoFollowPatterns;
-            this.timeSinceLastIndexFollowed = timeSinceLastIndexFollowed;
+            this.lastFollowTimeInMillis = lastFollowTimeInMillis;
         }
 
         public Usage(StreamInput in) throws IOException {
             super(in);
             numberOfFollowerIndices = in.readVInt();
             numberOfAutoFollowPatterns = in.readVInt();
-            timeSinceLastIndexFollowed = in.readVLong();
+            if (in.readBoolean()) {
+                lastFollowTimeInMillis = in.readVLong();
+            } else {
+                lastFollowTimeInMillis = null;
+            }
         }
 
         public int getNumberOfFollowerIndices() {
@@ -118,8 +129,8 @@ public class CCRFeatureSet implements XPackFeatureSet {
             return numberOfAutoFollowPatterns;
         }
 
-        public long getTimeSinceLastIndexFollowed() {
-            return timeSinceLastIndexFollowed;
+        public Long getLastFollowTimeInMillis() {
+            return lastFollowTimeInMillis;
         }
 
         @Override
@@ -127,7 +138,12 @@ public class CCRFeatureSet implements XPackFeatureSet {
             super.writeTo(out);
             out.writeVInt(numberOfFollowerIndices);
             out.writeVInt(numberOfAutoFollowPatterns);
-            out.writeVLong(timeSinceLastIndexFollowed);
+            if (lastFollowTimeInMillis != null) {
+                out.writeBoolean(true);
+                out.writeVLong(lastFollowTimeInMillis);
+            } else {
+                out.writeBoolean(false);
+            }
         }
 
         @Override
@@ -135,7 +151,9 @@ public class CCRFeatureSet implements XPackFeatureSet {
             super.innerXContent(builder, params);
             builder.field("follower_indices_count", numberOfFollowerIndices);
             builder.field("auto_follow_patterns_count", numberOfAutoFollowPatterns);
-            builder.field("time_since_last_index_followed", timeSinceLastIndexFollowed);
+            if (lastFollowTimeInMillis != null) {
+                builder.field("last_follow_time_in_millis", lastFollowTimeInMillis);
+            }
         }
 
         @Override
@@ -145,12 +163,12 @@ public class CCRFeatureSet implements XPackFeatureSet {
             Usage usage = (Usage) o;
             return numberOfFollowerIndices == usage.numberOfFollowerIndices &&
                 numberOfAutoFollowPatterns == usage.numberOfAutoFollowPatterns &&
-                timeSinceLastIndexFollowed == usage.timeSinceLastIndexFollowed;
+                Objects.equals(lastFollowTimeInMillis, usage.lastFollowTimeInMillis);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(numberOfFollowerIndices, numberOfAutoFollowPatterns, timeSinceLastIndexFollowed);
+            return Objects.hash(numberOfFollowerIndices, numberOfAutoFollowPatterns, lastFollowTimeInMillis);
         }
     }
 }

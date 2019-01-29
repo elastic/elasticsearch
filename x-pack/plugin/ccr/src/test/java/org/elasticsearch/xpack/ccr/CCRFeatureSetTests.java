@@ -116,7 +116,7 @@ public class CCRFeatureSetTests extends ESTestCase {
         assertThat(ccrUsage.available(), equalTo(ccrFeatureSet.available()));
 
         assertThat(ccrUsage.getNumberOfFollowerIndices(), equalTo(numFollowerIndices));
-        assertThat(ccrUsage.getTimeSinceLastIndexFollowed(), greaterThanOrEqualTo(0L));
+        assertThat(ccrUsage.getLastFollowTimeInMillis(), greaterThanOrEqualTo(0L));
         assertThat(ccrUsage.getNumberOfAutoFollowPatterns(), equalTo(numAutoFollowPatterns));
     }
 

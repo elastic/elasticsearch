@@ -78,7 +78,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
     protected void doExecute(PutWatchRequest request, ActionListener<PutWatchResponse> listener) {
         try {
             DateTime now = new DateTime(clock.millis(), UTC);
-            boolean isUpdate = request.getVersion() > 0;
+            boolean isUpdate = request.getVersion() > 0 || request.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
             Watch watch = parser.parseWithSecrets(request.getId(), false, request.getSource(), now, request.xContentType(),
                 isUpdate, request.getIfSeqNo(), request.getIfPrimaryTerm());
             watch.setState(request.isActive(), now);

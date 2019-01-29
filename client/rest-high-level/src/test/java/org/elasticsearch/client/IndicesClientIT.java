@@ -592,7 +592,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse getMappingsResponse = execute(
             request,
             highLevelClient().indices()::getMapping,
-            highLevelClient().indices()::getMappingAsync);
+            highLevelClient().indices()::getMappingAsync,
+            expectWarnings(RestGetMappingAction.TYPES_DEPRECATION_MESSAGE));
 
         Map<String, Object> mappings = getMappingsResponse.getMappings().get(indexName).get("_doc").sourceAsMap();
         Map<String, String> type = new HashMap<>();

@@ -249,6 +249,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
             getMappingRequest::indicesOptions, expectedParams);
         RequestConvertersTests.setRandomMasterTimeout(getMappingRequest, expectedParams);
         RequestConvertersTests.setRandomLocal(getMappingRequest::local, expectedParams);
+        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "false");
 
         Request request = IndicesRequestConverters.getMappings(getMappingRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");

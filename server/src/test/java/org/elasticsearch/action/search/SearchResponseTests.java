@@ -131,8 +131,8 @@ public class SearchResponseTests extends ESTestCase {
         int totalClusters = randomIntBetween(0, 10);
         int successfulClusters = randomIntBetween(0, totalClusters);
         int skippedClusters = totalClusters - successfulClusters;
-        CCSReduceMode executionMode = randomFrom(CCSReduceMode.values());
-        return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters, executionMode);
+        SearchResponse.CCSReduction ccsReduction = randomFrom(SearchResponse.CCSReduction.values());
+        return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters, ccsReduction);
     }
 
     /**
@@ -247,7 +247,7 @@ public class SearchResponseTests extends ESTestCase {
                         new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f), null, null, null, false, null, 1
                     ),
                 null, 0, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY,
-                new SearchResponse.Clusters(5, 3, 2, CCSReduceMode.LOCAL));
+                new SearchResponse.Clusters(5, 3, 2, SearchResponse.CCSReduction.LOCAL));
             StringBuilder expectedString = new StringBuilder();
             expectedString.append("{");
             {
@@ -262,7 +262,7 @@ public class SearchResponseTests extends ESTestCase {
                 }
                 expectedString.append("\"_clusters\":");
                 {
-                    expectedString.append("{\"ccs_reduce_mode\":\"local\",");
+                    expectedString.append("{\"ccs_reduction\":\"local\",");
                     expectedString.append("\"total\":5,");
                     expectedString.append("\"successful\":3,");
                     expectedString.append("\"skipped\":2},");
@@ -306,6 +306,6 @@ public class SearchResponseTests extends ESTestCase {
         assertEquals(clusters.getSkipped(), deserializedClusters.getSkipped());
         assertEquals(clusters.getSuccessful(), deserializedClusters.getSuccessful());
         assertEquals(clusters.getTotal(), deserializedClusters.getTotal());
-        assertNull(deserializedClusters.getCCSReduceMode());
+        assertNull(deserializedClusters.getCCSReduction());
     }
 }

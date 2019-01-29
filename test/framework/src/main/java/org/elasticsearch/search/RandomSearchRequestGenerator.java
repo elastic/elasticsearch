@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.action.search.CCSReduceMode;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -88,7 +87,7 @@ public class RandomSearchRequestGenerator {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.allowPartialSearchResults(true);
         if (randomBoolean()) {
-            searchRequest.setCCSReduceMode(randomFrom(CCSReduceMode.values()));
+            searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
         }
         if (randomBoolean()) {
             searchRequest.indices(generateRandomStringArray(10, 10, false, false));

@@ -33,7 +33,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.CCSReduceMode;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -165,7 +164,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(2, response.getClusters().getSuccessful());
                 assertEquals(0, response.getClusters().getSkipped());
-                assertEquals(CCSReduceMode.REMOTE, response.getClusters().getCCSReduceMode());
+                assertEquals(SearchResponse.CCSReduction.REMOTE, response.getClusters().getCCSReduction());
                 assertEquals(10, response.getHits().getTotalHits().value);
                 assertEquals(10, response.getHits().getHits().length);
             }
@@ -174,7 +173,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(1, response.getClusters().getTotal());
                 assertEquals(1, response.getClusters().getSuccessful());
                 assertEquals(0, response.getClusters().getSkipped());
-                assertEquals(CCSReduceMode.REMOTE, response.getClusters().getCCSReduceMode());
+                assertEquals(SearchResponse.CCSReduction.REMOTE, response.getClusters().getCCSReduction());
                 assertEquals(0, response.getHits().getTotalHits().value);
             }
 
@@ -184,7 +183,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(2, response.getClusters().getSuccessful());
                 assertEquals(0, response.getClusters().getSkipped());
-                assertEquals(CCSReduceMode.LOCAL, response.getClusters().getCCSReduceMode());
+                assertEquals(SearchResponse.CCSReduction.LOCAL, response.getClusters().getCCSReduction());
                 assertEquals(10, response.getHits().getTotalHits().value);
                 assertEquals(10, response.getHits().getHits().length);
                 String scrollId = response.getScrollId();
@@ -203,7 +202,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(1, response.getClusters().getSuccessful());
                 assertEquals(1, response.getClusters().getSkipped());
-                assertEquals(CCSReduceMode.REMOTE, response.getClusters().getCCSReduceMode());
+                assertEquals(SearchResponse.CCSReduction.REMOTE, response.getClusters().getCCSReduction());
                 assertEquals(10, response.getHits().getTotalHits().value);
                 assertEquals(10, response.getHits().getHits().length);
             }
@@ -212,7 +211,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(1, response.getClusters().getTotal());
                 assertEquals(0, response.getClusters().getSuccessful());
                 assertEquals(1, response.getClusters().getSkipped());
-                assertEquals(CCSReduceMode.REMOTE, response.getClusters().getCCSReduceMode());
+                assertEquals(SearchResponse.CCSReduction.REMOTE, response.getClusters().getCCSReduction());
                 assertEquals(0, response.getHits().getTotalHits().value);
             }
 
@@ -222,7 +221,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(1, response.getClusters().getSuccessful());
                 assertEquals(1, response.getClusters().getSkipped());
-                assertEquals(CCSReduceMode.LOCAL, response.getClusters().getCCSReduceMode());
+                assertEquals(SearchResponse.CCSReduction.LOCAL, response.getClusters().getCCSReduction());
                 assertEquals(10, response.getHits().getTotalHits().value);
                 assertEquals(10, response.getHits().getHits().length);
                 String scrollId = response.getScrollId();

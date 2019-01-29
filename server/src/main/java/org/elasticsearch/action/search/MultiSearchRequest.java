@@ -173,7 +173,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                            String[] types,
                                            String routing,
                                            String searchType,
-                                           String ccsExecutionMode,
+                                           Boolean ccsMinimizeRoundtrips,
                                            NamedXContentRegistry registry,
                                            boolean allowExplicitIndex) throws IOException {
         int from = 0;
@@ -206,8 +206,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             if (searchType != null) {
                 searchRequest.searchType(searchType);
             }
-            if (ccsExecutionMode != null) {
-                searchRequest.setCCSReduceMode(ccsExecutionMode);
+            if (ccsMinimizeRoundtrips != null) {
+                searchRequest.setCcsMinimizeRoundtrips(ccsMinimizeRoundtrips);
             }
             IndicesOptions defaultOptions = searchRequest.indicesOptions();
             // now parse the action
@@ -230,8 +230,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             searchRequest.types(nodeStringArrayValue(value));
                         } else if ("search_type".equals(entry.getKey()) || "searchType".equals(entry.getKey())) {
                             searchRequest.searchType(nodeStringValue(value, null));
-                        } else if ("ccs_reduce_mode".equals(entry.getKey()) || "ccsExecutionMode".equals(entry.getKey())) {
-                            searchRequest.setCCSReduceMode(nodeStringValue(value, null));
+                        } else if ("ccs_minimize_roundtrips".equals(entry.getKey()) || "ccsMinimizeRoundtrips".equals(entry.getKey())) {
+                            searchRequest.setCcsMinimizeRoundtrips(nodeBooleanValue(value));
                         } else if ("request_cache".equals(entry.getKey()) || "requestCache".equals(entry.getKey())) {
                             searchRequest.requestCache(nodeBooleanValue(value, entry.getKey()));
                         } else if ("preference".equals(entry.getKey())) {
@@ -333,9 +333,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         if (request.searchType() != null) {
             xContentBuilder.field("search_type", request.searchType().name().toLowerCase(Locale.ROOT));
         }
-        if (request.getCCSReduceMode() != null) {
-            xContentBuilder.field("ccs_reduce_mode", request.getCCSReduceMode().toString());
-        }
+        xContentBuilder.field("ccs_minimize_roundtrips", request.isCcsMinimizeRoundtrips());
         if (request.requestCache() != null) {
             xContentBuilder.field("request_cache", request.requestCache());
         }

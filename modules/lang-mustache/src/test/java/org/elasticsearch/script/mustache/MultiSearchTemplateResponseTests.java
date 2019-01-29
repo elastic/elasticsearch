@@ -19,7 +19,6 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.search.CCSReduceMode;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
@@ -65,7 +64,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         int totalClusters = randomIntBetween(0, 10);
         int successfulClusters = randomIntBetween(0, totalClusters);
         int skippedClusters = totalClusters - successfulClusters;
-        CCSReduceMode executionMode = randomFrom(CCSReduceMode.values());
+        SearchResponse.CCSReduction executionMode = randomFrom(SearchResponse.CCSReduction.values());
         return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters, executionMode);
     }
 

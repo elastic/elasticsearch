@@ -55,7 +55,7 @@ teardown:
   - match: {_clusters.total: 1}
   - match: {_clusters.successful: 1}
   - match: {_clusters.skipped: 0}
-  - match: {_clusters.ccs_reduce_mode: "local"}
+  - match: {_clusters.ccs_reduction: "local"}
   - set: {_scroll_id: scroll_id}
   - match: {hits.total:      6    }
   - length: {hits.hits:      4    }
@@ -108,7 +108,7 @@ teardown:
   - match: {_clusters.total: 1}
   - match: {_clusters.successful: 1}
   - match: {_clusters.skipped: 0}
-  - match: {_clusters.ccs_reduce_mode: "local"}
+  - match: {_clusters.ccs_reduction: "local"}
   - set: {_scroll_id: scroll_id}
   - match: {hits.total:      6    }
   - length: {hits.hits:      4    }

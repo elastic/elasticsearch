@@ -24,11 +24,10 @@
           "type" : "boolean",
           "description" : "Specify whether wildcard and prefix queries should be analyzed (default: false)"
         },
-        "ccs_reduce_mode": {
-          "type" : "enum",
-          "options" : ["local","remote", "auto"],
-          "default" : "auto",
-          "description" : "The cross-cluster search reduce mode: fan out to all the shards and perform one local reduce or send one search request to each remote cluster and perform remote reduction in each cluster, or remote whenever possible"
+        "ccs_minimize_roundtrips": {
+          "type" : "boolean",
+          "description" : "Indicates whether network round-trips should be minimized as part of cross-cluster search requests execution",
+          "default" : "true"
         },
         "default_operator": {
           "type" : "enum",

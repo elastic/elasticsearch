@@ -204,33 +204,29 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (remoteClusterIndices.isEmpty()) {
                 executeLocalSearch(task, timeProvider, searchRequest, localIndices, clusterState, listener);
             } else {
-                CCSReduceMode ccsReduceMode = resolveCCSReduceMode(searchRequest);
-                switch(ccsReduceMode) {
-                    case LOCAL:
-                        AtomicInteger skippedClusters = new AtomicInteger(0);
-                        collectSearchShards(searchRequest.indicesOptions(), searchRequest.preference(), searchRequest.routing(),
-                            skippedClusters, remoteClusterIndices, remoteClusterService, threadPool,
-                            ActionListener.wrap(
-                                searchShardsResponses -> {
-                                    List<SearchShardIterator> remoteShardIterators = new ArrayList<>();
-                                    Map<String, AliasFilter> remoteAliasFilters = new HashMap<>();
-                                    BiFunction<String, String, DiscoveryNode> clusterNodeLookup = processRemoteShards(
-                                        searchShardsResponses, remoteClusterIndices, remoteShardIterators, remoteAliasFilters);
-                                    int localClusters = localIndices == null ? 0 : 1;
-                                    int totalClusters = remoteClusterIndices.size() + localClusters;
-                                    int successfulClusters = searchShardsResponses.size() + localClusters;
-                                    executeSearch((SearchTask) task, timeProvider, searchRequest, localIndices,
-                                        remoteShardIterators, clusterNodeLookup, clusterState, remoteAliasFilters, listener,
-                                        new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters.get(),
-                                            CCSReduceMode.LOCAL));
-                                },
-                                listener::onFailure));
-                        break;
-                    case REMOTE:
-                        ccsRemoteReduce(searchRequest, localIndices, remoteClusterIndices, timeProvider, searchService::createReduceContext,
-                            remoteClusterService, threadPool, listener,
-                            (r, l) -> executeLocalSearch(task, timeProvider, r, localIndices, clusterState, l));
-                        break;
+                if (searchRequest.isCcsMinimizeRoundtrips()) {
+                    ccsRemoteReduce(searchRequest, localIndices, remoteClusterIndices, timeProvider, searchService::createReduceContext,
+                        remoteClusterService, threadPool, listener,
+                        (r, l) -> executeLocalSearch(task, timeProvider, r, localIndices, clusterState, l));
+                } else {
+                    AtomicInteger skippedClusters = new AtomicInteger(0);
+                    collectSearchShards(searchRequest.indicesOptions(), searchRequest.preference(), searchRequest.routing(),
+                        skippedClusters, remoteClusterIndices, remoteClusterService, threadPool,
+                        ActionListener.wrap(
+                            searchShardsResponses -> {
+                                List<SearchShardIterator> remoteShardIterators = new ArrayList<>();
+                                Map<String, AliasFilter> remoteAliasFilters = new HashMap<>();
+                                BiFunction<String, String, DiscoveryNode> clusterNodeLookup = processRemoteShards(
+                                    searchShardsResponses, remoteClusterIndices, remoteShardIterators, remoteAliasFilters);
+                                int localClusters = localIndices == null ? 0 : 1;
+                                int totalClusters = remoteClusterIndices.size() + localClusters;
+                                int successfulClusters = searchShardsResponses.size() + localClusters;
+                                executeSearch((SearchTask) task, timeProvider, searchRequest, localIndices,
+                                    remoteShardIterators, clusterNodeLookup, clusterState, remoteAliasFilters, listener,
+                                    new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters.get(),
+                                        SearchResponse.CCSReduction.LOCAL));
+                            },
+                            listener::onFailure));
                 }
             }
         }, listener::onFailure);
@@ -271,16 +267,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, timeProvider.getAbsoluteStartMillis());
             localSearchConsumer.accept(ccsLocalSearchRequest, ccsListener);
         }
-    }
-
-    static CCSReduceMode resolveCCSReduceMode(SearchRequest searchRequest) {
-        if (searchRequest.getCCSReduceMode() == CCSReduceMode.AUTO) {
-            SearchSourceBuilder source = searchRequest.source();
-            boolean collapseWithInnerHits = source != null && source.collapse() != null && source.collapse().getInnerHits() != null
-                && source.collapse().getInnerHits().isEmpty() == false;
-            return collapseWithInnerHits || searchRequest.scroll() != null ? CCSReduceMode.LOCAL : CCSReduceMode.REMOTE;
-        }
-        return searchRequest.getCCSReduceMode();
     }
 
     static SearchResponseMerger createSearchResponseMerger(SearchSourceBuilder source, SearchTimeProvider timeProvider,
@@ -351,7 +337,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             @Override
             SearchResponse createFinalResponse() {
                 SearchResponse.Clusters clusters = new SearchResponse.Clusters(totalClusters, searchResponseMerger.numResponses(),
-                    skippedClusters.get(), CCSReduceMode.REMOTE);
+                    skippedClusters.get(), SearchResponse.CCSReduction.REMOTE);
                 return searchResponseMerger.getMergedResponse(clusters);
             }
         };

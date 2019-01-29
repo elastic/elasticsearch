@@ -437,7 +437,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertEquals(0, searchResponse.getClusters().getSkipped());
                 assertEquals(totalClusters, searchResponse.getClusters().getTotal());
                 assertEquals(totalClusters, searchResponse.getClusters().getSuccessful());
-                assertEquals(CCSReduceMode.REMOTE, searchResponse.getClusters().getCCSReduceMode());
+                assertEquals(SearchResponse.CCSReduction.REMOTE, searchResponse.getClusters().getCCSReduction());
                 assertEquals(totalClusters + 1, searchResponse.getNumReducePhases());
             }
             {
@@ -542,7 +542,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertEquals(totalClusters, searchResponse.getClusters().getTotal());
                 int successful = totalClusters - disconnectedNodesIndices.size();
                 assertEquals(successful, searchResponse.getClusters().getSuccessful());
-                assertEquals(CCSReduceMode.REMOTE, searchResponse.getClusters().getCCSReduceMode());
+                assertEquals(SearchResponse.CCSReduction.REMOTE, searchResponse.getClusters().getCCSReduction());
                 assertEquals(successful == 0 ? 0 : successful + 1, searchResponse.getNumReducePhases());
             }
 
@@ -582,7 +582,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertEquals(0, searchResponse.getClusters().getSkipped());
                 assertEquals(totalClusters, searchResponse.getClusters().getTotal());
                 assertEquals(totalClusters, searchResponse.getClusters().getSuccessful());
-                assertEquals(CCSReduceMode.REMOTE, searchResponse.getClusters().getCCSReduceMode());
+                assertEquals(SearchResponse.CCSReduction.REMOTE, searchResponse.getClusters().getCCSReduction());
                 assertEquals(totalClusters + 1, searchResponse.getNumReducePhases());
             }
             assertEquals(0, service.getConnectionManager().size());
@@ -740,23 +740,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 mockTransportService.close();
             }
         }
-    }
-
-    public void testResolveCCSReduceMode() throws Exception {
-        SearchRequestTests searchRequestTests = new SearchRequestTests();
-        searchRequestTests.setUp();
-        SearchRequest searchRequest = searchRequestTests.createSearchRequest();
-        CCSReduceMode ccsReduceMode = randomFrom(CCSReduceMode.REMOTE, CCSReduceMode.LOCAL);
-        searchRequest.setCCSReduceMode(ccsReduceMode);
-        assertEquals(ccsReduceMode, searchRequest.getCCSReduceMode());
-        assertEquals(ccsReduceMode, TransportSearchAction.resolveCCSReduceMode(searchRequest));
-
-        searchRequest.setCCSReduceMode(CCSReduceMode.AUTO);
-        assertEquals(CCSReduceMode.AUTO, searchRequest.getCCSReduceMode());
-        boolean remoteReduce = searchRequest.scroll() == null && (searchRequest.source() == null
-            || searchRequest.source().collapse() == null || searchRequest.source().collapse().getInnerHits() == null
-            || searchRequest.source().collapse().getInnerHits().isEmpty());
-        assertEquals(remoteReduce ? CCSReduceMode.REMOTE : CCSReduceMode.LOCAL, TransportSearchAction.resolveCCSReduceMode(searchRequest));
     }
 
     public void testCreateSearchResponseMerger() {

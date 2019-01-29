@@ -93,7 +93,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private CCSReduceMode ccsReduceMode = CCSReduceMode.AUTO;
+    private boolean ccsMinimizeRoundtrips = true;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
@@ -153,7 +153,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     private SearchRequest(SearchRequest searchRequest, String[] indices, String localClusterAlias, long absoluteStartMillis) {
         this.allowPartialSearchResults = searchRequest.allowPartialSearchResults;
         this.batchedReduceSize = searchRequest.batchedReduceSize;
-        this.ccsReduceMode = searchRequest.ccsReduceMode;
+        this.ccsMinimizeRoundtrips = searchRequest.ccsMinimizeRoundtrips;
         this.indices = indices;
         this.indicesOptions = searchRequest.indicesOptions;
         this.maxConcurrentShardRequests = searchRequest.maxConcurrentShardRequests;
@@ -204,7 +204,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
         }
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            ccsReduceMode = in.readEnum(CCSReduceMode.class);
+            ccsMinimizeRoundtrips = in.readBoolean();
         }
     }
 
@@ -233,7 +233,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             }
         }
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeEnum(ccsReduceMode);
+            out.writeBoolean(ccsMinimizeRoundtrips);
         }
     }
 
@@ -263,16 +263,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 validationException =
                     addValidationError("[request_cache] cannot be used in a scroll context", validationException);
             }
-            if (ccsReduceMode == CCSReduceMode.REMOTE) {
-                validationException = addValidationError("[ccs_reduce_mode] cannot be [" + CCSReduceMode.REMOTE +
-                    "] in a scroll context", validationException);
-            }
-        }
-        boolean collapseWithInnerHits = source != null && source.collapse() != null && source.collapse().getInnerHits() != null
-            && source.collapse().getInnerHits().isEmpty() == false;
-        if (collapseWithInnerHits && ccsReduceMode == CCSReduceMode.REMOTE) {
-            validationException = addValidationError("[ccs_reduce_mode] cannot be [" + CCSReduceMode.REMOTE +
-                "] when inner hits are requested as part of field collapsing", validationException);
         }
         return validationException;
     }
@@ -326,24 +316,18 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
-     * Sets the reduce mode (as a {@link CCSReduceMode}) for cross-cluster search requests
+     * Returns whether network round-trips should be minimized when executing cross-cluster search requests.
+     * Defaults to <code>true</code>.
      */
-    public void setCCSReduceMode(CCSReduceMode ccsReduceMode) {
-        this.ccsReduceMode = Objects.requireNonNull(ccsReduceMode, "ccsReduceMode must not be null");
+    public boolean isCcsMinimizeRoundtrips() {
+        return ccsMinimizeRoundtrips;
     }
 
     /**
-     * Sets the reduce mode (as a string) for cross-cluster search requests
+     * Sets whether network round-trips should be minimized when executing cross-cluster search requests. Defaults to <code>true</code>.
      */
-    public void setCCSReduceMode(String ccsReduceMode) {
-        this.ccsReduceMode = CCSReduceMode.fromString(ccsReduceMode);
-    }
-
-    /**
-     * Returns the reduce mode for cross-cluster search requests
-     */
-    public CCSReduceMode getCCSReduceMode() {
-        return this.ccsReduceMode;
+    public void setCcsMinimizeRoundtrips(boolean ccsMinimizeRoundtrips) {
+        this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
     }
 
     /**
@@ -638,14 +622,14 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults) &&
                 Objects.equals(localClusterAlias, that.localClusterAlias) &&
                 absoluteStartMillis == that.absoluteStartMillis &&
-                ccsReduceMode == that.ccsReduceMode;
+                ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
                 scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize,
-                allowPartialSearchResults, localClusterAlias, absoluteStartMillis, ccsReduceMode);
+                allowPartialSearchResults, localClusterAlias, absoluteStartMillis, ccsMinimizeRoundtrips);
     }
 
     @Override
@@ -665,7 +649,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 ", allowPartialSearchResults=" + allowPartialSearchResults +
                 ", localClusterAlias=" + localClusterAlias +
                 ", getOrCreateAbsoluteStartMillis=" + absoluteStartMillis +
-                ", ccsReduceMode=" + ccsReduceMode +
+                ", ccsMinimizeRoundtrips=" + ccsMinimizeRoundtrips +
                 ", source=" + source + '}';
     }
 }

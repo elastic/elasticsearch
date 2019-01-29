@@ -73,7 +73,7 @@ GET /cluster_one:twitter/_search
     "skipped": 0
   },
   "_clusters": {
-    "ccs_reduce_mode": "remote",
+    "ccs_reduction": "remote",
     "total": 1,
     "successful": 1,
     "skipped": 0
@@ -140,7 +140,7 @@ will be prefixed with their remote cluster name:
     "skipped": 0
   },
   "_clusters": {
-    "ccs_reduce_mode": "remote",
+    "ccs_reduction": "remote",
     "total": 2,
     "successful": 2,
     "skipped": 0
@@ -234,7 +234,7 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
     "skipped": 0
   },
   "_clusters": { <1>
-    "ccs_reduce_mode": "remote",
+    "ccs_reduction": "remote",
     "total": 3,
     "successful": 2,
     "skipped": 1
@@ -281,42 +281,46 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
 <1> The `clusters` section indicates that one cluster was unavailable and got skipped
 
 [float]
-[[ccs-reduce-mode]]
-=== Reduce mode
+[[ccs-reduction]]
+=== CCS reduction phase
 
-When searching across remote clusters, the execution path may differ depending
-on the selected reduce mode:
+Cross-cluster search requests can be executed in two ways:
 
-- `remote`: the coordinating node sends one search request to each cluster.
-Each cluster performs the search independently, reducing and fetching results
-which are then returned to the caller. Once the CCS node has received all the
+- the CCS coordinating node minimizes network round-trips by sending one search
+request to each cluster. Each cluster performs the search independently,
+reducing and fetching results. Once the CCS node has received all the
 responses, it performs another reduction and returns the relevant results back
-to the user. The `remote` reduce mode is beneficial when there is network
-latency between the coordinating node and the remote clusters involved, which
-is typically the case. A single request is sent to each remote cluster, at the
-cost of retrieving `from` + `size` already fetched results.
+to the user. This strategy is beneficial when there is network latency between
+the CCS coordinating node and the remote clusters involved, which is typically
+the case. A single request is sent to each remote cluster, at the cost of
+retrieving `from` + `size` already fetched results. This is the default
+strategy, used whenever possible. In case a scroll is provided, or inner hits
+are requested as part of field collapsing, this strategy is not supported hence
+network round-trips cannot be minimized and the following strategy is used
+instead.
 
-- `local`: the coordinating node sends a <<search-shards,search shards>>
-request to each remote cluster, in order to collect information about their
-corresponding remote indices involved in the search request and the shards
-where their data is located. Once each cluster has responded to such request,
-the search executes as if all shards were part of the same cluster. The
-coordinating node sends one request to each shard involved, each shard
-executes the query and returns its own results which are then reduced (and
-fetched, depending on the <<search-request-search-type, search type>>) by the
-coordinating node. The `local` reduce mode is beneficial whenever there is very
- low network latency between the coordinating node and the remote clusters
- involved, as it treats all shards the same, at the cost of sending many
- requests to each remote cluster.
+- the CCS coordinating node sends a <<search-shards,search shards>> request to
+each remote cluster, in order to collect information about their corresponding
+remote indices involved in the search request and the shards where their data
+is located. Once each cluster has responded to such request, the search
+executes as if all shards were part of the same cluster. The coordinating node
+sends one request to each shard involved, each shard executes the query and
+returns its own results which are then reduced (and fetched, depending on the
+<<search-request-search-type, search type>>) by the CCS coordinating node.
+This strategy may be beneficial whenever there is very low network latency
+between the CCS coordinating node and the remote clusters involved, as it
+treats all shards the same, at the cost of sending many requests to each remote
+cluster, which is problematic in presence of network latency.
 
-- `auto`: `remote` is used whenever possible. In case a scroll is provided,
-or inner hits are requested as part of field collapsing, `local` is used
-instead. This is the default reduce mode.
-
-The <<search-request-body, search API>> supports the `ccs_reduce_mode`
-parameter which allows to select the reduce mode if needed. The reduce mode
-that was used for a cross-cluster search request is returned as part of the
-`_clusters` section, which will either be `remote` or `local`.
+The <<search-request-body, search API>> supports the `ccs_minimize_roundtrips`
+parameter, which defaults to `true` and can be set to `false` in case
+minimizing network round-trips is not desirable.
+Whenever a cross-cluster search request is executed, the `_clusters` section
+returned as part of the search response holds the information on where the
+reduction has happened: `remote` (meaning that minimizing round-trips was
+enabled and possible with the provided request), or `local` (meaning  that
+minimizing round-trips was either disabled explicitly or not possible with
+the provided request).
 
 Note that all the communication between the nodes, regardless of which cluster
 they belong to and the selected reduce mode, happens through the

@@ -1,0 +1,35 @@
+--
+:api: ccr-get-auto-follow-pattern
+:request: GetAutoFollowPatternRequest
+:response: GetAutoFollowPatternResponse
+--
+
+[id="{upid}-{api}"]
+=== Get Auto Follow Pattern API
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Get Auto Follow Pattern API allows you to get a specified auto follow pattern
+or all auto follow patterns.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The name of the auto follow pattern to get.
+    Use the default constructor to get all auto follow patterns.
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ includes the requested auto follow pattern or
+all auto follow patterns if default constructor or request class was used.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Get the requested pattern from the list of returned patterns
+
+include::../execution.asciidoc[]

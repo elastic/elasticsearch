@@ -74,6 +74,7 @@ import org.joda.time.format.DateTimeFormat;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -117,7 +118,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .put("cluster.remote.other_remote.seeds", "127.0.0.1:" + randomIntBetween(9351, 9399))
                 .build();
 
-        indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
+        indexNameExpressionResolver = new IndexNameExpressionResolver();
 
         final boolean withAlias = randomBoolean();
         final String securityIndexName = SECURITY_INDEX_NAME + (withAlias ? "-" + randomAlphaOfLength(5) : "");
@@ -189,7 +190,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         authzService = new AuthorizationService(settings, rolesStore, clusterService,
-                mock(AuditTrailService.class), new DefaultAuthenticationFailureHandler(), mock(ThreadPool.class),
+                mock(AuditTrailService.class), new DefaultAuthenticationFailureHandler(Collections.emptyMap()), mock(ThreadPool.class),
                 new AnonymousUser(settings));
         defaultIndicesResolver = new IndicesAndAliasesResolver(settings, clusterService);
     }
@@ -1365,7 +1366,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     private AuthorizedIndices buildAuthorizedIndices(User user, String action) {
         PlainActionFuture<Role> rolesListener = new PlainActionFuture<>();
         authzService.roles(user, rolesListener);
-        return new AuthorizedIndices(user, rolesListener.actionGet(), action, metaData);
+        return new AuthorizedIndices(rolesListener.actionGet(), action, metaData);
     }
 
     public static IndexMetaData.Builder indexBuilder(String index) {

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -14,7 +16,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -64,7 +65,14 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMo
  * A composite roles store that combines built in roles, file-based roles, and index-based roles. Checks the built in roles first, then the
  * file roles, and finally the index roles.
  */
-public class CompositeRolesStore extends AbstractComponent {
+public class CompositeRolesStore {
+
+
+    private static final Setting<Integer> CACHE_SIZE_SETTING =
+        Setting.intSetting("xpack.security.authz.store.roles.cache.max_size", 10000, Property.NodeScope);
+    private static final Setting<Integer> NEGATIVE_LOOKUP_CACHE_SIZE_SETTING =
+        Setting.intSetting("xpack.security.authz.store.roles.negative_lookup_cache.max_size", 10000, Property.NodeScope);
+    private static final Logger logger = LogManager.getLogger(CompositeRolesStore.class);
 
     // the lock is used in an odd manner; when iterating over the cache we cannot have modifiers other than deletes using
     // the iterator but when not iterating we can modify the cache without external locking. When making normal modifications to the cache
@@ -78,11 +86,6 @@ public class CompositeRolesStore extends AbstractComponent {
         readLock = new ReleasableLock(iterationLock.readLock());
         writeLock = new ReleasableLock(iterationLock.writeLock());
     }
-
-    private static final Setting<Integer> CACHE_SIZE_SETTING =
-        Setting.intSetting("xpack.security.authz.store.roles.cache.max_size", 10000, Property.NodeScope);
-    private static final Setting<Integer> NEGATIVE_LOOKUP_CACHE_SIZE_SETTING =
-        Setting.intSetting("xpack.security.authz.store.roles.negative_lookup_cache.max_size", 10000, Property.NodeScope);
 
     private final FileRolesStore fileRolesStore;
     private final NativeRolesStore nativeRolesStore;
@@ -99,7 +102,6 @@ public class CompositeRolesStore extends AbstractComponent {
                                ReservedRolesStore reservedRolesStore, NativePrivilegeStore privilegeStore,
                                List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> rolesProviders,
                                ThreadContext threadContext, XPackLicenseState licenseState) {
-        super(settings);
         this.fileRolesStore = fileRolesStore;
         fileRolesStore.addListener(this::invalidate);
         this.nativeRolesStore = nativeRolesStore;
@@ -238,7 +240,8 @@ public class CompositeRolesStore extends AbstractComponent {
         Set<String> clusterPrivileges = new HashSet<>();
         final List<ConditionalClusterPrivilege> conditionalClusterPrivileges = new ArrayList<>();
         Set<String> runAs = new HashSet<>();
-        Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
+        final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesMap = new HashMap<>();
+        final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
 
         // Keyed by application + resource
         Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
@@ -255,26 +258,8 @@ public class CompositeRolesStore extends AbstractComponent {
             if (descriptor.getRunAs() != null) {
                 runAs.addAll(Arrays.asList(descriptor.getRunAs()));
             }
-            IndicesPrivileges[] indicesPrivileges = descriptor.getIndicesPrivileges();
-            for (IndicesPrivileges indicesPrivilege : indicesPrivileges) {
-                Set<String> key = newHashSet(indicesPrivilege.getIndices());
-                // if a index privilege is an explicit denial, then we treat it as non-existent since we skipped these in the past when
-                // merging
-                final boolean isExplicitDenial =
-                        indicesPrivileges.length == 1 && "none".equalsIgnoreCase(indicesPrivilege.getPrivileges()[0]);
-                if (isExplicitDenial == false) {
-                    indicesPrivilegesMap.compute(key, (k, value) -> {
-                        if (value == null) {
-                            return new MergeableIndicesPrivilege(indicesPrivilege.getIndices(), indicesPrivilege.getPrivileges(),
-                                    indicesPrivilege.getGrantedFields(), indicesPrivilege.getDeniedFields(), indicesPrivilege.getQuery());
-                        } else {
-                            value.merge(new MergeableIndicesPrivilege(indicesPrivilege.getIndices(), indicesPrivilege.getPrivileges(),
-                                    indicesPrivilege.getGrantedFields(), indicesPrivilege.getDeniedFields(), indicesPrivilege.getQuery()));
-                            return value;
-                        }
-                    });
-                }
-            }
+            MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), true, restrictedIndicesPrivilegesMap);
+            MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), false, indicesPrivilegesMap);
             for (RoleDescriptor.ApplicationResourcePrivileges appPrivilege : descriptor.getApplicationPrivileges()) {
                 Tuple<String, Set<String>> key = new Tuple<>(appPrivilege.getApplication(), newHashSet(appPrivilege.getResources()));
                 applicationPrivilegesMap.compute(key, (k, v) -> {
@@ -295,7 +280,12 @@ public class CompositeRolesStore extends AbstractComponent {
         indicesPrivilegesMap.entrySet().forEach((entry) -> {
             MergeableIndicesPrivilege privilege = entry.getValue();
             builder.add(fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition), privilege.query,
-                    IndexPrivilege.get(privilege.privileges), privilege.indices.toArray(Strings.EMPTY_ARRAY));
+                    IndexPrivilege.get(privilege.privileges), false, privilege.indices.toArray(Strings.EMPTY_ARRAY));
+        });
+        restrictedIndicesPrivilegesMap.entrySet().forEach((entry) -> {
+            MergeableIndicesPrivilege privilege = entry.getValue();
+            builder.add(fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition), privilege.query,
+                    IndexPrivilege.get(privilege.privileges), true, privilege.indices.toArray(Strings.EMPTY_ARRAY));
         });
 
         if (applicationPrivilegesMap.isEmpty()) {
@@ -408,6 +398,30 @@ public class CompositeRolesStore extends AbstractComponent {
                 this.query = null;
             } else {
                 this.query.addAll(other.query);
+            }
+        }
+
+        private static void collatePrivilegesByIndices(IndicesPrivileges[] indicesPrivileges, boolean allowsRestrictedIndices,
+                Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap) {
+            for (final IndicesPrivileges indicesPrivilege : indicesPrivileges) {
+                // if a index privilege is an explicit denial, then we treat it as non-existent since we skipped these in the past when
+                // merging
+                final boolean isExplicitDenial = indicesPrivileges.length == 1
+                        && "none".equalsIgnoreCase(indicesPrivilege.getPrivileges()[0]);
+                if (isExplicitDenial || (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices)) {
+                    continue;
+                }
+                final Set<String> key = newHashSet(indicesPrivilege.getIndices());
+                indicesPrivilegesMap.compute(key, (k, value) -> {
+                    if (value == null) {
+                        return new MergeableIndicesPrivilege(indicesPrivilege.getIndices(), indicesPrivilege.getPrivileges(),
+                                indicesPrivilege.getGrantedFields(), indicesPrivilege.getDeniedFields(), indicesPrivilege.getQuery());
+                    } else {
+                        value.merge(new MergeableIndicesPrivilege(indicesPrivilege.getIndices(), indicesPrivilege.getPrivileges(),
+                                indicesPrivilege.getGrantedFields(), indicesPrivilege.getDeniedFields(), indicesPrivilege.getQuery()));
+                        return value;
+                    }
+                });
             }
         }
     }

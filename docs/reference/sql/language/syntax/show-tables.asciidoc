@@ -3,6 +3,8 @@
 [[sql-syntax-show-tables]]
 === SHOW TABLES
 
+beta[]
+
 .Synopsis
 [source, sql]
 ----

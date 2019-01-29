@@ -29,9 +29,6 @@ import org.gradle.api.Project
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
-
-import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
-
 /**
  * A container for the files and configuration associated with a single node in a test cluster.
  */
@@ -112,7 +109,7 @@ class NodeInfo {
     Version nodeVersion
 
     /** Holds node configuration for part of a test cluster. */
-    NodeInfo(ClusterConfiguration config, int nodeNum, Project project, String prefix, Version nodeVersion, File sharedDir) {
+    NodeInfo(ClusterConfiguration config, int nodeNum, Project project, String prefix, String nodeVersion, File sharedDir) {
         this.config = config
         this.nodeNum = nodeNum
         this.project = project
@@ -124,9 +121,9 @@ class NodeInfo {
         }
         baseDir = new File(project.buildDir, "cluster/${prefix} node${nodeNum}")
         pidFile = new File(baseDir, 'es.pid')
-        this.nodeVersion = nodeVersion
-        homeDir = homeDir(baseDir, config.distribution, nodeVersion)
-        pathConf = pathConf(baseDir, config.distribution, nodeVersion)
+        this.nodeVersion = Version.fromString(nodeVersion)
+        homeDir = new File(baseDir, "elasticsearch-${nodeVersion}")
+        pathConf = new File(homeDir, 'config')
         if (config.dataDir != null) {
             dataDir = "${config.dataDir(nodeNum)}"
         } else {
@@ -173,11 +170,11 @@ class NodeInfo {
         }
 
 
-        if (nodeVersion.before("6.2.0")) {
+        if (this.nodeVersion.before("6.2.0")) {
             javaVersion = 8
-        } else if (nodeVersion.onOrAfter("6.2.0") && nodeVersion.before("6.3.0")) {
+        } else if (this.nodeVersion.onOrAfter("6.2.0") && this.nodeVersion.before("6.3.0")) {
             javaVersion = 9
-        } else if (nodeVersion.onOrAfter("6.3.0") && nodeVersion.before("6.5.0")) {
+        } else if (this.nodeVersion.onOrAfter("6.3.0") && this.nodeVersion.before("6.5.0")) {
             javaVersion = 10
         }
 
@@ -298,42 +295,5 @@ class NodeInfo {
             return new File(dataDir)
         }
         return dataDir
-    }
-
-    /** Returns the directory elasticsearch home is contained in for the given distribution */
-    static File homeDir(File baseDir, String distro, Version nodeVersion) {
-        String path
-        switch (distro) {
-            case 'integ-test-zip':
-            case 'zip':
-            case 'tar':
-            case 'oss-zip':
-            case 'oss-tar':
-                path = "elasticsearch-${nodeVersion}"
-                break
-            case 'rpm':
-            case 'deb':
-                path = "${distro}-extracted/usr/share/elasticsearch"
-                break
-            default:
-                throw new InvalidUserDataException("Unknown distribution: ${distro}")
-        }
-        return new File(baseDir, path)
-    }
-
-    static File pathConf(File baseDir, String distro, Version nodeVersion) {
-        switch (distro) {
-            case 'integ-test-zip':
-            case 'zip':
-            case 'oss-zip':
-            case 'tar':
-            case 'oss-tar':
-                return new File(homeDir(baseDir, distro, nodeVersion), 'config')
-            case 'rpm':
-            case 'deb':
-                return new File(baseDir, "${distro}-extracted/etc/elasticsearch")
-            default:
-                throw new InvalidUserDataException("Unknown distribution: ${distro}")
-        }
     }
 }

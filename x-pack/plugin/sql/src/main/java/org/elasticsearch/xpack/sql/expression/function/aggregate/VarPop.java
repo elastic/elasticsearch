@@ -7,13 +7,13 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import java.util.List;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class VarPop extends NumericAggregate implements ExtendedStatsEnclosed {
 
-    public VarPop(Location location, Expression field) {
-        super(location, field);
+    public VarPop(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -26,7 +26,7 @@ public class VarPop extends NumericAggregate implements ExtendedStatsEnclosed {
         if (newChildren.size() != 1) {
             throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
         }
-        return new VarPop(location(), newChildren.get(0));
+        return new VarPop(source(), newChildren.get(0));
     }
 
     @Override

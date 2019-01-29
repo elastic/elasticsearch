@@ -20,7 +20,6 @@ package org.elasticsearch.client.documentation;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -33,27 +32,42 @@ import org.elasticsearch.client.MachineLearningIT;
 import org.elasticsearch.client.MlTestStateCleaner;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
+import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataResponse;
+import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
+import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.FindFileStructureRequest;
+import org.elasticsearch.client.ml.FindFileStructureResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.ForecastJobResponse;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetBucketsResponse;
+import org.elasticsearch.client.ml.GetCalendarEventsRequest;
+import org.elasticsearch.client.ml.GetCalendarEventsResponse;
 import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCalendarsResponse;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetCategoriesResponse;
+import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
+import org.elasticsearch.client.ml.GetModelSnapshotsResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
 import org.elasticsearch.client.ml.GetDatafeedStatsResponse;
+import org.elasticsearch.client.ml.GetFiltersRequest;
+import org.elasticsearch.client.ml.GetFiltersResponse;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetInfluencersResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
@@ -64,29 +78,45 @@ import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsResponse;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
+import org.elasticsearch.client.ml.MlInfoRequest;
+import org.elasticsearch.client.ml.MlInfoResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
+import org.elasticsearch.client.ml.PostCalendarEventRequest;
+import org.elasticsearch.client.ml.PostCalendarEventResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
 import org.elasticsearch.client.ml.PreviewDatafeedResponse;
+import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
+import org.elasticsearch.client.ml.PutFilterRequest;
+import org.elasticsearch.client.ml.PutFilterResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
+import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
+import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
+import org.elasticsearch.client.ml.UpdateModelSnapshotResponse;
 import org.elasticsearch.client.ml.calendars.Calendar;
+import org.elasticsearch.client.ml.calendars.ScheduledEvent;
+import org.elasticsearch.client.ml.calendars.ScheduledEventTests;
 import org.elasticsearch.client.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
 import org.elasticsearch.client.ml.datafeed.DatafeedUpdate;
+import org.elasticsearch.client.ml.datafeed.DelayedDataCheckConfig;
+import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
 import org.elasticsearch.client.ml.job.config.DataDescription;
@@ -94,10 +124,12 @@ import org.elasticsearch.client.ml.job.config.DetectionRule;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
+import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.client.ml.job.config.Operator;
 import org.elasticsearch.client.ml.job.config.RuleCondition;
 import org.elasticsearch.client.ml.job.process.DataCounts;
+import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.client.ml.job.results.AnomalyRecord;
 import org.elasticsearch.client.ml.job.results.Bucket;
 import org.elasticsearch.client.ml.job.results.CategoryDefinition;
@@ -107,6 +139,7 @@ import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -115,6 +148,9 @@ import org.elasticsearch.tasks.TaskId;
 import org.junit.After;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -573,6 +609,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             datafeedBuilder.setQueryDelay(TimeValue.timeValueMinutes(1)); // <1>
             // end::put-datafeed-config-set-query-delay
 
+            // tag::put-datafeed-config-set-delayed-data-check-config
+            datafeedBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig
+                .enabledDelayedDataCheckConfig(TimeValue.timeValueHours(1))); // <1>
+            // end::put-datafeed-config-set-delayed-data-check-config
+
+            // no need to accidentally trip internal validations due to job bucket size
+            datafeedBuilder.setDelayedDataCheckConfig(null);
+
             List<SearchSourceBuilder.ScriptField> scriptFields = Collections.emptyList();
             // tag::put-datafeed-config-set-script-fields
             datafeedBuilder.setScriptFields(scriptFields); // <1>
@@ -721,7 +765,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-datafeed-execute
             GetDatafeedResponse response = client.machineLearning().getDatafeed(request, RequestOptions.DEFAULT);
             // end::get-datafeed-execute
-            
+
             // tag::get-datafeed-response
             long numberOfDatafeeds = response.count(); // <1>
             List<DatafeedConfig> datafeeds = response.datafeeds(); // <2>
@@ -780,7 +824,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             AcknowledgedResponse deleteDatafeedResponse = client.machineLearning().deleteDatafeed(
                 deleteDatafeedRequest, RequestOptions.DEFAULT);
             // end::delete-datafeed-execute
-            
+
             // tag::delete-datafeed-response
             boolean isAcknowledged = deleteDatafeedResponse.isAcknowledged(); // <1>
             // end::delete-datafeed-response
@@ -826,10 +870,18 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         String datafeedId = job.getId() + "-feed";
         String indexName = "preview_data_2";
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId())
-            .setTypes(Arrays.asList("doc"))
             .setIndices(indexName)
             .build();
         client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
@@ -886,10 +938,18 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         String datafeedId = job.getId() + "-feed";
         String indexName = "start_data_2";
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId())
-            .setTypes(Arrays.asList("doc"))
             .setIndices(indexName)
             .build();
         client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
@@ -1007,17 +1067,24 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         String datafeedId1 = job.getId() + "-feed";
         String indexName = "datafeed_stats_data_2";
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId1, job.getId())
-            .setTypes(Arrays.asList("doc"))
             .setIndices(indexName)
             .build();
         client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
 
         String datafeedId2 = secondJob.getId() + "-feed";
         DatafeedConfig secondDatafeed = DatafeedConfig.builder(datafeedId2, secondJob.getId())
-            .setTypes(Arrays.asList("doc"))
             .setIndices(indexName)
             .build();
         client.machineLearning().putDatafeed(new PutDatafeedRequest(secondDatafeed), RequestOptions.DEFAULT);
@@ -1080,7 +1147,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
         // Let us index a bucket
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"test-get-buckets\", \"result_type\":\"bucket\", \"timestamp\": 1533081600000," +
                         "\"bucket_span\": 600,\"is_interim\": false, \"anomaly_score\": 80.0}", XContentType.JSON);
@@ -1234,7 +1301,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
-    
+
     public void testDeleteForecast() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -1313,7 +1380,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
-    
+
     public void testGetJobStats() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -1438,7 +1505,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
-    
+
     public void testGetOverallBuckets() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 
@@ -1454,13 +1521,13 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         {
-            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
             indexRequest.source("{\"job_id\":\"test-get-overall-buckets-1\", \"result_type\":\"bucket\", \"timestamp\": 1533081600000," +
                     "\"bucket_span\": 600,\"is_interim\": false, \"anomaly_score\": 60.0}", XContentType.JSON);
             bulkRequest.add(indexRequest);
         }
         {
-            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
             indexRequest.source("{\"job_id\":\"test-get-overall-buckets-2\", \"result_type\":\"bucket\", \"timestamp\": 1533081600000," +
                     "\"bucket_span\": 3600,\"is_interim\": false, \"anomaly_score\": 100.0}", XContentType.JSON);
             bulkRequest.add(indexRequest);
@@ -1548,7 +1615,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
         // Let us index a record
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"test-get-records\", \"result_type\":\"record\", \"timestamp\": 1533081600000," +
                 "\"bucket_span\": 600,\"is_interim\": false, \"record_score\": 80.0}", XContentType.JSON);
@@ -1697,6 +1764,68 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testFindFileStructure() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        Path anInterestingFile = createTempFile();
+        String contents = "{\"logger\":\"controller\",\"timestamp\":1478261151445,\"level\":\"INFO\"," +
+                "\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 1\",\"class\":\"ml\"," +
+                "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n" +
+            "{\"logger\":\"controller\",\"timestamp\":1478261151445," +
+                "\"level\":\"INFO\",\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 2\",\"class\":\"ml\"," +
+                "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
+        Files.write(anInterestingFile, Collections.singleton(contents), StandardCharsets.UTF_8);
+
+        {
+            // tag::find-file-structure-request
+            FindFileStructureRequest findFileStructureRequest = new FindFileStructureRequest(); // <1>
+            findFileStructureRequest.setSample(Files.readAllBytes(anInterestingFile)); // <2>
+            // end::find-file-structure-request
+
+            // tag::find-file-structure-request-options
+            findFileStructureRequest.setLinesToSample(500); // <1>
+            findFileStructureRequest.setExplain(true); // <2>
+            // end::find-file-structure-request-options
+
+            // tag::find-file-structure-execute
+            FindFileStructureResponse findFileStructureResponse =
+                client.machineLearning().findFileStructure(findFileStructureRequest, RequestOptions.DEFAULT);
+            // end::find-file-structure-execute
+
+            // tag::find-file-structure-response
+            FileStructure structure = findFileStructureResponse.getFileStructure(); // <1>
+            // end::find-file-structure-response
+            assertEquals(2, structure.getNumLinesAnalyzed());
+        }
+        {
+            // tag::find-file-structure-execute-listener
+            ActionListener<FindFileStructureResponse> listener = new ActionListener<FindFileStructureResponse>() {
+                @Override
+                public void onResponse(FindFileStructureResponse findFileStructureResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::find-file-structure-execute-listener
+            FindFileStructureRequest findFileStructureRequest = new FindFileStructureRequest();
+            findFileStructureRequest.setSample(Files.readAllBytes(anInterestingFile));
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::find-file-structure-execute-async
+            client.machineLearning().findFileStructureAsync(findFileStructureRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::find-file-structure-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
     public void testGetInfluencers() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 
@@ -1705,7 +1834,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
         // Let us index a record
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"test-get-influencers\", \"result_type\":\"influencer\", \"timestamp\": 1533081600000," +
                 "\"bucket_span\": 600,\"is_interim\": false, \"influencer_score\": 80.0, \"influencer_field_name\": \"my_influencer\"," +
@@ -1796,7 +1925,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
         // Let us index a category
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\": \"test-get-categories\", \"category_id\": 1, \"terms\": \"AAL\"," +
                 " \"regex\": \".*?AAL.*\", \"max_matching_length\": 3, \"examples\": [\"AAL\"]}", XContentType.JSON);
@@ -1858,6 +1987,371 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testDeleteExpiredData() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "test-delete-expired-data";
+        MachineLearningIT.buildJob(jobId);
+       {
+            // tag::delete-expired-data-request
+            DeleteExpiredDataRequest request = new DeleteExpiredDataRequest(); // <1>
+            // end::delete-expired-data-request
+
+            // tag::delete-expired-data-execute
+            DeleteExpiredDataResponse response = client.machineLearning().deleteExpiredData(request, RequestOptions.DEFAULT);
+            // end::delete-expired-data-execute
+
+            // tag::delete-expired-data-response
+            boolean deleted = response.getDeleted(); // <1>
+            // end::delete-expired-data-response
+
+            assertTrue(deleted);
+        }
+        {
+            // tag::delete-expired-data-execute-listener
+            ActionListener<DeleteExpiredDataResponse> listener = new ActionListener<DeleteExpiredDataResponse>() {
+                @Override
+                public void onResponse(DeleteExpiredDataResponse deleteExpiredDataResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-expired-data-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            DeleteExpiredDataRequest deleteExpiredDataRequest = new DeleteExpiredDataRequest();
+
+            // tag::delete-expired-data-execute-async
+            client.machineLearning().deleteExpiredDataAsync(deleteExpiredDataRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-expired-data-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+
+    public void testDeleteModelSnapshot() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "test-delete-model-snapshot";
+        String snapshotId = "1541587919";
+        Job job = MachineLearningIT.buildJob(jobId);
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        // Let us index a snapshot
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc");
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequest.source("{\"job_id\":\"" + jobId + "\", \"timestamp\":1541587919000, " +
+            "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
+            "\"snapshot_id\":\"" + snapshotId + "\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
+            "\"job_id\":\"" + jobId + "\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
+            "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
+            "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
+            "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
+            "\"latest_result_time_stamp\":1519930800000, \"retain\":false}", XContentType.JSON);
+        {
+            client.index(indexRequest, RequestOptions.DEFAULT);
+
+            // tag::delete-model-snapshot-request
+            DeleteModelSnapshotRequest request = new DeleteModelSnapshotRequest(jobId, snapshotId); // <1>
+            // end::delete-model-snapshot-request
+
+            // tag::delete-model-snapshot-execute
+            AcknowledgedResponse response = client.machineLearning().deleteModelSnapshot(request, RequestOptions.DEFAULT);
+            // end::delete-model-snapshot-execute
+
+            // tag::delete-model-snapshot-response
+            boolean isAcknowledged = response.isAcknowledged(); // <1>
+            // end::delete-model-snapshot-response
+
+            assertTrue(isAcknowledged);
+        }
+        {
+            client.index(indexRequest, RequestOptions.DEFAULT);
+
+            // tag::delete-model-snapshot-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-model-snapshot-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            DeleteModelSnapshotRequest deleteModelSnapshotRequest = new DeleteModelSnapshotRequest(jobId, "1541587919");
+
+            // tag::delete-model-snapshot-execute-async
+            client.machineLearning().deleteModelSnapshotAsync(deleteModelSnapshotRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-model-snapshot-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetModelSnapshots() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "test-get-model-snapshots";
+        Job job = MachineLearningIT.buildJob(jobId);
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        // Let us index a snapshot
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc");
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequest.source("{\"job_id\":\"test-get-model-snapshots\", \"timestamp\":1541587919000, " +
+            "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
+            "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
+            "\"job_id\":\"test-get-model-snapshots\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
+            "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
+            "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
+            "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
+            "\"latest_result_time_stamp\":1519930800000, \"retain\":false}", XContentType.JSON);
+        client.index(indexRequest, RequestOptions.DEFAULT);
+
+        {
+            // tag::get-model-snapshots-request
+            GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(jobId); // <1>
+            // end::get-model-snapshots-request
+
+            // tag::get-model-snapshots-snapshot-id
+            request.setSnapshotId("1541587919"); // <1>
+            // end::get-model-snapshots-snapshot-id
+
+            // Set snapshot id to null as it is incompatible with other args
+            request.setSnapshotId(null);
+
+            // tag::get-model-snapshots-desc
+            request.setDesc(true); // <1>
+            // end::get-model-snapshots-desc
+
+            // tag::get-model-snapshots-end
+            request.setEnd("2018-11-07T21:00:00Z"); // <1>
+            // end::get-model-snapshots-end
+
+            // tag::get-model-snapshots-page
+            request.setPageParams(new PageParams(100, 200)); // <1>
+            // end::get-model-snapshots-page
+
+            // Set page params back to null so the response contains the snapshot we indexed
+            request.setPageParams(null);
+
+            // tag::get-model-snapshots-sort
+            request.setSort("latest_result_time_stamp"); // <1>
+            // end::get-model-snapshots-sort
+
+            // tag::get-model-snapshots-start
+            request.setStart("2018-11-07T00:00:00Z"); // <1>
+            // end::get-model-snapshots-start
+
+            // tag::get-model-snapshots-execute
+            GetModelSnapshotsResponse response = client.machineLearning().getModelSnapshots(request, RequestOptions.DEFAULT);
+            // end::get-model-snapshots-execute
+
+            // tag::get-model-snapshots-response
+            long count = response.count(); // <1>
+            List<ModelSnapshot> modelSnapshots = response.snapshots(); // <2>
+            // end::get-model-snapshots-response
+
+            assertEquals(1, modelSnapshots.size());
+        }
+        {
+            GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(jobId);
+
+            // tag::get-model-snapshots-execute-listener
+            ActionListener<GetModelSnapshotsResponse> listener =
+                new ActionListener<GetModelSnapshotsResponse>() {
+                    @Override
+                    public void onResponse(GetModelSnapshotsResponse getModelSnapshotsResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::get-model-snapshots-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-model-snapshots-execute-async
+            client.machineLearning().getModelSnapshotsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-model-snapshots-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testRevertModelSnapshot() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "test-revert-model-snapshot";
+        String snapshotId = "1541587919";
+        Job job = MachineLearningIT.buildJob(jobId);
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        // Let us index a snapshot
+        String documentId = jobId + "_model_snapshot_" + snapshotId;
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc", documentId);
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequest.source("{\"job_id\":\"test-revert-model-snapshot\", \"timestamp\":1541587919000, " +
+            "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
+            "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
+            "\"job_id\":\"test-revert-model-snapshot\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
+            "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
+            "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
+            "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
+            "\"latest_result_time_stamp\":1519930800000, \"retain\":false, " +
+            "\"quantiles\":{\"job_id\":\"test-revert-model-snapshot\", \"timestamp\":1541587919000, " +
+            "\"quantile_state\":\"state\"}}", XContentType.JSON);
+        client.index(indexRequest, RequestOptions.DEFAULT);
+
+        {
+            // tag::revert-model-snapshot-request
+            RevertModelSnapshotRequest request = new RevertModelSnapshotRequest(jobId, snapshotId); // <1>
+            // end::revert-model-snapshot-request
+
+            // tag::revert-model-snapshot-delete-intervening-results
+            request.setDeleteInterveningResults(true); // <1>
+            // end::revert-model-snapshot-delete-intervening-results
+
+            // tag::revert-model-snapshot-execute
+            RevertModelSnapshotResponse response = client.machineLearning().revertModelSnapshot(request, RequestOptions.DEFAULT);
+            // end::revert-model-snapshot-execute
+
+            // tag::revert-model-snapshot-response
+            ModelSnapshot modelSnapshot = response.getModel(); // <1>
+            // end::revert-model-snapshot-response
+
+            assertEquals(snapshotId, modelSnapshot.getSnapshotId());
+            assertEquals("State persisted due to job close at 2018-11-07T10:51:59+0000", modelSnapshot.getDescription());
+            assertEquals(51722, modelSnapshot.getModelSizeStats().getModelBytes());
+        }
+        {
+            RevertModelSnapshotRequest request = new RevertModelSnapshotRequest(jobId, snapshotId);
+
+            // tag::revert-model-snapshot-execute-listener
+            ActionListener<RevertModelSnapshotResponse> listener =
+                new ActionListener<RevertModelSnapshotResponse>() {
+                    @Override
+                    public void onResponse(RevertModelSnapshotResponse revertModelSnapshotResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::revert-model-snapshot-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::revert-model-snapshot-execute-async
+            client.machineLearning().revertModelSnapshotAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::revert-model-snapshot-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+
+    public void testUpdateModelSnapshot() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "test-update-model-snapshot";
+        String snapshotId = "1541587919";
+        String documentId = jobId + "_model_snapshot_" + snapshotId;
+        Job job = MachineLearningIT.buildJob(jobId);
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        // Let us index a snapshot
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc", documentId);
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequest.source("{\"job_id\":\"test-update-model-snapshot\", \"timestamp\":1541587919000, " +
+            "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
+            "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
+            "\"job_id\":\"test-update-model-snapshot\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
+            "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
+            "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
+            "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
+            "\"latest_result_time_stamp\":1519930800000, \"retain\":false}", XContentType.JSON);
+        client.index(indexRequest, RequestOptions.DEFAULT);
+
+        {
+            // tag::update-model-snapshot-request
+            UpdateModelSnapshotRequest request = new UpdateModelSnapshotRequest(jobId, snapshotId); // <1>
+            // end::update-model-snapshot-request
+
+            // tag::update-model-snapshot-description
+            request.setDescription("My Snapshot"); // <1>
+            // end::update-model-snapshot-description
+
+            // tag::update-model-snapshot-retain
+            request.setRetain(true); // <1>
+            // end::update-model-snapshot-retain
+
+            // tag::update-model-snapshot-execute
+            UpdateModelSnapshotResponse response = client.machineLearning().updateModelSnapshot(request, RequestOptions.DEFAULT);
+            // end::update-model-snapshot-execute
+
+            // tag::update-model-snapshot-response
+            boolean acknowledged = response.getAcknowledged(); // <1>
+            ModelSnapshot modelSnapshot = response.getModel(); // <2>
+            // end::update-model-snapshot-response
+
+            assertTrue(acknowledged);
+            assertEquals("My Snapshot", modelSnapshot.getDescription());        }
+        {
+            UpdateModelSnapshotRequest request = new UpdateModelSnapshotRequest(jobId, snapshotId);
+
+            // tag::update-model-snapshot-execute-listener
+            ActionListener<UpdateModelSnapshotResponse> listener =
+                new ActionListener<UpdateModelSnapshotResponse>() {
+                    @Override
+                    public void onResponse(UpdateModelSnapshotResponse updateModelSnapshotResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::update-model-snapshot-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::update-model-snapshot-execute-async
+            client.machineLearning().updateModelSnapshotAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::update-model-snapshot-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
     public void testPutCalendar() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 
@@ -1898,6 +2392,112 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::put-calendar-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testPutCalendarJob() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        Calendar calendar = new Calendar("holidays", Collections.singletonList("job_1"), "A calendar for public holidays");
+        PutCalendarRequest putRequest = new PutCalendarRequest(calendar);
+        client.machineLearning().putCalendar(putRequest, RequestOptions.DEFAULT);
+        {
+            // tag::put-calendar-job-request
+            PutCalendarJobRequest request = new PutCalendarJobRequest("holidays", // <1>
+                "job_2", "job_group_1"); // <2>
+            // end::put-calendar-job-request
+
+            // tag::put-calendar-job-execute
+            PutCalendarResponse response = client.machineLearning().putCalendarJob(request, RequestOptions.DEFAULT);
+            // end::put-calendar-job-execute
+
+            // tag::put-calendar-job-response
+            Calendar updatedCalendar = response.getCalendar(); // <1>
+            // end::put-calendar-job-response
+
+            assertThat(updatedCalendar.getJobIds(), containsInAnyOrder("job_1", "job_2", "job_group_1"));
+        }
+        {
+            PutCalendarJobRequest request = new PutCalendarJobRequest("holidays", "job_4");
+
+            // tag::put-calendar-job-execute-listener
+            ActionListener<PutCalendarResponse> listener =
+                new ActionListener<PutCalendarResponse>() {
+                    @Override
+                    public void onResponse(PutCalendarResponse putCalendarsResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::put-calendar-job-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::put-calendar-job-execute-async
+            client.machineLearning().putCalendarJobAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::put-calendar-job-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDeleteCalendarJob() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        Calendar calendar = new Calendar("holidays",
+            Arrays.asList("job_1", "job_group_1", "job_2"),
+            "A calendar for public holidays");
+        PutCalendarRequest putRequest = new PutCalendarRequest(calendar);
+        client.machineLearning().putCalendar(putRequest, RequestOptions.DEFAULT);
+        {
+            // tag::delete-calendar-job-request
+            DeleteCalendarJobRequest request = new DeleteCalendarJobRequest("holidays", // <1>
+                "job_1", "job_group_1"); // <2>
+            // end::delete-calendar-job-request
+
+            // tag::delete-calendar-job-execute
+            PutCalendarResponse response = client.machineLearning().deleteCalendarJob(request, RequestOptions.DEFAULT);
+            // end::delete-calendar-job-execute
+
+            // tag::delete-calendar-job-response
+            Calendar updatedCalendar = response.getCalendar(); // <1>
+            // end::delete-calendar-job-response
+
+            assertThat(updatedCalendar.getJobIds(), containsInAnyOrder("job_2"));
+        }
+        {
+            DeleteCalendarJobRequest request = new DeleteCalendarJobRequest("holidays", "job_2");
+
+            // tag::delete-calendar-job-execute-listener
+            ActionListener<PutCalendarResponse> listener =
+                new ActionListener<PutCalendarResponse>() {
+                    @Override
+                    public void onResponse(PutCalendarResponse deleteCalendarsResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::delete-calendar-job-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-calendar-job-execute-async
+            client.machineLearning().deleteCalendarJobAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-calendar-job-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
     }
 
     public void testGetCalendar() throws IOException, InterruptedException {
@@ -2006,5 +2606,486 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::delete-calendar-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testGetCalendarEvent() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        Calendar calendar = new Calendar("holidays", Collections.singletonList("job_1"), "A calendar for public holidays");
+        PutCalendarRequest putRequest = new PutCalendarRequest(calendar);
+        client.machineLearning().putCalendar(putRequest, RequestOptions.DEFAULT);
+        List<ScheduledEvent> events = Collections.singletonList(ScheduledEventTests.testInstance(calendar.getId(), null));
+        client.machineLearning().postCalendarEvent(new PostCalendarEventRequest("holidays", events), RequestOptions.DEFAULT);
+        {
+            // tag::get-calendar-events-request
+            GetCalendarEventsRequest request = new GetCalendarEventsRequest("holidays"); // <1>
+            // end::get-calendar-events-request
+
+            // tag::get-calendar-events-page
+            request.setPageParams(new PageParams(10, 20)); // <1>
+            // end::get-calendar-events-page
+
+            // tag::get-calendar-events-start
+            request.setStart("2018-08-01T00:00:00Z"); // <1>
+            // end::get-calendar-events-start
+
+            // tag::get-calendar-events-end
+            request.setEnd("2018-08-02T00:00:00Z"); // <1>
+            // end::get-calendar-events-end
+
+            // tag::get-calendar-events-jobid
+            request.setJobId("job_1"); // <1>
+            // end::get-calendar-events-jobid
+
+            // reset params
+            request.setPageParams(null);
+            request.setJobId(null);
+            request.setStart(null);
+            request.setEnd(null);
+
+            // tag::get-calendar-events-execute
+            GetCalendarEventsResponse response = client.machineLearning().getCalendarEvents(request, RequestOptions.DEFAULT);
+            // end::get-calendar-events-execute
+
+            // tag::get-calendar-events-response
+            long count = response.count(); // <1>
+            List<ScheduledEvent> scheduledEvents = response.events(); // <2>
+            // end::get-calendar-events-response
+            assertEquals(1, scheduledEvents.size());
+        }
+        {
+            GetCalendarEventsRequest request = new GetCalendarEventsRequest("holidays");
+
+            // tag::get-calendar-events-execute-listener
+            ActionListener<GetCalendarEventsResponse> listener =
+                new ActionListener<GetCalendarEventsResponse>() {
+                    @Override
+                    public void onResponse(GetCalendarEventsResponse getCalendarsResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::get-calendar-events-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-calendar-events-execute-async
+            client.machineLearning().getCalendarEventsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-calendar-events-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testPostCalendarEvent() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        Calendar calendar = new Calendar("holidays", Collections.singletonList("job_1"), "A calendar for public holidays");
+        PutCalendarRequest putRequest = new PutCalendarRequest(calendar);
+        client.machineLearning().putCalendar(putRequest, RequestOptions.DEFAULT);
+        {
+            List<ScheduledEvent> events = Collections.singletonList(ScheduledEventTests.testInstance(calendar.getId(), null));
+
+            // tag::post-calendar-event-request
+            PostCalendarEventRequest request = new PostCalendarEventRequest("holidays", // <1>
+                events); // <2>
+            // end::post-calendar-event-request
+
+            // tag::post-calendar-event-execute
+            PostCalendarEventResponse response = client.machineLearning().postCalendarEvent(request, RequestOptions.DEFAULT);
+            // end::post-calendar-event-execute
+
+            // tag::post-calendar-event-response
+            List<ScheduledEvent> scheduledEvents = response.getScheduledEvents(); // <1>
+            // end::post-calendar-event-response
+
+            assertEquals(1, scheduledEvents.size());
+        }
+        {
+            List<ScheduledEvent> events = Collections.singletonList(ScheduledEventTests.testInstance());
+            PostCalendarEventRequest request = new PostCalendarEventRequest("holidays", events); // <1>
+
+            // tag::post-calendar-event-execute-listener
+            ActionListener<PostCalendarEventResponse> listener =
+                new ActionListener<PostCalendarEventResponse>() {
+                    @Override
+                    public void onResponse(PostCalendarEventResponse postCalendarsResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::post-calendar-event-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::post-calendar-event-execute-async
+            client.machineLearning().postCalendarEventAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::post-calendar-event-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDeleteCalendarEvent() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        Calendar calendar = new Calendar("holidays",
+            Arrays.asList("job_1", "job_group_1", "job_2"),
+            "A calendar for public holidays");
+        PutCalendarRequest putRequest = new PutCalendarRequest(calendar);
+        client.machineLearning().putCalendar(putRequest, RequestOptions.DEFAULT);
+        List<ScheduledEvent> events = Arrays.asList(ScheduledEventTests.testInstance(calendar.getId(), null),
+            ScheduledEventTests.testInstance(calendar.getId(), null));
+        client.machineLearning().postCalendarEvent(new PostCalendarEventRequest("holidays", events), RequestOptions.DEFAULT);
+        GetCalendarEventsResponse getCalendarEventsResponse =
+            client.machineLearning().getCalendarEvents(new GetCalendarEventsRequest("holidays"), RequestOptions.DEFAULT);
+        {
+
+            // tag::delete-calendar-event-request
+            DeleteCalendarEventRequest request = new DeleteCalendarEventRequest("holidays", // <1>
+                "EventId"); // <2>
+            // end::delete-calendar-event-request
+
+            request = new DeleteCalendarEventRequest("holidays", getCalendarEventsResponse.events().get(0).getEventId());
+
+            // tag::delete-calendar-event-execute
+            AcknowledgedResponse response = client.machineLearning().deleteCalendarEvent(request, RequestOptions.DEFAULT);
+            // end::delete-calendar-event-execute
+
+            // tag::delete-calendar-event-response
+            boolean acknowledged = response.isAcknowledged(); // <1>
+            // end::delete-calendar-event-response
+
+            assertThat(acknowledged, is(true));
+        }
+        {
+            DeleteCalendarEventRequest request = new DeleteCalendarEventRequest("holidays",
+                getCalendarEventsResponse.events().get(1).getEventId());
+
+            // tag::delete-calendar-event-execute-listener
+            ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse deleteCalendarEventResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::delete-calendar-event-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-calendar-event-execute-async
+            client.machineLearning().deleteCalendarEventAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-calendar-event-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+
+    public void testCreateFilter() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::put-filter-config
+            MlFilter.Builder filterBuilder = MlFilter.builder("my_safe_domains") // <1>
+                .setDescription("A list of safe domains")   // <2>
+                .setItems("*.google.com", "wikipedia.org"); // <3>
+            // end::put-filter-config
+
+            // tag::put-filter-request
+            PutFilterRequest request = new PutFilterRequest(filterBuilder.build()); // <1>
+            // end::put-filter-request
+
+            // tag::put-filter-execute
+            PutFilterResponse response = client.machineLearning().putFilter(request, RequestOptions.DEFAULT);
+            // end::put-filter-execute
+
+            // tag::put-filter-response
+            MlFilter createdFilter = response.getResponse(); // <1>
+            // end::put-filter-response
+            assertThat(createdFilter.getId(), equalTo("my_safe_domains"));
+        }
+        {
+            MlFilter.Builder filterBuilder = MlFilter.builder("safe_domains_async")
+                .setDescription("A list of safe domains")
+                .setItems("*.google.com", "wikipedia.org");
+
+            PutFilterRequest request = new PutFilterRequest(filterBuilder.build());
+            // tag::put-filter-execute-listener
+            ActionListener<PutFilterResponse> listener = new ActionListener<PutFilterResponse>() {
+                @Override
+                public void onResponse(PutFilterResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::put-filter-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::put-filter-execute-async
+            client.machineLearning().putFilterAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::put-filter-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetFilters() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+        String filterId = "get-filter-doc-test";
+        MlFilter.Builder filterBuilder = MlFilter.builder(filterId).setDescription("test").setItems("*.google.com", "wikipedia.org");
+
+        client.machineLearning().putFilter(new PutFilterRequest(filterBuilder.build()), RequestOptions.DEFAULT);
+
+        {
+            // tag::get-filters-request
+            GetFiltersRequest request = new GetFiltersRequest(); // <1>
+            // end::get-filters-request
+
+            // tag::get-filters-filter-id
+            request.setFilterId("get-filter-doc-test"); // <1>
+            // end::get-filters-filter-id
+
+            // tag::get-filters-page-params
+            request.setFrom(100); // <1>
+            request.setSize(200); // <2>
+            // end::get-filters-page-params
+
+            request.setFrom(null);
+            request.setSize(null);
+
+            // tag::get-filters-execute
+            GetFiltersResponse response = client.machineLearning().getFilter(request, RequestOptions.DEFAULT);
+            // end::get-filters-execute
+
+            // tag::get-filters-response
+            long count = response.count(); // <1>
+            List<MlFilter> filters = response.filters(); // <2>
+            // end::get-filters-response
+            assertEquals(1, filters.size());
+        }
+        {
+            GetFiltersRequest request = new GetFiltersRequest();
+            request.setFilterId(filterId);
+
+            // tag::get-filters-execute-listener
+            ActionListener<GetFiltersResponse> listener = new ActionListener<GetFiltersResponse>() {
+                @Override
+                public void onResponse(GetFiltersResponse getfiltersResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-filters-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-filters-execute-async
+            client.machineLearning().getFilterAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-filters-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testUpdateFilter() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+        String filterId = "update-filter-doc-test";
+        MlFilter.Builder filterBuilder = MlFilter.builder(filterId).setDescription("test").setItems("*.google.com", "wikipedia.org");
+
+        client.machineLearning().putFilter(new PutFilterRequest(filterBuilder.build()), RequestOptions.DEFAULT);
+
+        {
+            // tag::update-filter-request
+            UpdateFilterRequest request = new UpdateFilterRequest(filterId); // <1>
+            // end::update-filter-request
+
+            // tag::update-filter-description
+            request.setDescription("my new description"); // <1>
+            // end::update-filter-description
+
+            // tag::update-filter-add-items
+            request.setAddItems(Arrays.asList("*.bing.com", "*.elastic.co")); // <1>
+            // end::update-filter-add-items
+
+            // tag::update-filter-remove-items
+            request.setRemoveItems(Arrays.asList("*.google.com")); // <1>
+            // end::update-filter-remove-items
+
+            // tag::update-filter-execute
+            PutFilterResponse response = client.machineLearning().updateFilter(request, RequestOptions.DEFAULT);
+            // end::update-filter-execute
+
+            // tag::update-filter-response
+            MlFilter updatedFilter = response.getResponse(); // <1>
+            // end::update-filter-response
+            assertEquals(request.getDescription(), updatedFilter.getDescription());
+        }
+        {
+            UpdateFilterRequest request = new UpdateFilterRequest(filterId);
+
+            // tag::update-filter-execute-listener
+            ActionListener<PutFilterResponse> listener = new ActionListener<PutFilterResponse>() {
+                @Override
+                public void onResponse(PutFilterResponse putFilterResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::update-filter-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::update-filter-execute-async
+            client.machineLearning().updateFilterAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::update-filter-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDeleteFilter() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        String filterId = createFilter(client);
+
+        {
+            // tag::delete-filter-request
+            DeleteFilterRequest request = new DeleteFilterRequest(filterId); // <1>
+            // end::delete-filter-request
+
+            // tag::delete-filter-execute
+            AcknowledgedResponse response = client.machineLearning().deleteFilter(request, RequestOptions.DEFAULT);
+            // end::delete-filter-execute
+
+            // tag::delete-filter-response
+            boolean isAcknowledged = response.isAcknowledged(); // <1>
+            // end::delete-filter-response
+            assertTrue(isAcknowledged);
+        }
+        filterId = createFilter(client);
+        {
+            DeleteFilterRequest request = new DeleteFilterRequest(filterId);
+            // tag::delete-filter-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-filter-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-filter-execute-async
+            client.machineLearning().deleteFilterAsync(request, RequestOptions.DEFAULT, listener); //<1>
+            // end::delete-filter-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetMlInfo() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::get-ml-info-request
+            MlInfoRequest request = new MlInfoRequest(); // <1>
+            // end::get-ml-info-request
+
+            // tag::get-ml-info-execute
+            MlInfoResponse response = client.machineLearning()
+                .getMlInfo(request, RequestOptions.DEFAULT);
+            // end::get-ml-info-execute
+
+            // tag::get-ml-info-response
+            final Map<String, Object> info = response.getInfo();// <1>
+            // end::get-ml-info-response
+            assertTrue(info.containsKey("defaults"));
+            assertTrue(info.containsKey("limits"));
+        }
+        {
+            MlInfoRequest request = new MlInfoRequest();
+
+            // tag::get-ml-info-execute-listener
+            ActionListener<MlInfoResponse> listener = new ActionListener<MlInfoResponse>() {
+                @Override
+                public void onResponse(MlInfoResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-ml-info-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-ml-info-execute-async
+            client.machineLearning()
+                .getMlInfoAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-ml-info-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    private String createFilter(RestHighLevelClient client) throws IOException {
+        MlFilter.Builder filterBuilder = MlFilter.builder("my_safe_domains")
+            .setDescription("A list of safe domains")
+            .setItems("*.google.com", "wikipedia.org");
+        PutFilterRequest putFilterRequest = new PutFilterRequest(filterBuilder.build());
+        PutFilterResponse putFilterResponse = client.machineLearning().putFilter(putFilterRequest, RequestOptions.DEFAULT);
+        MlFilter createdFilter = putFilterResponse.getResponse();
+        assertThat(createdFilter.getId(), equalTo("my_safe_domains"));
+        return createdFilter.getId();
     }
 }

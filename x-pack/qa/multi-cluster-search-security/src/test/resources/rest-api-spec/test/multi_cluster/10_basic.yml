@@ -7,7 +7,7 @@ setup:
       cluster.health:
         wait_for_status: yellow
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "joe"
         body:  >
             {
@@ -15,7 +15,7 @@ setup:
               "roles" : [ "x_cluster_role" ]
             }
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "x_cluster_role"
         body:  >
             {
@@ -30,11 +30,11 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "joe"
         ignore: 404
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "x_cluster_role"
         ignore: 404
 ---
@@ -67,6 +67,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: local_index,my_remote_cluster:test_index
         body:
           aggs:
@@ -85,6 +86,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: local_index,my_remote_cluster:test_index
         body:
           query:
@@ -105,6 +107,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: my_remote_cluster:test_index
         body:
           aggs:
@@ -123,6 +126,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: "my_*:test_index"
         body:
           aggs:
@@ -140,6 +144,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: local_index
         body:
           aggs:
@@ -174,6 +179,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: test_remote_cluster:test_index
 
   - match: { _shards.total: 3 }
@@ -184,6 +190,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: "*_remote_cluster:test_ind*"
 
   - match: { _shards.total: 6 }
@@ -195,6 +202,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: my_remote_cluster:aliased_test_index
 
   - match: { _shards.total: 3 }
@@ -208,6 +216,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: my_remote_cluster:secure_alias # TODO make this a wildcard once
 
   - match: { _shards.total: 2 }

@@ -33,7 +33,7 @@ import static org.hamcrest.CoreMatchers.is;
  * starting.
  * This test requires AWS to run.
  */
-@ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0, autoMinMasterNodes = false)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class Ec2DiscoveryUpdateSettingsTests extends AbstractAwsTestCase {
     public void testMinimumMasterNodesStart() {
         Settings nodeSettings = Settings.builder()

@@ -12,16 +12,18 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.watcher.common.xcontent.XContentUtils;
+import org.elasticsearch.common.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Encapsulates the xcontent source
@@ -48,6 +50,13 @@ public class XContentSource implements ToXContent {
      */
     public XContentSource(XContentBuilder builder) {
         this(BytesReference.bytes(builder), builder.contentType());
+    }
+
+    /**
+     * @return The content type of the source
+     */
+    public XContentType getContentType() {
+        return contentType;
     }
 
     /**
@@ -132,4 +141,21 @@ public class XContentSource implements ToXContent {
         return data;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        XContentSource that = (XContentSource) o;
+        return Objects.equals(data(), that.data());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(data());
+    }
+
+    @Override
+    public String toString() {
+        return bytes.utf8ToString();
+    }
 }

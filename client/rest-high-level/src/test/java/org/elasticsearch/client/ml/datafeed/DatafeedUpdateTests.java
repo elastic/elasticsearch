@@ -47,9 +47,6 @@ public class DatafeedUpdateTests extends AbstractXContentTestCase<DatafeedUpdate
             builder.setIndices(DatafeedConfigTests.randomStringList(1, 10));
         }
         if (randomBoolean()) {
-            builder.setTypes(DatafeedConfigTests.randomStringList(1, 10));
-        }
-        if (randomBoolean()) {
             try {
                 builder.setQuery(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)));
             } catch (IOException e) {
@@ -82,6 +79,9 @@ public class DatafeedUpdateTests extends AbstractXContentTestCase<DatafeedUpdate
         }
         if (randomBoolean()) {
             builder.setChunkingConfig(ChunkingConfigTests.createRandomizedChunk());
+        }
+        if (randomBoolean()) {
+            builder.setDelayedDataCheckConfig(DelayedDataCheckConfigTests.createRandomizedConfig());
         }
         return builder.build();
     }

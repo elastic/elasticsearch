@@ -35,7 +35,7 @@ import org.elasticsearch.search.aggregations.bucket.adjacency.InternalAdjacencyM
 import org.elasticsearch.search.aggregations.bucket.composite.InternalCompositeTests;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilterTests;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFiltersTests;
-import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGridTests;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridTests;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobalTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
@@ -55,6 +55,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.LongTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalExtendedStatsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalMaxTests;
+import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviationTests;
 import org.elasticsearch.search.aggregations.metrics.InternalMinTests;
 import org.elasticsearch.search.aggregations.metrics.InternalStatsBucketTests;
 import org.elasticsearch.search.aggregations.metrics.InternalStatsTests;
@@ -70,6 +71,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentilesT
 import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetricTests;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHitsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalValueCountTests;
+import org.elasticsearch.search.aggregations.metrics.InternalWeightedAvgTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValueTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValueTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalPercentilesBucketTests;
@@ -113,6 +115,7 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalMinTests());
         aggsTests.add(new InternalMaxTests());
         aggsTests.add(new InternalAvgTests());
+        aggsTests.add(new InternalWeightedAvgTests());
         aggsTests.add(new InternalSumTests());
         aggsTests.add(new InternalValueCountTests());
         aggsTests.add(new InternalSimpleValueTests());
@@ -136,7 +139,7 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalGlobalTests());
         aggsTests.add(new InternalFilterTests());
         aggsTests.add(new InternalSamplerTests());
-        aggsTests.add(new InternalGeoHashGridTests());
+        aggsTests.add(new GeoHashGridTests());
         aggsTests.add(new InternalRangeTests());
         aggsTests.add(new InternalDateRangeTests());
         aggsTests.add(new InternalGeoDistanceTests());
@@ -148,6 +151,7 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalBinaryRangeTests());
         aggsTests.add(new InternalTopHitsTests());
         aggsTests.add(new InternalCompositeTests());
+        aggsTests.add(new InternalMedianAbsoluteDeviationTests());
         return Collections.unmodifiableList(aggsTests);
     }
 

@@ -45,7 +45,6 @@ public class TransportSearchHelperTests extends ESTestCase {
         array.setOnce(1, testSearchPhaseResult2);
         array.setOnce(2, testSearchPhaseResult3);
 
-
         String scrollId = TransportSearchHelper.buildScrollId(array);
         ParsedScrollId parseScrollId = TransportSearchHelper.parseScrollId(scrollId);
         assertEquals(3, parseScrollId.getContext().length);

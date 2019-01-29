@@ -26,6 +26,8 @@ import org.elasticsearch.client.license.StartTrialRequest;
 import org.elasticsearch.client.license.StartTrialResponse;
 import org.elasticsearch.client.license.StartBasicRequest;
 import org.elasticsearch.client.license.StartBasicResponse;
+import org.elasticsearch.client.license.GetBasicStatusResponse;
+import org.elasticsearch.client.license.GetTrialStatusResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -170,6 +172,28 @@ public final class LicenseClient {
                                 ActionListener<StartBasicResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, LicenseRequestConverters::startBasic, options,
             StartBasicResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Retrieve the license trial status
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetTrialStatusResponse getTrialStatus(RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(Validatable.EMPTY,
+            request -> LicenseRequestConverters.getLicenseTrialStatus(), options, GetTrialStatusResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Retrieve the license basic status
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetBasicStatusResponse getBasicStatus(RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(Validatable.EMPTY,
+            request -> LicenseRequestConverters.getLicenseBasicStatus(), options, GetBasicStatusResponse::fromXContent, emptySet());
     }
 
     /**

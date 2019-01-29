@@ -23,14 +23,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.support.HandledTransportAction.ChannelActionListener;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -66,7 +65,7 @@ import java.util.function.BiFunction;
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
  * transport.
  */
-public class SearchTransportService extends AbstractComponent {
+public class SearchTransportService {
 
     public static final String FREE_CONTEXT_SCROLL_ACTION_NAME = "indices:data/read/search[free_context/scroll]";
     public static final String FREE_CONTEXT_ACTION_NAME = "indices:data/read/search[free_context]";
@@ -84,9 +83,8 @@ public class SearchTransportService extends AbstractComponent {
     private final BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper;
     private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
-    public SearchTransportService(Settings settings, TransportService transportService,
+    public SearchTransportService(TransportService transportService,
                                   BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper) {
-        super(settings);
         this.transportService = transportService;
         this.responseWrapper = responseWrapper;
     }
@@ -404,11 +402,11 @@ public class SearchTransportService extends AbstractComponent {
     /**
      * Returns a connection to the given node on the provided cluster. If the cluster alias is <code>null</code> the node will be resolved
      * against the local cluster.
-     * @param clusterAlias the cluster alias the node should be resolve against
+     * @param clusterAlias the cluster alias the node should be resolved against
      * @param node the node to resolve
      * @return a connection to the given node belonging to the cluster with the provided alias.
      */
-    Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+    Transport.Connection getConnection(@Nullable String clusterAlias, DiscoveryNode node) {
         if (clusterAlias == null) {
             return transportService.getConnection(node);
         } else {

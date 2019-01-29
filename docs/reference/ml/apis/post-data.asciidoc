@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-post-data]]
-=== Post Data to Jobs API
+=== Post data to jobs API
 ++++
-<titleabbrev>Post Data to Jobs</titleabbrev>
+<titleabbrev>Post data to jobs</titleabbrev>
 ++++
 
 Sends data to an anomaly detection job for analysis.
@@ -11,7 +11,7 @@ Sends data to an anomaly detection job for analysis.
 
 ==== Request
 
-`POST _xpack/ml/anomaly_detectors/<job_id>/_data`
+`POST _ml/anomaly_detectors/<job_id>/_data`
 
 
 ==== Description
@@ -79,7 +79,7 @@ The following example posts data from the it_ops_new_kpi.json file to the `it_op
 [source,js]
 --------------------------------------------------
 $ curl -s -H "Content-type: application/json"
--X POST http:\/\/localhost:9200/_xpack/ml/anomaly_detectors/it_ops_new_kpi/_data
+-X POST http:\/\/localhost:9200/_ml/anomaly_detectors/it_ops_new_kpi/_data
 --data-binary @it_ops_new_kpi.json
 --------------------------------------------------
 

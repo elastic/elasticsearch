@@ -82,7 +82,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             int lineNumber = lineNumbers.get(index);
             Map<String, String> sampleRecord = new LinkedHashMap<>();
             Util.filterListToMap(sampleRecord, columnNames,
-                trimFields ? row.stream().map(String::trim).collect(Collectors.toList()) : row);
+                trimFields ? row.stream().map(field -> (field == null) ? null : field.trim()).collect(Collectors.toList()) : row);
             sampleRecords.add(sampleRecord);
             sampleMessages.add(
                 sampleLines.subList(prevMessageEndLineNumber + 1, lineNumbers.get(index)).stream().collect(Collectors.joining("\n")));
@@ -149,7 +149,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
                 .setJavaTimestampFormats(timeField.v2().javaTimestampFormats)
                 .setNeedClientTimezone(needClientTimeZone)
                 .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, timeField.v1(),
-                    timeField.v2().jodaTimestampFormats, needClientTimeZone))
+                    timeField.v2().javaTimestampFormats, needClientTimeZone))
                 .setMultilineStartPattern(timeLineRegex);
         }
 

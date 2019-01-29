@@ -41,6 +41,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
@@ -58,27 +59,27 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(0).indices()[0],
                 equalTo("test"));
         assertThat(request.requests().get(0).indicesOptions(),
-                equalTo(IndicesOptions.fromOptions(true, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
+                equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
         assertThat(request.requests().get(0).types().length,
                 equalTo(0));
         assertThat(request.requests().get(1).indices()[0],
                 equalTo("test"));
         assertThat(request.requests().get(1).indicesOptions(),
-                equalTo(IndicesOptions.fromOptions(false, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
+                equalTo(IndicesOptions.fromOptions(false, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
         assertThat(request.requests().get(1).types()[0],
                 equalTo("type1"));
         assertThat(request.requests().get(2).indices()[0],
                 equalTo("test"));
         assertThat(request.requests().get(2).indicesOptions(),
-                equalTo(IndicesOptions.fromOptions(false, true, true, false, IndicesOptions.strictExpandOpenAndForbidClosed())));
+                equalTo(IndicesOptions.fromOptions(false, true, true, false, SearchRequest.DEFAULT_INDICES_OPTIONS)));
         assertThat(request.requests().get(3).indices()[0],
                 equalTo("test"));
         assertThat(request.requests().get(3).indicesOptions(),
-                equalTo(IndicesOptions.fromOptions(true, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
+                equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
         assertThat(request.requests().get(4).indices()[0],
                 equalTo("test"));
         assertThat(request.requests().get(4).indicesOptions(),
-                equalTo(IndicesOptions.fromOptions(true, false, false, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
+                equalTo(IndicesOptions.fromOptions(true, false, false, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
 
         assertThat(request.requests().get(5).indices(), is(Strings.EMPTY_ARRAY));
         assertThat(request.requests().get(5).types().length, equalTo(0));
@@ -87,6 +88,16 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(6).searchType(), equalTo(SearchType.DFS_QUERY_THEN_FETCH));
         assertThat(request.requests().get(7).indices(), is(Strings.EMPTY_ARRAY));
         assertThat(request.requests().get(7).types().length, equalTo(0));
+    }
+
+    public void testFailWithUnknownKey() {
+        final String requestContent = "{\"index\":\"test\", \"ignore_unavailable\" : true, \"unknown_key\" : \"open,closed\"}}\r\n" +
+            "{\"query\" : {\"match_all\" :{}}}\r\n";
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(requestContent), XContentType.JSON).build();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> RestMultiSearchAction.parseRequest(restRequest, true));
+        assertEquals("key [unknown_key] is not supported in the metadata section", ex.getMessage());
     }
 
     public void testSimpleAddWithCarriageReturn() throws Exception {
@@ -98,7 +109,22 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(request.requests().get(0).indicesOptions(),
-            equalTo(IndicesOptions.fromOptions(true, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
+            equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
+        assertThat(request.requests().get(0).types().length, equalTo(0));
+    }
+
+    public void testDefaultIndicesOptions() throws IOException {
+        final String requestContent = "{\"index\":\"test\", \"expand_wildcards\" : \"open,closed\"}}\r\n" +
+            "{\"query\" : {\"match_all\" :{}}}\r\n";
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(requestContent), XContentType.JSON)
+            .withParams(Collections.singletonMap("ignore_unavailable", "true"))
+            .build();
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, true);
+        assertThat(request.requests().size(), equalTo(1));
+        assertThat(request.requests().get(0).indices()[0], equalTo("test"));
+        assertThat(request.requests().get(0).indicesOptions(),
+            equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
         assertThat(request.requests().get(0).types().length, equalTo(0));
     }
 
@@ -203,7 +229,14 @@ public class MultiSearchRequestTests extends ESTestCase {
         byte[] data = StreamsUtils.copyToBytesFromClasspath(sample);
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray(data), XContentType.JSON).build();
-        return RestMultiSearchAction.parseRequest(restRequest, true);
+
+        MultiSearchRequest request = new MultiSearchRequest();
+        RestMultiSearchAction.parseMultiLineRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS, true,
+            (searchRequest, parser) -> {
+                searchRequest.source(SearchSourceBuilder.fromXContent(parser, false));
+                request.add(searchRequest);
+            });
+        return request;
     }
 
     @Override
@@ -276,11 +309,11 @@ public class MultiSearchRequestTests extends ESTestCase {
 
             // only expand_wildcards, ignore_unavailable and allow_no_indices can be specified from msearch api, so unset other options:
             IndicesOptions randomlyGenerated = searchRequest.indicesOptions();
-            IndicesOptions msearchDefault = IndicesOptions.strictExpandOpenAndForbidClosed();
+            IndicesOptions msearchDefault = SearchRequest.DEFAULT_INDICES_OPTIONS;
             searchRequest.indicesOptions(IndicesOptions.fromOptions(
                     randomlyGenerated.ignoreUnavailable(), randomlyGenerated.allowNoIndices(), randomlyGenerated.expandWildcardsOpen(),
                     randomlyGenerated.expandWildcardsClosed(), msearchDefault.allowAliasesToMultipleIndices(),
-                    msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases()
+                    msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases(), msearchDefault.ignoreThrottled()
             ));
 
             request.add(searchRequest);

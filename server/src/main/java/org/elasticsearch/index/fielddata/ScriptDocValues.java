@@ -34,13 +34,11 @@ import java.time.ZoneOffset;
 import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
 import java.util.function.UnaryOperator;
 
 /**
  * Script level doc values, the assumption is that any implementation will
- * implement a <code>getValue</code> and a <code>getValues</code> that return
- * the relevant type that then can be used in scripts.
+ * implement a {@link Longs#getValue getValue} method.
  *
  * Implementations should not internally re-use objects for the values that they
  * return as a single {@link ScriptDocValues} instance can be reused to return
@@ -52,13 +50,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
      * Set the current doc ID.
      */
     public abstract void setNextDocId(int docId) throws IOException;
-
-    /**
-     * Return a copy of the list of the values for the current document.
-     */
-    public final List<T> getValues() {
-        return this;
-    }
 
     // Throw meaningful exceptions if someone tries to modify the ScriptDocValues.
     @Override
@@ -314,19 +305,17 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         public double[] getLats() {
-            List<GeoPoint> points = getValues();
-            double[] lats = new double[points.size()];
-            for (int i = 0; i < points.size(); i++) {
-                lats[i] = points.get(i).lat();
+            double[] lats = new double[size()];
+            for (int i = 0; i < size(); i++) {
+                lats[i] = get(i).lat();
             }
             return lats;
         }
 
         public double[] getLons() {
-            List<GeoPoint> points = getValues();
-            double[] lons = new double[points.size()];
-            for (int i = 0; i < points.size(); i++) {
-                lons[i] = points.get(i).lon();
+            double[] lons = new double[size()];
+            for (int i = 0; i < size(); i++) {
+                lons[i] = get(i).lon();
             }
             return lons;
         }

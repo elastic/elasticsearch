@@ -23,10 +23,10 @@ esplugin {
 }
 
 dependencies {
-  compile 'com.google.cloud:google-cloud-storage:1.40.0'
-  compile 'com.google.cloud:google-cloud-core:1.40.0'
+  compile 'com.google.cloud:google-cloud-storage:1.55.0'
+  compile 'com.google.cloud:google-cloud-core:1.55.0'
   compile 'com.google.guava:guava:20.0'
-  compile 'joda-time:joda-time:2.10'
+  compile "joda-time:joda-time:${versions.joda}"
   compile 'com.google.http-client:google-http-client:1.24.1'
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -40,7 +40,7 @@ dependencies {
   compile 'com.google.code.gson:gson:2.7'
   compile 'com.google.api.grpc:proto-google-common-protos:1.12.0'
   compile 'com.google.api.grpc:proto-google-iam-v1:0.12.0'
-  compile 'com.google.cloud:google-cloud-core-http:1.40.0'
+  compile 'com.google.cloud:google-cloud-core-http:1.55.0'
   compile 'com.google.auth:google-auth-library-credentials:0.10.0'
   compile 'com.google.auth:google-auth-library-oauth2-http:0.10.0'
   compile 'com.google.oauth-client:google-oauth-client:1.24.1'
@@ -68,7 +68,8 @@ dependencyLicenses {
   mapping from: /proto-google.*/, to: 'proto-google'
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit {
+    ignoreViolations (
         // uses internal java api: sun.misc.Unsafe
         'com.google.protobuf.UnsafeUtil',
         'com.google.protobuf.UnsafeUtil$1',
@@ -85,7 +86,9 @@ thirdPartyAudit.excludes = [
         'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
         'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
         'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-        // classes are missing
+    )
+
+    ignoreMissingClasses (
         'com.google.appengine.api.datastore.Blob',
         'com.google.appengine.api.datastore.DatastoreService',
         'com.google.appengine.api.datastore.DatastoreServiceFactory',
@@ -112,7 +115,8 @@ thirdPartyAudit.excludes = [
         // commons-logging provided dependencies
         'javax.servlet.ServletContextEvent',
         'javax.servlet.ServletContextListener'
-]
+    )
+}
 
 check {
   // also execute the QA tests when testing the plugin

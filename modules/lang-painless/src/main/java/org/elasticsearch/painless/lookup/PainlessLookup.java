@@ -227,7 +227,8 @@ public final class PainlessLookup {
         Objects.requireNonNull(methodName);
 
         String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
-        Function<PainlessClass, PainlessMethod> objectLookup = targetPainlessClass -> targetPainlessClass.methods.get(painlessMethodKey);
+        Function<PainlessClass, PainlessMethod> objectLookup =
+                targetPainlessClass -> targetPainlessClass.runtimeMethods.get(painlessMethodKey);
 
         return lookupRuntimePainlessObject(originalTargetClass, objectLookup);
     }

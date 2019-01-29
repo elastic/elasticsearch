@@ -77,9 +77,9 @@ public class Monitoring extends Plugin implements ActionPlugin {
     /**
      * The ability to automatically cleanup ".watcher_history*" indices while also cleaning up Monitoring indices.
      */
+    @Deprecated
     public static final Setting<Boolean> CLEAN_WATCHER_HISTORY = boolSetting("xpack.watcher.history.cleaner_service.enabled",
-                                                                             true,
-                                                                             Setting.Property.Dynamic, Setting.Property.NodeScope);
+        true, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
 
     protected final Settings settings;
     private final boolean enabled;
@@ -137,11 +137,11 @@ public class Monitoring extends Plugin implements ActionPlugin {
             threadPool.getThreadContext());
 
         Set<Collector> collectors = new HashSet<>();
-        collectors.add(new IndexStatsCollector(settings, clusterService, getLicenseState(), client));
+        collectors.add(new IndexStatsCollector(clusterService, getLicenseState(), client));
         collectors.add(new ClusterStatsCollector(settings, clusterService, getLicenseState(), client, getLicenseService()));
-        collectors.add(new ShardsCollector(settings, clusterService, getLicenseState()));
-        collectors.add(new NodeStatsCollector(settings, clusterService, getLicenseState(), client));
-        collectors.add(new IndexRecoveryCollector(settings, clusterService, getLicenseState(), client));
+        collectors.add(new ShardsCollector(clusterService, getLicenseState()));
+        collectors.add(new NodeStatsCollector(clusterService, getLicenseState(), client));
+        collectors.add(new IndexRecoveryCollector(clusterService, getLicenseState(), client));
         collectors.add(new JobStatsCollector(settings, clusterService, getLicenseState(), client));
         collectors.add(new StatsCollector(settings, clusterService, getLicenseState(), client));
 

@@ -42,7 +42,7 @@ In order to start with a different distribution use the `-Drun.distribution` arg
 To for example start the open source distribution:
 
 -------------------------------------
-./gradlew run -Drun.distribution=oss-zip
+./gradlew run -Drun.distribution=oss
 -------------------------------------
 
 ==== License type
@@ -150,8 +150,9 @@ Default value provided below in [brackets].
 
 === Load balancing and caches.
 
-By default the tests run on up to 4 JVMs based on the number of cores. If you
-want to explicitly specify the number of JVMs you can do so on the command
+By default the tests run on multiple processes using all the available cores on all 
+available CPUs. Not including hyper-threading.
+If you want to explicitly specify the number of JVMs you can do so on the command
 line:
 
 ----------------------------
@@ -229,34 +230,6 @@ Pass arbitrary jvm arguments.
 ./gradlew test -Dtests.jvm.argline="-Djava.security.debug=access,failure"
 ------------------------------
 
-== Backwards Compatibility Tests
-
-Running backwards compatibility tests is disabled by default since it
-requires a release version of elasticsearch to be present on the test system.
-To run backwards compatibility tests untar or unzip a release and run the tests
-with the following command:
-
----------------------------------------------------------------------------
-./gradlew test -Dtests.filter="@backwards" -Dtests.bwc.version=x.y.z -Dtests.bwc.path=/path/to/elasticsearch -Dtests.security.manager=false
----------------------------------------------------------------------------
-
-Note that backwards tests must be run with security manager disabled.
-If the elasticsearch release is placed under `./backwards/elasticsearch-x.y.z` the path
-can be omitted:
-
----------------------------------------------------------------------------
-./gradlew test -Dtests.filter="@backwards" -Dtests.bwc.version=x.y.z -Dtests.security.manager=false
----------------------------------------------------------------------------
-
-To setup the bwc test environment execute the following steps (provided you are
-already in your elasticsearch clone):
-
----------------------------------------------------------------------------
-$ mkdir backwards && cd backwards
-$ curl -O https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-1.2.1.tar.gz
-$ tar -xzf elasticsearch-1.2.1.tar.gz
----------------------------------------------------------------------------
-
 == Running verification tasks
 
 To run all verification tasks, including static checks, unit tests, and integration tests:
@@ -277,6 +250,9 @@ If you want to just run the precommit checks:
 ---------------------------------------------------------------------------
 ./gradlew precommit
 ---------------------------------------------------------------------------
+
+Some of these checks will require `docker-compose` installed for bringing up
+test fixtures. If it's not present those checks will be skipped automatically.
 
 == Testing the REST layer
 
@@ -554,25 +530,28 @@ environment variable.
 == Testing backwards compatibility
 
 Backwards compatibility tests exist to test upgrading from each supported version
-to the current version. To run all backcompat tests use:
+to the current version. To run them all use:
 
 -------------------------------------------------
 ./gradlew bwcTest
 -------------------------------------------------
 
-A specific version can be tested as well. For example, to test backcompat with
+A specific version can be tested as well. For example, to test bwc with
 version 5.3.2 run:
 
 -------------------------------------------------
 ./gradlew v5.3.2#bwcTest
 -------------------------------------------------
 
-When running `./gradlew check`, some minimal backcompat checks are run. Which version
-is tested depends on the branch. On master, this will test against the current
-stable branch. On the stable branch, it will test against the latest release
-branch. Finally, on a release branch, it will test against the most recent release.
+Tests are ran for versions that are not yet released but with which the current version will be compatible with.
+These are automatically checked out and built from source.
+See link:./buildSrc/src/main/java/org/elasticsearch/gradle/VersionCollection.java[VersionCollection]
+and link:./distribution/bwc/build.gradle[distribution/bwc/build.gradle] 
+for more information.
 
-=== BWC Testing against a specific remote/branch
+When running `./gradlew check`, minimal bwc checks are also run against compatible versions that are not yet released.
+
+==== BWC Testing against a specific remote/branch
 
 Sometimes a backward compatibility change spans two versions. A common case is a new functionality
 that needs a BWC bridge in an unreleased versioned of a release branch (for example, 5.x).
@@ -597,7 +576,7 @@ will contain your change.
 . Push both branches to your remote repository.
 . Run the tests with `./gradlew check -Dtests.bwc.remote=${remote} -Dtests.bwc.refspec.5.x=index_req_bwc_5.x`.
 
-== Skip fetching latest
+==== Skip fetching latest
 
 For some BWC testing scenarios, you want to use the local clone of the
 repository without fetching latest. For these use cases, you can set the system
@@ -652,3 +631,13 @@ inside `/etc/hosts`, e.g.:
 255.255.255.255 broadcasthost
 ::1             localhost ElasticMBP.local`
 ....
+
+== Benchmarking
+
+For changes that might affect the performance characteristics of Elasticsearch
+you should also run macrobenchmarks. We maintain a macrobenchmarking tool
+called https://github.com/elastic/rally[Rally]
+which you can use to measure the performance impact. It comes with a set of
+default benchmarks that we also
+https://elasticsearch-benchmarks.elastic.co/[run every night]. To get started,
+please see https://esrally.readthedocs.io/en/stable/[Rally's documentation].

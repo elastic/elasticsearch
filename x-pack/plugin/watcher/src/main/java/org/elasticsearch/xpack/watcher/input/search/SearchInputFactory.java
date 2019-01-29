@@ -26,7 +26,7 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
                               ScriptService scriptService) {
         this.client = client;
         this.defaultTimeout = settings.getAsTime("xpack.watcher.input.search.default_timeout", TimeValue.timeValueMinutes(1));
-        this.searchTemplateService = new WatcherSearchTemplateService(settings, scriptService, xContentRegistry);
+        this.searchTemplateService = new WatcherSearchTemplateService(scriptService, xContentRegistry);
     }
 
     @Override

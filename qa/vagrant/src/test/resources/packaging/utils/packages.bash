@@ -76,7 +76,15 @@ install_package() {
     if is_rpm; then
         rpm $rpmCommand $PACKAGE_NAME-$version.rpm
     elif is_dpkg; then
-        dpkg $dpkgCommand -i $PACKAGE_NAME-$version.deb
+        run dpkg $dpkgCommand -i $PACKAGE_NAME-$version.deb
+        [[ "$status" -eq 0 ]] || {
+            echo "dpkg failed:"
+            echo "$output"
+            run lsof /var/lib/dpkg/lock
+            echo "lsof /var/lib/dpkg/lock:"
+            echo "$output"
+            false
+        }
     else
         skip "Only rpm or deb supported"
     fi
@@ -96,6 +104,7 @@ verify_package_installation() {
     assert_file "$ESHOME/bin/elasticsearch" f root root 755
     assert_file "$ESHOME/bin/elasticsearch-plugin" f root root 755
     assert_file "$ESHOME/bin/elasticsearch-shard" f root root 755
+    assert_file "$ESHOME/bin/elasticsearch-node" f root root 755
     assert_file "$ESHOME/lib" d root root 755
     assert_file "$ESCONFIG" d root elasticsearch 2750
     assert_file "$ESCONFIG/elasticsearch.keystore" f root elasticsearch 660
@@ -106,8 +115,8 @@ verify_package_installation() {
     assert_file "$ESCONFIG/elasticsearch.yml" f root elasticsearch 660
     assert_file "$ESCONFIG/jvm.options" f root elasticsearch 660
     assert_file "$ESCONFIG/log4j2.properties" f root elasticsearch 660
-    assert_file "$ESDATA" d elasticsearch elasticsearch 750
-    assert_file "$ESLOG" d elasticsearch elasticsearch 750
+    assert_file "$ESDATA" d elasticsearch elasticsearch 2750
+    assert_file "$ESLOG" d elasticsearch elasticsearch 2750
     assert_file "$ESPLUGINS" d root root 755
     assert_file "$ESMODULES" d root root 755
     assert_file "$ESPIDDIR" d elasticsearch elasticsearch 755

@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.indexlifecycle.IndexLifecycle;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.notification.email.Authentication;
 import org.elasticsearch.xpack.watcher.notification.email.Email;
@@ -161,6 +162,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         }
 
         types.add(CommonAnalysisPlugin.class);
+        // ILM is required for watcher template index settings
+        types.add(IndexLifecycle.class);
         return types;
     }
 
@@ -281,7 +284,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         if (type != null) {
             builder.setTypes(type);
         }
-        return builder.get().getHits().getTotalHits();
+        return builder.get().getHits().getTotalHits().value;
     }
 
     protected SearchResponse searchHistory(SearchSourceBuilder builder) {
@@ -337,7 +340,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                                 ExecutionState.EXECUTED.id())))
                         .get();
                 lastResponse.set(searchResponse);
-                assertThat("could not find executed watch record for watch " + watchName, searchResponse.getHits().getTotalHits(),
+                assertThat("could not find executed watch record for watch " + watchName, searchResponse.getHits().getTotalHits().value,
                         greaterThanOrEqualTo(minimumExpectedWatchActionsWithActionPerformed));
                 if (assertConditionMet) {
                     assertThat((Integer) XContentMapValues.extractValue("result.input.payload.hits.total",
@@ -346,7 +349,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             });
         } catch (AssertionError error) {
             SearchResponse searchResponse = lastResponse.get();
-            logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits(), watchName);
+            logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits().value, watchName);
             int counter = 1;
             for (SearchHit hit : searchResponse.getHits().getHits()) {
                 logger.info("hit [{}]=\n {}", counter++, XContentHelper.convertToJson(hit.getSourceRef(), true, true));
@@ -368,7 +371,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", ExecutionState.EXECUTED.id())))
                 .get();
-        return searchResponse.getHits().getTotalHits();
+        return searchResponse.getHits().getTotalHits().value;
     }
 
     protected void assertWatchWithNoActionNeeded(final String watchName,
@@ -394,11 +397,11 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                                 ExecutionState.EXECUTION_NOT_NEEDED.id())))
                         .get();
                 lastResponse.set(searchResponse);
-                assertThat(searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(expectedWatchActionsWithNoActionNeeded));
+                assertThat(searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(expectedWatchActionsWithNoActionNeeded));
             });
         } catch (AssertionError error) {
             SearchResponse searchResponse = lastResponse.get();
-            logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits(), watchName);
+            logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits().value, watchName);
             int counter = 1;
             for (SearchHit hit : searchResponse.getHits().getHits()) {
                 logger.info("hit [{}]=\n {}", counter++, XContentHelper.convertToJson(hit.getSourceRef(), true, true));
@@ -425,7 +428,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                     .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                     .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", recordState.id())))
                     .get();
-            assertThat("could not find executed watch record", searchResponse.getHits().getTotalHits(),
+            assertThat("could not find executed watch record", searchResponse.getHits().getTotalHits().value,
                     greaterThanOrEqualTo(recordCount));
         });
     }

@@ -14,10 +14,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -101,7 +101,7 @@ public class MlFilter implements ToXContentObject, Writeable {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
         builder.field(ITEMS.getPreferredName(), items);
-        if (params.paramAsBoolean(MlMetaIndex.INCLUDE_TYPE_KEY, false)) {
+        if (params.paramAsBoolean(ToXContentParams.INCLUDE_TYPE, false)) {
             builder.field(TYPE.getPreferredName(), FILTER_TYPE);
         }
         builder.endObject();

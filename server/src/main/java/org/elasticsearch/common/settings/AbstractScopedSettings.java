@@ -19,12 +19,13 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.ArrayList;
@@ -47,24 +48,29 @@ import java.util.stream.Collectors;
  * A basic setting service that can be used for per-index and per-cluster settings.
  * This service offers transactional application of updates settings.
  */
-public abstract class AbstractScopedSettings extends AbstractComponent {
+public abstract class AbstractScopedSettings {
+
     public static final String ARCHIVED_SETTINGS_PREFIX = "archived.";
-    private Settings lastSettingsApplied = Settings.EMPTY;
+    private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
+    private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
+    private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+[*](?:[.][-\\w]+)+$");
+
+    protected final Logger logger = LogManager.getLogger(this.getClass());
+
+    private final Settings settings;
     private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
     private final Map<String, Setting<?>> complexMatchers;
     private final Map<String, Setting<?>> keySettings;
     private final Map<Setting<?>, SettingUpgrader<?>> settingUpgraders;
     private final Setting.Property scope;
-    private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
-    private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
-    private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+[*](?:[.][-\\w]+)+$");
+    private Settings lastSettingsApplied;
 
     protected AbstractScopedSettings(
             final Settings settings,
             final Set<Setting<?>> settingsSet,
             final Set<SettingUpgrader<?>> settingUpgraders,
             final Setting.Property scope) {
-        super(settings);
+        this.settings = settings;
         this.lastSettingsApplied = Settings.EMPTY;
 
         this.settingUpgraders =
@@ -77,7 +83,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         Map<String, Setting<?>> keySettings = new HashMap<>();
         for (Setting<?> setting : settingsSet) {
             if (setting.getProperties().contains(scope) == false) {
-                throw new IllegalArgumentException("Setting must be a " + scope + " setting but has: " + setting.getProperties());
+                throw new IllegalArgumentException("Setting " + setting + " must be a "
+                    + scope + " setting but has: " + setting.getProperties());
             }
             validateSettingKey(setting);
 
@@ -104,7 +111,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     protected AbstractScopedSettings(Settings nodeSettings, Settings scopeSettings, AbstractScopedSettings other) {
-        super(nodeSettings);
+        this.settings = nodeSettings;
         this.lastSettingsApplied = scopeSettings;
         this.scope = other.scope;
         complexMatchers = other.complexMatchers;
@@ -283,6 +290,54 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             @Override
             public void apply(Map<String, Tuple<A, B>> values, Settings current, Settings previous) {
                 for (Map.Entry<String, Tuple<A, B>> entry : values.entrySet()) {
+                    consumer.accept(entry.getKey(), entry.getValue());
+                }
+            }
+        });
+    }
+
+    /**
+     * Adds a affix settings consumer that accepts the settings for a group of settings. The consumer is only
+     * notified if at least one of the settings change.
+     * <p>
+     * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
+     * </p>
+     */
+    public synchronized void addAffixGroupUpdateConsumer(List<Setting.AffixSetting<?>> settings, BiConsumer<String, Settings> consumer) {
+        List<SettingUpdater> affixUpdaters = new ArrayList<>(settings.size());
+        for (Setting.AffixSetting<?> setting : settings) {
+            ensureSettingIsRegistered(setting);
+            affixUpdaters.add(setting.newAffixUpdater((a,b)-> {}, logger, (a,b)-> {}));
+        }
+
+        addSettingsUpdater(new SettingUpdater<Map<String, Settings>>() {
+
+            @Override
+            public boolean hasChanged(Settings current, Settings previous) {
+                return affixUpdaters.stream().anyMatch(au -> au.hasChanged(current, previous));
+            }
+
+            @Override
+            public Map<String, Settings> getValue(Settings current, Settings previous) {
+                Set<String> namespaces = new HashSet<>();
+                for (Setting.AffixSetting<?> setting : settings) {
+                    SettingUpdater affixUpdaterA = setting.newAffixUpdater((k, v) -> namespaces.add(k), logger, (a, b) ->{});
+                    affixUpdaterA.apply(current, previous);
+                }
+                Map<String, Settings> namespaceToSettings = new HashMap<>(namespaces.size());
+                for (String namespace : namespaces) {
+                    Set<String> concreteSettings = new HashSet<>(settings.size());
+                    for (Setting.AffixSetting<?> setting : settings) {
+                        concreteSettings.add(setting.getConcreteSettingForNamespace(namespace).getKey());
+                    }
+                    namespaceToSettings.put(namespace, current.filter(concreteSettings::contains));
+                }
+                return namespaceToSettings;
+            }
+
+            @Override
+            public void apply(Map<String, Settings> values, Settings current, Settings previous) {
+                for (Map.Entry<String, Settings> entry : values.entrySet()) {
                     consumer.accept(entry.getKey(), entry.getValue());
                 }
             }
@@ -716,10 +771,10 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             } else if (get(key) == null) {
                 throw new IllegalArgumentException(type + " setting [" + key + "], not recognized");
             } else if (isDelete == false && canUpdate.test(key)) {
-                validate(key, toApply, false); // we might not have a full picture here do to a dependency validation
+                get(key).validateWithoutDependencies(toApply); // we might not have a full picture here do to a dependency validation
                 settingsBuilder.copy(key, toApply);
                 updates.copy(key, toApply);
-                changed = true;
+                changed |= toApply.get(key).equals(target.get(key)) == false;
             } else {
                 if (isFinalSetting(key)) {
                     throw new IllegalArgumentException("final " + type + " setting [" + key + "], not updateable");

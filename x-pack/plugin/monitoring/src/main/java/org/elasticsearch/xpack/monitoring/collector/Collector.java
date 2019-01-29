@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.monitoring.collector;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -13,9 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackField;
@@ -34,7 +34,7 @@ import static org.elasticsearch.common.settings.Setting.timeSetting;
 /**
  * {@link Collector} are used to collect monitoring data about the cluster, nodes and indices.
  */
-public abstract class Collector extends AbstractComponent {
+public abstract class Collector {
 
     /**
      * List of indices names whose stats will be exported (default to all indices)
@@ -47,14 +47,15 @@ public abstract class Collector extends AbstractComponent {
 
     protected final ClusterService clusterService;
     protected final XPackLicenseState licenseState;
+    protected final Logger logger;
 
-    public Collector(final Settings settings, final String name, final ClusterService clusterService,
+    public Collector(final String name, final ClusterService clusterService,
                      final Setting<TimeValue> timeoutSetting, final XPackLicenseState licenseState) {
-        super(settings);
         this.name = name;
         this.clusterService = clusterService;
         this.collectionTimeoutSetting = timeoutSetting;
         this.licenseState = licenseState;
+        this.logger = LogManager.getLogger(getClass());
     }
 
     public String name() {

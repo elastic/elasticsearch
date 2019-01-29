@@ -1,7 +1,7 @@
 ---
 "Test get SSL certificates":
   - do:
-      xpack.ssl.certificates: {}
+          ssl.certificates: {}
 
   - length: { $body: 1 }
   - match: { $body.0.path: "testnode.crt" }

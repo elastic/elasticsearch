@@ -1,16 +1,16 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-update-snapshot]]
-=== Update Model Snapshots API
+=== Update model snapshots API
 ++++
-<titleabbrev>Update Model Snapshots</titleabbrev>
+<titleabbrev>Update model snapshots</titleabbrev>
 ++++
 
 Updates certain properties of a snapshot.
 
 ==== Request
 
-`POST _xpack/ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_update`
+`POST _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_update`
 
 
 //==== Description
@@ -53,7 +53,7 @@ The following example updates the snapshot identified as `1491852978`:
 [source,js]
 --------------------------------------------------
 POST
-_xpack/ml/anomaly_detectors/it_ops_new_logs/model_snapshots/1491852978/_update
+_ml/anomaly_detectors/it_ops_new_logs/model_snapshots/1491852978/_update
 {
   "description": "Snapshot 1",
   "retain": true

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.plan.logical;
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.Collections;
@@ -21,12 +21,12 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
     private final String alias;
     private final String unresolvedMsg;
 
-    public UnresolvedRelation(Location location, TableIdentifier table, String alias) {
-        this(location, table, alias, null);
+    public UnresolvedRelation(Source source, TableIdentifier table, String alias) {
+        this(source, table, alias, null);
     }
 
-    public UnresolvedRelation(Location location, TableIdentifier table, String alias, String unresolvedMessage) {
-        super(location);
+    public UnresolvedRelation(Source source, TableIdentifier table, String alias, String unresolvedMessage) {
+        super(source);
         this.table = table;
         this.alias = alias;
         this.unresolvedMsg = unresolvedMessage == null ? "Unknown index [" + table.index() + "]" : unresolvedMessage;
@@ -67,7 +67,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(location(), table, alias, unresolvedMsg);
+        return Objects.hash(source(), table, alias, unresolvedMsg);
     }
 
     @Override
@@ -81,7 +81,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
         }
 
         UnresolvedRelation other = (UnresolvedRelation) obj;
-        return location().equals(other.location())
+        return source().equals(other.source())
             && table.equals(other.table)
             && Objects.equals(alias, other.alias)
             && unresolvedMsg.equals(other.unresolvedMsg);

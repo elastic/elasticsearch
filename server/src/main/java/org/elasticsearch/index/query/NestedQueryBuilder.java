@@ -369,6 +369,14 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         }
 
         @Override
+        public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
+            assert seqNoAndPrimaryTerm() == false;
+            if (seqNoAndPrimaryTerm) {
+                throw new UnsupportedOperationException("nested documents are not assigned sequence numbers");
+            }
+        }
+
+        @Override
         public TopDocsAndMaxScore[] topDocs(SearchHit[] hits) throws IOException {
             Weight innerHitQueryWeight = createInnerHitQueryWeight();
             TopDocsAndMaxScore[] result = new TopDocsAndMaxScore[hits.length];

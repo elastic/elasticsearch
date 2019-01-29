@@ -38,9 +38,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.Discovery.FailedToCommitClusterStateException;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -66,23 +65,23 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     private final String executor;
 
-    protected TransportMasterNodeAction(Settings settings, String actionName, TransportService transportService,
+    protected TransportMasterNodeAction(String actionName, TransportService transportService,
                                         ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-        this(settings, actionName, true, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request);
+        this(actionName, true, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request);
     }
 
-    protected TransportMasterNodeAction(Settings settings, String actionName, TransportService transportService,
+    protected TransportMasterNodeAction(String actionName, TransportService transportService,
                                         ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                         Writeable.Reader<Request> request, IndexNameExpressionResolver indexNameExpressionResolver) {
-        this(settings, actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
+        this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
     }
 
-    protected TransportMasterNodeAction(Settings settings, String actionName, boolean canTripCircuitBreaker,
+    protected TransportMasterNodeAction(String actionName, boolean canTripCircuitBreaker,
                                         TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                         Supplier<Request> request) {
-        super(settings, actionName, canTripCircuitBreaker, transportService, actionFilters, request);
+        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -90,11 +89,11 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         this.executor = executor();
     }
 
-    protected TransportMasterNodeAction(Settings settings, String actionName, boolean canTripCircuitBreaker,
+    protected TransportMasterNodeAction(String actionName, boolean canTripCircuitBreaker,
                                         TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                         ActionFilters actionFilters, Writeable.Reader<Request> request,
                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, actionName, canTripCircuitBreaker, transportService, actionFilters, request);
+        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;

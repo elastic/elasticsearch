@@ -92,7 +92,6 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     private volatile Map<String, List<String>> forcedAwarenessAttributes;
 
     public AwarenessAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
         this.awarenessAttributes = CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING, this::setAwarenessAttributes);
         setForcedAwarenessAttributes(CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.get(settings));
@@ -207,10 +206,6 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                         numberOfAttributes,
                         currentNodeCount,
                         requiredCountPerAttribute + leftoverPerAttribute);
-            }
-            // all is well, we are below or same as average
-            if (currentNodeCount <= requiredCountPerAttribute) {
-                continue;
             }
         }
 

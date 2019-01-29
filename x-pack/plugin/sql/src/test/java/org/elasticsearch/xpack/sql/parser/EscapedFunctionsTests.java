@@ -80,12 +80,12 @@ public class EscapedFunctionsTests extends ESTestCase {
 
     public void testFunctionNoArg() {
         Function f = function("SCORE()");
-        assertEquals("SCORE", f.functionName());
+        assertEquals("{fn SCORE()}", f.sourceText());
     }
 
     public void testFunctionOneArg() {
         Function f = function("ABS(foo)");
-        assertEquals("ABS", f.functionName());
+        assertEquals("{fn ABS(foo)}", f.sourceText());
         assertEquals(1, f.arguments().size());
         Expression arg = f.arguments().get(0);
         assertThat(arg, instanceOf(UnresolvedAttribute.class));
@@ -95,75 +95,77 @@ public class EscapedFunctionsTests extends ESTestCase {
 
     public void testFunctionOneArgFunction() {
         Function f = function("ABS({fn SCORE()})");
-        assertEquals("ABS", f.functionName());
+        assertEquals("{fn ABS({fn SCORE()})}", f.sourceText());
         assertEquals(1, f.arguments().size());
         Expression arg = f.arguments().get(0);
         assertThat(arg, instanceOf(UnresolvedFunction.class));
         UnresolvedFunction uf = (UnresolvedFunction) arg;
-        assertThat(uf.name(), is("SCORE"));
+        assertThat(uf.sourceText(), is("{fn SCORE()}"));
     }
 
     public void testFunctionFloorWithExtract() {
-        Function f = function("CAST({fn FLOOR({fn EXTRACT(YEAR FROM \"foo\")})} AS int)");
-        assertEquals("CAST", f.functionName());
+        String e = "CAST({fn FLOOR({fn EXTRACT(YEAR FROM \"foo\")})} AS int)";
+        Function f = function(e);
+        assertEquals(e, f.sourceText());
         assertEquals(1, f.arguments().size());
         Expression arg = f.arguments().get(0);
         assertThat(arg, instanceOf(UnresolvedFunction.class));
         f = (Function) arg;
-        assertEquals("FLOOR", f.functionName());
+        assertEquals("{fn FLOOR({fn EXTRACT(YEAR FROM \"foo\")})}", f.sourceText());
         assertEquals(1, f.arguments().size());
         arg = f.arguments().get(0);
         assertThat(arg, instanceOf(UnresolvedFunction.class));
         UnresolvedFunction uf = (UnresolvedFunction) arg;
-        assertThat(uf.name(), is("YEAR"));
+        assertThat(uf.sourceText(), is("EXTRACT(YEAR FROM \"foo\")"));
     }
 
     public void testFunctionWithFunctionWithArg() {
         Function f = function("POWER(foo, {fn POWER({fn SCORE()}, {fN SCORE()})})");
-        assertEquals("POWER", f.functionName());
+        assertEquals("{fn POWER(foo, {fn POWER({fn SCORE()}, {fN SCORE()})})}", f.sourceText());
         assertEquals(2, f.arguments().size());
         Expression arg = f.arguments().get(1);
         assertThat(arg, instanceOf(UnresolvedFunction.class));
         UnresolvedFunction uf = (UnresolvedFunction) arg;
-        assertThat(uf.name(), is("POWER"));
+        assertThat(uf.sourceText(), is("{fn POWER({fn SCORE()}, {fN SCORE()})}"));
         assertEquals(2, uf.arguments().size());
 
         List<Expression> args = uf.arguments();
         arg = args.get(0);
         assertThat(arg, instanceOf(UnresolvedFunction.class));
         uf = (UnresolvedFunction) arg;
-        assertThat(uf.name(), is("SCORE"));
+        assertThat(uf.sourceText(), is("{fn SCORE()}"));
 
         arg = args.get(1);
         assertThat(arg, instanceOf(UnresolvedFunction.class));
         uf = (UnresolvedFunction) arg;
-        assertThat(uf.name(), is("SCORE"));
+        assertThat(uf.sourceText(), is("{fN SCORE()}"));
     }
 
     public void testFunctionWithFunctionWithArgAndParams() {
-        Function f = (Function) parser.createExpression("POWER(?, {fn POWER({fn ABS(?)}, {fN ABS(?)})})",
-                asList(new SqlTypedParamValue(DataType.LONG, 1),
-                       new SqlTypedParamValue(DataType.LONG, 1),
-                       new SqlTypedParamValue(DataType.LONG, 1)));
+        String e = "POWER(?, {fn POWER({fn ABS(?)}, {fN ABS(?)})})";
+        Function f = (Function) parser.createExpression(e,
+                asList(new SqlTypedParamValue(DataType.LONG.esType, 1),
+                       new SqlTypedParamValue(DataType.LONG.esType, 1),
+                       new SqlTypedParamValue(DataType.LONG.esType, 1)));
 
-        assertEquals("POWER", f.functionName());
+        assertEquals(e, f.sourceText());
         assertEquals(2, f.arguments().size());
         Expression arg = f.arguments().get(1);
         assertThat(arg, instanceOf(UnresolvedFunction.class));
         UnresolvedFunction uf = (UnresolvedFunction) arg;
-        assertThat(uf.name(), is("POWER"));
+        assertEquals("{fn POWER({fn ABS(?)}, {fN ABS(?)})}", uf.sourceText());
         assertEquals(2, uf.arguments().size());
 
         List<Expression> args = uf.arguments();
         arg = args.get(0);
         assertThat(arg, instanceOf(UnresolvedFunction.class));
         uf = (UnresolvedFunction) arg;
-        assertThat(uf.name(), is("ABS"));
+        assertThat(uf.sourceText(), is("{fn ABS(?)}"));
 
         arg = args.get(1);
         assertThat(arg, instanceOf(UnresolvedFunction.class));
         uf = (UnresolvedFunction) arg;
-        assertThat(uf.name(), is("ABS"));
+        assertThat(uf.sourceText(), is("{fN ABS(?)}"));
     }
 
     public void testDateLiteral() {
@@ -190,7 +192,7 @@ public class EscapedFunctionsTests extends ESTestCase {
 
     public void testTimestampLiteral() {
         Literal l = timestampLiteral("2012-01-01 10:01:02.3456");
-        assertThat(l.dataType(), is(DataType.DATE));
+        assertThat(l.dataType(), is(DataType.DATETIME));
     }
 
     public void testTimestampLiteralValidation() {

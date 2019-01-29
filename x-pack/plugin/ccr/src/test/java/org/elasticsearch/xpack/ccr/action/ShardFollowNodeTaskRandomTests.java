@@ -40,14 +40,15 @@ import static org.hamcrest.Matchers.hasSize;
 public class ShardFollowNodeTaskRandomTests extends ESTestCase {
 
     public void testSingleReaderWriter() throws Exception {
-        TestRun testRun = createTestRun(randomNonNegativeLong(), randomNonNegativeLong(), randomIntBetween(1, 2048));
+        TestRun testRun = createTestRun(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+            randomIntBetween(1, 2048));
         ShardFollowNodeTask task = createShardFollowTask(1, testRun);
         startAndAssertAndStopTask(task, testRun);
     }
 
     public void testMultipleReaderWriter() throws Exception {
         int concurrency = randomIntBetween(2, 8);
-        TestRun testRun = createTestRun(0, 0, between(1, 1024));
+        TestRun testRun = createTestRun(0, 0, 0, between(1, 1024));
         ShardFollowNodeTask task = createShardFollowTask(concurrency, testRun);
         startAndAssertAndStopTask(task, testRun);
     }
@@ -106,11 +107,17 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                 1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler, System::nanoTime) {
 
             private volatile long mappingVersion = 0L;
+            private volatile long settingsVersion = 0L;
             private final Map<Long, Integer> fromToSlot = new HashMap<>();
 
             @Override
-            protected void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler) {
+            protected void innerUpdateMapping(long minRequiredMappingVersion, LongConsumer handler, Consumer<Exception> errorHandler) {
                 handler.accept(mappingVersion);
+            }
+
+            @Override
+            protected void innerUpdateSettings(LongConsumer handler, Consumer<Exception> errorHandler) {
+                handler.accept(settingsVersion);
             }
 
             @Override
@@ -153,6 +160,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                             // if too many invocations occur with the same from then AOBE occurs, this ok and then something is wrong.
                         }
                         mappingVersion = testResponse.mappingVersion;
+                        settingsVersion = testResponse.settingsVersion;
                         if (testResponse.exception != null) {
                             errorHandler.accept(testResponse.exception);
                         } else {
@@ -162,8 +170,8 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         assert from >= testRun.finalExpectedGlobalCheckpoint;
                         final long globalCheckpoint = tracker.getCheckpoint();
                         final long maxSeqNo = tracker.getMaxSeqNo();
-                        handler.accept(new ShardChangesAction.Response(
-                            0L, globalCheckpoint, maxSeqNo, randomNonNegativeLong(), new Translog.Operation[0], 1L));
+                        handler.accept(new ShardChangesAction.Response(0L, 0L, globalCheckpoint, maxSeqNo, randomNonNegativeLong(),
+                            new Translog.Operation[0], 1L));
                     }
                 };
                 threadPool.generic().execute(task);
@@ -206,9 +214,10 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
         };
     }
 
-    private static TestRun createTestRun(long startSeqNo, long startMappingVersion, int maxOperationCount) {
+    private static TestRun createTestRun(long startSeqNo, long startMappingVersion, long startSettingsVersion, int maxOperationCount) {
         long prevGlobalCheckpoint = startSeqNo;
         long mappingVersion = startMappingVersion;
+        long settingsVersion = startSettingsVersion;
         int numResponses = randomIntBetween(16, 256);
         Map<Long, List<TestResponse>> responses = new HashMap<>(numResponses);
         for (int i = 0; i < numResponses; i++) {
@@ -216,13 +225,16 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             if (sometimes()) {
                 mappingVersion++;
             }
+            if (sometimes()) {
+                settingsVersion++;
+            }
 
             if (sometimes()) {
                 List<TestResponse> item = new ArrayList<>();
                 // Sometimes add a random retryable error
                 if (sometimes()) {
                     Exception error = new UnavailableShardsException(new ShardId("test", "test", 0), "");
-                    item.add(new TestResponse(error, mappingVersion, null));
+                    item.add(new TestResponse(error, mappingVersion, settingsVersion, null));
                 }
                 List<Translog.Operation> ops = new ArrayList<>();
                 for (long seqNo = prevGlobalCheckpoint; seqNo <= nextGlobalCheckPoint; seqNo++) {
@@ -233,8 +245,10 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                 item.add(new TestResponse(
                     null,
                     mappingVersion,
+                    settingsVersion,
                     new ShardChangesAction.Response(
                         mappingVersion,
+                        settingsVersion,
                         nextGlobalCheckPoint,
                         nextGlobalCheckPoint,
                         randomNonNegativeLong(),
@@ -253,19 +267,20 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     // Sometimes add a random retryable error
                     if (sometimes()) {
                         Exception error = new UnavailableShardsException(new ShardId("test", "test", 0), "");
-                        item.add(new TestResponse(error, mappingVersion, null));
+                        item.add(new TestResponse(error, mappingVersion, settingsVersion, null));
                     }
                     // Sometimes add an empty shard changes response to also simulate a leader shard lagging behind
                     if (sometimes()) {
                         ShardChangesAction.Response response = new ShardChangesAction.Response(
                             mappingVersion,
+                            settingsVersion,
                             prevGlobalCheckpoint,
                             prevGlobalCheckpoint,
                             randomNonNegativeLong(),
                             EMPTY,
                             randomNonNegativeLong()
                         );
-                        item.add(new TestResponse(null, mappingVersion, response));
+                        item.add(new TestResponse(null, mappingVersion, settingsVersion, response));
                     }
                     List<Translog.Operation> ops = new ArrayList<>();
                     for (long seqNo = fromSeqNo; seqNo <= toSeqNo; seqNo++) {
@@ -277,13 +292,14 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     long localLeaderGCP = randomBoolean() ? ops.get(ops.size() - 1).seqNo() : toSeqNo;
                     ShardChangesAction.Response response = new ShardChangesAction.Response(
                         mappingVersion,
+                        settingsVersion,
                         localLeaderGCP,
                         localLeaderGCP,
                         randomNonNegativeLong(),
                         ops.toArray(EMPTY),
                         randomNonNegativeLong()
                     );
-                    item.add(new TestResponse(null, mappingVersion, response));
+                    item.add(new TestResponse(null, mappingVersion, settingsVersion, response));
                     responses.put(fromSeqNo, Collections.unmodifiableList(item));
                 }
             }
@@ -323,11 +339,13 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
 
         final Exception exception;
         final long mappingVersion;
+        final long settingsVersion;
         final ShardChangesAction.Response response;
 
-        private TestResponse(Exception exception, long mappingVersion, ShardChangesAction.Response response) {
+        private TestResponse(Exception exception, long mappingVersion, long settingsVersion, ShardChangesAction.Response response) {
             this.exception = exception;
             this.mappingVersion = mappingVersion;
+            this.settingsVersion = settingsVersion;
             this.response = response;
         }
     }

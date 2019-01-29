@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
@@ -44,10 +43,10 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     private final IndicesService indicesService;
 
     @Inject
-    public TransportShardMultiGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
+    public TransportShardMultiGetAction(ClusterService clusterService, TransportService transportService,
                                         IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 MultiGetShardRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
     }

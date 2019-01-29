@@ -241,7 +241,7 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ShardSearchFailure.fromXContent(p), FAILURES);
     } 
     
-    public static GraphExploreResponse fromXContext(XContentParser parser) throws IOException {
+    public static GraphExploreResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
     }
 

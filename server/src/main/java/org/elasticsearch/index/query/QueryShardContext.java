@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -47,6 +49,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -70,6 +73,10 @@ import static java.util.Collections.unmodifiableMap;
  * Context object used to create lucene queries on the shard level.
  */
 public class QueryShardContext extends QueryRewriteContext {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(QueryShardContext.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using the _type field " +
+        "in queries and aggregations is deprecated, prefer to use a field instead.";
 
     private final ScriptService scriptService;
     private final IndexSettings indexSettings;
@@ -81,7 +88,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private final IndexReader reader;
     private final String clusterAlias;
     private String[] types = Strings.EMPTY_ARRAY;
-    private boolean cachable = true;
+    private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
     private final Index fullyQualifiedIndex;
 
@@ -97,7 +104,6 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean allowUnmappedFields;
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
-    private boolean isFilter;
 
     public QueryShardContext(int shardId, IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache,
                              BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup, MapperService mapperService,
@@ -132,7 +138,6 @@ public class QueryShardContext extends QueryRewriteContext {
         this.lookup = null;
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();
-        this.isFilter = false;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -179,22 +184,6 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     /**
-     * Return whether we are currently parsing a filter or a query.
-     */
-    public boolean isFilter() {
-        return isFilter;
-    }
-
-    /**
-     * Public for testing only!
-     *
-     * Sets whether we are currently parsing a filter or a query
-     */
-    public void setIsFilter(boolean isFilter) {
-        this.isFilter = isFilter;
-    }
-
-    /**
      * Returns all the fields that match a given pattern. If prefixed with a
      * type then the fields will be returned with a type prefix.
      */
@@ -203,6 +192,9 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public MappedFieldType fieldMapper(String name) {
+        if (name.equals(TypeFieldMapper.NAME)) {
+            deprecationLogger.deprecatedAndMaybeLog("query_with_types", TYPES_DEPRECATION_MESSAGE);
+        }
         return failIfFieldMappingNotFound(name, mapperService.fullName(name));
     }
 
@@ -289,16 +281,6 @@ public class QueryShardContext extends QueryRewriteContext {
         return indexSettings.getIndexVersionCreated();
     }
 
-    public ParsedQuery toFilter(QueryBuilder queryBuilder) {
-        return toQuery(queryBuilder, q -> {
-            Query filter = q.toFilter(this);
-            if (filter == null) {
-                return null;
-            }
-            return filter;
-        });
-    }
-
     public ParsedQuery toQuery(QueryBuilder queryBuilder) {
         return toQuery(queryBuilder, q -> {
             Query query = q.toQuery(this);
@@ -351,7 +333,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * class says a request can be cached.
      */
     protected final void failIfFrozen() {
-        this.cachable = false;
+        this.cacheable = false;
         if (frozen.get() == Boolean.TRUE) {
             throw new IllegalArgumentException("features that prevent cachability are disabled on this context");
         } else {
@@ -372,10 +354,10 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     /**
-     * Returns <code>true</code> iff the result of the processed search request is cachable. Otherwise <code>false</code>
+     * Returns <code>true</code> iff the result of the processed search request is cacheable. Otherwise <code>false</code>
      */
-    public final boolean isCachable() {
-        return cachable;
+    public final boolean isCacheable() {
+        return cacheable;
     }
 
     /**

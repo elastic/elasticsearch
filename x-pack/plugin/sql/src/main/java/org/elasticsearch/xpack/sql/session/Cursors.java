@@ -18,7 +18,8 @@ import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractors;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
-import org.elasticsearch.xpack.sql.plugin.CliFormatterCursor;
+import org.elasticsearch.xpack.sql.expression.literal.Intervals;
+import org.elasticsearch.xpack.sql.plugin.TextFormatterCursor;
 
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
@@ -34,7 +35,7 @@ public final class Cursors {
 
     private static final NamedWriteableRegistry WRITEABLE_REGISTRY = new NamedWriteableRegistry(getNamedWriteables());
 
-    private Cursors() {};
+    private Cursors() {}
 
     /**
      * The {@link NamedWriteable}s required to deserialize {@link Cursor}s.
@@ -46,12 +47,15 @@ public final class Cursors {
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, EmptyCursor.NAME, in -> Cursor.EMPTY));
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, ScrollCursor.NAME, ScrollCursor::new));
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, CompositeAggregationCursor.NAME, CompositeAggregationCursor::new));
-        entries.add(new NamedWriteableRegistry.Entry(Cursor.class, CliFormatterCursor.NAME, CliFormatterCursor::new));
+        entries.add(new NamedWriteableRegistry.Entry(Cursor.class, TextFormatterCursor.NAME, TextFormatterCursor::new));
 
         // plus all their dependencies
         entries.addAll(Processors.getNamedWriteables());
         entries.addAll(HitExtractors.getNamedWriteables());
         entries.addAll(BucketExtractors.getNamedWriteables());
+
+        // and custom types
+        entries.addAll(Intervals.getNamedWriteables());
 
         return entries;
     }

@@ -24,22 +24,20 @@ field:
 PUT place
 {
     "mappings": {
-        "_doc" : {
-            "properties" : {
-                "suggest" : {
-                    "type" : "completion",
-                    "contexts": [
-                        { <1>
-                            "name": "place_type",
-                            "type": "category"
-                        },
-                        { <2>
-                            "name": "location",
-                            "type": "geo",
-                            "precision": 4
-                        }
-                    ]
-                }
+        "properties" : {
+            "suggest" : {
+                "type" : "completion",
+                "contexts": [
+                    { <1>
+                        "name": "place_type",
+                        "type": "category"
+                    },
+                    { <2>
+                        "name": "location",
+                        "type": "geo",
+                        "precision": 4
+                    }
+                ]
             }
         }
     }
@@ -47,27 +45,25 @@ PUT place
 PUT place_path_category
 {
     "mappings": {
-        "_doc" : {
-            "properties" : {
-                "suggest" : {
-                    "type" : "completion",
-                    "contexts": [
-                        { <3>
-                            "name": "place_type",
-                            "type": "category",
-                            "path": "cat"
-                        },
-                        { <4>
-                            "name": "location",
-                            "type": "geo",
-                            "precision": 4,
-                            "path": "loc"
-                        }
-                    ]
-                },
-                "loc": {
-                    "type": "geo_point"
-                }
+        "properties" : {
+            "suggest" : {
+                "type" : "completion",
+                "contexts": [
+                    { <3>
+                        "name": "place_type",
+                        "type": "category",
+                        "path": "cat"
+                    },
+                    { <4>
+                        "name": "location",
+                        "type": "geo",
+                        "precision": 4,
+                        "path": "loc"
+                    }
+                ]
+            },
+            "loc": {
+                "type": "geo_point"
             }
         }
     }

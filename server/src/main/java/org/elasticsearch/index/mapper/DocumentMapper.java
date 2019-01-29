@@ -72,8 +72,9 @@ public class DocumentMapper implements ToXContentFragment {
             this.rootObjectMapper = builder.build(builderContext);
 
             final String type = rootObjectMapper.name();
-            DocumentMapper existingMapper = mapperService.documentMapper(type);
-            for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : mapperService.mapperRegistry.getMetadataMapperParsers().entrySet()) {
+            final DocumentMapper existingMapper = mapperService.documentMapper(type);
+            final Map<String, TypeParser> metadataMapperParsers = mapperService.mapperRegistry.getMetadataMapperParsers();
+            for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : metadataMapperParsers.entrySet()) {
                 final String name = entry.getKey();
                 final MetadataFieldMapper existingMetadataMapper = existingMapper == null
                         ? null
@@ -264,13 +265,13 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     public ParsedDocument createDeleteTombstoneDoc(String index, String type, String id) throws MapperParsingException {
-        final SourceToParse emptySource = SourceToParse.source(index, type, id, new BytesArray("{}"), XContentType.JSON);
+        final SourceToParse emptySource = new SourceToParse(index, type, id, new BytesArray("{}"), XContentType.JSON);
         return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers).toTombstone();
     }
 
     public ParsedDocument createNoopTombstoneDoc(String index, String reason) throws MapperParsingException {
         final String id = ""; // _id won't be used.
-        final SourceToParse sourceToParse = SourceToParse.source(index, type, id, new BytesArray("{}"), XContentType.JSON);
+        final SourceToParse sourceToParse = new SourceToParse(index, type, id, new BytesArray("{}"), XContentType.JSON);
         final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, noopTombstoneMetadataFieldMappers).toTombstone();
         // Store the reason of a noop as a raw string in the _source field
         final BytesRef byteRef = new BytesRef(reason);

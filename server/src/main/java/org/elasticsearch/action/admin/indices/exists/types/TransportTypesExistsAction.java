@@ -27,9 +27,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -39,10 +37,10 @@ import org.elasticsearch.transport.TransportService;
 public class TransportTypesExistsAction extends TransportMasterNodeReadAction<TypesExistsRequest, TypesExistsResponse> {
 
     @Inject
-    public TransportTypesExistsAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportTypesExistsAction(TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, TypesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, TypesExistsRequest::new,
+        super(TypesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, TypesExistsRequest::new,
             indexNameExpressionResolver);
     }
 
@@ -78,14 +76,14 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadAction<Ty
                 return;
             }
 
-            ImmutableOpenMap<String, MappingMetaData> mappings = state.metaData().getIndices().get(concreteIndex).getMappings();
-            if (mappings.isEmpty()) {
+            MappingMetaData mapping = state.metaData().getIndices().get(concreteIndex).mapping();
+            if (mapping == null) {
                 listener.onResponse(new TypesExistsResponse(false));
                 return;
             }
 
             for (String type : request.types()) {
-                if (!mappings.containsKey(type)) {
+                if (mapping.type().equals(type) == false) {
                     listener.onResponse(new TypesExistsResponse(false));
                     return;
                 }

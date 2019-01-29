@@ -100,8 +100,8 @@ JDK 11 and testing on a JDK 8 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 8 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 8.
 
-> Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, and
-`JAVA10_HOME` are available so that the tests can pass.
+> Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
+and `JAVA11_HOME` available so that the tests can pass.
 
 > Warning: do not use `sdkman` for Java installations which do not have proper
 `jrunscript` for jdk distributions.
@@ -196,11 +196,26 @@ the settings window and/or restart IntelliJ to see your changes take effect.
 
 ### Creating A Distribution
 
-To create a distribution from the source, simply run:
+Run all build commands from within the root directory:
 
 ```sh
 cd elasticsearch/
-./gradlew assemble
+```
+
+To build a tar distribution, run this command:
+
+```sh
+./gradlew -p distribution/archives/tar assemble --parallel
+```
+
+You will find the distribution under:
+`./distribution/archives/tar/build/distributions/`
+
+To create all build artifacts (e.g., plugins and Javadocs) as well as
+distributions in all formats, run this command:
+
+```sh
+./gradlew assemble --parallel
 ```
 
 The package distributions (Debian and RPM) can be found under:
@@ -208,7 +223,6 @@ The package distributions (Debian and RPM) can be found under:
 
 The archive distributions (tar and zip) can be found under:
 `./distribution/archives/(tar|zip)/build/distributions/`
-
 
 ### Running The Full Test Suite
 

@@ -84,6 +84,12 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "    },\n" +
                     "    \"metadata\" : {\n" +
                     "      \"cluster_uuid\" : \"_na_\",\n" +
+                    "      \"cluster_coordination\" : {\n" +
+                    "        \"term\" : 0,\n" +
+                    "        \"last_committed_config\" : [ ],\n" +
+                    "        \"last_accepted_config\" : [ ],\n" +
+                    "        \"voting_config_exclusions\" : [ ]\n" +
+                    "      },\n" +
                     "      \"templates\" : { },\n" +
                     "      \"indices\" : {\n" +
                     "        \"index\" : {\n" +
@@ -173,6 +179,12 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "    \"cluster_uuid\" : \"_na_\",\n" +
                     "    \"metadata\" : {\n" +
                     "      \"cluster_uuid\" : \"_na_\",\n" +
+                    "      \"cluster_coordination\" : {\n" +
+                    "        \"term\" : 0,\n" +
+                    "        \"last_committed_config\" : [ ],\n" +
+                    "        \"last_accepted_config\" : [ ],\n" +
+                    "        \"voting_config_exclusions\" : [ ]\n" +
+                    "      },\n" +
                     "      \"templates\" : { },\n" +
                     "      \"indices\" : {\n" +
                     "        \"index\" : {\n" +

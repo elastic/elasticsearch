@@ -165,12 +165,14 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AutoFollowMetadata that = (AutoFollowMetadata) o;
-        return Objects.equals(patterns, that.patterns);
+        return Objects.equals(patterns, that.patterns) &&
+               Objects.equals(followedLeaderIndexUUIDs, that.followedLeaderIndexUUIDs) &&
+               Objects.equals(headers, that.headers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(patterns);
+        return Objects.hash(patterns, followedLeaderIndexUUIDs, headers);
     }
 
     public static class AutoFollowPattern implements Writeable, ToXContentObject {
@@ -271,7 +273,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
 
         public AutoFollowPattern(StreamInput in) throws IOException {
             remoteCluster = in.readString();
-            leaderIndexPatterns = in.readList(StreamInput::readString);
+            leaderIndexPatterns = in.readStringList();
             followIndexPattern = in.readOptionalString();
             maxReadRequestOperationCount = in.readOptionalVInt();
             maxReadRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
@@ -348,7 +350,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(remoteCluster);
-            out.writeStringList(leaderIndexPatterns);
+            out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexPattern);
             out.writeOptionalVInt(maxReadRequestOperationCount);
             out.writeOptionalWriteable(maxReadRequestSize);

@@ -44,6 +44,7 @@ setup:
       warnings:
         - 'Object format in indices_boost is deprecated, please use array format instead'
       search:
+        rest_total_hits_as_int: true
         index: _all
         body:
           indices_boost: {test_1: 2.0, test_2: 1.0}
@@ -56,6 +57,7 @@ setup:
       warnings:
         - 'Object format in indices_boost is deprecated, please use array format instead'
       search:
+        rest_total_hits_as_int: true
         index: _all
         body:
           indices_boost: {test_1: 1.0, test_2: 2.0}
@@ -68,6 +70,7 @@ setup:
 "Indices boost using array":
   - do:
       search:
+        rest_total_hits_as_int: true
         index: _all
         body:
           indices_boost: [{test_1: 2.0}, {test_2: 1.0}]
@@ -78,6 +81,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: _all
         body:
           indices_boost: [{test_1: 1.0}, {test_2: 2.0}]
@@ -90,6 +94,7 @@ setup:
 "Indices boost using array with alias":
   - do:
       search:
+        rest_total_hits_as_int: true
         index: _all
         body:
           indices_boost: [{alias_1: 2.0}]
@@ -100,6 +105,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: _all
         body:
           indices_boost: [{alias_2: 2.0}]
@@ -112,6 +118,7 @@ setup:
 "Indices boost using array with wildcard":
   - do:
       search:
+        rest_total_hits_as_int: true
         index: _all
         body:
           indices_boost: [{"*_1": 2.0}]
@@ -122,6 +129,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: _all
         body:
           indices_boost: [{"*_2": 2.0}]
@@ -134,6 +142,7 @@ setup:
 "Indices boost using array multiple match":
   - do:
       search:
+        rest_total_hits_as_int: true
         index: _all
         body:
           # First match (3.0) is used for test_1
@@ -145,6 +154,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: _all
         body:
           # First match (1.0) is used for test_1
@@ -159,12 +169,14 @@ setup:
   - do:
       catch: /no such index/
       search:
+        rest_total_hits_as_int: true
         index: _all
         body:
           indices_boost: [{nonexistent: 2.0}, {test_1: 1.0}, {test_2: 2.0}]
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: _all
         ignore_unavailable: true
         body:

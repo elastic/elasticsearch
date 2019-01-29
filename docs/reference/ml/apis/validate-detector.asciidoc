@@ -1,16 +1,16 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-valid-detector]]
-=== Validate Detectors API
+=== Validate detectors API
 ++++
-<titleabbrev>Validate Detectors </titleabbrev>
+<titleabbrev>Validate detectors </titleabbrev>
 ++++
 
 Validates detector configuration information.
 
 ==== Request
 
-`POST _xpack/ml/anomaly_detectors/_validate/detector`
+`POST _ml/anomaly_detectors/_validate/detector`
 
 ==== Description
 
@@ -37,7 +37,7 @@ The following example validates detector configuration information:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/anomaly_detectors/_validate/detector
+POST _ml/anomaly_detectors/_validate/detector
 {
   "function": "metric",
   "field_name": "responsetime",

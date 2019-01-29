@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -31,7 +32,9 @@ import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.joda.time.DateTimeZone;
+
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 /**
  * A configuration that tells aggregations how to retrieve data from the index
@@ -47,13 +50,13 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             ValueType valueType,
             String field, Script script,
             Object missing,
-            DateTimeZone timeZone,
+            ZoneId timeZone,
             String format) {
 
         if (field == null) {
             if (script == null) {
                 ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(ValuesSourceType.ANY);
-                config.format(resolveFormat(null, valueType));
+                config.format(resolveFormat(null, valueType, timeZone));
                 return config;
             }
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : ValuesSourceType.ANY;
@@ -67,7 +70,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
             config.missing(missing);
             config.timezone(timeZone);
-            config.format(resolveFormat(format, valueType));
+            config.format(resolveFormat(format, valueType, timeZone));
             config.script(createScript(script, context));
             config.scriptValueType(valueType);
             return config;
@@ -79,7 +82,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
             config.missing(missing);
             config.timezone(timeZone);
-            config.format(resolveFormat(format, valueType));
+            config.format(resolveFormat(format, valueType, timeZone));
             config.unmapped(true);
             if (valueType != null) {
                 // todo do we really need this for unmapped?
@@ -120,13 +123,16 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         }
     }
 
-    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {
+    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType, @Nullable ZoneId tz) {
         if (valueType == null) {
             return DocValueFormat.RAW; // we can't figure it out
         }
         DocValueFormat valueFormat = valueType.defaultFormat;
         if (valueFormat instanceof DocValueFormat.Decimal && format != null) {
             valueFormat = new DocValueFormat.Decimal(format);
+        }
+        if (valueFormat instanceof DocValueFormat.DateTime && format != null) {
+            valueFormat = new DocValueFormat.DateTime(DateFormatter.forPattern(format), tz != null ? tz : ZoneOffset.UTC);
         }
         return valueFormat;
     }
@@ -138,7 +144,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     private boolean unmapped = false;
     private DocValueFormat format = DocValueFormat.RAW;
     private Object missing;
-    private DateTimeZone timeZone;
+    private ZoneId timeZone;
 
     public ValuesSourceConfig(ValuesSourceType valueSourceType) {
         this.valueSourceType = valueSourceType;
@@ -202,12 +208,12 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return this.missing;
     }
 
-    public ValuesSourceConfig<VS> timezone(final DateTimeZone timeZone) {
-        this.timeZone= timeZone;
+    public ValuesSourceConfig<VS> timezone(final ZoneId timeZone) {
+        this.timeZone = timeZone;
         return this;
     }
 
-    public DateTimeZone timezone() {
+    public ZoneId timezone() {
         return this.timeZone;
     }
 

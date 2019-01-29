@@ -2,7 +2,7 @@
 "Put job and datafeed in old cluster":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: old-cluster-datafeed-job
         body:  >
           {
@@ -22,7 +22,7 @@
   - match: { job_id: old-cluster-datafeed-job }
 
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: old-cluster-datafeed
         body:  >
           {
@@ -33,7 +33,7 @@
           }
 
   - do:
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: old-cluster-datafeed
   - match: { datafeeds.0.state: stopped}
   - is_false: datafeeds.0.node

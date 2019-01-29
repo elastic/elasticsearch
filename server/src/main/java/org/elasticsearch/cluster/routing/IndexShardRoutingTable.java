@@ -65,7 +65,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     final List<ShardRouting> activeShards;
     final List<ShardRouting> assignedShards;
     final Set<String> allAllocationIds;
-    static final List<ShardRouting> NO_SHARDS = Collections.emptyList();
     final boolean allShardsStarted;
 
     private volatile Map<AttributesKey, AttributesRoutings> activeShardsByAttributes = emptyMap();
@@ -217,15 +216,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      * @return a {@link List} of shards
      */
     public List<ShardRouting> assignedShards() {
-        return this.assignedShards;
-    }
-
-    /**
-     * Returns a {@link List} of assigned shards
-     *
-     * @return a {@link List} of shards
-     */
-    public List<ShardRouting> getAssignedShards() {
         return this.assignedShards;
     }
 

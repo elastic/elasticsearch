@@ -3,6 +3,8 @@
 [[sql-functions-string]]
 === String Functions
 
+beta[]
+
 Functions for performing string manipulation.
 
 [[sql-functions-string-ascii]]

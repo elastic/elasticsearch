@@ -7,8 +7,6 @@ package org.elasticsearch.xpack.watcher.trigger;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
@@ -27,14 +25,13 @@ import java.util.function.Consumer;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
 
-public class TriggerService extends AbstractComponent {
+public class TriggerService {
 
     private final GroupedConsumer consumer = new GroupedConsumer();
     private final Map<String, TriggerEngine> engines;
     private final Map<String, TriggerWatchStats> perWatchStats = new HashMap<>();
 
-    public TriggerService(Settings settings, Set<TriggerEngine> engines) {
-        super(settings);
+    public TriggerService(Set<TriggerEngine> engines) {
         Map<String, TriggerEngine> builder = new HashMap<>();
         for (TriggerEngine engine : engines) {
             builder.put(engine.type(), engine);

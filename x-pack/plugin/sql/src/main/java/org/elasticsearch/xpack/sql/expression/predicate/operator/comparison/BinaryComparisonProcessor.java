@@ -15,10 +15,12 @@ import java.io.IOException;
 import java.util.function.BiFunction;
 
 public class BinaryComparisonProcessor extends FunctionalBinaryProcessor<Object, Object, Boolean, BinaryComparisonOperation> {
-    
+
     public enum BinaryComparisonOperation implements PredicateBiFunction<Object, Object, Boolean> {
 
         EQ(Comparisons::eq, "=="),
+        NULLEQ(Comparisons::nulleq, "<=>"),
+        NEQ(Comparisons::neq, "!="),
         GT(Comparisons::gt, ">"),
         GTE(Comparisons::gte, ">="),
         LT(Comparisons::lt, "<"),
@@ -38,6 +40,14 @@ public class BinaryComparisonProcessor extends FunctionalBinaryProcessor<Object,
         }
 
         @Override
+        public Boolean apply(Object left, Object right) {
+            if (this != NULLEQ && (left == null || right == null)) {
+                return null;
+            }
+            return doApply(left, right);
+        }
+
+        @Override
         public final Boolean doApply(Object left, Object right) {
             return process.apply(left, right);
         }
@@ -47,7 +57,7 @@ public class BinaryComparisonProcessor extends FunctionalBinaryProcessor<Object,
             return symbol;
         }
     }
-    
+
     public static final String NAME = "cb";
 
     public BinaryComparisonProcessor(Processor left, Processor right, BinaryComparisonOperation operation) {
@@ -61,5 +71,13 @@ public class BinaryComparisonProcessor extends FunctionalBinaryProcessor<Object,
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public Object process(Object input) {
+        if (function() == BinaryComparisonOperation.NULLEQ) {
+            return doProcess(left().process(input), right().process(input));
+        }
+        return super.process(input);
     }
 }

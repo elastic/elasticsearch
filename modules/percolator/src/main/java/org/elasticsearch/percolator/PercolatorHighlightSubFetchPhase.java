@@ -31,7 +31,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.SearchHit;
@@ -56,8 +55,8 @@ import java.util.Map;
 final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
     private final HighlightPhase highlightPhase;
 
-    PercolatorHighlightSubFetchPhase(Settings settings, Map<String, Highlighter> highlighters) {
-        this.highlightPhase = new HighlightPhase(settings, highlighters);
+    PercolatorHighlightSubFetchPhase(Map<String, Highlighter> highlighters) {
+        this.highlightPhase = new HighlightPhase(highlighters);
     }
 
     boolean hitsExecutionNeeded(SearchContext context) { // for testing

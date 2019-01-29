@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -26,15 +27,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRespon
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
+import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -70,7 +71,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.LAST_UPDATED_VERSION;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
@@ -78,9 +78,9 @@ import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplat
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.pipelineName;
 import static org.elasticsearch.xpack.monitoring.Monitoring.CLEAN_WATCHER_HISTORY;
 
-public class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener {
+public class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener, LicenseStateListener {
 
-    private static final Logger logger = Loggers.getLogger(LocalExporter.class);
+    private static final Logger logger = LogManager.getLogger(LocalExporter.class);
 
     public static final String TYPE = "local";
 
@@ -106,9 +106,10 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         this.clusterAlertBlacklist = ClusterAlertsUtil.getClusterAlertsBlacklist(config);
         this.cleanerService = cleanerService;
         this.dateTimeFormatter = dateTimeFormatter(config);
+        // if additional listeners are added here, adjust LocalExporterTests#testLocalExporterRemovesListenersOnClose accordingly
         clusterService.addListener(this);
         cleanerService.add(this);
-        licenseState.addListener(this::licenseChanged);
+        licenseState.addListener(this);
     }
 
     @Override
@@ -121,7 +122,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     /**
      * When the license changes, we need to ensure that Watcher is setup properly.
      */
-    private void licenseChanged() {
+    @Override
+    public void licenseStateChanged() {
         watcherSetup.set(false);
     }
 
@@ -138,11 +140,16 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     }
 
     @Override
-    public LocalBulk openBulk() {
+    public void openBulk(final ActionListener<ExportBulk> listener) {
         if (state.get() != State.RUNNING) {
-            return null;
+            listener.onResponse(null);
+        } else {
+            try {
+                listener.onResponse(resolveBulk(clusterService.state(), false));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
         }
-        return resolveBulk(clusterService.state(), false);
     }
 
     @Override
@@ -152,19 +159,12 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             // we also remove the listener in resolveBulk after we get to RUNNING, but it's okay to double-remove
             clusterService.removeListener(this);
             cleanerService.remove(this);
-            licenseState.removeListener(this::licenseChanged);
+            licenseState.removeListener(this);
         }
     }
 
     LocalBulk resolveBulk(ClusterState clusterState, boolean clusterStateChange) {
         if (clusterService.localNode() == null || clusterState == null) {
-            return null;
-        }
-
-        if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            // wait until the gateway has recovered from disk, otherwise we think may not have .monitoring-es-
-            // indices but they may not have been restored from the cluster state on disk
-            logger.debug("waiting until gateway has recovered from disk");
             return null;
         }
 
@@ -251,7 +251,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                                          final boolean clusterStateChange) {
         // we are on the elected master
         // Check that there is nothing that could block metadata updates
-        if (clusterState.blocks().hasGlobalBlock(ClusterBlockLevel.METADATA_WRITE)) {
+        if (clusterState.blocks().hasGlobalBlockWithLevel(ClusterBlockLevel.METADATA_WRITE)) {
             logger.debug("waiting until metadata writes are unblocked");
             return false;
         }
@@ -317,7 +317,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         if (asyncActions.size() > 0) {
             if (installingSomething.compareAndSet(false, true)) {
                 pendingResponses.set(asyncActions.size());
-                try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), MONITORING_ORIGIN)) {
+                try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(MONITORING_ORIGIN)) {
                     asyncActions.forEach(Runnable::run);
                 }
             } else {

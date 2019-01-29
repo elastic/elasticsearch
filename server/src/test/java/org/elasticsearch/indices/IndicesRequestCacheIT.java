@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -34,8 +35,8 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -68,7 +69,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         // which used to not work well with the query cache because of the handles stream output
         // see #9500
         final SearchResponse r1 = client.prepareSearch("index").setSize(0).setSearchType(SearchType.QUERY_THEN_FETCH)
-                .addAggregation(dateHistogram("histo").field("f").timeZone(DateTimeZone.forID("+01:00")).minDocCount(0)
+                .addAggregation(dateHistogram("histo").field("f").timeZone(ZoneId.of("+01:00")).minDocCount(0)
                         .dateHistogramInterval(DateHistogramInterval.MONTH))
                 .get();
         assertSearchResponse(r1);
@@ -80,7 +81,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         for (int i = 0; i < 10; ++i) {
             final SearchResponse r2 = client.prepareSearch("index").setSize(0)
                     .setSearchType(SearchType.QUERY_THEN_FETCH).addAggregation(dateHistogram("histo").field("f")
-                            .timeZone(DateTimeZone.forID("+01:00")).minDocCount(0).dateHistogramInterval(DateHistogramInterval.MONTH))
+                            .timeZone(ZoneId.of("+01:00")).minDocCount(0).dateHistogramInterval(DateHistogramInterval.MONTH))
                     .get();
             assertSearchResponse(r2);
             Histogram h1 = r1.getAggregations().get("histo");
@@ -126,21 +127,21 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         final SearchResponse r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-25")).setPreFilterShardSize(Integer.MAX_VALUE).get();
         ElasticsearchAssertions.assertAllSuccessful(r1);
-        assertThat(r1.getHits().getTotalHits(), equalTo(7L));
+        assertThat(r1.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 0, 5);
 
         final SearchResponse r2 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
             .setPreFilterShardSize(Integer.MAX_VALUE).get();
         ElasticsearchAssertions.assertAllSuccessful(r2);
-        assertThat(r2.getHits().getTotalHits(), equalTo(7L));
+        assertThat(r2.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 3, 7);
 
         final SearchResponse r3 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-21").lte("2016-03-27")).setPreFilterShardSize(Integer.MAX_VALUE)
             .get();
         ElasticsearchAssertions.assertAllSuccessful(r3);
-        assertThat(r3.getHits().getTotalHits(), equalTo(7L));
+        assertThat(r3.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 6, 9);
     }
 
@@ -172,19 +173,19 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         final SearchResponse r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-28")).get();
         ElasticsearchAssertions.assertAllSuccessful(r1);
-        assertThat(r1.getHits().getTotalHits(), equalTo(8L));
+        assertThat(r1.getHits().getTotalHits().value, equalTo(8L));
         assertCacheState(client, "index", 0, 1);
 
         final SearchResponse r2 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-28")).get();
         ElasticsearchAssertions.assertAllSuccessful(r2);
-        assertThat(r2.getHits().getTotalHits(), equalTo(8L));
+        assertThat(r2.getHits().getTotalHits().value, equalTo(8L));
         assertCacheState(client, "index", 1, 1);
 
         final SearchResponse r3 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-28")).get();
         ElasticsearchAssertions.assertAllSuccessful(r3);
-        assertThat(r3.getHits().getTotalHits(), equalTo(8L));
+        assertThat(r3.getHits().getTotalHits().value, equalTo(8L));
         assertCacheState(client, "index", 2, 1);
     }
 
@@ -217,21 +218,21 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 .setQuery(QueryBuilders.rangeQuery("d").gte("2013-01-01T00:00:00").lte("now"))
                 .get();
         ElasticsearchAssertions.assertAllSuccessful(r1);
-        assertThat(r1.getHits().getTotalHits(), equalTo(9L));
+        assertThat(r1.getHits().getTotalHits().value, equalTo(9L));
         assertCacheState(client, "index", 0, 1);
 
         final SearchResponse r2 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("d").gte("2013-01-01T00:00:00").lte("now"))
                 .get();
         ElasticsearchAssertions.assertAllSuccessful(r2);
-        assertThat(r2.getHits().getTotalHits(), equalTo(9L));
+        assertThat(r2.getHits().getTotalHits().value, equalTo(9L));
         assertCacheState(client, "index", 1, 1);
 
         final SearchResponse r3 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("d").gte("2013-01-01T00:00:00").lte("now"))
                 .get();
         ElasticsearchAssertions.assertAllSuccessful(r3);
-        assertThat(r3.getHits().getTotalHits(), equalTo(9L));
+        assertThat(r3.getHits().getTotalHits().value, equalTo(9L));
         assertCacheState(client, "index", 2, 1);
     }
 
@@ -246,15 +247,16 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertAcked(client.admin().indices().prepareCreate("index-3").addMapping("type", "d", "type=date")
                 .setSettings(settings).get());
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        indexRandom(true, client.prepareIndex("index-1", "type", "1").setSource("d", now),
-                client.prepareIndex("index-1", "type", "2").setSource("d", now.minusDays(1)),
-                client.prepareIndex("index-1", "type", "3").setSource("d", now.minusDays(2)),
-                client.prepareIndex("index-2", "type", "4").setSource("d", now.minusDays(3)),
-                client.prepareIndex("index-2", "type", "5").setSource("d", now.minusDays(4)),
-                client.prepareIndex("index-2", "type", "6").setSource("d", now.minusDays(5)),
-                client.prepareIndex("index-3", "type", "7").setSource("d", now.minusDays(6)),
-                client.prepareIndex("index-3", "type", "8").setSource("d", now.minusDays(7)),
-                client.prepareIndex("index-3", "type", "9").setSource("d", now.minusDays(8)));
+        DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time");
+        indexRandom(true, client.prepareIndex("index-1", "type", "1").setSource("d", formatter.format(now)),
+            client.prepareIndex("index-1", "type", "2").setSource("d", formatter.format(now.minusDays(1))),
+            client.prepareIndex("index-1", "type", "3").setSource("d", formatter.format(now.minusDays(2))),
+            client.prepareIndex("index-2", "type", "4").setSource("d", formatter.format(now.minusDays(3))),
+            client.prepareIndex("index-2", "type", "5").setSource("d", formatter.format(now.minusDays(4))),
+            client.prepareIndex("index-2", "type", "6").setSource("d", formatter.format(now.minusDays(5))),
+            client.prepareIndex("index-3", "type", "7").setSource("d", formatter.format(now.minusDays(6))),
+            client.prepareIndex("index-3", "type", "8").setSource("d", formatter.format(now.minusDays(7))),
+            client.prepareIndex("index-3", "type", "9").setSource("d", formatter.format(now.minusDays(8))));
         ensureSearchable("index-1", "index-2", "index-3");
         assertCacheState(client, "index-1", 0, 0);
         assertCacheState(client, "index-2", 0, 0);
@@ -274,7 +276,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         final SearchResponse r1 = client.prepareSearch("index-*").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now")).get();
         ElasticsearchAssertions.assertAllSuccessful(r1);
-        assertThat(r1.getHits().getTotalHits(), equalTo(8L));
+        assertThat(r1.getHits().getTotalHits().value, equalTo(8L));
         assertCacheState(client, "index-1", 0, 1);
         assertCacheState(client, "index-2", 0, 1);
         // Because the query will INTERSECT with the 3rd index it will not be
@@ -285,7 +287,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         final SearchResponse r2 = client.prepareSearch("index-*").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now")).get();
         ElasticsearchAssertions.assertAllSuccessful(r2);
-        assertThat(r2.getHits().getTotalHits(), equalTo(8L));
+        assertThat(r2.getHits().getTotalHits().value, equalTo(8L));
         assertCacheState(client, "index-1", 1, 1);
         assertCacheState(client, "index-2", 1, 1);
         assertCacheState(client, "index-3", 0, 0);
@@ -293,7 +295,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         final SearchResponse r3 = client.prepareSearch("index-*").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now")).get();
         ElasticsearchAssertions.assertAllSuccessful(r3);
-        assertThat(r3.getHits().getTotalHits(), equalTo(8L));
+        assertThat(r3.getHits().getTotalHits().value, equalTo(8L));
         assertCacheState(client, "index-1", 2, 1);
         assertCacheState(client, "index-2", 2, 1);
         assertCacheState(client, "index-3", 0, 0);
@@ -331,14 +333,14 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         final SearchResponse r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(1)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-25")).get();
         ElasticsearchAssertions.assertAllSuccessful(r1);
-        assertThat(r1.getHits().getTotalHits(), equalTo(7L));
+        assertThat(r1.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 0, 0);
 
         // If search type is DFS_QUERY_THEN_FETCH we should not cache
         final SearchResponse r2 = client.prepareSearch("index").setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26")).get();
         ElasticsearchAssertions.assertAllSuccessful(r2);
-        assertThat(r2.getHits().getTotalHits(), equalTo(7L));
+        assertThat(r2.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 0, 0);
 
         // If search type is DFS_QUERY_THEN_FETCH we should not cache even if
@@ -346,7 +348,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         final SearchResponse r3 = client.prepareSearch("index").setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setSize(0)
                 .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26")).get();
         ElasticsearchAssertions.assertAllSuccessful(r3);
-        assertThat(r3.getHits().getTotalHits(), equalTo(7L));
+        assertThat(r3.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 0, 0);
 
         // If the request has an non-filter aggregation containing now we should not cache
@@ -354,14 +356,14 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
                 .addAggregation(dateRange("foo").field("s").addRange("now-10y", "now")).get();
         ElasticsearchAssertions.assertAllSuccessful(r5);
-        assertThat(r5.getHits().getTotalHits(), equalTo(7L));
+        assertThat(r5.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 0, 0);
 
         // If size > 1 and cache flag is set on the request we should cache
         final SearchResponse r6 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(1)
                 .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-21").lte("2016-03-27")).get();
         ElasticsearchAssertions.assertAllSuccessful(r6);
-        assertThat(r6.getHits().getTotalHits(), equalTo(7L));
+        assertThat(r6.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 0, 2);
 
         // If the request has a filter aggregation containing now we should cache since it gets rewritten
@@ -369,7 +371,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
                 .addAggregation(filter("foo", QueryBuilders.rangeQuery("s").from("now-10y").to("now"))).get();
         ElasticsearchAssertions.assertAllSuccessful(r4);
-        assertThat(r4.getHits().getTotalHits(), equalTo(7L));
+        assertThat(r4.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 0, 4);
     }
 
@@ -394,23 +396,23 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         SearchResponse r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
             .setQuery(QueryBuilders.rangeQuery("created_at").gte("now-7d/d")).get();
         ElasticsearchAssertions.assertAllSuccessful(r1);
-        assertThat(r1.getHits().getTotalHits(), equalTo(1L));
+        assertThat(r1.getHits().getTotalHits().value, equalTo(1L));
         assertCacheState(client, "index", 0, 1);
 
         r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
             .setQuery(QueryBuilders.rangeQuery("created_at").gte("now-7d/d")).get();
         ElasticsearchAssertions.assertAllSuccessful(r1);
-        assertThat(r1.getHits().getTotalHits(), equalTo(1L));
+        assertThat(r1.getHits().getTotalHits().value, equalTo(1L));
         assertCacheState(client, "index", 1, 1);
 
         r1 = client.prepareSearch("last_week").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get();
         ElasticsearchAssertions.assertAllSuccessful(r1);
-        assertThat(r1.getHits().getTotalHits(), equalTo(1L));
+        assertThat(r1.getHits().getTotalHits().value, equalTo(1L));
         assertCacheState(client, "index", 1, 2);
 
         r1 = client.prepareSearch("last_week").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get();
         ElasticsearchAssertions.assertAllSuccessful(r1);
-        assertThat(r1.getHits().getTotalHits(), equalTo(1L));
+        assertThat(r1.getHits().getTotalHits().value, equalTo(1L));
         assertCacheState(client, "index", 2, 2);
     }
 

@@ -24,10 +24,10 @@ import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -37,7 +37,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -118,7 +118,7 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
             .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), AzureDiscoveryPlugin.AZURE)
             .put(Environment.PATH_LOGS_SETTING.getKey(), resolve)
-            .put(TcpTransport.PORT.getKey(), 0)
+            .put(TransportSettings.PORT.getKey(), 0)
             .put(Node.WRITE_PORTS_FILE_SETTING.getKey(), "true")
             .put(AzureComputeService.Management.ENDPOINT_SETTING.getKey(), "https://" + InetAddress.getLoopbackAddress().getHostAddress() +
                 ":" + httpsServer.getAddress().getPort())
@@ -243,7 +243,7 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
                 responseBody.write(responseAsBytes);
                 responseBody.close();
             } catch (XMLStreamException e) {
-                Loggers.getLogger(AzureDiscoveryClusterFormationTests.class).error("Failed serializing XML", e);
+                LogManager.getLogger(AzureDiscoveryClusterFormationTests.class).error("Failed serializing XML", e);
                 throw new RuntimeException(e);
             }
         });

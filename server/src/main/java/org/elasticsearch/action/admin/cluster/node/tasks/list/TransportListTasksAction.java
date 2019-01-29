@@ -26,15 +26,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -51,21 +48,15 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     private static final TimeValue DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT = timeValueSeconds(30);
 
     @Inject
-    public TransportListTasksAction(Settings settings, ClusterService clusterService,
-            TransportService transportService, ActionFilters actionFilters) {
-        super(settings, ListTasksAction.NAME, clusterService, transportService, actionFilters,
-            ListTasksRequest::new, ListTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+    public TransportListTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+        super(ListTasksAction.NAME, clusterService, transportService, actionFilters,
+            ListTasksRequest::new, ListTasksResponse::new, TaskInfo::new, ThreadPool.Names.MANAGEMENT);
     }
 
     @Override
     protected ListTasksResponse newResponse(ListTasksRequest request, List<TaskInfo> tasks,
             List<TaskOperationFailure> taskOperationFailures, List<FailedNodeException> failedNodeExceptions) {
         return new ListTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
-    }
-
-    @Override
-    protected TaskInfo readTaskResponse(StreamInput in) throws IOException {
-        return new TaskInfo(in);
     }
 
     @Override

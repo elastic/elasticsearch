@@ -72,7 +72,7 @@ void addProcessFilesTask(String type, boolean oss) {
       MavenFilteringHack.filter(it, expansionsForDistribution(type, oss))
     }
 
-    into('config') {
+    into('etc/elasticsearch') {
       with configFiles(type, oss)
     }
     MavenFilteringHack.filter(it, expansionsForDistribution(type, oss))
@@ -83,6 +83,9 @@ void addProcessFilesTask(String type, boolean oss) {
       mkdir "${packagingFiles}/var/log/elasticsearch"
       mkdir "${packagingFiles}/var/lib/elasticsearch"
       mkdir "${packagingFiles}/usr/share/elasticsearch/plugins"
+
+      // bare empty dir for /etc/elasticsearch
+      mkdir "${packagingFiles}/elasticsearch"
     }
   }
 }
@@ -167,19 +170,34 @@ Closure commonPackageConfig(String type, boolean oss) {
     configurationFile '/etc/elasticsearch/elasticsearch.yml'
     configurationFile '/etc/elasticsearch/jvm.options'
     configurationFile '/etc/elasticsearch/log4j2.properties'
-    into('/etc/elasticsearch') {
-      dirMode 0750
+    if (oss == false) {
+      configurationFile '/etc/elasticsearch/role_mapping.yml'
+      configurationFile '/etc/elasticsearch/roles.yml'
+      configurationFile '/etc/elasticsearch/users'
+      configurationFile '/etc/elasticsearch/users_roles'
+    }
+   from("${packagingFiles}") {
+     dirMode 02750
+     into('/etc')
+     permissionGroup 'elasticsearch'
+     includeEmptyDirs true
+     createDirectoryEntry true
+     include("elasticsearch") // empty dir, just to add directory entry
+   }
+   from("${packagingFiles}/etc/elasticsearch") {
+     into('/etc/elasticsearch')
+      dirMode 02750
       fileMode 0660
       permissionGroup 'elasticsearch'
       includeEmptyDirs true
       createDirectoryEntry true
       fileType CONFIG | NOREPLACE
-      from "${packagingFiles}/config"
     }
     String envFile = expansionsForDistribution(type, false)['path.env']
     configurationFile envFile
     into(new File(envFile).getParent()) {
       fileType CONFIG | NOREPLACE
+      permissionGroup 'elasticsearch'
       fileMode 0660
       from "${packagingFiles}/env/elasticsearch"
     }
@@ -223,8 +241,8 @@ Closure commonPackageConfig(String type, boolean oss) {
       }
     }
     copyEmptyDir('/var/run/elasticsearch', 'elasticsearch', 'elasticsearch', 0755)
-    copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 0750)
-    copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', 0750)
+    copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
+    copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
     copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', 0755)
 
     // the oss package conflicts with the default distribution and vice versa
@@ -353,7 +371,7 @@ subprojects {
 
   // sanity checks if packages can be extracted
   final File extractionDir = new File(buildDir, 'extracted')
-  final File packageExtractionDir
+  File packageExtractionDir
   if (project.name.contains('deb')) {
     packageExtractionDir = new File(extractionDir, 'deb-extracted')
   } else {
@@ -400,9 +418,9 @@ subprojects {
     checkLicense {
       onlyIf dpkgExists
       doLast {
-        final Path copyrightPath
-        final String expectedLicense
-        final String licenseFilename
+        Path copyrightPath
+        String expectedLicense
+        String licenseFilename
         if (project.name.contains('oss-')) {
           copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/elasticsearch-oss/copyright")
           expectedLicense = "ASL-2.0"
@@ -425,7 +443,7 @@ subprojects {
     checkLicense {
       onlyIf rpmExists
       doLast {
-        final String licenseFilename
+        String licenseFilename
         if (project.name.contains('oss-')) {
           licenseFilename = "APACHE-LICENSE-2.0.txt"
         } else {
@@ -460,7 +478,7 @@ subprojects {
       exec.commandLine 'dpkg-deb', '--info', "${ -> buildDist.outputs.files.filter(debFilter).singleFile}"
       exec.standardOutput = output
       doLast {
-        final String expectedLicense
+        String expectedLicense
         if (project.name.contains('oss-')) {
           expectedLicense = "ASL-2.0"
         } else {
@@ -496,8 +514,8 @@ subprojects {
       exec.commandLine 'rpm', '-qp', '--queryformat', '%{License}', "${-> buildDist.outputs.files.singleFile}"
       exec.standardOutput = output
       doLast {
-        final String license = output.toString('UTF-8')
-        final String expectedLicense
+        String license = output.toString('UTF-8')
+        String expectedLicense
         if (project.name.contains('oss-')) {
           expectedLicense = "ASL 2.0"
         } else {

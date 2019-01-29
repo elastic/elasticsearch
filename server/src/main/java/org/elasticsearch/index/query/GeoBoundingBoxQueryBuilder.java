@@ -524,7 +524,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                 throw new ElasticsearchParseException("failed to parse bounding box. Conflicting definition found "
                     + "using well-known text and explicit corners.");
             }
-            org.locationtech.spatial4j.shape.Rectangle r = envelope.build();
+            org.locationtech.spatial4j.shape.Rectangle r = envelope.buildS4J();
             return new double[]{r.getMinY(), r.getMaxY(), r.getMinX(), r.getMaxX()};
         }
         return new double[]{bottom, top, left, right};

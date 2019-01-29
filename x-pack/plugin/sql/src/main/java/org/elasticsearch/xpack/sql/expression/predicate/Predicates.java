@@ -42,11 +42,11 @@ public abstract class Predicates {
     }
 
     public static Expression combineOr(List<Expression> exps) {
-        return combine(exps, (l, r) -> new Or(l.location(), l, r));
+        return combine(exps, (l, r) -> new Or(l.source(), l, r));
     }
 
     public static Expression combineAnd(List<Expression> exps) {
-        return combine(exps, (l, r) -> new And(l.location(), l, r));
+        return combine(exps, (l, r) -> new And(l.source(), l, r));
     }
 
     /**

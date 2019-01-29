@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -45,6 +46,9 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -60,15 +64,17 @@ import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.DateTimeException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
@@ -78,6 +84,20 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStringQueryBuilder> {
+
+    @Override
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
+            .startObject("prefix_field")
+            .field("type", "text")
+            .startObject("index_prefixes").endObject()
+            .endObject()
+            .endObject().endObject().endObject();
+
+        mapperService.merge("_doc",
+            new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
+    }
+
     @Override
     protected QueryStringQueryBuilder doCreateTestQueryBuilder() {
         int numTerms = randomIntBetween(0, 5);
@@ -128,9 +148,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryStringQueryBuilder.maxDeterminizedStates(randomIntBetween(1, 100));
         }
         if (randomBoolean()) {
-            queryStringQueryBuilder.autoGeneratePhraseQueries(randomBoolean());
-        }
-        if (randomBoolean()) {
             queryStringQueryBuilder.enablePositionIncrements(randomBoolean());
         }
         if (randomBoolean()) {
@@ -161,10 +178,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryStringQueryBuilder.minimumShouldMatch(randomMinimumShouldMatch());
         }
         if (randomBoolean()) {
-            queryStringQueryBuilder.useDisMax(randomBoolean());
-        }
-        if (randomBoolean()) {
-            queryStringQueryBuilder.timeZone(randomDateTimeZone().getID());
+            queryStringQueryBuilder.timeZone(randomZone().getId());
         }
         if (randomBoolean()) {
             queryStringQueryBuilder.autoGenerateSynonymsPhraseQuery(randomBoolean());
@@ -198,7 +212,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         String quoteFieldSuffix = instance.quoteFieldSuffix();
         Float tieBreaker = instance.tieBreaker();
         String minimumShouldMatch = instance.minimumShouldMatch();
-        String timeZone = instance.timeZone() == null ? null : instance.timeZone().getID();
+        String timeZone = instance.timeZone() == null ? null : instance.timeZone().getId();
         boolean autoGenerateSynonymsPhraseQuery = instance.autoGenerateSynonymsPhraseQuery();
         boolean fuzzyTranspositions = instance.fuzzyTranspositions();
 
@@ -306,12 +320,12 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             break;
         case 20:
             if (timeZone == null) {
-                timeZone = randomDateTimeZone().getID();
+                timeZone = randomZone().getId();
             } else {
                 if (randomBoolean()) {
                     timeZone = null;
                 } else {
-                    timeZone = randomValueOtherThan(timeZone, () -> randomDateTimeZone().getID());
+                    timeZone = randomValueOtherThan(timeZone, () -> randomZone().getId());
                 }
             }
             break;
@@ -541,6 +555,21 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
     }
 
+    public void testToQueryWildcardWithIndexedPrefixes() throws Exception {
+        QueryStringQueryParser queryParser = new QueryStringQueryParser(createShardContext(), "prefix_field");
+        Query query = queryParser.parse("foo*");
+        Query expectedQuery = new ConstantScoreQuery(new TermQuery(new Term("prefix_field._index_prefix", "foo")));
+        assertThat(query, equalTo(expectedQuery));
+
+        query = queryParser.parse("g*");
+        Automaton a = Operations.concatenate(Arrays.asList(Automata.makeChar('g'), Automata.makeAnyChar()));
+        expectedQuery = new ConstantScoreQuery(new BooleanQuery.Builder()
+            .add(new AutomatonQuery(new Term("prefix_field._index_prefix", "g*"), a), Occur.SHOULD)
+            .add(new TermQuery(new Term("prefix_field", "g")), Occur.SHOULD)
+            .build());
+        assertThat(query, equalTo(expectedQuery));
+    }
+
     public void testToQueryWilcardQueryWithSynonyms() throws Exception {
         for (Operator op : Operator.values()) {
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
@@ -672,16 +701,22 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
             // span query with slop
             query = queryParser.parse("\"that guinea pig smells\"~2");
-            expectedQuery = new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
-                .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "that")))
-                .addClause(
-                    new SpanOrQuery(
-                        new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
-                            .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "guinea")))
-                            .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "pig"))).build(),
-                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))))
-                .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "smells")))
+            PhraseQuery pq1 = new PhraseQuery.Builder()
+                .add(new Term(STRING_FIELD_NAME, "that"))
+                .add(new Term(STRING_FIELD_NAME, "guinea"))
+                .add(new Term(STRING_FIELD_NAME, "pig"))
+                .add(new Term(STRING_FIELD_NAME, "smells"))
                 .setSlop(2)
+                .build();
+            PhraseQuery pq2 = new PhraseQuery.Builder()
+                .add(new Term(STRING_FIELD_NAME, "that"))
+                .add(new Term(STRING_FIELD_NAME, "cavy"))
+                .add(new Term(STRING_FIELD_NAME, "smells"))
+                .setSlop(2)
+                .build();
+            expectedQuery = new BooleanQuery.Builder()
+                .add(pq1, Occur.SHOULD)
+                .add(pq2, Occur.SHOULD)
                 .build();
             assertThat(query, Matchers.equalTo(expectedQuery));
         }
@@ -814,7 +849,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryBuilder queryBuilder = parseQuery(queryAsString);
         assertThat(queryBuilder, instanceOf(QueryStringQueryBuilder.class));
         QueryStringQueryBuilder queryStringQueryBuilder = (QueryStringQueryBuilder) queryBuilder;
-        assertThat(queryStringQueryBuilder.timeZone(), equalTo(DateTimeZone.forID("Europe/Paris")));
+        assertThat(queryStringQueryBuilder.timeZone(), equalTo(ZoneId.of("Europe/Paris")));
 
         String invalidQueryAsString = "{\n" +
                 "    \"query_string\":{\n" +
@@ -822,7 +857,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "        \"query\":\"" + DATE_FIELD_NAME + ":[2012 TO 2014]\"\n" +
                 "    }\n" +
                 "}";
-        expectThrows(IllegalArgumentException.class, () -> parseQuery(invalidQueryAsString));
+        expectThrows(DateTimeException.class, () -> parseQuery(invalidQueryAsString));
     }
 
     public void testToQueryBooleanQueryMultipleBoosts() throws Exception {
@@ -1174,20 +1209,21 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .field("unmapped_field")
             .lenient(true)
             .toQuery(createShardContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(new BooleanQuery.Builder().build(), query);
 
         // Unmapped prefix field
         query = new QueryStringQueryBuilder("unmapped_field:hello")
             .lenient(true)
             .toQuery(createShardContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(new BooleanQuery.Builder().build(), query);
 
         // Unmapped fields
         query = new QueryStringQueryBuilder("hello")
             .lenient(true)
             .field("unmapped_field")
+            .field("another_field")
             .toQuery(createShardContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(new BooleanQuery.Builder().build(), query);
     }
 
     public void testDefaultField() throws Exception {
@@ -1385,6 +1421,54 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                     Settings.builder().putList("index.query.default_field", "*").build())
             );
         }
+    }
+
+    public void testPhraseSlop() throws Exception {
+        Query query = new QueryStringQueryBuilder("quick fox")
+            .field(STRING_FIELD_NAME)
+            .type(MultiMatchQueryBuilder.Type.PHRASE)
+            .toQuery(createShardContext());
+
+        PhraseQuery expected = new PhraseQuery.Builder()
+            .add(new Term(STRING_FIELD_NAME, "quick"))
+            .add(new Term(STRING_FIELD_NAME, "fox"))
+            .build();
+        assertEquals(expected, query);
+
+        query = new QueryStringQueryBuilder("quick fox")
+            .field(STRING_FIELD_NAME)
+            .type(MultiMatchQueryBuilder.Type.PHRASE)
+            .phraseSlop(2)
+            .toQuery(createShardContext());
+
+        expected = new PhraseQuery.Builder()
+            .add(new Term(STRING_FIELD_NAME, "quick"))
+            .add(new Term(STRING_FIELD_NAME, "fox"))
+            .setSlop(2)
+            .build();
+        assertEquals(expected, query);
+
+        query = new QueryStringQueryBuilder("\"quick fox\"")
+            .field(STRING_FIELD_NAME)
+            .phraseSlop(2)
+            .toQuery(createShardContext());
+        assertEquals(expected, query);
+
+        query = new QueryStringQueryBuilder("\"quick fox\"~2")
+            .field(STRING_FIELD_NAME)
+            .phraseSlop(10)
+            .toQuery(createShardContext());
+        assertEquals(expected, query);
+    }
+
+    public void testAnalyzedPrefix() throws Exception {
+        Query query = new QueryStringQueryBuilder("quick* @&*")
+            .field(STRING_FIELD_NAME)
+            .analyzer("standard")
+            .analyzeWildcard(true)
+            .toQuery(createShardContext());
+        Query expected = new PrefixQuery(new Term(STRING_FIELD_NAME, "quick"));
+        assertEquals(expected, query);
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

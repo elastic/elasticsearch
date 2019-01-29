@@ -73,21 +73,14 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, FieldNamesFieldMapper> {
+    private static class Builder extends MetadataFieldMapper.Builder<Builder, FieldNamesFieldMapper> {
         private boolean enabled = Defaults.ENABLED;
 
-        public Builder(MappedFieldType existing) {
+        private Builder(MappedFieldType existing) {
             super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
         }
 
-        @Override
-        @Deprecated
-        public Builder index(boolean index) {
-            enabled(index);
-            return super.index(index);
-        }
-
-        public Builder enabled(boolean enabled) {
+        private Builder enabled(boolean enabled) {
             this.enabled = enabled;
             return this;
         }
@@ -104,7 +97,8 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+                                                      ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
 
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {

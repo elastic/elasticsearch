@@ -20,21 +20,20 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 
-import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjusters;
-import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalQueries;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
@@ -47,33 +46,25 @@ import java.util.function.LongSupplier;
  */
 public class JavaDateMathParser implements DateMathParser {
 
-    // base fields which should be used for default parsing, when we round up
-    private static final Map<TemporalField, Long> ROUND_UP_BASE_FIELDS = new HashMap<>(6);
-    {
-        ROUND_UP_BASE_FIELDS.put(ChronoField.MONTH_OF_YEAR, 1L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.DAY_OF_MONTH, 1L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.HOUR_OF_DAY, 23L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.MINUTE_OF_HOUR, 59L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.SECOND_OF_MINUTE, 59L);
-        ROUND_UP_BASE_FIELDS.put(ChronoField.MILLI_OF_SECOND, 999L);
-    }
+    private final DateTimeFormatter formatter;
+    private final DateTimeFormatter roundUpFormatter;
+    private final String format;
 
-    private final DateFormatter formatter;
-    private final DateFormatter roundUpFormatter;
-
-    public JavaDateMathParser(DateFormatter formatter) {
+    JavaDateMathParser(String format, DateTimeFormatter formatter, DateTimeFormatter roundUpFormatter) {
+        this.format = format;
         Objects.requireNonNull(formatter);
         this.formatter = formatter;
-        this.roundUpFormatter = formatter.parseDefaulting(ROUND_UP_BASE_FIELDS);
+        this.roundUpFormatter = roundUpFormatter;
     }
 
     @Override
-    public long parse(String text, LongSupplier now, boolean roundUp, ZoneId timeZone) {
-        long time;
+    public Instant parse(String text, LongSupplier now, boolean roundUp, ZoneId timeZone) {
+        Instant time;
         String mathString;
         if (text.startsWith("now")) {
             try {
-                time = now.getAsLong();
+                // TODO only millisecond granularity here!
+                time = Instant.ofEpochMilli(now.getAsLong());
             } catch (Exception e) {
                 throw new ElasticsearchParseException("could not read the current timestamp", e);
             }
@@ -90,12 +81,12 @@ public class JavaDateMathParser implements DateMathParser {
         return parseMath(mathString, time, roundUp, timeZone);
     }
 
-    private long parseMath(final String mathString, final long time, final boolean roundUp,
+    private Instant parseMath(final String mathString, final Instant time, final boolean roundUp,
                            ZoneId timeZone) throws ElasticsearchParseException {
         if (timeZone == null) {
             timeZone = ZoneOffset.UTC;
         }
-        ZonedDateTime dateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(time), timeZone);
+        ZonedDateTime dateTime = ZonedDateTime.ofInstant(time, timeZone);
         for (int i = 0; i < mathString.length(); ) {
             char c = mathString.charAt(i++);
             final boolean round;
@@ -216,14 +207,18 @@ public class JavaDateMathParser implements DateMathParser {
                 dateTime = dateTime.minus(1, ChronoField.MILLI_OF_SECOND.getBaseUnit());
             }
         }
-        return dateTime.toInstant().toEpochMilli();
+        return dateTime.toInstant();
     }
 
-    private long parseDateTime(String value, ZoneId timeZone, boolean roundUpIfNoTime) {
-        DateFormatter formatter = roundUpIfNoTime ? this.roundUpFormatter : this.formatter;
+    private Instant parseDateTime(String value, ZoneId timeZone, boolean roundUpIfNoTime) {
+        if (Strings.isNullOrEmpty(value)) {
+            throw new ElasticsearchParseException("cannot parse empty date");
+        }
+
+        DateTimeFormatter formatter = roundUpIfNoTime ? this.roundUpFormatter : this.formatter;
         try {
             if (timeZone == null) {
-                return DateFormatters.toZonedDateTime(formatter.parse(value)).toInstant().toEpochMilli();
+                return DateFormatters.toZonedDateTime(formatter.parse(value)).toInstant();
             } else {
                 TemporalAccessor accessor = formatter.parse(value);
                 ZoneId zoneId = TemporalQueries.zone().queryFrom(accessor);
@@ -231,10 +226,11 @@ public class JavaDateMathParser implements DateMathParser {
                     timeZone = zoneId;
                 }
 
-                return DateFormatters.toZonedDateTime(accessor).withZoneSameLocal(timeZone).toInstant().toEpochMilli();
+                return DateFormatters.toZonedDateTime(accessor).withZoneSameLocal(timeZone).toInstant();
             }
-        } catch (IllegalArgumentException | DateTimeException e) {
-            throw new ElasticsearchParseException("failed to parse date field [{}]: [{}]", e, value, e.getMessage());
+        } catch (DateTimeParseException e) {
+            throw new ElasticsearchParseException("failed to parse date field [{}] with format [{}]: [{}]",
+                e, value, format, e.getMessage());
         }
     }
 }

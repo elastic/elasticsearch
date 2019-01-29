@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Request;
@@ -24,6 +25,7 @@ import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
@@ -45,6 +47,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -85,8 +88,9 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
         if (installTemplates()) {
             List<String> templates = new ArrayList<>();
             templates.addAll(Arrays.asList(AuditorField.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME,
-                    AnomalyDetectorsIndex.jobStateIndexName(),
-                    AnomalyDetectorsIndex.jobResultsIndexPrefix()));
+                    AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
+                    AnomalyDetectorsIndex.jobResultsIndexPrefix(),
+                    AnomalyDetectorsIndex.configIndexName()));
 
             for (String template : templates) {
                 awaitCallApi("indices.exists_template", singletonMap("name", template), emptyList(),
@@ -110,7 +114,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                             getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
                         boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
                         assertThat(isAcknowledged, is(true));
-                        break;
+                        throw new AssertionError("waiting until stopped state reached started state");
                     case "stopping":
                         throw new AssertionError("waiting until stopping state reached stopped state to start again");
                     case "starting":
@@ -136,6 +140,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                 return;
             }
             Request searchWatchesRequest = new Request("GET", ".watches/_search");
+            searchWatchesRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
             searchWatchesRequest.addParameter("size", "1000");
             Response response = adminClient().performRequest(searchWatchesRequest);
             ObjectPath objectPathResponse = ObjectPath.createFromResponse(response);
@@ -144,7 +149,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                 List<Map<String, Object>> hits = objectPathResponse.evaluate("hits.hits");
                 for (Map<String, Object> hit : hits) {
                     String id = (String) hit.get("_id");
-                    adminClient().performRequest(new Request("DELETE", "_xpack/watcher/watch/" + id));
+                    adminClient().performRequest(new Request("DELETE", "_watcher/watch/" + id));
                 }
             }
         }
@@ -178,7 +183,10 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                         return acknowledged != null && (Boolean) acknowledged;
                     },
                     () -> "Exception when enabling monitoring");
-            awaitCallApi("search", singletonMap("index", ".monitoring-*"), emptyList(),
+            Map<String, String> searchParams = new HashMap<>();
+            searchParams.put("index", ".monitoring-*");
+            searchParams.put(TOTAL_HITS_AS_INT_PARAM, "true");
+            awaitCallApi("search", searchParams, emptyList(),
                     response -> ((Number) response.evaluate("hits.total")).intValue() > 0,
                     () -> "Exception when waiting for monitoring documents to be indexed");
         }

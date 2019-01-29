@@ -23,7 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.similarities.AfterEffect;
 import org.apache.lucene.search.similarities.AfterEffectB;
 import org.apache.lucene.search.similarities.AfterEffectL;
-import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.BasicModel;
 import org.apache.lucene.search.similarities.BasicModelG;
 import org.apache.lucene.search.similarities.BasicModelIF;
@@ -51,6 +50,7 @@ import org.apache.lucene.search.similarities.NormalizationH1;
 import org.apache.lucene.search.similarities.NormalizationH2;
 import org.apache.lucene.search.similarities.NormalizationH3;
 import org.apache.lucene.search.similarities.NormalizationZ;
+import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -139,7 +139,7 @@ final class SimilarityProviders {
         if (model == null) {
             String replacement = LEGACY_BASIC_MODELS.get(basicModel);
             if (replacement != null) {
-                if (indexCreatedVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
+                if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
                     throw new IllegalArgumentException("Basic model [" + basicModel + "] isn't supported anymore, " +
                         "please use another model.");
                 } else {
@@ -170,7 +170,7 @@ final class SimilarityProviders {
         if (effect == null) {
             String replacement = LEGACY_AFTER_EFFECTS.get(afterEffect);
             if (replacement != null) {
-                if (indexCreatedVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
+                if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
                     throw new IllegalArgumentException("After effect [" + afterEffect +
                         "] isn't supported anymore, please use another effect.");
                 } else {
@@ -261,7 +261,7 @@ final class SimilarityProviders {
         unknownSettings.removeAll(Arrays.asList(supportedSettings));
         unknownSettings.remove("type"); // used to figure out which sim this is
         if (unknownSettings.isEmpty() == false) {
-            if (version.onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (version.onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             } else {
                 deprecationLogger.deprecated("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
@@ -269,14 +269,14 @@ final class SimilarityProviders {
         }
     }
 
-    public static BM25Similarity createBM25Similarity(Settings settings, Version indexCreatedVersion) {
+    public static LegacyBM25Similarity createBM25Similarity(Settings settings, Version indexCreatedVersion) {
         assertSettingsIsSubsetOf("BM25", indexCreatedVersion, settings, "k1", "b", DISCOUNT_OVERLAPS);
 
         float k1 = settings.getAsFloat("k1", 1.2f);
         float b = settings.getAsFloat("b", 0.75f);
         boolean discountOverlaps = settings.getAsBoolean(DISCOUNT_OVERLAPS, true);
 
-        BM25Similarity similarity = new BM25Similarity(k1, b);
+        LegacyBM25Similarity similarity = new LegacyBM25Similarity(k1, b);
         similarity.setDiscountOverlaps(discountOverlaps);
         return similarity;
     }

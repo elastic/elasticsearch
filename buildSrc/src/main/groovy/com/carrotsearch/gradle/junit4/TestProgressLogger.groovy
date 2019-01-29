@@ -125,7 +125,7 @@ class TestProgressLogger implements AggregatedEventListener {
 
     @Subscribe
     void onTestResult(AggregatedTestResultEvent e) throws IOException {
-        final String statusMessage
+        String statusMessage
         testsCompleted++
         switch (e.status) {
         case ERROR:

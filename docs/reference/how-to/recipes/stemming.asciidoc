@@ -24,16 +24,14 @@ PUT index
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "body": {
-          "type": "text",
-          "analyzer": "english",
-          "fields": {
-            "exact": {
-              "type": "text",
-              "analyzer": "english_exact"
-            }
+    "properties": {
+      "body": {
+        "type": "text",
+        "analyzer": "english",
+        "fields": {
+          "exact": {
+            "type": "text",
+            "analyzer": "english_exact"
           }
         }
       }
@@ -84,7 +82,10 @@ GET index/_search
     "failed": 0
   },
   "hits": {
-    "total": 2,
+    "total" : {
+        "value": 2,
+        "relation": "eq"
+    },
     "max_score": 0.18232156,
     "hits": [
       {
@@ -142,7 +143,10 @@ GET index/_search
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.8025915,
     "hits": [
       {
@@ -199,7 +203,10 @@ GET index/_search
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.8025915,
     "hits": [
       {

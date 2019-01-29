@@ -6,21 +6,29 @@
 package org.elasticsearch.xpack.core.security.authc.ldap.support;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.Function;
 
 public final class LdapLoadBalancingSettings {
-    public static final String LOAD_BALANCE_SETTINGS = "load_balance";
-    public static final String LOAD_BALANCE_TYPE_SETTING = "type";
-    public static final String CACHE_TTL_SETTING = "cache_ttl";
 
-    private LdapLoadBalancingSettings() {}
+    public static final Function<String, Setting.AffixSetting<String>> LOAD_BALANCE_TYPE_SETTING = RealmSettings.affixSetting(
+            "load_balance.type", key -> Setting.simpleString(key, Setting.Property.NodeScope));
 
-    public static Set<Setting<?>> getSettings() {
-        Set<Setting<?>> settings = new HashSet<>();
-        settings.add(Setting.simpleString(LOAD_BALANCE_SETTINGS + "." + LOAD_BALANCE_TYPE_SETTING, Setting.Property.NodeScope));
-        settings.add(Setting.simpleString(LOAD_BALANCE_SETTINGS + "." + CACHE_TTL_SETTING, Setting.Property.NodeScope));
+    private static final TimeValue CACHE_TTL_DEFAULT = TimeValue.timeValueHours(1L);
+    public static final Function<String, Setting.AffixSetting<TimeValue>> CACHE_TTL_SETTING = RealmSettings.affixSetting(
+            "load_balance.cache_ttl", key -> Setting.timeSetting(key, CACHE_TTL_DEFAULT, Setting.Property.NodeScope));
+
+    private LdapLoadBalancingSettings() {
+    }
+
+    public static Set<Setting.AffixSetting<?>> getSettings(String realmType) {
+        Set<Setting.AffixSetting<?>> settings = new HashSet<>();
+        settings.add(LOAD_BALANCE_TYPE_SETTING.apply(realmType));
+        settings.add(CACHE_TTL_SETTING.apply(realmType));
         return settings;
     }
 }

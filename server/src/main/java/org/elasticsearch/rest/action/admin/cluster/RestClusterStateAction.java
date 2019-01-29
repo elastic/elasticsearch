@@ -67,6 +67,10 @@ public class RestClusterStateAction extends BaseRestHandler {
         clusterStateRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterStateRequest.indicesOptions()));
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        if (request.hasParam("wait_for_metadata_version")) {
+            clusterStateRequest.waitForMetaDataVersion(request.paramAsLong("wait_for_metadata_version", 0));
+        }
+        clusterStateRequest.waitForTimeout(request.paramAsTime("wait_for_timeout", ClusterStateRequest.DEFAULT_WAIT_FOR_NODE_TIMEOUT));
 
         final String[] indices = Strings.splitStringByCommaToArray(request.param("indices", "_all"));
         boolean isAllIndicesOnly = indices.length == 1 && "_all".equals(indices[0]);
@@ -94,6 +98,9 @@ public class RestClusterStateAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
+                if (clusterStateRequest.waitForMetaDataVersion() != null) {
+                    builder.field(Fields.WAIT_FOR_TIMED_OUT, response.isWaitForTimedOut());
+                }
                 builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
                 builder.humanReadableField(Fields.CLUSTER_STATE_SIZE_IN_BYTES, Fields.CLUSTER_STATE_SIZE,
                         response.getTotalCompressedSize());
@@ -124,6 +131,7 @@ public class RestClusterStateAction extends BaseRestHandler {
     }
 
     static final class Fields {
+        static final String WAIT_FOR_TIMED_OUT = "wait_for_timed_out";
         static final String CLUSTER_NAME = "cluster_name";
         static final String CLUSTER_STATE_SIZE = "compressed_size";
         static final String CLUSTER_STATE_SIZE_IN_BYTES = "compressed_size_in_bytes";

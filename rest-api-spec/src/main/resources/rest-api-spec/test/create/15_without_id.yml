@@ -1,8 +1,10 @@
 ---
 "Create without ID":
+ - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
  - do:
       catch: param
       create:
           index:  test_1
-          type:   test
           body:   { foo: bar }

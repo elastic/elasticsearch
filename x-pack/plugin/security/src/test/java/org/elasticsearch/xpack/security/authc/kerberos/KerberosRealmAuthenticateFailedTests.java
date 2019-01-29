@@ -18,18 +18,17 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
 import org.ietf.jgss.GSSException;
 
+import javax.security.auth.login.LoginException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import javax.security.auth.login.LoginException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -60,8 +59,8 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
         final boolean throwExceptionForInvalidTicket = validTicket ? false : randomBoolean();
         final boolean throwLoginException = randomBoolean();
         final byte[] decodedTicket = randomByteArrayOfLength(5);
-        final Path keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
-        final boolean krbDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
+        final Path keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
+        final boolean krbDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
         if (validTicket) {
             mockKerberosTicketValidator(decodedTicket, keytabPath, krbDebug, new Tuple<>(username, outToken), null);
         } else {
@@ -122,16 +121,16 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
 
     public void testDelegatedAuthorizationFailedToResolve() throws Exception {
         final String username = randomPrincipalName();
-        final MockLookupRealm otherRealm = new MockLookupRealm(new RealmConfig("other_realm", Settings.EMPTY, globalSettings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)));
+        final MockLookupRealm otherRealm = new MockLookupRealm(new RealmConfig(new RealmConfig.RealmIdentifier("mock", "other_realm"),
+            globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)));
         final User lookupUser = new User(randomAlphaOfLength(5));
         otherRealm.registerUser(lookupUser);
 
         settings = Settings.builder().put(settings).putList("authorization_realms", "other_realm").build();
         final KerberosRealm kerberosRealm = createKerberosRealm(Collections.singletonList(otherRealm), username);
         final byte[] decodedTicket = "base64encodedticket".getBytes(StandardCharsets.UTF_8);
-        final Path keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
-        final boolean krbDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
+        final Path keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
+        final boolean krbDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
         mockKerberosTicketValidator(decodedTicket, keytabPath, krbDebug, new Tuple<>(username, "out-token"), null);
         final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(decodedTicket);
 

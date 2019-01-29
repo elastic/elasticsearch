@@ -20,18 +20,17 @@
 package org.elasticsearch.http.nio;
 
 import io.netty.handler.codec.http.HttpMethod;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.AbstractHttpServerTransport;
 import org.elasticsearch.http.HttpChannel;
@@ -40,7 +39,6 @@ import org.elasticsearch.http.nio.cors.NioCorsConfig;
 import org.elasticsearch.http.nio.cors.NioCorsConfigBuilder;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
-import org.elasticsearch.nio.EventHandler;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioSelector;
@@ -49,6 +47,7 @@ import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.nio.NioGroupFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -60,8 +59,6 @@ import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
-import static org.elasticsearch.common.settings.Setting.intSetting;
-import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
@@ -80,16 +77,11 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MA
 import static org.elasticsearch.http.nio.cors.NioCorsHandler.ANY_ORIGIN;
 
 public class NioHttpServerTransport extends AbstractHttpServerTransport {
-
-    public static final Setting<Integer> NIO_HTTP_ACCEPTOR_COUNT =
-        intSetting("http.nio.acceptor_count", 1, 1, Setting.Property.NodeScope);
-    public static final Setting<Integer> NIO_HTTP_WORKER_COUNT =
-        new Setting<>("http.nio.worker_count",
-            (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
-            (s) -> Setting.parseInt(s, 1, "http.nio.worker_count"), Setting.Property.NodeScope);
+    private static final Logger logger = LogManager.getLogger(NioHttpServerTransport.class);
 
     protected final PageCacheRecycler pageCacheRecycler;
     protected final NioCorsConfig corsConfig;
+    private final NioGroupFactory nioGroupFactory;
 
     protected final boolean tcpNoDelay;
     protected final boolean tcpKeepAlive;
@@ -97,14 +89,15 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
     protected final int tcpSendBufferSize;
     protected final int tcpReceiveBufferSize;
 
-    private NioGroup nioGroup;
+    private volatile NioGroup nioGroup;
     private ChannelFactory<NioHttpServerChannel, NioHttpChannel> channelFactory;
 
     public NioHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
                                   PageCacheRecycler pageCacheRecycler, ThreadPool threadPool, NamedXContentRegistry xContentRegistry,
-                                  Dispatcher dispatcher) {
+                                  Dispatcher dispatcher, NioGroupFactory nioGroupFactory) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
         this.pageCacheRecycler = pageCacheRecycler;
+        this.nioGroupFactory = nioGroupFactory;
 
         ByteSizeValue maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
         ByteSizeValue maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
@@ -132,11 +125,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            int acceptorCount = NIO_HTTP_ACCEPTOR_COUNT.get(settings);
-            int workerCount = NIO_HTTP_WORKER_COUNT.get(settings);
-            nioGroup = new NioGroup(daemonThreadFactory(this.settings, HTTP_SERVER_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
-                daemonThreadFactory(this.settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX), workerCount,
-                (s) -> new EventHandler(this::onNonChannelException, s));
+            nioGroup = nioGroupFactory.getHttpGroup();
             channelFactory = channelFactory();
             bindServer();
             success = true;

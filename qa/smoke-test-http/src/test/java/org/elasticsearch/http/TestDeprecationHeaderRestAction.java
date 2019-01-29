@@ -58,7 +58,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
         Setting.boolSetting("test.setting.not_deprecated", false,
                             Setting.Property.NodeScope, Setting.Property.Dynamic);
 
-    private static final Map<String, Setting<?>> SETTINGS;
+    private static final Map<String, Setting<?>> SETTINGS_MAP;
 
     static {
         Map<String, Setting<?>> settingsMap = new HashMap<>(3);
@@ -67,14 +67,17 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
         settingsMap.put(TEST_DEPRECATED_SETTING_TRUE2.getKey(), TEST_DEPRECATED_SETTING_TRUE2);
         settingsMap.put(TEST_NOT_DEPRECATED_SETTING.getKey(), TEST_NOT_DEPRECATED_SETTING);
 
-        SETTINGS = Collections.unmodifiableMap(settingsMap);
+        SETTINGS_MAP = Collections.unmodifiableMap(settingsMap);
     }
 
     public static final String DEPRECATED_ENDPOINT = "[/_test_cluster/deprecated_settings] exists for deprecated tests";
     public static final String DEPRECATED_USAGE = "[deprecated_settings] usage is deprecated. use [settings] instead";
 
+    private final Settings settings;
+
     public TestDeprecationHeaderRestAction(Settings settings, RestController controller) {
         super(settings);
+        this.settings = settings;
 
         controller.registerAsDeprecatedHandler(RestRequest.Method.GET, "/_test_cluster/deprecated_settings", this,
                                                DEPRECATED_ENDPOINT, deprecationLogger);
@@ -107,7 +110,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
 
             builder.startObject().startArray("settings");
             for (String setting : settings) {
-                builder.startObject().field(setting, SETTINGS.get(setting).getRaw(this.settings)).endObject();
+                builder.startObject().field(setting, SETTINGS_MAP.get(setting).getRaw(this.settings)).endObject();
             }
             builder.endArray().endObject();
             channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));

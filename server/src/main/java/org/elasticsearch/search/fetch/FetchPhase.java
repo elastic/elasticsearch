@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -26,7 +28,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
@@ -73,6 +74,7 @@ import java.util.Set;
  * after reducing all of the matches returned by the query phase
  */
 public class FetchPhase implements SearchPhase {
+    private static final Logger LOGGER = LogManager.getLogger(FetchPhase.class);
 
     private final FetchSubPhase[] fetchSubPhases;
 
@@ -87,6 +89,11 @@ public class FetchPhase implements SearchPhase {
 
     @Override
     public void execute(SearchContext context) {
+
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("{}", new SearchContextSourcePrinter(context));
+        }
+
         final FieldsVisitor fieldsVisitor;
         Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
         StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
@@ -174,8 +181,7 @@ public class FetchPhase implements SearchPhase {
             }
 
             TotalHits totalHits = context.queryResult().getTotalHits();
-            long totalHitsAsLong = totalHits.relation == Relation.EQUAL_TO ? totalHits.value : -1;
-            context.fetchResult().hits(new SearchHits(hits, totalHitsAsLong, context.queryResult().getMaxScore()));
+            context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));
         } catch (IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
         }

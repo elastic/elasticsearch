@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -14,7 +13,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
@@ -33,7 +31,6 @@ import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
@@ -79,17 +76,6 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     private Renormalizer renormalizer;
 
     @Override
-    protected Settings nodeSettings()  {
-        Settings.Builder newSettings = Settings.builder();
-        newSettings.put(super.nodeSettings());
-        // Disable security otherwise delete-by-query action fails to get authorized
-        newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        newSettings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
-        newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        return newSettings.build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(LocalStateMachineLearning.class, ReindexPlugin.class);
     }
@@ -103,18 +89,18 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         renormalizer = mock(Renormalizer.class);
         capturedUpdateModelSnapshotOnJobRequests = new ArrayList<>();
         resultProcessor = new AutoDetectResultProcessor(client(), auditor, JOB_ID, renormalizer,
-                new JobResultsPersister(nodeSettings(), client()), jobResultsProvider, new ModelSizeStats.Builder(JOB_ID).build(), false) {
+                new JobResultsPersister(client()), new ModelSizeStats.Builder(JOB_ID).build()) {
             @Override
             protected void updateModelSnapshotOnJob(ModelSnapshot modelSnapshot) {
                 capturedUpdateModelSnapshotOnJobRequests.add(modelSnapshot);
             }
         };
-        putIndexTemplates();
+        waitForMlTemplates();
         putJob();
     }
 
     @After
-    public void deleteJob() throws Exception {
+    public void deleteJob() {
         DeleteJobAction.Request request = new DeleteJobAction.Request(JOB_ID);
         AcknowledgedResponse response = client().execute(DeleteJobAction.INSTANCE, request).actionGet();
         assertTrue(response.isAcknowledged());
@@ -288,15 +274,6 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         assertResultsAreSame(allRecords, persistedRecords);
     }
 
-    private void putIndexTemplates() throws Exception {
-        // block until the templates are installed
-        assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
-            assertTrue("Timed out waiting for the ML templates to be installed",
-                    MachineLearning.allTemplatesInstalled(state));
-        });
-    }
-
     private void putJob() {
         Detector detector = new Detector.Builder("dc", "by_instance").build();
         Job.Builder jobBuilder = new Job.Builder(JOB_ID);
@@ -312,11 +289,16 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         return bucket;
     }
 
+    private Date randomDate() {
+        // between 1970 and 2065
+        return new Date(randomLongBetween(0, 3000000000000L));
+    }
+
     private List<AnomalyRecord> createRecords(boolean isInterim) {
         List<AnomalyRecord> records = new ArrayList<>();
 
         int count = randomIntBetween(0, 100);
-        Date now = new Date(randomNonNegativeLong());
+        Date now = randomDate();
         for (int i=0; i<count; i++) {
             AnomalyRecord r = new AnomalyRecord(JOB_ID, now, 3600L);
             r.setByFieldName("by_instance");
@@ -350,8 +332,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
 
     private ModelSizeStats createModelSizeStats() {
         ModelSizeStats.Builder builder = new ModelSizeStats.Builder(JOB_ID);
-        builder.setTimestamp(new Date(randomNonNegativeLong()));
-        builder.setLogTime(new Date(randomNonNegativeLong()));
+        builder.setTimestamp(randomDate());
+        builder.setLogTime(randomDate());
         builder.setBucketAllocationFailuresCount(randomNonNegativeLong());
         builder.setModelBytes(randomNonNegativeLong());
         builder.setTotalByFieldCount(randomNonNegativeLong());
@@ -366,11 +348,11 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     }
 
     private Quantiles createQuantiles() {
-        return new Quantiles(JOB_ID, new Date(randomNonNegativeLong()), randomAlphaOfLength(100));
+        return new Quantiles(JOB_ID, randomDate(), randomAlphaOfLength(100));
     }
 
     private FlushAcknowledgement createFlushAcknowledgement() {
-        return new FlushAcknowledgement(randomAlphaOfLength(5), new Date(randomNonNegativeLong()));
+        return new FlushAcknowledgement(randomAlphaOfLength(5), randomDate());
     }
 
     private class ResultsBuilder {

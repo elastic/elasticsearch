@@ -20,7 +20,6 @@
 package org.elasticsearch.repositories.gcs;
 
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
 
 import java.util.Locale;
@@ -42,6 +41,6 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESBlobStoreContai
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
-        return new GoogleCloudStorageBlobStore(Settings.EMPTY, bucketName, clientName, storageService);
+        return new GoogleCloudStorageBlobStore(bucketName, clientName, storageService);
     }
 }

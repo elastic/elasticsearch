@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
@@ -44,8 +45,8 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
         private static final ObjectParser<Request, String> PARSER = new ObjectParser<>("put_auto_follow_pattern_request", Request::new);
-
         private static final ParseField NAME_FIELD = new ParseField("name");
+        private static final int MAX_NAME_BYTES = 255;
 
         static {
             PARSER.declareString(Request::setName, NAME_FIELD);
@@ -110,11 +111,29 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
         private TimeValue maxRetryDelay;
         private TimeValue readPollTimeout;
 
+        public Request() {
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
             if (name == null) {
                 validationException = addValidationError("[" + NAME_FIELD.getPreferredName() + "] is missing", validationException);
+            }
+            if (name != null) {
+                if (name.contains(",")) {
+                    validationException = addValidationError("[" + NAME_FIELD.getPreferredName() + "] name must not contain a ','",
+                        validationException);
+                }
+                if (name.startsWith("_")) {
+                    validationException = addValidationError("[" + NAME_FIELD.getPreferredName() + "] name must not start with '_'",
+                        validationException);
+                }
+                int byteCount = name.getBytes(StandardCharsets.UTF_8).length;
+                if (byteCount > MAX_NAME_BYTES) {
+                    validationException = addValidationError("[" + NAME_FIELD.getPreferredName() + "] name is too long (" +
+                        byteCount + " > " + MAX_NAME_BYTES + ")", validationException);
+                }
             }
             if (remoteCluster == null) {
                 validationException = addValidationError("[" + REMOTE_CLUSTER_FIELD.getPreferredName() +
@@ -252,12 +271,11 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             this.readPollTimeout = readPollTimeout;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Request(StreamInput in) throws IOException {
+            super(in);
             name = in.readString();
             remoteCluster = in.readString();
-            leaderIndexPatterns = in.readList(StreamInput::readString);
+            leaderIndexPatterns = in.readStringList();
             followIndexNamePattern = in.readOptionalString();
             maxReadRequestOperationCount = in.readOptionalVInt();
             maxReadRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
@@ -276,7 +294,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(name);
             out.writeString(remoteCluster);
-            out.writeStringList(leaderIndexPatterns);
+            out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexNamePattern);
             out.writeOptionalVInt(maxReadRequestOperationCount);
             out.writeOptionalWriteable(maxReadRequestSize);

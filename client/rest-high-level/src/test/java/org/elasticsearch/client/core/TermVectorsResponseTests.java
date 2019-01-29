@@ -35,8 +35,8 @@ public class TermVectorsResponseTests extends ESTestCase {
     public void testFromXContent() throws IOException {
         xContentTester(
             this::createParser,
-            this::createTestInstance,
-            this::toXContent,
+            TermVectorsResponseTests::createTestInstance,
+            TermVectorsResponseTests::toXContent,
             TermVectorsResponse::fromXContent)
             .supportsUnknownFields(true)
             .randomFieldsExcludeFilter(field ->
@@ -44,7 +44,7 @@ public class TermVectorsResponseTests extends ESTestCase {
             .test();
     }
 
-    private void toXContent(TermVectorsResponse response, XContentBuilder builder) throws IOException {
+    static void toXContent(TermVectorsResponse response, XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field("_index", response.getIndex());
         builder.field("_type", response.getType());
@@ -66,7 +66,7 @@ public class TermVectorsResponseTests extends ESTestCase {
         builder.endObject();
     }
 
-    private void toXContent(TermVectorsResponse.TermVector tv, XContentBuilder builder) throws IOException {
+    private static void toXContent(TermVectorsResponse.TermVector tv, XContentBuilder builder) throws IOException {
         builder.startObject(tv.getFieldName());
         // build fields_statistics
         if (tv.getFieldStatistics() != null) {
@@ -117,7 +117,7 @@ public class TermVectorsResponseTests extends ESTestCase {
     }
 
 
-    protected TermVectorsResponse createTestInstance() {
+    static TermVectorsResponse createTestInstance() {
         String index = randomAlphaOfLength(5);
         String type = randomAlphaOfLength(5);
         String id = String.valueOf(randomIntBetween(1,100));
@@ -148,7 +148,7 @@ public class TermVectorsResponseTests extends ESTestCase {
 
 
 
-    private TermVectorsResponse.TermVector randomTermVector(String fieldName, boolean hasFieldStatistics, boolean hasTermStatistics,
+    private static TermVectorsResponse.TermVector randomTermVector(String fieldName, boolean hasFieldStatistics, boolean hasTermStatistics,
             boolean hasScores, boolean hasOffsets, boolean hasPositions, boolean hasPayloads) {
         TermVectorsResponse.TermVector.FieldStatistics fs = null;
         if (hasFieldStatistics) {
@@ -171,7 +171,7 @@ public class TermVectorsResponseTests extends ESTestCase {
         return tv;
     }
 
-    private TermVectorsResponse.TermVector.Term randomTerm(String termTxt, boolean hasTermStatistics, boolean hasScores,
+    private static TermVectorsResponse.TermVector.Term randomTerm(String termTxt, boolean hasTermStatistics, boolean hasScores,
             boolean hasOffsets, boolean hasPositions, boolean hasPayloads) {
 
         int termFreq =  randomInt(10000);

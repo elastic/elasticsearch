@@ -28,7 +28,6 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.discovery.Discovery;
@@ -45,8 +44,8 @@ import org.elasticsearch.transport.TransportService;
 import java.io.Closeable;
 import java.io.IOException;
 
-public class NodeService extends AbstractComponent implements Closeable {
-
+public class NodeService implements Closeable {
+    private final Settings settings;
     private final ThreadPool threadPool;
     private final MonitorService monitorService;
     private final TransportService transportService;
@@ -68,7 +67,7 @@ public class NodeService extends AbstractComponent implements Closeable {
                 @Nullable HttpServerTransport httpServerTransport, IngestService ingestService, ClusterService clusterService,
                 SettingsFilter settingsFilter, ResponseCollectorService responseCollectorService,
                 SearchTransportService searchTransportService) {
-        super(settings);
+        this.settings = settings;
         this.threadPool = threadPool;
         this.monitorService = monitorService;
         this.transportService = transportService;

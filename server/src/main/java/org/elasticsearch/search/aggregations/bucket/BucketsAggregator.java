@@ -116,8 +116,8 @@ public abstract class BucketsAggregator extends AggregatorBase {
         if (bucketOrd >= docCounts.size()) {
             // This may happen eg. if no document in the highest buckets is accepted by a sub aggregator.
             // For example, if there is a long terms agg on 3 terms 1,2,3 with a sub filter aggregator and if no document with 3 as a value
-            // matches the filter, then the filter will never collect bucket ord 3. However, the long terms agg will call bucketAggregations(3)
-            // on the filter aggregator anyway to build sub-aggregations.
+            // matches the filter, then the filter will never collect bucket ord 3. However, the long terms agg will call
+            // bucketAggregations(3) on the filter aggregator anyway to build sub-aggregations.
             return 0;
         } else {
             return docCounts.get(bucketOrd);

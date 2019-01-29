@@ -214,7 +214,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testForceAllocatePrimary() {
         testAllocator.addData(node1, "allocId1", randomBoolean());
-        AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, Arrays.asList(
+        AllocationDeciders deciders = new AllocationDeciders(Arrays.asList(
             // since the deciders return a NO decision for allocating a shard (due to the guaranteed NO decision from the second decider),
             // the allocator will see if it can force assign the primary, where the decision will be YES
             new TestAllocateDecision(randomBoolean() ? Decision.YES : Decision.NO), getNoDeciderThatAllowsForceAllocate()
@@ -235,7 +235,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     public void testDontAllocateOnNoOrThrottleForceAllocationDecision() {
         testAllocator.addData(node1, "allocId1", randomBoolean());
         boolean forceDecisionNo = randomBoolean();
-        AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, Arrays.asList(
+        AllocationDeciders deciders = new AllocationDeciders(Arrays.asList(
             // since both deciders here return a NO decision for allocating a shard,
             // the allocator will see if it can force assign the primary, where the decision will be either NO or THROTTLE,
             // so the shard will remain un-initialized
@@ -258,7 +258,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testDontForceAllocateOnThrottleDecision() {
         testAllocator.addData(node1, "allocId1", randomBoolean());
-        AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, Arrays.asList(
+        AllocationDeciders deciders = new AllocationDeciders(Arrays.asList(
             // since we have a NO decision for allocating a shard (because the second decider returns a NO decision),
             // the allocator will see if it can force assign the primary, and in this case,
             // the TestAllocateDecision's decision for force allocating is to THROTTLE (using
@@ -391,7 +391,8 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
 
         final Snapshot snapshot = new Snapshot("test", new SnapshotId("test", UUIDs.randomBase64UUID()));
         RoutingTable routingTable = RoutingTable.builder()
-            .addAsRestore(metaData.index(shardId.getIndex()), new SnapshotRecoverySource(snapshot, Version.CURRENT, shardId.getIndexName()))
+            .addAsRestore(metaData.index(shardId.getIndex()),
+                new SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, Version.CURRENT, shardId.getIndexName()))
             .build();
         ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metaData(metaData)
@@ -466,10 +467,6 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     class TestAllocator extends PrimaryShardAllocator {
 
         private Map<DiscoveryNode, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> data;
-
-        TestAllocator() {
-            super(Settings.EMPTY);
-        }
 
         public TestAllocator clear() {
             data = null;

@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -50,9 +49,9 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
     private final AuthorizationService authorizationService;
 
     @Inject
-    public TransportGetUserPrivilegesAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportGetUserPrivilegesAction(ThreadPool threadPool, TransportService transportService,
                                             ActionFilters actionFilters, AuthorizationService authorizationService) {
-        super(settings, GetUserPrivilegesAction.NAME, transportService, actionFilters, GetUserPrivilegesRequest::new);
+        super(GetUserPrivilegesAction.NAME, transportService, actionFilters, GetUserPrivilegesRequest::new);
         this.threadPool = threadPool;
         this.authorizationService = authorizationService;
     }
@@ -91,7 +90,7 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
         }
 
         final Set<GetUserPrivilegesResponse.Indices> indices = new LinkedHashSet<>();
-        for (IndicesPermission.Group group : userRole.indices()) {
+        for (IndicesPermission.Group group : userRole.indices().groups()) {
             final Set<BytesReference> queries = group.getQuery() == null ? Collections.emptySet() : group.getQuery();
             final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity = group.getFieldPermissions().hasFieldLevelSecurity()
                 ? group.getFieldPermissions().getFieldPermissionsDefinition().getFieldGrantExcludeGroups() : Collections.emptySet();
@@ -99,7 +98,8 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
                 Arrays.asList(group.indices()),
                 group.privilege().name(),
                 fieldSecurity,
-                queries
+                queries,
+                group.allowRestrictedIndices()
             ));
         }
 

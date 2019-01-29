@@ -66,14 +66,6 @@ public interface AliasOrIndex {
         public List<IndexMetaData> getIndices() {
             return Collections.singletonList(concreteIndex);
         }
-
-        /**
-         * @return If this is an concrete index, its {@link IndexMetaData}
-         */
-        public IndexMetaData getIndex() {
-            return concreteIndex;
-        }
-
     }
 
     /**
@@ -83,7 +75,7 @@ public interface AliasOrIndex {
 
         private final String aliasName;
         private final List<IndexMetaData> referenceIndexMetaDatas;
-        private SetOnce<IndexMetaData> writeIndex = new SetOnce<>();
+        private final SetOnce<IndexMetaData> writeIndex = new SetOnce<>();
 
         public Alias(AliasMetaData aliasMetaData, IndexMetaData indexMetaData) {
             this.aliasName = aliasMetaData.getAlias();
@@ -118,30 +110,19 @@ public interface AliasOrIndex {
          * and filters)
          */
         public Iterable<Tuple<String, AliasMetaData>> getConcreteIndexAndAliasMetaDatas() {
-            return new Iterable<Tuple<String, AliasMetaData>>() {
+            return () -> new Iterator<Tuple<String,AliasMetaData>>() {
+
+                int index = 0;
+
                 @Override
-                public Iterator<Tuple<String, AliasMetaData>> iterator() {
-                    return new Iterator<Tuple<String,AliasMetaData>>() {
+                public boolean hasNext() {
+                    return index < referenceIndexMetaDatas.size();
+                }
 
-                        int index = 0;
-
-                        @Override
-                        public boolean hasNext() {
-                            return index < referenceIndexMetaDatas.size();
-                        }
-
-                        @Override
-                        public Tuple<String, AliasMetaData> next() {
-                            IndexMetaData indexMetaData = referenceIndexMetaDatas.get(index++);
-                            return new Tuple<>(indexMetaData.getIndex().getName(), indexMetaData.getAliases().get(aliasName));
-                        }
-
-                        @Override
-                        public void remove() {
-                            throw new UnsupportedOperationException();
-                        }
-
-                    };
+                @Override
+                public Tuple<String, AliasMetaData> next() {
+                    IndexMetaData indexMetaData = referenceIndexMetaDatas.get(index++);
+                    return new Tuple<>(indexMetaData.getIndex().getName(), indexMetaData.getAliases().get(aliasName));
                 }
             };
         }

@@ -53,7 +53,8 @@ public final class QueryRescorer implements Rescorer {
             @Override
             protected float combine(float firstPassScore, boolean secondPassMatches, float secondPassScore) {
                 if (secondPassMatches) {
-                    return rescore.scoreMode.combine(firstPassScore * rescore.queryWeight(), secondPassScore * rescore.rescoreQueryWeight());
+                    return rescore.scoreMode.combine(firstPassScore * rescore.queryWeight(),
+                            secondPassScore * rescore.rescoreQueryWeight());
                 }
                 // TODO: shouldn't this be up to the ScoreMode?  I.e., we should just invoke ScoreMode.combine, passing 0.0f for the
                 // secondary score?

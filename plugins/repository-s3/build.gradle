@@ -1,12 +1,9 @@
-import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.AntFixture
 import org.elasticsearch.gradle.test.ClusterConfiguration
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-
-import java.lang.reflect.Field
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -49,7 +46,7 @@ dependencies {
   compile 'com.fasterxml.jackson.core:jackson-databind:2.6.7.1'
   compile 'com.fasterxml.jackson.core:jackson-annotations:2.6.0'
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-  compile 'joda-time:joda-time:2.10'
+  compile "joda-time:joda-time:${versions.joda}"
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell 
@@ -73,12 +70,10 @@ task testRepositoryCreds(type: RandomizedTestingTask) {
   include '**/RepositoryCredentialsTests.class'
   include '**/S3BlobStoreRepositoryTests.class'
   systemProperty 'es.allow_insecure_settings', 'true'
-  classpath = tasks.test.classpath
-  testClassesDirs = tasks.test.testClassesDirs
 }
 project.check.dependsOn(testRepositoryCreds)
 
-test {
+unitTest {
   // these are tested explicitly in separate test tasks
   exclude '**/*CredentialsTests.class'
   exclude '**/S3BlobStoreRepositoryTests.class'
@@ -109,19 +104,11 @@ String s3ECSBasePath = System.getenv("amazon_s3_base_path_ecs")
 // If all these variables are missing then we are testing against the internal fixture instead, which has the following
 // credentials hard-coded in.
 
-if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath
-        && !s3EC2Bucket && !s3EC2BasePath
-        && !s3ECSBucket && !s3ECSBasePath) {
+if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
   s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
   s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
   s3PermanentBucket = 'permanent-bucket-test'
   s3PermanentBasePath = 'integration_test'
-
-  s3EC2Bucket = 'ec2-bucket-test'
-  s3EC2BasePath = 'integration_test'
-
-  s3ECSBucket = 'ecs-bucket-test'
-  s3ECSBasePath = 'integration_test'
 
   useFixture = true
 
@@ -140,22 +127,13 @@ if (!s3TemporaryAccessKey && !s3TemporarySecretKey && !s3TemporaryBucket && !s3T
   throw new IllegalArgumentException("not all options specified to run against external S3 service as temporary credentials are present")
 }
 
-final String minioVersion = 'RELEASE.2018-06-22T23-48-46Z'
-final String minioBinDir = "${buildDir}/minio/bin"
-final String minioDataDir = "${buildDir}/minio/data"
-final String minioAddress = "127.0.0.1"
-
-final String minioDistribution
-final String minioCheckSum
-if (Os.isFamily(Os.FAMILY_MAC)) {
-  minioDistribution = 'darwin-amd64'
-  minioCheckSum = '96b0bcb2f590e8e65fb83d5c3e221f9bd1106b49fa6f22c6b726b80b845d7c60'
-} else if (Os.isFamily(Os.FAMILY_UNIX)) {
-  minioDistribution = 'linux-amd64'
-  minioCheckSum = '713dac7c105285eab3b92649be92b5e793b29d3525c7929fa7aaed99374fad99'
-} else {
-  minioDistribution = null
-  minioCheckSum = null
+if (!s3EC2Bucket && !s3EC2BasePath && !s3ECSBucket && !s3ECSBasePath) {
+  s3EC2Bucket = 'ec2-bucket-test'
+  s3EC2BasePath = 'integration_test'
+  s3ECSBucket = 'ecs-bucket-test'
+  s3ECSBasePath = 'integration_test'
+} else if (!s3EC2Bucket || !s3EC2BasePath || !s3ECSBucket || !s3ECSBasePath) {
+  throw new IllegalArgumentException("not all options specified to run EC2/ECS tests are present")
 }
 
 buildscript {
@@ -169,153 +147,59 @@ buildscript {
   }
 }
 
-if (useFixture && minioDistribution) {
-  apply plugin: 'de.undercouch.download'
+if (useFixture) {
 
-  final String minioFileName = "minio.${minioVersion}"
-  final String minioDownloadURL = "https://dl.minio.io/server/minio/release/${minioDistribution}/archive/${minioFileName}"
-  final String minioFilePath = "${gradle.gradleUserHomeDir}/downloads/minio/${minioDistribution}/${minioFileName}"
-
-  task downloadMinio(type: Download) {
-    src minioDownloadURL
-    dest minioFilePath
-    onlyIfModified true
-  }
-
-  task verifyMinioChecksum(type: Verify, dependsOn: downloadMinio) {
-    src minioFilePath
-    algorithm 'SHA-256'
-    checksum minioCheckSum
-  }
-
-  task installMinio(type: Sync, dependsOn: verifyMinioChecksum) {
-    from minioFilePath
-    into minioBinDir
-    fileMode 0755
-  }
-
-  task startMinio {
-    dependsOn installMinio
-
-    ext.minioPid = 0L
-    ext.minioPort = 0
-
-    doLast {
-      // get free port
-      ServerSocket serverSocket = new ServerSocket(0, 1, InetAddress.getByName(minioAddress))
-      try {
-        minioPort = serverSocket.localPort
-      } finally {
-        serverSocket.close()
-      }
-      if (minioPort == 0) {
-        throw new GradleException("Could not find a free port for Minio")
-      }
-
-      new File("${minioDataDir}/${s3PermanentBucket}").mkdirs()
-      // we skip these tests on Windows so we do no need to worry about compatibility here
-      final ProcessBuilder minio = new ProcessBuilder(
-              "${minioBinDir}/${minioFileName}",
-              "server",
-              "--address",
-              minioAddress + ":" + minioPort,
-              minioDataDir)
-      minio.environment().put('MINIO_ACCESS_KEY', s3PermanentAccessKey)
-      minio.environment().put('MINIO_SECRET_KEY', s3PermanentSecretKey)
-      final Process process = minio.start()
-      if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
-        try {
-          Class<?> cProcessImpl = process.getClass()
-          Field fPid = cProcessImpl.getDeclaredField("pid")
-          if (!fPid.isAccessible()) {
-            fPid.setAccessible(true)
-          }
-          minioPid = fPid.getInt(process)
-        } catch (Exception e) {
-          logger.error("failed to read pid from minio process", e)
-          process.destroyForcibly()
-          throw e
-        }
-      } else {
-        minioPid = process.pid()
-      }
-
-      new BufferedReader(new InputStreamReader(process.getInputStream())).withReader { br ->
-        String line
-        int httpPort = 0
-        while ((line = br.readLine()) != null) {
-          logger.info(line)
-          if (line.matches('.*Endpoint.*:\\d+$')) {
-            assert httpPort == 0
-            final int index = line.lastIndexOf(":")
-            assert index >= 0
-            httpPort = Integer.parseInt(line.substring(index + 1))
-            assert httpPort == minioPort : "Port mismatch, expected ${minioPort} but was ${httpPort}"
-
-            final File script = new File(project.buildDir, "minio/minio.killer.sh")
-            script.setText(
-                    ["function shutdown {",
-                     "  kill ${minioPid}",
-                     "}",
-                     "trap shutdown EXIT",
-                     // will wait indefinitely for input, but we never pass input, and the pipe is only closed when the build dies
-                     "read line\n"].join('\n'), 'UTF-8')
-            final ProcessBuilder killer = new ProcessBuilder("bash", script.absolutePath)
-            killer.start()
-            break
-          }
-        }
-
-        assert httpPort > 0
-      }
-    }
-  }
-
-  task stopMinio(type: LoggedExec) {
-    onlyIf { startMinio.minioPid > 0 }
-
-    doFirst {
-      logger.info("Shutting down minio with pid ${startMinio.minioPid}")
-    }
-
-    final Object pid = "${ -> startMinio.minioPid }"
-
-    // we skip these tests on Windows so we do no need to worry about compatibility here
-    executable = 'kill'
-    args('-9', pid)
-  }
+  apply plugin: 'elasticsearch.test.fixtures'
 
   RestIntegTestTask integTestMinio = project.tasks.create('integTestMinio', RestIntegTestTask.class) {
     description = "Runs REST tests using the Minio repository."
   }
 
-  // The following closure must execute before the afterEvaluate block in the constructor of the following integrationTest tasks:
-  project.afterEvaluate {
-    ClusterConfiguration cluster = project.extensions.getByName('integTestMinioCluster') as ClusterConfiguration
-    cluster.dependsOn(project.bundlePlugin)
-    cluster.dependsOn(startMinio) // otherwise we don't know the Minio port
-    cluster.keystoreSetting 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
-    cluster.keystoreSetting 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
-
-    Closure<String> minioAddressAndPort = {
-      assert startMinio.minioPort > 0
-      return 'http://' + minioAddress + ':' + startMinio.minioPort
+  Task writeDockerFile = project.tasks.create('writeDockerFile') {
+    File minioDockerfile = new File("${project.buildDir}/minio-docker/Dockerfile")
+    outputs.file(minioDockerfile)
+    doLast {
+      minioDockerfile.parentFile.mkdirs()
+      minioDockerfile.text = "FROM minio/minio:RELEASE.2019-01-23T23-18-58Z\n" +
+        "RUN mkdir -p /minio/data/${s3PermanentBucket}\n" +
+        "ENV MINIO_ACCESS_KEY ${s3PermanentAccessKey}\n" +
+        "ENV MINIO_SECRET_KEY ${s3PermanentSecretKey}"
     }
-    cluster.setting 's3.client.integration_test_permanent.endpoint', "${ -> minioAddressAndPort.call()}"
-
-    Task restIntegTestTask = project.tasks.getByName('integTestMinio')
-    restIntegTestTask.clusterConfig.plugin(project.path)
-
-    // Default jvm arguments for all test clusters
-    String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
-            " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
-            " " + System.getProperty('tests.jvm.argline', '')
-
-    restIntegTestTask.clusterConfig.jvmArgs = jvmArgs
   }
 
-  integTestMinioRunner.dependsOn(startMinio)
-  integTestMinioRunner.finalizedBy(stopMinio)
+  preProcessFixture.dependsOn(writeDockerFile)
+  // The following closure must execute before the afterEvaluate block in the constructor of the following integrationTest tasks:
+  project.afterEvaluate {
+    // Only configure the Minio tests if postProcessFixture is configured to skip them if Docker is not available
+    // or fixtures have been disabled
+    if (postProcessFixture.enabled) {
+      ClusterConfiguration cluster = project.extensions.getByName('integTestMinioCluster') as ClusterConfiguration
+      cluster.dependsOn(project.bundlePlugin)
+      cluster.dependsOn(postProcessFixture)
+      cluster.keystoreSetting 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
+      cluster.keystoreSetting 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
+
+      Closure<String> minioAddressAndPort = {
+        int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
+        assert minioPort > 0
+        return 'http://127.0.0.1:' + minioPort
+      }
+      cluster.setting 's3.client.integration_test_permanent.endpoint', "${-> minioAddressAndPort.call()}"
+
+      Task restIntegTestTask = project.tasks.getByName('integTestMinio')
+      restIntegTestTask.clusterConfig.plugin(project.path)
+
+      // Default jvm arguments for all test clusters
+      String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
+        " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
+        " " + System.getProperty('tests.jvm.argline', '')
+
+      restIntegTestTask.clusterConfig.jvmArgs = jvmArgs
+      project.check.dependsOn(integTestMinio)
+    }
+  }
+
+  integTestMinioRunner.dependsOn(postProcessFixture)
   // Minio only supports a single access key, see https://github.com/minio/minio/pull/5968
   integTestMinioRunner.systemProperty 'tests.rest.blacklist', [
           'repository_s3/30_repository_temporary_credentials/*',
@@ -323,7 +207,7 @@ if (useFixture && minioDistribution) {
           'repository_s3/50_repository_ecs_credentials/*'
         ].join(",")
 
-  project.check.dependsOn(integTestMinio)
+  BuildPlugin.requireDocker(integTestMinio)
 }
 
 File parentFixtures = new File(project.buildDir, "fixtures")
@@ -436,7 +320,7 @@ if (useFixture) {
   project.check.dependsOn(integTestECS)
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
   // classes are missing
   'javax.servlet.ServletContextEvent', 
   'javax.servlet.ServletContextListener', 
@@ -451,12 +335,12 @@ thirdPartyAudit.excludes = [
   'software.amazon.ion.system.IonBinaryWriterBuilder',
   'software.amazon.ion.system.IonSystemBuilder',
   'software.amazon.ion.system.IonTextWriterBuilder',
-  'software.amazon.ion.system.IonWriterBuilder',
-]
+  'software.amazon.ion.system.IonWriterBuilder'
+)
 
 // jarhell with jdk (intentionally, because jaxb was removed from default modules in java 9)
 if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.excludes += [
+  thirdPartyAudit.ignoreJarHellWithJDK (
     'javax.xml.bind.Binder',
     'javax.xml.bind.ContextFinder$1',
     'javax.xml.bind.ContextFinder',
@@ -558,9 +442,9 @@ if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
     'javax.xml.bind.util.JAXBSource',
     'javax.xml.bind.util.Messages',
     'javax.xml.bind.util.ValidationEventCollector'
-  ]
+  )
 } else {
-  thirdPartyAudit.excludes += ['javax.activation.DataHandler']
+  thirdPartyAudit.ignoreMissingClasses 'javax.activation.DataHandler'
 }
 
 // AWS SDK is exposing some deprecated methods which we call using a delegate:

@@ -38,16 +38,6 @@ public interface QueryBuilder extends NamedWriteable, ToXContentObject, Rewritea
     Query toQuery(QueryShardContext context) throws IOException;
 
     /**
-     * Converts this QueryBuilder to an unscored lucene {@link Query} that acts as a filter.
-     * Returns {@code null} if this query should be ignored in the context of
-     * parent queries.
-     *
-     * @param context additional information needed to construct the queries
-     * @return the {@link Query} or {@code null} if this query should be ignored upstream
-     */
-    Query toFilter(QueryShardContext context) throws IOException;
-
-    /**
      * Sets the arbitrary name to be assigned to the query (see named queries).
      * Implementers should return the concrete type of the
      * {@link QueryBuilder} so that calls can be chained. This is done

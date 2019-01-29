@@ -19,14 +19,18 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.common.Strings;
+import org.joda.time.DateTime;
+
+import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
-import java.time.temporal.TemporalField;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 public interface DateFormatter {
 
@@ -38,6 +42,21 @@ public interface DateFormatter {
      * @return                        The java time object containing the parsed input
      */
     TemporalAccessor parse(String input);
+
+    /**
+     * Parse the given input into millis-since-epoch.
+     */
+    default long parseMillis(String input) {
+        return Instant.from(parse(input)).toEpochMilli();
+    }
+
+    /**
+     * Parse the given input into a Joda {@link DateTime}.
+     */
+    default DateTime parseJoda(String input) {
+        ZonedDateTime dateTime = ZonedDateTime.from(parse(input));
+        return new DateTime(dateTime.toInstant().toEpochMilli(), DateUtils.zoneIdToDateTimeZone(dateTime.getZone()));
+    }
 
     /**
      * Create a copy of this formatter that is configured to parse dates in the specified time zone
@@ -64,6 +83,22 @@ public interface DateFormatter {
     String format(TemporalAccessor accessor);
 
     /**
+     * Return the given millis-since-epoch formatted with this format.
+     */
+    default String formatMillis(long millis) {
+        ZoneId zone = zone() != null ? zone() : ZoneOffset.UTC;
+        return format(Instant.ofEpochMilli(millis).atZone(zone));
+    }
+
+    /**
+     * Return the given Joda {@link DateTime} formatted with this format.
+     */
+    default String formatJoda(DateTime dateTime) {
+        return format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(dateTime.getMillis()),
+            DateUtils.dateTimeZoneToZoneId(dateTime.getZone())));
+    }
+
+    /**
      * A name based format for this formatter. Can be one of the registered formatters like <code>epoch_millis</code> or
      * a configured format like <code>HH:mm:ss</code>
      *
@@ -76,96 +111,44 @@ public interface DateFormatter {
      *
      * @return The locale of this formatter
      */
-    Locale getLocale();
+    Locale locale();
 
     /**
      * Returns the configured time zone of the date formatter
      *
      * @return The time zone of this formatter
      */
-    ZoneId getZone();
+    ZoneId zone();
 
     /**
-     * Configure a formatter using default fields for a TemporalAccessor that should be used in case
-     * the supplied date is not having all of those fields
+     * Create a DateMathParser from the existing formatter
      *
-     * @param fields A <code>Map&lt;TemporalField, Long&gt;</code> of fields to be used as fallbacks
-     * @return       A new date formatter instance, that will use those fields during parsing
+     * @return The DateMathParser object
      */
-    DateFormatter parseDefaulting(Map<TemporalField, Long> fields);
+    DateMathParser toDateMathParser();
 
-    /**
-     * Merge several date formatters into a single one. Useful if you need to have several formatters with
-     * different formats act as one, for example when you specify a
-     * format like <code>date_hour||epoch_millis</code>
-     *
-     * @param formatters The list of date formatters to be merged together
-     * @return           The new date formtter containing the specified date formatters
-     */
-    static DateFormatter merge(DateFormatter ... formatters) {
-        return new MergedDateFormatter(formatters);
-    }
-
-    class MergedDateFormatter implements DateFormatter {
-
-        private final String format;
-        private final DateFormatter[] formatters;
-
-        MergedDateFormatter(DateFormatter ... formatters) {
-            this.formatters = formatters;
-            this.format = Arrays.stream(formatters).map(DateFormatter::pattern).collect(Collectors.joining("||"));
+    static DateFormatter forPattern(String input) {
+        if (Strings.hasLength(input) == false) {
+            throw new IllegalArgumentException("No date pattern provided");
         }
 
-        @Override
-        public TemporalAccessor parse(String input) {
-            DateTimeParseException failure = null;
-            for (DateFormatter formatter : formatters) {
-                try {
-                    return formatter.parse(input);
-                } catch (DateTimeParseException e) {
-                    if (failure == null) {
-                        failure = e;
-                    } else {
-                        failure.addSuppressed(e);
-                    }
-                }
+        // support the 6.x BWC compatible way of parsing java 8 dates
+        if (input.startsWith("8")) {
+            input = input.substring(1);
+        }
+
+        List<DateFormatter> formatters = new ArrayList<>();
+        for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
+            if (Strings.hasLength(pattern) == false) {
+                throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
             }
-            throw failure;
+            formatters.add(DateFormatters.forPattern(pattern));
         }
 
-        @Override
-        public DateFormatter withZone(ZoneId zoneId) {
-            return new MergedDateFormatter(Arrays.stream(formatters).map(f -> f.withZone(zoneId)).toArray(DateFormatter[]::new));
+        if (formatters.size() == 1) {
+            return formatters.get(0);
         }
 
-        @Override
-        public DateFormatter withLocale(Locale locale) {
-            return new MergedDateFormatter(Arrays.stream(formatters).map(f -> f.withLocale(locale)).toArray(DateFormatter[]::new));
-        }
-
-        @Override
-        public String format(TemporalAccessor accessor) {
-            return formatters[0].format(accessor);
-        }
-
-        @Override
-        public String pattern() {
-            return format;
-        }
-
-        @Override
-        public Locale getLocale() {
-            return formatters[0].getLocale();
-        }
-
-        @Override
-        public ZoneId getZone() {
-            return formatters[0].getZone();
-        }
-
-        @Override
-        public DateFormatter parseDefaulting(Map<TemporalField, Long> fields) {
-            return new MergedDateFormatter(Arrays.stream(formatters).map(f -> f.parseDefaulting(fields)).toArray(DateFormatter[]::new));
-        }
+        return DateFormatters.merge(input, formatters);
     }
 }

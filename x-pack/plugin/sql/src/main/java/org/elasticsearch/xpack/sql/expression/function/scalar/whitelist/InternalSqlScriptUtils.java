@@ -10,6 +10,7 @@ import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
@@ -21,16 +22,27 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunct
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.IsNotNullProcessor;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.NotProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.RegexOperation;
+import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypeConversion;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
+import java.time.Duration;
+import java.time.Period;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -38,6 +50,7 @@ import java.util.Map;
  * Acts as a registry of the various static methods used <b>internally</b> by the scalar functions
  * (to simplify the whitelist definition).
  */
+@SuppressWarnings("unused")
 public final class InternalSqlScriptUtils {
 
     private InternalSqlScriptUtils() {}
@@ -50,7 +63,7 @@ public final class InternalSqlScriptUtils {
     public static <T> Object docValue(Map<String, ScriptDocValues<T>> doc, String fieldName) {
         if (doc.containsKey(fieldName)) {
             ScriptDocValues<T> docValues = doc.get(fieldName);
-            if (docValues.size() > 0) {
+            if (!docValues.isEmpty()) {
                 return docValues.get(0);
             }
         }
@@ -81,6 +94,14 @@ public final class InternalSqlScriptUtils {
         return BinaryComparisonOperation.EQ.apply(left, right);
     }
 
+    public static Boolean nulleq(Object left, Object right) {
+        return BinaryComparisonOperation.NULLEQ.apply(left, right);
+    }
+
+    public static Boolean neq(Object left, Object right) {
+        return BinaryComparisonOperation.NEQ.apply(left, right);
+    }
+
     public static Boolean lt(Object left, Object right) {
         return BinaryComparisonOperation.LT.apply(left, right);
     }
@@ -109,33 +130,61 @@ public final class InternalSqlScriptUtils {
         return NotProcessor.apply(expression);
     }
 
-    public static Boolean notNull(Object expression) {
-        return IsNotNullProcessor.apply(expression);
+    public static Boolean isNull(Object expression) {
+        return CheckNullOperation.IS_NULL.apply(expression);
+    }
+
+    public static Boolean isNotNull(Object expression) {
+        return CheckNullOperation.IS_NOT_NULL.apply(expression);
+    }
+
+    public static Boolean in(Object value, List<Object> values) {
+        return InProcessor.apply(value, values);
+    }
+
+    //
+    // Null
+    //
+    public static Object coalesce(List<Object> expressions) {
+        return ConditionalOperation.COALESCE.apply(expressions);
+    }
+
+    public static Object greatest(List<Object> expressions) {
+        return ConditionalOperation.GREATEST.apply(expressions);
+    }
+
+    public static Object least(List<Object> expressions) {
+        return ConditionalOperation.LEAST.apply(expressions);
+    }
+
+    public static Object nullif(Object left, Object right) {
+        return NullIfProcessor.apply(left, right);
     }
 
     //
     // Regex
     //
     public static Boolean regex(String value, String pattern) {
+        // TODO: this needs to be improved to avoid creating the pattern on every call
         return RegexOperation.match(value, pattern);
     }
 
     //
     // Math
     //
-    public static Number add(Number left, Number right) {
+    public static Object add(Object left, Object right) {
         return BinaryArithmeticOperation.ADD.apply(left, right);
     }
 
-    public static Number div(Number left, Number right) {
+    public static Object div(Object left, Object right) {
         return BinaryArithmeticOperation.DIV.apply(left, right);
     }
 
-    public static Number mod(Number left, Number right) {
+    public static Object mod(Object left, Object right) {
         return BinaryArithmeticOperation.MOD.apply(left, right);
     }
 
-    public static Number mul(Number left, Number right) {
+    public static Object mul(Object left, Object right) {
         return BinaryArithmeticOperation.MUL.apply(left, right);
     }
 
@@ -143,7 +192,7 @@ public final class InternalSqlScriptUtils {
         return UnaryArithmeticOperation.NEGATE.apply(value);
     }
 
-    public static Number sub(Number left, Number right) {
+    public static Object sub(Object left, Object right) {
         return BinaryArithmeticOperation.SUB.apply(left, right);
     }
 
@@ -268,6 +317,13 @@ public final class InternalSqlScriptUtils {
         return NameExtractor.DAY_NAME.extract(asDateTime(dateTime), tzId);
     }
     
+    public static Integer dayOfWeek(Object dateTime, String tzId) {
+        if (dateTime == null || tzId == null) {
+            return null;
+        }
+        return NonIsoDateTimeExtractor.DAY_OF_WEEK.extract(asDateTime(dateTime), tzId);
+    }
+    
     public static String monthName(Object dateTime, String tzId) {
         if (dateTime == null || tzId == null) {
             return null;
@@ -281,14 +337,53 @@ public final class InternalSqlScriptUtils {
         }
         return QuarterProcessor.quarter(asDateTime(dateTime), tzId);
     }
+    
+    public static Integer weekOfYear(Object dateTime, String tzId) {
+        if (dateTime == null || tzId == null) {
+            return null;
+        }
+        return NonIsoDateTimeExtractor.WEEK_OF_YEAR.extract(asDateTime(dateTime), tzId);
+    }
 
-    private static ZonedDateTime asDateTime(Object dateTime) {
+    public static ZonedDateTime asDateTime(Object dateTime) {
+        return (ZonedDateTime) asDateTime(dateTime, false);
+    }
+    
+    private static Object asDateTime(Object dateTime, boolean lenient) {
+        if (dateTime == null) {
+            return null;
+        }
         if (dateTime instanceof JodaCompatibleZonedDateTime) {
             return ((JodaCompatibleZonedDateTime) dateTime).getZonedDateTime();
         }
-        throw new SqlIllegalArgumentException("Invalid date encountered [{}]", dateTime);
+        if (dateTime instanceof ZonedDateTime) {
+            return dateTime;
+        }
+        if (false == lenient) {
+            if (dateTime instanceof Number) {
+                return DateUtils.asDateTime(((Number) dateTime).longValue());
+            }
+    
+            throw new SqlIllegalArgumentException("Invalid date encountered [{}]", dateTime);
+        }
+        return dateTime;
     }
     
+    public static IntervalDayTime intervalDayTime(String text, String typeName) {
+        if (text == null || typeName == null) {
+            return null;
+        }
+        return new IntervalDayTime(Duration.parse(text), DataType.fromTypeName(typeName));
+    }
+
+    public static IntervalYearMonth intervalYearMonth(String text, String typeName) {
+        if (text == null || typeName == null) {
+            return null;
+        }
+
+        return new IntervalYearMonth(Period.parse(text), DataType.fromTypeName(typeName));
+    }
+
     //
     // String functions
     //
@@ -374,5 +469,14 @@ public final class InternalSqlScriptUtils {
 
     public static String ucase(String s) {
         return (String) StringOperation.UCASE.apply(s);
+    }
+    
+    //
+    // Casting
+    //
+    public static Object cast(Object value, String typeName) {
+        // we call asDateTime here to make sure we handle JodaCompatibleZonedDateTime properly,
+        // since casting works for ZonedDateTime objects only
+        return DataTypeConversion.convert(asDateTime(value, true), DataType.fromTypeName(typeName));
     }
 }

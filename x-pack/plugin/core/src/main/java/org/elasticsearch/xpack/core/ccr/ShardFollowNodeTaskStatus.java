@@ -48,6 +48,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     private static final ParseField WRITE_BUFFER_OPERATION_COUNT_FIELD = new ParseField("write_buffer_operation_count");
     private static final ParseField WRITE_BUFFER_SIZE_IN_BYTES_FIELD = new ParseField("write_buffer_size_in_bytes");
     private static final ParseField FOLLOWER_MAPPING_VERSION_FIELD = new ParseField("follower_mapping_version");
+    private static final ParseField FOLLOWER_SETTINGS_VERSION_FIELD = new ParseField("follower_settings_version");
     private static final ParseField TOTAL_READ_TIME_MILLIS_FIELD = new ParseField("total_read_time_millis");
     private static final ParseField TOTAL_READ_REMOTE_EXEC_TIME_MILLIS_FIELD = new ParseField("total_read_remote_exec_time_millis");
     private static final ParseField SUCCESSFUL_READ_REQUESTS_FIELD = new ParseField("successful_read_requests");
@@ -91,12 +92,13 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                             (long) args[21],
                             (long) args[22],
                             (long) args[23],
+                            (long) args[24],
                             new TreeMap<>(
-                                    ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[24])
+                                    ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[25])
                                             .stream()
                                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
-                            (long) args[25],
-                            (ElasticsearchException) args[26]));
+                            (long) args[26],
+                            (ElasticsearchException) args[27]));
 
     public static final String READ_EXCEPTIONS_ENTRY_PARSER_NAME = "shard-follow-node-task-status-read-exceptions-entry";
 
@@ -120,6 +122,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         STATUS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), WRITE_BUFFER_OPERATION_COUNT_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), WRITE_BUFFER_SIZE_IN_BYTES_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_MAPPING_VERSION_FIELD);
+        STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_SETTINGS_VERSION_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_READ_TIME_MILLIS_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_READ_REMOTE_EXEC_TIME_MILLIS_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), SUCCESSFUL_READ_REQUESTS_FIELD);
@@ -234,6 +237,12 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         return followerMappingVersion;
     }
 
+    private final long followerSettingsVersion;
+
+    public long followerSettingsVersion() {
+        return followerSettingsVersion;
+    }
+
     private final long totalReadTimeMillis;
 
     public long totalReadTimeMillis() {
@@ -327,6 +336,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
             final int writeBufferOperationCount,
             final long writeBufferSizeInBytes,
             final long followerMappingVersion,
+            final long followerSettingsVersion,
             final long totalReadTimeMillis,
             final long totalReadRemoteExecTimeMillis,
             final long successfulReadRequests,
@@ -354,6 +364,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         this.writeBufferOperationCount = writeBufferOperationCount;
         this.writeBufferSizeInBytes = writeBufferSizeInBytes;
         this.followerMappingVersion = followerMappingVersion;
+        this.followerSettingsVersion = followerSettingsVersion;
         this.totalReadTimeMillis = totalReadTimeMillis;
         this.totalReadRemoteExecTimeMillis = totalReadRemoteExecTimeMillis;
         this.successfulReadRequests = successfulReadRequests;
@@ -384,6 +395,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         this.writeBufferOperationCount = in.readVInt();
         this.writeBufferSizeInBytes = in.readVLong();
         this.followerMappingVersion = in.readVLong();
+        this.followerSettingsVersion = in.readVLong();
         this.totalReadTimeMillis = in.readVLong();
         this.totalReadRemoteExecTimeMillis = in.readVLong();
         this.successfulReadRequests = in.readVLong();
@@ -421,6 +433,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         out.writeVInt(writeBufferOperationCount);
         out.writeVLong(writeBufferSizeInBytes);
         out.writeVLong(followerMappingVersion);
+        out.writeVLong(followerSettingsVersion);
         out.writeVLong(totalReadTimeMillis);
         out.writeVLong(totalReadRemoteExecTimeMillis);
         out.writeVLong(successfulReadRequests);
@@ -470,6 +483,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                 "write_buffer_size",
                 new ByteSizeValue(writeBufferSizeInBytes));
         builder.field(FOLLOWER_MAPPING_VERSION_FIELD.getPreferredName(), followerMappingVersion);
+        builder.field(FOLLOWER_SETTINGS_VERSION_FIELD.getPreferredName(), followerSettingsVersion);
         builder.humanReadableField(
                 TOTAL_READ_TIME_MILLIS_FIELD.getPreferredName(),
                 "total_read_time",
@@ -550,6 +564,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                 writeBufferOperationCount == that.writeBufferOperationCount &&
                 writeBufferSizeInBytes == that.writeBufferSizeInBytes &&
                 followerMappingVersion == that.followerMappingVersion &&
+                followerSettingsVersion== that.followerSettingsVersion &&
                 totalReadTimeMillis == that.totalReadTimeMillis &&
                 totalReadRemoteExecTimeMillis == that.totalReadRemoteExecTimeMillis &&
                 successfulReadRequests == that.successfulReadRequests &&
@@ -588,6 +603,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                 writeBufferOperationCount,
                 writeBufferSizeInBytes,
                 followerMappingVersion,
+                followerSettingsVersion,
                 totalReadTimeMillis,
                 totalReadRemoteExecTimeMillis,
                 successfulReadRequests,

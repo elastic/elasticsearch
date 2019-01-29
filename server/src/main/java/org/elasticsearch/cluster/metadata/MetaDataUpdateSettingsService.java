@@ -37,9 +37,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -62,9 +60,8 @@ import static org.elasticsearch.index.IndexSettings.same;
 /**
  * Service responsible for submitting update index settings requests
  */
-public class MetaDataUpdateSettingsService extends AbstractComponent {
+public class MetaDataUpdateSettingsService {
     private static final Logger logger = LogManager.getLogger(MetaDataUpdateSettingsService.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     private final ClusterService clusterService;
 
@@ -75,9 +72,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
     private final ThreadPool threadPool;
 
     @Inject
-    public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService,
+    public MetaDataUpdateSettingsService(ClusterService clusterService, AllocationService allocationService,
                                          IndexScopedSettings indexScopedSettings, IndicesService indicesService, ThreadPool threadPool) {
-        super(settings);
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.allocationService = allocationService;
@@ -157,7 +153,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
                     int totalNewShards = Arrays.stream(request.indices())
                         .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfReplicas))
                         .sum();
-                    Optional<String> error = IndicesService.checkShardLimit(totalNewShards, currentState, deprecationLogger);
+                    Optional<String> error = IndicesService.checkShardLimit(totalNewShards, currentState);
                     if (error.isPresent()) {
                         ValidationException ex = new ValidationException();
                         ex.addValidationError(error.get());

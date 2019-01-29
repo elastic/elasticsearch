@@ -19,14 +19,17 @@
 
 package org.elasticsearch.monitor.process;
 
-import org.elasticsearch.common.component.AbstractComponent;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
 
-public final class ProcessService extends AbstractComponent {
+public final class ProcessService {
+
+    private static final Logger logger = LogManager.getLogger(ProcessService.class);
 
     private final ProcessProbe probe;
     private final ProcessInfo info;
@@ -37,7 +40,6 @@ public final class ProcessService extends AbstractComponent {
             Property.NodeScope);
 
     public ProcessService(Settings settings) {
-        super(settings);
         this.probe = ProcessProbe.getInstance();
         final TimeValue refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
         processStatsCache = new ProcessStatsCache(refreshInterval, probe.processStats());

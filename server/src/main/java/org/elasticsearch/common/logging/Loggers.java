@@ -57,7 +57,8 @@ public class Loggers {
      * Class and no extra prefixes.
      */
     public static Logger getLogger(String loggerName, ShardId shardId) {
-        return ESLoggerFactory.getLogger(formatPrefix(shardId.getIndexName(), Integer.toString(shardId.id())), loggerName);
+        String prefix = formatPrefix(shardId.getIndexName(), Integer.toString(shardId.id()));
+        return new PrefixLogger(LogManager.getLogger(loggerName), prefix);
     }
 
     public static Logger getLogger(Class<?> clazz, Index index, String... prefixes) {
@@ -65,33 +66,15 @@ public class Loggers {
     }
 
     public static Logger getLogger(Class<?> clazz, String... prefixes) {
-        return ESLoggerFactory.getLogger(formatPrefix(prefixes), clazz);
+        return new PrefixLogger(LogManager.getLogger(clazz), formatPrefix(prefixes));
     }
 
     public static Logger getLogger(Logger parentLogger, String s) {
-        String prefix = null;
+        Logger inner = LogManager.getLogger(parentLogger.getName() + s);
         if (parentLogger instanceof PrefixLogger) {
-            prefix = ((PrefixLogger)parentLogger).prefix();
+            return new PrefixLogger(inner, ((PrefixLogger)parentLogger).prefix());
         }
-        return ESLoggerFactory.getLogger(prefix, parentLogger.getName() + s);
-    }
-
-    /**
-     * Get or build a logger.
-     * @deprecated Prefer {@link LogManager#getLogger}
-     */
-    @Deprecated
-    public static Logger getLogger(String s) {
-        return LogManager.getLogger(s);
-    }
-
-    /**
-     * Get or build a logger.
-     * @deprecated Prefer {@link LogManager#getLogger}
-     */
-    @Deprecated
-    public static Logger getLogger(Class<?> clazz) {
-        return ESLoggerFactory.getLogger(null, clazz);
+        return inner;
     }
 
     private static String formatPrefix(String... prefixes) {

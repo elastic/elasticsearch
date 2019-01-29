@@ -34,7 +34,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryCollectionBuilder> {
+public class GeometryCollectionBuilder extends ShapeBuilder<Shape,
+    org.elasticsearch.geo.geometry.GeometryCollection<org.elasticsearch.geo.geometry.Geometry>, GeometryCollectionBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.GEOMETRYCOLLECTION;
 
@@ -168,12 +169,12 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryColle
     }
 
     @Override
-    public Shape build() {
+    public Shape buildS4J() {
 
         List<Shape> shapes = new ArrayList<>(this.shapes.size());
 
         for (ShapeBuilder shape : this.shapes) {
-            shapes.add(shape.build());
+            shapes.add(shape.buildS4J());
         }
 
         if (shapes.size() == 1)
@@ -181,6 +182,17 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryColle
         else
             return new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
         //note: ShapeCollection is probably faster than a Multi* geom.
+    }
+
+    @Override
+    public org.elasticsearch.geo.geometry.GeometryCollection<org.elasticsearch.geo.geometry.Geometry> buildGeometry() {
+        List<org.elasticsearch.geo.geometry.Geometry> shapes = new ArrayList<>(this.shapes.size());
+
+        for (ShapeBuilder shape : this.shapes) {
+            shapes.add(shape.buildGeometry());
+        }
+
+        return new org.elasticsearch.geo.geometry.GeometryCollection<>(shapes);
     }
 
     @Override

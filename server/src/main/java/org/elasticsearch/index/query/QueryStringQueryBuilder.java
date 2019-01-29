@@ -38,9 +38,9 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.index.search.QueryStringQueryParser;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -144,7 +144,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     private Boolean lenient;
 
-    private DateTimeZone timeZone;
+    private ZoneId timeZone;
 
     /** To limit effort spent determinizing regexp queries. */
     private int maxDeterminizedStates = DEFAULT_MAX_DETERMINED_STATES;
@@ -189,7 +189,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         rewrite = in.readOptionalString();
         minimumShouldMatch = in.readOptionalString();
         lenient = in.readOptionalBoolean();
-        timeZone = in.readOptionalTimeZone();
+        timeZone = in.readOptionalZoneId();
         escape = in.readBoolean();
         maxDeterminizedStates = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
@@ -224,7 +224,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         out.writeOptionalString(this.rewrite);
         out.writeOptionalString(this.minimumShouldMatch);
         out.writeOptionalBoolean(this.lenient);
-        out.writeOptionalTimeZone(timeZone);
+        out.writeOptionalZoneId(timeZone);
         out.writeBoolean(this.escape);
         out.writeVInt(this.maxDeterminizedStates);
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
@@ -248,22 +248,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     public String defaultField() {
         return this.defaultField;
-    }
-
-    /**
-     * This setting is deprecated, set {@link #defaultField(String)} to "*" instead.
-     */
-    @Deprecated
-    public QueryStringQueryBuilder useAllFields(Boolean useAllFields) {
-        if (useAllFields != null && useAllFields) {
-            this.defaultField = "*";
-        }
-        return this;
-    }
-
-    @Deprecated
-    public Boolean useAllFields() {
-        return defaultField == null ? null : Regex.isMatchAllPattern(defaultField);
     }
 
     /**
@@ -303,22 +287,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     public QueryStringQueryBuilder type(MultiMatchQueryBuilder.Type type) {
         this.type = type;
         return this;
-    }
-
-    /**
-     * Use {@link QueryStringQueryBuilder#tieBreaker} instead.
-     */
-    @Deprecated
-    public QueryStringQueryBuilder useDisMax(boolean useDisMax) {
-        return this;
-    }
-
-    /**
-     * Use {@link QueryStringQueryBuilder#tieBreaker} instead.
-     */
-    @Deprecated
-    public boolean useDisMax() {
-        return true;
     }
 
     /**
@@ -385,22 +353,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     public QueryStringQueryBuilder quoteAnalyzer(String quoteAnalyzer) {
         this.quoteAnalyzer = quoteAnalyzer;
         return this;
-    }
-
-    /**
-     * This setting is ignored
-     */
-    @Deprecated
-    public QueryStringQueryBuilder autoGeneratePhraseQueries(boolean autoGeneratePhraseQueries) {
-        return this;
-    }
-
-    /**
-     * This setting is ignored
-     */
-    @Deprecated
-    public boolean autoGeneratePhraseQueries() {
-        return false;
     }
 
     /**
@@ -558,19 +510,19 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      */
     public QueryStringQueryBuilder timeZone(String timeZone) {
         if (timeZone != null) {
-            this.timeZone = DateTimeZone.forID(timeZone);
+            this.timeZone = ZoneId.of(timeZone);
         } else {
             this.timeZone = null;
         }
         return this;
     }
 
-    public QueryStringQueryBuilder timeZone(DateTimeZone timeZone) {
+    public QueryStringQueryBuilder timeZone(ZoneId timeZone) {
         this.timeZone = timeZone;
         return this;
     }
 
-    public DateTimeZone timeZone() {
+    public ZoneId timeZone() {
         return this.timeZone;
     }
 
@@ -584,22 +536,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     public boolean escape() {
         return this.escape;
-    }
-
-    /**
-     * This setting is ignored, this query parser splits on operator only.
-     */
-    @Deprecated
-    public QueryStringQueryBuilder splitOnWhitespace(boolean value) {
-        return this;
-    }
-
-    /**
-     * This setting is ignored, this query parser splits on operator only.
-     */
-    @Deprecated
-    public boolean splitOnWhitespace() {
-        return false;
     }
 
     public QueryStringQueryBuilder autoGenerateSynonymsPhraseQuery(boolean value) {
@@ -685,7 +621,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             builder.field(LENIENT_FIELD.getPreferredName(), this.lenient);
         }
         if (this.timeZone != null) {
-            builder.field(TIME_ZONE_FIELD.getPreferredName(), this.timeZone.getID());
+            builder.field(TIME_ZONE_FIELD.getPreferredName(), this.timeZone.getId());
         }
         builder.field(ESCAPE_FIELD.getPreferredName(), this.escape);
         builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateSynonymsPhraseQuery);
@@ -874,8 +810,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
                 Objects.equals(lenient, other.lenient) &&
                 Objects.equals(
-                        timeZone == null ? null : timeZone.getID(),
-                        other.timeZone == null ? null : other.timeZone.getID()) &&
+                        timeZone == null ? null : timeZone.getId(),
+                        other.timeZone == null ? null : other.timeZone.getId()) &&
                 Objects.equals(escape, other.escape) &&
                 Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&
                 Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery) &&
@@ -888,7 +824,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 quoteFieldSuffix, allowLeadingWildcard, analyzeWildcard,
                 enablePositionIncrements, fuzziness, fuzzyPrefixLength,
                 fuzzyMaxExpansions, fuzzyRewrite, phraseSlop, type, tieBreaker, rewrite, minimumShouldMatch, lenient,
-                timeZone == null ? 0 : timeZone.getID(), escape, maxDeterminizedStates, autoGenerateSynonymsPhraseQuery,
+                timeZone == null ? 0 : timeZone.getId(), escape, maxDeterminizedStates, autoGenerateSynonymsPhraseQuery,
                 fuzzyTranspositions);
     }
 

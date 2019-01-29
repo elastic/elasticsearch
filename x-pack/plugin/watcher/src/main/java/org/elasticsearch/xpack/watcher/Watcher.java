@@ -233,14 +233,12 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
     protected final Settings settings;
     protected final boolean transportClient;
     protected final boolean enabled;
-    protected final Environment env;
     protected List<NotificationService> reloadableServices = new ArrayList<>();
 
     public Watcher(final Settings settings) {
         this.settings = settings;
         this.transportClient = XPackPlugin.transportClientMode(settings);
         this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
-        env = transportClient ? null : new Environment(settings, null);
 
         if (enabled && transportClient == false) {
             validAutoCreateIndex(settings, logger);
@@ -272,10 +270,10 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             throw new UncheckedIOException(e);
         }
 
-        new WatcherIndexTemplateRegistry(settings, clusterService, threadPool, client);
+        new WatcherIndexTemplateRegistry(clusterService, threadPool, client, xContentRegistry);
 
         // http client
-        httpClient = new HttpClient(settings, getSslService(), cryptoService);
+        httpClient = new HttpClient(settings, getSslService(), cryptoService, clusterService);
 
         // notification
         EmailService emailService = new EmailService(settings, cryptoService, clusterService.getClusterSettings());
@@ -290,7 +288,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         reloadableServices.add(slackService);
         reloadableServices.add(pagerDutyService);
 
-        TextTemplateEngine templateEngine = new TextTemplateEngine(settings, scriptService);
+        TextTemplateEngine templateEngine = new TextTemplateEngine(scriptService);
         Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
         emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, templateEngine));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
@@ -376,7 +374,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             .setConcurrentRequests(SETTING_BULK_CONCURRENT_REQUESTS.get(settings))
             .build();
 
-        HistoryStore historyStore = new HistoryStore(settings, bulkProcessor);
+        HistoryStore historyStore = new HistoryStore(bulkProcessor);
 
         // schedulers
         final Set<Schedule.Parser> scheduleParsers = new HashSet<>();
@@ -395,15 +393,15 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         final Set<TriggerEngine> triggerEngines = new HashSet<>();
         triggerEngines.add(manualTriggerEngine);
         triggerEngines.add(configuredTriggerEngine);
-        final TriggerService triggerService = new TriggerService(settings, triggerEngines);
+        final TriggerService triggerService = new TriggerService(triggerEngines);
 
-        final TriggeredWatch.Parser triggeredWatchParser = new TriggeredWatch.Parser(settings, triggerService);
+        final TriggeredWatch.Parser triggeredWatchParser = new TriggeredWatch.Parser(triggerService);
         final TriggeredWatchStore triggeredWatchStore = new TriggeredWatchStore(settings, client, triggeredWatchParser, bulkProcessor);
 
         final WatcherSearchTemplateService watcherSearchTemplateService =
-                new WatcherSearchTemplateService(settings, scriptService, xContentRegistry);
+                new WatcherSearchTemplateService(scriptService, xContentRegistry);
         final WatchExecutor watchExecutor = getWatchExecutor(threadPool);
-        final WatchParser watchParser = new WatchParser(settings, triggerService, registry, inputRegistry, cryptoService, getClock());
+        final WatchParser watchParser = new WatchParser(triggerService, registry, inputRegistry, cryptoService, getClock());
 
         final ExecutionService executionService = new ExecutionService(settings, historyStore, triggeredWatchStore, watchExecutor,
                 getClock(), watchParser, clusterService, client, threadPool.generic());
@@ -415,9 +413,9 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
                 watchParser, client);
 
         final WatcherLifeCycleService watcherLifeCycleService =
-                new WatcherLifeCycleService(settings, clusterService, watcherService);
+                new WatcherLifeCycleService(clusterService, watcherService);
 
-        listener = new WatcherIndexingListener(settings, watchParser, getClock(), triggerService);
+        listener = new WatcherIndexingListener(watchParser, getClock(), triggerService);
         clusterService.addListener(listener);
 
         return Arrays.asList(registry, inputRegistry, historyStore, triggerService, triggeredWatchParser,
@@ -661,7 +659,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     @Override
     public List<BootstrapCheck> getBootstrapChecks() {
-        return Collections.singletonList(new EncryptSensitiveDataBootstrapCheck(env));
+        return Collections.singletonList(new EncryptSensitiveDataBootstrapCheck());
     }
 
     @Override

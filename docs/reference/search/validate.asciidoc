@@ -6,7 +6,7 @@ without executing it. We'll use the following test data to explain _validate:
 
 [source,js]
 --------------------------------------------------
-PUT twitter/_doc/_bulk?refresh
+PUT twitter/_bulk?refresh
 {"index":{"_id":1}}
 {"user" : "kimchy", "post_date" : "2009-11-15T14:12:12", "message" : "trying out Elasticsearch"}
 {"index":{"_id":2}}
@@ -60,7 +60,7 @@ The query may also be sent in the request body:
 
 [source,js]
 --------------------------------------------------
-GET twitter/_doc/_validate/query
+GET twitter/_validate/query
 {
   "query" : {
     "bool" : {
@@ -87,7 +87,7 @@ due to dynamic mapping, and 'foo' does not correctly parse into a date:
 
 [source,js]
 --------------------------------------------------
-GET twitter/_doc/_validate/query
+GET twitter/_validate/query
 {
   "query": {
     "query_string": {
@@ -110,7 +110,7 @@ about why a query failed:
 
 [source,js]
 --------------------------------------------------
-GET twitter/_doc/_validate/query?explain=true
+GET twitter/_validate/query?explain=true
 {
   "query": {
     "query_string": {
@@ -150,7 +150,7 @@ For More Like This:
 
 [source,js]
 --------------------------------------------------
-GET twitter/_doc/_validate/query?rewrite=true
+GET twitter/_validate/query?rewrite=true
 {
   "query": {
     "more_like_this": {
@@ -197,7 +197,7 @@ For Fuzzy Queries:
 
 [source,js]
 --------------------------------------------------
-GET twitter/_doc/_validate/query?rewrite=true&all_shards=true
+GET twitter/_validate/query?rewrite=true&all_shards=true
 {
   "query": {
     "match": {

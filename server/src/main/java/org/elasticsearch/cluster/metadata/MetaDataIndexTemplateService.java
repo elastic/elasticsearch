@@ -19,6 +19,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -30,7 +32,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -61,7 +62,9 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 /**
  * Service responsible for submitting index templates updates
  */
-public class MetaDataIndexTemplateService extends AbstractComponent {
+public class MetaDataIndexTemplateService {
+
+    private static final Logger logger = LogManager.getLogger(MetaDataIndexTemplateService.class);
 
     private final ClusterService clusterService;
     private final AliasValidator aliasValidator;
@@ -71,11 +74,10 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
     private final NamedXContentRegistry xContentRegistry;
 
     @Inject
-    public MetaDataIndexTemplateService(Settings settings, ClusterService clusterService,
+    public MetaDataIndexTemplateService(ClusterService clusterService,
                                         MetaDataCreateIndexService metaDataCreateIndexService,
                                         AliasValidator aliasValidator, IndicesService indicesService,
                                         IndexScopedSettings indexScopedSettings, NamedXContentRegistry xContentRegistry) {
-        super(settings);
         this.clusterService = clusterService;
         this.aliasValidator = aliasValidator;
         this.indicesService = indicesService;
@@ -188,7 +190,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(new PutResponse(true, templateBuilder.build()));
+                listener.onResponse(new PutResponse(true));
             }
         });
     }
@@ -391,19 +393,13 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
     public static class PutResponse {
         private final boolean acknowledged;
-        private final IndexTemplateMetaData template;
 
-        public PutResponse(boolean acknowledged, IndexTemplateMetaData template) {
+        public PutResponse(boolean acknowledged) {
             this.acknowledged = acknowledged;
-            this.template = template;
         }
 
         public boolean acknowledged() {
             return acknowledged;
-        }
-
-        public IndexTemplateMetaData template() {
-            return template;
         }
     }
 

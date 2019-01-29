@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.action.user;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,13 +43,13 @@ public class TransportGetUserPrivilegesActionTests extends ESTestCase {
             .add(
                 new FieldPermissions(new FieldPermissionsDefinition(new String[]{ "public.*" }, new String[0])),
                 Collections.singleton(query),
-                IndexPrivilege.READ, "index-4", "index-5")
+                IndexPrivilege.READ, randomBoolean(), "index-4", "index-5")
             .addApplicationPrivilege(new ApplicationPrivilege("app01", "read", "data:read"), Collections.singleton("*"))
             .runAs(new Privilege(Sets.newHashSet("user01", "user02"), "user01", "user02"))
             .build();
 
-        final TransportGetUserPrivilegesAction action = new TransportGetUserPrivilegesAction(Settings.EMPTY,
-            mock(ThreadPool.class), mock(TransportService.class), mock(ActionFilters.class), mock(AuthorizationService.class));
+        final TransportGetUserPrivilegesAction action = new TransportGetUserPrivilegesAction(mock(ThreadPool.class),
+            mock(TransportService.class), mock(ActionFilters.class), mock(AuthorizationService.class));
         final GetUserPrivilegesResponse response = action.buildResponseObject(role);
 
         assertThat(response.getClusterPrivileges(), containsInAnyOrder("monitor", "manage_watcher"));

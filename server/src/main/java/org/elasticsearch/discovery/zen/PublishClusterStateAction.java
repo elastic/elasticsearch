@@ -19,6 +19,8 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -30,7 +32,6 @@ import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -38,13 +39,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.BlockingClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
@@ -68,10 +69,17 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class PublishClusterStateAction extends AbstractComponent {
+public class PublishClusterStateAction {
+
+    private static final Logger logger = LogManager.getLogger(PublishClusterStateAction.class);
 
     public static final String SEND_ACTION_NAME = "internal:discovery/zen/publish/send";
     public static final String COMMIT_ACTION_NAME = "internal:discovery/zen/publish/commit";
+
+    // -> no need to put a timeout on the options, because we want the state response to eventually be received
+    //  and not log an error if it arrives after the timeout
+    private final TransportRequestOptions stateRequestOptions = TransportRequestOptions.builder()
+        .withType(TransportRequestOptions.Type.STATE).build();
 
     public interface IncomingClusterStateListener {
 
@@ -97,12 +105,10 @@ public class PublishClusterStateAction extends AbstractComponent {
     private final AtomicLong compatibleClusterStateDiffReceivedCount = new AtomicLong();
 
     public PublishClusterStateAction(
-            Settings settings,
             TransportService transportService,
             NamedWriteableRegistry namedWriteableRegistry,
             IncomingClusterStateListener incomingClusterStateListener,
             DiscoverySettings discoverySettings) {
-        super(settings);
         this.transportService = transportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.incomingClusterStateListener = incomingClusterStateListener;
@@ -117,12 +123,12 @@ public class PublishClusterStateAction extends AbstractComponent {
      * publishes a cluster change event to other nodes. if at least minMasterNodes acknowledge the change it is committed and will
      * be processed by the master and the other nodes.
      * <p>
-     * The method is guaranteed to throw a {@link org.elasticsearch.discovery.Discovery.FailedToCommitClusterStateException}
+     * The method is guaranteed to throw a {@link FailedToCommitClusterStateException}
      * if the change is not committed and should be rejected.
      * Any other exception signals the something wrong happened but the change is committed.
      */
     public void publish(final ClusterChangedEvent clusterChangedEvent, final int minMasterNodes,
-                        final Discovery.AckListener ackListener) throws Discovery.FailedToCommitClusterStateException {
+                        final Discovery.AckListener ackListener) throws FailedToCommitClusterStateException {
         final DiscoveryNodes nodes;
         final SendingController sendingController;
         final Set<DiscoveryNode> nodesToPublishTo;
@@ -155,19 +161,19 @@ public class PublishClusterStateAction extends AbstractComponent {
             sendingController = new SendingController(clusterChangedEvent.state(), minMasterNodes,
                 totalMasterNodes, publishResponseHandler);
         } catch (Exception e) {
-            throw new Discovery.FailedToCommitClusterStateException("unexpected error while preparing to publish", e);
+            throw new FailedToCommitClusterStateException("unexpected error while preparing to publish", e);
         }
 
         try {
             innerPublish(clusterChangedEvent, nodesToPublishTo, sendingController, ackListener, sendFullVersion, serializedStates,
                 serializedDiffs);
-        } catch (Discovery.FailedToCommitClusterStateException t) {
+        } catch (FailedToCommitClusterStateException t) {
             throw t;
         } catch (Exception e) {
             // try to fail committing, in cause it's still on going
             if (sendingController.markAsFailed("unexpected error", e)) {
                 // signal the change should be rejected
-                throw new Discovery.FailedToCommitClusterStateException("unexpected error", e);
+                throw new FailedToCommitClusterStateException("unexpected error", e);
             } else {
                 throw e;
             }
@@ -283,14 +289,9 @@ public class PublishClusterStateAction extends AbstractComponent {
                                         final boolean sendDiffs, final Map<Version, BytesReference> serializedStates) {
         try {
 
-            // -> no need to put a timeout on the options here, because we want the response to eventually be received
-            //  and not log an error if it arrives after the timeout
-            // -> no need to compress, we already compressed the bytes
-            TransportRequestOptions options = TransportRequestOptions.builder()
-                .withType(TransportRequestOptions.Type.STATE).withCompress(false).build();
             transportService.sendRequest(node, SEND_ACTION_NAME,
                     new BytesTransportRequest(bytes, node.getVersion()),
-                    options,
+                    stateRequestOptions,
                     new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
 
                         @Override
@@ -323,12 +324,9 @@ public class PublishClusterStateAction extends AbstractComponent {
         try {
             logger.trace("sending commit for cluster state (uuid: [{}], version [{}]) to [{}]",
                 clusterState.stateUUID(), clusterState.version(), node);
-            TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).build();
-            // no need to put a timeout on the options here, because we want the response to eventually be received
-            // and not log an error if it arrives after the timeout
             transportService.sendRequest(node, COMMIT_ACTION_NAME,
                     new CommitClusterStateRequest(clusterState.stateUUID()),
-                    options,
+                    stateRequestOptions,
                     new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
 
                         @Override
@@ -460,9 +458,9 @@ public class PublishClusterStateAction extends AbstractComponent {
         }
     }
 
-    protected static class CommitClusterStateRequest extends TransportRequest {
+    public static class CommitClusterStateRequest extends TransportRequest {
 
-        String stateUUID;
+        public String stateUUID;
 
         public CommitClusterStateRequest() {
         }
@@ -518,7 +516,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             this.neededMastersToCommit = Math.max(0, minMasterNodes - 1); // we are one of the master nodes
             this.pendingMasterNodes = totalMasterNodes - 1;
             if (this.neededMastersToCommit > this.pendingMasterNodes) {
-                throw new Discovery.FailedToCommitClusterStateException("not enough masters to ack sent cluster state." +
+                throw new FailedToCommitClusterStateException("not enough masters to ack sent cluster state." +
                     "[{}] needed , have [{}]", neededMastersToCommit, pendingMasterNodes);
             }
             this.committed = neededMastersToCommit == 0;
@@ -537,7 +535,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                 markAsFailed("timed out waiting for commit (commit timeout [" + commitTimeout + "])");
             }
             if (isCommitted() == false) {
-                throw new Discovery.FailedToCommitClusterStateException("{} enough masters to ack sent cluster state. [{}] left",
+                throw new FailedToCommitClusterStateException("{} enough masters to ack sent cluster state. [{}] left",
                         timedout ? "timed out while waiting for" : "failed to get", neededMastersToCommit);
             }
         }

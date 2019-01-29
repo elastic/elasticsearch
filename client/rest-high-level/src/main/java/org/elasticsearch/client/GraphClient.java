@@ -20,8 +20,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
-import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
+import org.elasticsearch.client.graph.GraphExploreRequest;
+import org.elasticsearch.client.graph.GraphExploreResponse;
 
 import java.io.IOException;
 
@@ -44,7 +44,7 @@ public class GraphClient {
     public final GraphExploreResponse explore(GraphExploreRequest graphExploreRequest,
                                                              RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(graphExploreRequest, GraphRequestConverters::explore,
-                options, GraphExploreResponse::fromXContext, emptySet());
+                options, GraphExploreResponse::fromXContent, emptySet());
     }
 
     /**
@@ -57,7 +57,7 @@ public class GraphClient {
                                            RequestOptions options,
                                            ActionListener<GraphExploreResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(graphExploreRequest, GraphRequestConverters::explore,
-            options, GraphExploreResponse::fromXContext, listener, emptySet());
+            options, GraphExploreResponse::fromXContent, listener, emptySet());
     }    
     
 }

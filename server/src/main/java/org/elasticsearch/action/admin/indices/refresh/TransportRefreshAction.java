@@ -28,7 +28,6 @@ import org.elasticsearch.action.support.replication.TransportBroadcastReplicatio
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportService;
 
@@ -41,11 +40,10 @@ public class TransportRefreshAction
     extends TransportBroadcastReplicationAction<RefreshRequest, RefreshResponse, BasicReplicationRequest, ReplicationResponse> {
 
     @Inject
-    public TransportRefreshAction(Settings settings, ClusterService clusterService,
-                                  TransportService transportService, ActionFilters actionFilters,
+    public TransportRefreshAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver,
                                   TransportShardRefreshAction shardRefreshAction) {
-        super(RefreshAction.NAME, RefreshRequest::new, settings, clusterService, transportService, actionFilters,
+        super(RefreshAction.NAME, RefreshRequest::new, clusterService, transportService, actionFilters,
             indexNameExpressionResolver, shardRefreshAction);
     }
 

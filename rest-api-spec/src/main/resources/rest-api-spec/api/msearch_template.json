@@ -28,6 +28,11 @@
         "max_concurrent_searches" : {
           "type" : "number",
           "description" : "Controls the maximum number of concurrent searches the multi search api will execute"
+        },
+        "rest_total_hits_as_int" : {
+          "type" : "boolean",
+          "description" : "Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
+          "default" : false
         }
       }
     },

@@ -37,7 +37,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
@@ -68,10 +67,10 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
     private final SearchService searchService;
 
     @Inject
-    public TransportValidateQueryAction(Settings settings, ClusterService clusterService,
+    public TransportValidateQueryAction(ClusterService clusterService,
             TransportService transportService, SearchService searchService, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ValidateQueryAction.NAME, clusterService, transportService, actionFilters,
+        super(ValidateQueryAction.NAME, clusterService, transportService, actionFilters,
                 indexNameExpressionResolver, ValidateQueryRequest::new, ShardValidateQueryRequest::new, ThreadPool.Names.SEARCH);
         this.searchService = searchService;
     }

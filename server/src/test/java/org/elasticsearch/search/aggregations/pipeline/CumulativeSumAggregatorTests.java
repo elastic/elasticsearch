@@ -31,12 +31,15 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.TestAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -45,10 +48,14 @@ import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -88,6 +95,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
             for (Histogram.Bucket bucket : buckets) {
                 sum += ((InternalAvg) (bucket.getAggregations().get("the_avg"))).value();
                 assertThat(((InternalSimpleValue) (bucket.getAggregations().get("cusum"))).value(), equalTo(sum));
+                assertTrue(AggregationInspectionHelper.hasValue(((InternalAvg) (bucket.getAggregations().get("the_avg")))));
             }
         });
     }
@@ -111,10 +119,33 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
             for (int i = 0; i < buckets.size(); i++) {
                 if (i == 0) {
                     assertThat(((InternalSimpleValue)(buckets.get(i).getAggregations().get("cusum"))).value(), equalTo(0.0));
+                    assertTrue(AggregationInspectionHelper.hasValue(((InternalSimpleValue) (buckets.get(i)
+                        .getAggregations().get("cusum")))));
                 } else {
                     sum += 1.0;
                     assertThat(((InternalSimpleValue)(buckets.get(i).getAggregations().get("cusum"))).value(), equalTo(sum));
+                    assertTrue(AggregationInspectionHelper.hasValue(((InternalSimpleValue) (buckets.get(i)
+                        .getAggregations().get("cusum")))));
                 }
+            }
+        });
+    }
+
+    public void testCount() throws IOException {
+        Query query = new MatchAllDocsQuery();
+
+        DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
+        aggBuilder.dateHistogramInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
+        aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "_count"));
+
+        executeTestCase(query, aggBuilder, histogram -> {
+            assertEquals(10, ((Histogram)histogram).getBuckets().size());
+            List<? extends Histogram.Bucket> buckets = ((Histogram)histogram).getBuckets();
+            double sum = 1.0;
+            for (Histogram.Bucket bucket : buckets) {
+                assertThat(((InternalSimpleValue) (bucket.getAggregations().get("cusum"))).value(), equalTo(sum));
+                assertTrue(AggregationInspectionHelper.hasValue(((InternalSimpleValue) (bucket.getAggregations().get("cusum")))));
+                sum += 1.0;
             }
         });
     }
@@ -259,6 +290,34 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
             }
         });
     }
+    
+    /**
+     * The validation should verify the parent aggregation is allowed.
+     */
+    public void testValidate() throws IOException {
+        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
+        aggBuilders.add(new CumulativeSumPipelineAggregationBuilder("cusum", "sum"));
+
+        final CumulativeSumPipelineAggregationBuilder builder = new CumulativeSumPipelineAggregationBuilder("name", "valid");
+        builder.validate(PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
+    }
+
+    /**
+     * The validation should throw an IllegalArgumentException, since parent
+     * aggregation is not a type of HistogramAggregatorFactory,
+     * DateHistogramAggregatorFactory or AutoDateHistogramAggregatorFactory.
+     */
+    public void testValidateException() throws IOException {
+        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
+        aggBuilders.add(new CumulativeSumPipelineAggregationBuilder("cusum", "sum"));
+        TestAggregatorFactory parentFactory = TestAggregatorFactory.createInstance();
+
+        final CumulativeSumPipelineAggregationBuilder builder = new CumulativeSumPipelineAggregationBuilder("name", "invalid_agg>metric");
+        IllegalStateException ex = expectThrows(IllegalStateException.class,
+                () -> builder.validate(parentFactory, Collections.emptySet(), aggBuilders));
+        assertEquals("cumulative_sum aggregation [name] must have a histogram, date_histogram or auto_date_histogram as parent",
+                ex.getMessage());
+    }
 
     private void executeTestCase(Query query, AggregationBuilder aggBuilder, Consumer<InternalAggregation> verify) throws IOException {
         executeTestCase(query, aggBuilder, verify, indexWriter -> {
@@ -307,6 +366,6 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
     }
 
     private static long asLong(String dateTime) {
-        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(dateTime).getMillis();
+        return DateFormatters.toZonedDateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(dateTime)).toInstant().toEpochMilli();
     }
 }

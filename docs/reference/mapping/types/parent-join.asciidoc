@@ -12,13 +12,11 @@ A parent/child relation can be defined as follows:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_join_field": { <1>
-          "type": "join",
-          "relations": {
-            "question": "answer" <2>
-          }
+    "properties": {
+      "my_join_field": { <1>
+        "type": "join",
+        "relations": {
+          "question": "answer" <2>
         }
       }
     }
@@ -46,7 +44,7 @@ PUT my_index/_doc/1?refresh
 
 PUT my_index/_doc/2?refresh
 {
-  "text": "This is a another question",
+  "text": "This is another question",
   "my_join_field": {
     "name": "question"
   }
@@ -175,7 +173,10 @@ Will return:
 {
     ...,
     "hits": {
-        "total": 4,
+        "total" : {
+            "value": 4,
+            "relation": "eq"
+        },
         "max_score": null,
         "hits": [
             {
@@ -319,15 +320,13 @@ make sense to disable eager loading:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_join_field": {
-          "type": "join",
-          "relations": {
-             "question": "answer"
-          },
-          "eager_global_ordinals": false
-        }
+    "properties": {
+      "my_join_field": {
+        "type": "join",
+        "relations": {
+           "question": "answer"
+        },
+        "eager_global_ordinals": false
       }
     }
   }
@@ -358,13 +357,11 @@ It is also possible to define multiple children for a single parent:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_join_field": {
-          "type": "join",
-          "relations": {
-            "question": ["answer", "comment"]  <1>
-          }
+    "properties": {
+      "my_join_field": {
+        "type": "join",
+        "relations": {
+          "question": ["answer", "comment"]  <1>
         }
       }
     }
@@ -388,14 +385,12 @@ Multiple levels of parent/child:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_join_field": {
-          "type": "join",
-          "relations": {
-            "question": ["answer", "comment"],  <1>
-            "answer": "vote" <2>
-          }
+    "properties": {
+      "my_join_field": {
+        "type": "join",
+        "relations": {
+          "question": ["answer", "comment"],  <1>
+          "answer": "vote" <2>
         }
       }
     }
@@ -417,7 +412,7 @@ The mapping above represents the following tree:
                                  |
                                 vote
 
-Indexing a grand child document requires a `routing` value equals
+Indexing a grandchild document requires a `routing` value equals
 to the grand-parent (the greater parent of the lineage):
 
 

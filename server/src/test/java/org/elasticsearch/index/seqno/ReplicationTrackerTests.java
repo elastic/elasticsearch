@@ -686,7 +686,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         final AllocationId primaryAllocationId = clusterState.routingTable.primaryShard().allocationId();
         final LongConsumer onUpdate = updatedGlobalCheckpoint -> {};
         final long globalCheckpoint = UNASSIGNED_SEQ_NO;
-        final BiConsumer<Collection<RetentionLease>, ActionListener<ReplicationResponse>> onNewRetentionLease =
+        final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onNewRetentionLease =
                 (leases, listener) -> {};
         ReplicationTracker oldPrimary = new ReplicationTracker(
                 shardId, primaryAllocationId.getId(), indexSettings, globalCheckpoint, onUpdate, () -> 0L, onNewRetentionLease);

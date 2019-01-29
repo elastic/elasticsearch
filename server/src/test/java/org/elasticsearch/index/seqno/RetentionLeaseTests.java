@@ -25,7 +25,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -109,6 +108,7 @@ public class RetentionLeaseTests extends ESTestCase {
     }
 
     public void testRetentionLeasesEncoding() {
+        final long version = randomNonNegativeLong();
         final int length = randomIntBetween(0, 8);
         final List<RetentionLease> retentionLeases = new ArrayList<>(length);
         for (int i = 0; i < length; i++) {
@@ -119,12 +119,13 @@ public class RetentionLeaseTests extends ESTestCase {
             final RetentionLease retentionLease = new RetentionLease(id, retainingSequenceNumber, timestamp, source);
             retentionLeases.add(retentionLease);
         }
-        final Collection<RetentionLease> decodedRetentionLeases =
-                RetentionLease.decodeRetentionLeases(RetentionLease.encodeRetentionLeases(retentionLeases));
+        final RetentionLeases decodedRetentionLeases =
+                RetentionLease.decodeRetentionLeases(RetentionLease.encodeRetentionLeases(new RetentionLeases(version, retentionLeases)));
+        assertThat(decodedRetentionLeases.version(), equalTo(version));
         if (length == 0) {
-            assertThat(decodedRetentionLeases, empty());
+            assertThat(decodedRetentionLeases.retentionLeases(), empty());
         } else {
-            assertThat(decodedRetentionLeases, contains(retentionLeases.toArray(new RetentionLease[0])));
+            assertThat(decodedRetentionLeases.retentionLeases(), contains(retentionLeases.toArray(new RetentionLease[0])));
         }
     }
 

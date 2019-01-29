@@ -32,7 +32,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -75,7 +74,7 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
             latch.await();
 
             // check retention leases have been committed on the primary
-            final Collection<RetentionLease> primaryCommittedRetentionLeases = RetentionLease.decodeRetentionLeases(
+            final RetentionLeases primaryCommittedRetentionLeases = RetentionLease.decodeRetentionLeases(
                     primary.acquireLastIndexCommit(false).getIndexCommit().getUserData().get(Engine.RETENTION_LEASES));
             assertThat(currentRetentionLeases, equalTo(toMap(primaryCommittedRetentionLeases)));
 
@@ -90,7 +89,7 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
                 assertThat(retentionLeasesOnReplica, equalTo(currentRetentionLeases));
 
                 // check retention leases have been committed on the replica
-                final Collection<RetentionLease> replicaCommittedRetentionLeases = RetentionLease.decodeRetentionLeases(
+                final RetentionLeases replicaCommittedRetentionLeases = RetentionLease.decodeRetentionLeases(
                         replica.acquireLastIndexCommit(false).getIndexCommit().getUserData().get(Engine.RETENTION_LEASES));
                 assertThat(currentRetentionLeases, equalTo(toMap(replicaCommittedRetentionLeases)));
             }
@@ -134,14 +133,14 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
                 final IndexShard replica = internalCluster()
                         .getInstance(IndicesService.class, replicaShardNodeName)
                         .getShardOrNull(new ShardId(resolveIndex("index"), 0));
-                assertThat(replica.getRetentionLeases(), hasItem(currentRetentionLease));
+                assertThat(replica.getRetentionLeases().retentionLeases(), hasItem(currentRetentionLease));
             }
 
             // sleep long enough that *possibly* the current retention lease has expired, and certainly that any previous have
             final long later = System.nanoTime();
             Thread.sleep(Math.max(0, retentionLeaseTimeToLive.millis() - TimeUnit.NANOSECONDS.toMillis(later - now)));
-            final Collection<RetentionLease> currentRetentionLeases = primary.getRetentionLeases();
-            assertThat(currentRetentionLeases, anyOf(empty(), contains(currentRetentionLease)));
+            final RetentionLeases currentRetentionLeases = primary.getRetentionLeases();
+            assertThat(currentRetentionLeases.retentionLeases(), anyOf(empty(), contains(currentRetentionLease)));
 
             /*
              * Check that expiration of retention leases has been synced to all replicas. We have to assert busy since syncing happens in
@@ -154,18 +153,23 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
                     final IndexShard replica = internalCluster()
                             .getInstance(IndicesService.class, replicaShardNodeName)
                             .getShardOrNull(new ShardId(resolveIndex("index"), 0));
-                    if (currentRetentionLeases.isEmpty()) {
-                        assertThat(replica.getRetentionLeases(), empty());
+                    if (currentRetentionLeases.retentionLeases().isEmpty()) {
+                        assertThat(replica.getRetentionLeases().retentionLeases(), empty());
                     } else {
-                        assertThat(replica.getRetentionLeases(), contains(currentRetentionLeases.toArray(new RetentionLease[0])));
+                        assertThat(
+                                replica.getRetentionLeases().retentionLeases(),
+                                contains(currentRetentionLeases.retentionLeases().toArray(new RetentionLease[0])));
                     }
                 }
             });
         }
     }
 
-    private static Map<String, RetentionLease> toMap(final Collection<RetentionLease> replicaCommittedRetentionLeases) {
-        return replicaCommittedRetentionLeases.stream().collect(Collectors.toMap(RetentionLease::id, Function.identity()));
+    private static Map<String, RetentionLease> toMap(final RetentionLeases replicaCommittedRetentionLeases) {
+        return replicaCommittedRetentionLeases
+                .retentionLeases()
+                .stream()
+                .collect(Collectors.toMap(RetentionLease::id, Function.identity()));
     }
 
 }

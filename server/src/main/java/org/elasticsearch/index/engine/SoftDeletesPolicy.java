@@ -25,10 +25,10 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.RetentionLease;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 
-import java.util.Collection;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
@@ -46,15 +46,15 @@ final class SoftDeletesPolicy {
     private long retentionOperations;
     // The min seq_no value that is retained - ops after this seq# should exist in the Lucene index.
     private long minRetainedSeqNo;
-    private Collection<RetentionLease> retentionLeases;
+    private RetentionLeases retentionLeases;
     // provides the retention leases used to calculate the minimum sequence number to retain
-    private final Supplier<Collection<RetentionLease>> retentionLeasesSupplier;
+    private final Supplier<RetentionLeases> retentionLeasesSupplier;
 
     SoftDeletesPolicy(
             final LongSupplier globalCheckpointSupplier,
             final long minRetainedSeqNo,
             final long retentionOperations,
-            final Supplier<Collection<RetentionLease>> retentionLeasesSupplier) {
+            final Supplier<RetentionLeases> retentionLeasesSupplier) {
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.retentionOperations = retentionOperations;
         this.minRetainedSeqNo = minRetainedSeqNo;
@@ -112,7 +112,7 @@ final class SoftDeletesPolicy {
         return getRetentionPolicy().v1();
     }
 
-    public synchronized Tuple<Long, Collection<RetentionLease>> getRetentionPolicy() {
+    public synchronized Tuple<Long, RetentionLeases> getRetentionPolicy() {
         // do not advance if the retention lock is held
         if (retentionLockCount == 0) {
             /*
@@ -128,6 +128,7 @@ final class SoftDeletesPolicy {
             // calculate the minimum sequence number to retain based on retention leases
             retentionLeases = retentionLeasesSupplier.get();
             final long minimumRetainingSequenceNumber = retentionLeases
+                    .retentionLeases()
                     .stream()
                     .mapToLong(RetentionLease::retainingSequenceNumber)
                     .min()

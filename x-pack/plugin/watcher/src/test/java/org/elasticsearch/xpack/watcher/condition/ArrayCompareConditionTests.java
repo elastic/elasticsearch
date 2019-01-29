@@ -19,7 +19,7 @@ import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 import java.time.Clock;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -158,7 +158,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         List<Object> values = new ArrayList<>(numberOfValues);
         for (int i = 0; i < numberOfValues; i++) {
             clock.fastForwardSeconds(1);
-            values.add(clock.instant().atZone(ZoneId.systemDefault()));
+            values.add(clock.instant().atZone(ZoneOffset.UTC));
         }
 
         ArrayCompareCondition condition = new ArrayCompareCondition("ctx.payload.value", "", op, value, quantifier, clock);

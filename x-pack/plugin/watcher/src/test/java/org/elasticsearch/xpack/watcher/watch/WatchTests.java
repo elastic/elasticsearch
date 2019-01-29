@@ -119,7 +119,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -251,7 +250,7 @@ public class WatchTests extends ESTestCase {
         for (ActionWrapper action : actions) {
             actionsStatuses.put(action.id(), new ActionStatus(now));
         }
-        WatchStatus watchStatus = new WatchStatus(clock.instant().atZone(ZoneId.systemDefault()), unmodifiableMap(actionsStatuses));
+        WatchStatus watchStatus = new WatchStatus(clock.instant().atZone(ZoneOffset.UTC), unmodifiableMap(actionsStatuses));
 
         WatchParser watchParser = new WatchParser(triggerService, actionRegistry, inputRegistry, null, clock);
         XContentBuilder builder = jsonBuilder().startObject().startObject("trigger").endObject().field("status", watchStatus).endObject();

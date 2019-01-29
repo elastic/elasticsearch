@@ -135,11 +135,10 @@ public final class WatcherTestUtils {
                 null,
                 new ArrayList<>(),
                 null,
-                new WatchStatus(Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC), emptyMap()), 1L);
-        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(),
-            Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC),
-            new ScheduleTriggerEvent(watch.id(), Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC),
-                Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC)), TimeValue.timeValueSeconds(5));
+                new WatchStatus(Instant.EPOCH.atZone(ZoneOffset.UTC), emptyMap()), 1L);
+        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), Instant.EPOCH.atZone(ZoneOffset.UTC),
+            new ScheduleTriggerEvent(watch.id(), Instant.EPOCH.atZone(ZoneOffset.UTC), Instant.EPOCH.atZone(ZoneOffset.UTC)),
+            TimeValue.timeValueSeconds(5));
         context.ensureWatchExists(() -> watch);
         return context;
     }

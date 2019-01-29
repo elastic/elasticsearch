@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 
-import java.time.Clock;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
@@ -27,7 +26,7 @@ import static org.mockito.Mockito.when;
 
 public class AckThrottlerTests extends ESTestCase {
     public void testWhenAcked() throws Exception {
-        ZonedDateTime timestamp = Clock.systemUTC().instant().atZone(ZoneOffset.UTC);
+        ZonedDateTime timestamp = ZonedDateTime.now(ZoneOffset.UTC);
         WatchExecutionContext ctx = mockExecutionContext("_watch", Payload.EMPTY);
         Watch watch = ctx.watch();
         ActionStatus actionStatus = mock(ActionStatus.class);
@@ -43,7 +42,7 @@ public class AckThrottlerTests extends ESTestCase {
     }
 
     public void testThrottleWhenAwaitsSuccessfulExecution() throws Exception {
-        ZonedDateTime timestamp = Clock.systemUTC().instant().atZone(ZoneOffset.UTC);
+        ZonedDateTime timestamp = ZonedDateTime.now(ZoneOffset.UTC);
         WatchExecutionContext ctx = mockExecutionContext("_watch", Payload.EMPTY);
         Watch watch = ctx.watch();
         ActionStatus actionStatus = mock(ActionStatus.class);
@@ -59,7 +58,7 @@ public class AckThrottlerTests extends ESTestCase {
     }
 
     public void testThrottleWhenAckable() throws Exception {
-        ZonedDateTime timestamp = Clock.systemUTC().instant().atZone(ZoneOffset.UTC);
+        ZonedDateTime timestamp = ZonedDateTime.now(ZoneOffset.UTC);
         WatchExecutionContext ctx = mockExecutionContext("_watch", Payload.EMPTY);
         Watch watch = ctx.watch();
         ActionStatus actionStatus = mock(ActionStatus.class);

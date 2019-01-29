@@ -15,6 +15,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.IOException;
@@ -28,7 +29,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 public class WatcherDateTimeUtils {
 
-    public static final DateFormatter dateTimeFormatter = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
+    public static final DateFormatter dateTimeFormatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
     public static final DateMathParser dateMathParser = dateTimeFormatter.toDateMathParser();
 
 
@@ -40,7 +41,7 @@ public class WatcherDateTimeUtils {
             return (ZonedDateTime) value;
         }
         if (value instanceof JodaCompatibleZonedDateTime) {
-            return ((JodaCompatibleZonedDateTime) value).toInstant().atZone(ZoneOffset.UTC);
+            return ((JodaCompatibleZonedDateTime) value).getZonedDateTime();
         }
         if (value instanceof String) {
             return parseDateMath((String) value, ZoneOffset.UTC, clock);
@@ -123,10 +124,6 @@ public class WatcherDateTimeUtils {
         out.writeLong(date.toInstant().toEpochMilli());
     }
 
-    public static ZonedDateTime readDate(StreamInput in, ZoneId timeZone) throws IOException {
-        return  Instant.ofEpochMilli(in.readLong()).atZone(timeZone);
-    }
-
     public static void writeOptionalDate(StreamOutput out, ZonedDateTime date) throws IOException {
         if (date == null) {
             out.writeBoolean(false);
@@ -136,8 +133,8 @@ public class WatcherDateTimeUtils {
         out.writeLong(date.toInstant().toEpochMilli());
     }
 
-    public static ZonedDateTime readOptionalDate(StreamInput in, ZoneId timeZone) throws IOException {
-        return in.readBoolean() ? Instant.ofEpochMilli(in.readLong()).atZone(timeZone) : null;
+    public static ZonedDateTime readOptionalDate(StreamInput in) throws IOException {
+        return in.readBoolean() ? Instant.ofEpochMilli(in.readLong()).atZone(ZoneOffset.UTC) : null;
     }
 
     public static TimeValue parseTimeValue(XContentParser parser, String settingName) throws IOException {

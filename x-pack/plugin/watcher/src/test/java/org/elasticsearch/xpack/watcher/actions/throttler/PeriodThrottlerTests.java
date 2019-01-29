@@ -54,7 +54,7 @@ public class PeriodThrottlerTests extends ESTestCase {
 
         WatchExecutionContext ctx = mockExecutionContext("_name", Payload.EMPTY);
         ActionStatus actionStatus = mock(ActionStatus.class);
-        ZonedDateTime now = Clock.systemUTC().instant().atZone(ZoneOffset.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         when(actionStatus.lastSuccessfulExecution())
                 .thenReturn(ActionStatus.Execution.successful(now.minusSeconds((int) period.seconds() + 1)));
         WatchStatus status = mock(WatchStatus.class);

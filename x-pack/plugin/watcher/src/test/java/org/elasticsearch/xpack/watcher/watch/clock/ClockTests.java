@@ -8,19 +8,10 @@ package org.elasticsearch.xpack.watcher.watch.clock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 
-import java.time.Clock;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class ClockTests extends ESTestCase {
-    public void testNowUTC() {//TODO what is that test supposed to prove?
-        Clock clockMock = ClockMock.frozen();
-        assertThat(clockMock.instant().atZone(ZoneOffset.UTC).getZone(), equalTo(ZoneOffset.UTC));
-        assertThat(ZonedDateTime.now(Clock.systemUTC()).getZone(), equalTo(ZoneOffset.UTC));
-    }
 
     public void testFreezeUnfreeze() throws Exception {
         ClockMock clockMock = ClockMock.frozen();

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentParser;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
@@ -31,7 +32,6 @@ import java.util.Objects;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.parseDate;
-import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.readDate;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.readOptionalDate;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.writeDate;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.writeOptionalDate;
@@ -219,15 +219,15 @@ public class WatchStatus implements ToXContentObject, Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         version = in.readLong();
-        lastChecked = readOptionalDate(in, ZoneOffset.UTC);
-        lastMetCondition = readOptionalDate(in, ZoneOffset.UTC);
+        lastChecked = readOptionalDate(in);
+        lastMetCondition = readOptionalDate(in);
         int count = in.readInt();
         Map<String, ActionStatus> actions = new HashMap<>(count);
         for (int i = 0; i < count; i++) {
             actions.put(in.readString(), ActionStatus.readFrom(in));
         }
         this.actions = unmodifiableMap(actions);
-        state = new State(in.readBoolean(), readDate(in, ZoneOffset.UTC));
+        state = new State(in.readBoolean(), Instant.ofEpochMilli(in.readLong()).atZone(ZoneOffset.UTC));
         boolean executionStateExists = in.readBoolean();
         if (executionStateExists) {
             executionState = ExecutionState.resolve(in.readString());

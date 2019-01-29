@@ -216,7 +216,6 @@ public class ActionStatus implements ToXContentObject {
         private final State state;
 
         public AckStatus(ZonedDateTime timestamp, State state) {
-            //TODO with sameinstant or localdate
             this.timestamp = timestamp.withZoneSameInstant(ZoneOffset.UTC);
             this.state = state;
         }
@@ -401,7 +400,7 @@ public class ActionStatus implements ToXContentObject {
         }
 
         public static Execution readFrom(StreamInput in) throws IOException {
-            ZonedDateTime timestamp = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.readLong()), ZoneOffset.UTC);
+            ZonedDateTime timestamp = Instant.ofEpochMilli(in.readLong()).atZone(ZoneOffset.UTC);
             boolean successful = in.readBoolean();
             if (successful) {
                 return successful(timestamp);

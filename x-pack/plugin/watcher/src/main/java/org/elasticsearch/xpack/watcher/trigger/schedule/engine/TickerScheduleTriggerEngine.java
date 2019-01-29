@@ -110,10 +110,11 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         for (ActiveSchedule schedule : schedules.values()) {
             long scheduledTime = schedule.check(triggeredTime);
             if (scheduledTime > 0) {
+                ZonedDateTime triggeredDateTime = utcDateTimeAtEpochMillis(triggeredTime);
+                ZonedDateTime scheduledDateTime = utcDateTimeAtEpochMillis(scheduledTime);
                 logger.debug("triggered job [{}] at [{}] (scheduled time was [{}])", schedule.name,
-                    utcDateTimeAtEpochMillis(triggeredTime), utcDateTimeAtEpochMillis(scheduledTime));
-                events.add(new ScheduleTriggerEvent(schedule.name, utcDateTimeAtEpochMillis(triggeredTime),
-                    utcDateTimeAtEpochMillis(scheduledTime)));
+                    triggeredDateTime, scheduledDateTime);
+                events.add(new ScheduleTriggerEvent(schedule.name, triggeredDateTime, scheduledDateTime));
                 if (events.size() >= 1000) {
                     notifyListeners(events);
                     events.clear();

@@ -21,7 +21,9 @@ package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -30,7 +32,7 @@ import java.time.ZonedDateTime;
 
 public final class WatchStatusDateParser {
 
-    private static final DateFormatter FORMATTER = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
+    private static final DateFormatter FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 
     private WatchStatusDateParser() {
         // Prevent instantiation.
@@ -53,6 +55,6 @@ public final class WatchStatusDateParser {
     }
 
     public static ZonedDateTime parseDate(String text) {
-        return ZonedDateTime.from(FORMATTER.parse(text));
+        return DateFormatters.toZonedDateTime(FORMATTER.parse(text));
     }
 }

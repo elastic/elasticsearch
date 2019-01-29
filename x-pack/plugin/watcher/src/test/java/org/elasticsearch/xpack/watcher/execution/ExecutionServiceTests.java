@@ -75,7 +75,6 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -164,7 +163,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(getResponse.isExists()).thenReturn(true);
         mockGetWatchResponse(client, "_id", getResponse);
 
-        ZonedDateTime now = clock.instant().atZone(ZoneId.systemDefault());
+        ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
         when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
@@ -268,7 +267,7 @@ public class ExecutionServiceTests extends ESTestCase {
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("_id");
 
-        ZonedDateTime now = clock.instant().atZone(ZoneId.systemDefault());
+        ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
         when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
@@ -337,7 +336,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(getResponse.isExists()).thenReturn(true);
         mockGetWatchResponse(client, "_id", getResponse);
 
-        ZonedDateTime now = clock.instant().atZone(ZoneId.systemDefault());
+        ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
         when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
@@ -402,7 +401,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(getResponse.isExists()).thenReturn(true);
         mockGetWatchResponse(client, "_id", getResponse);
 
-        ZonedDateTime now = clock.instant().atZone(ZoneId.systemDefault());
+        ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
         when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
@@ -467,7 +466,7 @@ public class ExecutionServiceTests extends ESTestCase {
         mockGetWatchResponse(client, "_id", getResponse);
         when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
 
-        ZonedDateTime now = clock.instant().atZone(ZoneId.systemDefault());
+        ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
 
@@ -595,7 +594,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        ZonedDateTime time = clock.instant().atZone(ZoneId.systemDefault());
+        ZonedDateTime time = clock.instant().atZone(ZoneOffset.UTC);
         WatchStatus watchStatus = new WatchStatus(time, singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
@@ -644,7 +643,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ExecutableAction action = mock(ExecutableAction.class);
         when(action.type()).thenReturn("_type");
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        ZonedDateTime time = clock.instant().atZone(ZoneId.systemDefault());
+        ZonedDateTime time = clock.instant().atZone(ZoneOffset.UTC);
         WatchStatus watchStatus = new WatchStatus(time, singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
@@ -707,7 +706,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ExecutableAction action = mock(ExecutableAction.class);
         when(action.type()).thenReturn("_type");
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        ZonedDateTime time = clock.instant().atZone(ZoneId.systemDefault());
+        ZonedDateTime time = clock.instant().atZone(ZoneOffset.UTC);
         WatchStatus watchStatus = new WatchStatus(time, singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
@@ -764,7 +763,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(action.type()).thenReturn("_type");
         when(action.logger()).thenReturn(logger);
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        ZonedDateTime time = clock.instant().atZone(ZoneId.systemDefault());
+        ZonedDateTime time = clock.instant().atZone(ZoneOffset.UTC);
         WatchStatus watchStatus = new WatchStatus(time, singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
@@ -813,7 +812,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ExecutableAction action = mock(ExecutableAction.class);
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
 
-        ZonedDateTime time = clock.instant().atZone(ZoneId.systemDefault());
+        ZonedDateTime time = clock.instant().atZone(ZoneOffset.UTC);
         WatchStatus watchStatus = new WatchStatus(time, singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
@@ -868,7 +867,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(getResponse.isExists()).thenReturn(true);
         mockGetWatchResponse(client, "_id", getResponse);
 
-        ZonedDateTime now = clock.instant().atZone(ZoneId.systemDefault());
+        ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         WatchExecutionContext context = ManualExecutionContext.builder(watch, false, new ManualTriggerEvent("foo", event),
                 timeValueSeconds(5)).build();
@@ -918,7 +917,7 @@ public class ExecutionServiceTests extends ESTestCase {
     public void testExecuteWatchNotFound() throws Exception {
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("_id");
-        ZonedDateTime epochZeroTime = Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC);
+        ZonedDateTime epochZeroTime = Instant.EPOCH.atZone(ZoneOffset.UTC);
         ScheduleTriggerEvent triggerEvent = new ScheduleTriggerEvent(watch.id(), epochZeroTime, epochZeroTime);
         TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), epochZeroTime, triggerEvent,
                 TimeValue.timeValueSeconds(5));
@@ -935,7 +934,7 @@ public class ExecutionServiceTests extends ESTestCase {
     public void testExecuteWatchIndexNotFoundException() {
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("_id");
-        ZonedDateTime epochZeroTime = Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC);
+        ZonedDateTime epochZeroTime = Instant.EPOCH.atZone(ZoneOffset.UTC);
         ScheduleTriggerEvent triggerEvent = new ScheduleTriggerEvent(watch.id(), epochZeroTime, epochZeroTime);
         TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), epochZeroTime, triggerEvent,
                 TimeValue.timeValueSeconds(5));
@@ -949,7 +948,7 @@ public class ExecutionServiceTests extends ESTestCase {
     public void testExecuteWatchParseWatchException() {
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("_id");
-        ZonedDateTime epochZeroTime = Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC);
+        ZonedDateTime epochZeroTime = Instant.EPOCH.atZone(ZoneOffset.UTC);
         TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(),
             epochZeroTime,
                 new ScheduleTriggerEvent(watch.id(), epochZeroTime, epochZeroTime),
@@ -1052,7 +1051,7 @@ public class ExecutionServiceTests extends ESTestCase {
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("_id");
 
-        ZonedDateTime now = clock.instant().atZone(ZoneId.systemDefault());
+        ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         ManualExecutionContext ctx = ManualExecutionContext.builder(watch, true,
                 new ManualTriggerEvent("foo", event), timeValueSeconds(5)).build();

@@ -126,8 +126,8 @@ public class TickerScheduleEngineTests extends ESTestCase {
 
         int randomMinute = randomIntBetween(0, 59);
         ZonedDateTime testNowTime = clock.instant().atZone(ZoneOffset.UTC)
-            .with(ChronoField.MINUTE_OF_HOUR,randomMinute)
-            .with(ChronoField.SECOND_OF_MINUTE,59);
+            .with(ChronoField.MINUTE_OF_HOUR, randomMinute)
+            .with(ChronoField.SECOND_OF_MINUTE, 59);
 
         ZonedDateTime scheduledTime = testNowTime.plusSeconds(2);
         logger.info("Setting current time to [{}], job execution time [{}]", testNowTime,
@@ -163,8 +163,8 @@ public class TickerScheduleEngineTests extends ESTestCase {
         int randomMinute = randomIntBetween(0, 59);
 
         ZonedDateTime testNowTime = clock.instant().atZone(ZoneOffset.UTC)
-            .with(ChronoField.HOUR_OF_DAY,randomHour).with(ChronoField.MINUTE_OF_HOUR,randomMinute)
-            .with(ChronoField.SECOND_OF_MINUTE,59);
+            .with(ChronoField.HOUR_OF_DAY, randomHour).with(ChronoField.MINUTE_OF_HOUR, randomMinute)
+            .with(ChronoField.SECOND_OF_MINUTE, 59);
 
         ZonedDateTime scheduledTime = testNowTime.plusSeconds(2);
         logger.info("Setting current time to [{}], job execution time [{}]", testNowTime,
@@ -200,10 +200,10 @@ public class TickerScheduleEngineTests extends ESTestCase {
         int randomDay = randomIntBetween(1, 7);
 
         ZonedDateTime testNowTime = clock.instant().atZone(ZoneOffset.UTC)
-                .with(ChronoField.DAY_OF_WEEK,randomDay)
-                .with(ChronoField.HOUR_OF_DAY,randomHour)
-                .with(ChronoField.MINUTE_OF_HOUR,randomMinute)
-                .with(ChronoField.SECOND_OF_MINUTE,59);
+                .with(ChronoField.DAY_OF_WEEK, randomDay)
+                .with(ChronoField.HOUR_OF_DAY, randomHour)
+                .with(ChronoField.MINUTE_OF_HOUR, randomMinute)
+                .with(ChronoField.SECOND_OF_MINUTE, 59);
 
         ZonedDateTime scheduledTime = testNowTime.plusSeconds(2);
 

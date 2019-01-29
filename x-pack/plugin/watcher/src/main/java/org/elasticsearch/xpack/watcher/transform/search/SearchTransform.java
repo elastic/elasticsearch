@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.transform.search;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -112,7 +113,7 @@ public class SearchTransform implements Transform {
                 timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT_HUMAN.toString());
             } else if (Field.DYNAMIC_NAME_TIMEZONE.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.VALUE_STRING) {
-                    dynamicNameTimeZone = ZoneId.of(parser.text());
+                    dynamicNameTimeZone = DateUtils.of(parser.text());
                 } else {
                     throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse [{}]. must be a" +
                             " string value (e.g. 'UTC' or '+01:00').", TYPE, watchId, currentFieldName);

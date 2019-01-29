@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -161,7 +162,7 @@ public class IndexAction implements Action {
                     timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT_HUMAN.toString());
                 } else if (Field.DYNAMIC_NAME_TIMEZONE.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_STRING) {
-                        dynamicNameTimeZone = ZoneId.of(parser.text());
+                        dynamicNameTimeZone = DateUtils.of(parser.text());
                     } else {
                         throw new ElasticsearchParseException("could not parse [{}] action for watch [{}]. failed to parse [{}]. must be " +
                                                               "a string value (e.g. 'UTC' or '+01:00').", TYPE, watchId, currentFieldName);

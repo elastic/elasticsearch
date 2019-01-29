@@ -14,7 +14,7 @@ public final class HistoryStoreField {
 
     public static final String INDEX_PREFIX = ".watcher-history-";
     public static final String INDEX_PREFIX_WITH_TEMPLATE = INDEX_PREFIX + WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION + "-";
-    private static final DateFormatter indexTimeFormat = DateFormatter.forPattern("YYYY.MM.dd");
+    private static final DateFormatter indexTimeFormat = DateFormatter.forPattern("yyyy.MM.dd");
 
     /**
      * Calculates the correct history index name for a given time

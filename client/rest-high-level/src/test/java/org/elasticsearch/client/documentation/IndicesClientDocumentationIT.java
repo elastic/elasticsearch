@@ -2087,7 +2087,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     "      \"type\": \"text\"\n" +
                     "    }\n" +
                     "  }\n" +
-                    "}", // <2>
+                    "}", 
                 XContentType.JSON);
             // end::put-template-request-mappings-json
             assertTrue(client.indices().putTemplate(request, RequestOptions.DEFAULT).isAcknowledged());

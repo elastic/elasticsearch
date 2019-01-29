@@ -83,8 +83,8 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
             .startObject("mappings")
                 .startObject("_meta")
                     .field("test", true)
+                .field("enabled", false)
                 .endObject()
-                    .field("enabled", false)
             .endObject();
 
         if (version != null) {

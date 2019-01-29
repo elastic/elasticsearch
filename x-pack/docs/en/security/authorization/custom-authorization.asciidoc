@@ -125,6 +125,7 @@ custom_roles_provider.s3_roles_provider.region: us-east-1
 custom_roles_provider.s3_roles_provider.secret_key: xxx
 custom_roles_provider.s3_roles_provider.access_key: xxx
 ----------------------------------------
+// NOTCONSOLE
 +
 These settings are passed as arguments to the methods in the `SecurityExtension` interface.
 

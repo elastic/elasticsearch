@@ -338,7 +338,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         PrefixFieldType(String parentField, String name, int minChars, int maxChars) {
             setTokenized(true);
             setOmitNorms(true);
-            setIndexOptions(IndexOptions.DOCS);
             setStored(false);
             setName(name);
             this.minChars = minChars;

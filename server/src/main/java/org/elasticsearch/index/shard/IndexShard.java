@@ -315,11 +315,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         aId,
                         indexSettings,
                         UNASSIGNED_SEQ_NO,
-                        globalCheckpoint -> {
-                            this.addRetentionLease(
-                                    Long.toString(globalCheckpoint), globalCheckpoint, Long.toString(globalCheckpoint), ActionListener.wrap(() -> {}));
-                            globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint);
-                        },
+                        globalCheckpointListeners::globalCheckpointUpdated,
                         threadPool::absoluteTimeInMillis,
                         retentionLeaseSyncer);
 

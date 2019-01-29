@@ -161,7 +161,6 @@ POST _ingest/pipeline/_simulate?verbose
     },
     {
       "_index": "index",
-      "_type": "_type",
       "_id": "id",
       "_source": {
         "foo": "rab"
@@ -215,7 +214,6 @@ Response:
                "doc": {
                   "_id": "id",
                   "_index": "index",
-                  "_type": "_type",
                   "_source": {
                      "field2": "_value2",
                      "foo": "rab"
@@ -229,7 +227,6 @@ Response:
                "doc": {
                   "_id": "id",
                   "_index": "index",
-                  "_type": "_type",
                   "_source": {
                      "field3": "_value3",
                      "field2": "_value2",

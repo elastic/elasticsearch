@@ -126,8 +126,6 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
                 .persistentSettings(persistentSettings)
                 .coordinationMetaData(newCoordinationMetaData)
                 .build();
-        terminal.println(Terminal.Verbosity.VERBOSE,
-                "Changing clusterUUID from " + metaData.clusterUUID() + " to " +newMetaData.clusterUUID());
 
         long newCurrentTerm = manifest.getCurrentTerm() + 1;
         writeNewMetaData(terminal, manifest, newCurrentTerm, manifest.getClusterStateVersion(), metaData, newMetaData, dataPaths);

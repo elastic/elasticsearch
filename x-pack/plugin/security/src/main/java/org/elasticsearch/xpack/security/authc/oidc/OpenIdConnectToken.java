@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
+import com.nimbusds.oauth2.sdk.id.State;
+import com.nimbusds.openid.connect.sdk.Nonce;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 /**
@@ -15,8 +17,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 public class OpenIdConnectToken implements AuthenticationToken {
 
     private String redirectUrl;
-    private String state;
-    private String nonce;
+    private State state;
+    private Nonce nonce;
 
     /**
      * @param redirectUrl The URI where the OP redirected the browser after the authentication event at the OP. This is passed as is from
@@ -27,7 +29,7 @@ public class OpenIdConnectToken implements AuthenticationToken {
      * @param nonce       The nonce value that we generated for this specific flow and should be stored at the user's session with the
      *                    facilitator.
      */
-    public OpenIdConnectToken(String redirectUrl, String state, String nonce) {
+    public OpenIdConnectToken(String redirectUrl, State state, Nonce nonce) {
         this.redirectUrl = redirectUrl;
         this.state = state;
         this.nonce = nonce;
@@ -48,11 +50,11 @@ public class OpenIdConnectToken implements AuthenticationToken {
         this.redirectUrl = null;
     }
 
-    public String getState() {
+    public State getState() {
         return state;
     }
 
-    public String getNonce() {
+    public Nonce getNonce() {
         return nonce;
     }
 

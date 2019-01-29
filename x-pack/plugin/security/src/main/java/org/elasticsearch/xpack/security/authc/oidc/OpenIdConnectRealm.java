@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.oidc;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jwt.JWTClaimsSet;
 
+import com.nimbusds.oauth2.sdk.ParseException;
 import com.nimbusds.oauth2.sdk.ResponseType;
 import com.nimbusds.oauth2.sdk.Scope;
 import com.nimbusds.oauth2.sdk.id.ClientID;
@@ -17,13 +18,16 @@ import com.nimbusds.openid.connect.sdk.AuthenticationRequest;
 import com.nimbusds.openid.connect.sdk.Nonce;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -72,7 +76,7 @@ import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectReal
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_REQUESTED_SCOPES;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_SIGNATURE_VERIFICATION_ALGORITHM;
 
-public class OpenIdConnectRealm extends Realm {
+public class OpenIdConnectRealm extends Realm implements Releasable {
 
     public static final String CONTEXT_TOKEN_DATA = "_oidc_tokendata";
     private final OpenIdConnectProviderConfiguration opConfiguration;
@@ -88,13 +92,14 @@ public class OpenIdConnectRealm extends Realm {
 
     private DelegatedAuthorizationSupport delegatedRealms;
 
-
-    public OpenIdConnectRealm(RealmConfig config, SSLService sslService, UserRoleMapper roleMapper) {
+    public OpenIdConnectRealm(RealmConfig config, SSLService sslService, UserRoleMapper roleMapper,
+                              ResourceWatcherService watcherService) {
         super(config);
         this.roleMapper = roleMapper;
         this.rpConfiguration = buildRelyingPartyConfiguration(config);
         this.opConfiguration = buildOpenIdConnectProviderConfiguration(config);
-        this.openIdConnectAuthenticator = new OpenIdConnectAuthenticator(config, opConfiguration, rpConfiguration, sslService);
+        this.openIdConnectAuthenticator =
+            new OpenIdConnectAuthenticator(config, opConfiguration, rpConfiguration, sslService, watcherService);
         this.principalAttribute = ClaimParser.forSetting(logger, PRINCIPAL_CLAIM, config, true);
         this.groupsAttribute = ClaimParser.forSetting(logger, GROUPS_CLAIM, config, false);
         this.dnAttribute = ClaimParser.forSetting(logger, DN_CLAIM, config, false);
@@ -144,12 +149,16 @@ public class OpenIdConnectRealm extends Realm {
     public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult> listener) {
         if (token instanceof OpenIdConnectToken) {
             OpenIdConnectToken oidcToken = (OpenIdConnectToken) token;
-            try {
-                JWTClaimsSet claims = openIdConnectAuthenticator.authenticate(oidcToken);
-                buildUserFromClaims(claims, listener);
-            } catch (ElasticsearchException e) {
-                listener.onResponse(AuthenticationResult.unsuccessful("Failed to authenticate user", e));
-            }
+            openIdConnectAuthenticator.authenticate(oidcToken, ActionListener.wrap(
+                jwtClaimsSet -> buildUserFromClaims(jwtClaimsSet, listener),
+                e -> {
+                    logger.debug("Failed to consume the OpenIdConnectToken ", e);
+                    if (e instanceof ElasticsearchSecurityException) {
+                        listener.onResponse(AuthenticationResult.unsuccessful("Failed to authenticate user with OpenID Connect", e));
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }));
         } else {
             listener.onResponse(AuthenticationResult.notHandled());
         }
@@ -195,7 +204,7 @@ public class OpenIdConnectRealm extends Realm {
         final String name = nameAttribute.getClaimValue(claims);
         UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, dn, groups, userMetadata, config);
         roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
-            final User user = new User(principal, roles.toArray(new String[0]), name, mail, userMetadata, true);
+            final User user = new User(principal, roles.toArray(Strings.EMPTY_ARRAY), name, mail, userMetadata, true);
             authResultListener.onResponse(AuthenticationResult.success(user));
         }, authResultListener::onFailure));
 
@@ -213,8 +222,18 @@ public class OpenIdConnectRealm extends Realm {
         }
         final ClientID clientId = new ClientID(require(config, RP_CLIENT_ID));
         final SecureString clientSecret = config.getSetting(RP_CLIENT_SECRET);
-        final ResponseType responseType = new ResponseType(require(config, RP_RESPONSE_TYPE));
-        final Scope requestedScope = new Scope(config.getSetting(RP_REQUESTED_SCOPES).toArray(new String[0]));
+        final ResponseType responseType;
+        try {
+            // This should never happen as it's already validated in the settings
+            responseType = ResponseType.parse(require(config, RP_RESPONSE_TYPE));
+        } catch (ParseException e) {
+            throw new SettingsException("Invalid value for " + RP_RESPONSE_TYPE.getKey(), e);
+        }
+
+        final Scope requestedScope = new Scope(config.getSetting(RP_REQUESTED_SCOPES).toArray(Strings.EMPTY_ARRAY));
+        if (requestedScope.contains("openid") == false) {
+            requestedScope.add("openid");
+        }
         final JWSAlgorithm signatureVerificationAlgorithm = JWSAlgorithm.parse(require(config, RP_SIGNATURE_VERIFICATION_ALGORITHM));
 
         return new RelyingPartyConfiguration(clientId, clientSecret, redirectUri, responseType, requestedScope,
@@ -250,7 +269,6 @@ public class OpenIdConnectRealm extends Realm {
             throw new SettingsException("Invalid URI: " + OP_USERINFO_ENDPOINT.getKey(), e);
         }
 
-
         return new OpenIdConnectProviderConfiguration(providerName, issuer, jwkSetUrl, authorizationEndpoint, tokenEndpoint,
             userinfoEndpoint);
     }
@@ -285,6 +303,11 @@ public class OpenIdConnectRealm extends Realm {
 
         return new OpenIdConnectPrepareAuthenticationResponse(authenticationRequest.toURI().toString(),
             state.getValue(), nonce.getValue());
+    }
+
+    @Override
+    public void close() {
+        openIdConnectAuthenticator.close();
     }
 
     static final class ClaimParser {

@@ -23,6 +23,7 @@ import com.nimbusds.jwt.SignedJWT;
 import com.nimbusds.jwt.proc.BadJWTException;
 import com.nimbusds.oauth2.sdk.ResponseType;
 import com.nimbusds.oauth2.sdk.Scope;
+import com.nimbusds.oauth2.sdk.auth.Secret;
 import com.nimbusds.oauth2.sdk.id.ClientID;
 import com.nimbusds.oauth2.sdk.id.Issuer;
 import com.nimbusds.oauth2.sdk.id.State;
@@ -31,8 +32,9 @@ import com.nimbusds.oauth2.sdk.token.BearerAccessToken;
 import com.nimbusds.openid.connect.sdk.AuthenticationSuccessResponse;
 import com.nimbusds.openid.connect.sdk.Nonce;
 import com.nimbusds.openid.connect.sdk.claims.AccessTokenHash;
-import org.elasticsearch.ElasticsearchException;
+import com.nimbusds.openid.connect.sdk.validators.IDTokenValidator;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -43,12 +45,15 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.junit.After;
 import org.junit.Before;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.security.KeyPair;
@@ -80,67 +85,94 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
     private ThreadContext threadContext;
 
     @Before
-    public void setup() throws Exception {
+    public void setup() {
         globalSettings = Settings.builder().put("path.home", createTempDir())
             .put("xpack.security.authc.realms.oidc.oidc-realm.ssl.verification_mode", "certificate").build();
         env = TestEnvironment.newEnvironment(globalSettings);
         threadContext = new ThreadContext(globalSettings);
-        authenticator = buildAuthenticator();
     }
 
+    @After
+    public void cleanup() {
+        authenticator.close();
+    }
 
     private OpenIdConnectAuthenticator buildAuthenticator() throws URISyntaxException {
         final RealmConfig config = buildConfig(getBasicRealmSettings().build());
-        return new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(globalSettings, env));
+        return new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(globalSettings, env), null);
+    }
+
+    private OpenIdConnectAuthenticator buildAuthenticator(OpenIdConnectProviderConfiguration opConfig, RelyingPartyConfiguration rpConfig,
+                                                          OpenIdConnectAuthenticator.PrivilegedResourceRetriever retriever)
+        throws MalformedURLException {
+        final RealmConfig config = buildConfig(getBasicRealmSettings().build());
+        final IDTokenValidator validator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(),
+            rpConfig.getSignatureAlgorithm(), new URL(opConfig.getJwkSetPath()), retriever);
+        return new OpenIdConnectAuthenticator(config, opConfig, rpConfig, new SSLService(globalSettings, env), validator,
+            null);
     }
 
     private OpenIdConnectAuthenticator buildAuthenticator(OpenIdConnectProviderConfiguration opConfig,
-                                                          RelyingPartyConfiguration rpConfig,
-                                                          OpenIdConnectAuthenticator.PrivilegedResourceRetriever retriever) {
+                                                          RelyingPartyConfiguration rpConfig) {
         final RealmConfig config = buildConfig(getBasicRealmSettings().build());
-        return new OpenIdConnectAuthenticator(config, opConfig, rpConfig, new SSLService(globalSettings, env), retriever);
+        final IDTokenValidator validator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(),
+            rpConfig.getSignatureAlgorithm(), new Secret(rpConfig.getClientSecret().toString()));
+        return new OpenIdConnectAuthenticator(config, opConfig, rpConfig, new SSLService(globalSettings, env), validator,
+            null);
     }
 
-    public void testEmptyRedirectUrlIsRejected() {
-        OpenIdConnectToken token = new OpenIdConnectToken(null, randomAlphaOfLength(8), randomAlphaOfLength(8));
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> {
-            authenticator.authenticate(token);
-        });
+    public void testEmptyRedirectUrlIsRejected() throws Exception {
+        authenticator = buildAuthenticator();
+        OpenIdConnectToken token = new OpenIdConnectToken(null, new State(), new Nonce());
+        final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
+        authenticator.authenticate(token, future);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
+            future::actionGet);
         assertThat(e.getMessage(), containsString("Failed to consume the OpenID connect response"));
     }
 
-    public void testInvalidStateIsRejected() {
+    public void testInvalidStateIsRejected() throws URISyntaxException {
+        authenticator = buildAuthenticator();
         final String code = randomAlphaOfLengthBetween(8, 12);
         final String state = randomAlphaOfLengthBetween(8, 12);
         final String invalidState = state.concat(randomAlphaOfLength(2));
         final String redirectUrl = "https://rp.elastic.co/cb?code=" + code + "&state=" + state;
-        OpenIdConnectToken token = new OpenIdConnectToken(redirectUrl, invalidState, randomAlphaOfLength(10));
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> {
-            authenticator.authenticate(token);
-        });
-        assertThat(e.getMessage(), containsString("Received a response with an invalid state parameter"));
+        OpenIdConnectToken token = new OpenIdConnectToken(redirectUrl, new State(invalidState), new Nonce());
+        final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
+        authenticator.authenticate(token, future);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
+            future::actionGet);
+        assertThat(e.getMessage(), containsString("Invalid state parameter"));
     }
 
     public void testInvalidNonceIsRejected() throws Exception {
-        final Tuple<Key, JWKSet> keyMaterial = getRandomJwkForType(randomFrom("ES", "RS", "HS"));
+        final Tuple<Key, JWKSet> keyMaterial = getRandomJwkForType(randomFrom("HS", "ES", "RS"));
         final JWK jwk = keyMaterial.v2().getKeys().get(0);
         final Key key = keyMaterial.v1();
         RelyingPartyConfiguration rpConfig = getRpConfig(jwk.getAlgorithm().getName());
         OpenIdConnectProviderConfiguration opConfig = getOpConfig();
-        OpenIdConnectAuthenticator.PrivilegedResourceRetriever privilegedResourceRetriever =
-            mock(OpenIdConnectAuthenticator.PrivilegedResourceRetriever.class);
-        when(privilegedResourceRetriever.retrieveResource(any()))
-            .thenReturn(new Resource(keyMaterial.v2().toString(), "application/json"));
-        authenticator = buildAuthenticator(opConfig, rpConfig, privilegedResourceRetriever);
+        if (jwk.getAlgorithm().getName().startsWith("HS")) {
+            authenticator = buildAuthenticator(opConfig, rpConfig);
+        } else {
+            OpenIdConnectAuthenticator.PrivilegedResourceRetriever privilegedResourceRetriever =
+                mock(OpenIdConnectAuthenticator.PrivilegedResourceRetriever.class);
+            when(privilegedResourceRetriever.retrieveResource(any()))
+                .thenReturn(new Resource(keyMaterial.v2().toString(), "application/json"));
+            authenticator = buildAuthenticator(opConfig, rpConfig, privilegedResourceRetriever);
+        }
 
         final State state = new State();
         final Nonce nonce = new Nonce();
         final Nonce invalidNonce = new Nonce();
         final String subject = "janedoe";
         final String keyId = (jwk.getAlgorithm().getName().startsWith("HS")) ? null : jwk.getKeyID();
-        final String responseUrl = buildResponseUrl(state, invalidNonce, key, jwk.getAlgorithm().getName(), keyId, subject, true, false);
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state.getValue(), nonce.getValue());
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> authenticator.authenticate(token));
+        final String responseUrl =
+            buildAndSignResponseUrl(state, invalidNonce, key, jwk.getAlgorithm().getName(), keyId, subject, true, false);
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
+        authenticator.authenticate(token, future);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
+            future::actionGet);
         assertThat(e.getMessage(), containsString("Failed to parse or validate the ID Token"));
         assertThat(e.getCause(), instanceOf(BadJWTException.class));
         assertThat(e.getCause().getMessage(), containsString("Unexpected JWT nonce"));
@@ -161,9 +193,12 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
         final State state = new State();
         final Nonce nonce = new Nonce();
         final String subject = "janedoe";
-        final String responseUrl = buildResponseUrl(state, nonce, key, jwk.getAlgorithm().getName(), jwk.getKeyID(), subject, true, false);
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state.getValue(), nonce.getValue());
-        JWTClaimsSet claimsSet = authenticator.authenticate(token);
+        final String responseUrl =
+            buildAndSignResponseUrl(state, nonce, key, jwk.getAlgorithm().getName(), jwk.getKeyID(), subject, true, false);
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
+        authenticator.authenticate(token, future);
+        JWTClaimsSet claimsSet = future.actionGet();
         assertThat(claimsSet.getSubject(), equalTo(subject));
     }
 
@@ -182,9 +217,12 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
         final State state = new State();
         final Nonce nonce = new Nonce();
         final String subject = "janedoe";
-        final String responseUrl = buildResponseUrl(state, nonce, key, jwk.getAlgorithm().getName(), jwk.getKeyID(), subject, true, false);
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state.getValue(), nonce.getValue());
-        JWTClaimsSet claimsSet = authenticator.authenticate(token);
+        final String responseUrl =
+            buildAndSignResponseUrl(state, nonce, key, jwk.getAlgorithm().getName(), jwk.getKeyID(), subject, true, false);
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
+        authenticator.authenticate(token, future);
+        JWTClaimsSet claimsSet = future.actionGet();
         assertThat(claimsSet.getSubject(), equalTo(subject));
     }
 
@@ -195,19 +233,97 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
 
         RelyingPartyConfiguration rpConfig = getRpConfig(jwk.getAlgorithm().getName());
         OpenIdConnectProviderConfiguration opConfig = getOpConfig();
-        OpenIdConnectAuthenticator.PrivilegedResourceRetriever privilegedResourceRetriever =
-            mock(OpenIdConnectAuthenticator.PrivilegedResourceRetriever.class);
-        when(privilegedResourceRetriever.retrieveResource(any()))
-            .thenReturn(new Resource(keyMaterial.v2().toString(), "application/json"));
-        authenticator = buildAuthenticator(opConfig, rpConfig, privilegedResourceRetriever);
+        authenticator = buildAuthenticator(opConfig, rpConfig);
 
         final State state = new State();
         final Nonce nonce = new Nonce();
         final String subject = "janedoe";
-        final String responseUrl = buildResponseUrl(state, nonce, key, jwk.getAlgorithm().getName(), null, subject, true, false);
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state.getValue(), nonce.getValue());
-        JWTClaimsSet claimsSet = authenticator.authenticate(token);
+        final String responseUrl =
+            buildAndSignResponseUrl(state, nonce, key, jwk.getAlgorithm().getName(), null, subject, true, false);
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
+        authenticator.authenticate(token, future);
+        JWTClaimsSet claimsSet = future.actionGet();
         assertThat(claimsSet.getSubject(), equalTo(subject));
+    }
+
+    public void testClockSkewIsHonored() throws Exception {
+        final Tuple<Key, JWKSet> keyMaterial = getRandomJwkForType(randomFrom("HS", "ES", "RS"));
+        final JWK jwk = keyMaterial.v2().getKeys().get(0);
+        final Key key = keyMaterial.v1();
+        RelyingPartyConfiguration rpConfig = getRpConfig(jwk.getAlgorithm().getName());
+        OpenIdConnectProviderConfiguration opConfig = getOpConfig();
+        if (jwk.getAlgorithm().getName().startsWith("HS")) {
+            authenticator = buildAuthenticator(opConfig, rpConfig);
+        } else {
+            OpenIdConnectAuthenticator.PrivilegedResourceRetriever privilegedResourceRetriever =
+                mock(OpenIdConnectAuthenticator.PrivilegedResourceRetriever.class);
+            when(privilegedResourceRetriever.retrieveResource(any()))
+                .thenReturn(new Resource(keyMaterial.v2().toString(), "application/json"));
+            authenticator = buildAuthenticator(opConfig, rpConfig, privilegedResourceRetriever);
+        }
+        final State state = new State();
+        final Nonce nonce = new Nonce();
+        final String subject = "janedoe";
+        final String keyId = (jwk.getAlgorithm().getName().startsWith("HS")) ? null : jwk.getKeyID();
+        JWTClaimsSet.Builder idTokenBuilder = new JWTClaimsSet.Builder()
+            .jwtID(randomAlphaOfLength(8))
+            .audience(rpConfig.getClientId().getValue())
+            // Expired 55 seconds ago with an allowed clock skew of 60 seconds
+            .expirationTime(Date.from(now().minusSeconds(55)))
+            .issuer(opConfig.getIssuer().getValue())
+            .issueTime(Date.from(now().minusSeconds(200)))
+            .notBeforeTime(Date.from(now().minusSeconds(60)))
+            .claim("nonce", nonce)
+            .subject(subject);
+        final String responseUrl = buildAndSignResponseUrl(idTokenBuilder.build(), state, key, jwk.getAlgorithm().getName(), keyId,
+            subject, true, false);
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
+        authenticator.authenticate(token, future);
+        JWTClaimsSet claimsSet = future.actionGet();
+        assertThat(claimsSet.getSubject(), equalTo(subject));
+    }
+
+    public void testImplicitFlowFailsWithExpiredToken() throws Exception {
+        final Tuple<Key, JWKSet> keyMaterial = getRandomJwkForType(randomFrom("HS", "ES", "RS"));
+        final JWK jwk = keyMaterial.v2().getKeys().get(0);
+        final Key key = keyMaterial.v1();
+        RelyingPartyConfiguration rpConfig = getRpConfig(jwk.getAlgorithm().getName());
+        OpenIdConnectProviderConfiguration opConfig = getOpConfig();
+        if (jwk.getAlgorithm().getName().startsWith("HS")) {
+            authenticator = buildAuthenticator(opConfig, rpConfig);
+        } else {
+            OpenIdConnectAuthenticator.PrivilegedResourceRetriever privilegedResourceRetriever =
+                mock(OpenIdConnectAuthenticator.PrivilegedResourceRetriever.class);
+            when(privilegedResourceRetriever.retrieveResource(any()))
+                .thenReturn(new Resource(keyMaterial.v2().toString(), "application/json"));
+            authenticator = buildAuthenticator(opConfig, rpConfig, privilegedResourceRetriever);
+        }
+        final State state = new State();
+        final Nonce nonce = new Nonce();
+        final String subject = "janedoe";
+        final String keyId = (jwk.getAlgorithm().getName().startsWith("HS")) ? null : jwk.getKeyID();
+        JWTClaimsSet.Builder idTokenBuilder = new JWTClaimsSet.Builder()
+            .jwtID(randomAlphaOfLength(8))
+            .audience(rpConfig.getClientId().getValue())
+            // Expired 61 seconds ago with an allowed clock skew of 60 seconds
+            .expirationTime(Date.from(now().minusSeconds(61)))
+            .issuer(opConfig.getIssuer().getValue())
+            .issueTime(Date.from(now().minusSeconds(200)))
+            .notBeforeTime(Date.from(now().minusSeconds(80)))
+            .claim("nonce", nonce)
+            .subject(subject);
+        final String responseUrl = buildAndSignResponseUrl(idTokenBuilder.build(), state, key, jwk.getAlgorithm().getName(), keyId,
+            subject, true, false);
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
+        authenticator.authenticate(token, future);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
+            future::actionGet);
+        assertThat(e.getMessage(), containsString("Failed to parse or validate the ID Token"));
+        assertThat(e.getCause(), instanceOf(BadJWTException.class));
+        assertThat(e.getCause().getMessage(), containsString("Expired JWT"));
     }
 
     public void testAuthenticateImplicitFlowFailsWithForgedRsaIdToken() throws Exception {
@@ -225,9 +341,13 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
         final State state = new State();
         final Nonce nonce = new Nonce();
         final String subject = "janedoe";
-        final String responseUrl = buildResponseUrl(state, nonce, key, jwk.getAlgorithm().getName(), jwk.getKeyID(), subject, true, true);
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state.getValue(), nonce.getValue());
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> authenticator.authenticate(token));
+        final String responseUrl =
+            buildAndSignResponseUrl(state, nonce, key, jwk.getAlgorithm().getName(), jwk.getKeyID(), subject, true, true);
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
+        authenticator.authenticate(token, future);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
+            future::actionGet);
         assertThat(e.getMessage(), containsString("Failed to parse or validate the ID Token"));
         assertThat(e.getCause(), instanceOf(BadJWSException.class));
         assertThat(e.getCause().getMessage(), containsString("Signed JWT rejected: Invalid signature"));
@@ -248,9 +368,13 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
         final State state = new State();
         final Nonce nonce = new Nonce();
         final String subject = "janedoe";
-        final String responseUrl = buildResponseUrl(state, nonce, key, jwk.getAlgorithm().getName(), jwk.getKeyID(), subject, true, true);
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state.getValue(), nonce.getValue());
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> authenticator.authenticate(token));
+        final String responseUrl =
+            buildAndSignResponseUrl(state, nonce, key, jwk.getAlgorithm().getName(), jwk.getKeyID(), subject, true, true);
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
+        authenticator.authenticate(token, future);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
+            future::actionGet);
         assertThat(e.getMessage(), containsString("Failed to parse or validate the ID Token"));
         assertThat(e.getCause(), instanceOf(BadJWSException.class));
         assertThat(e.getCause().getMessage(), containsString("Signed JWT rejected: Invalid signature"));
@@ -262,18 +386,18 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
         final Key key = keyMaterial.v1();
         RelyingPartyConfiguration rpConfig = getRpConfig(jwk.getAlgorithm().getName());
         OpenIdConnectProviderConfiguration opConfig = getOpConfig();
-        OpenIdConnectAuthenticator.PrivilegedResourceRetriever privilegedResourceRetriever =
-            mock(OpenIdConnectAuthenticator.PrivilegedResourceRetriever.class);
-        when(privilegedResourceRetriever.retrieveResource(any()))
-            .thenReturn(new Resource(keyMaterial.v2().toString(), "application/json"));
-        authenticator = buildAuthenticator(opConfig, rpConfig, privilegedResourceRetriever);
+        authenticator = buildAuthenticator(opConfig, rpConfig);
 
         final State state = new State();
         final Nonce nonce = new Nonce();
         final String subject = "janedoe";
-        final String responseUrl = buildResponseUrl(state, nonce, key, jwk.getAlgorithm().getName(), null, subject, true, true);
-        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state.getValue(), nonce.getValue());
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> authenticator.authenticate(token));
+        final String responseUrl =
+            buildAndSignResponseUrl(state, nonce, key, jwk.getAlgorithm().getName(), null, subject, true, true);
+        final OpenIdConnectToken token = new OpenIdConnectToken(responseUrl, state, nonce);
+        final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
+        authenticator.authenticate(token, future);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
+            future::actionGet);
         assertThat(e.getMessage(), containsString("Failed to parse or validate the ID Token"));
         assertThat(e.getCause(), instanceOf(BadJWSException.class));
         assertThat(e.getCause().getMessage(), containsString("Signed JWT rejected: Invalid signature"));
@@ -333,31 +457,17 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
         return new RealmConfig(new RealmConfig.RealmIdentifier("oidc", REALM_NAME), settings, env, threadContext);
     }
 
-    private String buildResponseUrl(State state, Nonce nonce, Key key, String alg, String keyId, String subject, boolean withAccessToken,
-                                    boolean forged)
-        throws Exception {
+    private String buildAndSignResponseUrl(JWTClaimsSet idToken, State state, Key key, String alg, String keyId,
+                                           String subject, boolean withAccessToken, boolean forged) throws Exception {
         AccessToken accessToken = null;
-        RelyingPartyConfiguration rpConfig = getRpConfig(alg);
-        OpenIdConnectProviderConfiguration opConfig = getOpConfig();
-        JWTClaimsSet.Builder idTokenBuilder = new JWTClaimsSet.Builder()
-            .jwtID(randomAlphaOfLength(8))
-            .audience(rpConfig.getClientId().getValue())
-            .expirationTime(Date.from(now().plusSeconds(3600)))
-            .issuer(opConfig.getIssuer().getValue())
-            .issueTime(Date.from(now().minusSeconds(4)))
-            .notBeforeTime(Date.from(now().minusSeconds(4)))
-            .claim("nonce", nonce)
-            .subject(subject);
-
         if (withAccessToken) {
             accessToken = new BearerAccessToken(Base64.getUrlEncoder().encodeToString(randomByteArrayOfLength(32)));
             AccessTokenHash expectedHash = AccessTokenHash.compute(accessToken, JWSAlgorithm.parse(alg));
-            idTokenBuilder.claim("at_hash", expectedHash.getValue());
+            idToken = JWTClaimsSet.parse(idToken.toJSONObject().appendField("at_hash", expectedHash.getValue()));
         }
-
         SignedJWT jwt = new SignedJWT(
             new JWSHeader.Builder(JWSAlgorithm.parse(alg)).keyID(keyId).build(),
-            idTokenBuilder.build());
+            idToken);
 
         if (key instanceof RSAPrivateKey) {
             jwt.sign(new RSASSASigner((PrivateKey) key));
@@ -376,6 +486,7 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
             String fordedTokenString = serializedParts[0] + "." + encodedForgedPayload + "." + serializedParts[2];
             jwt = SignedJWT.parse(fordedTokenString);
         }
+        RelyingPartyConfiguration rpConfig = getRpConfig(alg);
         AuthenticationSuccessResponse response = new AuthenticationSuccessResponse(
             rpConfig.getRedirectUri(),
             null,
@@ -384,11 +495,27 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
             state,
             null,
             null);
-        if (forged) {
-
-        }
         return response.toURI().toString();
 
+    }
+
+    private String buildAndSignResponseUrl(State state, Nonce nonce, Key key, String alg, String keyId, String subject,
+                                           boolean withAccessToken, boolean forged)
+        throws Exception {
+        AccessToken accessToken = null;
+        RelyingPartyConfiguration rpConfig = getRpConfig(alg);
+        OpenIdConnectProviderConfiguration opConfig = getOpConfig();
+        JWTClaimsSet.Builder idTokenBuilder = new JWTClaimsSet.Builder()
+            .jwtID(randomAlphaOfLength(8))
+            .audience(rpConfig.getClientId().getValue())
+            .expirationTime(Date.from(now().plusSeconds(3600)))
+            .issuer(opConfig.getIssuer().getValue())
+            .issueTime(Date.from(now().minusSeconds(4)))
+            .notBeforeTime(Date.from(now().minusSeconds(4)))
+            .claim("nonce", nonce)
+            .subject(subject);
+
+        return buildAndSignResponseUrl(idTokenBuilder.build(), state, key, alg, keyId, subject, withAccessToken, forged);
     }
 
     private Tuple<Key, JWKSet> getRandomJwkForType(String type) throws Exception {

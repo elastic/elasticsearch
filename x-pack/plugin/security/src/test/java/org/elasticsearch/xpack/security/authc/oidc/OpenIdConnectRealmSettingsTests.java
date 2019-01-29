@@ -31,7 +31,6 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
     @Before
     public void setupEnv() {
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
-        env = TestEnvironment.newEnvironment(globalSettings);
         threadContext = new ThreadContext(globalSettings);
     }
 
@@ -47,7 +46,7 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "hybrid");
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), new OpenIdConnectAuthenticator(), null);
+            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), null, null);
         });
         assertThat(exception.getMessage(), Matchers.containsString(getFullSettingKey(REALM_NAME,
             OpenIdConnectRealmSettings.RP_RESPONSE_TYPE)));
@@ -64,7 +63,7 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
         SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), new OpenIdConnectAuthenticator(), null);
+            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), null, null);
         });
         assertThat(exception.getMessage(),
             Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT)));
@@ -82,7 +81,7 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), new OpenIdConnectAuthenticator(), null);
+            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), null, null);
         });
         assertThat(exception.getMessage(),
             Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT)));
@@ -99,7 +98,7 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
         SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), new OpenIdConnectAuthenticator(), null);
+            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), null, null);
         });
         assertThat(exception.getMessage(),
             Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT)));
@@ -117,7 +116,7 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), new OpenIdConnectAuthenticator(), null);
+            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), null, null);
         });
         assertThat(exception.getMessage(),
             Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT)));
@@ -133,7 +132,7 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
         SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), new OpenIdConnectAuthenticator(), null);
+            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), null, null);
         });
         assertThat(exception.getMessage(),
             Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_PATH)));
@@ -150,7 +149,7 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
         SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), new OpenIdConnectAuthenticator(), null);
+            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), null, null);
         });
         assertThat(exception.getMessage(),
             Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER)));
@@ -167,7 +166,7 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
         SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), new OpenIdConnectAuthenticator(), null);
+            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), null, null);
         });
         assertThat(exception.getMessage(),
             Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME)));
@@ -184,7 +183,7 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
         SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), new OpenIdConnectAuthenticator(), null);
+            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), null, null);
         });
         assertThat(exception.getMessage(),
             Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI)));
@@ -201,7 +200,7 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
         SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), new OpenIdConnectAuthenticator(), null);
+            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), null, null);
         });
         assertThat(exception.getMessage(),
             Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID)));
@@ -220,7 +219,7 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
             .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REQUESTED_SCOPES),
                 Arrays.asList("openid", "scope1", "scope2"));
         SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), new OpenIdConnectAuthenticator(), null);
+            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), null, null);
         });
         assertThat(exception.getMessage(),
             Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim())));
@@ -241,7 +240,7 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
             .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REQUESTED_SCOPES),
                 Arrays.asList("openid", "scope1", "scope2"));
         SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), new OpenIdConnectAuthenticator(), null);
+            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), null, null);
         });
         assertThat(exception.getMessage(),
             Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.NAME_CLAIM.getClaim())));

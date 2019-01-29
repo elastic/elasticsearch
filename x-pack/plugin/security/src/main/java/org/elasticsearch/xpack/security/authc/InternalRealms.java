@@ -47,6 +47,7 @@ import java.util.stream.Collectors;
 /**
  * Provides a single entry point into dealing with all standard XPack security {@link Realm realms}.
  * This class does not handle extensions.
+ *
  * @see Realms for the component that manages configured realms (including custom extension realms)
  */
 public final class InternalRealms {
@@ -55,15 +56,15 @@ public final class InternalRealms {
      * The list of all <em>internal</em> realm types, excluding {@link ReservedRealm#TYPE}.
      */
     private static final Set<String> XPACK_TYPES = Collections
-            .unmodifiableSet(Sets.newHashSet(NativeRealmSettings.TYPE, FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE,
-                    LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE, SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE));
+        .unmodifiableSet(Sets.newHashSet(NativeRealmSettings.TYPE, FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE,
+            LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE, SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE));
 
     /**
      * The list of all standard realm types, which are those provided by x-pack and do not have extensive
      * interaction with third party sources
      */
     private static final Set<String> STANDARD_TYPES = Collections.unmodifiableSet(Sets.newHashSet(NativeRealmSettings.TYPE,
-            FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE));
+        FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE));
 
     /**
      * Determines whether <code>type</code> is an internal realm-type that is provided by x-pack,
@@ -92,6 +93,7 @@ public final class InternalRealms {
     /**
      * Creates {@link Realm.Factory factories} for each <em>internal</em> realm type.
      * This excludes the {@link ReservedRealm}, as it cannot be created dynamically.
+     *
      * @return A map from <em>realm-type</em> to <code>Factory</code>
      */
     public static Map<String, Realm.Factory> getFactories(ThreadPool threadPool, ResourceWatcherService resourceWatcherService,
@@ -107,13 +109,14 @@ public final class InternalRealms {
             return nativeRealm;
         });
         map.put(LdapRealmSettings.AD_TYPE, config -> new LdapRealm(config, sslService,
-                resourceWatcherService, nativeRoleMappingStore, threadPool));
+            resourceWatcherService, nativeRoleMappingStore, threadPool));
         map.put(LdapRealmSettings.LDAP_TYPE, config -> new LdapRealm(config,
-                sslService, resourceWatcherService, nativeRoleMappingStore, threadPool));
+            sslService, resourceWatcherService, nativeRoleMappingStore, threadPool));
         map.put(PkiRealmSettings.TYPE, config -> new PkiRealm(config, resourceWatcherService, nativeRoleMappingStore));
         map.put(SamlRealmSettings.TYPE, config -> SamlRealm.create(config, sslService, resourceWatcherService, nativeRoleMappingStore));
         map.put(KerberosRealmSettings.TYPE, config -> new KerberosRealm(config, nativeRoleMappingStore, threadPool));
-        map.put(OpenIdConnectRealmSettings.TYPE, config -> new OpenIdConnectRealm(config, sslService, nativeRoleMappingStore));
+        map.put(OpenIdConnectRealmSettings.TYPE, config -> new OpenIdConnectRealm(config, sslService, nativeRoleMappingStore,
+            resourceWatcherService));
         return Collections.unmodifiableMap(map);
     }
 

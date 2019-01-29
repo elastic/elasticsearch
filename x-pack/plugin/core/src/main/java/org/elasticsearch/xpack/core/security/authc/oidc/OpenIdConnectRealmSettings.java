@@ -29,6 +29,8 @@ public class OpenIdConnectRealmSettings {
     private OpenIdConnectRealmSettings() {
     }
 
+    private static final List<String> signingAlgorithms = Collections.unmodifiableList(
+        Arrays.asList("HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256", "PS384", "PS512"));
     public static final String TYPE = "oidc";
 
     public static final Setting.AffixSetting<String> RP_CLIENT_ID
@@ -47,7 +49,7 @@ public class OpenIdConnectRealmSettings {
     public static final Setting.AffixSetting<String> RP_RESPONSE_TYPE
         = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "rp.response_type",
         key -> Setting.simpleString(key, v -> {
-            List<String> responseTypes = Arrays.asList("code", "id_token", "id_token, token");
+            List<String> responseTypes = Arrays.asList("code", "id_token", "id_token token");
             if (responseTypes.contains(v) == false) {
                 throw new IllegalArgumentException("Invalid value [" + v + "] for [" + key + "]. Allowed values are " + responseTypes + "");
             }
@@ -55,11 +57,9 @@ public class OpenIdConnectRealmSettings {
     public static final Setting.AffixSetting<String> RP_SIGNATURE_VERIFICATION_ALGORITHM
         = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "rp.signature_verification_algorithm",
         key -> new Setting<>(key, "RS256", Function.identity(), v -> {
-            List<String> sigAlgo = Arrays.asList("HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256", "ES384",
-                "ES512", "PS256", "PS384", "PS512");
-            if (sigAlgo.contains(v) == false) {
+            if (signingAlgorithms.contains(v) == false) {
                 throw new IllegalArgumentException(
-                    "Invalid value [" + v + "] for [" + key + "]. Allowed values are " + sigAlgo + "}]");
+                    "Invalid value [" + v + "] for [" + key + "]. Allowed values are " + signingAlgorithms + "}]");
             }
         }, Setting.Property.NodeScope));
     public static final Setting.AffixSetting<List<String>> RP_REQUESTED_SCOPES = Setting.affixKeySetting(
@@ -87,7 +87,7 @@ public class OpenIdConnectRealmSettings {
             }
         }, Setting.Property.NodeScope));
     public static final Setting.AffixSetting<String> OP_USERINFO_ENDPOINT
-        = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "op.token_endpoint",
+        = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "op.userinfo_endpoint",
         key -> Setting.simpleString(key, v -> {
             try {
                 new URI(v);
@@ -98,8 +98,11 @@ public class OpenIdConnectRealmSettings {
     public static final Setting.AffixSetting<String> OP_ISSUER
         = RealmSettings.simpleString(TYPE, "op.issuer", Setting.Property.NodeScope);
     public static final Setting.AffixSetting<String> OP_JWKSET_PATH
-        = RealmSettings.simpleString(TYPE, "rp.jwkset_path", Setting.Property.NodeScope);
+        = RealmSettings.simpleString(TYPE, "op.jwkset_path", Setting.Property.NodeScope);
 
+    public static final Setting.AffixSetting<TimeValue> ALLOWED_CLOCK_SKEW
+        = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "allowed_clock_skew",
+        key -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Setting.Property.NodeScope));
     public static final Setting.AffixSetting<Boolean> POPULATE_USER_METADATA = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE), "populate_user_metadata",
         key -> Setting.boolSetting(key, true, Setting.Property.NodeScope));
@@ -113,6 +116,12 @@ public class OpenIdConnectRealmSettings {
     public static final Setting.AffixSetting<TimeValue> HTTP_SOCKET_TIMEOUT
         = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "http.socket_timeout",
         key -> Setting.timeSetting(key, DEFAULT_TIMEOUT, Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<Integer> HTTP_MAX_CONNECTIONS
+        = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "http.max_connections",
+        key -> Setting.intSetting(key, 200, Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<Integer> HTTP_MAX_ENDPOINT_CONNECTIONS
+        = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "http.max_endpoint_connections",
+        key -> Setting.intSetting(key, 200, Setting.Property.NodeScope));
 
     public static final ClaimSetting PRINCIPAL_CLAIM = new ClaimSetting("principal");
     public static final ClaimSetting GROUPS_CLAIM = new ClaimSetting("groups");
@@ -124,7 +133,8 @@ public class OpenIdConnectRealmSettings {
         final Set<Setting.AffixSetting<?>> set = Sets.newHashSet(
             RP_CLIENT_ID, RP_REDIRECT_URI, RP_RESPONSE_TYPE, RP_REQUESTED_SCOPES, RP_CLIENT_SECRET, RP_SIGNATURE_VERIFICATION_ALGORITHM,
             OP_NAME, OP_AUTHORIZATION_ENDPOINT, OP_TOKEN_ENDPOINT, OP_USERINFO_ENDPOINT, OP_ISSUER, OP_JWKSET_PATH,
-            HTTP_CONNECT_TIMEOUT, HTTP_CONNECTION_READ_TIMEOUT, HTTP_SOCKET_TIMEOUT);
+            HTTP_CONNECT_TIMEOUT, HTTP_CONNECTION_READ_TIMEOUT, HTTP_SOCKET_TIMEOUT, HTTP_MAX_CONNECTIONS, HTTP_MAX_ENDPOINT_CONNECTIONS,
+            ALLOWED_CLOCK_SKEW);
         set.addAll(DelegatedAuthorizationSettings.getSettings(TYPE));
         set.addAll(RealmSettings.getStandardSettings(TYPE));
         set.addAll(SSLConfigurationSettings.getRealmSettings(TYPE));
@@ -146,7 +156,7 @@ public class OpenIdConnectRealmSettings {
      * <li>An optional java pattern (regex) to apply to that claim value in order to extract the substring that should be used.</li>
      * </ul>
      * For example, the Elasticsearch User Principal could be configured to come from the OpenID Connect standard claim "email",
-     * and extract only the local-port of the user's email address (i.e. the name before the '@').
+     * and extract only the local-part of the user's email address (i.e. the name before the '@').
      * This class encapsulates those 2 settings.
      */
     public static final class ClaimSetting {

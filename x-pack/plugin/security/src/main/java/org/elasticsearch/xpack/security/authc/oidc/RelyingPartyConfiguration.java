@@ -23,7 +23,7 @@ public class RelyingPartyConfiguration {
     private final URI redirectUri;
     private final ResponseType responseType;
     private final Scope requestedScope;
-    private final JWSAlgorithm signatureVerificationAlgorithm;
+    private final JWSAlgorithm signatureAlgorithm;
 
     public RelyingPartyConfiguration(ClientID clientId, SecureString clientSecret, URI redirectUri, ResponseType responseType,
                                      Scope requestedScope,
@@ -33,7 +33,7 @@ public class RelyingPartyConfiguration {
         this.redirectUri = Objects.requireNonNull(redirectUri, "redirectUri must be provided");
         this.responseType = Objects.requireNonNull(responseType, "responseType must be provided");
         this.requestedScope = Objects.requireNonNull(requestedScope, "responseType must be provided");
-        this.signatureVerificationAlgorithm = Objects.requireNonNull(algorithm, "algorithm must be provided");
+        this.signatureAlgorithm = Objects.requireNonNull(algorithm, "algorithm must be provided");
     }
 
     public ClientID getClientId() {
@@ -56,7 +56,7 @@ public class RelyingPartyConfiguration {
         return requestedScope;
     }
 
-    public JWSAlgorithm getSignatureVerificationAlgorithm() {
-        return signatureVerificationAlgorithm;
+    public JWSAlgorithm getSignatureAlgorithm() {
+        return signatureAlgorithm;
     }
 }

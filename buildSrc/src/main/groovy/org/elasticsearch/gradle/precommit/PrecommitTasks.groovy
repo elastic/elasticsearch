@@ -43,7 +43,6 @@ class PrecommitTasks {
         List<Task> precommitTasks = [
             configureCheckstyle(project),
             configureForbiddenApisCli(project),
-            configureNamingConventions(project),
             project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
             project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
             project.tasks.create('filepermissions', FilePermissionsTask.class),
@@ -228,15 +227,6 @@ class PrecommitTasks {
         }
 
         return checkstyleTask
-    }
-
-    private static Task configureNamingConventions(Project project) {
-        if (project.sourceSets.findByName("test")) {
-            Task namingConventionsTask = project.tasks.create('namingConventions', NamingConventionsTask)
-            namingConventionsTask.javaHome = project.compilerJavaHome
-            return namingConventionsTask
-        }
-        return null
     }
 
     private static Task configureLoggerUsage(Project project) {

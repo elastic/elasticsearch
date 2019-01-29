@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.actions.jira;
 
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
@@ -26,9 +27,11 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.mockito.ArgumentCaptor;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
@@ -63,11 +66,11 @@ public class ExecutableJiraActionTests extends ESTestCase {
         final String user = randomAlphaOfLength(10);
         final String password = randomAlphaOfLength(10);
 
-        Settings accountSettings = Settings.builder()
-                .put("url", url)
-                .put("user", user)
-                .put("password", password)
-                .build();
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(JiraAccount.SECURE_URL_SETTING.getKey(), url);
+        secureSettings.setString(JiraAccount.SECURE_USER_SETTING.getKey(), user);
+        secureSettings.setString(JiraAccount.SECURE_PASSWORD_SETTING.getKey(), password);
+        Settings accountSettings = Settings.builder().setSecureSettings(secureSettings).build();
 
         JiraAccount account = new JiraAccount("account1", accountSettings, httpClient);
 
@@ -259,10 +262,12 @@ public class ExecutableJiraActionTests extends ESTestCase {
     }
 
     private JiraAction.Simulated simulateExecution(Map<String, Object> actionFields, Map<String, String> accountFields) throws Exception {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(JiraAccount.SECURE_URL_SETTING.getKey(), "https://internal-jira.elastic.co:443");
+        secureSettings.setString(JiraAccount.SECURE_USER_SETTING.getKey(), "elastic");
+        secureSettings.setString(JiraAccount.SECURE_PASSWORD_SETTING.getKey(), "secret");
         Settings.Builder settings = Settings.builder()
-                .put("url", "https://internal-jira.elastic.co:443")
-                .put("user", "elastic")
-                .put("password", "secret")
+                .setSecureSettings(secureSettings)
                 .putProperties(accountFields, s -> "issue_defaults." + s);
 
         JiraAccount account = new JiraAccount("account", settings.build(), mock(HttpClient.class));
@@ -308,4 +313,54 @@ public class ExecutableJiraActionTests extends ESTestCase {
             return textTemplate.getTemplate().toUpperCase(Locale.ROOT);
         }
     }
+
+    public void testMerge() {
+        Map<String, Object> writeableMap = new HashMap<>();
+        Map<String, Object> mergeNull = ExecutableJiraAction.merge(writeableMap, null, s -> s);
+        assertTrue(mergeNull.isEmpty());
+        Map<String, Object> map = new HashMap<>();
+        map.put("foo", "bar");
+        map.put("list", Arrays.asList("test1", "test2"));
+        Map<String, Object> valueMap = new HashMap<>();
+        valueMap.put("var", "abc");
+        map.put("map", valueMap);
+        Map<String, Object> componentMap = new HashMap<>();
+        componentMap.put("name", "value");
+        List<Map<String, Object>> list = new ArrayList<>();
+        list.add(componentMap);
+        map.put("components", list);
+        Map<String, Object> result = ExecutableJiraAction.merge(writeableMap, map, s -> s.toUpperCase(Locale.ROOT));
+        assertThat(result, hasEntry("FOO", "BAR"));
+        assertThat(result.get("LIST"), instanceOf(List.class));
+        List<String> mergedList = (List<String>) result.get("LIST");
+        assertEquals(2, mergedList.size());
+        assertEquals("TEST1", mergedList.get(0));
+        assertEquals("TEST2", mergedList.get(1));
+        Map<String, Object> mergedMap = (Map<String, Object>) result.get("MAP");
+        assertEquals(1, mergedMap.size());
+        assertEquals("ABC", mergedMap.get("VAR"));
+        assertThat(result.get("COMPONENTS"), instanceOf(List.class));
+        List<Map<String, Object>> components = (List<Map<String, Object>>) result.get("COMPONENTS");
+        assertThat(components.get(0), hasEntry("NAME", "VALUE"));
+
+        // test the fields is not overwritten
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("FOO", "bob");
+        fields.put("LIST", Arrays.asList("test3"));
+        fields.put("MAP", new HashMap<>());
+        fields.put("COMPONENTS", new ArrayList<>());
+
+        result = ExecutableJiraAction.merge(fields, map, s -> s.toUpperCase(Locale.ROOT));
+        assertThat(result, hasEntry("FOO", "bob"));
+        assertThat(result.get("LIST"), instanceOf(List.class));
+        mergedList = (List<String>) result.get("LIST");
+        assertEquals(1, mergedList.size());
+        assertEquals("test3", mergedList.get(0));
+        mergedMap = (Map<String, Object>) result.get("MAP");
+        assertTrue(mergedMap.isEmpty());
+        assertThat(result.get("COMPONENTS"), instanceOf(List.class));
+        components = (List<Map<String, Object>>) result.get("COMPONENTS");
+        assertTrue(components.isEmpty());
+    }
+
 }

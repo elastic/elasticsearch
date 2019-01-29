@@ -156,7 +156,6 @@ subprojects {
       setting 'xpack.security.transport.ssl.enabled', 'true'
       setting 'xpack.security.authc.token.enabled', 'true'
       setting 'xpack.security.audit.enabled', 'true'
-      setting 'xpack.security.audit.outputs', 'index'
       setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
       setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
       dependsOn copyTestNodeKeystore
@@ -184,6 +183,10 @@ subprojects {
             keystoreSetting 'xpack.security.authc.token.passphrase', 'token passphrase'
         }
         setting 'xpack.watcher.encrypt_sensitive_data', 'true'
+      }
+
+      if (version.onOrAfter('6.6.0')) {
+        setting 'ccr.auto_follow.wait_for_metadata_timeout', '1s'
       }
 
       // Old versions of the code contain an invalid assertion that trips
@@ -231,7 +234,6 @@ subprojects {
         setting 'node.attr.upgraded', 'true'
         setting 'xpack.security.authc.token.enabled', 'true'
         setting 'xpack.security.audit.enabled', 'true'
-        setting 'xpack.security.audit.outputs', 'index'
         setting 'node.name', "upgraded-node-${stopNode}"
         dependsOn copyTestNodeKeystore
         extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')

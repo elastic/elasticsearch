@@ -32,6 +32,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
@@ -222,7 +223,10 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         final Scroll scroll = scroll();
-        if (source != null && source.trackTotalHits() == false && scroll != null) {
+        if (source != null
+                && source.trackTotalHitsUpTo() != null
+                && source.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE
+                && scroll != null) {
             validationException =
                 addValidationError("disabling [track_total_hits] is not allowed in a scroll context", validationException);
         }

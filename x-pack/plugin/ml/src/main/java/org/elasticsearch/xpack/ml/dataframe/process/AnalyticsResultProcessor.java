@@ -76,12 +76,12 @@ public class AnalyticsResultProcessor {
                         currentDataFrameRows = null;
                     }
                 } catch (Exception e) {
-                    LOGGER.warn("Error processing dataframe result", e);
+                    LOGGER.warn("Error processing data frame analytics result", e);
                 }
 
             }
         } catch (Exception e) {
-            LOGGER.error("Error parsing dataframe output", e);
+            LOGGER.error("Error parsing data frame analytics output", e);
         } finally {
             completionLatch.countDown();
             process.consumeAndCloseOutputStream();

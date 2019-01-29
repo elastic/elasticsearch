@@ -128,7 +128,7 @@ public class AnalyticsProcessManager {
         ExecutorService executorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
         AnalyticsProcess process = processFactory.createAnalyticsProcess(jobId, analyticsProcessConfig, executorService);
         if (process.isProcessAlive() == false) {
-            throw ExceptionsHelper.serverError("Failed to start dataframe process");
+            throw ExceptionsHelper.serverError("Failed to start data frame analytics process");
         }
         return process;
     }

@@ -20,7 +20,7 @@ public interface AnalyticsProcess extends NativeProcess {
     void writeEndOfDataMessage() throws IOException;
 
     /**
-     * @return stream of dataframe results.
+     * @return stream of data frame analytics results.
      */
     Iterator<AnalyticsResult> readAnalyticsResults();
 

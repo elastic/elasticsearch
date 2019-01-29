@@ -25,7 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Optional;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class InvalidateApiKeyRequestTests extends ESTestCase {
@@ -56,21 +56,18 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
                 { "realm", randomFrom(new String[] { null, "" }), "api-kid", "api-kname" },
                 { "realm", "user", "api-kid", randomFrom(new String[] { null, "" }) },
                 { randomFrom(new String[] { null, "" }), randomFrom(new String[] { null, "" }), "api-kid", "api-kname" } };
-        String[][] expectedErrorMessages = new String[][] { { "One of [api key id, api key name, username, realm name] must be specified" },
-                { "username or realm name must not be specified when the api key id or api key name is specified",
-                        "only one of [api key id, api key name] can be specified" },
-                { "username or realm name must not be specified when the api key id or api key name is specified",
-                        "only one of [api key id, api key name] can be specified" },
-                { "username or realm name must not be specified when the api key id or api key name is specified" },
-                { "only one of [api key id, api key name] can be specified" } };
+        String[] expectedErrorMessages = new String[] { "One of [api key id, api key name, username, realm name] must be specified",
+                "username or realm name must not be specified when the api key id or api key name is specified",
+                "username or realm name must not be specified when the api key id or api key name is specified",
+                "username or realm name must not be specified when the api key id or api key name is specified",
+                "only one of [api key id, api key name] can be specified" };
 
-        for (int caseNo = 0; caseNo < inputs.length; caseNo++) {
-            InvalidateApiKeyRequest request = new InvalidateApiKeyRequest(inputs[caseNo][0], inputs[caseNo][1], inputs[caseNo][2],
-                    inputs[caseNo][3]);
-            Optional<ValidationException> ve = request.validate();
+        for (int i = 0; i < inputs.length; i++) {
+            final int caseNo = i;
+            IllegalArgumentException ve = expectThrows(IllegalArgumentException.class,
+                    () -> new InvalidateApiKeyRequest(inputs[caseNo][0], inputs[caseNo][1], inputs[caseNo][2], inputs[caseNo][3]));
             assertNotNull(ve);
-            assertEquals(expectedErrorMessages[caseNo].length, ve.get().validationErrors().size());
-            assertThat(ve.get().validationErrors(), containsInAnyOrder(expectedErrorMessages[caseNo]));
+            assertThat(ve.getMessage(), equalTo(expectedErrorMessages[caseNo]));
         }
     }
 }

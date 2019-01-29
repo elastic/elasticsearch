@@ -20,14 +20,12 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Optional;
 
 /**
  * Request for invalidating API key(s) so that it can no longer be used
@@ -42,10 +40,27 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
     // pkg scope for testing
     InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
             @Nullable String apiKeyName) {
+        if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && Strings.hasText(apiKeyId) == false
+                && Strings.hasText(apiKeyName) == false) {
+            throwValidationError("One of [api key id, api key name, username, realm name] must be specified");
+        }
+        if (Strings.hasText(apiKeyId) || Strings.hasText(apiKeyName)) {
+            if (Strings.hasText(realmName) || Strings.hasText(userName)) {
+                throwValidationError(
+                        "username or realm name must not be specified when the api key id or api key name is specified");
+            }
+        }
+        if (Strings.hasText(apiKeyId) && Strings.hasText(apiKeyName)) {
+            throwValidationError("only one of [api key id, api key name] can be specified");
+        }
         this.realmName = realmName;
         this.userName = userName;
         this.id = apiKeyId;
         this.name = apiKeyName;
+    }
+
+    private void throwValidationError(String message) {
+        throw new IllegalArgumentException(message);
     }
 
     public String getRealmName() {
@@ -108,28 +123,6 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
      */
     public static InvalidateApiKeyRequest usingApiKeyName(String apiKeyName) {
         return new InvalidateApiKeyRequest(null, null, null, apiKeyName);
-    }
-
-    @Override
-    public Optional<ValidationException> validate() {
-        ValidationException validationException = new ValidationException();
-        if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && Strings.hasText(id) == false
-                && Strings.hasText(name) == false) {
-            validationException.addValidationError("One of [api key id, api key name, username, realm name] must be specified");
-        }
-        if (Strings.hasText(id) || Strings.hasText(name)) {
-            if (Strings.hasText(realmName) || Strings.hasText(userName)) {
-                validationException.addValidationError(
-                        "username or realm name must not be specified when the api key id or api key name is specified");
-            }
-        }
-        if (Strings.hasText(id) && Strings.hasText(name)) {
-            validationException.addValidationError("only one of [api key id, api key name] can be specified");
-        }
-        if (validationException.validationErrors().isEmpty()) {
-            return Optional.empty();
-        }
-        return Optional.of(validationException);
     }
 
     @Override

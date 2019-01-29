@@ -82,8 +82,8 @@ public class LocalBulk extends ExportBulk {
                 requestBuilder.add(request);
 
                 if (logger.isTraceEnabled()) {
-                    logger.trace("local exporter [{}] - added index request [index={}, id={}, pipeline={}]",
-                                 name, request.index(), request.id(), request.getPipeline());
+                    logger.trace("local exporter [{}] - added index request [index={}, id={}, pipeline={}, monitoring data type={}]",
+                                 name, request.index(), request.id(), request.getPipeline(), doc.getType());
                 }
             } catch (Exception e) {
                 if (exception == null) {

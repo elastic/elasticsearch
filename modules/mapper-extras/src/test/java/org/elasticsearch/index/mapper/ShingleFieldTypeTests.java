@@ -29,7 +29,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.Defaults;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.PrefixFieldType;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.ShingleFieldType;
-import org.junit.Before;
 
 import static java.util.Arrays.asList;
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;

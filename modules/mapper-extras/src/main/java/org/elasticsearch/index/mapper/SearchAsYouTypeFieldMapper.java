@@ -62,7 +62,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static java.util.Collections.max;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
 import static org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType.hasGaps;
 import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
@@ -231,6 +230,22 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
             } else {
                 return new NormsFieldExistsQuery(name());
+            }
+        }
+
+        @Override
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+            if (prefixField == null || prefixField.termLengthWithinBounds(value.length()) == false) {
+                return super.prefixQuery(value, method, context);
+            } else {
+                final Query query = prefixField.prefixQuery(value, method, context);
+                if (method == null
+                    || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
+                    || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
+                    return new ConstantScoreQuery(query);
+                } else {
+                    return query;
+                }
             }
         }
 

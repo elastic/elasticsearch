@@ -292,9 +292,8 @@ setup:
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
 ---
-"prefix query on shingle fields":
+"prefix query on root field with prefix term":
 
-  # prefix on root field
   - do:
       search:
         rest_total_hits_as_int: true
@@ -307,7 +306,9 @@ setup:
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
-  # infix on root field
+---
+"prefix query on root field with infix term":
+
   - do:
       search:
         rest_total_hits_as_int: true
@@ -320,7 +321,9 @@ setup:
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
-  # prefix on 2gram
+---
+"prefix query on 2gram with prefix term":
+
   - do:
       search:
         rest_total_hits_as_int: true
@@ -333,7 +336,9 @@ setup:
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
-  # infix on 2gram
+---
+"prefix query on 2gram with infix term":
+
   - do:
       search:
         rest_total_hits_as_int: true
@@ -346,7 +351,9 @@ setup:
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
-  # prefix on 3gram
+---
+"prefix query on 3gram with prefix term":
+
   - do:
       search:
         rest_total_hits_as_int: true
@@ -359,7 +366,9 @@ setup:
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
-  # infix on 3gram
+---
+"prefix query on 3gram with infix term":
+
   - do:
       search:
         rest_total_hits_as_int: true
@@ -372,7 +381,9 @@ setup:
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
-  # prefix on 4gram
+---
+"prefix query on 4gram with prefix term":
+
   - do:
       search:
         rest_total_hits_as_int: true
@@ -385,7 +396,9 @@ setup:
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
-  # infix on 4gram
+---
+"prefix query on 4gram with infix term":
+
   - do:
       search:
         rest_total_hits_as_int: true
@@ -399,7 +412,7 @@ setup:
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
 ---
-"prefix query covers all shingle sizes with prefix terms":
+"prefix query on root field with 1 prefix term":
 
   - do:
       search:
@@ -413,6 +426,9 @@ setup:
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
+---
+"prefix query on root field with 2 prefix terms":
+
   - do:
       search:
         rest_total_hits_as_int: true
@@ -425,6 +441,9 @@ setup:
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
+---
+"prefix query on root field with 3 prefix terms":
+
   - do:
       search:
         rest_total_hits_as_int: true
@@ -436,6 +455,9 @@ setup:
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"prefix query on root field with 4 prefix terms":
 
   - do:
       search:
@@ -450,7 +472,7 @@ setup:
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
 ---
-"prefix query covers all shingle sizes with infix terms":
+"prefix query on root field with 1 infix term":
 
   - do:
       search:
@@ -464,6 +486,9 @@ setup:
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
+---
+"prefix query on root field with 2 infix terms":
+
   - do:
       search:
         rest_total_hits_as_int: true
@@ -476,6 +501,9 @@ setup:
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
+---
+"prefix query on root field with 3 infix terms":
+
   - do:
       search:
         rest_total_hits_as_int: true
@@ -487,6 +515,9 @@ setup:
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"prefix query on root field with 4 infix terms":
 
   - do:
       search:

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -26,10 +25,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -49,7 +46,6 @@ import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.ShingleFieldMap
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.ShingleFieldType;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.hamcrest.Matcher;
@@ -68,7 +64,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasPropert
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.collection.IsArrayContainingInAnyOrder.arrayContainingInAnyOrder;
-import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {

@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -115,7 +116,7 @@ public class CCRFeatureSetTests extends ESTestCase {
         assertThat(ccrUsage.available(), equalTo(ccrFeatureSet.available()));
 
         assertThat(ccrUsage.getNumberOfFollowerIndices(), equalTo(numFollowerIndices));
-        assertThat(ccrUsage.getLastFollowerIndexCreationDate(), equalTo((long) numFollowerIndices - 1));
+        assertThat(ccrUsage.getTimeSinceLastIndexFollowed(), greaterThanOrEqualTo(0L));
         assertThat(ccrUsage.getNumberOfAutoFollowPatterns(), equalTo(numAutoFollowPatterns));
     }
 

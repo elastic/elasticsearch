@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
 
@@ -78,9 +79,10 @@ public class CCRFeatureSet implements XPackFeatureSet {
         }
         AutoFollowMetadata autoFollowMetadata = metaData.custom(AutoFollowMetadata.TYPE);
         int numberOfAutoFollowPatterns = autoFollowMetadata != null ? autoFollowMetadata.getPatterns().size() : 0;
+        long timeSinceLastIndexFollowed = Math.max(0, Instant.now().toEpochMilli() - lastFollowerIndexCreationDate);
 
         Usage usage =
-            new Usage(available(), enabled(), numberOfFollowerIndices, numberOfAutoFollowPatterns, lastFollowerIndexCreationDate);
+            new Usage(available(), enabled(), numberOfFollowerIndices, numberOfAutoFollowPatterns, timeSinceLastIndexFollowed);
         listener.onResponse(usage);
     }
 
@@ -88,24 +90,24 @@ public class CCRFeatureSet implements XPackFeatureSet {
 
         private final int numberOfFollowerIndices;
         private final int numberOfAutoFollowPatterns;
-        private final long lastFollowerIndexCreationDate;
+        private final long timeSinceLastIndexFollowed;
 
         public Usage(boolean available,
                      boolean enabled,
                      int numberOfFollowerIndices,
                      int numberOfAutoFollowPatterns,
-                     long lastFollowerIndexCreationDate) {
+                     long timeSinceLastIndexFollowed) {
             super(XPackField.CCR, available, enabled);
             this.numberOfFollowerIndices = numberOfFollowerIndices;
             this.numberOfAutoFollowPatterns = numberOfAutoFollowPatterns;
-            this.lastFollowerIndexCreationDate = lastFollowerIndexCreationDate;
+            this.timeSinceLastIndexFollowed = timeSinceLastIndexFollowed;
         }
 
         public Usage(StreamInput in) throws IOException {
             super(in);
             numberOfFollowerIndices = in.readVInt();
             numberOfAutoFollowPatterns = in.readVInt();
-            lastFollowerIndexCreationDate = in.readVLong();
+            timeSinceLastIndexFollowed = in.readVLong();
         }
 
         public int getNumberOfFollowerIndices() {
@@ -116,8 +118,8 @@ public class CCRFeatureSet implements XPackFeatureSet {
             return numberOfAutoFollowPatterns;
         }
 
-        public long getLastFollowerIndexCreationDate() {
-            return lastFollowerIndexCreationDate;
+        public long getTimeSinceLastIndexFollowed() {
+            return timeSinceLastIndexFollowed;
         }
 
         @Override
@@ -125,7 +127,7 @@ public class CCRFeatureSet implements XPackFeatureSet {
             super.writeTo(out);
             out.writeVInt(numberOfFollowerIndices);
             out.writeVInt(numberOfAutoFollowPatterns);
-            out.writeVLong(lastFollowerIndexCreationDate);
+            out.writeVLong(timeSinceLastIndexFollowed);
         }
 
         @Override
@@ -133,7 +135,7 @@ public class CCRFeatureSet implements XPackFeatureSet {
             super.innerXContent(builder, params);
             builder.field("follower_indices_count", numberOfFollowerIndices);
             builder.field("auto_follow_patterns_count", numberOfAutoFollowPatterns);
-            builder.field("last_follower_index_creation_date", lastFollowerIndexCreationDate);
+            builder.field("time_since_last_index_followed", timeSinceLastIndexFollowed);
         }
 
         @Override
@@ -143,12 +145,12 @@ public class CCRFeatureSet implements XPackFeatureSet {
             Usage usage = (Usage) o;
             return numberOfFollowerIndices == usage.numberOfFollowerIndices &&
                 numberOfAutoFollowPatterns == usage.numberOfAutoFollowPatterns &&
-                lastFollowerIndexCreationDate == usage.lastFollowerIndexCreationDate;
+                timeSinceLastIndexFollowed == usage.timeSinceLastIndexFollowed;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(numberOfFollowerIndices, numberOfAutoFollowPatterns, lastFollowerIndexCreationDate);
+            return Objects.hash(numberOfFollowerIndices, numberOfAutoFollowPatterns, timeSinceLastIndexFollowed);
         }
     }
 }

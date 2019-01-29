@@ -49,7 +49,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class CloseIndexIT extends ESIntegTestCase {
 
@@ -310,7 +309,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         for (String index : indices) {
             assertThat(clusterState.metaData().indices().get(index).getState(), is(IndexMetaData.State.CLOSE));
-            assertThat(clusterState.routingTable().index(index), nullValue());
+            assertThat(clusterState.routingTable().index(index), notNullValue());
             assertThat(clusterState.blocks().hasIndexBlock(index, MetaDataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
             assertThat("Index " + index + " must have only 1 block with [id=" + MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
                 clusterState.blocks().indices().getOrDefault(index, emptySet()).stream()

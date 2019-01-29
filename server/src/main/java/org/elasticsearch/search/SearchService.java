@@ -266,7 +266,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // it's fine to keep the contexts open if the index is still "alive"
         // unfortunately we don't have a clear way to signal today why an index is closed.
         // to release memory and let references to the filesystem go etc.
-        if (reason == IndexRemovalReason.DELETED || reason == IndexRemovalReason.CLOSED) {
+        if (reason == IndexRemovalReason.DELETED || reason == IndexRemovalReason.CLOSED || reason == IndexRemovalReason.REOPENED) {
             freeAllContextForIndex(index);
         }
 

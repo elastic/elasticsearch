@@ -98,6 +98,7 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.FAILURE;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
+import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.REOPENED;
 
 public class IndicesClusterStateService extends AbstractLifecycleComponent implements ClusterStateApplier {
     private static final Logger logger = LogManager.getLogger(IndicesClusterStateService.class);
@@ -241,7 +242,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         deleteIndices(event); // also deletes shards of deleted indices
 
-        removeUnallocatedIndices(event); // also removes shards of removed indices
+        removeIndices(event); // also removes shards of removed indices
 
         failMissingShards(state);
 
@@ -353,17 +354,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     /**
-     * Removes indices that have no shards allocated to this node. This does not delete the shard data as we wait for enough
-     * shard copies to exist in the cluster before deleting shard data (triggered by {@link org.elasticsearch.indices.store.IndicesStore}).
+     * Removes indices that have no shards allocated to this node or indices whose state has changed. This does not delete the shard data
+     * as we wait for enough shard copies to exist in the cluster before deleting shard data (triggered by
+     * {@link org.elasticsearch.indices.store.IndicesStore}).
      *
      * @param event the cluster changed event
      */
-    private void removeUnallocatedIndices(final ClusterChangedEvent event) {
+    private void removeIndices(final ClusterChangedEvent event) {
         final ClusterState state = event.state();
         final String localNodeId = state.nodes().getLocalNodeId();
         assert localNodeId != null;
 
-        Set<Index> indicesWithShards = new HashSet<>();
+        final Set<Index> indicesWithShards = new HashSet<>();
         RoutingNode localRoutingNode = state.getRoutingNodes().node(localNodeId);
         if (localRoutingNode != null) { // null e.g. if we are not a data node
             for (ShardRouting shardRouting : localRoutingNode) {
@@ -372,20 +374,27 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         for (AllocatedIndex<? extends Shard> indexService : indicesService) {
-            Index index = indexService.index();
-            if (indicesWithShards.contains(index) == false) {
+            final Index index = indexService.index();
+            final IndexMetaData indexMetaData = state.metaData().index(index);
+            final IndexMetaData existingMetaData = indexService.getIndexSettings().getIndexMetaData();
+
+            AllocatedIndices.IndexRemovalReason reason = null;
+            if (indexMetaData != null && indexMetaData.getState() != existingMetaData.getState()) {
+                reason = indexMetaData.getState() == IndexMetaData.State.CLOSE ? CLOSED : REOPENED;
+            } else if (indicesWithShards.contains(index) == false) {
                 // if the cluster change indicates a brand new cluster, we only want
                 // to remove the in-memory structures for the index and not delete the
                 // contents on disk because the index will later be re-imported as a
                 // dangling index
-                final IndexMetaData indexMetaData = state.metaData().index(index);
                 assert indexMetaData != null || event.isNewCluster() :
                     "index " + index + " does not exist in the cluster state, it should either " +
                         "have been deleted or the cluster must be new";
-                final AllocatedIndices.IndexRemovalReason reason =
-                    indexMetaData != null && indexMetaData.getState() == IndexMetaData.State.CLOSE ? CLOSED : NO_LONGER_ASSIGNED;
-                logger.debug("{} removing index, [{}]", index, reason);
-                indicesService.removeIndex(index, reason, "removing index (no shards allocated)");
+                reason = NO_LONGER_ASSIGNED;
+            }
+
+            if (reason != null) {
+                logger.debug("{} removing index ({})", index, reason);
+                indicesService.removeIndex(index, reason, "removing index (" + reason + ")");
             }
         }
     }
@@ -596,7 +605,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                              ClusterState clusterState) {
         final ShardRouting currentRoutingEntry = shard.routingEntry();
         assert currentRoutingEntry.isSameAllocation(shardRouting) :
-            "local shard has a different allocation id but wasn't cleaning by removeShards. "
+            "local shard has a different allocation id but wasn't cleaned by removeShards. "
                 + "cluster state: " + shardRouting + " local: " + currentRoutingEntry;
 
         final long primaryTerm;
@@ -731,7 +740,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private void sendFailShard(ShardRouting shardRouting, String message, @Nullable Exception failure, ClusterState state) {
         try {
             logger.warn(() -> new ParameterizedMessage(
-                    "[{}] marking and sending shard failed due to [{}]", shardRouting.shardId(), message), failure);
+                    "{} marking and sending shard failed due to [{}]", shardRouting.shardId(), message), failure);
             failedShardsCache.put(shardRouting.shardId(), shardRouting);
             shardStateAction.localShardFailed(shardRouting, message, failure, SHARD_STATE_ACTION_LISTENER, state);
         } catch (Exception inner) {
@@ -942,7 +951,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
              * Persistent parts of the index like the shards files, state and transaction logs are kept around in the
              * case of a disaster recovery.
              */
-            FAILURE
+            FAILURE,
+
+            /**
+             * The index have been closed. The index should be removed and all associated resources released. Persistent parts of the index
+             * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
+             */
+            REOPENED,
         }
     }
 }

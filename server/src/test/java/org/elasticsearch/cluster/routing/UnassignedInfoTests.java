@@ -40,6 +40,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -54,6 +55,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class UnassignedInfoTests extends ESAllocationTestCase {
+
     public void testReasonOrdinalOrder() {
         UnassignedInfo.Reason[] order = new UnassignedInfo.Reason[]{
                 UnassignedInfo.Reason.INDEX_CREATED,
@@ -70,7 +72,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 UnassignedInfo.Reason.REALLOCATED_REPLICA,
                 UnassignedInfo.Reason.PRIMARY_FAILED,
                 UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY,
-                UnassignedInfo.Reason.MANUAL_ALLOCATION,};
+                UnassignedInfo.Reason.MANUAL_ALLOCATION,
+                UnassignedInfo.Reason.INDEX_CLOSED,};
         for (int i = 0; i < order.length; i++) {
             assertThat(order[i].ordinal(), equalTo(i));
         }
@@ -93,6 +96,21 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         assertThat(read.getMessage(), equalTo(meta.getMessage()));
         assertThat(read.getDetails(), equalTo(meta.getDetails()));
         assertThat(read.getNumFailedAllocations(), equalTo(meta.getNumFailedAllocations()));
+    }
+
+    public void testBwcSerialization() throws Exception {
+        final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CLOSED, "message");
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0)));
+        unassignedInfo.writeTo(out);
+        out.close();
+
+        UnassignedInfo read = new UnassignedInfo(out.bytes().streamInput());
+        assertThat(read.getReason(), equalTo(UnassignedInfo.Reason.REINITIALIZED));
+        assertThat(read.getUnassignedTimeInMillis(), equalTo(unassignedInfo.getUnassignedTimeInMillis()));
+        assertThat(read.getMessage(), equalTo(unassignedInfo.getMessage()));
+        assertThat(read.getDetails(), equalTo(unassignedInfo.getDetails()));
+        assertThat(read.getNumFailedAllocations(), equalTo(unassignedInfo.getNumFailedAllocations()));
     }
 
     public void testIndexCreated() {

@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.coordination;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.apache.logging.log4j.CloseableThreadContext;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -36,6 +37,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigu
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.ClusterNode;
+import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
@@ -48,6 +50,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -59,9 +62,11 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MockGatewayMetaState;
 import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.elasticsearch.transport.TransportService;
@@ -84,6 +89,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -137,6 +143,13 @@ public class CoordinatorTests extends ESTestCase {
 
     private final List<NodeEnvironment> nodeEnvironments = new ArrayList<>();
 
+    private final AtomicInteger nextNodeIndex = new AtomicInteger();
+
+    @Before
+    public void resetNodeIndexBeforeEachTest() {
+        nextNodeIndex.set(0);
+    }
+
     @After
     public void closeNodeEnvironmentsAfterEachTest() {
         for (NodeEnvironment nodeEnvironment : nodeEnvironments) {
@@ -153,6 +166,7 @@ public class CoordinatorTests extends ESTestCase {
     // check that runRandomly leads to reproducible results
     public void testRepeatableTests() throws Exception {
         final Callable<Long> test = () -> {
+            resetNodeIndexBeforeEachTest();
             final Cluster cluster = new Cluster(randomIntBetween(1, 5));
             cluster.runRandomly();
             final long afterRunRandomly = value(cluster.getAnyNode().getLastAppliedClusterState());
@@ -1001,6 +1015,52 @@ public class CoordinatorTests extends ESTestCase {
         assertTrue(cluster.clusterNodes.stream().allMatch(cn -> cn.getLastAppliedClusterState().version() == 0));
     }
 
+    public void testCannotJoinClusterWithDifferentUUID() throws IllegalAccessException {
+        final Cluster cluster1 = new Cluster(randomIntBetween(1, 3));
+        cluster1.runRandomly();
+        cluster1.stabilise();
+
+        final Cluster cluster2 = new Cluster(3);
+        cluster2.runRandomly();
+        cluster2.stabilise();
+
+        final ClusterNode shiftedNode = randomFrom(cluster2.clusterNodes).restartedNode();
+        final ClusterNode newNode = cluster1.new ClusterNode(nextNodeIndex.getAndIncrement(),
+            shiftedNode.getLocalNode(), n -> shiftedNode.persistedState);
+        cluster1.clusterNodes.add(newNode);
+
+        MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "test1",
+                JoinHelper.class.getCanonicalName(),
+                Level.INFO,
+                "*failed to join*"));
+        Logger joinLogger = LogManager.getLogger(JoinHelper.class);
+        Loggers.addAppender(joinLogger, mockAppender);
+        cluster1.runFor(DEFAULT_STABILISATION_TIME, "failing join validation");
+        try {
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(joinLogger, mockAppender);
+            mockAppender.stop();
+        }
+        assertTrue(newNode.getLastAppliedClusterState().version() == 0);
+
+        // reset clusterUUIDCommitted (and node / cluster state term) to let node join again
+        // TODO: use elasticsearch-node detach-cluster tool once it's implemented
+        final ClusterNode detachedNode = newNode.restartedNode(
+            metaData -> MetaData.builder(metaData)
+                .clusterUUIDCommitted(false)
+                .coordinationMetaData(CoordinationMetaData.builder(metaData.coordinationMetaData())
+                    .term(0L).build())
+                .build(),
+            term -> 0L);
+        cluster1.clusterNodes.replaceAll(cn -> cn == newNode ? detachedNode : cn);
+        cluster1.stabilise();
+    }
+
     private static long defaultMillis(Setting<TimeValue> setting) {
         return setting.get(Settings.EMPTY).millis() + Cluster.DEFAULT_DELAY_VARIABILITY;
     }
@@ -1077,7 +1137,8 @@ public class CoordinatorTests extends ESTestCase {
             final Set<String> masterEligibleNodeIds = new HashSet<>(initialNodeCount);
             clusterNodes = new ArrayList<>(initialNodeCount);
             for (int i = 0; i < initialNodeCount; i++) {
-                final ClusterNode clusterNode = new ClusterNode(i, allNodesMasterEligible || i == 0 || randomBoolean());
+                final ClusterNode clusterNode = new ClusterNode(nextNodeIndex.getAndIncrement(),
+                    allNodesMasterEligible || i == 0 || randomBoolean());
                 clusterNodes.add(clusterNode);
                 if (clusterNode.getLocalNode().isMasterNode()) {
                     masterEligibleNodeIds.add(clusterNode.getId());
@@ -1108,10 +1169,9 @@ public class CoordinatorTests extends ESTestCase {
         List<ClusterNode> addNodes(int newNodesCount) {
             logger.info("--> adding {} nodes", newNodesCount);
 
-            final int nodeSizeAtStart = clusterNodes.size();
             final List<ClusterNode> addedNodes = new ArrayList<>();
             for (int i = 0; i < newNodesCount; i++) {
-                final ClusterNode clusterNode = new ClusterNode(nodeSizeAtStart + i, true);
+                final ClusterNode clusterNode = new ClusterNode(nextNodeIndex.getAndIncrement(), true);
                 addedNodes.add(clusterNode);
             }
             clusterNodes.addAll(addedNodes);
@@ -1471,21 +1531,41 @@ public class CoordinatorTests extends ESTestCase {
                 }
             }
 
-            MockPersistedState(DiscoveryNode newLocalNode, MockPersistedState oldState) {
+            MockPersistedState(DiscoveryNode newLocalNode, MockPersistedState oldState,
+                               Function<MetaData, MetaData> adaptGlobalMetaData, Function<Long, Long> adaptCurrentTerm) {
                 try {
                     if (oldState.nodeEnvironment != null) {
                         nodeEnvironment = oldState.nodeEnvironment;
+                        final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry());
+                        final MetaData updatedMetaData = adaptGlobalMetaData.apply(oldState.getLastAcceptedState().metaData());
+                        if (updatedMetaData != oldState.getLastAcceptedState().metaData()) {
+                            metaStateService.writeGlobalStateAndUpdateManifest("update global state", updatedMetaData);
+                        }
+                        final long updatedTerm = adaptCurrentTerm.apply(oldState.getCurrentTerm());
+                        if (updatedTerm != oldState.getCurrentTerm()) {
+                            final Manifest manifest = metaStateService.loadManifestOrEmpty();
+                            metaStateService.writeManifestAndCleanup("update term",
+                                new Manifest(updatedTerm, manifest.getClusterStateVersion(), manifest.getGlobalGeneration(),
+                                    manifest.getIndexGenerations()));
+                        }
                         delegate = new MockGatewayMetaState(Settings.EMPTY, nodeEnvironment, xContentRegistry(), newLocalNode)
                                 .getPersistedState(Settings.EMPTY, null);
                     } else {
                         nodeEnvironment = null;
                         BytesStreamOutput outStream = new BytesStreamOutput();
                         outStream.setVersion(Version.CURRENT);
-                        oldState.getLastAcceptedState().writeTo(outStream);
+                        final MetaData updatedMetaData = adaptGlobalMetaData.apply(oldState.getLastAcceptedState().metaData());
+                        final ClusterState clusterState;
+                        if (updatedMetaData != oldState.getLastAcceptedState().metaData()) {
+                            clusterState = ClusterState.builder(oldState.getLastAcceptedState()).metaData(updatedMetaData).build();
+                        } else {
+                            clusterState = oldState.getLastAcceptedState();
+                        }
+                        clusterState.writeTo(outStream);
                         StreamInput inStream = new NamedWriteableAwareStreamInput(outStream.bytes().streamInput(),
                                 new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
-                        delegate = new InMemoryPersistedState(oldState.getCurrentTerm(), ClusterState.readFrom(inStream,
-                                newLocalNode)); // adapts it to new localNode instance
+                        delegate = new InMemoryPersistedState(adaptCurrentTerm.apply(oldState.getCurrentTerm()),
+                                ClusterState.readFrom(inStream, newLocalNode)); // adapts it to new localNode instance
                     }
                 } catch (IOException e) {
                     throw new UncheckedIOException("Unable to create MockPersistedState", e);
@@ -1614,12 +1694,17 @@ public class CoordinatorTests extends ESTestCase {
             }
 
             ClusterNode restartedNode() {
+                return restartedNode(Function.identity(), Function.identity());
+            }
+
+            ClusterNode restartedNode(Function<MetaData, MetaData> adaptGlobalMetaData, Function<Long, Long> adaptCurrentTerm) {
                 final TransportAddress address = randomBoolean() ? buildNewFakeTransportAddress() : localNode.getAddress();
                 final DiscoveryNode newLocalNode = new DiscoveryNode(localNode.getName(), localNode.getId(),
                     UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
                     address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
                     localNode.isMasterNode() ? EnumSet.allOf(Role.class) : emptySet(), Version.CURRENT);
-                return new ClusterNode(nodeIndex, newLocalNode, node -> new MockPersistedState(newLocalNode, persistedState));
+                return new ClusterNode(nodeIndex, newLocalNode,
+                    node -> new MockPersistedState(newLocalNode, persistedState, adaptGlobalMetaData, adaptCurrentTerm));
             }
 
             private PersistedState getPersistedState() {

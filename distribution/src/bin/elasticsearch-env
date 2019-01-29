@@ -39,13 +39,11 @@ ES_CLASSPATH="$ES_HOME/lib/*"
 if [ -x "$JAVA_HOME/bin/java" ]; then
   JAVA="$JAVA_HOME/bin/java"
 else
-  set +e
-  JAVA=`which java`
-  set -e
+  JAVA="$ES_HOME/jdk/bin/java"
 fi
 
 if [ ! -x "$JAVA" ]; then
-  echo "could not find java; set JAVA_HOME or ensure java is in PATH" >&2
+  echo "could not find java in JAVA_HOME or bundled in $ES_HOME/jdk" >&2
   exit 1
 fi
 

@@ -20,6 +20,7 @@
 import org.elasticsearch.gradle.ConcatFilesTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.test.RunTask
 import org.apache.tools.ant.filters.FixCrLfFilter
 
@@ -210,6 +211,44 @@ xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
   copyLog4jProperties(buildDefaultLog4jConfig, xpackModule)
 }
 
+/*****************************************************************************
+ *                                    JDKs                                   *
+ *****************************************************************************/
+List<String> bundledJdkVersion = VersionProperties.bundledJdk
+String jdkVersion = "${bundledJdkVersion[0..2].join('.')}"
+String jdkMajor = bundledJdkVersion[0]
+String jdkBuild = bundledJdkVersion[3]
+repositories {
+  ivy {
+    url "https://download.java.net"
+    patternLayout {
+      artifact "java/GA/jdk${jdkMajor}/${jdkBuild}/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"
+    }
+  }
+}
+for (String platform : ['linux', 'darwin', 'windows']) {
+  String jdkConfigName = "jdk_${platform}"
+  Configuration jdkConfig = configurations.create(jdkConfigName)
+  String extension = platform.equals('windows') ? 'zip' : 'tar.gz'
+  dependencies.add(jdkConfigName, "jdk:${platform.equals('darwin') ? 'osx' : platform}:${jdkVersion}@${extension}")
+
+  int rootNdx = platform.equals('darwin') ? 2 : 1
+  Closure removeRootDir = {
+    it.eachFile { FileCopyDetails details ->
+      details.relativePath = new RelativePath(true, details.relativePath.segments[rootNdx..-1] as String[])
+    }
+    it.includeEmptyDirs false
+  }
+  project.task("extract${platform.capitalize()}Jdk", type: Copy) {
+    into "${buildDir}/jdks/openjdk-${jdkVersion}_${platform}"
+    if (extension.equals('zip')) {
+      from({ zipTree(jdkConfig.singleFile) }, removeRootDir)
+    } else {
+      from({ tarTree(resources.gzip(jdkConfig.singleFile)) }, removeRootDir)
+    }
+  }
+}
+
 // make sure we have a clean task since we aren't a java project, but we have tasks that
 // put stuff in the build dir
 task clean(type: Delete) {
@@ -330,6 +369,12 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         from buildServerNotice
       } else {
         from buildDefaultNotice
+      }
+    }
+
+    jdkFiles = { platform ->
+      copySpec {
+        from project(':distribution').tasks.getByName("extract${platform.capitalize()}Jdk")
       }
     }
   }

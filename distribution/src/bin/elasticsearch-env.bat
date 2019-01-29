@@ -20,11 +20,11 @@ rem now set the path to java
 if defined JAVA_HOME (
   set JAVA="%JAVA_HOME%\bin\java.exe"
 ) else (
-  for %%I in (java.exe) do set JAVA="%%~$PATH:I"
+  set JAVA="%ES_HOME%\jdk\bin\java.exe"
 )
 
 if not exist %JAVA% (
-  echo could not find java; set JAVA_HOME or ensure java is in PATH 1>&2
+  echo could not find java in JAVA_HOME or bundled in %ES_HOME%\jdk
   exit /b 1
 )
 

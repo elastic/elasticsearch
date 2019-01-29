@@ -61,7 +61,9 @@ setup() {
 }
 
 @test "[UPGRADE] start old version" {
+    export JAVA_HOME=$SYSTEM_JAVA_HOME
     start_elasticsearch_service
+    unset JAVA_HOME
 }
 
 @test "[UPGRADE] check elasticsearch version is old version" {

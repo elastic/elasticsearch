@@ -76,7 +76,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         assertThat(r.stdout, isEmptyString());
     }
 
-    public void test30AbortWhenJavaMissing() {
+    public void test30OverrideJava() {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();

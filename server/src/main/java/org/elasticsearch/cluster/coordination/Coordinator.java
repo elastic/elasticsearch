@@ -112,6 +112,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private final PeerFinder peerFinder;
     private final PreVoteCollector preVoteCollector;
+    private final Random random;
     private final ElectionSchedulerFactory electionSchedulerFactory;
     private final UnicastConfiguredHostsResolver configuredHostsResolver;
     private final TimeValue publishTimeout;
@@ -153,6 +154,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.lastJoin = Optional.empty();
         this.joinAccumulator = new InitialJoinAccumulator();
         this.publishTimeout = PUBLISH_TIMEOUT_SETTING.get(settings);
+        this.random = random;
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, random, transportService.getThreadPool());
         this.preVoteCollector = new PreVoteCollector(transportService, this::startElection, this::updateMaxTermSeen);
         configuredHostsResolver = new UnicastConfiguredHostsResolver(nodeName, settings, transportService, unicastHostsProvider);
@@ -366,11 +368,33 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
+    private void abdicateTo(DiscoveryNode newMaster) {
+        assert Thread.holdsLock(mutex);
+        assert mode == Mode.LEADER : "expected to be leader on abdication but was " + mode;
+        assert newMaster.isMasterNode() : "should only abdicate to master-eligible node but was " + newMaster;
+        final StartJoinRequest startJoinRequest = new StartJoinRequest(newMaster, Math.max(getCurrentTerm(), maxTermSeen) + 1);
+        logger.info("abdicating to {} with term {}", newMaster, startJoinRequest.getTerm());
+        getLastAcceptedState().nodes().mastersFirstStream().forEach(node -> {
+            if (isZen1Node(node) == false) {
+                joinHelper.sendStartJoinRequest(startJoinRequest, node);
+            }
+        });
+        // handling of start join messages on the local node will be dispatched to the generic thread-pool
+        assert mode == Mode.LEADER : "should still be leader after sending abdication messages " + mode;
+        // explicitly move node to candidate state so that the next cluster state update task yields an onNoLongerMaster event
+        becomeCandidate("after abdicating to " + newMaster);
+    }
+
     private static boolean electionQuorumContainsLocalNode(ClusterState lastAcceptedState) {
-        final String localNodeId = lastAcceptedState.nodes().getLocalNodeId();
-        assert localNodeId != null;
-        return lastAcceptedState.getLastCommittedConfiguration().getNodeIds().contains(localNodeId)
-            || lastAcceptedState.getLastAcceptedConfiguration().getNodeIds().contains(localNodeId);
+        final DiscoveryNode localNode = lastAcceptedState.nodes().getLocalNode();
+        assert localNode != null;
+        return electionQuorumContains(lastAcceptedState, localNode);
+    }
+
+    private static boolean electionQuorumContains(ClusterState lastAcceptedState, DiscoveryNode node) {
+        final String nodeId = node.getId();
+        return lastAcceptedState.getLastCommittedConfiguration().getNodeIds().contains(nodeId)
+            || lastAcceptedState.getLastAcceptedConfiguration().getNodeIds().contains(nodeId);
     }
 
     private Optional<Join> ensureTermAtLeast(DiscoveryNode sourceNode, long targetTerm) {
@@ -780,7 +804,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             .filter(this::hasJoinVoteFrom).filter(discoveryNode -> isZen1Node(discoveryNode) == false).collect(Collectors.toSet());
         final VotingConfiguration newConfig = reconfigurator.reconfigure(liveNodes,
             clusterState.getVotingConfigExclusions().stream().map(VotingConfigExclusion::getNodeId).collect(Collectors.toSet()),
-            clusterState.getLastAcceptedConfiguration());
+            getLocalNode(), clusterState.getLastAcceptedConfiguration());
         if (newConfig.equals(clusterState.getLastAcceptedConfiguration()) == false) {
             assert coordinationState.get().joinVotesHaveQuorumFor(newConfig);
             return ClusterState.builder(clusterState).metaData(MetaData.builder(clusterState.metaData())
@@ -1192,7 +1216,18 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                     updateMaxTermSeen(getCurrentTerm());
 
                                     if (mode == Mode.LEADER) {
-                                        scheduleReconfigurationIfNeeded();
+                                        final ClusterState state = getLastAcceptedState(); // committed state
+                                        if (electionQuorumContainsLocalNode(state) == false) {
+                                            final List<DiscoveryNode> masterCandidates = completedNodes().stream()
+                                                .filter(DiscoveryNode::isMasterNode)
+                                                .filter(node -> electionQuorumContains(state, node))
+                                                .collect(Collectors.toList());
+                                            if (masterCandidates.isEmpty() == false) {
+                                                abdicateTo(masterCandidates.get(random.nextInt(masterCandidates.size())));
+                                            }
+                                        } else {
+                                            scheduleReconfigurationIfNeeded();
+                                        }
                                     }
                                     lagDetector.startLagDetector(publishRequest.getAcceptedState().version());
                                 }

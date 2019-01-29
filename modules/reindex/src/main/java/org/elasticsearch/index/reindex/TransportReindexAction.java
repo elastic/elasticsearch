@@ -259,16 +259,13 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                 ThreadPool threadPool, ReindexRequest request, ScriptService scriptService, ClusterState clusterState,
                 ActionListener<BulkByScrollResponse> listener) {
-            super(task, logger, client, threadPool, request, scriptService, clusterState, listener);
-        }
-
-        @Override
-        protected boolean needsSourceDocumentVersions() {
-            /*
-             * We only need the source version if we're going to use it when write and we only do that when the destination request uses
-             * external versioning.
-             */
-            return mainRequest.getDestination().versionType() != VersionType.INTERNAL;
+            super(task,
+                /*
+                 * We only need the source version if we're going to use it when write and we only do that when the destination request uses
+                 * external versioning.
+                 */
+                request.getDestination().versionType() != VersionType.INTERNAL,
+                false, logger, client, threadPool, request, scriptService, listener);
         }
 
         @Override

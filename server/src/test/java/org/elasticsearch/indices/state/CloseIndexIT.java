@@ -41,6 +41,7 @@ import java.util.stream.IntStream;
 import static java.util.Collections.emptySet;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.support.IndicesOptions.lenientExpandOpen;
+import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
@@ -188,7 +189,7 @@ public class CloseIndexIT extends ESIntegTestCase {
 
         assertIndexIsClosed(indexName);
         assertAcked(client().admin().indices().prepareOpen(indexName));
-        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(MAX_DOCS).get(), nbDocs);
+        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE).get(), nbDocs);
     }
 
     public void testCloseWhileDeletingIndices() throws Exception {
@@ -301,7 +302,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         }
         refresh(indexName);
         assertIndexIsOpened(indexName);
-        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(MAX_DOCS).get(),
+        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE).get(),
             indexer.totalIndexedDocs());
     }
 

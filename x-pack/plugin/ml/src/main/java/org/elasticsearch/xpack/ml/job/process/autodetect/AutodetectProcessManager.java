@@ -77,6 +77,7 @@ import java.io.InputStream;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
@@ -831,7 +832,16 @@ public class AutodetectProcessManager implements ClusterStateListener {
         }
 
         @Override
-        public void execute(Runnable command) {
+        public synchronized void execute(Runnable command) {
+            if (isShutdown()) {
+                EsRejectedExecutionException rejected = new EsRejectedExecutionException("autodetect worker service has shutdown", true);
+                if (command instanceof AbstractRunnable) {
+                    ((AbstractRunnable) command).onRejection(rejected);
+                } else {
+                    throw rejected;
+                }
+            }
+
             boolean added = queue.offer(contextHolder.preserveContext(command));
             if (added == false) {
                 throw new ElasticsearchStatusException("Unable to submit operation", RestStatus.TOO_MANY_REQUESTS);
@@ -849,6 +859,21 @@ public class AutodetectProcessManager implements ClusterStateListener {
                             logger.error("error handling job operation", e);
                         }
                         EsExecutors.rethrowErrors(contextHolder.unwrap(runnable));
+                    }
+                }
+
+                synchronized (this) {
+                    // if shutdown with tasks pending notify the handlers
+                    if (queue.isEmpty() == false) {
+                        List<Runnable> notExecuted = new ArrayList<>();
+                        queue.drainTo(notExecuted);
+
+                        for (Runnable runnable : notExecuted) {
+                            if (runnable instanceof AbstractRunnable) {
+                                ((AbstractRunnable) runnable).onRejection(
+                                    new EsRejectedExecutionException("unable to process as autodetect worker service has shutdown", true));
+                            }
+                        }
                     }
                 }
             } catch (InterruptedException e) {

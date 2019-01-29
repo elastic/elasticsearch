@@ -98,7 +98,7 @@ setup() {
     systemctl start elasticsearch.service
     wait_for_elasticsearch_status
     assert_file_exist "/var/run/elasticsearch/elasticsearch.pid"
-    assert_file_exist "/var/log/elasticsearch/elasticsearch.log"
+    assert_file_exist "/var/log/elasticsearch/elasticsearch_server.json"
 
     # Converts the epoch back in a human readable format
     run date --date=@$epoch "+%Y-%m-%d %H:%M:%S"

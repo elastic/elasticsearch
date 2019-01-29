@@ -170,28 +170,33 @@ if (useFixture) {
   preProcessFixture.dependsOn(writeDockerFile)
   // The following closure must execute before the afterEvaluate block in the constructor of the following integrationTest tasks:
   project.afterEvaluate {
-    ClusterConfiguration cluster = project.extensions.getByName('integTestMinioCluster') as ClusterConfiguration
-    cluster.dependsOn(project.bundlePlugin)
-    cluster.dependsOn(postProcessFixture)
-    cluster.keystoreSetting 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
-    cluster.keystoreSetting 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
+    // Only configure the Minio tests if postProcessFixture is configured to skip them if Docker is not available
+    // or fixtures have been disabled
+    if (postProcessFixture.enabled) {
+      ClusterConfiguration cluster = project.extensions.getByName('integTestMinioCluster') as ClusterConfiguration
+      cluster.dependsOn(project.bundlePlugin)
+      cluster.dependsOn(postProcessFixture)
+      cluster.keystoreSetting 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
+      cluster.keystoreSetting 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
 
-    Closure<String> minioAddressAndPort = {
-      int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
-      assert minioPort > 0
-      return 'http://127.0.0.1:' + minioPort
+      Closure<String> minioAddressAndPort = {
+        int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
+        assert minioPort > 0
+        return 'http://127.0.0.1:' + minioPort
+      }
+      cluster.setting 's3.client.integration_test_permanent.endpoint', "${-> minioAddressAndPort.call()}"
+
+      Task restIntegTestTask = project.tasks.getByName('integTestMinio')
+      restIntegTestTask.clusterConfig.plugin(project.path)
+
+      // Default jvm arguments for all test clusters
+      String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
+        " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
+        " " + System.getProperty('tests.jvm.argline', '')
+
+      restIntegTestTask.clusterConfig.jvmArgs = jvmArgs
+      project.check.dependsOn(integTestMinio)
     }
-    cluster.setting 's3.client.integration_test_permanent.endpoint', "${ -> minioAddressAndPort.call()}"
-
-    Task restIntegTestTask = project.tasks.getByName('integTestMinio')
-    restIntegTestTask.clusterConfig.plugin(project.path)
-
-    // Default jvm arguments for all test clusters
-    String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
-            " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
-            " " + System.getProperty('tests.jvm.argline', '')
-
-    restIntegTestTask.clusterConfig.jvmArgs = jvmArgs
   }
 
   integTestMinioRunner.dependsOn(postProcessFixture)
@@ -202,7 +207,6 @@ if (useFixture) {
           'repository_s3/50_repository_ecs_credentials/*'
         ].join(",")
 
-  project.check.dependsOn(integTestMinio)
   BuildPlugin.requireDocker(integTestMinio)
 }
 

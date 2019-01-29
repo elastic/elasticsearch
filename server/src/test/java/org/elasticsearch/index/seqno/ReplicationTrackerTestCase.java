@@ -47,7 +47,8 @@ public abstract class ReplicationTrackerTestCase extends ESTestCase  {
                 IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
                 UNASSIGNED_SEQ_NO,
                 updatedGlobalCheckpoint,
-                currentTimeMillisSupplier);
+                currentTimeMillisSupplier,
+                (leases, listener) -> {});
     }
 
     static IndexShardRoutingTable routingTable(final Set<AllocationId> initializingIds, final AllocationId primaryId) {

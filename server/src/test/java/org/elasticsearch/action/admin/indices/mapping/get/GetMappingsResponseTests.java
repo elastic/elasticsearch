@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -82,12 +81,6 @@ public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase
         return mutate(instance);
     }
 
-    public static ImmutableOpenMap<String, MappingMetaData> createMappingsForIndex() {
-        // rarely have no types
-        int typeCount = rarely() ? 0 : scaledRandomIntBetween(1, 3);
-        return createMappingsForIndex(typeCount);
-    }
-
     public static ImmutableOpenMap<String, MappingMetaData> createMappingsForIndex(int typeCount) {
         List<MappingMetaData> typeMappings = new ArrayList<>(typeCount);
 
@@ -112,11 +105,12 @@ public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase
         typeMappings.forEach(mmd -> typeBuilder.put(mmd.type(), mmd));
         return typeBuilder.build();
     }
-
+    
     @Override
     protected GetMappingsResponse createTestInstance() {
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> indexBuilder = ImmutableOpenMap.builder();
-        indexBuilder.put("index-" + randomAlphaOfLength(5), createMappingsForIndex());
+        int typeCount = rarely() ? 0 : scaledRandomIntBetween(1, 3);
+        indexBuilder.put("index-" + randomAlphaOfLength(5), createMappingsForIndex(typeCount));
         GetMappingsResponse resp = new GetMappingsResponse(indexBuilder.build());
         logger.debug("--> created: {}", resp);
         return resp;
@@ -124,7 +118,6 @@ public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase
 
     // Not meant to be exhaustive
     private static Map<String, Object> randomFieldMapping() {
-        Map<String, Object> mappings = new HashMap<>();
         if (randomBoolean()) {
             Map<String, Object> regularMapping = new HashMap<>();
             regularMapping.put("type", randomBoolean() ? "text" : "keyword");

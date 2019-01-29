@@ -42,8 +42,6 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -76,6 +74,8 @@ import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
+import org.elasticsearch.client.indices.GetMappingsRequest;
+import org.elasticsearch.client.indices.GetMappingsResponse;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
@@ -589,12 +589,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::get-mappings-request
             GetMappingsRequest request = new GetMappingsRequest(); // <1>
             request.indices("twitter"); // <2>
-            request.types("_doc"); // <3>
             // end::get-mappings-request
 
             // tag::get-mappings-request-masterTimeout
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-            request.masterNodeTimeout("1m"); // <2>
+            request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
             // end::get-mappings-request-masterTimeout
 
             // tag::get-mappings-request-indicesOptions
@@ -606,9 +604,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::get-mappings-execute
 
             // tag::get-mappings-response
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> allMappings = getMappingResponse.mappings(); // <1>
-            MappingMetaData typeMapping = allMappings.get("twitter").get("_doc"); // <2>
-            Map<String, Object> mapping = typeMapping.sourceAsMap(); // <3>
+            Map<String, MappingMetaData> allMappings = getMappingResponse.mappings(); // <1>
+            MappingMetaData indexMapping = allMappings.get("twitter"); // <2>
+            Map<String, Object> mapping = indexMapping.sourceAsMap(); // <3>
             // end::get-mappings-response
 
             Map<String, String> type = new HashMap<>();
@@ -644,7 +642,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             GetMappingsRequest request = new GetMappingsRequest();
             request.indices("twitter");
-            request.types("_doc");
 
             // tag::get-mappings-execute-listener
             ActionListener<GetMappingsResponse> listener =
@@ -665,9 +662,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             final CountDownLatch latch = new CountDownLatch(1);
             final ActionListener<GetMappingsResponse> latchListener = new LatchedActionListener<>(listener, latch);
             listener = ActionListener.wrap(r -> {
-                ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> allMappings = r.mappings();
-                MappingMetaData typeMapping = allMappings.get("twitter").get("_doc");
-                Map<String, Object> mapping = typeMapping.sourceAsMap();
+                Map<String, MappingMetaData> allMappings = r.mappings();
+                MappingMetaData indexMapping = allMappings.get("twitter");
+                Map<String, Object> mapping = indexMapping.sourceAsMap();
 
                 Map<String, String> type = new HashMap<>();
                 type.put("type", "text");

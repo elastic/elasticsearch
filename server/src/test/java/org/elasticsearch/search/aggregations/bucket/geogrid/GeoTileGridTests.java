@@ -53,6 +53,7 @@ public class GeoTileGridTests extends GeoGridTestCase<InternalGeoTileGridBucket,
 
     @Override
     protected int randomPrecision() {
-        return randomIntBetween(0, MAX_ZOOM);
+        // precision values below 8 can lead to parsing errors
+        return randomIntBetween(8, MAX_ZOOM);
     }
 }

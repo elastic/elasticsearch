@@ -907,10 +907,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private static boolean removedNodesCleanupNeeded(SnapshotsInProgress snapshotsInProgress, List<DiscoveryNode> removedNodes,
                                                      boolean newMaster) {
+        // We just replaced old master and snapshots in intermediate states needs to be cleaned
         if (newMaster && snapshotsInProgress.entries().stream().anyMatch(
             snapshot -> snapshot.state() == State.SUCCESS || snapshot.state() == State.INIT)) {
             return true;
         }
+        // If at least one shard was running on the removed node - we need to fail it
         return removedNodes.isEmpty() == false && snapshotsInProgress.entries().stream().flatMap(snapshot ->
                 StreamSupport.stream(((Iterable<ShardSnapshotStatus>) () -> snapshot.shards().valuesIt()).spliterator(), false)
                     .filter(s -> s.state().completed() == false).map(ShardSnapshotStatus::nodeId))

@@ -108,7 +108,8 @@ public class RestGetAliasesAction extends BaseRestHandler {
             for (; j < requestedAliases.length; j++) {
                 if (requestedAliases[j].charAt(0) == '-') {
                     // this is an exclude pattern
-                    if (Regex.simpleMatch(requestedAliases[j].substring(1), requestedAliases[i]) || MetaData.ALL.equals(requestedAliases[j].substring(1))) {
+                    if (Regex.simpleMatch(requestedAliases[j].substring(1), requestedAliases[i])
+                            || MetaData.ALL.equals(requestedAliases[j].substring(1))) {
                         // aliases[i] is excluded by aliases[j]
                         break;
                     }
@@ -132,11 +133,9 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 status = RestStatus.NOT_FOUND;
                 final String message;
                 if (missingAliases.size() == 1) {
-                    message = String.format(Locale.ROOT, "alias [%s] missing",
-                            Strings.collectionToCommaDelimitedString(missingAliases));
+                    message = String.format(Locale.ROOT, "alias [%s] missing", Strings.collectionToCommaDelimitedString(missingAliases));
                 } else {
-                    message = String.format(Locale.ROOT, "aliases [%s] missing",
-                            Strings.collectionToCommaDelimitedString(missingAliases));
+                    message = String.format(Locale.ROOT, "aliases [%s] missing", Strings.collectionToCommaDelimitedString(missingAliases));
                 }
                 builder.field("error", message);
                 builder.field("status", status.getStatus());

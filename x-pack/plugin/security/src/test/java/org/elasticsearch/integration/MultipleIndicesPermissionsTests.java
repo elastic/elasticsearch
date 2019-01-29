@@ -57,6 +57,11 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
     }
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
+    @Override
     protected String configRoles() {
         return SecuritySettingsSource.TEST_ROLE + ":\n" +
                 "  cluster: [ all ]\n" +
@@ -220,10 +225,10 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
         RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
         optionsBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue("user_monitor", USERS_PASSWD));
         RequestOptions options = optionsBuilder.build();
-        Request request = new Request("GET", "/_cat/indices/" + randomFrom("*", "_all", "foo*"));
-        request.setOptions(options);
-        Response response = getRestClient().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode() < 300, is(true));
+        Request catIndicesRequest = new Request("GET", "/_cat/indices/" + randomFrom("*", "_all", "foo*"));
+        catIndicesRequest.setOptions(options);
+        Response catIndicesResponse = getRestClient().performRequest(catIndicesRequest);
+        assertThat(catIndicesResponse.getStatusLine().getStatusCode() < 300, is(true));
     }
 
     public void testMultipleRoles() throws Exception {

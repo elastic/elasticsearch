@@ -111,8 +111,10 @@ final class SoftDeletesPolicy {
     }
 
     public synchronized Tuple<Long, Collection<RetentionLease>> getRetentionPolicy() {
-        // when an engine is flushed, we need to provide it the latest collection of retention leases
-        // even when the soft-deletes policy is locked for peer-recovery.
+        /*
+         * When an engine is flushed, we need to provide it the latest collection of retention leases even when the soft deletes policy is
+         * locked for peer recovery.
+         */
         final Collection<RetentionLease> retentionLeases = retentionLeasesSupplier.get();
         // do not advance if the retention lock is held
         if (retentionLockCount == 0) {

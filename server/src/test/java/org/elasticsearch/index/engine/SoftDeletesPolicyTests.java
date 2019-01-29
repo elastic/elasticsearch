@@ -38,6 +38,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -120,16 +122,21 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
 
     public void testAlwaysFetchLatestRetentionLeases() {
         final AtomicLong globalCheckpoint = new AtomicLong(NO_OPS_PERFORMED);
-        final Set<RetentionLease> leases = new HashSet<>();
-        final int numLeases = between(0, 10);
+        final Collection<RetentionLease> leases = new ArrayList<>();
+        final int numLeases = randomIntBetween(0, 10);
         for (int i = 0; i < numLeases; i++) {
             leases.add(new RetentionLease(Integer.toString(i), randomLongBetween(NO_OPS_PERFORMED, 1000), randomNonNegativeLong(), "test"));
         }
-        final Supplier<Collection<RetentionLease>> leasesSupplier = () -> Collections.unmodifiableSet(new HashSet<>(leases));
-        final SoftDeletesPolicy policy = new SoftDeletesPolicy(globalCheckpoint::get, between(1, 1000), between(0, 1000), leasesSupplier);
+        final Supplier<Collection<RetentionLease>> leasesSupplier = () -> Collections.unmodifiableCollection(new ArrayList<>(leases));
+        final SoftDeletesPolicy policy =
+                new SoftDeletesPolicy(globalCheckpoint::get, randomIntBetween(1, 1000), randomIntBetween(0, 1000), leasesSupplier);
         if (randomBoolean()) {
             policy.acquireRetentionLock();
         }
-        assertThat(policy.getRetentionPolicy().v2(), equalTo(leases));
+        if (numLeases == 0) {
+            assertThat(policy.getRetentionPolicy().v2(), empty());
+        } else {
+            assertThat(policy.getRetentionPolicy().v2(), contains(leases.toArray(new RetentionLease[0])));
+        }
     }
 }

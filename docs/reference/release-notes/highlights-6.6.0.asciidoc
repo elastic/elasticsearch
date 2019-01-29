@@ -7,7 +7,7 @@
 See also <<release-notes-6.6.0,{es} 6.6.0 release notes>>. 
 
 [float]
-=== Index Lifecycle Management
+=== Index lifecycle management (Beta)
 
 The index lifecycle management feature breaks the lifecycle of an index into four phases: hot, warm, cold, and delete phase.
 You can define an index lifecycle policy which allows you to:

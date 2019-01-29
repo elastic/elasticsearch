@@ -10,7 +10,7 @@ See also <<release-notes-6.6.0,{es} 6.6.0 release notes>>.
 === Index lifecycle management (Beta)
 
 The index lifecycle management feature breaks the lifecycle of an index into four phases: hot, warm, cold, and delete phase.
-You can define an index lifecycle policy which allows you to:
+You can define an index lifecycle policy which enables you to:
 
 * Have one primary shard on each hot node to maximize indexing throughput.
 * Replace the hot index with a new empty index as soon as the existing index is “full” or after a time period. 

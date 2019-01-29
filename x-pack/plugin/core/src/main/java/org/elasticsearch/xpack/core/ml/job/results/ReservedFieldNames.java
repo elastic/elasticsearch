@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.job.results;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -255,6 +256,14 @@ public final class ReservedFieldNames {
 
             ChunkingConfig.MODE_FIELD.getPreferredName(),
             ChunkingConfig.TIME_SPAN_FIELD.getPreferredName(),
+
+            DataFrameAnalyticsConfig.ID.getPreferredName(),
+            DataFrameAnalyticsConfig.SOURCE.getPreferredName(),
+            DataFrameAnalyticsConfig.DEST.getPreferredName(),
+            DataFrameAnalyticsConfig.ANALYSES.getPreferredName(),
+            "outlier_detection",
+            "method",
+            "number_neighbours",
 
             ElasticsearchMappings.CONFIG_TYPE
     };

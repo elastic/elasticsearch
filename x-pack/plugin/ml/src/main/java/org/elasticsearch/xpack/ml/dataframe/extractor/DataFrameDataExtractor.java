@@ -83,7 +83,7 @@ public class DataFrameDataExtractor {
     }
 
     protected List<Row> initScroll() throws IOException {
-        LOGGER.debug("[{}] Initializing scroll", "analytics");
+        LOGGER.debug("[{}] Initializing scroll", context.jobId);
         SearchResponse searchResponse = executeSearchRequest(buildSearchRequest());
         LOGGER.debug("[{}] Search response was obtained", context.jobId);
         return processSearchResponse(searchResponse);

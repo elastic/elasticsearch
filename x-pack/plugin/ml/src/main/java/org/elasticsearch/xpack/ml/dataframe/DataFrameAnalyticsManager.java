@@ -142,7 +142,8 @@ public class DataFrameAnalyticsManager {
         // TODO This could fail with errors. In that case we get stuck with the copied index.
         // We could delete the index in case of failure or we could try building the factory before reindexing
         // to catch the error early on.
-        DataFrameDataExtractorFactory.create(client, Collections.emptyMap(), config.getDest(), dataExtractorFactoryListener);
+        DataFrameDataExtractorFactory.create(client, Collections.emptyMap(), config.getId(), config.getDest(),
+                dataExtractorFactoryListener);
     }
 
     private void createDestinationIndex(String sourceIndex, String destinationIndex, ActionListener<CreateIndexResponse> listener) {

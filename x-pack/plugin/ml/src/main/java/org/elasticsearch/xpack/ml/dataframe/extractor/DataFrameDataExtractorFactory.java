@@ -54,18 +54,20 @@ public class DataFrameDataExtractorFactory {
     }
 
     private final Client client;
+    private final String analyticsId;
     private final String index;
     private final ExtractedFields extractedFields;
 
-    private DataFrameDataExtractorFactory(Client client, String index, ExtractedFields extractedFields) {
+    private DataFrameDataExtractorFactory(Client client, String analyticsId, String index, ExtractedFields extractedFields) {
         this.client = Objects.requireNonNull(client);
+        this.analyticsId = Objects.requireNonNull(analyticsId);
         this.index = Objects.requireNonNull(index);
         this.extractedFields = Objects.requireNonNull(extractedFields);
     }
 
     public DataFrameDataExtractor newExtractor(boolean includeSource) {
         DataFrameDataExtractorContext context = new DataFrameDataExtractorContext(
-                "ml-dataframe-" + index,
+                analyticsId,
                 extractedFields,
                 Arrays.asList(index),
                 QueryBuilders.matchAllQuery(),
@@ -76,13 +78,14 @@ public class DataFrameDataExtractorFactory {
         return new DataFrameDataExtractor(client, context);
     }
 
-    public static void create(Client client, Map<String, String> headers, String index,
+    public static void create(Client client, Map<String, String> headers, String analyticsId, String index,
                               ActionListener<DataFrameDataExtractorFactory> listener) {
 
         // Step 2. Contruct the factory and notify listener
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
                 fieldCapabilitiesResponse -> {
-                    listener.onResponse(new DataFrameDataExtractorFactory(client, index, detectExtractedFields(fieldCapabilitiesResponse)));
+                    listener.onResponse(new DataFrameDataExtractorFactory(client, analyticsId, index,
+                        detectExtractedFields(fieldCapabilitiesResponse)));
                 }, e -> {
                     if (e instanceof IndexNotFoundException) {
                         listener.onFailure(new ResourceNotFoundException("cannot retrieve data because index "

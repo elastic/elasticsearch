@@ -125,8 +125,8 @@ public class TransportStartDataFrameAnalyticsAction
 
         // Validate config
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
-            config -> DataFrameDataExtractorFactory.create(client, Collections.emptyMap(), config.getSource(), ActionListener.wrap(
-                    dataExtractorFactory -> validatedConfigListener.onResponse(config), listener::onFailure)),
+            config -> DataFrameDataExtractorFactory.create(client, Collections.emptyMap(), config.getId(), config.getSource(),
+                ActionListener.wrap(dataExtractorFactory -> validatedConfigListener.onResponse(config), listener::onFailure)),
             listener::onFailure
         );
 

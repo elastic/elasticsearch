@@ -126,3 +126,9 @@ removed.
 
 The `_termvector` endpoint was deprecated in 2.0 and has now been removed.
 The endpoint `_termvectors` (plural) should be used instead.
+
+[float]
+==== Removed support for `GET` on the `_cache/clear` API
+
+The `_cache/clear` API no longer supports the `GET` HTTP verb. It must be called
+with `POST`.

@@ -15,6 +15,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 * <<breaking_70_indices_changes>>
 * <<breaking_70_mappings_changes>>
 * <<breaking_70_search_changes>>
+* <<breaking_70_suggesters_changes>>
 * <<breaking_70_packaging_changes>>
 * <<breaking_70_plugins_changes>>
 * <<breaking_70_analysis_changes>>
@@ -49,6 +50,7 @@ include::migrate_7_0/discovery.asciidoc[]
 include::migrate_7_0/indices.asciidoc[]
 include::migrate_7_0/mappings.asciidoc[]
 include::migrate_7_0/search.asciidoc[]
+include::migrate_7_0/suggesters.asciidoc[]
 include::migrate_7_0/packaging.asciidoc[]
 include::migrate_7_0/plugins.asciidoc[]
 include::migrate_7_0/api.asciidoc[]

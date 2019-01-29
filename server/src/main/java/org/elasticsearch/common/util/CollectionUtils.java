@@ -20,6 +20,7 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.ObjectArrayList;
+
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -301,8 +302,8 @@ public class CollectionUtils {
         public int size() {
             return in.size();
         }
+    }
 
-    };
     public static void sort(final BytesRefArray bytes, final int[] indices) {
         sort(new BytesRefBuilder(), new BytesRefBuilder(), bytes, indices);
     }

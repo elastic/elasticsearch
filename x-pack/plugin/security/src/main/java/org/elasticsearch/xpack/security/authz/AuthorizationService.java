@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction.C
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -90,12 +91,13 @@ public class AuthorizationService {
     private final ThreadContext threadContext;
     private final AnonymousUser anonymousUser;
     private final AuthorizationEngine rbacEngine;
+    private final AuthorizationEngine authorizationEngine;
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
 
     public AuthorizationService(Settings settings, CompositeRolesStore rolesStore, ClusterService clusterService,
                                 AuditTrailService auditTrail, AuthenticationFailureHandler authcFailureHandler,
-                                ThreadPool threadPool, AnonymousUser anonymousUser) {
+                                ThreadPool threadPool, AnonymousUser anonymousUser, @Nullable AuthorizationEngine authorizationEngine) {
         this.clusterService = clusterService;
         this.auditTrail = auditTrail;
         this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService);
@@ -105,6 +107,7 @@ public class AuthorizationService {
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.anonymousAuthzExceptionEnabled = ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.get(settings);
         this.rbacEngine = new RBACEngine(settings, rolesStore);
+        this.authorizationEngine = authorizationEngine == null ? this.rbacEngine : authorizationEngine;
         this.settings = settings;
     }
 
@@ -293,14 +296,22 @@ public class AuthorizationService {
         }
     }
 
-    private AuthorizationEngine getRunAsAuthorizationEngine(final Authentication authentication) {
-        return ClientReservedRealm.isReserved(authentication.getUser().authenticatedUser().principal(), settings) ?
-            rbacEngine : rbacEngine;
+    // pkg-private for testing
+    AuthorizationEngine getRunAsAuthorizationEngine(final Authentication authentication) {
+        return getAuthorizationEngineForUser(authentication.getUser().authenticatedUser());
     }
 
-    private AuthorizationEngine getAuthorizationEngine(final Authentication authentication) {
-        return ClientReservedRealm.isReserved(authentication.getUser().principal(), settings) ?
-            rbacEngine : rbacEngine;
+    // pkg-private for testing
+    AuthorizationEngine getAuthorizationEngine(final Authentication authentication) {
+        return getAuthorizationEngineForUser(authentication.getUser());
+    }
+
+    private AuthorizationEngine getAuthorizationEngineForUser(final User user) {
+        if (ClientReservedRealm.isReserved(user.principal(), settings) || isInternalUser(user)) {
+            return rbacEngine;
+        } else {
+            return authorizationEngine;
+        }
     }
 
     private void authorizeSystemUser(final Authentication authentication, final String action, final String requestId,
@@ -490,13 +501,13 @@ public class AuthorizationService {
         }
     }
 
-    ElasticsearchSecurityException denial(String auditRequestId, Authentication authentication, String action, TransportRequest request,
-                                          AuthorizationInfo authzInfo) {
+    private ElasticsearchSecurityException denial(String auditRequestId, Authentication authentication, String action,
+                                                  TransportRequest request, AuthorizationInfo authzInfo) {
         return denial(auditRequestId, authentication, action, request, authzInfo, null);
     }
 
-    ElasticsearchSecurityException denial(String auditRequestId, Authentication authentication, String action, TransportRequest request,
-                                          AuthorizationInfo authzInfo, Exception cause) {
+    private ElasticsearchSecurityException denial(String auditRequestId, Authentication authentication, String action,
+                                                  TransportRequest request, AuthorizationInfo authzInfo, Exception cause) {
         auditTrail.accessDenied(auditRequestId, authentication, action, request, authzInfo);
         return denialException(authentication, action, cause);
     }

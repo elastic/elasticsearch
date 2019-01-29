@@ -111,6 +111,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
@@ -437,7 +438,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         // minimal
         getLicenseState().addListener(allRolesStore::invalidateAll);
         final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
-            auditTrailService, failureHandler, threadPool, anonymousUser);
+            auditTrailService, failureHandler, threadPool, anonymousUser, getAuthorizationEngine());
         components.add(nativeRolesStore); // used by roles actions
         components.add(reservedRolesStore); // used by roles actions
         components.add(allRolesStore); // for SecurityFeatureSet and clear roles cache
@@ -465,6 +466,25 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 requestInterceptors, threadPool, securityContext.get(), destructiveOperations));
 
         return components;
+    }
+
+    private AuthorizationEngine getAuthorizationEngine() {
+        AuthorizationEngine authorizationEngine = null;
+        String extensionName = null;
+        for (SecurityExtension extension : securityExtensions) {
+            final AuthorizationEngine extensionEngine = extension.getAuthorizationEngine(settings);
+            if (extensionEngine != null && authorizationEngine != null) {
+                throw new IllegalStateException("Extensions [" + extensionName + "] and [" + extension.toString() + "] "
+                    + "both set an authorization engine");
+            }
+            authorizationEngine = extensionEngine;
+            extensionName = extension.toString();
+        }
+
+        if (authorizationEngine != null) {
+            logger.debug("Using authorization engine from extension [" + extensionName + "]");
+        }
+        return authorizationEngine;
     }
 
     private AuthenticationFailureHandler createAuthenticationFailureHandler(final Realms realms) {

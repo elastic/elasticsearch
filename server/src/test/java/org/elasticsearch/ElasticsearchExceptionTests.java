@@ -115,9 +115,9 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "index_not_found_exception");
             assertEquals("no such index [foo]", rootCauses[0].getMessage());
             ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", new Index("foo", "_na_"), 1, null));
+                    new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE));
             ShardSearchFailure failure1 = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", new Index("foo", "_na_"), 2, null));
+                    new SearchShardTarget("node_1", new ShardId("foo", "_na_", 2), null, OriginalIndices.NONE));
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed",
                     new ShardSearchFailure[]{failure, failure1});
             if (randomBoolean()) {
@@ -136,11 +136,11 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         {
             ShardSearchFailure failure = new ShardSearchFailure(
                     new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", new Index("foo", "_na_"), 1, null));
+                    new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE));
             ShardSearchFailure failure1 = new ShardSearchFailure(new QueryShardException(new Index("foo1", "_na_"), "foobar", null),
-                    new SearchShardTarget("node_1", new Index("foo1", "_na_"), 1, null));
+                    new SearchShardTarget("node_1", new ShardId("foo1", "_na_", 1), null, OriginalIndices.NONE));
             ShardSearchFailure failure2 = new ShardSearchFailure(new QueryShardException(new Index("foo1", "_na_"), "foobar", null),
-                    new SearchShardTarget("node_1", new Index("foo1", "_na_"), 2, null));
+                    new SearchShardTarget("node_1", new ShardId("foo1", "_na_", 2), null, OriginalIndices.NONE));
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed",
                     new ShardSearchFailure[]{failure, failure1, failure2});
             final ElasticsearchException[] rootCauses = ex.guessRootCauses();
@@ -187,9 +187,9 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     public void testDeduplicate() throws IOException {
         {
             ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", new Index("foo", "_na_"), 1, null));
+                    new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE));
             ShardSearchFailure failure1 = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", new Index("foo", "_na_"), 2, null));
+                    new SearchShardTarget("node_1", new ShardId("foo", "_na_", 2), null, OriginalIndices.NONE));
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed",
                     randomBoolean() ? failure1.getCause() : failure.getCause(), new ShardSearchFailure[]{failure, failure1});
             XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -203,11 +203,11 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
         {
             ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", new Index("foo", "_na_"), 1, null));
+                    new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE));
             ShardSearchFailure failure1 = new ShardSearchFailure(new QueryShardException(new Index("foo1", "_na_"), "foobar", null),
-                    new SearchShardTarget("node_1", new Index("foo1", "_na_"), 1, null));
+                    new SearchShardTarget("node_1", new ShardId("foo1", "_na_", 1), null, OriginalIndices.NONE));
             ShardSearchFailure failure2 = new ShardSearchFailure(new QueryShardException(new Index("foo1", "_na_"), "foobar", null),
-                    new SearchShardTarget("node_1", new Index("foo1", "_na_"), 2, null));
+                    new SearchShardTarget("node_1", new ShardId("foo1", "_na_", 2), null, OriginalIndices.NONE));
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed",
                     new ShardSearchFailure[]{failure, failure1, failure2});
             XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -223,9 +223,9 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
         {
             ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", new Index("foo", "_na_"), 1, null));
+                    new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE));
             ShardSearchFailure failure1 = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                    new SearchShardTarget("node_1", new Index("foo", "_na_"), 2, null));
+                    new SearchShardTarget("node_1", new ShardId("foo", "_na_", 2), null, OriginalIndices.NONE));
             NullPointerException nullPointerException = new NullPointerException();
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed", nullPointerException,
                     new ShardSearchFailure[]{failure, failure1});
@@ -932,7 +932,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 actual = new SearchPhaseExecutionException("search", "all shards failed",
                             new ShardSearchFailure[]{
                                     new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                                            new SearchShardTarget("node_1", new Index("foo", "_na_"), 1, null))
+                                            new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE))
                             });
                 expected = new ElasticsearchException("Elasticsearch exception [type=search_phase_execution_exception, " +
                         "reason=all shards failed]");

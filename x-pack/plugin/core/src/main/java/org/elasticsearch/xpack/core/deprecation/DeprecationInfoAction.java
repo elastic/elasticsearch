@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.deprecation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -112,7 +114,12 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Request,
             clusterSettingsIssues = in.readList(DeprecationIssue::new);
             nodeSettingsIssues = in.readList(DeprecationIssue::new);
             indexSettingsIssues = in.readMapOfLists(StreamInput::readString, DeprecationIssue::new);
-            mlSettingsIssues = in.readList(DeprecationIssue::new);
+            if ((in.getVersion().onOrAfter(Version.V_5_6_5) && in.getVersion().before(Version.V_6_0_0))
+                    || in.getVersion().onOrAfter(Version.V_6_7_0)) {
+                mlSettingsIssues = in.readList(DeprecationIssue::new);
+            } else {
+                mlSettingsIssues = Collections.emptyList();
+            }
         }
 
         @Override
@@ -121,7 +128,10 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Request,
             out.writeList(clusterSettingsIssues);
             out.writeList(nodeSettingsIssues);
             out.writeMapOfLists(indexSettingsIssues, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-            out.writeList(mlSettingsIssues);
+            if ((out.getVersion().onOrAfter(Version.V_5_6_5) && out.getVersion().before(Version.V_6_0_0))
+                    || out.getVersion().onOrAfter(Version.V_6_7_0)) {
+                out.writeList(mlSettingsIssues);
+            }
         }
 
         @Override

@@ -30,6 +30,7 @@
  import java.io.File;
  import java.io.IOException;
  import java.nio.charset.Charset;
+ import java.nio.charset.StandardCharsets;
  import java.nio.file.Files;
  import java.util.ArrayList;
  import java.util.LinkedHashSet;
@@ -78,7 +79,7 @@ public class ConcatFilesTask extends DefaultTask {
 
     @TaskAction
     public void concatFiles() throws IOException {
-        final String encoding = "UTF-8";
+        final String encoding = StandardCharsets.UTF_8.name();
         if (getHeaderLine() != null) {
             Files.write(target.toPath(), (getHeaderLine() + '\n').getBytes(encoding));
         }

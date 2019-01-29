@@ -71,16 +71,16 @@
 
   - do:
       indices.create:
+        include_type_name: false
         index: completion_with_sub_completion
         body:
           mappings:
-            test:
-              "properties":
-                "suggest_1":
-                  "type": "completion"
-                  "fields":
-                    "suggest_2":
-                      "type": "completion"
+            "properties":
+              "suggest_1":
+                "type": "completion"
+                "fields":
+                  "suggest_2":
+                    "type": "completion"
 
   - do:
       index:

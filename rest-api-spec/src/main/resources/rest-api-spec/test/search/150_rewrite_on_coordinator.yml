@@ -36,22 +36,21 @@
       search:
         rest_total_hits_as_int: true
         index: "search_index"
-        body: { "size" : 0, "query" : { "terms" : { "user" : { "index": "lookup_index", "type": "doc", "id": "1", "path": "followers"} } } }
+        body: { "size" : 0, "query" : { "terms" : { "user" : { "index": "lookup_index", "id": "1", "path": "followers"} } } }
   - do:
       indices.create:
+          include_type_name: false
           index: lookup_index
           body:
             settings:
               number_of_shards: 1
             mappings:
-              doc:
-                properties:
-                  followers:
-                     type: keyword
+              properties:
+                followers:
+                   type: keyword
   - do:
       index:
         index: lookup_index
-        type: doc
         id: 1
         body: { "followers" : ["1", "3"] }
   - do:
@@ -61,7 +60,7 @@
       search:
         rest_total_hits_as_int: true
         index: "search_index"
-        body: { "size" : 0, "query" : { "terms" : { "user" : { "index": "lookup_index", "type": "doc", "id": "1", "path": "followers"} } } }
+        body: { "size" : 0, "query" : { "terms" : { "user" : { "index": "lookup_index", "id": "1", "path": "followers"} } } }
 
   - match: { _shards.total: 5 }
   - match: { _shards.successful: 5 }

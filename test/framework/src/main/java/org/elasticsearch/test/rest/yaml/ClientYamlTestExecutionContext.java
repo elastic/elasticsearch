@@ -98,12 +98,11 @@ public class ClientYamlTestExecutionContext {
             }
         }
 
-        // Although include_type_name defaults to false, there is a large number of typed index creations
-        // in REST tests that need to be manually converted to typeless calls. As a temporary measure, we
-        // specify include_type_name=true in indices.create calls, unless the parameter has been set otherwise.
-        // This workaround will be removed once we convert all index creations to be typeless.
+        // When running tests against a mixed 7.x/6.x cluster we specify 'include_type_name=false' if it is not
+        // explicitly set. This allows us to omit the parameter in the test description, while still being able
+        // to communicate with 6.x nodes where include_type_name defaults to 'true'.
         if (apiName.equals("indices.create") && requestParams.containsKey(INCLUDE_TYPE_NAME_PARAMETER) == false) {
-            requestParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
+            requestParams.put(INCLUDE_TYPE_NAME_PARAMETER, "false");
         }
 
         // When running tests against a mixed 7.x/6.x cluster we need to add the type to the document API

@@ -57,7 +57,7 @@ class S3Service implements Closeable {
 
     /**
      * Client settings derived from those in {@link #staticClientSettings} by combining them with settings
-     * in the {@link RepositoryMetaData} and {@link Settings} from the clusterstate.
+     * in the {@link RepositoryMetaData}.
      */
     private volatile Map<S3ClientSettings, Map<RepositoryMetaData, S3ClientSettings>> derivedClientSettings = emptyMap();
 
@@ -102,7 +102,7 @@ class S3Service implements Closeable {
     }
 
     /**
-     * Either fetches {@link S3ClientSettings} for a givne {@link RepositoryMetaData} from cached settings or creates them
+     * Either fetches {@link S3ClientSettings} for a given {@link RepositoryMetaData} from cached settings or creates them
      * by overriding static client settings from {@link #staticClientSettings} with settings found in the repository metadata.
      * @param repositoryMetaData Repository Metadata
      * @return S3ClientSettings

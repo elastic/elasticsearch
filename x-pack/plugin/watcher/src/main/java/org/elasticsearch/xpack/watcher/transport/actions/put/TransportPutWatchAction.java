@@ -95,6 +95,8 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
                 if (isUpdate) {
                     UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId());
                     if (request.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                        updateRequest.setIfSeqNo(request.getIfSeqNo());
+                        updateRequest.setIfPrimaryTerm(request.getIfPrimaryTerm());
                     } else {
                         updateRequest.version(request.getVersion());
                     }

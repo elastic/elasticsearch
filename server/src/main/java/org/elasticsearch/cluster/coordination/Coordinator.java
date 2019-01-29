@@ -168,7 +168,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
         this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService, this::getFoundPeers,
             this::isInitialConfigurationSet, this::setInitialConfiguration);
-        this.discoveryUpgradeService = new DiscoveryUpgradeService(settings, clusterSettings, transportService,
+        this.discoveryUpgradeService = new DiscoveryUpgradeService(settings, transportService,
             this::isInitialConfigurationSet, joinHelper, peerFinder::getFoundPeers, this::setInitialConfiguration);
         this.lagDetector = new LagDetector(settings, transportService.getThreadPool(), n -> removeNode(n, "lagging"),
             transportService::getLocalNode);
@@ -397,6 +397,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
+
     private void handleJoinRequest(JoinRequest joinRequest, JoinHelper.JoinCallback joinCallback) {
         assert Thread.holdsLock(mutex) == false;
         assert getLocalNode().isMasterNode() : getLocalNode() + " received a join but is not master-eligible";
@@ -413,29 +414,36 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 JoinTaskExecutor.ensureMajorVersionBarrier(joinRequest.getSourceNode().getVersion(),
                     stateForJoinValidation.getNodes().getMinNodeVersion());
             }
+            sendValidateJoinRequest(stateForJoinValidation, joinRequest, joinCallback);
 
-            // validate the join on the joining node, will throw a failure if it fails the validation
-            joinHelper.sendValidateJoinRequest(joinRequest.getSourceNode(), stateForJoinValidation, new ActionListener<Empty>() {
-                @Override
-                public void onResponse(Empty empty) {
-                    try {
-                        processJoinRequest(joinRequest, joinCallback);
-                    } catch (Exception e) {
-                        joinCallback.onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("failed to validate incoming join request from node [{}]",
-                        joinRequest.getSourceNode()), e);
-                    joinCallback.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
-                }
-            });
         } else {
             processJoinRequest(joinRequest, joinCallback);
         }
     }
+
+    // package private for tests
+    void sendValidateJoinRequest(ClusterState stateForJoinValidation, JoinRequest joinRequest,
+                                        JoinHelper.JoinCallback joinCallback) {
+        // validate the join on the joining node, will throw a failure if it fails the validation
+        joinHelper.sendValidateJoinRequest(joinRequest.getSourceNode(), stateForJoinValidation, new ActionListener<Empty>() {
+            @Override
+            public void onResponse(Empty empty) {
+                try {
+                    processJoinRequest(joinRequest, joinCallback);
+                } catch (Exception e) {
+                    joinCallback.onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn(() -> new ParameterizedMessage("failed to validate incoming join request from node [{}]",
+                    joinRequest.getSourceNode()), e);
+                joinCallback.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
+            }
+        });
+    }
+
 
     private void processJoinRequest(JoinRequest joinRequest, JoinHelper.JoinCallback joinCallback) {
         final Optional<Join> optionalJoin = joinRequest.getOptionalJoin();
@@ -467,7 +475,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             clusterFormationFailureHelper.start();
 
             if (getCurrentTerm() == ZEN1_BWC_TERM) {
-                discoveryUpgradeService.activate(lastKnownLeader);
+                discoveryUpgradeService.activate(lastKnownLeader, coordinationState.get().getLastAcceptedState());
             }
 
             leaderChecker.setCurrentNodes(DiscoveryNodes.EMPTY_NODES);

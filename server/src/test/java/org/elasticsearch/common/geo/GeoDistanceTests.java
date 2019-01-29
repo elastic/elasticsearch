@@ -45,7 +45,7 @@ public class GeoDistanceTests extends ESTestCase {
         GeoDistance geoDistance = randomFrom(GeoDistance.PLANE, GeoDistance.ARC);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             geoDistance.writeTo(out);
-            try (StreamInput in = out.bytes().streamInput()) {;
+            try (StreamInput in = out.bytes().streamInput()) {
                 GeoDistance copy = GeoDistance.readFromStream(in);
                 assertEquals(copy.toString() + " vs. " + geoDistance.toString(), copy, geoDistance);
             }

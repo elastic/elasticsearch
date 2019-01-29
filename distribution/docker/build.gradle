@@ -13,8 +13,8 @@ configurations {
 }
 
 dependencies {
-  dockerSource project(path: ":distribution:archives:tar")
-  ossDockerSource project(path: ":distribution:archives:oss-tar")
+  dockerSource project(path: ":distribution:archives:linux-tar")
+  ossDockerSource project(path: ":distribution:archives:oss-linux-tar")
 }
 
 ext.expansions = { oss ->

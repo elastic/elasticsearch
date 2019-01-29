@@ -55,9 +55,6 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
 
     private IngestService ingestService;
 
-    // Ensure one of two tests will use the deprecated explicit type, and the other will not
-    private boolean explicitTypeToggle = randomBoolean();
-
     @Before
     public void init() throws IOException {
         TestProcessor processor = new TestProcessor(ingestDocument -> {});
@@ -70,9 +67,16 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         when(ingestService.getProcessorFactories()).thenReturn(registry);
     }
 
-    public void testParseUsingPipelineStore() throws Exception {
+    public void testParseUsingPipelineStoreNoType() throws Exception {
+        innerTestParseUsingPipelineStore(false);
+    }
+
+    public void testParseUsingPipelineStoreWithType() throws Exception {
+        innerTestParseUsingPipelineStore(true);
+    }
+
+    private void innerTestParseUsingPipelineStore(boolean useExplicitType) throws Exception {
         int numDocs = randomIntBetween(1, 10);
-        boolean useExplicitType = explicitTypeToggle;
 
         Map<String, Object> requestContent = new HashMap<>();
         List<Map<String, Object>> docs = new ArrayList<>();
@@ -124,9 +128,16 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         }
     }
 
-    public void testParseWithProvidedPipeline() throws Exception {
+    public void testParseWithProvidedPipelineNoType() throws Exception {
+        innerTestParseWithProvidedPipeline(false);
+    }
+
+    public void testParseWithProvidedPipelineWithType() throws Exception {
+        innerTestParseWithProvidedPipeline(true);
+    }
+
+    private void innerTestParseWithProvidedPipeline(boolean useExplicitType) throws Exception {
         int numDocs = randomIntBetween(1, 10);
-        boolean useExplicitType = explicitTypeToggle == false;
 
         Map<String, Object> requestContent = new HashMap<>();
         List<Map<String, Object>> docs = new ArrayList<>();

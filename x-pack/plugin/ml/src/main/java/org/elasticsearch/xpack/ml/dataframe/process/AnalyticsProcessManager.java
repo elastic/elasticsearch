@@ -70,7 +70,7 @@ public class AnalyticsProcessManager {
             LOGGER.info("[{}] Result processor has completed", jobId);
         } catch (IOException e) {
             LOGGER.error(new ParameterizedMessage("[{}] Error writing data to the process", jobId), e);
-            finishHandler.accept(e);
+            // TODO Handle this failure by setting the task state to FAILED
         } finally {
             LOGGER.info("[{}] Closing process", jobId);
             try {

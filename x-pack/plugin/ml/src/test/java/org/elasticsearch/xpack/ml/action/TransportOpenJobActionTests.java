@@ -441,8 +441,9 @@ public class TransportOpenJobActionTests extends ESTestCase {
         Job job = jobWithRules("v660-job");
         Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("v660-job", job, cs.build(), 2, 10, 30, memoryTracker, logger);
         assertNull(result.getExecutorNode());
-        assertEquals("Not opening job [v660-job] on node [_node_name1] version [6.5.0], " +
-                "because this node does not support jobs of version [6.6.0]", result.getExplanation());
+        assertThat(result.getExplanation(),
+            containsString("Not opening job [v660-job] on node [_node_name1] version [6.5.0], " +
+                "because this node does not support jobs of version [6.6."));
 
         nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),

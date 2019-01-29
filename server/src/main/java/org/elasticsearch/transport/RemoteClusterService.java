@@ -231,7 +231,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
                 if (remote == null) { // this is a new cluster we have to add a new representation
                     remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, numRemoteConnections,
-                        getNodePredicate(settings), proxyAddress);
+                        getNodePredicate(settings), proxyAddress, connectionProfile);
                     remoteClusters.put(clusterAlias, remote);
                 } else if (connectionProfileChanged(remote.getConnectionManager().getConnectionProfile(), connectionProfile)) {
                     // New ConnectionProfile. Must tear down existing connection
@@ -242,7 +242,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                     }
                     remoteClusters.remove(clusterAlias);
                     remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, numRemoteConnections,
-                        getNodePredicate(settings), proxyAddress);
+                        getNodePredicate(settings), proxyAddress, connectionProfile);
                     remoteClusters.put(clusterAlias, remote);
                 }
 
@@ -395,21 +395,18 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             builder.setPingInterval(pingSchedule);
             newProfile = builder.build();
         }
-        HashMap<String, ConnectionProfile> connectionProfiles = new HashMap<>(remoteClusterConnectionProfiles);
-        connectionProfiles.put(clusterAlias, newProfile);
-        this.remoteClusterConnectionProfiles = Collections.unmodifiableMap(connectionProfiles);
-        updateRemoteCluster(clusterAlias, addresses, proxyAddress, noopListener);
+        updateRemoteCluster(clusterAlias, addresses, proxyAddress, newProfile, noopListener);
     }
 
-    void updateRemoteCluster(
-            final String clusterAlias,
-            final List<String> addresses,
-            final String proxyAddress,
-            final ActionListener<Void> connectionListener) {
+    void updateRemoteCluster(final String clusterAlias, final List<String> addresses, final String proxyAddress,
+                             final ConnectionProfile connectionProfile, final ActionListener<Void> connectionListener) {
+        HashMap<String, ConnectionProfile> connectionProfiles = new HashMap<>(remoteClusterConnectionProfiles);
+        connectionProfiles.put(clusterAlias, connectionProfile);
+        this.remoteClusterConnectionProfiles = Collections.unmodifiableMap(connectionProfiles);
         final List<Tuple<String, Supplier<DiscoveryNode>>> nodes =
-                addresses.stream().<Tuple<String, Supplier<DiscoveryNode>>>map(address -> Tuple.tuple(address, () ->
-                        buildSeedNode(clusterAlias, address, Strings.hasLength(proxyAddress)))
-                ).collect(Collectors.toList());
+            addresses.stream().<Tuple<String, Supplier<DiscoveryNode>>>map(address -> Tuple.tuple(address, () ->
+                buildSeedNode(clusterAlias, address, Strings.hasLength(proxyAddress)))
+            ).collect(Collectors.toList());
         updateRemoteClusters(Collections.singletonMap(clusterAlias, new Tuple<>(proxyAddress, nodes)), connectionListener);
     }
 
@@ -444,6 +441,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     }
 
     private ConnectionProfile buildConnectionProfileFromSettings(String clusterName) {
+        return buildConnectionProfileFromSettings(settings, clusterName);
+    }
+
+    static ConnectionProfile buildConnectionProfileFromSettings(Settings settings, String clusterName) {
         return new ConnectionProfile.Builder()
             .setConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
             .setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.update;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -55,6 +56,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         implements DocWriteRequest<UpdateRequest>, WriteRequest<UpdateRequest>, ToXContentObject {
@@ -79,6 +82,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
     private int retryOnConflict = 0;
+    private long ifSeqNo = UNASSIGNED_SEQ_NO;
+    private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
+
 
     private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
 
@@ -133,6 +139,16 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
                 validationException = addValidationError("illegal version value [" + version +
                     "] for version type [" + versionType.name() + "]", validationException);
             }
+        }
+
+        validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
+
+        if (ifSeqNo != UNASSIGNED_SEQ_NO && retryOnConflict > 0) {
+            validationException = addValidationError("compare and write operations can not be retried", validationException);
+        }
+
+        if (ifSeqNo != UNASSIGNED_SEQ_NO && docAsUpsert) {
+            validationException = addValidationError("compare and write operations can not be used with upsert", validationException);
         }
 
         if (script == null && doc == null) {
@@ -504,6 +520,55 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return this.versionType;
     }
 
+    /**
+     * only perform this update request if the document's modification was assigned the given
+     * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
+     *
+     * If the document last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public UpdateRequest setIfSeqNo(long seqNo) {
+        if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
+            throw new IllegalArgumentException("sequence numbers must be non negative. got [" +  seqNo + "].");
+        }
+        ifSeqNo = seqNo;
+        return this;
+    }
+
+    /**
+     * only performs this update request if the document's last modification was assigned the given
+     * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
+     *
+     * If the document last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public UpdateRequest setIfPrimaryTerm(long term) {
+        if (term < 0) {
+            throw new IllegalArgumentException("primary term must be non negative. got [" + term + "]");
+        }
+        ifPrimaryTerm = term;
+        return this;
+    }
+
+    /**
+     * If set, only perform this update request if the document was last modification was assigned this sequence number.
+     * If the document last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public long ifSeqNo() {
+        return ifSeqNo;
+    }
+
+    /**
+     * If set, only perform this update request if the document was last modification was assigned this primary term.
+     *
+     * If the document last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public long ifPrimaryTerm() {
+        return ifPrimaryTerm;
+    }
+
     @Override
     public OpType opType() {
         return OpType.UPDATE;
@@ -756,6 +821,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
                 currentFieldName = parser.currentName();
             } else if ("script".equals(currentFieldName)) {
                 script = Script.parse(parser);
+            } else if ("if_seq_no".equals(currentFieldName)) {
+                setIfSeqNo(parser.longValue());
+            } else if ("if_primary_term".equals(currentFieldName)) {
+                setIfPrimaryTerm(parser.longValue());
             } else if ("scripted_upsert".equals(currentFieldName)) {
                 scriptedUpsert = parser.booleanValue();
             } else if ("upsert".equals(currentFieldName)) {
@@ -843,6 +912,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         docAsUpsert = in.readBoolean();
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            ifSeqNo = in.readZLong();
+            ifPrimaryTerm = in.readVLong();
+        }
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
     }
@@ -887,6 +960,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeBoolean(docAsUpsert);
         out.writeLong(version);
         out.writeByte(versionType.getValue());
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeZLong(ifSeqNo);
+            out.writeVLong(ifPrimaryTerm);
+        }
         out.writeBoolean(detectNoop);
         out.writeBoolean(scriptedUpsert);
     }
@@ -905,6 +982,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
                 builder.copyCurrentStructure(parser);
             }
         }
+
+        if (ifSeqNo != UNASSIGNED_SEQ_NO) {
+            builder.field("if_seq_no", ifSeqNo);
+            builder.field("if_primary_term", ifPrimaryTerm);
+        }
+
         if (script != null) {
             builder.field("script", script);
         }

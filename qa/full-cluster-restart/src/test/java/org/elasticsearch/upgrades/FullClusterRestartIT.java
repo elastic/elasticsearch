@@ -891,6 +891,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         templateBuilder.endObject().endObject();
         Request createTemplateRequest = new Request("PUT", "/_template/test_template");
         createTemplateRequest.setJsonEntity(Strings.toString(templateBuilder));
+
         client().performRequest(createTemplateRequest);
 
         if (isRunningAgainstOldCluster()) {

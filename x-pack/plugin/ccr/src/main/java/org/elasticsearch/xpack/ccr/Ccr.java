@@ -318,6 +318,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         }
     }
 
+    @Override
     public Collection<Module> createGuiceModules() {
         if (transportClientMode) {
             return Collections.emptyList();

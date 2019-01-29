@@ -352,7 +352,7 @@ version numbers being out of sync with the external system.  Use the
 
 `if_seq_no` and `if_primary_term`::
 
-Update operations can be made optional and only be performed if the last
+Update operations can be made conditional and only be performed if the last
 modification to the document was assigned the sequence number and primary
 term specified by the `if_seq_no` and `if_primary_term` parameters. If a
 mismatch is detected, the operation will result in a `VersionConflictException`

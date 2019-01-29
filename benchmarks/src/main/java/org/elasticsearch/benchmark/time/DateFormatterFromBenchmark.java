@@ -40,12 +40,12 @@ import java.util.concurrent.TimeUnit;
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Benchmark)
 @SuppressWarnings("unused") //invoked by benchmarking framework
-public class DateFormatterToZonedTimeBenchmark {
+public class DateFormatterFromBenchmark {
 
     private final TemporalAccessor accessor = DateFormatter.forPattern("epoch_millis").parse("1234567890");
 
     @Benchmark
-    public TemporalAccessor benchmarkToZonedDateTime() {
+    public TemporalAccessor benchmarkFrom() {
         // benchmark an accessor that does not contain a timezone
         // this used to throw an exception earlier and thus was very very slow
         return DateFormatters.from(accessor);

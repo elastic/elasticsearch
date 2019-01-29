@@ -55,12 +55,6 @@ import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 public class DateFormatters {
 
-    private static final DateTimeFormatter PARSE_DEFAULT_EPOCH_PARSER = new DateTimeFormatterBuilder()
-        .parseDefaulting(ChronoField.YEAR, 1970)
-        .parseDefaulting(MONTH_OF_YEAR, 1)
-        .parseDefaulting(DAY_OF_YEAR, 1)
-        .toFormatter(Locale.ROOT);
-
     private static final DateTimeFormatter TIME_ZONE_FORMATTER_NO_COLON = new DateTimeFormatterBuilder()
         .appendOffset("+HHmm", "Z")
         .toFormatter(Locale.ROOT);

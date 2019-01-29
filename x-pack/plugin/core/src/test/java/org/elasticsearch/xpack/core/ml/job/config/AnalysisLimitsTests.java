@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -20,6 +21,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLimits> {
@@ -77,8 +79,10 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
         XContentParseException e = expectThrows(XContentParseException.class, () -> AnalysisLimits.STRICT_PARSER.apply(parser, null));
-        assertThat(e.getCause(), notNullValue());
-        assertThat(e.getCause().getMessage(), containsString("Values less than -1 bytes are not supported: -4mb"));
+        // the root cause is wrapped in an intermediate ElasticsearchParseException
+        assertThat(e.getCause(), instanceOf(ElasticsearchParseException.class));
+        assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getCause().getCause().getMessage(), containsString("Values less than -1 bytes are not supported: -4mb"));
     }
 
     public void testParseModelMemoryLimitGivenZeroString() throws IOException {

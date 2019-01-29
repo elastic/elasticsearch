@@ -170,7 +170,7 @@ public final class TransportPutFollowAction
                                      ActionListener<PutFollowAction.Response> originalListener,
                                      RestoreService.RestoreCompletionResponse response) {
         final ActionListener<PutFollowAction.Response> listener;
-        if (request.waitForActiveShards() == ActiveShardCount.NONE) {
+        if (ActiveShardCount.NONE.equals(request.waitForActiveShards())) {
             originalListener.onResponse(new PutFollowAction.Response(true, false, false));
             listener = new ActionListener<PutFollowAction.Response>() {
 

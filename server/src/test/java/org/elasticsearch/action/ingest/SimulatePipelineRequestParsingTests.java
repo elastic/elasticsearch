@@ -243,8 +243,4 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             () -> SimulatePipelineRequest.parseWithPipelineId(pipelineId, requestContent, false, ingestService));
         assertThat(e.getMessage(), equalTo("pipeline [" + pipelineId + "] does not exist"));
     }
-
-    public void testTypeDeprecation() {
-
-    }
 }

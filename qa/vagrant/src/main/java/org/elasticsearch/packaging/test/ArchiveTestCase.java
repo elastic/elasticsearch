@@ -285,7 +285,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         final Shell sh = new Shell();
 
-        if (distribution().equals(Distribution.DEFAULT_TAR) || distribution().equals(Distribution.DEFAULT_ZIP)) {
+        if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
             assertTrue(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
             Platforms.onLinux(() -> {
                 final Result result = sh.run(bin.elasticsearchCertutil + " help");
@@ -296,7 +296,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
                 final Result result = sh.run(bin.elasticsearchCertutil + " help");
                 assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
             });
-        } else if (distribution().equals(Distribution.OSS_TAR) || distribution().equals(Distribution.OSS_ZIP)) {
+        } else if (distribution().equals(Distribution.OSS_LINUX) || distribution().equals(Distribution.OSS_WINDOWS)) {
             assertFalse(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
         }
     }
@@ -312,7 +312,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             assertThat(result.stdout, containsString("A CLI tool to remove corrupted parts of unrecoverable shards"));
         };
 
-        if (distribution().equals(Distribution.DEFAULT_TAR) || distribution().equals(Distribution.DEFAULT_ZIP)) {
+        if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
             Platforms.onLinux(action);
             Platforms.onWindows(action);
         }
@@ -330,7 +330,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
                     containsString("A CLI tool to unsafely recover a cluster after the permanent loss of too many master-eligible nodes"));
         };
 
-        if (distribution().equals(Distribution.DEFAULT_TAR) || distribution().equals(Distribution.DEFAULT_ZIP)) {
+        if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
             Platforms.onLinux(action);
             Platforms.onWindows(action);
         }

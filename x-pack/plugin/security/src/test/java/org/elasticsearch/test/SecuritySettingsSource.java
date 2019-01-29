@@ -78,6 +78,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
                     "  cluster: [ ALL ]\n" +
                     "  indices:\n" +
                     "    - names: '*'\n" +
+                    "      allow_restricted_indices: true\n" +
                     "      privileges: [ ALL ]\n";
 
     private final Path parentFolder;

@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.EsField;
@@ -31,8 +31,6 @@ import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.sql.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.sql.type.DataType.NESTED;
-import static org.elasticsearch.xpack.sql.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.sql.type.DataType.SHORT;
 
 /**
@@ -137,8 +135,7 @@ public class SysColumns extends Command {
             
             // skip the nested and object types only for ODBC
             // https://github.com/elastic/elasticsearch/issues/35376
-            boolean isObjectType = type == NESTED || type == OBJECT;
-            if (!(isObjectType && isOdbcClient)) {
+            if (type.isPrimitive() || !isOdbcClient) {
                 if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
                     rows.add(asList(clusterName,
                             // schema is not supported

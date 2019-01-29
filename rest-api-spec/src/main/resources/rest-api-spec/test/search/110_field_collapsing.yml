@@ -1,7 +1,6 @@
 setup:
   - do:
       indices.create:
-        include_type_name: false
         index:  test
         body:
           mappings:
@@ -377,7 +376,6 @@ setup:
       reason: Field aliases were introduced in 6.4.0.
   - do:
       indices.put_mapping:
-        include_type_name: false
         index: test
         body:
           properties:

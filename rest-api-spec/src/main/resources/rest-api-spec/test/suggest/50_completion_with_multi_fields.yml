@@ -8,7 +8,6 @@
 
   - do:
       indices.create:
-        include_type_name: false
         index: completion_with_sub_keyword
         body:
           mappings:
@@ -71,7 +70,6 @@
 
   - do:
       indices.create:
-        include_type_name: false
         index: completion_with_sub_completion
         body:
           mappings:
@@ -122,7 +120,6 @@
 
   - do:
       indices.create:
-        include_type_name: false
         index: completion_with_context
         body:
           mappings:
@@ -192,7 +189,6 @@
 
   - do:
       indices.create:
-        include_type_name: false
         index: completion_with_weight
         body:
           mappings:
@@ -249,7 +245,6 @@
 
   - do:
       indices.create:
-        include_type_name: false
         index: geofield_with_completion
         body:
           mappings:

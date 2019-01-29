@@ -1,7 +1,6 @@
 "Ensure that we fetch the document only once":
   - do:
       indices.create:
-          include_type_name: false
           index: search_index
           body:
             settings:
@@ -39,7 +38,6 @@
         body: { "size" : 0, "query" : { "terms" : { "user" : { "index": "lookup_index", "id": "1", "path": "followers"} } } }
   - do:
       indices.create:
-          include_type_name: false
           index: lookup_index
           body:
             settings:

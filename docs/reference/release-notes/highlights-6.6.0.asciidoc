@@ -20,7 +20,7 @@ You can define an index lifecycle policy which enables you to:
 [float]
 === Frozen indices
 
-Frozen indices allow for a much higher ratio of disk storage to heap memory, at the expense of search latency. When an index is frozen, it takes up no heap 
+<<frozen-indices,Frozen indices>> allow for a much higher ratio of disk storage to heap memory, at the expense of search latency. When an index is frozen, it takes up no heap 
 memory, allowing a single node to easily manage thousands of indices with very low overhead. When a search targets frozen indices, the query will fully open,
 search, and then close each index sequentially. Frozen indices are replicated, unlike closed indexes. 
 Frozen indices provide a new set of choices for how to optimize your cluster cost and performance around your needs.

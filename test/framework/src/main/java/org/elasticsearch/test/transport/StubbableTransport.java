@@ -55,6 +55,12 @@ public final class StubbableTransport implements Transport {
         this.delegate = transport;
     }
 
+    boolean setDefaultSendBehavior(SendRequestBehavior sendBehavior) {
+        SendRequestBehavior prior = defaultSendRequest;
+        defaultSendRequest = sendBehavior;
+        return prior == null;
+    }
+
     public boolean setDefaultConnectBehavior(OpenConnectionBehavior openConnectionBehavior) {
         OpenConnectionBehavior prior = this.defaultConnectBehavior;
         this.defaultConnectBehavior = openConnectionBehavior;

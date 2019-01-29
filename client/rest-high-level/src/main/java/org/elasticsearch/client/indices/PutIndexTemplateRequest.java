@@ -70,7 +70,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     private Settings settings = EMPTY_SETTINGS;
 
-    private String mappings = null;
+    private BytesReference mappings = null;
 
     private final Set<Alias> aliases = new HashSet<>();
 
@@ -252,7 +252,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             builder.map(source);
             Objects.requireNonNull(builder.contentType());
             try {
-                mappings = XContentHelper.convertToJson(BytesReference.bytes(builder), false, false,  builder.contentType());
+                mappings = new BytesArray(
+                        XContentHelper.convertToJson(BytesReference.bytes(builder), false, false,  builder.contentType()));
                 return this;
             } catch (IOException e) {
                 throw new UncheckedIOException("failed to convert source to json", e);
@@ -262,7 +263,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         }
     }   
     
-    public String mappings() {
+    public BytesReference mappings() {
         return this.mappings;
     }
 
@@ -436,7 +437,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         if (mappings != null) {
             builder.field("mappings");
             try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION, mappings)) {
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION, mappings.utf8ToString())) {
                 builder.copyCurrentStructure(parser);
             }
         }

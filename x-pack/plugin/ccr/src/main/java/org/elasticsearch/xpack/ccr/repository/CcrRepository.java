@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.ccr.repository;
 
+import com.carrotsearch.hppc.cursors.IntObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
@@ -81,6 +83,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     public static final String TYPE = "_ccr_";
     public static final String NAME_PREFIX = "_ccr_";
     private static final SnapshotId SNAPSHOT_ID = new SnapshotId(LATEST, LATEST);
+    private static final String IN_SYNC_ALLOCATION_ID = "ccr_restore";
 
     private final RepositoryMetaData metadata;
     private final CcrSettings ccrSettings;
@@ -157,7 +160,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         ccrLicenseChecker.fetchLeaderHistoryUUIDs(remoteClient, leaderIndexMetaData, future::onFailure, future::onResponse);
         String[] leaderHistoryUUIDs = future.actionGet();
 
-        IndexMetaData.Builder imdBuilder = IndexMetaData.builder(leaderIndexMetaData);
+        IndexMetaData.Builder imdBuilder = IndexMetaData.builder(leaderIndex);
         // Adding the leader index uuid for each shard as custom metadata:
         Map<String, String> metadata = new HashMap<>();
         metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", leaderHistoryUUIDs));
@@ -165,6 +168,19 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY, leaderIndexMetaData.getIndex().getName());
         metadata.put(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY, remoteClusterAlias);
         imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, metadata);
+
+        imdBuilder.settings(leaderIndexMetaData.getSettings());
+
+        // Copy mappings from leader IMD to follow IMD
+        for (ObjectObjectCursor<String, MappingMetaData> cursor : leaderIndexMetaData.getMappings()) {
+            imdBuilder.putMapping(cursor.value);
+        }
+
+        imdBuilder.setRoutingNumShards(leaderIndexMetaData.getRoutingNumShards());
+        // We assert that insync allocation ids are not empty in `PrimaryShardAllocator`
+        for (IntObjectCursor<Set<String>> entry : leaderIndexMetaData.getInSyncAllocationIds()) {
+            imdBuilder.putInSyncAllocationIds(entry.key, Collections.singleton(IN_SYNC_ALLOCATION_ID));
+        }
 
         return imdBuilder.build();
     }

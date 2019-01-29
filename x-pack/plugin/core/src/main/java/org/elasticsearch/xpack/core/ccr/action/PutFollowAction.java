@@ -6,11 +6,13 @@
 
 package org.elasticsearch.xpack.core.ccr.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -30,10 +32,10 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.FOLLOWER_INDEX_FIELD;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_READ_REQUEST_OPERATION_COUNT;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_READ_REQUEST_SIZE;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_OUTSTANDING_READ_REQUESTS;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_OUTSTANDING_WRITE_REQUESTS;
+import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_READ_REQUEST_OPERATION_COUNT;
+import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_READ_REQUEST_SIZE;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_RETRY_DELAY_FIELD;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_BUFFER_COUNT;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_BUFFER_SIZE;
@@ -110,7 +112,8 @@ public final class PutFollowAction extends Action<
                 ObjectParser.ValueType.STRING);
         }
 
-        public static Request fromXContent(final XContentParser parser, final String followerIndex) throws IOException {
+        public static Request fromXContent(final XContentParser parser, final String followerIndex, ActiveShardCount waitForActiveShards)
+            throws IOException {
             Request request = PARSER.parse(parser, followerIndex);
             if (followerIndex != null) {
                 if (request.getFollowRequest().getFollowerIndex() == null) {
@@ -121,11 +124,13 @@ public final class PutFollowAction extends Action<
                     }
                 }
             }
+            request.waitForActiveShards(waitForActiveShards);
             return request;
         }
 
         private String remoteCluster;
         private String leaderIndex;
+        private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
         private ResumeFollowAction.Request followRequest;
 
         public Request() {
@@ -145,6 +150,27 @@ public final class PutFollowAction extends Action<
 
         public void setLeaderIndex(String leaderIndex) {
             this.leaderIndex = leaderIndex;
+        }
+
+        public ActiveShardCount waitForActiveShards() {
+            return waitForActiveShards;
+        }
+
+        /**
+         * Sets the number of shard copies that should be active for follower index creation to
+         * return. Defaults to {@link ActiveShardCount#NONE}, which will not wait for any shards
+         * to be active. Set this value to {@link ActiveShardCount#DEFAULT} to wait for the primary
+         * shard to be active. Set this value to {@link ActiveShardCount#ALL} to  wait for all shards
+         * (primary and all replicas) to be active before returning.
+         *
+         * @param waitForActiveShards number of active shard copies to wait on
+         */
+        public void waitForActiveShards(ActiveShardCount waitForActiveShards) {
+            if (waitForActiveShards.equals(ActiveShardCount.DEFAULT)) {
+                this.waitForActiveShards = ActiveShardCount.NONE;
+            } else {
+                this.waitForActiveShards = waitForActiveShards;
+            }
         }
 
         public ResumeFollowAction.Request getFollowRequest() {
@@ -181,6 +207,9 @@ public final class PutFollowAction extends Action<
             super(in);
             remoteCluster = in.readString();
             leaderIndex = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
+                waitForActiveShards(ActiveShardCount.readFrom(in));
+            }
             followRequest = new ResumeFollowAction.Request(in);
         }
 
@@ -189,6 +218,9 @@ public final class PutFollowAction extends Action<
             super.writeTo(out);
             out.writeString(remoteCluster);
             out.writeString(leaderIndex);
+            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+                waitForActiveShards.writeTo(out);
+            }
             followRequest.writeTo(out);
         }
 
@@ -211,12 +243,23 @@ public final class PutFollowAction extends Action<
             Request request = (Request) o;
             return Objects.equals(remoteCluster, request.remoteCluster) &&
                 Objects.equals(leaderIndex, request.leaderIndex) &&
+                Objects.equals(waitForActiveShards, request.waitForActiveShards) &&
                 Objects.equals(followRequest, request.followRequest);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(remoteCluster, leaderIndex, followRequest);
+            return Objects.hash(remoteCluster, leaderIndex, waitForActiveShards, followRequest);
+        }
+
+        @Override
+        public String toString() {
+            return "PutFollowAction.Request{" +
+                "remoteCluster='" + remoteCluster + '\'' +
+                ", leaderIndex='" + leaderIndex + '\'' +
+                ", waitForActiveShards=" + waitForActiveShards +
+                ", followRequest=" + followRequest +
+                '}';
         }
     }
 
@@ -284,6 +327,15 @@ public final class PutFollowAction extends Action<
         @Override
         public int hashCode() {
             return Objects.hash(followIndexCreated, followIndexShardsAcked, indexFollowingStarted);
+        }
+
+        @Override
+        public String toString() {
+            return "PutFollowAction.Response{" +
+                "followIndexCreated=" + followIndexCreated +
+                ", followIndexShardsAcked=" + followIndexShardsAcked +
+                ", indexFollowingStarted=" + indexFollowingStarted +
+                '}';
         }
     }
 

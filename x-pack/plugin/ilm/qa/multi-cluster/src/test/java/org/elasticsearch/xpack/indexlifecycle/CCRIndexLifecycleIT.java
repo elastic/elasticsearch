@@ -61,6 +61,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             // Policy with the same name must exist in follower cluster too:
             putILMPolicy(policyName, "50GB", null, TimeValue.timeValueHours(7*24));
             followIndex(indexName, indexName);
+            ensureGreen(indexName);
             // Aliases are not copied from leader index, so we need to add that for the rollover action in follower cluster:
             client().performRequest(new Request("PUT", "/" + indexName + "/_alias/logs"));
 
@@ -116,6 +117,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         } else if ("follow".equals(targetCluster)) {
             createNewSingletonPolicy("unfollow-only", "hot", new UnfollowAction(), TimeValue.ZERO);
             followIndex(indexName, indexName);
+            ensureGreen(indexName);
 
             // Create the repository before taking the snapshot.
             Request request = new Request("PUT", "/_snapshot/repo");
@@ -210,7 +212,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     "\"mappings\": {\"_doc\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}, " +
                     "\"aliases\": {\"" + alias + "\":  {\"is_write_index\":  true}} }");
                 assertOK(leaderClient.performRequest(createIndexRequest));
-                // Check that the new index is creeg
+                // Check that the new index is created
                 Request checkIndexRequest = new Request("GET", "/_cluster/health/" + indexName);
                 checkIndexRequest.addParameter("wait_for_status", "green");
                 checkIndexRequest.addParameter("timeout", "70s");
@@ -226,6 +228,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 index(leaderClient, indexName, "1");
                 assertDocumentExists(leaderClient, indexName, "1");
 
+                ensureGreen(indexName);
                 assertBusy(() -> {
                     assertDocumentExists(client(), indexName, "1");
                     // Sanity check that following_index setting has been set, so that we can verify later that this setting has been unset:

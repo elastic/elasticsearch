@@ -72,7 +72,7 @@ public class ESCCRRestTestCase extends ESRestTestCase {
     }
 
     protected static void followIndex(RestClient client, String leaderCluster, String leaderIndex, String followIndex) throws IOException {
-        final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow");
+        final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow?wait_for_active_shards=1");
         request.setJsonEntity("{\"remote_cluster\": \"" + leaderCluster + "\", \"leader_index\": \"" + leaderIndex +
             "\", \"read_poll_timeout\": \"10ms\"}");
         assertOK(client.performRequest(request));
@@ -184,6 +184,7 @@ public class ESCCRRestTestCase extends ESRestTestCase {
     protected static void ensureYellow(String index) throws IOException {
         Request request = new Request("GET", "/_cluster/health/" + index);
         request.addParameter("wait_for_status", "yellow");
+        request.addParameter("wait_for_active_shards", "1");
         request.addParameter("wait_for_no_relocating_shards", "true");
         request.addParameter("wait_for_no_initializing_shards", "true");
         request.addParameter("timeout", "70s");

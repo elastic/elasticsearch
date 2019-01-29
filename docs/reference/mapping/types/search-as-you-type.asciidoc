@@ -257,7 +257,8 @@ the same way.
 
     Whether the field value should be stored and retrievable separately from
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
-    (default).
+    (default). This option only configures the root field, and does not
+    configure any subfields.
 
 <<search-analyzer,`search_analyzer`>>::
 

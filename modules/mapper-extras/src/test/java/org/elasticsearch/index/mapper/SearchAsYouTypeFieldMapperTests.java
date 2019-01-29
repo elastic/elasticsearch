@@ -213,12 +213,12 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
             .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
+        assertTrue(getRootFieldMapper(defaultMapper, "a_field").fieldType().stored());
         Stream.of(
-            getRootFieldMapper(defaultMapper, "a_field"),
             getPrefixFieldMapper(defaultMapper, "a_field._index_prefix"),
             getShingleFieldMapper(defaultMapper, "a_field._2gram"),
             getShingleFieldMapper(defaultMapper, "a_field._3gram")
-        ).forEach(mapper -> assertTrue("for " + mapper.name(), mapper.fieldType().stored()));
+        ).forEach(mapper -> assertFalse("for " + mapper.name(), mapper.fieldType().stored()));
     }
 
     public void testIndex() throws IOException {

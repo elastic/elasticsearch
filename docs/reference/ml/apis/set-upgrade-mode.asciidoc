@@ -1,12 +1,13 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-set-upgrade-mode]]
-=== Set Upgrade Mode API
+=== Set upgrade mode API
 ++++
-<titleabbrev>Set Upgrade mode</titleabbrev>
+<titleabbrev>Set upgrade mode</titleabbrev>
 ++++
 
-This sets a cluster wide setting for preparing {ml} indices for an upgrade.
+Sets a cluster wide upgrade_mode setting that prepares {ml} indices for an
+upgrade by temporarily halting all {ml} jobs and {dfeeds}.
 
 ==== Request
 //////////////////////////
@@ -26,24 +27,27 @@ POST /_ml/set_upgrade_mode?enabled=false&timeout=10m
 
 ==== Description
 
-Before starting the upgrade process on {ml} related indices, all {dfeed} and job
-tasks must stop executing. This API provides this functionality and allows
-for the tasks to be easily started again once upgrading is complete.
+Before starting the upgrade process on {ml} related indices, you must halt all
+{dfeeds} and jobs. This API simplifies that task. This API should be used during
+other upgrades to prevent {ml} jobs and {dfeeds} changing nodes as the upgrade
+progresses.
 
-When `enabled=true` this API stops all job and {dfeed} tasks and
+When `enabled=true` this API temporarily halts all job and {dfeed} tasks and
 prohibits new job and {dfeed} tasks from starting.
-Setting `enabled=false` will then allow {ml} tasks to start executing normally again.
 
-You can see the current value for `upgrade_mode` via the <<get-ml-info, Get {ml} Info>>
-endpoint.
+Subsequently, you can call the API with the enabled parameter set to false,
+ which causes {ml} jobs and {dfeeds} to return to their desired states.
 
-IMPORTANT:  No new {ml} job may be opened while this setting is set to `enabled=true`.
+You can see the current value for the `upgrade_mode` setting by using the
+<<get-ml-info,get {ml} info API>>.
+
+IMPORTANT:  No new {ml} jobs can be opened while the `upgrade_mode` setting is
+`true`.
 
 ==== Query Parameters
 
 `enabled`::
-  (boolean) When `true` this enables `upgrade_mode`.
-  Defaults to `false`
+  (boolean) When `true`, this enables `upgrade_mode`. Defaults to `false`
 
 `timeout`::
   (time) The time to wait for the request to be completed.
@@ -53,12 +57,12 @@ IMPORTANT:  No new {ml} job may be opened while this setting is set to `enabled=
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+{stack-ov}/security-privileges.html[Security privileges].
 
 
 ==== Examples
 
-The following example enables `upgrade_mode` for the cluster
+The following example enables `upgrade_mode` for the cluster:
 
 [source,js]
 --------------------------------------------------
@@ -67,7 +71,8 @@ POST _ml/set_upgrade_mode?enabled=true&timeout=10m
 // CONSOLE
 // TEST
 
-When the call is successful, an acknowledged response is returned
+When the call is successful, an acknowledged response is returned. For example:
+
 [source,js]
 ----
 {
@@ -76,9 +81,14 @@ When the call is successful, an acknowledged response is returned
 ----
 // TESTRESPONSE
 
+The acknowledged response will only be returned once all {ml} jobs and {dfeeds} have
+finished writing to the {ml} internal indices. This means it is safe to reindex those
+internal indices without causing failures. You must wait for the acknowledged
+response before reindexing to ensure that all writes are completed.
 
-When upgrading is complete, be sure to set `enabled=false` or
-{ml} jobs will not start running again.
+When the upgrade is complete, you must set `upgrade_mode` to `false` for
+{ml} jobs to start running again. For example:
+
 [source,js]
 --------------------------------------------------
 POST _ml/set_upgrade_mode?enabled=false&timeout=10m

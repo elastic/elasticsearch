@@ -72,7 +72,7 @@ machine learning APIs and in advanced job configuration options in Kibana.
 
 [float]
 [[ml-api-file-structure-endpoint]]
-=== File Structure
+=== File structure
 
 * <<ml-find-file-structure,Find file structure>>
 
@@ -84,15 +84,15 @@ machine learning APIs and in advanced job configuration options in Kibana.
 
 [float]
 [[ml-api-delete-expired-data-endpoint]]
-=== Delete Expired Data
+=== Delete expired data
 
 * <<ml-delete-expired-data,Delete expired data>>
 
 [float]
 [[ml-set-upgrade-mode-endpoint]]
-=== Set Upgrade Mode
+=== Set upgrade mode
 
-* <<set-upgrade-mode, Set Upgrade Mode>>
+* <<ml-set-upgrade-mode, Set upgrade mode>>
 
 //ADD
 include::post-calendar-event.asciidoc[]
@@ -139,12 +139,12 @@ include::get-record.asciidoc[]
 include::open-job.asciidoc[]
 //POST
 include::post-data.asciidoc[]
-include::set-upgrade-mode.asciidoc[]
 //PREVIEW
 include::preview-datafeed.asciidoc[]
 //REVERT
 include::revert-snapshot.asciidoc[]
-//START/STOP
+//SET/START/STOP
+include::set-upgrade-mode.asciidoc[]
 include::start-datafeed.asciidoc[]
 include::stop-datafeed.asciidoc[]
 //UPDATE

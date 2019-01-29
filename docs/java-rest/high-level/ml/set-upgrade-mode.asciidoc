@@ -6,11 +6,11 @@
 [id="{upid}-{api}"]
 === Set Upgrade Mode API
 
-The Set Upgrade Mode API provides the ability stop all {ml} job and {dfeed} tasks
-from executing.
+The Set Upgrade Mode API temporarily halts all {ml} job and {dfeed} tasks when `enabled=true`. Their
+reported states remain unchanged. Consequently, when exiting upgrade mode the halted {ml} jobs and
+{dfeeds} will return to their previous state.
 
-It accepts a +{request}+ object and responds
-with a +{response}+ object.
+It accepts a +{request}+ object and responds with a +{response}+ object.
 
 When `enabled=true`, no new jobs can be opened, and no job or {dfeed} tasks will
 be running. Be sure to set `enabled=false` once upgrade actions are completed.

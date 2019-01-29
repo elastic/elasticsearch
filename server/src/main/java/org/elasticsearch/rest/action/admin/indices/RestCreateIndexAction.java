@@ -39,8 +39,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class RestCreateIndexAction extends BaseRestHandler {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(RestCreateIndexAction.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(RestPutMappingAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in create index " +
+        "requests is deprecated. The parameter include_type_name should be provided and set to false to be " +
+        "compatible with the next major version.";
 
     public RestCreateIndexAction(Settings settings, RestController controller) {
         super(settings);
@@ -54,19 +57,27 @@ public class RestCreateIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
+            DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
         if (request.hasContent()) {
             Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.content(), false, request.getXContentType()).v2();
-            if (includeTypeName == false && sourceAsMap.containsKey("mappings")) {
-                Map<String, Object> newSourceAsMap = new HashMap<>(sourceAsMap);
-                newSourceAsMap.put("mappings", Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, sourceAsMap.get("mappings")));
-                sourceAsMap = newSourceAsMap;
+            if (sourceAsMap.containsKey("mappings")) {
+                if (includeTypeName == false) {
+                    Map<String, Object> newSourceAsMap = new HashMap<>(sourceAsMap);
+                    newSourceAsMap.put("mappings", Collections.singletonMap(
+                        MapperService.SINGLE_MAPPING_NAME, sourceAsMap.get("mappings")));
+                    sourceAsMap = newSourceAsMap;
+                } else {
+                    deprecationLogger.deprecatedAndMaybeLog("create_index_with_types", TYPES_DEPRECATION_MESSAGE);
+                }
             }
             createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
         }
+
         if (request.hasParam("update_all_types")) {
-            DEPRECATION_LOGGER.deprecated("[update_all_types] is deprecated since indices may not have more than one type anymore");
+            deprecationLogger.deprecated("[update_all_types] is deprecated since indices may not have more than one type anymore");
         }
         createIndexRequest.updateAllTypes(request.paramAsBoolean("update_all_types", false));
         createIndexRequest.timeout(request.paramAsTime("timeout", createIndexRequest.timeout()));

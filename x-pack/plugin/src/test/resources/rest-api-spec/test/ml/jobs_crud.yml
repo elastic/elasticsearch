@@ -1394,3 +1394,64 @@
       xpack.ml.open_job:
         job_id: persistent-task-allocation-allowed-test
   - match: { opened: true }
+
+---
+"Test reopen job resets the finished time":
+  - do:
+      xpack.ml.put_job:
+        job_id: jobs-crud-reset-finished-time
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: jobs-crud-reset-finished-time }
+
+  - do:
+      xpack.ml.open_job:
+        job_id: jobs-crud-reset-finished-time
+
+  - do:
+      xpack.ml.get_jobs:
+        job_id: jobs-crud-reset-finished-time
+  - is_false: jobs.0.finished_time
+
+  - do:
+      xpack.ml.close_job:
+        job_id: jobs-crud-reset-finished-time
+
+  - do:
+      xpack.ml.get_jobs:
+        job_id: jobs-crud-reset-finished-time
+  - is_true: jobs.0.finished_time
+
+  - do:
+      xpack.ml.open_job:
+        job_id: jobs-crud-reset-finished-time
+
+  - do:
+      xpack.ml.get_jobs:
+        job_id: jobs-crud-reset-finished-time
+  - is_false: jobs.0.finished_time
+
+---
+"Test close job with body params":
+  - do:
+      catch: missing
+      xpack.ml.close_job:
+        job_id: job-that-doesnot-exist*
+        body:  >
+          {
+            "allow_no_jobs" : false
+          }
+
+  - do:
+      xpack.ml.close_job:
+        job_id: job-that-doesnot-exist*
+        body:  >
+          {
+            "allow_no_jobs" : true
+          }

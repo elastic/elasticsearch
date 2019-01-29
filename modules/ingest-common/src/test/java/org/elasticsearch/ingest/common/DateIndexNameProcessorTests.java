@@ -35,7 +35,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class DateIndexNameProcessorTests extends ESTestCase {
 
     public void testJodaPattern() throws Exception {
-        Function<String, DateTime> function = DateFormat.Joda.getFunction("yyyy-MM-dd'T'HH:mm:ss.SSSZ", DateTimeZone.UTC, Locale.ROOT);
+        Function<String, DateTime> function = DateFormat.Java.getFunction("yyyy-MM-dd'T'HH:mm:ss.SSSZ", DateTimeZone.UTC, Locale.ROOT);
         DateIndexNameProcessor processor = createProcessor("_field", Collections.singletonList(function),
             DateTimeZone.UTC, "events-", "y", "yyyyMMdd");
         IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null, null,

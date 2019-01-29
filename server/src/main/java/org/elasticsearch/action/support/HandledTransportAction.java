@@ -18,10 +18,6 @@
  */
 package org.elasticsearch.action.support;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -30,9 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.function.Supplier;
@@ -79,41 +73,7 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         @Override
         public final void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
             // We already got the task created on the network layer - no need to create it again on the transport layer
-            Logger logger = HandledTransportAction.this.logger;
             execute(task, request, new ChannelActionListener<>(channel, actionName, request));
-        }
-    }
-
-    public static final class ChannelActionListener<Response extends TransportResponse, Request extends TransportRequest> implements
-        ActionListener<Response> {
-        private final Logger logger = LogManager.getLogger(getClass());
-        private final TransportChannel channel;
-        private final Request request;
-        private final String actionName;
-
-        public ChannelActionListener(TransportChannel channel, String actionName, Request request) {
-            this.channel = channel;
-            this.request = request;
-            this.actionName = actionName;
-        }
-
-        @Override
-        public void onResponse(Response response) {
-            try {
-                channel.sendResponse(response);
-            } catch (Exception e) {
-                onFailure(e);
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            try {
-                channel.sendResponse(e);
-            } catch (Exception e1) {
-                logger.warn(() -> new ParameterizedMessage(
-                    "Failed to send error response for action [{}] and request [{}]", actionName, request), e1);
-            }
         }
     }
 

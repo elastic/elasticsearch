@@ -48,9 +48,11 @@ public class JavaDateMathParser implements DateMathParser {
 
     private final DateTimeFormatter formatter;
     private final DateTimeFormatter roundUpFormatter;
+    private final String format;
 
-    public JavaDateMathParser(DateTimeFormatter formatter, DateTimeFormatter roundUpFormatter) {
+    JavaDateMathParser(String format, DateTimeFormatter formatter, DateTimeFormatter roundUpFormatter) {
         Objects.requireNonNull(formatter);
+        this.format = format;
         this.formatter = formatter;
         this.roundUpFormatter = roundUpFormatter;
     }
@@ -226,7 +228,7 @@ public class JavaDateMathParser implements DateMathParser {
                 return DateFormatters.toZonedDateTime(accessor).withZoneSameLocal(timeZone).toInstant().toEpochMilli();
             }
         } catch (IllegalArgumentException | DateTimeException e) {
-            throw new ElasticsearchParseException("failed to parse date field [{}]: [{}]", e, value, e.getMessage());
+            throw new ElasticsearchParseException("failed to parse date field [{}] in format [{}]: [{}]", e, value, format, e.getMessage());
         }
     }
 }

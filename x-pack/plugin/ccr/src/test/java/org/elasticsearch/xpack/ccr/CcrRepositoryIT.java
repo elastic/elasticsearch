@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -118,11 +119,10 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(leaderClusterRepoName,
-            CcrRepository.LATEST, new String[]{leaderIndex}, indicesOptions,
-            "^(.*)$", followerIndex, Settings.EMPTY, new TimeValue(1, TimeUnit.HOURS), false,
-            false, true, settingsBuilder.build(), new String[0],
-            "restore_snapshot[" + leaderClusterRepoName + ":" + leaderIndex + "]");
+        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
+            .indices(leaderIndex).indicesOptions(indicesOptions).renamePattern("^(.*)$")
+            .renameReplacement(followerIndex).masterNodeTimeout(new TimeValue(1L, TimeUnit.HOURS))
+            .indexSettings(settingsBuilder);
 
         PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
         restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
@@ -218,11 +218,10 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(leaderClusterRepoName,
-            CcrRepository.LATEST, new String[]{leaderIndex}, indicesOptions,
-            "^(.*)$", followerIndex, Settings.EMPTY, new TimeValue(1, TimeUnit.HOURS), false,
-            false, true, settingsBuilder.build(), new String[0],
-            "restore_snapshot[" + leaderClusterRepoName + ":" + leaderIndex + "]");
+        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
+            .indices(leaderIndex).indicesOptions(indicesOptions).renamePattern("^(.*)$")
+            .renameReplacement(followerIndex).masterNodeTimeout(new TimeValue(1L, TimeUnit.HOURS))
+            .indexSettings(settingsBuilder);
 
         PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
         restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
@@ -239,9 +238,15 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
     }
 
     public void testRateLimitingIsEmployed() throws Exception {
+        boolean followerRateLimiting = randomBoolean();
+
         ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
         settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.RECOVERY_MAX_BYTES_PER_SECOND.getKey(), "10K"));
-        assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
+        if (followerRateLimiting) {
+            assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
+        } else {
+            assertAcked(leaderClient().admin().cluster().updateSettings(settingsRequest).actionGet());
+        }
 
         String leaderClusterRepoName = CcrRepository.NAME_PREFIX + "leader_cluster";
         String leaderIndex = "index1";
@@ -257,10 +262,14 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
 
         List<CcrRepository> repositories = new ArrayList<>();
+        List<CcrRestoreSourceService> restoreSources = new ArrayList<>();
 
         for (RepositoriesService repositoriesService : getFollowerCluster().getDataOrMasterNodeInstances(RepositoriesService.class)) {
             Repository repository = repositoriesService.repository(leaderClusterRepoName);
             repositories.add((CcrRepository) repository);
+        }
+        for (CcrRestoreSourceService restoreSource : getLeaderCluster().getDataOrMasterNodeInstances(CcrRestoreSourceService.class)) {
+            restoreSources.add(restoreSource);
         }
 
         logger.info("--> indexing some data");
@@ -274,24 +283,32 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(leaderClusterRepoName,
-            CcrRepository.LATEST, new String[]{leaderIndex}, indicesOptions,
-            "^(.*)$", followerIndex, Settings.EMPTY, new TimeValue(1, TimeUnit.HOURS), false,
-            false, true, settingsBuilder.build(), new String[0],
-            "restore_snapshot[" + leaderClusterRepoName + ":" + leaderIndex + "]");
+        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
+            .indices(leaderIndex).indicesOptions(indicesOptions).renamePattern("^(.*)$")
+            .renameReplacement(followerIndex).masterNodeTimeout(new TimeValue(1L, TimeUnit.HOURS))
+            .indexSettings(settingsBuilder);
 
         PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
         restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
         future.actionGet();
 
-        assertTrue(repositories.stream().anyMatch(cr -> cr.getRestoreThrottleTimeInNanos() > 0));
+        if (followerRateLimiting) {
+            assertTrue(repositories.stream().anyMatch(cr -> cr.getRestoreThrottleTimeInNanos() > 0));
+        } else {
+            assertTrue(restoreSources.stream().anyMatch(cr -> cr.getThrottleTime() > 0));
+        }
 
         settingsRequest = new ClusterUpdateSettingsRequest();
         ByteSizeValue defaultValue = CcrSettings.RECOVERY_MAX_BYTES_PER_SECOND.getDefault(Settings.EMPTY);
         settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.RECOVERY_MAX_BYTES_PER_SECOND.getKey(), defaultValue));
-        assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
+        if (followerRateLimiting) {
+            assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
+        } else {
+            assertAcked(leaderClient().admin().cluster().updateSettings(settingsRequest).actionGet());
+        }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37887")
     public void testFollowerMappingIsUpdated() throws IOException {
         String leaderClusterRepoName = CcrRepository.NAME_PREFIX + "leader_cluster";
         String leaderIndex = "index1";
@@ -309,11 +326,10 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(leaderClusterRepoName,
-            CcrRepository.LATEST, new String[]{leaderIndex}, indicesOptions,
-            "^(.*)$", followerIndex, Settings.EMPTY, new TimeValue(1, TimeUnit.HOURS), false,
-            false, true, settingsBuilder.build(), new String[0],
-            "restore_snapshot[" + leaderClusterRepoName + ":" + leaderIndex + "]");
+        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
+            .indices(leaderIndex).indicesOptions(indicesOptions).renamePattern("^(.*)$")
+            .renameReplacement(followerIndex).masterNodeTimeout(new TimeValue(1L, TimeUnit.HOURS))
+            .indexSettings(settingsBuilder);
 
         // TODO: Eventually when the file recovery work is complete, we should test updated mappings by
         //  indexing to the leader while the recovery is happening. However, into order to that test mappings

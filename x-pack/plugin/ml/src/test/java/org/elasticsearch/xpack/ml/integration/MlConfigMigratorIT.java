@@ -134,10 +134,10 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
     }
 
     public void testMigrateConfigs() throws InterruptedException, IOException {
-        // and jobs and datafeeds clusterstate
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
         mlMetadata.putJob(buildJobBuilder("job-foo").build(), false);
         mlMetadata.putJob(buildJobBuilder("job-bar").build(), false);
+
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df-1", "job-foo");
         builder.setIndices(Collections.singletonList("beats*"));
         mlMetadata.putDatafeed(builder.build(), Collections.emptyMap());
@@ -163,7 +163,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         // do the migration
         MlConfigMigrator mlConfigMigrator = new MlConfigMigrator(nodeSettings(), client(), clusterService);
         // the first time this is called mlmetadata will be snap-shotted
-        blockingCall(actionListener -> mlConfigMigrator.migrateConfigsWithoutTasks(clusterState, actionListener),
+        blockingCall(actionListener -> mlConfigMigrator.migrateConfigs(clusterState, actionListener),
                 responseHolder, exceptionHolder);
 
         assertNull(exceptionHolder.get());
@@ -234,7 +234,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         MlConfigMigrator mlConfigMigrator = new MlConfigMigrator(nodeSettings(), client(), clusterService);
         // writing the snapshot should fail because the doc already exists
         // in which case the migration should continue
-        blockingCall(actionListener -> mlConfigMigrator.migrateConfigsWithoutTasks(clusterState, actionListener),
+        blockingCall(actionListener -> mlConfigMigrator.migrateConfigs(clusterState, actionListener),
                 responseHolder, exceptionHolder);
 
         assertNull(exceptionHolder.get());
@@ -287,7 +287,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
 
         // do the migration
         MlConfigMigrator mlConfigMigrator = new MlConfigMigrator(nodeSettings(), client(), clusterService);
-        blockingCall(actionListener -> mlConfigMigrator.migrateConfigsWithoutTasks(clusterState, actionListener),
+        blockingCall(actionListener -> mlConfigMigrator.migrateConfigs(clusterState, actionListener),
             responseHolder, exceptionHolder);
 
         assertNull(exceptionHolder.get());
@@ -325,7 +325,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
 
         // do the migration
         MlConfigMigrator mlConfigMigrator = new MlConfigMigrator(nodeSettings(), client(), clusterService);
-        blockingCall(actionListener -> mlConfigMigrator.migrateConfigsWithoutTasks(clusterState, actionListener),
+        blockingCall(actionListener -> mlConfigMigrator.migrateConfigs(clusterState, actionListener),
             responseHolder, exceptionHolder);
 
         assertNull(exceptionHolder.get());
@@ -358,7 +358,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
 
         // do the migration
         MlConfigMigrator mlConfigMigrator = new MlConfigMigrator(settings, client(), clusterService);
-        blockingCall(actionListener -> mlConfigMigrator.migrateConfigsWithoutTasks(clusterState, actionListener),
+        blockingCall(actionListener -> mlConfigMigrator.migrateConfigs(clusterState, actionListener),
                 responseHolder, exceptionHolder);
 
         assertNull(exceptionHolder.get());
@@ -434,7 +434,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
 
         // if the cluster state has a job config and the index does not
         // exist it should be created
-        blockingCall(actionListener -> mlConfigMigrator.migrateConfigsWithoutTasks(clusterState, actionListener),
+        blockingCall(actionListener -> mlConfigMigrator.migrateConfigs(clusterState, actionListener),
                 responseHolder, exceptionHolder);
 
         assertBusy(() -> assertTrue(configIndexExists()));

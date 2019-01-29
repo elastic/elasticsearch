@@ -85,6 +85,22 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertSettingsAndIssue("xpack.security.audit.logfile.prefix.emit_node_name", Boolean.toString(randomBoolean()), expected);
     }
 
+    public void testAuditIndexSettingsCheck() {
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL, "Audit index output type removed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" + "#remove-audit-index-output",
+                "nodes with audit index output type settings: [node_check]");
+        assertSettingsAndIssue("xpack.security.audit.outputs", randomFrom("[index]", "[\"index\", \"logfile\"]"), expected);
+        assertSettingsAndIssue("xpack.security.audit.index.events.emit_request_body", Boolean.toString(randomBoolean()), expected);
+        assertSettingsAndIssue("xpack.security.audit.index.client.xpack.security.transport.ssl.enabled", Boolean.toString(randomBoolean()),
+                expected);
+        assertSettingsAndIssue("xpack.security.audit.index.client.cluster.name", randomAlphaOfLength(4), expected);
+        assertSettingsAndIssue("xpack.security.audit.index.settings.index.number_of_shards", Integer.toString(randomInt()), expected);
+        assertSettingsAndIssue("xpack.security.audit.index.events.include",
+                randomFrom("anonymous_access_denied", "authentication_failed", "realm_authentication_failed"), expected);
+        assertSettingsAndIssue("xpack.security.audit.index.events.exclude",
+                randomFrom("anonymous_access_denied", "authentication_failed", "realm_authentication_failed"), expected);
+    }
+
     public void testIndexThreadPoolCheck() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Index thread pool removed in favor of combined write thread pool",

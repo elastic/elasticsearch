@@ -1031,7 +1031,9 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         // SnapshotInProgressException was introduced after CoordinationStateRejectedException (id = 150),
         // which was not backported from 7.0.
         SNAPSHOT_IN_PROGRESS_EXCEPTION(org.elasticsearch.snapshots.SnapshotInProgressException.class,
-            org.elasticsearch.snapshots.SnapshotInProgressException::new, 151, Version.V_6_7_0);
+            org.elasticsearch.snapshots.SnapshotInProgressException::new, 151, Version.V_6_7_0),
+        NO_SUCH_REMOTE_CLUSTER_EXCEPTION(org.elasticsearch.transport.NoSuchRemoteClusterException.class,
+            org.elasticsearch.transport.NoSuchRemoteClusterException::new, 152, Version.V_6_7_0);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

@@ -185,6 +185,9 @@ public class RestSearchAction extends BaseRestHandler {
         if (request.hasParam("version")) {
             searchSourceBuilder.version(request.paramAsBoolean("version", null));
         }
+        if (request.hasParam("seq_no_primary_term")) {
+            searchSourceBuilder.seqNoAndPrimaryTerm(request.paramAsBoolean("seq_no_primary_term", null));
+        }
         if (request.hasParam("timeout")) {
             searchSourceBuilder.timeout(request.paramAsTime("timeout", null));
         }

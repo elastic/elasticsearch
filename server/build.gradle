@@ -351,7 +351,11 @@ if (isEclipse == false || project.path == ":server-tests") {
   }
   check.dependsOn integTest
   integTest.mustRunAfter test
+  task internalClusterTest {
+     dependsOn integTest    
+  }
 }
+
 // TODO: remove these compatibility tests in 7.0
 task testScriptedMetricAggParamsV6Compatibility(type: RandomizedTestingTask) {
   include '**/ScriptedMetricAggregatorAggStateV6CompatTests.class'
@@ -362,7 +366,7 @@ task testScriptedMetricAggParamsV6Compatibility(type: RandomizedTestingTask) {
 }
 check.dependsOn(testScriptedMetricAggParamsV6Compatibility)
 
-test {
+unitTest {
   // these are tested explicitly in separate test tasks
   exclude '**/ScriptedMetricAggregatorAggStateV6CompatTests.class'
   exclude '**/InternalScriptedMetricAggStateV6CompatTests.class'

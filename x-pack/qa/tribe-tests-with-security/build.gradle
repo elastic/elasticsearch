@@ -15,8 +15,6 @@ dependencies {
     testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
 }
 
-namingConventions.skipIntegTestInDisguise = true
-
 compileTestJava.options.compilerArgs << "-Xlint:-try"
 
 String xpackPath = project(xpackModule('core')).projectDir.toPath().resolve('src/test/resources').toString()

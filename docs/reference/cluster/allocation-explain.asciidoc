@@ -82,7 +82,7 @@ PUT /idx?master_timeout=1s&timeout=1s
 
 GET /_cluster/allocation/explain
 {
-  "index": "idx",
+  "index": "myindex",
   "shard": 0,
   "primary": true
 }
@@ -96,7 +96,7 @@ The API response for an unassigned shard:
 [source,js]
 --------------------------------------------------
 {
-  "index" : "idx",
+  "index" : "myindex",
   "shard" : 0,
   "primary" : true,
   "current_state" : "unassigned",                 <1>
@@ -168,7 +168,7 @@ allocated to a node in the cluster:
 [source,js]
 --------------------------------------------------
 {
-  "index" : "idx",
+  "index" : "myindex",
   "shard" : 0,
   "primary" : true,
   "current_state" : "unassigned",
@@ -189,7 +189,7 @@ The API response output for a replica that is unassigned due to delayed allocati
 [source,js]
 --------------------------------------------------
 {
-  "index" : "idx",
+  "index" : "myindex",
   "shard" : 0,
   "primary" : false,
   "current_state" : "unassigned",
@@ -243,7 +243,7 @@ remain on its current node and is required to move:
 [source,js]
 --------------------------------------------------
 {
-  "index" : "idx",
+  "index" : "myindex",
   "shard" : 0,
   "primary" : true,
   "current_state" : "started",
@@ -291,7 +291,7 @@ because moving the shard to another node does not form a better cluster balance:
 [source,js]
 --------------------------------------------------
 {
-  "index" : "idx",
+  "index" : "myindex",
   "shard" : 0,
   "primary" : true,
   "current_state" : "started",

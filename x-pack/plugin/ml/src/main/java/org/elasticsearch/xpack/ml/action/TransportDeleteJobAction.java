@@ -181,7 +181,10 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         // The listener that will be executed at the end of the chain will notify all listeners
         ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(
                 ack -> notifyListeners(request.getJobId(), ack, null),
-                e -> notifyListeners(request.getJobId(), null, e)
+                e -> {
+                    notifyListeners(request.getJobId(), null, e);
+                    auditor.error(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING_FAILED, e.getMessage()));
+                }
         );
 
         ActionListener<Boolean> markAsDeletingListener = ActionListener.wrap(
@@ -193,9 +196,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                         normalDeleteJob(parentTaskClient, request, finalListener);
                     }
                 },
-                e -> {
-                    finalListener.onFailure(e);
-                });
+                finalListener::onFailure);
 
         ActionListener<Boolean> checkForDatafeedsListener = ActionListener.wrap(
                 ok -> jobManager.markJobAsDeleting(request.getJobId(), request.isForce(), markAsDeletingListener),

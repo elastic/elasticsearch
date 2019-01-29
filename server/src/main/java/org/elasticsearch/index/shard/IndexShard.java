@@ -108,6 +108,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
+import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
@@ -314,7 +315,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         aId,
                         indexSettings,
                         UNASSIGNED_SEQ_NO,
-                        globalCheckpointListeners::globalCheckpointUpdated,
+                        globalCheckpoint -> {
+                            this.addRetentionLease(
+                                    Long.toString(globalCheckpoint), globalCheckpoint, Long.toString(globalCheckpoint), ActionListener.wrap(() -> {}));
+                            globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint);
+                        },
                         threadPool::absoluteTimeInMillis,
                         retentionLeaseSyncer);
 
@@ -1893,6 +1898,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Collection<RetentionLease> getRetentionLeases() {
         verifyNotClosed();
         return replicationTracker.getRetentionLeases();
+    }
+
+    public RetentionLeaseStats getRetentionLeaseStats() {
+        verifyNotClosed();
+        return new RetentionLeaseStats(getRetentionLeases());
     }
 
     /**

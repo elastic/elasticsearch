@@ -1520,7 +1520,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             if (existingCommits.isEmpty()) {
                 throw new IllegalArgumentException("No index found to trim");
             }
-            final String translogUUID = existingCommits.get(existingCommits.size() - 1).getUserData().get(Translog.TRANSLOG_UUID_KEY);
+            final IndexCommit lastIndexCommitCommit = existingCommits.get(existingCommits.size() - 1);
+            final String translogUUID = lastIndexCommitCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY);
             final IndexCommit startingIndexCommit;
             // We may not have a safe commit if an index was create before v6.2; and if there is a snapshotted commit whose translog
             // are not retained but max_seqno is at most the global checkpoint, we may mistakenly select it as a starting commit.
@@ -1545,7 +1546,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     + startingIndexCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY) + "] is not equal to last commit's translog uuid ["
                     + translogUUID + "]");
             }
-            if (startingIndexCommit.equals(existingCommits.get(existingCommits.size() - 1)) == false) {
+            if (startingIndexCommit.equals(lastIndexCommitCommit) == false) {
+                /*
+                 * Unlike other commit tags, the retention-leases tag is not restored when an engine is
+                 * recovered from translog. We need to manually copy it from the last commit to the safe commit;
+                 * otherwise we might lose the latest committed retention leases when re-opening an engine.
+                 */
+                final Map<String, String> userData = new HashMap<>(startingIndexCommit.getUserData());
+                userData.put(Engine.RETENTION_LEASES, lastIndexCommitCommit.getUserData().get(Engine.RETENTION_LEASES));
                 try (IndexWriter writer = newAppendingIndexWriter(directory, startingIndexCommit)) {
                     // this achieves two things:
                     // - by committing a new commit based on the starting commit, it make sure the starting commit will be opened
@@ -1556,7 +1564,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
                     // The new commit will use segment files from the starting commit but userData from the last commit by default.
                     // Thus, we need to manually set the userData from the starting commit to the new commit.
-                    writer.setLiveCommitData(startingIndexCommit.getUserData().entrySet());
+                    writer.setLiveCommitData(userData.entrySet());
                     writer.commit();
                 }
             }

@@ -85,6 +85,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
@@ -208,7 +209,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
         final ArrayList<SnapshotInfo> snapshotList = new ArrayList<>(snapshotSet);
         CollectionUtil.timSort(snapshotList);
-        return Collections.unmodifiableList(snapshotList);
+        return unmodifiableList(snapshotList);
     }
 
     /**
@@ -224,7 +225,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             snapshotList.add(inProgressSnapshot(entry));
         }
         CollectionUtil.timSort(snapshotList);
-        return Collections.unmodifiableList(snapshotList);
+        return unmodifiableList(snapshotList);
     }
 
     /**
@@ -450,7 +451,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             }
                         }
                         return ClusterState.builder(currentState)
-                            .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(Collections.unmodifiableList(entries)))
+                            .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(entries)))
                             .build();
                     }
 
@@ -611,7 +612,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 builder.add(entry);
             }
         }
-        return Collections.unmodifiableList(builder);
+        return unmodifiableList(builder);
     }
 
     /**
@@ -792,7 +793,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 if (changed) {
                     return ClusterState.builder(currentState)
-                        .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(entries)).build();
+                        .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(entries))).build();
                 }
                 return currentState;
             }
@@ -832,7 +833,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                     if (changed) {
                         return ClusterState.builder(currentState)
-                            .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(entries)).build();
+                            .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(entries))).build();
                     }
                 }
                 return currentState;
@@ -983,7 +984,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     entry.startTime(),
                     failure,
                     entry.shards().size(),
-                    Collections.unmodifiableList(shardFailures),
+                    unmodifiableList(shardFailures),
                     entry.getRepositoryStateId(),
                     entry.includeGlobalState());
                 removeSnapshotFromClusterState(snapshot, snapshotInfo, null);
@@ -1034,7 +1035,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                     if (changed) {
                         return ClusterState.builder(currentState)
-                            .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(entries)).build();
+                            .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(entries))).build();
                     }
                 }
                 return currentState;

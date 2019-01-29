@@ -41,6 +41,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         return Collections.singleton(InternalSettingsPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37898")
     public void testConflictingDynamicMappings() {
         // we don't use indexRandom because the order of requests is important here
         createIndex("index");

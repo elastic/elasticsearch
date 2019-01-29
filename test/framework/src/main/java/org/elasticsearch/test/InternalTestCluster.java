@@ -835,6 +835,8 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    public static final int REMOVED_MINIMUM_MASTER_NODES = Integer.MAX_VALUE;
+
     private final class NodeAndClient implements Closeable {
         private MockNode node;
         private final Settings originalNodeSettings;
@@ -989,10 +991,10 @@ public final class InternalTestCluster extends TestCluster {
             } else {
                 if (DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(finalSettings)) {
                     // simulating an upgrade from Zen1 to Zen2, but there's no way to remove a setting when restarting a node, so
-                    // you have to set it to Integer.MAX_VALUE to indicate its removal:
+                    // you have to set it to REMOVED_MINIMUM_MASTER_NODES (== Integer.MAX_VALUE) to indicate its removal:
                     assertTrue(USE_ZEN2.exists(finalSettings));
                     assertTrue(USE_ZEN2.get(finalSettings));
-                    assertThat(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(finalSettings), equalTo(Integer.MAX_VALUE));
+                    assertThat(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(finalSettings), equalTo(REMOVED_MINIMUM_MASTER_NODES));
 
                     final Builder builder = Settings.builder().put(finalSettings);
                     builder.remove(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey());

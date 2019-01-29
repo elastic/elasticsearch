@@ -7,10 +7,10 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
-import java.util.TimeZone;
+import java.time.ZoneId;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -20,18 +20,18 @@ public class Year extends DateTimeHistogramFunction {
 
     private static long YEAR_IN_MILLIS = TimeUnit.DAYS.toMillis(1) * 365L;
 
-    public Year(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone, DateTimeExtractor.YEAR);
+    public Year(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, DateTimeExtractor.YEAR);
     }
 
     @Override
-    protected NodeCtor2<Expression, TimeZone, BaseDateTimeFunction> ctorForInfo() {
+    protected NodeCtor2<Expression, ZoneId, BaseDateTimeFunction> ctorForInfo() {
         return Year::new;
     }
 
     @Override
     protected Year replaceChild(Expression newChild) {
-        return new Year(location(), newChild, timeZone());
+        return new Year(source(), newChild, zoneId());
     }
 
     @Override

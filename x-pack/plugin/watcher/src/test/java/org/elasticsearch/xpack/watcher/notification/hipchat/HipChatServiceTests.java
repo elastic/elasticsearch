@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.notification.hipchat;
 
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
@@ -40,9 +41,11 @@ public class HipChatServiceTests extends ESTestCase {
         HipChatMessage.Color defaultColor = randomBoolean() ? null : randomFrom(HipChatMessage.Color.values());
         HipChatMessage.Format defaultFormat = randomBoolean() ? null : randomFrom(HipChatMessage.Format.values());
         Boolean defaultNotify = randomBoolean() ? null : (Boolean) randomBoolean();
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.notification.hipchat.account." + accountName + ".secure_auth_token", "_token");
         Settings.Builder settingsBuilder = Settings.builder()
                 .put("xpack.notification.hipchat.account." + accountName + ".profile", HipChatAccount.Profile.V1.value())
-                .put("xpack.notification.hipchat.account." + accountName + ".auth_token", "_token");
+                .setSecureSettings(secureSettings);
         if (host != null) {
             settingsBuilder.put("xpack.notification.hipchat.account." + accountName + ".host", host);
         }
@@ -86,10 +89,12 @@ public class HipChatServiceTests extends ESTestCase {
         HipChatMessage.Color defaultColor = randomBoolean() ? null : randomFrom(HipChatMessage.Color.values());
         HipChatMessage.Format defaultFormat = randomBoolean() ? null : randomFrom(HipChatMessage.Format.values());
         Boolean defaultNotify = randomBoolean() ? null : (Boolean) randomBoolean();
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.notification.hipchat.account." + accountName + ".secure_auth_token", "_token");
         Settings.Builder settingsBuilder = Settings.builder()
                 .put("xpack.notification.hipchat.account." + accountName + ".profile",
                         HipChatAccount.Profile.INTEGRATION.value())
-                .put("xpack.notification.hipchat.account." + accountName + ".auth_token", "_token")
+                .setSecureSettings(secureSettings)
                 .put("xpack.notification.hipchat.account." + accountName + ".room", room);
         if (host != null) {
             settingsBuilder.put("xpack.notification.hipchat.account." + accountName + ".host", host);
@@ -122,13 +127,15 @@ public class HipChatServiceTests extends ESTestCase {
 
     public void testSingleAccountIntegrationNoRoomSetting() throws Exception {
         String accountName = randomAlphaOfLength(10);
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.notification.hipchat.account." + accountName + ".secure_auth_token", "_token");
         Settings.Builder settingsBuilder = Settings.builder()
                 .put("xpack.notification.hipchat.account." + accountName + ".profile",
                         HipChatAccount.Profile.INTEGRATION.value())
-                .put("xpack.notification.hipchat.account." + accountName + ".auth_token", "_token");
+                .setSecureSettings(secureSettings);
         SettingsException e = expectThrows(SettingsException.class, () ->
             new HipChatService(settingsBuilder.build(), httpClient,
-                new ClusterSettings(settingsBuilder.build(), new HashSet<>(HipChatService.getSettings()))));
+                new ClusterSettings(settingsBuilder.build(), new HashSet<>(HipChatService.getSettings()))).getAccount(null));
         assertThat(e.getMessage(), containsString("missing required [room] setting for [integration] account profile"));
     }
 
@@ -141,9 +148,12 @@ public class HipChatServiceTests extends ESTestCase {
         HipChatMessage.Color defaultColor = randomBoolean() ? null : randomFrom(HipChatMessage.Color.values());
         HipChatMessage.Format defaultFormat = randomBoolean() ? null : randomFrom(HipChatMessage.Format.values());
         Boolean defaultNotify = randomBoolean() ? null : (Boolean) randomBoolean();
+
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.notification.hipchat.account." + accountName + ".secure_auth_token", "_token");
         Settings.Builder settingsBuilder = Settings.builder()
                 .put("xpack.notification.hipchat.account." + accountName + ".profile", HipChatAccount.Profile.USER.value())
-                .put("xpack.notification.hipchat.account." + accountName + ".auth_token", "_token");
+                .setSecureSettings(secureSettings);
         if (host != null) {
             settingsBuilder.put("xpack.notification.hipchat.account." + accountName + ".host", host);
         }
@@ -189,6 +199,8 @@ public class HipChatServiceTests extends ESTestCase {
         Settings.Builder settingsBuilder = Settings.builder();
         String defaultAccount = "_a" + randomIntBetween(0, 4);
         settingsBuilder.put("xpack.notification.hipchat.default_account", defaultAccount);
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        settingsBuilder.setSecureSettings(secureSettings);
 
         final boolean customGlobalServer = randomBoolean();
         if (customGlobalServer) {
@@ -201,7 +213,7 @@ public class HipChatServiceTests extends ESTestCase {
             String prefix = "xpack.notification.hipchat.account." + name;
             HipChatAccount.Profile profile = randomFrom(HipChatAccount.Profile.values());
             settingsBuilder.put(prefix + ".profile", profile);
-            settingsBuilder.put(prefix + ".auth_token", "_token" + i);
+            secureSettings.setString(prefix + ".secure_auth_token", "_token" + i);
             if (profile == HipChatAccount.Profile.INTEGRATION) {
                 settingsBuilder.put(prefix + ".room", "_room" + i);
             }

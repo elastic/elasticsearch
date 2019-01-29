@@ -2,7 +2,7 @@
 --
 :api: get-privileges
 :request: GetPrivilegesRequest
-:respnse: GetPrivilegesResponse
+:response: GetPrivilegesResponse
 --
 
 [id="{upid}-{api}"]

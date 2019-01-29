@@ -10,20 +10,18 @@ A multi-bucket value source based aggregation where buckets are dynamically buil
 PUT /products
 {
     "mappings": {
-        "product": {
-            "properties": {
-                "genre": {
-                    "type": "keyword"
-                },
-                "product": {
-                    "type": "keyword"
-                }
+        "properties": {
+            "genre": {
+                "type": "keyword"
+            },
+            "product": {
+                "type": "keyword"
             }
         }
     }
 }
 
-POST /products/product/_bulk?refresh
+POST /products/_bulk?refresh
 {"index":{"_id":0}}
 {"genre": "rock", "product": "Product A"}
 {"index":{"_id":1}}
@@ -220,8 +218,7 @@ NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sens
         override it and reset it to be equal to `size`.
 
 
-The default `shard_size` will be `size` if the search request needs to go to a single shard, and `(size * 1.5 + 10)`
-otherwise.
+The default `shard_size` is `(size * 1.5 + 10)`.
 
 ==== Calculating Document Count Error
 

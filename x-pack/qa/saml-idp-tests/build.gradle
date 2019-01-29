@@ -83,15 +83,19 @@ forbiddenPatterns {
   exclude '**/*.key'
 }
 
-thirdPartyAudit.excludes = [
-  // uses internal java api: sun.misc.Unsafe
-  'com.google.common.cache.Striped64',
-  'com.google.common.cache.Striped64$1',
-  'com.google.common.cache.Striped64$Cell',
-  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-  'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-  'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-  // missing
-  'com.ibm.icu.lang.UCharacter'
-]
+thirdPartyAudit {
+    ignoreViolations (
+      // uses internal java api: sun.misc.Unsafe
+      'com.google.common.cache.Striped64',
+      'com.google.common.cache.Striped64$1',
+      'com.google.common.cache.Striped64$Cell',
+      'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+      'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+      'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+      'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
+   )
+
+   ignoreMissingClasses ( 
+       'com.ibm.icu.lang.UCharacter'
+   )
+}

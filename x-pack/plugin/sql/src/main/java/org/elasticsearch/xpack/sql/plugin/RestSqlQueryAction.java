@@ -56,7 +56,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
         SqlQueryRequest sqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             sqlRequest = SqlQueryRequest.fromXContent(parser);
-                }
+        }
             
         /*
          * Since we support {@link TextFormat} <strong>and</strong>

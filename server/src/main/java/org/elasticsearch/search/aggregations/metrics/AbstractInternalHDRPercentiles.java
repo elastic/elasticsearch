@@ -98,6 +98,10 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
         return state.getEstimatedFootprintInBytes();
     }
 
+    DoubleHistogram getState() {
+        return state;
+    }
+
     @Override
     public AbstractInternalHDRPercentiles doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         DoubleHistogram merged = null;

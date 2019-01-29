@@ -203,7 +203,7 @@ public class LeaderChecker {
         @Override
         public void close() {
             if (isClosed.compareAndSet(false, true) == false) {
-                logger.debug("already closed");
+                logger.trace("already closed, doing nothing");
             } else {
                 logger.debug("closed");
             }
@@ -211,7 +211,7 @@ public class LeaderChecker {
 
         void handleWakeUp() {
             if (isClosed.get()) {
-                logger.debug("closed check scheduler woken up, doing nothing");
+                logger.trace("closed check scheduler woken up, doing nothing");
                 return;
             }
 
@@ -289,7 +289,7 @@ public class LeaderChecker {
             if (isClosed.compareAndSet(false, true)) {
                 transportService.getThreadPool().generic().execute(onLeaderFailure);
             } else {
-                logger.debug("already closed, not failing leader");
+                logger.trace("already closed, not failing leader");
             }
         }
 

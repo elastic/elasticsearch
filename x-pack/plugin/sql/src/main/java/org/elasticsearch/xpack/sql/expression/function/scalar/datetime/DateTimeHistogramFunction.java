@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
-import java.util.TimeZone;
+import java.time.ZoneId;
 
 /**
  * DateTimeFunctions that can be mapped as histogram. This means the dates order is maintained
@@ -17,8 +17,8 @@ import java.util.TimeZone;
  */
 public abstract class DateTimeHistogramFunction extends DateTimeFunction {
 
-    DateTimeHistogramFunction(Location location, Expression field, TimeZone timeZone, DateTimeExtractor extractor) {
-        super(location, field, timeZone, extractor);
+    DateTimeHistogramFunction(Source source, Expression field, ZoneId zoneId, DateTimeExtractor extractor) {
+        super(source, field, zoneId, extractor);
     }
 
     /**

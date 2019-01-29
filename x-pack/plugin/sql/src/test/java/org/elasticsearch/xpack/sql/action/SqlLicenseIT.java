@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -34,6 +35,7 @@ import static org.elasticsearch.license.XPackLicenseStateTests.randomTrialBasicS
 import static org.elasticsearch.license.XPackLicenseStateTests.randomTrialOrPlatinumMode;
 import static org.hamcrest.Matchers.equalTo;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37320")
 public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
     @Override
     protected boolean ignoreExternalCluster() {
@@ -162,8 +164,8 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
     private void setupTestIndex() {
         ElasticsearchAssertions.assertAcked(client().admin().indices().prepareCreate("test").get());
         client().prepareBulk()
-                .add(new IndexRequest("test", "doc", "1").source("data", "bar", "count", 42))
-                .add(new IndexRequest("test", "doc", "2").source("data", "baz", "count", 43))
+                .add(new IndexRequest("test").id("1").source("data", "bar", "count", 42))
+                .add(new IndexRequest("test").id("2").source("data", "baz", "count", 43))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
     }

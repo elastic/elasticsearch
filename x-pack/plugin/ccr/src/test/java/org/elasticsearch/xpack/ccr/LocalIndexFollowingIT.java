@@ -6,24 +6,30 @@
 
 package org.elasticsearch.xpack.ccr;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
-import java.util.Comparator;
+import java.util.Collections;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
@@ -71,39 +77,6 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         ensureEmptyWriteBuffers();
     }
 
-    public void testFollowStatsApiFollowerIndexFiltering() throws Exception {
-        final String leaderIndexSettings = getIndexSettings(1, 0,
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
-        assertAcked(client().admin().indices().prepareCreate("leader1").setSource(leaderIndexSettings, XContentType.JSON));
-        ensureGreen("leader1");
-        assertAcked(client().admin().indices().prepareCreate("leader2").setSource(leaderIndexSettings, XContentType.JSON));
-        ensureGreen("leader2");
-
-        PutFollowAction.Request followRequest = getPutFollowRequest("leader1", "follower1");
-        client().execute(PutFollowAction.INSTANCE, followRequest).get();
-
-        followRequest = getPutFollowRequest("leader2", "follower2");
-        client().execute(PutFollowAction.INSTANCE, followRequest).get();
-
-        FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
-        statsRequest.setIndices(new String[] {"follower1"});
-        FollowStatsAction.StatsResponses response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
-        assertThat(response.getStatsResponses().size(), equalTo(1));
-        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
-
-        statsRequest = new FollowStatsAction.StatsRequest();
-        statsRequest.setIndices(new String[] {"follower2"});
-        response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
-        assertThat(response.getStatsResponses().size(), equalTo(1));
-        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower2"));
-
-        response = client().execute(FollowStatsAction.INSTANCE,  new FollowStatsAction.StatsRequest()).actionGet();
-        assertThat(response.getStatsResponses().size(), equalTo(2));
-        response.getStatsResponses().sort(Comparator.comparing(o -> o.status().followerIndex()));
-        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
-        assertThat(response.getStatsResponses().get(1).status().followerIndex(), equalTo("follower2"));
-    }
-
     public void testDoNotCreateFollowerIfLeaderDoesNotHaveSoftDeletes() throws Exception {
         final String leaderIndexSettings = getIndexSettings(2, 0,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "false"));
@@ -119,8 +92,57 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         assertThat(client().admin().indices().prepareExists("follower-index").get().isExists(), equalTo(false));
     }
 
-    private String getIndexSettings(final int numberOfShards, final int numberOfReplicas,
-                                    final Map<String, String> additionalIndexSettings) throws IOException {
+    public void testRemoveRemoteConnection() throws Exception {
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        request.setName("my_pattern");
+        request.setRemoteCluster("local");
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+        request.setFollowIndexNamePattern("copy-{{leader_index}}");
+        request.setReadPollTimeout(TimeValue.timeValueMillis(10));
+        assertTrue(client().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
+        long previousNumberOfSuccessfulFollowedIndices = getAutoFollowStats().getNumberOfSuccessfulFollowIndices();
+
+        Settings leaderIndexSettings = Settings.builder()
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .build();
+        createIndex("logs-20200101", leaderIndexSettings);
+        client().prepareIndex("logs-20200101", "doc").setSource("{}", XContentType.JSON).get();
+        assertBusy(() -> {
+            CcrStatsAction.Response response = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet();
+            assertThat(response.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(),
+                equalTo(previousNumberOfSuccessfulFollowedIndices + 1));
+            assertThat(response.getFollowStats().getStatsResponses().size(), equalTo(1));
+            assertThat(response.getFollowStats().getStatsResponses().get(0).status().followerGlobalCheckpoint(), equalTo(0L));
+        });
+
+        // Both auto follow patterns and index following should be resilient to remote connection being missing:
+        removeLocalRemote();
+        // This triggers a cluster state update, which should let auto follow coordinator retry auto following:
+        setupLocalRemote();
+
+        // This new index should be picked up by auto follow coordinator
+        createIndex("logs-20200102", leaderIndexSettings);
+        // This new document should be replicated to follower index:
+        client().prepareIndex("logs-20200101", "doc").setSource("{}", XContentType.JSON).get();
+        assertBusy(() -> {
+            CcrStatsAction.Response response = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet();
+            assertThat(response.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(),
+                equalTo(previousNumberOfSuccessfulFollowedIndices + 2));
+
+            FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
+            statsRequest.setIndices(new String[]{"copy-logs-20200101"});
+            FollowStatsAction.StatsResponses responses = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
+            assertThat(responses.getStatsResponses().size(), equalTo(1));
+            assertThat(responses.getStatsResponses().get(0).status().getFatalException(), nullValue());
+            assertThat(responses.getStatsResponses().get(0).status().followerGlobalCheckpoint(), equalTo(1L));
+        });
+    }
+
+    public static String getIndexSettings(final int numberOfShards,
+                                          final int numberOfReplicas,
+                                          final Map<String, String> additionalIndexSettings) throws IOException {
         final String settings;
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();

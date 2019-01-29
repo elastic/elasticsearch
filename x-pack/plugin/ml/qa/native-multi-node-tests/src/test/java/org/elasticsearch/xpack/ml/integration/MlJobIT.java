@@ -13,16 +13,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
@@ -54,7 +58,7 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(responseAsString, containsString("\"job_id\":\"given-farequote-config-job\""));
     }
 
-    public void testGetJob_GivenNoSuchJob() throws Exception {
+    public void testGetJob_GivenNoSuchJob() {
         ResponseException e = expectThrows(ResponseException.class, () ->
                 client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/non-existing-job/_stats")));
 
@@ -109,6 +113,21 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(implicitAll, containsString("\"job_id\":\"given-multiple-jobs-job-1\""));
         assertThat(implicitAll, containsString("\"job_id\":\"given-multiple-jobs-job-2\""));
         assertThat(implicitAll, containsString("\"job_id\":\"given-multiple-jobs-job-3\""));
+    }
+
+    // tests the _xpack/usage endpoint
+    public void testUsage() throws IOException {
+        createFarequoteJob("job-1");
+        createFarequoteJob("job-2");
+        Map<String, Object> usage = entityAsMap(client().performRequest(new Request("GET", "_xpack/usage")));
+        assertEquals(2, XContentMapValues.extractValue("ml.jobs._all.count", usage));
+        assertEquals(2, XContentMapValues.extractValue("ml.jobs.closed.count", usage));
+        Response openResponse = client().performRequest(new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/job-1/_open"));
+        assertEquals(Collections.singletonMap("opened", true), entityAsMap(openResponse));
+        usage = entityAsMap(client().performRequest(new Request("GET", "_xpack/usage")));
+        assertEquals(2, XContentMapValues.extractValue("ml.jobs._all.count", usage));
+        assertEquals(1, XContentMapValues.extractValue("ml.jobs.closed.count", usage));
+        assertEquals(1, XContentMapValues.extractValue("ml.jobs.opened.count", usage));
     }
 
     private Response createFarequoteJob(String jobId) throws IOException {
@@ -195,14 +214,14 @@ public class MlJobIT extends ESRestTestCase {
 
         { //create jobId1 docs
             String id = String.format(Locale.ROOT, "%s_bucket_%s_%s", jobId1, "1234", 300);
-            Request createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/doc/" + id);
+            Request createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/_doc/" + id);
             createResultRequest.setJsonEntity(String.format(Locale.ROOT,
                 "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"bucket\", \"bucket_span\": \"%s\"}",
                 jobId1, "1234", 1));
             client().performRequest(createResultRequest);
 
             id = String.format(Locale.ROOT, "%s_bucket_%s_%s", jobId1, "1236", 300);
-            createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/doc/" + id);
+            createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/_doc/" + id);
             createResultRequest.setJsonEntity(String.format(Locale.ROOT,
                 "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"bucket\", \"bucket_span\": \"%s\"}",
                 jobId1, "1236", 1));
@@ -220,14 +239,14 @@ public class MlJobIT extends ESRestTestCase {
         }
         { //create jobId2 docs
             String id = String.format(Locale.ROOT, "%s_bucket_%s_%s", jobId2, "1234", 300);
-            Request createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId2) + "/doc/" + id);
+            Request createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId2) + "/_doc/" + id);
             createResultRequest.setJsonEntity(String.format(Locale.ROOT,
                 "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"bucket\", \"bucket_span\": \"%s\"}",
                 jobId2, "1234", 1));
             client().performRequest(createResultRequest);
 
             id = String.format(Locale.ROOT, "%s_bucket_%s_%s", jobId2, "1236", 300);
-            createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId2) + "/doc/" + id);
+            createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId2) + "/_doc/" + id);
             createResultRequest.setJsonEntity(String.format(Locale.ROOT,
                 "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"bucket\", \"bucket_span\": \"%s\"}",
                 jobId2, "1236", 1));
@@ -501,8 +520,30 @@ public class MlJobIT extends ESRestTestCase {
         String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
         createFarequoteJob(jobId);
 
-        client().performRequest(new Request("PUT", indexName + "-001"));
-        client().performRequest(new Request("PUT", indexName + "-002"));
+        // Make the job's results span an extra two indices, i.e. three in total.
+        // To do this the job's results alias needs to encompass all three indices.
+        Request extraIndex1 = new Request("PUT", indexName + "-001");
+        extraIndex1.setJsonEntity("{\n" +
+            "    \"aliases\" : {\n" +
+            "        \"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId)+ "\" : {\n" +
+            "            \"filter\" : {\n" +
+            "                \"term\" : {\"" + Job.ID + "\" : \"" + jobId + "\" }\n" +
+            "            }\n" +
+            "        }\n" +
+            "    }\n" +
+            "}");
+        client().performRequest(extraIndex1);
+        Request extraIndex2 = new Request("PUT", indexName + "-002");
+        extraIndex2.setJsonEntity("{\n" +
+            "    \"aliases\" : {\n" +
+            "        \"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId)+ "\" : {\n" +
+            "            \"filter\" : {\n" +
+            "                \"term\" : {\"" + Job.ID + "\" : \"" + jobId + "\" }\n" +
+            "            }\n" +
+            "        }\n" +
+            "    }\n" +
+            "}");
+        client().performRequest(extraIndex2);
 
         String indicesBeforeDelete = EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/indices")).getEntity());
         assertThat(indicesBeforeDelete, containsString(indexName));
@@ -510,20 +551,20 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(indicesBeforeDelete, containsString(indexName + "-002"));
 
         // Add some documents to each index to make sure the DBQ clears them out
-        Request createDoc0 = new Request("PUT", indexName + "/doc/" + 123);
+        Request createDoc0 = new Request("PUT", indexName + "/_doc/" + 123);
         createDoc0.setJsonEntity(String.format(Locale.ROOT,
                         "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"bucket_span\":%d, \"result_type\":\"record\"}",
                         jobId, 123, 1));
         client().performRequest(createDoc0);
-        Request createDoc1 = new Request("PUT", indexName + "-001/doc/" + 123);
+        Request createDoc1 = new Request("PUT", indexName + "-001/_doc/" + 123);
         createDoc1.setEntity(createDoc0.getEntity());
         client().performRequest(createDoc1);
-        Request createDoc2 = new Request("PUT", indexName + "-002/doc/" + 123);
+        Request createDoc2 = new Request("PUT", indexName + "-002/_doc/" + 123);
         createDoc2.setEntity(createDoc0.getEntity());
         client().performRequest(createDoc2);
 
         // Also index a few through the alias for the first job
-        Request createDoc3 = new Request("PUT", indexName + "/doc/" + 456);
+        Request createDoc3 = new Request("PUT", indexName + "/_doc/" + 456);
         createDoc3.setEntity(createDoc0.getEntity());
         client().performRequest(createDoc3);
 

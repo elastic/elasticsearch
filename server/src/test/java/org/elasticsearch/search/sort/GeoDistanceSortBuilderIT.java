@@ -35,6 +35,7 @@ import org.elasticsearch.test.VersionUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -222,28 +223,16 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
                 client().prepareIndex("index", "type", "d1").setSource(d1Builder),
                 client().prepareIndex("index", "type", "d2").setSource(d2Builder));
 
-        List<String> qHashes = new ArrayList<>();
-        List<GeoPoint> qPoints = new ArrayList<>();
-        createQPoints(qHashes, qPoints);
+        List<GeoPoint> qPoints = Arrays.asList(new GeoPoint(2, 1), new GeoPoint(2, 2), new GeoPoint(2, 3), new GeoPoint(2, 4));
+        Collections.shuffle(qPoints, random());
 
         GeoDistanceSortBuilder geoDistanceSortBuilder = null;
-        for (int i = 0; i < 4; i++) {
-            int at = randomInt(3 - i);
-            if (randomBoolean()) {
+        for (GeoPoint point : qPoints) {
                 if (geoDistanceSortBuilder == null) {
-                    geoDistanceSortBuilder = new GeoDistanceSortBuilder(LOCATION_FIELD, qHashes.get(at));
+                    geoDistanceSortBuilder = new GeoDistanceSortBuilder(LOCATION_FIELD, point);
                 } else {
-                    geoDistanceSortBuilder.geohashes(qHashes.get(at));
+                    geoDistanceSortBuilder.points(point);
                 }
-            } else {
-                if (geoDistanceSortBuilder == null) {
-                    geoDistanceSortBuilder = new GeoDistanceSortBuilder(LOCATION_FIELD, qPoints.get(at));
-                } else {
-                    geoDistanceSortBuilder.points(qPoints.get(at));
-                }
-            }
-            qHashes.remove(at);
-            qPoints.remove(at);
         }
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -338,13 +327,6 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
                 closeTo(GeoDistance.ARC.calculate(2, 2, 1, 2, DistanceUnit.METERS), 1.e-1));
         assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0],
                 closeTo(GeoDistance.ARC.calculate(2, 2, 1, 1, DistanceUnit.METERS), 1.e-1));
-    }
-
-    protected void createQPoints(List<String> qHashes, List<GeoPoint> qPoints) {
-        GeoPoint[] qp = {new GeoPoint(2, 1), new GeoPoint(2, 2), new GeoPoint(2, 3), new GeoPoint(2, 4)};
-        qPoints.addAll(Arrays.asList(qp));
-        String[] qh = {"s02equ04ven0", "s037ms06g7h0", "s065kk0dc540", "s06g7h0dyg00"};
-        qHashes.addAll(Arrays.asList(qh));
     }
 
     public void testCrossIndexIgnoreUnmapped() throws Exception {

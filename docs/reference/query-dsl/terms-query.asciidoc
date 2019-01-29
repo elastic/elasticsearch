@@ -36,9 +36,6 @@ The terms lookup mechanism supports the following options:
 `index`::
     The index to fetch the term values from.
 
-`type`::
-    The type to fetch the term values from.
-
 `id`::
     The id of the document to fetch the term values from.
 
@@ -93,7 +90,6 @@ GET /tweets/_search
         "terms" : {
             "user" : {
                 "index" : "users",
-                "type" : "_doc",
                 "id" : "2",
                 "path" : "followers"
             }

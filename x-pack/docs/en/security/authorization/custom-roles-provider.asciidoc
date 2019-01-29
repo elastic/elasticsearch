@@ -3,7 +3,8 @@
 === Custom roles provider extension
 
 If you need to retrieve user roles from a system not supported out-of-the-box
-by {security}, you can create a custom roles provider to retrieve and resolve
+by the {es} {security-features}, you can create a custom roles provider to
+retrieve and resolve
 roles. You implement a custom roles provider as an SPI loaded security extension
 as part of an ordinary elasticsearch plugin.
 

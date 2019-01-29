@@ -47,6 +47,8 @@ public class RestUpdateAction extends BaseRestHandler {
     public RestUpdateAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/{index}/_update/{id}", this);
+
+        // Deprecated typed endpoint.
         controller.registerHandler(POST, "/{index}/{type}/{id}/_update", this);
     }
 

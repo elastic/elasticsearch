@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
@@ -52,6 +51,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicensesMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
@@ -65,6 +65,7 @@ import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngine;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -117,27 +118,31 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         }
 
         stopClusters();
-        NodeConfigurationSource nodeConfigurationSource = createNodeConfigurationSource();
         Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(ESIntegTestCase.TestSeedPlugin.class,
             TestZenDiscovery.TestPlugin.class, MockHttpTransport.TestPlugin.class, getTestTransportPlugin());
 
         InternalTestCluster leaderCluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodesPerCluster(),
-            numberOfNodesPerCluster(), UUIDs.randomBase64UUID(random()), nodeConfigurationSource, 0, "leader", mockPlugins,
+            numberOfNodesPerCluster(), UUIDs.randomBase64UUID(random()), createNodeConfigurationSource(null), 0, "leader", mockPlugins,
             Function.identity());
-        InternalTestCluster followerCluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodesPerCluster(),
-            numberOfNodesPerCluster(), UUIDs.randomBase64UUID(random()), nodeConfigurationSource, 0, "follower", mockPlugins,
-            Function.identity());
-        clusterGroup = new ClusterGroup(leaderCluster, followerCluster);
-
         leaderCluster.beforeTest(random(), 0.0D);
         leaderCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
+        assertBusy(() -> {
+            ClusterService clusterService = leaderCluster.getInstance(ClusterService.class);
+            assertNotNull(clusterService.state().metaData().custom(LicensesMetaData.TYPE));
+        });
+
+        String address = leaderCluster.getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
+        InternalTestCluster followerCluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodesPerCluster(),
+            numberOfNodesPerCluster(), UUIDs.randomBase64UUID(random()), createNodeConfigurationSource(address), 0, "follower",
+            mockPlugins, Function.identity());
+        clusterGroup = new ClusterGroup(leaderCluster, followerCluster);
+
         followerCluster.beforeTest(random(), 0.0D);
         followerCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
-
-        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        String address = leaderCluster.getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
-        updateSettingsRequest.persistentSettings(Settings.builder().put("cluster.remote.leader_cluster.seeds", address));
-        assertAcked(followerClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        assertBusy(() -> {
+            ClusterService clusterService = followerCluster.getInstance(ClusterService.class);
+            assertNotNull(clusterService.state().metaData().custom(LicensesMetaData.TYPE));
+        });
     }
 
     /**
@@ -175,7 +180,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         }
     }
 
-    private NodeConfigurationSource createNodeConfigurationSource() {
+    private NodeConfigurationSource createNodeConfigurationSource(String leaderSeedAddress) {
         Settings.Builder builder = Settings.builder();
         builder.put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), Integer.MAX_VALUE);
         // Default the watermarks to absurdly low to prevent the tests
@@ -195,6 +200,11 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         builder.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        // Let cluster state api return quickly in order to speed up auto follow tests:
+        builder.put(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT.getKey(), TimeValue.timeValueMillis(100));
+        if (configureRemoteClusterViaNodeSettings() && leaderSeedAddress != null) {
+            builder.put("cluster.remote.leader_cluster.seeds", leaderSeedAddress);
+        }
         return new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -234,6 +244,10 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     protected boolean reuseClusters() {
+        return true;
+    }
+
+    protected boolean configureRemoteClusterViaNodeSettings() {
         return true;
     }
 
@@ -549,9 +563,11 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         clusterService.submitStateUpdateTask("remove-ccr-related-metadata", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
+                AutoFollowMetadata empty =
+                    new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
                 ClusterState.Builder newState = ClusterState.builder(currentState);
                 newState.metaData(MetaData.builder(currentState.getMetaData())
-                    .removeCustom(AutoFollowMetadata.TYPE)
+                    .putCustom(AutoFollowMetadata.TYPE, empty)
                     .removeCustom(PersistentTasksCustomMetaData.TYPE)
                     .build());
                 return newState.build();

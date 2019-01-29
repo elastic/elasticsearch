@@ -21,11 +21,10 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * A {@link LifecycleAction} which force-merges the index.
+ * A {@link LifecycleAction} which sets the index to be read-only.
  */
 public class ReadOnlyAction implements LifecycleAction {
     public static final String NAME = "readonly";
-    public static final ReadOnlyAction INSTANCE = new ReadOnlyAction();
 
     private static final ObjectParser<ReadOnlyAction, Void> PARSER = new ObjectParser<>(NAME, false, ReadOnlyAction::new);
 

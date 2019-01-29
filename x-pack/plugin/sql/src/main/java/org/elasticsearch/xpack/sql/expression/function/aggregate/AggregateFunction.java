@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggNameInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
 import java.util.List;
@@ -30,12 +30,12 @@ public abstract class AggregateFunction extends Function {
 
     private AggregateFunctionAttribute lazyAttribute;
 
-    protected AggregateFunction(Location location, Expression field) {
-        this(location, field, emptyList());
+    protected AggregateFunction(Source source, Expression field) {
+        this(source, field, emptyList());
     }
 
-    protected AggregateFunction(Location location, Expression field, List<Expression> parameters) {
-        super(location, CollectionUtils.combine(singletonList(field), parameters));
+    protected AggregateFunction(Source source, Expression field, List<Expression> parameters) {
+        super(source, CollectionUtils.combine(singletonList(field), parameters));
         this.field = field;
         this.parameters = parameters;
     }
@@ -52,7 +52,7 @@ public abstract class AggregateFunction extends Function {
     public AggregateFunctionAttribute toAttribute() {
         if (lazyAttribute == null) {
             // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
-            lazyAttribute = new AggregateFunctionAttribute(location(), name(), dataType(), id(), functionId(), null);
+            lazyAttribute = new AggregateFunctionAttribute(source(), name(), dataType(), id(), functionId(), null);
         }
         return lazyAttribute;
     }
@@ -60,7 +60,7 @@ public abstract class AggregateFunction extends Function {
     @Override
     protected Pipe makePipe() {
         // unresolved AggNameInput (should always get replaced by the folder)
-        return new AggNameInput(location(), this, name());
+        return new AggNameInput(source(), this, name());
     }
 
     @Override

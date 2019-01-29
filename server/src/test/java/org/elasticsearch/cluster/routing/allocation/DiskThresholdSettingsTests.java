@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Locale;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -201,6 +202,52 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
         assertThat(cause, hasToString(containsString("low disk watermark [85%] more than high disk watermark [75%]")));
+    }
+
+    public void testSequenceOfUpdates() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        new DiskThresholdSettings(Settings.EMPTY, clusterSettings); // this has the effect of registering the settings updater
+
+        final Settings.Builder target = Settings.builder();
+
+        {
+            final Settings settings = Settings.builder()
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "99%")
+                .build();
+            final Settings.Builder updates = Settings.builder();
+            assertTrue(clusterSettings.updateSettings(settings, target, updates, "transient"));
+            assertNull(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()));
+            assertNull(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()));
+            assertThat(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()),
+                equalTo("99%"));
+        }
+
+        {
+            final Settings settings = Settings.builder()
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "97%")
+                .build();
+            final Settings.Builder updates = Settings.builder();
+            assertTrue(clusterSettings.updateSettings(settings, target, updates, "transient"));
+            assertNull(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()));
+            assertThat(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()),
+                equalTo("97%"));
+            assertThat(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()),
+                equalTo("99%"));
+        }
+
+        {
+            final Settings settings = Settings.builder()
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "95%")
+                .build();
+            final Settings.Builder updates = Settings.builder();
+            assertTrue(clusterSettings.updateSettings(settings, target, updates, "transient"));
+            assertThat(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()),
+                equalTo("95%"));
+            assertThat(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()),
+                equalTo("97%"));
+            assertThat(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()),
+                equalTo("99%"));
+        }
     }
 
 }

@@ -25,11 +25,16 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.intervals.IntervalQuery;
 import org.apache.lucene.search.intervals.Intervals;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -277,4 +282,48 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         });
         assertThat(e.getMessage(), equalTo("Only one interval rule can be specified, found [match] and [all_of]"));
     }
+
+    public void testScriptFilter() throws IOException {
+
+        IntervalFilterScript.Factory factory = () -> new IntervalFilterScript() {
+            @Override
+            public boolean execute(Interval interval) {
+                return interval.getStart() > 3;
+            }
+        };
+
+        ScriptService scriptService = new ScriptService(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap()){
+            @Override
+            @SuppressWarnings("unchecked")
+            public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+                assertEquals(IntervalFilterScript.CONTEXT, context);
+                assertEquals(new Script("interval.start > 3"), script);
+                return (FactoryType) factory;
+            }
+        };
+
+        QueryShardContext baseContext = createShardContext();
+        QueryShardContext context = new QueryShardContext(baseContext.getShardId(), baseContext.getIndexSettings(),
+            null, null, baseContext.getMapperService(), null,
+            scriptService,
+            null, null, null, null, null, null);
+
+        String json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"match\" : { " +
+            "   \"query\" : \"term1\"," +
+            "   \"filter\" : { " +
+            "       \"script\" : { " +
+            "            \"source\" : \"interval.start > 3\" } } } } } }";
+
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        Query q = builder.toQuery(context);
+
+
+        IntervalQuery expected = new IntervalQuery(STRING_FIELD_NAME,
+            new IntervalsSourceProvider.ScriptFilterSource(Intervals.term("term1"), "interval.start > 3", null));
+        assertEquals(expected, q);
+
+    }
+
+
 }

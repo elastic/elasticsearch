@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import com.google.common.base.Joiner;
+
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
@@ -15,19 +16,31 @@ import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryPrimaryDefaultContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryTermContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StatementContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StatementDefaultContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionDefaultContext;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
+import org.elasticsearch.xpack.sql.plan.logical.With;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.StringJoiner;
 
 import static java.util.Collections.nCopies;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 public class SqlParserTests extends ESTestCase {
 
@@ -49,12 +62,38 @@ public class SqlParserTests extends ESTestCase {
 
     public void testSelectScore() {
         UnresolvedFunction f = singleProjection(project(parseStatement("SELECT SCORE() FROM foo")), UnresolvedFunction.class);
-        assertEquals("SCORE", f.functionName());
+        assertEquals("SCORE()", f.sourceText());
+    }
+
+    public void testSelectAddWithParanthesis() {
+        Add f = singleProjection(project(parseStatement("SELECT (1 +  2)")), Add.class);
+        assertEquals("1 +  2", f.sourceText());
     }
 
     public void testSelectRightFunction() {
         UnresolvedFunction f = singleProjection(project(parseStatement("SELECT RIGHT()")), UnresolvedFunction.class);
-        assertEquals("RIGHT", f.functionName());
+        assertEquals("RIGHT()", f.sourceText());
+    }
+
+    public void testsSelectNonReservedKeywords() {
+        String[] reserved = new String[] {
+            "ANALYZE", "ANALYZED", "CATALOGS", "COLUMNS", "CURRENT", "DAY", "DEBUG", "EXECUTABLE", "EXPLAIN",
+            "FIRST", "FORMAT", "FULL", "FUNCTIONS", "GRAPHVIZ", "HOUR", "INTERVAL", "LAST", "LIMIT",
+            "MAPPED", "MINUTE", "MONTH", "OPTIMIZED", "PARSED", "PHYSICAL", "PLAN", "QUERY", "RLIKE",
+            "SCHEMAS", "SECOND", "SHOW", "SYS", "TABLES", "TEXT", "TYPE", "TYPES", "VERIFY", "YEAR"};
+        StringJoiner sj = new StringJoiner(",");
+        for (String s : reserved) {
+            sj.add(s);
+        }
+
+        Project project = project(parseStatement("SELECT " + sj.toString() + " FROM foo"));
+        assertEquals(reserved.length, project.projections().size());
+
+        for (int i = 0; i < project.projections().size(); i++) {
+            NamedExpression ne = project.projections().get(i);
+            assertEquals(UnresolvedAttribute.class, ne.getClass());
+            assertEquals(reserved[i], ne.name());
+        }
     }
 
     public void testOrderByField() {
@@ -70,13 +109,13 @@ public class SqlParserTests extends ESTestCase {
 
     public void testOrderByScore() {
         Order.OrderDirection dir = randomFrom(Order.OrderDirection.values());
-        OrderBy ob = orderBy(parseStatement("SELECT * FROM foo ORDER BY SCORE()" + stringForDirection(dir)));
+        OrderBy ob = orderBy(parseStatement("SELECT * FROM foo ORDER BY SCORE( )" + stringForDirection(dir)));
         assertThat(ob.order(), hasSize(1));
         Order o = ob.order().get(0);
         assertEquals(dir, o.direction());
         assertThat(o.child(), instanceOf(UnresolvedFunction.class));
         UnresolvedFunction f = (UnresolvedFunction) o.child();
-        assertEquals("SCORE", f.functionName());
+        assertEquals("SCORE( )", f.sourceText());
     }
 
     public void testOrderByTwo() {
@@ -252,6 +291,51 @@ public class SqlParserTests extends ESTestCase {
                 .concat("t").concat(Joiner.on("").join(nCopies(19, ")")))));
         assertEquals("line 1:1628: SQL statement too large; halt parsing to prevent memory errors (stopped at depth 200)",
             e.getMessage());
+    }
+
+    public void testLimitStackOverflowForInAndLiteralsIsNotApplied() {
+        int noChildren = 100_000;
+        LogicalPlan plan = parseStatement("SELECT * FROM t WHERE a IN(" +
+            Joiner.on(",").join(nCopies(noChildren, "a + b")) + ")");
+
+        assertEquals(With.class, plan.getClass());
+        assertEquals(Project.class, ((With) plan).child().getClass());
+        assertEquals(Filter.class, ((Project) ((With) plan).child()).child().getClass());
+        Filter filter = (Filter) ((Project) ((With) plan).child()).child();
+        assertEquals(In.class, filter.condition().getClass());
+        In in = (In) filter.condition();
+        assertEquals("?a", in.value().toString());
+        assertEquals(noChildren, in.list().size());
+        assertThat(in.list().get(0).toString(), startsWith("a + b#"));
+    }
+
+    public void testDecrementOfDepthCounter() {
+        SqlParser.CircuitBreakerListener cbl = new SqlParser.CircuitBreakerListener();
+        StatementContext sc = new StatementContext();
+        QueryTermContext qtc = new QueryTermContext();
+        ValueExpressionContext vec = new ValueExpressionContext();
+        BooleanExpressionContext bec = new BooleanExpressionContext();
+
+        cbl.enterEveryRule(sc);
+        cbl.enterEveryRule(sc);
+        cbl.enterEveryRule(qtc);
+        cbl.enterEveryRule(qtc);
+        cbl.enterEveryRule(qtc);
+        cbl.enterEveryRule(vec);
+        cbl.enterEveryRule(bec);
+        cbl.enterEveryRule(bec);
+
+        cbl.exitEveryRule(new StatementDefaultContext(sc));
+        cbl.exitEveryRule(new StatementDefaultContext(sc));
+        cbl.exitEveryRule(new QueryPrimaryDefaultContext(qtc));
+        cbl.exitEveryRule(new QueryPrimaryDefaultContext(qtc));
+        cbl.exitEveryRule(new ValueExpressionDefaultContext(vec));
+        cbl.exitEveryRule(new SqlBaseParser.BooleanDefaultContext(bec));
+
+        assertEquals(0, cbl.depthCounts().get(SqlBaseParser.StatementContext.class.getSimpleName()));
+        assertEquals(1, cbl.depthCounts().get(SqlBaseParser.QueryTermContext.class.getSimpleName()));
+        assertEquals(0, cbl.depthCounts().get(SqlBaseParser.ValueExpressionContext.class.getSimpleName()));
+        assertEquals(1, cbl.depthCounts().get(SqlBaseParser.BooleanExpressionContext.class.getSimpleName()));
     }
 
     private LogicalPlan parseStatement(String sql) {

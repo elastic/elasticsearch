@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -30,6 +31,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
@@ -390,7 +392,37 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertThat(elapsedTime, lessThanOrEqualTo(delayMillis + variabilityMillis));
     }
 
-    private static DeterministicTaskQueue newTaskQueue() {
+    public void testThreadPoolSchedulesPeriodicFutureTasks() {
+        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        advanceToRandomTime(taskQueue);
+        final List<String> strings = new ArrayList<>(5);
+
+        final ThreadPool threadPool = taskQueue.getThreadPool();
+        final long intervalMillis = randomLongBetween(1, 100);
+
+        final AtomicInteger counter = new AtomicInteger(0);
+        Scheduler.Cancellable cancellable = threadPool.scheduleWithFixedDelay(
+            () -> strings.add("periodic-" + counter.getAndIncrement()), TimeValue.timeValueMillis(intervalMillis), GENERIC);
+        assertFalse(taskQueue.hasRunnableTasks());
+        assertTrue(taskQueue.hasDeferredTasks());
+
+        for (int i = 0; i < 3; ++i) {
+            taskQueue.advanceTime();
+            assertTrue(taskQueue.hasRunnableTasks());
+            taskQueue.runAllRunnableTasks();
+        }
+
+        assertThat(strings, contains("periodic-0", "periodic-1", "periodic-2"));
+
+        cancellable.cancel();
+
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+
+        assertThat(strings, contains("periodic-0", "periodic-1", "periodic-2"));
+    }
+
+    static DeterministicTaskQueue newTaskQueue() {
         return newTaskQueue(random());
     }
 

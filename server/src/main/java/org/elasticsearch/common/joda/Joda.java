@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.io.Writer;
 import java.math.BigDecimal;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 public class Joda {
 
@@ -106,8 +107,8 @@ public class Joda {
             // in this case, we have a separate parser and printer since the dataOptionalTimeParser can't print
             // this sucks we should use the root local by default and not be dependent on the node
             return new JodaDateFormatter(input,
-                    ISODateTimeFormat.dateOptionalTimeParser().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC),
-                    ISODateTimeFormat.dateTime().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC));
+                    ISODateTimeFormat.dateOptionalTimeParser().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970),
+                    ISODateTimeFormat.dateTime().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970));
         } else if ("dateTime".equals(input) || "date_time".equals(input)) {
             formatter = ISODateTimeFormat.dateTime();
         } else if ("dateTimeNoMillis".equals(input) || "date_time_no_millis".equals(input)) {
@@ -183,8 +184,9 @@ public class Joda {
             // in this case, we have a separate parser and printer since the dataOptionalTimeParser can't print
             // this sucks we should use the root local by default and not be dependent on the node
             return new JodaDateFormatter(input,
-                    StrictISODateTimeFormat.dateOptionalTimeParser().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC),
-                    StrictISODateTimeFormat.dateTime().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC));
+                    StrictISODateTimeFormat.dateOptionalTimeParser().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC)
+                        .withDefaultYear(1970),
+                    StrictISODateTimeFormat.dateTime().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970));
         } else if ("strictDateTime".equals(input) || "strict_date_time".equals(input)) {
             formatter = StrictISODateTimeFormat.dateTime();
         } else if ("strictDateTimeNoMillis".equals(input) || "strict_date_time_no_millis".equals(input)) {
@@ -231,6 +233,27 @@ public class Joda {
             formatter = StrictISODateTimeFormat.yearMonth();
         } else if ("strictYearMonthDay".equals(input) || "strict_year_month_day".equals(input)) {
             formatter = StrictISODateTimeFormat.yearMonthDay();
+        } else if (Strings.hasLength(input) && input.contains("||")) {
+            String[] formats = Strings.delimitedListToStringArray(input, "||");
+            DateTimeParser[] parsers = new DateTimeParser[formats.length];
+
+            if (formats.length == 1) {
+                formatter = forPattern(input).parser;
+            } else {
+                DateTimeFormatter dateTimeFormatter = null;
+                for (int i = 0; i < formats.length; i++) {
+                    JodaDateFormatter currentFormatter = forPattern(formats[i]);
+                    DateTimeFormatter currentParser = currentFormatter.parser;
+                    if (dateTimeFormatter == null) {
+                        dateTimeFormatter = currentFormatter.printer;
+                    }
+                    parsers[i] = currentParser.getParser();
+                }
+
+                DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder()
+                    .append(dateTimeFormatter.withZone(DateTimeZone.UTC).getPrinter(), parsers);
+                formatter = builder.toFormatter();
+            }
         } else {
             try {
                 maybeLogJodaDeprecation(input);
@@ -240,7 +263,7 @@ public class Joda {
             }
         }
 
-        formatter = formatter.withLocale(Locale.ROOT).withZone(DateTimeZone.UTC);
+        formatter = formatter.withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970);
         return new JodaDateFormatter(input, formatter, formatter);
     }
 
@@ -289,7 +312,7 @@ public class Joda {
         DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder().append(longFormatter.withZone(DateTimeZone.UTC).getPrinter(),
             new DateTimeParser[]{longFormatter.getParser(), shortFormatter.getParser(), new EpochTimeParser(true)});
 
-        DateTimeFormatter formatter = builder.toFormatter().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC);
+        DateTimeFormatter formatter = builder.toFormatter().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970);
         return new JodaDateFormatter("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis", formatter, formatter);
     }
 
@@ -321,6 +344,8 @@ public class Joda {
 
     public static class EpochTimeParser implements DateTimeParser {
 
+        private static final Pattern scientificNotation = Pattern.compile("[Ee]");
+
         private final boolean hasMilliSecondPrecision;
 
         public EpochTimeParser(boolean hasMilliSecondPrecision) {
@@ -348,6 +373,15 @@ public class Joda {
             int factor = hasMilliSecondPrecision ? 1 : 1000;
             try {
                 long millis = new BigDecimal(text).longValue() * factor;
+                // check for deprecations, but after it has parsed correctly so invalid values aren't counted as deprecated
+                if (millis < 0) {
+                    deprecationLogger.deprecatedAndMaybeLog("epoch-negative", "Use of negative values" +
+                        " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
+                }
+                if (scientificNotation.matcher(text).find()) {
+                    deprecationLogger.deprecatedAndMaybeLog("epoch-scientific-notation", "Use of scientific notation" +
+                        " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
+                }
                 DateTime dt = new DateTime(millis, DateTimeZone.UTC);
                 bucket.saveField(DateTimeFieldType.year(), dt.getYear());
                 bucket.saveField(DateTimeFieldType.monthOfYear(), dt.getMonthOfYear());

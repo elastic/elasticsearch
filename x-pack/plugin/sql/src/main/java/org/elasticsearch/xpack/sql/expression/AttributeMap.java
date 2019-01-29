@@ -138,7 +138,7 @@ public class AttributeMap<E> {
         public String toString() {
             return set.toString();
         }
-    };
+    }
 
     private final Map<AttributeWrapper, E> delegate;
     private Set<Attribute> keySet = null;
@@ -175,7 +175,7 @@ public class AttributeMap<E> {
         delegate.putAll(other.delegate);
     }
 
-    public AttributeMap<E> substract(AttributeMap<E> other) {
+    public AttributeMap<E> subtract(AttributeMap<E> other) {
         AttributeMap<E> diff = new AttributeMap<>();
         for (Entry<AttributeWrapper, E> entry : this.delegate.entrySet()) {
             if (!other.delegate.containsKey(entry.getKey())) {

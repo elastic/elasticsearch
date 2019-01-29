@@ -55,6 +55,7 @@ public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFac
     private final byte[] charTypeTable;
     private final int flags;
     private final CharArraySet protoWords;
+    private final boolean adjustOffsets;
 
     public WordDelimiterGraphTokenFilterFactory(IndexSettings indexSettings, Environment env,
             String name, Settings settings) {
@@ -95,11 +96,12 @@ public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFac
         Set<?> protectedWords = Analysis.getWordSet(env, settings, "protected_words");
         this.protoWords = protectedWords == null ? null : CharArraySet.copy(protectedWords);
         this.flags = flags;
+        this.adjustOffsets = settings.getAsBoolean("adjust_offsets", true);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new WordDelimiterGraphFilter(tokenStream, true, charTypeTable, flags, protoWords);
+        return new WordDelimiterGraphFilter(tokenStream, adjustOffsets, charTypeTable, flags, protoWords);
     }
 
     @Override

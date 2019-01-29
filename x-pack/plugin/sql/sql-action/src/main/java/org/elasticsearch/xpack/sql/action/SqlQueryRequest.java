@@ -18,9 +18,9 @@ import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
-import java.util.TimeZone;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -40,9 +40,9 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         super();
     }
 
-    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, TimeZone timeZone,
+    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, ZoneId zoneId,
                            int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, String cursor, RequestInfo requestInfo) {
-        super(query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout, requestInfo);
+        super(query, params, filter, zoneId, fetchSize, requestTimeout, pageTimeout, requestInfo);
         this.cursor = cursor;
     }
 
@@ -104,7 +104,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // This is needed just to test round-trip compatibility with proto.SqlQueryRequest
-        return new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(query(), params(), timeZone(), fetchSize(), requestTimeout(),
+        return new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(query(), params(), zoneId(), fetchSize(), requestTimeout(),
             pageTimeout(), filter(), cursor(), requestInfo()).toXContent(builder, params);
     }
 

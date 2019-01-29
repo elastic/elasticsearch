@@ -9,50 +9,54 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSou
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneId;
 import java.util.Objects;
-import java.util.TimeZone;
 
 /**
- * GROUP BY key based on histograms on date fields.
+ * GROUP BY key based on histograms on date/datetime fields.
  */
 public class GroupByDateHistogram extends GroupByKey {
 
     private final long interval;
-    private final TimeZone timeZone;
+    private final ZoneId zoneId;
 
-    public GroupByDateHistogram(String id, String fieldName, long interval, TimeZone timeZone) {
-        this(id, fieldName, null, null, interval, timeZone);
+    public GroupByDateHistogram(String id, String fieldName, long interval, ZoneId zoneId) {
+        this(id, fieldName, null, null, interval, zoneId);
     }
 
-    public GroupByDateHistogram(String id, ScriptTemplate script, long interval, TimeZone timeZone) {
-        this(id, null, script, null, interval, timeZone);
+    public GroupByDateHistogram(String id, ScriptTemplate script, long interval, ZoneId zoneId) {
+        this(id, null, script, null, interval, zoneId);
     }
 
     private GroupByDateHistogram(String id, String fieldName, ScriptTemplate script, Direction direction, long interval,
-            TimeZone timeZone) {
+            ZoneId zoneId) {
         super(id, fieldName, script, direction);
         this.interval = interval;
-        this.timeZone = timeZone;
+        this.zoneId = zoneId;
 
+    }
+
+    // For testing
+    public long interval() {
+        return interval;
     }
 
     @Override
     protected CompositeValuesSourceBuilder<?> createSourceBuilder() {
         return new DateHistogramValuesSourceBuilder(id())
                 .interval(interval)
-                .timeZone(DateTimeZone.forTimeZone(timeZone));
+                .timeZone(zoneId);
     }
 
     @Override
     protected GroupByKey copy(String id, String fieldName, ScriptTemplate script, Direction direction) {
-        return new GroupByDateHistogram(id, fieldName, script, direction, interval, timeZone);
+        return new GroupByDateHistogram(id, fieldName, script, direction, interval, zoneId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), interval, timeZone);
+        return Objects.hash(super.hashCode(), interval, zoneId);
     }
 
     @Override
@@ -60,7 +64,7 @@ public class GroupByDateHistogram extends GroupByKey {
         if (super.equals(obj)) {
             GroupByDateHistogram other = (GroupByDateHistogram) obj;
             return Objects.equals(interval, other.interval)
-                    && Objects.equals(timeZone, other.timeZone);
+                    && Objects.equals(zoneId, other.zoneId);
         }
         return false;
     }

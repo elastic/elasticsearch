@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.qa.rest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -50,6 +49,8 @@ import static org.hamcrest.Matchers.containsString;
  * user rather than to the JDBC driver or CLI.
  */
 public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTestCase {
+    
+    public static String SQL_QUERY_REST_ENDPOINT = org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
     /**
      * Builds that map that is returned in the header for each column.
      */
@@ -58,7 +59,6 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         column.put("name", name);
         column.put("type", type);
         if ("jdbc".equals(mode)) {
-            column.put("jdbc_type", jdbcType.getVendorTypeNumber());
             column.put("display_size", size);
         }
         return unmodifiableMap(column);
@@ -76,7 +76,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     public void testNextPage() throws IOException {
-        Request request = new Request("POST", "/test/test/_bulk");
+        Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
         String mode = randomMode();
         StringBuilder bulk = new StringBuilder();
@@ -142,7 +142,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     public void testScoreWithFieldNamedScore() throws IOException {
-        Request request = new Request("POST", "/test/test/_bulk");
+        Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
         String mode = randomMode();
         StringBuilder bulk = new StringBuilder();
@@ -281,7 +281,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             containsString("line 1:12: [SCORE()] cannot be an argument to a function"));
     }
 
-    private void expectBadRequest(CheckedSupplier<Map<String, Object>, Exception> code, Matcher<String> errorMessageMatcher) {
+    protected void expectBadRequest(CheckedSupplier<Map<String, Object>, Exception> code, Matcher<String> errorMessageMatcher) {
         try {
             Map<String, Object> result = code.get();
             fail("expected ResponseException but got " + result);
@@ -310,8 +310,8 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         return runSql(new StringEntity("{\"query\":\"" + sql + "\"" + mode(mode) + "}", ContentType.APPLICATION_JSON), suffix);
     }
 
-    private Map<String, Object> runSql(HttpEntity sql, String suffix) throws IOException {
-        Request request = new Request("POST", "/_sql" + suffix);
+    protected Map<String, Object> runSql(HttpEntity sql, String suffix) throws IOException {
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT + suffix);
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability
         if (randomBoolean()) {
@@ -471,7 +471,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
 
         @SuppressWarnings("unchecked")
         Map<String, Object> aggregations2 = (Map<String, Object>) groupby.get("aggregations");
-        assertEquals(3, aggregations2.size());
+        assertEquals(2, aggregations2.size());
 
         List<Integer> aggKeys = new ArrayList<>(2);
         String aggFilterKey = null;
@@ -491,7 +491,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             }
         }
         Collections.sort(aggKeys);
-        assertEquals("having." + aggKeys.get(1), aggFilterKey);
+        assertEquals("having." + aggKeys.get(0), aggFilterKey);
 
         @SuppressWarnings("unchecked")
         Map<String, Object> having = (Map<String, Object>) aggregations2.get(aggFilterKey);
@@ -505,7 +505,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         @SuppressWarnings("unchecked")
         Map<String, Object> bucketsPath = (Map<String, Object>) bucketSelector.get("buckets_path");
         assertEquals(1, bucketsPath.size());
-        assertEquals(aggKeys.get(1).toString(), bucketsPath.get("a0"));
+        assertEquals(aggKeys.get(0).toString(), bucketsPath.get("a0"));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> filterScript = (Map<String, Object>) bucketSelector.get("script");
@@ -642,7 +642,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
      * rather than the {@code format} parameter.
      */
     private Tuple<String, String> runSqlAsText(String suffix, HttpEntity entity, String accept) throws IOException {
-        Request request = new Request("POST", "/_sql" + suffix);
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT + suffix);
         request.addParameter("error_trace", "true");
         request.setEntity(entity);
         RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -660,7 +660,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
      * rather than an {@code Accept} header.
      */
     private Tuple<String, String> runSqlAsTextFormat(String sql, String format) throws IOException {
-        Request request = new Request("POST", "/_sql");
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         request.addParameter("error_trace", "true");
         request.addParameter("format", format);
         request.setJsonEntity("{\"query\":\"" + sql + "\"}");
@@ -719,8 +719,8 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         return Strings.isEmpty(mode) ? StringUtils.EMPTY : ",\"mode\":\"" + mode + "\"";
     }
 
-    private void index(String... docs) throws IOException {
-        Request request = new Request("POST", "/test/test/_bulk");
+    protected void index(String... docs) throws IOException {
+        Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (String doc : docs) {

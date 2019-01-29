@@ -20,7 +20,9 @@ package org.elasticsearch.gradle.testfixtures;
 
 import com.avast.gradle.dockercompose.ComposeExtension;
 import com.avast.gradle.dockercompose.DockerComposePlugin;
+import com.avast.gradle.dockercompose.tasks.ComposeUp;
 import org.elasticsearch.gradle.precommit.JarHellTask;
+import org.elasticsearch.gradle.precommit.TestingConventionsTasks;
 import org.elasticsearch.gradle.precommit.ThirdPartyAuditTask;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Plugin;
@@ -53,7 +55,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
             // convenience boilerplate with build plugin
             // Can't reference tasks that are implemented in Groovy, use reflection  instead
             disableTaskByType(tasks, getTaskClass("org.elasticsearch.gradle.precommit.LicenseHeadersTask"));
-            disableTaskByType(tasks, getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"));
             disableTaskByType(tasks, ThirdPartyAuditTask.class);
             disableTaskByType(tasks, JarHellTask.class);
 
@@ -61,7 +62,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
             Task preProcessFixture = project.getTasks().create("preProcessFixture");
             buildFixture.dependsOn(preProcessFixture);
             Task postProcessFixture = project.getTasks().create("postProcessFixture");
-            buildFixture.dependsOn(postProcessFixture);
 
             if (dockerComposeSupported(project) == false) {
                 preProcessFixture.setEnabled(false);
@@ -82,7 +82,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
             buildFixture.dependsOn(tasks.getByName("composeUp"));
             tasks.getByName("composeUp").mustRunAfter(preProcessFixture);
-            postProcessFixture.dependsOn("composeUp");
+            postProcessFixture.dependsOn(buildFixture);
 
             configureServiceInfoForTask(
                 postProcessFixture,
@@ -90,34 +90,36 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 (name, port) -> postProcessFixture.getExtensions()
                     .getByType(ExtraPropertiesExtension.class).set(name, port)
             );
-        } else {
-            extension.fixtures.all(fixtureProject -> project.evaluationDependsOn(fixtureProject.getPath()));
-            if (dockerComposeSupported(project) == false) {
-                project.getLogger().warn(
-                    "Tests for {} require docker-compose at /usr/local/bin/docker-compose or /usr/bin/docker-compose " +
-                        "but none could not be found so these will be skipped", project.getPath()
-                );
-                tasks.withType(getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"), task ->
-                    task.setEnabled(false)
-                );
-                return;
-            }
-            tasks.withType(getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"), task ->
-                extension.fixtures.all(fixtureProject -> {
-                    fixtureProject.getTasks().matching(it->it.getName().equals("buildFixture")).all(buildFixture ->
-                        task.dependsOn(buildFixture)
-                    );
-                    fixtureProject.getTasks().matching(it->it.getName().equals("composeDown")).all(composeDown ->
-                        task.finalizedBy(composeDown)
-                    );
-                    configureServiceInfoForTask(
-                        task,
-                        fixtureProject,
-                        (name, port) -> setSystemProperty(task, name, port)
-                    );
-                })
-            );
         }
+
+        extension.fixtures.all(fixtureProject -> project.evaluationDependsOn(fixtureProject.getPath()));
+        if (dockerComposeSupported(project) == false) {
+            project.getLogger().warn(
+                "Tests for {} require docker-compose at /usr/local/bin/docker-compose or /usr/bin/docker-compose " +
+                    "but none could be found so these will be skipped", project.getPath()
+            );
+            disableTaskByType(tasks, getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"));
+            // conventions are not honored when the tasks are disabled
+            disableTaskByType(tasks, TestingConventionsTasks.class);
+            disableTaskByType(tasks, ComposeUp.class);
+            return;
+        }
+        tasks.withType(getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"), task ->
+            extension.fixtures.all(fixtureProject -> {
+                fixtureProject.getTasks().matching(it -> it.getName().equals("buildFixture")).all(buildFixture ->
+                    task.dependsOn(buildFixture)
+                );
+                fixtureProject.getTasks().matching(it -> it.getName().equals("composeDown")).all(composeDown ->
+                    task.finalizedBy(composeDown)
+                );
+                configureServiceInfoForTask(
+                    task,
+                    fixtureProject,
+                    (name, port) -> setSystemProperty(task, name, port)
+                );
+            })
+        );
+
     }
 
     private void configureServiceInfoForTask(Task task, Project fixtureProject, BiConsumer<String, Integer> consumer) {
@@ -126,23 +128,24 @@ public class TestFixturesPlugin implements Plugin<Project> {
         task.doFirst(theTask ->
             fixtureProject.getExtensions().getByType(ComposeExtension.class).getServicesInfos()
                 .forEach((service, infos) -> {
-                    theTask.getLogger().info(
-                        "Port maps for {}\nTCP:{}\nUDP:{}\nexposed to {}",
-                        fixtureProject.getPath(),
-                        infos.getTcpPorts(),
-                        infos.getUdpPorts(),
-                        theTask.getPath()
-                    );
                     infos.getTcpPorts()
-                        .forEach((container, host) -> consumer.accept(
-                            "test.fixtures." + service + ".tcp." + container,
-                            host
-                        ));
+                        .forEach((container, host) -> {
+                            String name = "test.fixtures." + service + ".tcp." + container;
+                            theTask.getLogger().info("port mapping property: {}={}", name, host);
+                            consumer.accept(
+                                name,
+                                host
+                            );
+                        });
                     infos.getUdpPorts()
-                        .forEach((container, host) -> consumer.accept(
-                            "test.fixtures." + service + ".udp." + container,
-                            host
-                        ));
+                        .forEach((container, host) -> {
+                            String name = "test.fixtures." + service + ".udp." + container;
+                            theTask.getLogger().info("port mapping property: {}={}", name, host);
+                            consumer.accept(
+                                name,
+                                host
+                            );
+                        });
                 })
         );
     }

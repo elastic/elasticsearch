@@ -10,31 +10,31 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
+import java.time.ZoneId;
 import java.util.Objects;
-import java.util.TimeZone;
 
 public class Histogram extends GroupingFunction {
 
     private final Literal interval;
-    private final TimeZone timeZone;
+    private final ZoneId zoneId;
 
-    public Histogram(Location location, Expression field, Expression interval, TimeZone timeZone) {
-        super(location, field);
+    public Histogram(Source source, Expression field, Expression interval, ZoneId zoneId) {
+        super(source, field);
         this.interval = (Literal) interval;
-        this.timeZone = timeZone;
+        this.zoneId = zoneId;
     }
 
     public Literal interval() {
         return interval;
     }
 
-    public TimeZone timeZone() {
-        return timeZone;
+    public ZoneId zoneId() {
+        return zoneId;
     }
 
     @Override
@@ -42,7 +42,7 @@ public class Histogram extends GroupingFunction {
         TypeResolution resolution = Expressions.typeMustBeNumericOrDate(field(), "HISTOGRAM", ParamOrdinal.FIRST);
         if (resolution == TypeResolution.TYPE_RESOLVED) {
             // interval must be Literal interval
-            if (field().dataType() == DataType.DATE) {
+            if (field().dataType().isDateBased()) {
                 resolution = Expressions.typeMustBe(interval, DataTypes::isInterval, "(Date) HISTOGRAM", ParamOrdinal.SECOND, "interval");
             } else {
                 resolution = Expressions.typeMustBeNumeric(interval, "(Numeric) HISTOGRAM", ParamOrdinal.SECOND);
@@ -54,7 +54,7 @@ public class Histogram extends GroupingFunction {
 
     @Override
     protected GroupingFunction replaceChild(Expression newChild) {
-        return new Histogram(location(), newChild, interval, timeZone);
+        return new Histogram(source(), newChild, interval, zoneId);
     }
 
     @Override
@@ -64,12 +64,12 @@ public class Histogram extends GroupingFunction {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Histogram::new, field(), interval, timeZone);
+        return NodeInfo.create(this, Histogram::new, field(), interval, zoneId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), interval, timeZone);
+        return Objects.hash(field(), interval, zoneId);
     }
 
     @Override
@@ -77,7 +77,7 @@ public class Histogram extends GroupingFunction {
         if (super.equals(obj)) {
             Histogram other = (Histogram) obj;
             return Objects.equals(interval, other.interval)
-                    && Objects.equals(timeZone, other.timeZone);
+                    && Objects.equals(zoneId, other.zoneId);
         }
         return false;
     }

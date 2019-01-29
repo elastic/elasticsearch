@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.session.EmptyExecutable;
+import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.LinkedHashMap;
@@ -67,7 +67,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         Map<String, SubQueryAlias> cteRelations = new LinkedHashMap<>(namedQueries.size());
         for (SubQueryAlias namedQuery : namedQueries) {
             if (cteRelations.put(namedQuery.alias(), namedQuery) != null) {
-                throw new ParsingException(namedQuery.location(), "Duplicate alias {}", namedQuery.alias());
+                throw new ParsingException(namedQuery.source(), "Duplicate alias {}", namedQuery.alias());
             }
         }
 
@@ -104,7 +104,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitQuerySpecification(QuerySpecificationContext ctx) {
         LogicalPlan query;
         if (ctx.fromClause() == null) {
-            query = new LocalRelation(source(ctx), new EmptyExecutable(emptyList()));
+            query = new LocalRelation(source(ctx), new SingletonExecutable());
         } else {
             query = plan(ctx.fromClause());
         }
@@ -119,7 +119,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         // SELECT a, b, c ...
         if (!ctx.selectItem().isEmpty()) {
             selectTarget = expressions(ctx.selectItem()).stream()
-                    .map(e -> (e instanceof NamedExpression) ? (NamedExpression) e : new UnresolvedAlias(e.location(), e))
+                    .map(e -> (e instanceof NamedExpression) ? (NamedExpression) e : new UnresolvedAlias(e.source(), e))
                     .collect(toList());
         }
 

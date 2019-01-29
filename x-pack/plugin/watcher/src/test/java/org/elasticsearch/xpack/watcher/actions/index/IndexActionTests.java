@@ -78,7 +78,6 @@ public class IndexActionTests extends ESTestCase {
         if (includeIndex) {
             builder.field(IndexAction.Field.INDEX.getPreferredName(), "test-index");
         }
-        builder.field(IndexAction.Field.DOC_TYPE.getPreferredName(), "test-type");
         if (timestampField != null) {
             builder.field(IndexAction.Field.EXECUTION_TIME_FIELD.getPreferredName(), timestampField);
         }
@@ -93,7 +92,6 @@ public class IndexActionTests extends ESTestCase {
 
         ExecutableIndexAction executable = actionParser.parseExecutable(randomAlphaOfLength(5), randomAlphaOfLength(3), parser);
 
-        assertThat(executable.action().docType, equalTo("test-type"));
         if (includeIndex) {
             assertThat(executable.action().index, equalTo("test-index"));
         }
@@ -101,6 +99,19 @@ public class IndexActionTests extends ESTestCase {
             assertThat(executable.action().executionTimeField, equalTo(timestampField));
         }
         assertThat(executable.action().timeout, equalTo(writeTimeout));
+    }
+
+    public void testDeprecationTypes() throws Exception {
+        XContentBuilder builder = jsonBuilder();
+        builder.startObject();
+        builder.field(IndexAction.Field.DOC_TYPE.getPreferredName(), "test-type");
+        builder.endObject();
+        IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, client);
+        XContentParser parser = createParser(builder);
+        parser.nextToken();
+        ExecutableIndexAction executable = actionParser.parseExecutable(randomAlphaOfLength(5), randomAlphaOfLength(3), parser);
+        assertThat(executable.action().docType, equalTo("test-type"));
+        assertWarnings(IndexAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testParserFailure() throws Exception {

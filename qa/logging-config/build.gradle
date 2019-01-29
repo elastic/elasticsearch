@@ -17,21 +17,26 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.esplugin'
 
-esplugin {
-    description 'Die with dignity plugin'
-    classname 'org.elasticsearch.DieWithDignityPlugin'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.standalone-test'
+
+integTestCluster {
+    autoSetInitialMasterNodes = false
+    autoSetHostsProvider = false
+    /**
+     * Provide a custom log4j configuration where layout is an old style pattern and confirm that Elasticsearch 
+     * can successfully startup.
+     */
+    extraConfigFile 'log4j2.properties', 'custom-log4j2.properties'
 }
 
 integTestRunner {
-    systemProperty 'tests.security.manager', 'false'
-    systemProperty 'tests.system_call_filter', 'false'
-    systemProperty 'pidfile', "${-> integTest.getNodes().get(0).pidFile}"
-    systemProperty 'log', "${-> integTest.getNodes().get(0).homeDir}/logs/${-> integTest.getNodes().get(0).clusterName}_server.json"
-    systemProperty 'runtime.java.home', "${project.runtimeJavaHome}"
+    systemProperty 'tests.logfile',
+            "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }_server.log"
 }
 
-unitTest.enabled = false
-
-check.dependsOn integTest
+unitTest {
+    systemProperty 'tests.security.manager', 'false'
+}

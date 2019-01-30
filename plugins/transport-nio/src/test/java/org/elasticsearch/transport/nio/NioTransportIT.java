@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.transport.nio;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.NioIntegTestCase;
 import org.elasticsearch.Version;
@@ -36,12 +38,12 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.InboundMessage;
 import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -54,6 +56,7 @@ import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
 public class NioTransportIT extends NioIntegTestCase {
+
     // static so we can use it in anonymous classes
     private static String channelProfileName = null;
 
@@ -80,11 +83,13 @@ public class NioTransportIT extends NioIntegTestCase {
             fail("Expected exception, but didn't happen");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("MY MESSAGE"));
-            assertThat(channelProfileName, is(TcpTransport.DEFAULT_PROFILE));
+            assertThat(channelProfileName, is(TransportSettings.DEFAULT_PROFILE));
         }
     }
 
     public static final class ExceptionThrowingNioTransport extends NioTransport {
+
+        private static final Logger logger = LogManager.getLogger(ExceptionThrowingNioTransport.class);
 
         public static class TestPlugin extends Plugin implements NetworkPlugin {
 
@@ -103,17 +108,14 @@ public class NioTransportIT extends NioIntegTestCase {
         ExceptionThrowingNioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService,
                                       PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                                       CircuitBreakerService circuitBreakerService) {
-            super(settings, Version.CURRENT, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService);
+            super(settings, Version.CURRENT, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService,
+                new NioGroupFactory(settings, logger));
         }
 
         @Override
-        protected String handleRequest(TcpChannel channel, String profileName,
-                                       StreamInput stream, long requestId, int messageLengthBytes, Version version,
-                                       InetSocketAddress remoteAddress, byte status) throws IOException {
-            String action = super.handleRequest(channel, profileName, stream, requestId, messageLengthBytes, version,
-                    remoteAddress, status);
-            channelProfileName = TcpTransport.DEFAULT_PROFILE;
-            return action;
+        protected void handleRequest(TcpChannel channel, InboundMessage.RequestMessage request, int messageLengthBytes) throws IOException {
+            super.handleRequest(channel, request, messageLengthBytes);
+            channelProfileName = TransportSettings.DEFAULT_PROFILE;
         }
 
         @Override

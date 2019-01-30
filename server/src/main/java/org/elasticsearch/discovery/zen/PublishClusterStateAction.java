@@ -76,6 +76,11 @@ public class PublishClusterStateAction {
     public static final String SEND_ACTION_NAME = "internal:discovery/zen/publish/send";
     public static final String COMMIT_ACTION_NAME = "internal:discovery/zen/publish/commit";
 
+    // -> no need to put a timeout on the options, because we want the state response to eventually be received
+    //  and not log an error if it arrives after the timeout
+    private final TransportRequestOptions stateRequestOptions = TransportRequestOptions.builder()
+        .withType(TransportRequestOptions.Type.STATE).build();
+
     public interface IncomingClusterStateListener {
 
         /**
@@ -284,14 +289,9 @@ public class PublishClusterStateAction {
                                         final boolean sendDiffs, final Map<Version, BytesReference> serializedStates) {
         try {
 
-            // -> no need to put a timeout on the options here, because we want the response to eventually be received
-            //  and not log an error if it arrives after the timeout
-            // -> no need to compress, we already compressed the bytes
-            TransportRequestOptions options = TransportRequestOptions.builder()
-                .withType(TransportRequestOptions.Type.STATE).withCompress(false).build();
             transportService.sendRequest(node, SEND_ACTION_NAME,
                     new BytesTransportRequest(bytes, node.getVersion()),
-                    options,
+                    stateRequestOptions,
                     new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
 
                         @Override
@@ -324,12 +324,9 @@ public class PublishClusterStateAction {
         try {
             logger.trace("sending commit for cluster state (uuid: [{}], version [{}]) to [{}]",
                 clusterState.stateUUID(), clusterState.version(), node);
-            TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).build();
-            // no need to put a timeout on the options here, because we want the response to eventually be received
-            // and not log an error if it arrives after the timeout
             transportService.sendRequest(node, COMMIT_ACTION_NAME,
                     new CommitClusterStateRequest(clusterState.stateUUID()),
-                    options,
+                    stateRequestOptions,
                     new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
 
                         @Override

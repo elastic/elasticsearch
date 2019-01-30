@@ -157,16 +157,16 @@ GET twitter/tweet/_search
 ----
 // NOTCONSOLE
 
-You could achieve the same thing by adding a custom `type` field as follows:
+You can achieve the same thing by adding a custom `type` field as follows:
 
 [source,js]
 ----
-PUT twitter
+PUT twitter?include_type_name=true <1>
 {
   "mappings": {
     "_doc": {
       "properties": {
-        "type": { "type": "keyword" }, <1>
+        "type": { "type": "keyword" }, <2>
         "name": { "type": "text" },
         "user_name": { "type": "keyword" },
         "email": { "type": "keyword" },
@@ -204,7 +204,7 @@ GET twitter/_search
       },
       "filter": {
         "match": {
-          "type": "tweet" <1>
+          "type": "tweet" <2>
         }
       }
     }
@@ -212,7 +212,9 @@ GET twitter/_search
 }
 ----
 // NOTCONSOLE
-<1> The explicit `type` field takes the place of the implicit `_type` field.
+<1> Use `include_type_name=true` in case need to use the "old" syntax including the "_doc" object like
+in this example 
+<2> The explicit `type` field takes the place of the implicit `_type` field.
 
 [float]
 ==== Parent/Child without mapping types
@@ -427,10 +429,12 @@ POST _reindex
 [float]
 === Use `include_type_name=false` to prepare for upgrade to 8.0
 
-Index creation, mappings and document APIs support the `include_type_name`
-option. When set to `false`, this option enables the behavior that will become
-default in 8.0 when types are removed. See some examples of interactions with
-Elasticsearch with this option turned off:
+Index creation and mapping APIs support a new `include_type_name` url parameter 
+starting with version 6.7. It will default to `true` in version 6.7, default to
+`false` in version 7.0 and will be removed in version 8.0. When set to `true`, 
+this parameter enables the pre-7.0 behavior of using type names in the API.
+
+See some examples of interactions with Elasticsearch with this option turned off:
 
 [float]
 ==== Index creation
@@ -530,3 +534,77 @@ PUT index/_doc/1
 The <<docs-index_,GET>>, <<docs-delete,`DELETE`>>, <<docs-update,`_update`>> and <<search,`_search`>> APIs
 will continue to return a `_type` key in the response in 7.0, but it is considered deprecated and will be
 removed in 8.0.
+
+[float]
+=== Index templates
+
+It is recommended to make index templates typeless before upgrading to 7.0 by
+re-adding them with `include_type_name` set to `false`.
+
+In case typeless templates are used with typed index creation calls or typed
+templates are used with typeless index creation calls, the template will still
+be applied but the index creation call decides whether there should be a type
+or not. For instance in the below example, `index-1-01` will have a type in
+spite of the fact that it matches a template that is typeless, and `index-2-01`
+will be typeless in spite of the fact that it matches a template that defines
+a type. Both `index-1-01` and `index-2-01` will inherit the `foo` field from
+the template that they match.
+
+[source,js]
+--------------------------------------------------
+PUT _template/template1
+{
+  "index_patterns":[ "index-1-*" ],
+  "mappings": {
+    "properties": {
+      "foo": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+
+PUT _template/template2?include_type_name=true
+{
+  "index_patterns":[ "index-2-*" ],
+  "mappings": {
+    "type": {
+      "properties": {
+        "foo": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}
+
+PUT index-1-01?include_type_name=true
+{
+  "mappings": {
+    "type": {
+      "properties": {
+        "bar": {
+          "type": "long"
+        }
+      }
+    }
+  }
+}
+
+PUT index-2-01
+{
+  "mappings": {
+    "properties": {
+      "bar": {
+        "type": "long"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+In case of implicit index creation, because of documents that get indexed in
+an index that doesn't exist yet, the template is always honored. This is
+usually not a problem due to the fact that typless index calls work on typed
+indices.

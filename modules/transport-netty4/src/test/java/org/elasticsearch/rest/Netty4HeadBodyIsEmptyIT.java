@@ -44,17 +44,17 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
     }
 
     private void createTestDoc() throws IOException {
-        createTestDoc("test", "test");
+        createTestDoc("test");
     }
 
-    private void createTestDoc(final String indexName, final String typeName) throws IOException {
+    private void createTestDoc(final String indexName) throws IOException {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {
                 builder.field("test", "test");
             }
             builder.endObject();
-            Request request = new Request("PUT", "/" + indexName + "/" + typeName + "/" + "1");
+            Request request = new Request("PUT", "/" + indexName + "/_doc/" + "1");
             request.setJsonEntity(Strings.toString(builder));
             client().performRequest(request);
         }
@@ -62,12 +62,9 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
 
     public void testDocumentExists() throws IOException {
         createTestDoc();
-        headTestCase("/test/test/1", emptyMap(), OK.getStatus(), greaterThan(0),
-                "[types removal] Specifying types in document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.");
-        headTestCase("/test/test/1", singletonMap("pretty", "true"), OK.getStatus(), greaterThan(0),
-                "[types removal] Specifying types in document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.");
-        headTestCase("/test/test/2", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0),
-                "[types removal] Specifying types in document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.");
+        headTestCase("/test/_doc/1", emptyMap(), greaterThan(0));
+        headTestCase("/test/_doc/1", singletonMap("pretty", "true"), greaterThan(0));
+        headTestCase("/test/_doc/2", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
     }
 
     public void testIndexExists() throws IOException {
@@ -78,10 +75,8 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
 
     public void testTypeExists() throws IOException {
         createTestDoc();
-        headTestCase("/test/_mapping/test", emptyMap(), OK.getStatus(), greaterThan(0),
-                "Type exists requests are deprecated, as types have been deprecated.");
-        headTestCase("/test/_mapping/test", singletonMap("pretty", "true"), OK.getStatus(), greaterThan(0),
-                "Type exists requests are deprecated, as types have been deprecated.");
+        headTestCase("/test/_mapping/_doc", emptyMap(), greaterThan(0));
+        headTestCase("/test/_mapping/_doc", singletonMap("pretty", "true"), greaterThan(0));
     }
 
     public void testTypeDoesNotExist() throws IOException {
@@ -150,21 +145,17 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
 
     public void testGetSourceAction() throws IOException {
         createTestDoc();
-        headTestCase("/test/test/1/_source", emptyMap(), greaterThan(0));
-        headTestCase("/test/test/2/_source", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
+        headTestCase("/test/_source/1", emptyMap(), greaterThan(0));
+        headTestCase("/test/_source/2", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
 
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {
                 builder.startObject("mappings");
                 {
-                    builder.startObject("test-no-source");
+                    builder.startObject("_source");
                     {
-                        builder.startObject("_source");
-                        {
-                            builder.field("enabled", false);
-                        }
-                        builder.endObject();
+                        builder.field("enabled", false);
                     }
                     builder.endObject();
                 }
@@ -175,8 +166,8 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
             Request request = new Request("PUT", "/test-no-source");
             request.setJsonEntity(Strings.toString(builder));
             client().performRequest(request);
-            createTestDoc("test-no-source", "test-no-source");
-            headTestCase("/test-no-source/test-no-source/1/_source", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
+            createTestDoc("test-no-source");
+            headTestCase("/test-no-source/_source/1", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
         }
     }
 

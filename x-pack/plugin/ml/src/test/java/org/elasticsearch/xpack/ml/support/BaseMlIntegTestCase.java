@@ -199,7 +199,6 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         builder.setQueryDelay(TimeValue.timeValueSeconds(1));
         builder.setFrequency(TimeValue.timeValueSeconds(1));
         builder.setIndices(indices);
-        builder.setTypes(Collections.singletonList("type"));
         return builder;
     }
 
@@ -319,7 +318,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
         try {
             CloseJobAction.Request closeRequest = new CloseJobAction.Request(MetaData.ALL);
-            closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(20L));
+            closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(30L));
             logger.info("Closing jobs using [{}]", MetaData.ALL);
             CloseJobAction.Response response = client.execute(CloseJobAction.INSTANCE, closeRequest)
                     .get();
@@ -328,7 +327,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             try {
                 CloseJobAction.Request closeRequest = new CloseJobAction.Request(MetaData.ALL);
                 closeRequest.setForce(true);
-                closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(20L));
+                closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(30L));
                 CloseJobAction.Response response =
                         client.execute(CloseJobAction.INSTANCE, closeRequest).get();
                 assertTrue(response.isClosed());

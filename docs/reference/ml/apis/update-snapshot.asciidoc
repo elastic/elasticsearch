@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-update-snapshot]]
-=== Update Model Snapshots API
+=== Update model snapshots API
 ++++
-<titleabbrev>Update Model Snapshots</titleabbrev>
+<titleabbrev>Update model snapshots</titleabbrev>
 ++++
 
 Updates certain properties of a snapshot.

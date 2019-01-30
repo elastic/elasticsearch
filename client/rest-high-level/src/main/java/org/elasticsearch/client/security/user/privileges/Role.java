@@ -315,9 +315,11 @@ public final class Role {
         public static final String MANAGE_PIPELINE = "manage_pipeline";
         public static final String MANAGE_CCR = "manage_ccr";
         public static final String READ_CCR = "read_ccr";
+        public static final String MANAGE_ILM = "manage_ilm";
+        public static final String READ_ILM = "read_ilm";
         public static final String[] ALL_ARRAY = new String[] { NONE, ALL, MONITOR, MONITOR_ML, MONITOR_WATCHER, MONITOR_ROLLUP, MANAGE,
                 MANAGE_ML, MANAGE_WATCHER, MANAGE_ROLLUP, MANAGE_INDEX_TEMPLATES, MANAGE_INGEST_PIPELINES, TRANSPORT_CLIENT,
-                MANAGE_SECURITY, MANAGE_SAML, MANAGE_TOKEN, MANAGE_PIPELINE, MANAGE_CCR, READ_CCR };
+                MANAGE_SECURITY, MANAGE_SAML, MANAGE_TOKEN, MANAGE_PIPELINE, MANAGE_CCR, READ_CCR, MANAGE_ILM, READ_ILM };
     }
 
     /**
@@ -338,8 +340,9 @@ public final class Role {
         public static final String CREATE_INDEX = "create_index";
         public static final String VIEW_INDEX_METADATA = "view_index_metadata";
         public static final String MANAGE_FOLLOW_INDEX = "manage_follow_index";
+        public static final String MANAGE_ILM = "manage_ilm";
         public static final String[] ALL_ARRAY = new String[] { NONE, ALL, READ, READ_CROSS, CREATE, INDEX, DELETE, WRITE, MONITOR, MANAGE,
-                DELETE_INDEX, CREATE_INDEX, VIEW_INDEX_METADATA, MANAGE_FOLLOW_INDEX };
+                DELETE_INDEX, CREATE_INDEX, VIEW_INDEX_METADATA, MANAGE_FOLLOW_INDEX, MANAGE_ILM };
     }
 
 }

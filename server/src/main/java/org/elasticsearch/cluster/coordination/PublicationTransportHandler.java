@@ -78,6 +78,10 @@ public class PublicationTransportHandler {
     private final AtomicLong fullClusterStateReceivedCount = new AtomicLong();
     private final AtomicLong incompatibleClusterStateDiffReceivedCount = new AtomicLong();
     private final AtomicLong compatibleClusterStateDiffReceivedCount = new AtomicLong();
+    // -> no need to put a timeout on the options here, because we want the response to eventually be received
+    //  and not log an error if it arrives after the timeout
+    private final TransportRequestOptions stateRequestOptions = TransportRequestOptions.builder()
+        .withType(TransportRequestOptions.Type.STATE).build();
 
     public PublicationTransportHandler(TransportService transportService, NamedWriteableRegistry namedWriteableRegistry,
                                        Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest,
@@ -213,7 +217,6 @@ public class PublicationTransportHandler {
             @Override
             public void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommitRequest,
                                         ActionListener<TransportResponse.Empty> responseActionListener) {
-                TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).build();
                 final String actionName;
                 final TransportRequest transportRequest;
                 if (Coordinator.isZen1Node(destination)) {
@@ -223,7 +226,7 @@ public class PublicationTransportHandler {
                     actionName = COMMIT_STATE_ACTION_NAME;
                     transportRequest = applyCommitRequest;
                 }
-                transportService.sendRequest(destination, actionName, transportRequest, options,
+                transportService.sendRequest(destination, actionName, transportRequest, stateRequestOptions,
                     new TransportResponseHandler<TransportResponse.Empty>() {
 
                         @Override
@@ -254,11 +257,6 @@ public class PublicationTransportHandler {
                                         ActionListener<PublishWithJoinResponse> responseActionListener, boolean sendDiffs,
                                         Map<Version, BytesReference> serializedStates) {
         try {
-            // -> no need to put a timeout on the options here, because we want the response to eventually be received
-            //  and not log an error if it arrives after the timeout
-            // -> no need to compress, we already compressed the bytes
-            final TransportRequestOptions options = TransportRequestOptions.builder()
-                .withType(TransportRequestOptions.Type.STATE).withCompress(false).build();
             final BytesTransportRequest request = new BytesTransportRequest(bytes, node.getVersion());
             final Consumer<TransportException> transportExceptionHandler = exp -> {
                 if (sendDiffs && exp.unwrapCause() instanceof IncompatibleClusterStateVersionException) {
@@ -304,7 +302,7 @@ public class PublicationTransportHandler {
                 actionName = PUBLISH_STATE_ACTION_NAME;
                 transportResponseHandler = publishWithJoinResponseHandler;
             }
-            transportService.sendRequest(node, actionName, request, options, transportResponseHandler);
+            transportService.sendRequest(node, actionName, request, stateRequestOptions, transportResponseHandler);
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("error sending cluster state to {}", node), e);
             responseActionListener.onFailure(e);
@@ -391,7 +389,13 @@ public class PublicationTransportHandler {
             in.setVersion(request.version());
             // If true we received full cluster state - otherwise diffs
             if (in.readBoolean()) {
-                final ClusterState incomingState = ClusterState.readFrom(in, transportService.getLocalNode());
+                final ClusterState incomingState;
+                try {
+                    incomingState = ClusterState.readFrom(in, transportService.getLocalNode());
+                } catch (Exception e){
+                    logger.warn("unexpected error while deserializing an incoming cluster state", e);
+                    throw e;
+                }
                 fullClusterStateReceivedCount.incrementAndGet();
                 logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(),
                     request.bytes().length());
@@ -402,10 +406,20 @@ public class PublicationTransportHandler {
                 final ClusterState lastSeen = lastSeenClusterState.get();
                 if (lastSeen == null) {
                     logger.debug("received diff for but don't have any local cluster state - requesting full state");
+                    incompatibleClusterStateDiffReceivedCount.incrementAndGet();
                     throw new IncompatibleClusterStateVersionException("have no local cluster state");
                 } else {
-                    Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeen.nodes().getLocalNode());
-                    final ClusterState incomingState = diff.apply(lastSeen); // might throw IncompatibleClusterStateVersionException
+                    final ClusterState incomingState;
+                    try {
+                        Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeen.nodes().getLocalNode());
+                        incomingState = diff.apply(lastSeen); // might throw IncompatibleClusterStateVersionException
+                    } catch (IncompatibleClusterStateVersionException e) {
+                        incompatibleClusterStateDiffReceivedCount.incrementAndGet();
+                        throw e;
+                    } catch (Exception e){
+                        logger.warn("unexpected error while deserializing an incoming cluster state", e);
+                        throw e;
+                    }
                     compatibleClusterStateDiffReceivedCount.incrementAndGet();
                     logger.debug("received diff cluster state version [{}] with uuid [{}], diff size [{}]",
                         incomingState.version(), incomingState.stateUUID(), request.bytes().length());
@@ -414,12 +428,6 @@ public class PublicationTransportHandler {
                     return response;
                 }
             }
-        } catch (IncompatibleClusterStateVersionException e) {
-            incompatibleClusterStateDiffReceivedCount.incrementAndGet();
-            throw e;
-        } catch (Exception e) {
-            logger.warn("unexpected error while deserializing an incoming cluster state", e);
-            throw e;
         } finally {
             IOUtils.close(in);
         }

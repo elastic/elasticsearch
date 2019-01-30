@@ -195,7 +195,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         assertOptionalEquals(builder.confidence(), phraseSuggesterCtx.confidence(), PhraseSuggestionContext.DEFAULT_CONFIDENCE);
         assertOptionalEquals(builder.collatePrune(), phraseSuggesterCtx.collatePrune(), PhraseSuggestionContext.DEFAULT_COLLATE_PRUNE);
         assertEquals(builder.separator(), phraseSuggesterCtx.separator().utf8ToString());
-        assertOptionalEquals(builder.realWordErrorLikelihood(), phraseSuggesterCtx.realworldErrorLikelyhood(),
+        assertOptionalEquals(builder.realWordErrorLikelihood(), phraseSuggesterCtx.realworldErrorLikelihood(),
                 PhraseSuggestionContext.DEFAULT_RWE_ERRORLIKELIHOOD);
         assertOptionalEquals(builder.maxErrors(), phraseSuggesterCtx.maxErrors(), PhraseSuggestionContext.DEFAULT_MAX_ERRORS);
         assertOptionalEquals(builder.forceUnigrams(), phraseSuggesterCtx.getRequireUnigram(),

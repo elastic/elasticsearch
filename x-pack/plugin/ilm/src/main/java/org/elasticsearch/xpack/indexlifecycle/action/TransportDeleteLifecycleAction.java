@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.indexlifecycle.action;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -23,14 +24,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction.Response;
 
-import java.util.Iterator;
+import java.util.List;
 import java.util.SortedMap;
+import java.util.Spliterator;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings.LIFECYCLE_NAME_SETTING;
 
 public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Request, Response> {
 
@@ -62,15 +67,16 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        Iterator<IndexMetaData> indicesIt = currentState.metaData().indices().valuesIt();
-                        while(indicesIt.hasNext()) {
-                            IndexMetaData idxMeta = indicesIt.next();
-                            String indexPolicy = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
-                            if (request.getPolicyName().equals(indexPolicy)) {
-                                throw new IllegalArgumentException("Cannot delete policy [" + request.getPolicyName()
-                                    + "]. It is being used by at least one index [" + idxMeta.getIndex().getName() + "]");
-                            }
-
+                        Spliterator<ObjectCursor<IndexMetaData>> indicesIt = currentState.metaData().indices().values().spliterator();
+                        String policyToDelete = request.getPolicyName();
+                        List<String> indicesUsingPolicy = StreamSupport.stream(indicesIt, false)
+                            .map(idxMeta -> idxMeta.value)
+                            .filter((idxMeta) -> LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings()).equals(policyToDelete))
+                            .map((idxMeta) -> idxMeta.getIndex().getName())
+                            .collect(Collectors.toList());
+                        if (indicesUsingPolicy.isEmpty() == false) {
+                            throw new IllegalArgumentException("Cannot delete policy [" + request.getPolicyName()
+                                + "]. It is in use by one or more indices: " + indicesUsingPolicy);
                         }
                         ClusterState.Builder newState = ClusterState.builder(currentState);
                         IndexLifecycleMetadata currentMetadata = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);

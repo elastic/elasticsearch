@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Bina
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.RegexOperation;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -164,6 +165,7 @@ public final class InternalSqlScriptUtils {
     // Regex
     //
     public static Boolean regex(String value, String pattern) {
+        // TODO: this needs to be improved to avoid creating the pattern on every call
         return RegexOperation.match(value, pattern);
     }
 
@@ -344,17 +346,27 @@ public final class InternalSqlScriptUtils {
     }
 
     public static ZonedDateTime asDateTime(Object dateTime) {
+        return (ZonedDateTime) asDateTime(dateTime, false);
+    }
+    
+    private static Object asDateTime(Object dateTime, boolean lenient) {
+        if (dateTime == null) {
+            return null;
+        }
         if (dateTime instanceof JodaCompatibleZonedDateTime) {
             return ((JodaCompatibleZonedDateTime) dateTime).getZonedDateTime();
         }
         if (dateTime instanceof ZonedDateTime) {
-            return (ZonedDateTime) dateTime;
+            return dateTime;
         }
-        if (dateTime instanceof Number) {
-            return DateUtils.of(((Number) dateTime).longValue());
+        if (false == lenient) {
+            if (dateTime instanceof Number) {
+                return DateUtils.asDateTime(((Number) dateTime).longValue());
+            }
+    
+            throw new SqlIllegalArgumentException("Invalid date encountered [{}]", dateTime);
         }
-
-        throw new SqlIllegalArgumentException("Invalid date encountered [{}]", dateTime);
+        return dateTime;
     }
     
     public static IntervalDayTime intervalDayTime(String text, String typeName) {
@@ -457,5 +469,14 @@ public final class InternalSqlScriptUtils {
 
     public static String ucase(String s) {
         return (String) StringOperation.UCASE.apply(s);
+    }
+    
+    //
+    // Casting
+    //
+    public static Object cast(Object value, String typeName) {
+        // we call asDateTime here to make sure we handle JodaCompatibleZonedDateTime properly,
+        // since casting works for ZonedDateTime objects only
+        return DataTypeConversion.convert(asDateTime(value, true), DataType.fromTypeName(typeName));
     }
 }

@@ -93,6 +93,6 @@ supported:
 `languageset`::
 
     An array of languages to check. If not specified, then the language will
-    be guessed. Accepts: `any`, `comomon`, `cyrillic`, `english`, `french`,
+    be guessed. Accepts: `any`, `common`, `cyrillic`, `english`, `french`,
     `german`, `hebrew`, `hungarian`, `polish`, `romanian`, `russian`,
     `spanish`.

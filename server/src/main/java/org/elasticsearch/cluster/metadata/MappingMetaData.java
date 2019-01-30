@@ -85,7 +85,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         this.routing = new Routing(docMapper.routingFieldMapper().required());
     }
 
-    public MappingMetaData(CompressedXContent mapping) throws IOException {
+    public MappingMetaData(CompressedXContent mapping) {
         this.source = mapping;
         Map<String, Object> mappingMap = XContentHelper.convertToMap(mapping.compressedReference(), true).v2();
         if (mappingMap.size() != 1) {

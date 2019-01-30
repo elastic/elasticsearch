@@ -44,15 +44,13 @@ in the field mapping, as follows:
 PUT /my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "text": { <1>
-          "type": "text",
-          "fields": {
-            "english": { <2>
-              "type":     "text",
-              "analyzer": "english"
-            }
+    "properties": {
+      "text": { <1>
+        "type": "text",
+        "fields": {
+          "english": { <2>
+            "type":     "text",
+            "analyzer": "english"
           }
         }
       }
@@ -123,14 +121,12 @@ PUT my_index
       }
    },
    "mappings":{
-      "_doc":{
-         "properties":{
-            "title": {
-               "type":"text",
-               "analyzer":"my_analyzer", <3>
-               "search_analyzer":"my_stop_analyzer", <4>
-               "search_quote_analyzer":"my_analyzer" <5>
-            }
+       "properties":{
+          "title": {
+             "type":"text",
+             "analyzer":"my_analyzer", <3>
+             "search_analyzer":"my_stop_analyzer", <4>
+             "search_quote_analyzer":"my_analyzer" <5>
          }
       }
    }

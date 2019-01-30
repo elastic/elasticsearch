@@ -71,7 +71,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                                  String username, String clusterName) {
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)
-        Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(), request.requestTimeout(), request.pageTimeout(),
+        Configuration cfg = new Configuration(request.zoneId(), request.fetchSize(), request.requestTimeout(), request.pageTimeout(),
                 request.filter(), request.mode(), username, clusterName);
 
         // mode() shouldn't be null
@@ -100,8 +100,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         List<ColumnInfo> columns = new ArrayList<>(rowSet.columnCount());
         for (Schema.Entry entry : rowSet.schema()) {
             if (Mode.isDriver(request.mode())) {
-                columns.add(new ColumnInfo("", entry.name(), entry.type().esType, entry.type().sqlType.getVendorTypeNumber(),
-                        entry.type().displaySize));
+                columns.add(new ColumnInfo("", entry.name(), entry.type().esType, entry.type().displaySize));
             } else {
                 columns.add(new ColumnInfo("", entry.name(), entry.type().esType));
             }

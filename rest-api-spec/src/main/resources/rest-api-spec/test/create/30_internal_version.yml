@@ -1,10 +1,11 @@
 ---
 "Internal version":
-
+ - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
  - do:
       create:
           index:  test_1
-          type:   test
           id:     1
           body:   { foo: bar }
 
@@ -14,18 +15,18 @@
       catch: conflict
       create:
           index:  test_1
-          type:   test
           id:     1
           body:   { foo: bar }
 
 ---
 "Internal versioning with explicit version":
-
+ - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
  - do:
       catch: bad_request
       create:
           index:          test
-          type:           test
           id:             3
           body:           { foo: bar }
           version:        5

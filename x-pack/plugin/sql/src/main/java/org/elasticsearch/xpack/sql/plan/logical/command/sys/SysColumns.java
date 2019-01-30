@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.EsField;
@@ -44,8 +44,8 @@ public class SysColumns extends Command {
     private final LikePattern pattern;
     private final LikePattern columnPattern;
 
-    public SysColumns(Location location, String catalog, String index, LikePattern pattern, LikePattern columnPattern) {
-        super(location);
+    public SysColumns(Source source, String catalog, String index, LikePattern pattern, LikePattern columnPattern) {
+        super(source);
         this.catalog = catalog;
         this.index = index;
         this.pattern = pattern;
@@ -133,42 +133,46 @@ public class SysColumns extends Command {
             EsField field = entry.getValue();
             DataType type = field.getDataType();
             
-            if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
-                rows.add(asList(clusterName,
-                        // schema is not supported
-                        null,
-                        indexName,
-                        name,
-                        odbcCompatible(type.sqlType.getVendorTypeNumber(), isOdbcClient),
-                        type.esType.toUpperCase(Locale.ROOT),
-                        type.displaySize,
-                        // TODO: is the buffer_length correct?
-                        type.size,
-                        // no DECIMAL support
-                        null,
-                        odbcCompatible(DataTypes.metaSqlRadix(type), isOdbcClient),
-                        // everything is nullable
-                        odbcCompatible(DatabaseMetaData.columnNullable, isOdbcClient),
-                        // no remarks
-                        null,
-                        // no column def
-                        null,
-                        // SQL_DATA_TYPE apparently needs to be same as DATA_TYPE except for datetime and interval data types
-                        odbcCompatible(DataTypes.metaSqlDataType(type), isOdbcClient),
-                        // SQL_DATETIME_SUB ?
-                        odbcCompatible(DataTypes.metaSqlDateTimeSub(type), isOdbcClient),
-                        // char octet length
-                        type.isString() || type == DataType.BINARY ? type.size : null,
-                        // position
-                        pos,
-                        "YES",
-                        null,
-                        null,
-                        null,
-                        null,
-                        "NO",
-                        "NO"
-                        ));
+            // skip the nested and object types only for ODBC
+            // https://github.com/elastic/elasticsearch/issues/35376
+            if (type.isPrimitive() || !isOdbcClient) {
+                if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
+                    rows.add(asList(clusterName,
+                            // schema is not supported
+                            null,
+                            indexName,
+                            name,
+                            odbcCompatible(type.sqlType.getVendorTypeNumber(), isOdbcClient),
+                            type.esType.toUpperCase(Locale.ROOT),
+                            type.displaySize,
+                            // TODO: is the buffer_length correct?
+                            type.size,
+                            // no DECIMAL support
+                            null,
+                            odbcCompatible(DataTypes.metaSqlRadix(type), isOdbcClient),
+                            // everything is nullable
+                            odbcCompatible(DatabaseMetaData.columnNullable, isOdbcClient),
+                            // no remarks
+                            null,
+                            // no column def
+                            null,
+                            // SQL_DATA_TYPE apparently needs to be same as DATA_TYPE except for datetime and interval data types
+                            odbcCompatible(DataTypes.metaSqlDataType(type), isOdbcClient),
+                            // SQL_DATETIME_SUB ?
+                            odbcCompatible(DataTypes.metaSqlDateTimeSub(type), isOdbcClient),
+                            // char octet length
+                            type.isString() || type == DataType.BINARY ? type.size : null,
+                            // position
+                            pos,
+                            "YES",
+                            null,
+                            null,
+                            null,
+                            null,
+                            "NO",
+                            "NO"
+                            ));
+                }
             }
             if (field.getProperties() != null) {
                 fillInRows(clusterName, indexName, field.getProperties(), name, rows, columnMatcher, isOdbcClient);

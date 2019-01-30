@@ -164,7 +164,7 @@ public class Ec2NetworkTests extends ESTestCase {
         NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver()));
 
         InetAddress[] addresses = networkService.resolveBindHostAddresses(
-            NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING.get(nodeSettings).toArray(Strings.EMPTY_ARRAY));
+            NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(nodeSettings).toArray(Strings.EMPTY_ARRAY));
         if (expected == null) {
             fail("We should get an IOException, resolved addressed:" + Arrays.toString(addresses));
         }

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import com.carrotsearch.hppc.ObjectShortHashMap;
+
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CommonToken;
@@ -26,6 +27,18 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BackQuotedIdentifierContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanDefaultContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PrimaryExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryPrimaryDefaultContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryTermContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QuoteIdentifierContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StatementContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StatementDefaultContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.UnquoteIdentifierContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionDefaultContext;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
@@ -119,7 +132,7 @@ public class SqlParser {
                 log.info(format(Locale.ROOT, "  %-15s '%s'",
                         symbolicName == null ? literalName : symbolicName,
                         t.getText()));
-            };
+            }
         }
 
         ParserRuleContext tree = parseFunction.apply(parser);
@@ -132,7 +145,7 @@ public class SqlParser {
     }
 
     private static void debug(SqlBaseParser parser) {
-        
+
         // when debugging, use the exact prediction mode (needed for diagnostics as well)
         parser.getInterpreter().setPredictionMode(PredictionMode.LL_EXACT_AMBIG_DETECTION);
 
@@ -214,9 +227,25 @@ public class SqlParser {
     /**
      * Used to catch large expressions that can lead to stack overflows
      */
-    private class CircuitBreakerListener extends SqlBaseBaseListener {
+    static class CircuitBreakerListener extends SqlBaseBaseListener {
 
         private static final short MAX_RULE_DEPTH = 200;
+
+        /**
+         * Due to the structure of the grammar and our custom handling in {@link ExpressionBuilder}
+         * some expressions can exit with a different class than they entered:
+         * e.g.: ValueExpressionContext can exit as ValueExpressionDefaultContext
+         */
+        private static final Map<String, String> ENTER_EXIT_RULE_MAPPING = new HashMap<>();
+
+        static {
+            ENTER_EXIT_RULE_MAPPING.put(StatementDefaultContext.class.getSimpleName(), StatementContext.class.getSimpleName());
+            ENTER_EXIT_RULE_MAPPING.put(QueryPrimaryDefaultContext.class.getSimpleName(), QueryTermContext.class.getSimpleName());
+            ENTER_EXIT_RULE_MAPPING.put(BooleanDefaultContext.class.getSimpleName(), BooleanExpressionContext.class.getSimpleName());
+            ENTER_EXIT_RULE_MAPPING.put(ValueExpressionDefaultContext.class.getSimpleName(), ValueExpressionContext.class.getSimpleName());
+        }
+
+        private boolean insideIn = false;
 
         // Keep current depth for every rule visited.
         // The totalDepth alone cannot be used as expressions like: e1 OR e2 OR e3 OR ...
@@ -226,9 +255,18 @@ public class SqlParser {
 
         @Override
         public void enterEveryRule(ParserRuleContext ctx) {
-            if (ctx.getClass() != SqlBaseParser.UnquoteIdentifierContext.class &&
-                ctx.getClass() != SqlBaseParser.QuoteIdentifierContext.class &&
-                ctx.getClass() != SqlBaseParser.BackQuotedIdentifierContext.class) {
+            if (inDetected(ctx)) {
+                insideIn = true;
+            }
+
+            // Skip PrimaryExpressionContext for IN as it's not visited on exit due to
+            // the grammar's peculiarity rule with "predicated" and "predicate".
+            // Also skip the Identifiers as they are "cheap".
+            if (ctx.getClass() != UnquoteIdentifierContext.class &&
+                ctx.getClass() != QuoteIdentifierContext.class &&
+                ctx.getClass() != BackQuotedIdentifierContext.class &&
+                (insideIn == false || ctx.getClass() != PrimaryExpressionContext.class)) {
+
                 int currentDepth = depthCounts.putOrAdd(ctx.getClass().getSimpleName(), (short) 1, (short) 1);
                 if (currentDepth > MAX_RULE_DEPTH) {
                     throw new ParsingException(source(ctx), "SQL statement too large; " +
@@ -240,11 +278,34 @@ public class SqlParser {
 
         @Override
         public void exitEveryRule(ParserRuleContext ctx) {
-            // Avoid having negative numbers
-            if (depthCounts.containsKey(ctx.getClass().getSimpleName())) {
-                depthCounts.putOrAdd(ctx.getClass().getSimpleName(), (short) 0, (short) -1);
+            if (inDetected(ctx)) {
+                insideIn = false;
             }
+
+            decrementCounter(ctx);
             super.exitEveryRule(ctx);
+        }
+
+        ObjectShortHashMap<String> depthCounts() {
+            return depthCounts;
+        }
+
+        private void decrementCounter(ParserRuleContext ctx) {
+            String className = ctx.getClass().getSimpleName();
+            String classNameToDecrement = ENTER_EXIT_RULE_MAPPING.getOrDefault(className, className);
+
+            // Avoid having negative numbers
+            if (depthCounts.containsKey(classNameToDecrement)) {
+                depthCounts.putOrAdd(classNameToDecrement, (short) 0, (short) -1);
+            }
+        }
+
+        private boolean inDetected(ParserRuleContext ctx) {
+            if (ctx.getParent() != null && ctx.getParent().getClass() == SqlBaseParser.PredicateContext.class) {
+                SqlBaseParser.PredicateContext pc = (SqlBaseParser.PredicateContext) ctx.getParent();
+                return pc.kind != null && pc.kind.getType() == SqlBaseParser.IN;
+            }
+            return false;
         }
     }
 

@@ -87,7 +87,6 @@ public class MasterService extends AbstractLifecycleComponent {
     private volatile Batcher taskBatcher;
 
     public MasterService(String nodeName, Settings settings, ThreadPool threadPool) {
-        super(settings);
         this.nodeName = nodeName;
         // TODO: introduce a dedicated setting for master service
         this.slowTaskLoggingThreshold = CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
@@ -230,7 +229,8 @@ public class MasterService extends AbstractLifecycleComponent {
                 if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
                     String nodeSummary = nodesDelta.shortSummary();
                     if (nodeSummary.length() > 0) {
-                        logger.info("{}, reason: {}", summary, nodeSummary);
+                        logger.info("{}, term: {}, version: {}, reason: {}",
+                            summary, newClusterState.term(), newClusterState.version(), nodeSummary);
                     }
                 }
 

@@ -114,14 +114,13 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     public static final String LICENSE_JOB = "licenseJob";
 
-    private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("EEEE, MMMMM dd, yyyy", Locale.ROOT);
+    private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("EEEE, MMMMM dd, yyyy");
 
     private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, " +
             "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
 
     public LicenseService(Settings settings, ClusterService clusterService, Clock clock, Environment env,
                           ResourceWatcherService resourceWatcherService, XPackLicenseState licenseState) {
-        super(settings);
         this.settings = settings;
         this.clusterService = clusterService;
         this.clock = clock;

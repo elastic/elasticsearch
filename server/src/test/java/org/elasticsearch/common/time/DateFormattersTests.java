@@ -23,13 +23,15 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeParseException;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -43,34 +45,9 @@ public class DateFormattersTests extends ESTestCase {
     public void testEpochMillisParser() {
         DateFormatter formatter = DateFormatters.forPattern("epoch_millis");
         {
-            Instant instant = Instant.from(formatter.parse("12345.6789"));
-            assertThat(instant.getEpochSecond(), is(12L));
-            assertThat(instant.getNano(), is(345_678_900));
-        }
-        {
             Instant instant = Instant.from(formatter.parse("12345"));
             assertThat(instant.getEpochSecond(), is(12L));
             assertThat(instant.getNano(), is(345_000_000));
-        }
-        {
-            Instant instant = Instant.from(formatter.parse("12345."));
-            assertThat(instant.getEpochSecond(), is(12L));
-            assertThat(instant.getNano(), is(345_000_000));
-        }
-        {
-            Instant instant = Instant.from(formatter.parse("-12345.6789"));
-            assertThat(instant.getEpochSecond(), is(-13L));
-            assertThat(instant.getNano(), is(1_000_000_000 - 345_678_900));
-        }
-        {
-            Instant instant = Instant.from(formatter.parse("-436134.241272"));
-            assertThat(instant.getEpochSecond(), is(-437L));
-            assertThat(instant.getNano(), is(1_000_000_000 - 134_241_272));
-        }
-        {
-            Instant instant = Instant.from(formatter.parse("-12345"));
-            assertThat(instant.getEpochSecond(), is(-13L));
-            assertThat(instant.getNano(), is(1_000_000_000 - 345_000_000));
         }
         {
             Instant instant = Instant.from(formatter.parse("0"));
@@ -79,13 +56,13 @@ public class DateFormattersTests extends ESTestCase {
         }
     }
 
-    public void testEpochMilliParser() {
+    public void testInvalidEpochMilliParser() {
         DateFormatter formatter = DateFormatters.forPattern("epoch_millis");
-        DateTimeParseException e = expectThrows(DateTimeParseException.class, () -> formatter.parse("invalid"));
-        assertThat(e.getMessage(), containsString("invalid number"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("invalid"));
+        assertThat(e.getMessage(), containsString("failed to parse date field [invalid] with format [epoch_millis]"));
 
-        e = expectThrows(DateTimeParseException.class, () -> formatter.parse("123.1234567"));
-        assertThat(e.getMessage(), containsString("too much granularity after dot [123.1234567]"));
+        e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("123.1234567"));
+        assertThat(e.getMessage(), containsString("failed to parse date field [123.1234567] with format [epoch_millis]"));
     }
 
     // this is not in the duelling tests, because the epoch second parser in joda time drops the milliseconds after the comma
@@ -94,30 +71,14 @@ public class DateFormattersTests extends ESTestCase {
     public void testEpochSecondParser() {
         DateFormatter formatter = DateFormatters.forPattern("epoch_second");
 
-        assertThat(Instant.from(formatter.parse("1234.567")).toEpochMilli(), is(1234567L));
-        assertThat(Instant.from(formatter.parse("1234.")).getNano(), is(0));
-        assertThat(Instant.from(formatter.parse("1234.")).getEpochSecond(), is(1234L));
-        assertThat(Instant.from(formatter.parse("1234.1")).getNano(), is(100_000_000));
-        assertThat(Instant.from(formatter.parse("1234.12")).getNano(), is(120_000_000));
-        assertThat(Instant.from(formatter.parse("1234.123")).getNano(), is(123_000_000));
-        assertThat(Instant.from(formatter.parse("1234.1234")).getNano(), is(123_400_000));
-        assertThat(Instant.from(formatter.parse("1234.12345")).getNano(), is(123_450_000));
-        assertThat(Instant.from(formatter.parse("1234.123456")).getNano(), is(123_456_000));
-        assertThat(Instant.from(formatter.parse("1234.1234567")).getNano(), is(123_456_700));
-        assertThat(Instant.from(formatter.parse("1234.12345678")).getNano(), is(123_456_780));
-        assertThat(Instant.from(formatter.parse("1234.123456789")).getNano(), is(123_456_789));
-
-        assertThat(Instant.from(formatter.parse("-1234.567")).toEpochMilli(), is(-1234567L));
-        assertThat(Instant.from(formatter.parse("-1234")).getNano(), is(0));
-
-        DateTimeParseException e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.1234567890"));
-        assertThat(e.getMessage(), is("too much granularity after dot [1234.1234567890]"));
-        e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.123456789013221"));
-        assertThat(e.getMessage(), is("too much granularity after dot [1234.123456789013221]"));
-        e = expectThrows(DateTimeParseException.class, () -> formatter.parse("abc"));
-        assertThat(e.getMessage(), is("invalid number [abc]"));
-        e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.abc"));
-        assertThat(e.getMessage(), is("invalid number [1234.abc]"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("1234.1234567890"));
+        assertThat(e.getMessage(), is("failed to parse date field [1234.1234567890] with format [epoch_second]"));
+        e = expectThrows(IllegalArgumentException .class, () -> formatter.parse("1234.123456789013221"));
+        assertThat(e.getMessage(), containsString("[1234.123456789013221]"));
+        e = expectThrows(IllegalArgumentException .class, () -> formatter.parse("abc"));
+        assertThat(e.getMessage(), containsString("[abc]"));
+        e = expectThrows(IllegalArgumentException .class, () -> formatter.parse("1234.abc"));
+        assertThat(e.getMessage(), containsString("[1234.abc]"));
     }
 
     public void testEpochMilliParsersWithDifferentFormatters() {
@@ -127,22 +88,18 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(formatter.pattern(), is("strict_date_optional_time||epoch_millis"));
     }
 
+    public void testParsersWithMultipleInternalFormats() throws Exception {
+        ZonedDateTime first = DateFormatters.toZonedDateTime(
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T17:14:56+0100"));
+        ZonedDateTime second = DateFormatters.toZonedDateTime(
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T17:14:56+01:00"));
+        assertThat(first, is(second));
+    }
+
     public void testLocales() {
         assertThat(DateFormatters.forPattern("strict_date_optional_time").locale(), is(Locale.ROOT));
         Locale locale = randomLocale(random());
         assertThat(DateFormatters.forPattern("strict_date_optional_time").withLocale(locale).locale(), is(locale));
-        if (locale.equals(Locale.ROOT)) {
-            DateFormatter millisFormatter = DateFormatters.forPattern("epoch_millis");
-            assertThat(millisFormatter.withLocale(locale), is(millisFormatter));
-            DateFormatter secondFormatter = DateFormatters.forPattern("epoch_second");
-            assertThat(secondFormatter.withLocale(locale), is(secondFormatter));
-        } else {
-            IllegalArgumentException e =
-                expectThrows(IllegalArgumentException.class, () -> DateFormatters.forPattern("epoch_millis").withLocale(locale));
-            assertThat(e.getMessage(), is("epoch_millis date formatter can only be in locale ROOT"));
-            e = expectThrows(IllegalArgumentException.class, () -> DateFormatters.forPattern("epoch_second").withLocale(locale));
-            assertThat(e.getMessage(), is("epoch_second date formatter can only be in locale ROOT"));
-        }
     }
 
     public void testTimeZones() {
@@ -150,18 +107,6 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(DateFormatters.forPattern("strict_date_optional_time").zone(), is(nullValue()));
         ZoneId zoneId = randomZone();
         assertThat(DateFormatters.forPattern("strict_date_optional_time").withZone(zoneId).zone(), is(zoneId));
-        if (zoneId.equals(ZoneOffset.UTC)) {
-            DateFormatter millisFormatter = DateFormatters.forPattern("epoch_millis");
-            assertThat(millisFormatter.withZone(zoneId), is(millisFormatter));
-            DateFormatter secondFormatter = DateFormatters.forPattern("epoch_second");
-            assertThat(secondFormatter.withZone(zoneId), is(secondFormatter));
-        } else {
-            IllegalArgumentException e =
-                expectThrows(IllegalArgumentException.class, () -> DateFormatters.forPattern("epoch_millis").withZone(zoneId));
-            assertThat(e.getMessage(), is("epoch_millis date formatter can only be in zone offset UTC"));
-            e = expectThrows(IllegalArgumentException.class, () -> DateFormatters.forPattern("epoch_second").withZone(zoneId));
-            assertThat(e.getMessage(), is("epoch_second date formatter can only be in zone offset UTC"));
-        }
     }
 
     public void testEqualsAndHashcode() {
@@ -191,5 +136,80 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(epochMillisFormatter.hashCode(), is(DateFormatters.forPattern("epoch_millis").hashCode()));
         assertThat(epochMillisFormatter, sameInstance(DateFormatters.forPattern("epoch_millis")));
         assertThat(epochMillisFormatter, equalTo(DateFormatters.forPattern("epoch_millis")));
+    }
+
+    public void testSupportBackwardsJava8Format() {
+        assertThat(DateFormatter.forPattern("8yyyy-MM-dd"), instanceOf(JavaDateFormatter.class));
+        // named formats too
+        assertThat(DateFormatter.forPattern("8date_optional_time"), instanceOf(JavaDateFormatter.class));
+        // named formats too
+        DateFormatter formatter = DateFormatter.forPattern("8date_optional_time||ww-MM-dd");
+        assertThat(formatter, instanceOf(JavaDateFormatter.class));
+    }
+
+    public void testParsingStrictNanoDates() {
+        DateFormatter formatter = DateFormatters.forPattern("strict_date_optional_time_nanos");
+        formatter.format(formatter.parse("2016-01-01T00:00:00.000"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56Z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56+0100"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56+01:00"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456789Z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456789+0100"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456789+01:00"));
+    }
+
+    public void testRoundupFormatterWithEpochDates() {
+        assertRoundupFormatter("epoch_millis", "1234567890", 1234567890L);
+        // also check nanos of the epoch_millis formatter if it is rounded up to the nano second
+        DateTimeFormatter roundUpFormatter = ((JavaDateFormatter) DateFormatter.forPattern("8epoch_millis")).getRoundupParser();
+        Instant epochMilliInstant = DateFormatters.toZonedDateTime(roundUpFormatter.parse("1234567890")).toInstant();
+        assertThat(epochMilliInstant.getLong(ChronoField.NANO_OF_SECOND), is(890_999_999L));
+
+        assertRoundupFormatter("strict_date_optional_time||epoch_millis", "2018-10-10T12:13:14.123Z", 1539173594123L);
+        assertRoundupFormatter("strict_date_optional_time||epoch_millis", "1234567890", 1234567890L);
+        assertRoundupFormatter("strict_date_optional_time||epoch_millis", "2018-10-10", 1539215999999L);
+        assertRoundupFormatter("uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_millis", "2018-10-10T12:13:14.123", 1539173594123L);
+        assertRoundupFormatter("uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_millis", "1234567890", 1234567890L);
+
+        assertRoundupFormatter("epoch_second", "1234567890", 1234567890999L);
+        // also check nanos of the epoch_millis formatter if it is rounded up to the nano second
+        DateTimeFormatter epochSecondRoundupParser = ((JavaDateFormatter) DateFormatter.forPattern("8epoch_second")).getRoundupParser();
+        Instant epochSecondInstant = DateFormatters.toZonedDateTime(epochSecondRoundupParser.parse("1234567890")).toInstant();
+        assertThat(epochSecondInstant.getLong(ChronoField.NANO_OF_SECOND), is(999_999_999L));
+
+        assertRoundupFormatter("strict_date_optional_time||epoch_second", "2018-10-10T12:13:14.123Z", 1539173594123L);
+        assertRoundupFormatter("strict_date_optional_time||epoch_second", "1234567890", 1234567890999L);
+        assertRoundupFormatter("strict_date_optional_time||epoch_second", "2018-10-10", 1539215999999L);
+        assertRoundupFormatter("uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_second", "2018-10-10T12:13:14.123", 1539173594123L);
+        assertRoundupFormatter("uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_second", "1234567890", 1234567890999L);
+    }
+
+    private void assertRoundupFormatter(String format, String input, long expectedMilliSeconds) {
+        JavaDateFormatter dateFormatter = (JavaDateFormatter) DateFormatter.forPattern(format);
+        dateFormatter.parse(input);
+        DateTimeFormatter roundUpFormatter = dateFormatter.getRoundupParser();
+        long millis = DateFormatters.toZonedDateTime(roundUpFormatter.parse(input)).toInstant().toEpochMilli();
+        assertThat(millis, is(expectedMilliSeconds));
+    }
+
+    public void testRoundupFormatterZone() {
+        ZoneId zoneId = randomZone();
+        String format = randomFrom("epoch_second", "epoch_millis", "strict_date_optional_time", "uuuu-MM-dd'T'HH:mm:ss.SSS",
+            "strict_date_optional_time||date_optional_time");
+        JavaDateFormatter formatter = (JavaDateFormatter) DateFormatter.forPattern(format).withZone(zoneId);
+        DateTimeFormatter roundUpFormatter = formatter.getRoundupParser();
+        assertThat(roundUpFormatter.getZone(), is(zoneId));
+        assertThat(formatter.zone(), is(zoneId));
+    }
+
+    public void testRoundupFormatterLocale() {
+        Locale locale = randomLocale(random());
+        String format = randomFrom("epoch_second", "epoch_millis", "strict_date_optional_time", "uuuu-MM-dd'T'HH:mm:ss.SSS",
+            "strict_date_optional_time||date_optional_time");
+        JavaDateFormatter formatter = (JavaDateFormatter) DateFormatter.forPattern(format).withLocale(locale);
+        DateTimeFormatter roundupParser = formatter.getRoundupParser();
+        assertThat(roundupParser.getLocale(), is(locale));
+        assertThat(formatter.locale(), is(locale));
     }
 }

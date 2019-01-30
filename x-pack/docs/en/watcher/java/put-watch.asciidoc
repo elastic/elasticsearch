@@ -10,8 +10,8 @@ registered with the relevant trigger engine (typically the scheduler, for the
 
 IMPORTANT:  Putting a watch must be done via this API only. Do not put a watch
             directly to the `.watches` index using Elasticsearch's Index API.
-            When {security} is enabled, make sure no `write` privileges are
-            granted to anyone over the `.watches` index.
+            When the {es} {security-features} are enabled, make sure no `write`
+            privileges are granted to anyone over the `.watches` index.
 
 
 The following example adds a watch with the `my-watch` id that has the following

@@ -30,7 +30,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 import org.junit.After;
 import org.junit.Before;
 
@@ -51,8 +51,8 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
 
     private final Settings settings = Settings.builder()
         .put("node.name", "NettySizeHeaderFrameDecoderTests")
-        .put(TcpTransport.BIND_HOST.getKey(), "127.0.0.1")
-        .put(TcpTransport.PORT.getKey(), "0")
+        .put(TransportSettings.BIND_HOST.getKey(), "127.0.0.1")
+        .put(TransportSettings.PORT.getKey(), "0")
         .build();
 
     private ThreadPool threadPool;

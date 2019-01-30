@@ -48,6 +48,7 @@ public class GetRolesResponseTests extends ESTestCase {
                 "      {\n" +
                 "        \"names\" : [ \"index1\", \"index2\" ],\n" +
                 "        \"privileges\" : [ \"all\" ],\n" +
+                "        \"allow_restricted_indices\" : true,\n" +
                 "        \"field_security\" : {\n" +
                 "          \"grant\" : [ \"title\", \"body\" ]}\n" +
                 "      }\n" +
@@ -81,6 +82,7 @@ public class GetRolesResponseTests extends ESTestCase {
             .indices("index1", "index2")
             .privileges("all")
             .grantedFields("title", "body")
+            .allowRestrictedIndices(true)
             .build();
         assertThat(role.getIndicesPrivileges().contains(expectedIndicesPrivileges), equalTo(true));
         final Map<String, Object> expectedMetadata = new HashMap<>();
@@ -106,6 +108,7 @@ public class GetRolesResponseTests extends ESTestCase {
             .privileges("write", "monitor", "delete")
             .grantedFields("field1", "field2")
             .deniedFields("field3", "field4")
+            .allowRestrictedIndices(true)
             .build();
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("key", "value");
@@ -125,9 +128,10 @@ public class GetRolesResponseTests extends ESTestCase {
             .privileges("write", "monitor", "delete")
             .grantedFields("other_field1", "other_field2")
             .deniedFields("other_field3", "other_field4")
+            .allowRestrictedIndices(false)
             .build();
         Map<String, Object> metadata2 = new HashMap<>();
-        metadata.put("other_key", "other_value");
+        metadata2.put("other_key", "other_value");
         final Role role2 = Role.builder()
             .name("role2_name")
             .clusterPrivileges("monitor", "manage", "manage_saml")
@@ -158,6 +162,7 @@ public class GetRolesResponseTests extends ESTestCase {
                 .privileges("write", "monitor", "delete")
                 .grantedFields("field1", "field2")
                 .deniedFields("field3", "field4")
+                .allowRestrictedIndices(true)
                 .build();
             Map<String, Object> metadata = new HashMap<String, Object>();
             metadata.put("key", "value");
@@ -179,6 +184,7 @@ public class GetRolesResponseTests extends ESTestCase {
                 .privileges("write", "monitor", "delete")
                 .grantedFields("field1", "field2")
                 .deniedFields("field3", "field4")
+                .allowRestrictedIndices(false)
                 .build();
             Map<String, Object> metadata = new HashMap<String, Object>();
             metadata.put("key", "value");

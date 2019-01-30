@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-post-data]]
-=== Post Data to Jobs API
+=== Post data to jobs API
 ++++
-<titleabbrev>Post Data to Jobs</titleabbrev>
+<titleabbrev>Post data to jobs</titleabbrev>
 ++++
 
 Sends data to an anomaly detection job for analysis.

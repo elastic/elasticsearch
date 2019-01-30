@@ -11,6 +11,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -155,7 +156,8 @@ public class HasPrivilegesResponseTests
 
     private Collection<HasPrivilegesResponse.ResourcePrivileges> randomResourcePrivileges() {
         final Collection<HasPrivilegesResponse.ResourcePrivileges> list = new ArrayList<>();
-        for (String resource : randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(2, 6))) {
+        // Use hash set to force a unique set of resources
+        for (String resource : Sets.newHashSet(randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(2, 6)))) {
             final Map<String, Boolean> privileges = new HashMap<>();
             for (String priv : randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 8))) {
                 privileges.put(priv, randomBoolean());

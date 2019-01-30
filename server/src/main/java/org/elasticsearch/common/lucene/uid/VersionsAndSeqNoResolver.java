@@ -31,8 +31,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
 
-import static org.elasticsearch.common.lucene.uid.Versions.NOT_FOUND;
-
 /** Utility class to resolve the Lucene doc ID, version, seqNo and primaryTerms for a given uid. */
 public final class VersionsAndSeqNoResolver {
 
@@ -96,12 +94,16 @@ public final class VersionsAndSeqNoResolver {
     public static class DocIdAndVersion {
         public final int docId;
         public final long version;
+        public final long seqNo;
+        public final long primaryTerm;
         public final LeafReader reader;
         public final int docBase;
 
-        public DocIdAndVersion(int docId, long version, LeafReader reader, int docBase) {
+        public DocIdAndVersion(int docId, long version, long seqNo, long primaryTerm, LeafReader reader, int docBase) {
             this.docId = docId;
             this.version = version;
+            this.seqNo = seqNo;
+            this.primaryTerm = primaryTerm;
             this.reader = reader;
             this.docBase = docBase;
         }
@@ -129,7 +131,7 @@ public final class VersionsAndSeqNoResolver {
      * <li>a doc ID and a version otherwise
      * </ul>
      */
-    public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term) throws IOException {
+    public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term, boolean loadSeqNo) throws IOException {
         PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field());
         List<LeafReaderContext> leaves = reader.leaves();
         // iterate backwards to optimize for the frequently updated documents
@@ -137,7 +139,7 @@ public final class VersionsAndSeqNoResolver {
         for (int i = leaves.size() - 1; i >= 0; i--) {
             final LeafReaderContext leaf = leaves.get(i);
             PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
-            DocIdAndVersion result = lookup.lookupVersion(term.bytes(), leaf);
+            DocIdAndVersion result = lookup.lookupVersion(term.bytes(), loadSeqNo, leaf);
             if (result != null) {
                 return result;
             }
@@ -174,16 +176,5 @@ public final class VersionsAndSeqNoResolver {
             }
         }
         return latest;
-    }
-
-    /**
-     * Load the version for the uid from the reader, returning<ul>
-     * <li>{@link Versions#NOT_FOUND} if no matching doc exists,
-     * <li>the version associated with the provided uid otherwise
-     * </ul>
-     */
-    public static long loadVersion(IndexReader reader, Term term) throws IOException {
-        final DocIdAndVersion docIdAndVersion = loadDocIdAndVersion(reader, term);
-        return docIdAndVersion == null ? NOT_FOUND : docIdAndVersion.version;
     }
 }

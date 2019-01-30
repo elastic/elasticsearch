@@ -19,16 +19,18 @@
 
 package org.elasticsearch.ingest;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -68,6 +70,8 @@ import java.util.function.Consumer;
 public class IngestService implements ClusterStateApplier {
 
     public static final String NOOP_PIPELINE_NAME = "_none";
+
+    private static final Logger logger = LogManager.getLogger(IngestService.class);
 
     private final ClusterService clusterService;
     private final ScriptService scriptService;
@@ -256,7 +260,11 @@ public class IngestService implements ClusterStateApplier {
     public void applyClusterState(final ClusterChangedEvent event) {
         ClusterState state = event.state();
         Map<String, Pipeline> originalPipelines = pipelines;
-        innerUpdatePipelines(event.previousState(), state);
+        try {
+            innerUpdatePipelines(event.previousState(), state);
+        } catch (ElasticsearchParseException e) {
+            logger.warn("failed to update ingest pipelines", e);
+        }
         //pipelines changed, so add the old metrics to the new metrics
         if (originalPipelines != pipelines) {
             pipelines.forEach((id, pipeline) -> {
@@ -388,13 +396,7 @@ public class IngestService implements ClusterStateApplier {
             @Override
             protected void doRun() {
                 for (DocWriteRequest<?> actionRequest : actionRequests) {
-                    IndexRequest indexRequest = null;
-                    if (actionRequest instanceof IndexRequest) {
-                        indexRequest = (IndexRequest) actionRequest;
-                    } else if (actionRequest instanceof UpdateRequest) {
-                        UpdateRequest updateRequest = (UpdateRequest) actionRequest;
-                        indexRequest = updateRequest.docAsUpsert() ? updateRequest.doc() : updateRequest.upsertRequest();
-                    }
+                    IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
                     if (indexRequest == null) {
                         continue;
                     }

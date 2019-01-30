@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-job-config]]
-=== Rollup Job Configuration
+=== Rollup job configuration
 
 experimental[]
 

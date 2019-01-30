@@ -296,6 +296,54 @@ public abstract class AbstractScopedSettings {
         });
     }
 
+    /**
+     * Adds a affix settings consumer that accepts the settings for a group of settings. The consumer is only
+     * notified if at least one of the settings change.
+     * <p>
+     * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
+     * </p>
+     */
+    public synchronized void addAffixGroupUpdateConsumer(List<Setting.AffixSetting<?>> settings, BiConsumer<String, Settings> consumer) {
+        List<SettingUpdater> affixUpdaters = new ArrayList<>(settings.size());
+        for (Setting.AffixSetting<?> setting : settings) {
+            ensureSettingIsRegistered(setting);
+            affixUpdaters.add(setting.newAffixUpdater((a,b)-> {}, logger, (a,b)-> {}));
+        }
+
+        addSettingsUpdater(new SettingUpdater<Map<String, Settings>>() {
+
+            @Override
+            public boolean hasChanged(Settings current, Settings previous) {
+                return affixUpdaters.stream().anyMatch(au -> au.hasChanged(current, previous));
+            }
+
+            @Override
+            public Map<String, Settings> getValue(Settings current, Settings previous) {
+                Set<String> namespaces = new HashSet<>();
+                for (Setting.AffixSetting<?> setting : settings) {
+                    SettingUpdater affixUpdaterA = setting.newAffixUpdater((k, v) -> namespaces.add(k), logger, (a, b) ->{});
+                    affixUpdaterA.apply(current, previous);
+                }
+                Map<String, Settings> namespaceToSettings = new HashMap<>(namespaces.size());
+                for (String namespace : namespaces) {
+                    Set<String> concreteSettings = new HashSet<>(settings.size());
+                    for (Setting.AffixSetting<?> setting : settings) {
+                        concreteSettings.add(setting.getConcreteSettingForNamespace(namespace).getKey());
+                    }
+                    namespaceToSettings.put(namespace, current.filter(concreteSettings::contains));
+                }
+                return namespaceToSettings;
+            }
+
+            @Override
+            public void apply(Map<String, Settings> values, Settings current, Settings previous) {
+                for (Map.Entry<String, Settings> entry : values.entrySet()) {
+                    consumer.accept(entry.getKey(), entry.getValue());
+                }
+            }
+        });
+    }
+
     private void ensureSettingIsRegistered(Setting.AffixSetting<?> setting) {
         final Setting<?> registeredSetting = this.complexMatchers.get(setting.getKey());
         if (setting != registeredSetting) {
@@ -723,10 +771,10 @@ public abstract class AbstractScopedSettings {
             } else if (get(key) == null) {
                 throw new IllegalArgumentException(type + " setting [" + key + "], not recognized");
             } else if (isDelete == false && canUpdate.test(key)) {
-                validate(key, toApply, false); // we might not have a full picture here do to a dependency validation
+                get(key).validateWithoutDependencies(toApply); // we might not have a full picture here do to a dependency validation
                 settingsBuilder.copy(key, toApply);
                 updates.copy(key, toApply);
-                changed = true;
+                changed |= toApply.get(key).equals(target.get(key)) == false;
             } else {
                 if (isFinalSetting(key)) {
                     throw new IllegalArgumentException("final " + type + " setting [" + key + "], not updateable");

@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -368,7 +367,7 @@ public final class IndexGraveyard implements MetaData.Custom {
             TOMBSTONE_PARSER.declareString((b, s) -> {}, new ParseField(DELETE_DATE_KEY));
         }
 
-        static final DateFormatter FORMATTER = DateFormatters.forPattern("strict_date_optional_time").withZone(ZoneOffset.UTC);
+        static final DateFormatter FORMATTER = DateFormatter.forPattern("strict_date_optional_time").withZone(ZoneOffset.UTC);
 
         static ContextParser<Void, Tombstone> getParser() {
             return (parser, context) -> TOMBSTONE_PARSER.apply(parser, null).build();
@@ -444,10 +443,6 @@ public final class IndexGraveyard implements MetaData.Custom {
             index.toXContent(builder, params);
             builder.timeField(DELETE_DATE_IN_MILLIS_KEY, DELETE_DATE_KEY, deleteDateInMillis);
             return builder.endObject();
-        }
-
-        public static Tombstone fromXContent(final XContentParser parser) throws IOException {
-            return TOMBSTONE_PARSER.parse(parser, null).build();
         }
 
         /**

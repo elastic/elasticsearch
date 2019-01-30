@@ -38,7 +38,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -56,13 +56,16 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
-import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING;
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.DATA;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.INGEST;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.MASTER;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
-import static org.elasticsearch.test.discovery.TestZenDiscovery.USE_ZEN2;
+import static org.elasticsearch.node.Node.NODE_MASTER_SETTING;
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
 import static org.hamcrest.Matchers.equalTo;
@@ -109,7 +112,7 @@ public class InternalTestClusterTests extends ESTestCase {
 
     static {
         clusterUniqueSettings.add(ClusterName.CLUSTER_NAME_SETTING.getKey());
-        clusterUniqueSettings.add(TcpTransport.PORT.getKey());
+        clusterUniqueSettings.add(TransportSettings.PORT.getKey());
         clusterUniqueSettings.add("http.port");
     }
 
@@ -187,6 +190,7 @@ public class InternalTestClusterTests extends ESTestCase {
         final String clusterName1 = "shared1";
         final String clusterName2 = "shared2";
         String transportClient = getTestTransportType();
+        final long bootstrapNodeSelectionSeed = randomLong();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -200,10 +204,17 @@ public class InternalTestClusterTests extends ESTestCase {
                 if (autoManageMinMasterNodes == false) {
                     assert minNumDataNodes == maxNumDataNodes;
                     assert masterNodes == false;
-                    settings.put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minNumDataNodes / 2 + 1)
-                        .put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), minNumDataNodes);
+                    settings.put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minNumDataNodes / 2 + 1);
                 }
                 return settings.build();
+            }
+
+            @Override
+            public List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
+                if (autoManageMinMasterNodes) {
+                    return allNodesSettings;
+                }
+                return addBootstrapConfiguration(new Random(bootstrapNodeSelectionSeed), allNodesSettings);
             }
 
             @Override
@@ -255,6 +266,19 @@ public class InternalTestClusterTests extends ESTestCase {
         }
     }
 
+    private static List<Settings> addBootstrapConfiguration(Random random, List<Settings> allNodesSettings) {
+        final List<Settings> updatedSettings = new ArrayList<>(allNodesSettings);
+        final int bootstrapIndex = randomFrom(random, IntStream.range(0, updatedSettings.size())
+            .filter(i -> NODE_MASTER_SETTING.get(allNodesSettings.get(i))).boxed().collect(Collectors.toList()));
+        final Settings settings = updatedSettings.get(bootstrapIndex);
+        assertFalse(INITIAL_MASTER_NODES_SETTING.exists(settings));
+        assertTrue(NODE_MASTER_SETTING.get(settings));
+        updatedSettings.set(bootstrapIndex,
+            Settings.builder().put(settings).putList(INITIAL_MASTER_NODES_SETTING.getKey(), allNodesSettings.stream()
+                .filter(NODE_MASTER_SETTING::get).map(NODE_NAME_SETTING::get).collect(Collectors.toList())).build());
+        return updatedSettings;
+    }
+
     public void testDataFolderAssignmentAndCleaning() throws IOException, InterruptedException {
         long clusterSeed = randomLong();
         boolean masterNodes = randomBoolean();
@@ -272,7 +296,8 @@ public class InternalTestClusterTests extends ESTestCase {
                         NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
                         2 + (masterNodes ? InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES : 0) + maxNumDataNodes + numClientNodes)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
-                    .put(USE_ZEN2.getKey(), false) // full cluster restarts not yet supported
+                    .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
+                    .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
                     .build();
             }
 
@@ -368,6 +393,7 @@ public class InternalTestClusterTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37462")
     public void testDifferentRolesMaintainPathOnRestart() throws Exception {
         final Path baseDir = createTempDir();
         final int numNodes = 5;
@@ -375,6 +401,9 @@ public class InternalTestClusterTests extends ESTestCase {
         String transportClient = getTestTransportType();
         InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, false,
                 false, 0, 0, "test", new NodeConfigurationSource() {
+
+            private boolean bootstrapConfigurationSet;
+
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder()
@@ -384,8 +413,19 @@ public class InternalTestClusterTests extends ESTestCase {
                         // speedup join timeout as setting initial state timeout to 0 makes split
                         // elections more likely
                         .put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "3s")
-                        .put(USE_ZEN2.getKey(), false) // full cluster restarts not yet supported
+                        .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
+                        .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
                         .build();
+            }
+
+            @Override
+            public List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
+                if (bootstrapConfigurationSet || allNodesSettings.stream().noneMatch(NODE_MASTER_SETTING::get)) {
+                    return allNodesSettings;
+                }
+
+                bootstrapConfigurationSet = true;
+                return addBootstrapConfiguration(random(), allNodesSettings);
             }
 
             @Override
@@ -408,10 +448,11 @@ public class InternalTestClusterTests extends ESTestCase {
             roles.add(role);
         }
 
+        final long masterCount = roles.stream().filter(role -> role == MASTER).count();
         final Settings minMasterNodes = Settings.builder()
-            .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(),
-                roles.stream().filter(role -> role == MASTER).count() / 2 + 1
-            ).build();
+            .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), masterCount / 2 + 1)
+            .build();
+
         try {
             Map<DiscoveryNode.Role, Set<String>> pathsPerRole = new HashMap<>();
             for (int i = 0; i < numNodes; i++) {
@@ -467,7 +508,8 @@ public class InternalTestClusterTests extends ESTestCase {
                 return Settings.builder()
                     .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
-                    .put(USE_ZEN2.getKey(), false) // full cluster restarts not yet supported
+                    .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
+                    .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
                     .build();
             }
 

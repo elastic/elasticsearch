@@ -721,11 +721,13 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                                 (long) randomIntBetween(0, 1000),
                                 ImmutableOpenMap.of()));
                     case 1:
-                        return new RestoreInProgress(new RestoreInProgress.Entry(
+                        return new RestoreInProgress.Builder().add(
+                            new RestoreInProgress.Entry(
+                                UUIDs.randomBase64UUID(),
                                 new Snapshot(randomName("repo"), new SnapshotId(randomName("snap"), UUIDs.randomBase64UUID())),
                                 RestoreInProgress.State.fromValue((byte) randomIntBetween(0, 3)),
                                 emptyList(),
-                                ImmutableOpenMap.of()));
+                                ImmutableOpenMap.of())).build();
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");
                 }

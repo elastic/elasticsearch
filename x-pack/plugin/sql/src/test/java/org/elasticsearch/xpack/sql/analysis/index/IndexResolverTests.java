@@ -15,9 +15,10 @@ import org.elasticsearch.xpack.sql.type.TypesTests;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public class IndexResolverTests extends ESTestCase {
 
@@ -112,6 +113,25 @@ public class IndexResolverTests extends ESTestCase {
         assertTrue(resolution.isValid());
         assertEqualsMaps(nestedMapping, resolution.get().mapping());
     }
+    
+    public void testMetaFieldsAreIgnored() throws Exception {
+        Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
+        addFieldCaps(fieldCaps, "_version", "_version", false, false);
+        addFieldCaps(fieldCaps, "_meta_field", "integer", true, true);
+        addFieldCaps(fieldCaps, "_size", "integer", true, true);
+        addFieldCaps(fieldCaps, "text", "keyword", true, true);
+        
+        String wildcard = "*";
+        IndexResolution resolution = IndexResolver.mergedMapping(wildcard, fieldCaps);
+        assertTrue(resolution.isValid());
+
+        EsIndex esIndex = resolution.get();
+        assertEquals(wildcard, esIndex.name());
+        assertNull(esIndex.mapping().get("_version"));
+        assertNull(esIndex.mapping().get("_size"));
+        assertEquals(DataType.INTEGER, esIndex.mapping().get("_meta_field").getDataType());
+        assertEquals(DataType.KEYWORD, esIndex.mapping().get("text").getDataType());
+    }
 
     public static IndexResolution merge(EsIndex... indices) {
         return IndexResolver.mergedMapping("*", fromMappings(indices));
@@ -170,7 +190,7 @@ public class IndexResolverTests extends ESTestCase {
     }
 
     private static boolean isAggregatable(DataType type) {
-        return type.isNumeric() || type == DataType.KEYWORD || type == DataType.DATE;
+        return type.isNumeric() || type == DataType.KEYWORD || type == DataType.DATETIME;
     }
 
     private static class UpdateableFieldCapabilities extends FieldCapabilities {
@@ -199,14 +219,21 @@ public class IndexResolverTests extends ESTestCase {
 
         @Override
         public String toString() {
-            return String.format(Locale.ROOT, "%s,%s->%s", getName(), getType(), indices);
+            return format("{},{}->{}", getName(), getType(), indices);
         }
     }
 
     private static <K, V> void assertEqualsMaps(Map<K, V> left, Map<K, V> right) {
         for (Entry<K, V> entry : left.entrySet()) {
             V rv = right.get(entry.getKey());
-            assertEquals(String.format(Locale.ROOT, "Key [%s] has different values", entry.getKey()), entry.getValue(), rv);
+            assertEquals(format("Key [{}] has different values", entry.getKey()), entry.getValue(), rv);
         }
+    }
+    
+    private void addFieldCaps(Map<String, Map<String, FieldCapabilities>> fieldCaps, String name, String type, boolean isSearchable,
+            boolean isAggregatable) {
+        Map<String, FieldCapabilities> cap = new HashMap<>();
+        cap.put(name, new FieldCapabilities(name, type, isSearchable, isAggregatable));
+        fieldCaps.put(name, cap);
     }
 }

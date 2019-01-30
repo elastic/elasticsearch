@@ -103,7 +103,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
         this.classname = in.readString();
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            extendedPlugins = in.readList(StreamInput::readString);
+            extendedPlugins = in.readStringList();
         } else {
             extendedPlugins = Collections.emptyList();
         }
@@ -128,7 +128,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
         out.writeString(classname);
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            out.writeStringList(extendedPlugins);
+            out.writeStringCollection(extendedPlugins);
         }
         out.writeBoolean(hasNativeController);
         if (out.getVersion().onOrAfter(Version.V_6_0_0_beta2) && out.getVersion().before(Version.V_6_3_0)) {

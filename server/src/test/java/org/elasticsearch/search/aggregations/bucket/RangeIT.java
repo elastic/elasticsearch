@@ -87,7 +87,7 @@ public class RangeIT extends ESIntegTestCase {
             scripts.put("doc['" + MULTI_VALUED_FIELD_NAME + "']", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Longs value = (ScriptDocValues.Longs) doc.get(MULTI_VALUED_FIELD_NAME);
-                return value.getValues();
+                return value;
             });
 
             return scripts;

@@ -19,20 +19,17 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.hamcrest.Matchers.equalTo;
+public class RetentionLeaseStatsWireSerializingTests extends AbstractWireSerializingTestCase<RetentionLeaseStats> {
 
-public class RetentionLeaseStatsTests extends ESTestCase {
-
-    public void testRetentionLeaseStatsSerialization() throws IOException {
+    @Override
+    protected RetentionLeaseStats createTestInstance() {
         final int length = randomIntBetween(0, 8);
         final Collection<RetentionLease> leases;
         if (length == 0) {
@@ -47,13 +44,12 @@ public class RetentionLeaseStatsTests extends ESTestCase {
                 leases.add(new RetentionLease(id, retainingSequenceNumber, timestamp, source));
             }
         }
-        final RetentionLeaseStats stats = new RetentionLeaseStats(leases);
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            stats.writeTo(out);
-            try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(new RetentionLeaseStats(in), equalTo(stats));
-            }
-        }
+        return new RetentionLeaseStats(leases);
+    }
+
+    @Override
+    protected Writeable.Reader<RetentionLeaseStats> instanceReader() {
+        return RetentionLeaseStats::new;
     }
 
 }

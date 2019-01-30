@@ -536,13 +536,13 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 error("SELECT MAX(date) FROM test GROUP BY HISTOGRAM(MAX(int), 1)"));
     }
 
-    public void testPercentileWithSecondArgBasedOnAField() {
-        assertEquals("1:8: 2nd argument of PERCENTILE must be a constant, received [ABS(int)]",
+    public void testErrorMessageForPercentileWithSecondArgBasedOnAField() {
+        assertEquals("1:8: Second argument of PERCENTILE must be a constant, received [ABS(int)]",
             error("SELECT PERCENTILE(int, ABS(int)) FROM test"));
     }
 
-    public void testPercentileRankWithSecondArgBasedOnAField() {
-        assertEquals("1:8: 2nd argument of PERCENTILE_RANK must be a constant, received [ABS(int)]",
+    public void testErrorMessageForPercentileRankWithSecondArgBasedOnAField() {
+        assertEquals("1:8: Second argument of PERCENTILE_RANK must be a constant, received [ABS(int)]",
             error("SELECT PERCENTILE_RANK(int, ABS(int)) FROM test"));
     }
 

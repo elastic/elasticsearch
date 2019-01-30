@@ -2,20 +2,19 @@
 "Test query string with snowball":
   - do:
       indices.create:
+          include_type_name: false
           index:  test
           body:
             mappings:
-              test:
-                properties:
-                  field:
-                    type: text
-                  number:
-                    type: integer
+              properties:
+                field:
+                  type: text
+                number:
+                  type: integer
 
   - do:
       index:
           index:  test
-          type:   test
           id:     1
           body:   { field: foo bar}
 

@@ -164,12 +164,6 @@ public final class IndicesPermission {
             for (Group group : groups) {
                 if (group.check(action, indexOrAlias)) {
                     granted = true;
-                    if (existingAlias) {
-                        deprecationLogger.deprecatedAndMaybeLog("permission-over-aliases",
-                                "Granting privileges over an alias and hence granting privileges over all the indices it points to"
-                                        + " is deprecated and will be removed in a future version of Elasticsearch."
-                                        + " Instead define permissions exclusively on indices or index patterns.");
-                    }
                     for (String index : concreteIndices) {
                         Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.computeIfAbsent(index, (k) -> new HashSet<>());
                         fieldPermissionsByIndex.put(indexOrAlias, fieldPermissions);
@@ -184,6 +178,23 @@ public final class IndicesPermission {
                             // a single permission doesn't have a role query then DLS will not be
                             // applied even when other permissions do have a role query
                             permissions.setAllowAll(true);
+                        }
+                    }
+                    // see if a deprecation msg is necessary
+                    if (existingAlias) {
+                        boolean groupMatchesAllIndicesOfAlias = true;
+                        for (String index : concreteIndices) {
+                            if (false == group.check(action, index)) {
+                                groupMatchesAllIndicesOfAlias = false;
+                                break;
+                            }
+                        }
+                        if (false == groupMatchesAllIndicesOfAlias) {
+                            // this group authorized the alias but not all the indices pointed to by the alias
+                            deprecationLogger.deprecatedAndMaybeLog("permission-over-aliases",
+                                    "Granting privileges over an alias and hence granting privileges over all the indices it points to"
+                                            + " is deprecated and will be removed in a future version of Elasticsearch."
+                                            + " Instead define permissions exclusively on indices or index patterns.");
                         }
                     }
                 }

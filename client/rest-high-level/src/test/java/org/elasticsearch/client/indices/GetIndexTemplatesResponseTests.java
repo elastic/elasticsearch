@@ -27,18 +27,23 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.ToXContent.MapParams;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
 public class GetIndexTemplatesResponseTests extends ESTestCase {
@@ -131,6 +136,8 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
         }
         org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse serverResponse = new        
                 org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse(serverIndexTemplates);
-        serverResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        MapParams params =
+                new MapParams(Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "false"));        
+        serverResponse.toXContent(builder, params);
     }
 }

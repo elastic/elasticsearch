@@ -1,24 +1,31 @@
 [[search-aggregations-bucket-geotilegrid-aggregation]]
 === GeoTile Grid Aggregation
 
-A multi-bucket aggregation that works on `geo_point` fields and groups points into buckets that represent cells in a grid.
-The resulting grid can be sparse and only contains cells that have matching data.
-Each cell corresponds to a https://en.wikipedia.org/wiki/Tiled_web_map[map tile] as used by many online map sites.
-Each cell is labeled using a "{zoom}/{x}/{y}" format, where zoom is equal to the user-specified precision.
+A multi-bucket aggregation that works on `geo_point` fields and groups points into
+buckets that represent cells in a grid. The resulting grid can be sparse and only
+contains cells that have matching data. Each cell corresponds to a
+https://en.wikipedia.org/wiki/Tiled_web_map[map tile] as used by many online map
+sites. Each cell is labeled using a "{zoom}/{x}/{y}" format, where zoom is equal
+to the user-specified precision.
 
-* High precision keys have a larger range for x and y, and represent tiles that cover only a small area.
-* Low precision keys have a smaller range for x and y, and represent tiles that each cover a large area.
+* High precision keys have a larger range for x and y, and represent tiles that
+cover only a small area.
+* Low precision keys have a smaller range for x and y, and represent tiles that
+each cover a large area.
 
-See https://wiki.openstreetmap.org/wiki/Zoom_levels[Zoom level documentation] on how precision (zoom) correlates
-to size on the ground. Precision for this aggregation can be between 0 and 29, inclusive.
+See https://wiki.openstreetmap.org/wiki/Zoom_levels[Zoom level documentation]
+on how precision (zoom) correlates to size on the ground. Precision for this
+aggregation can be between 0 and 29, inclusive.
 
-WARNING: The highest-precision geotile of length 29 produces cells that cover less than a 10cm by 10cm of land and
-so high-precision requests can be very costly in terms of RAM and result sizes.
-Please see the example below on how to first filter the aggregation to a smaller geographic area before requesting
+WARNING: The highest-precision geotile of length 29 produces cells that cover
+less than a 10cm by 10cm of land and so high-precision requests can be very
+costly in terms of RAM and result sizes. Please see the example below on how
+to first filter the aggregation to a smaller geographic area before requesting
 high-levels of detail.
 
-The specified field must be of type `geo_point` (which can only be set explicitly in the mappings) and it can also hold
-an array of `geo_point` fields, in which case all points will be taken into account during aggregation.
+The specified field must be of type `geo_point` (which can only be set
+explicitly in the mappings) and it can also hold an array of `geo_point`
+fields, in which case all points will be taken into account during aggregation.
 
 
 ==== Simple low-precision request
@@ -94,7 +101,10 @@ Response:
 
 ==== High-precision requests
 
-When requesting detailed buckets (typically for displaying a "zoomed in" map) a filter like <<query-dsl-geo-bounding-box-query,geo_bounding_box>> should be applied to narrow the subject area otherwise potentially millions of buckets will be created and returned.
+When requesting detailed buckets (typically for displaying a "zoomed in" map)
+a filter like <<query-dsl-geo-bounding-box-query,geo_bounding_box>> should be
+applied to narrow the subject area otherwise potentially millions of buckets
+will be created and returned.
 
 [source,js]
 --------------------------------------------------

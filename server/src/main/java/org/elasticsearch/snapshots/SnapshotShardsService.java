@@ -67,16 +67,17 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestDeduplicator;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
@@ -88,7 +89,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
-import static org.elasticsearch.transport.EmptyTransportResponseHandler.INSTANCE_SAME;
 
 /**
  * This service runs on data and master nodes and controls currently snapshotted shards on these nodes. It is responsible for
@@ -116,7 +116,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     private volatile Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> shardSnapshots = emptyMap();
 
     // A map of snapshots to the shardIds that we already reported to the master as failed
-    private volatile Map<Snapshot, Set<ShardId>> remoteFailedShardsCache = emptyMap();
+    private final TransportRequestDeduplicator<UpdateIndexShardSnapshotStatusRequest> remoteFailedRequestDeduplicator =
+        new TransportRequestDeduplicator<>();
 
     private final SnapshotStateExecutor snapshotStateExecutor = new SnapshotStateExecutor();
     private final UpdateSnapshotStatusAction updateSnapshotStatusHandler;
@@ -243,7 +244,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         // Now go through all snapshots and update existing or create missing
         final String localNodeId = event.state().nodes().getLocalNodeId();
         final Map<Snapshot, Map<String, IndexId>> snapshotIndices = new HashMap<>();
-        final Map<Snapshot, Set<ShardId>> newFailedShardsCache = new HashMap<>();
         if (snapshotsInProgress != null) {
             for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
                 snapshotIndices.put(entry.snapshot(),
@@ -302,27 +302,18 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             }
                         }
                     } else {
-                        final ImmutableOpenMap<ShardId, ShardSnapshotStatus> clusterStateShards = entry.shards();
                         final Snapshot snapshot = entry.snapshot();
-                        final Set<ShardId> cachedFailedShards = remoteFailedShardsCache.getOrDefault(snapshot, Collections.emptySet());
-                        for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> curr : clusterStateShards) {
+                        for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> curr : entry.shards()) {
                             // due to CS batching we might have missed the INIT state and straight went into ABORTED
                             // notify master that abort has completed by moving to FAILED
                             if (curr.value.state() == State.ABORTED) {
-                                final ShardId shardId = curr.key;
-                                final Set<ShardId> newFailedShardIds =
-                                    newFailedShardsCache.computeIfAbsent(snapshot, k -> new HashSet<>(cachedFailedShards));
-                                if (newFailedShardIds.add(shardId)) {
-                                    notifyFailedSnapshotShard(snapshot, shardId, localNodeId, curr.value.reason());
-                                }
+                                notifyFailedSnapshotShard(snapshot, curr.key, localNodeId, curr.value.reason());
                             }
                         }
                     }
                 }
             }
         }
-
-        remoteFailedShardsCache = unmodifiableMap(newFailedShardsCache);
 
         // Update the list of snapshots that we saw and tried to started
         // If startup of these shards fails later, we don't want to try starting these shards again
@@ -539,12 +530,28 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
 
     /** Updates the shard snapshot status by sending a {@link UpdateIndexShardSnapshotStatusRequest} to the master node */
     void sendSnapshotShardUpdate(final Snapshot snapshot, final ShardId shardId, final ShardSnapshotStatus status) {
-        try {
-            UpdateIndexShardSnapshotStatusRequest request = new UpdateIndexShardSnapshotStatusRequest(snapshot, shardId, status);
-            transportService.sendRequest(transportService.getLocalNode(), UPDATE_SNAPSHOT_STATUS_ACTION_NAME, request, INSTANCE_SAME);
-        } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("[{}] [{}] failed to update snapshot state", snapshot, status), e);
-        }
+        remoteFailedRequestDeduplicator.executeOnce(
+            new UpdateIndexShardSnapshotStatusRequest(snapshot, shardId, status),
+            ActionListener.noop(),
+            (req, reqListener) -> {
+                try {
+                    transportService.sendRequest(transportService.getLocalNode(), UPDATE_SNAPSHOT_STATUS_ACTION_NAME, req,
+                        new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                            @Override
+                            public void handleResponse(TransportResponse.Empty response) {
+                                reqListener.onResponse(null);
+                            }
+
+                            @Override
+                            public void handleException(TransportException exp) {
+                                reqListener.onFailure(exp);
+                            }
+                        });
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("[{}] [{}] failed to update snapshot state", snapshot, status), e);
+                }
+            }
+        );
     }
 
     /**

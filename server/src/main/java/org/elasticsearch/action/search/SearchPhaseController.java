@@ -330,7 +330,7 @@ public final class SearchPhaseController {
                 }
 
                 // do the transformation for all shards
-                transformScoreToMilliseconds(shardTopDocs, sortIdx);
+                transformSortFieldToMilliseconds(shardTopDocs, sortIdx);
 
                 // only replace if the sort field is a nanosecond field, that is used by TopDocs.merge
                 if (isNanoSecondSortField) {
@@ -340,17 +340,25 @@ public final class SearchPhaseController {
         }
     }
 
-    private static void transformScoreToMilliseconds(TopFieldDocs[] topDocs, int idx) {
+    /**
+     * Transform the value of each sort field from nanoseconds to milliseconds
+     * Also sets the sort field to a regular numeric sort field as the results
+     * might be compared in another reduce round and double transformations need
+     * to be prevented
+     *
+     * @param topDocs the top docs to transform
+     * @param idx     the index of the sort to transform on
+     */
+    private static void transformSortFieldToMilliseconds(TopFieldDocs[] topDocs, int idx) {
         for (TopFieldDocs docs : topDocs) {
             if (docs.fields[idx] instanceof SortedNanosecondsNumericSortField) {
                 for (ScoreDoc scoreDoc : docs.scoreDocs) {
-                    if (scoreDoc instanceof FieldDoc) {
-                        FieldDoc fieldDoc = (FieldDoc) scoreDoc;
-                        long nanos = (long) fieldDoc.fields[idx];
-                        long millis = DateUtils.toMilliSeconds(nanos);
-                        // in-place modification of the score
-                        fieldDoc.fields[idx] = millis;
-                    }
+                    assert scoreDoc instanceof FieldDoc;
+                    FieldDoc fieldDoc = (FieldDoc) scoreDoc;
+                    long nanos = (long) fieldDoc.fields[idx];
+                    long millis = DateUtils.toMilliSeconds(nanos);
+                    // in-place modification of the score
+                    fieldDoc.fields[idx] = millis;
                 }
                 SortedNanosecondsNumericSortField sf = (SortedNanosecondsNumericSortField) docs.fields[idx];
                 SortField sortField = new SortedNumericSortField(sf.getField(), sf.getNumericType(), sf.getReverse(), sf.getSelector());

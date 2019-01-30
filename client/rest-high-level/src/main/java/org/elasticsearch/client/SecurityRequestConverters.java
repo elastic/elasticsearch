@@ -39,6 +39,7 @@ import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetUsersRequest;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
+import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -263,6 +264,13 @@ final class SecurityRequestConverters {
         request.setEntity(createEntity(createApiKeyRequest, REQUEST_BODY_CONTENT_TYPE));
         final RequestConverters.Params params = new RequestConverters.Params(request);
         params.withRefreshPolicy(createApiKeyRequest.getRefreshPolicy());
+        return request;
+    }
+
+    static Request invalidateApiKey(final InvalidateApiKeyRequest invalidateApiKeyRequest) throws IOException {
+        final Request request = new Request(HttpDelete.METHOD_NAME, "/_security/api_key");
+        request.setEntity(createEntity(invalidateApiKeyRequest, REQUEST_BODY_CONTENT_TYPE));
+        final RequestConverters.Params params = new RequestConverters.Params(request);
         return request;
     }
 }

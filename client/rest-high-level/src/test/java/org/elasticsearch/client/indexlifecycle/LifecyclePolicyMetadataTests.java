@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.client.indexlifecycle.LifecyclePolicyTests.createRandomPolicy;
 
@@ -51,6 +52,20 @@ public class LifecyclePolicyMetadataTests extends AbstractXContentTestCase<Lifec
     @Override
     protected boolean supportsUnknownFields() {
         return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return (field) ->
+            // phases is a list of Phase parsable entries only
+            field.endsWith(".phases")
+            // these are all meant to be maps of strings, so complex objects will confuse the parser
+            || field.endsWith(".include")
+            || field.endsWith(".exclude")
+            || field.endsWith(".require")
+            // actions are meant to be a list of LifecycleAction parsable entries only
+            || field.endsWith(".actions");
+
     }
 
     @Override

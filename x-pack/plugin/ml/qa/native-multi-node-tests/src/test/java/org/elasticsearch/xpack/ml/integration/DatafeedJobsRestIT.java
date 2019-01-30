@@ -239,7 +239,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 + "      \"network_bytes_out\": { \"type\":\"long\"}"
                 + "    }"
                 + "  }"
-                + "}");;
+                + "}");
         client().performRequest(createIndexRequest);
 
         StringBuilder bulk = new StringBuilder();

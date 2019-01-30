@@ -48,11 +48,11 @@ public class Point implements Geometry {
         return ShapeType.POINT;
     }
 
-    public double lat() {
+    public double getLat() {
         return lat;
     }
 
-    public double lon() {
+    public double getLon() {
         return lon;
     }
 

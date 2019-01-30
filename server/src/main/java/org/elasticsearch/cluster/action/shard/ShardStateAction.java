@@ -88,7 +88,7 @@ public class ShardStateAction {
 
     // a list of shards that failed during replication
     // we keep track of these shards in order to avoid sending duplicate failed shard requests for a single failing shard.
-    private final TransportRequestDeduplicator<FailedShardEntry> remoteFailedShardsCache = new TransportRequestDeduplicator<>();
+    private final TransportRequestDeduplicator<FailedShardEntry> remoteFailedShardsDeduplicator = new TransportRequestDeduplicator<>();
 
     @Inject
     public ShardStateAction(ClusterService clusterService, TransportService transportService,
@@ -164,15 +164,13 @@ public class ShardStateAction {
     public void remoteShardFailed(final ShardId shardId, String allocationId, long primaryTerm, boolean markAsStale, final String message,
                                   @Nullable final Exception failure, ActionListener<Void> listener) {
         assert primaryTerm > 0L : "primary term should be strictly positive";
-        final FailedShardEntry shardEntry = new FailedShardEntry(shardId, allocationId, primaryTerm, message, failure, markAsStale);
-        final ActionListener<Void> transportListener = remoteFailedShardsCache.register(shardEntry, listener);
-        if (transportListener != null) {
-            sendShardAction(SHARD_FAILED_ACTION_NAME, clusterService.state(), shardEntry, transportListener);
-        }
+        remoteFailedShardsDeduplicator.executeOnce(
+            new FailedShardEntry(shardId, allocationId, primaryTerm, message, failure, markAsStale), listener,
+            (req, reqListener) -> sendShardAction(SHARD_FAILED_ACTION_NAME, clusterService.state(), req, reqListener));
     }
 
     int remoteShardFailedCacheSize() {
-        return remoteFailedShardsCache.size();
+        return remoteFailedShardsDeduplicator.size();
     }
 
     /**

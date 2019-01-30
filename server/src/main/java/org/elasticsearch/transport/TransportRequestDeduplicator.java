@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.BiConsumer;
 
 /**
  * Deduplicator for {@link TransportRequest}s that keeps track of {@link TransportRequest}s that should
@@ -37,19 +38,18 @@ public final class TransportRequestDeduplicator<T extends TransportRequest> {
 
     /**
      * Register a listener for the given request with the deduplicator.
-     * If the request is not yet registered with the deduplicator it will return an {@link ActionListener}
-     * that must be completed by the called when the request completes. If the request is already known to
-     * the deduplicator it will keep track of the given listener and invoke it when the listener returned
-     * for the first invocation with the request is completed.
-     * The caller of this method should therefore execute the transport request if returned an instance
-     * of {@link ActionListener} and invoke that listener when completing the request and do nothing when
-     * being returned {@code null}.
+     * If the request is not yet registered with the deduplicator it will invoke the passed callback with an {@link ActionListener}
+     * that must be completed by the caller when the request completes. If the request is already known to the deduplicator it will keep
+     * track of the given listener and invoke it when the listener passed to the callback on first invocation is completed.
      * @param request Request to deduplicate
      * @param listener Listener to invoke on request completion
-     * @return Listener that must be invoked by the caller or null when the request is already known
+     * @param callback Callback to be invoked with request and completion listener the first time the request is added to the deduplicator
      */
-    public ActionListener<Void> register(T request, ActionListener<Void> listener) {
-        return requests.computeIfAbsent(request, CompositeListener::new).addListener(listener);
+    public void executeOnce(T request, ActionListener<Void> listener, BiConsumer<T, ActionListener<Void>> callback) {
+        ActionListener<Void> completionListener = requests.computeIfAbsent(request, CompositeListener::new).addListener(listener);
+        if (completionListener != null) {
+            callback.accept(request, completionListener);
+        }
     }
 
     public int size() {

@@ -386,6 +386,40 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         ensureStableCluster(4);
     }
 
+    public void testAllMasterEligibleNodesFailed() throws Exception {
+        bootstrapNodeId = 1;
+
+        logger.info("--> start master-eligible node and bootstrap cluster");
+        String masterNode = internalCluster().startMasterOnlyNode(Settings.builder()
+                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
+                .build()); // node ordinal 0
+
+        logger.info("--> start data-only node and ensure 2 nodes stable cluster");
+        String dataNode = internalCluster().startDataOnlyNode(Settings.builder()
+                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
+                .build()); // node ordinal 1
+        ensureStableCluster(2);
+
+        logger.info("--> stop data-only node and detach it from the old cluster");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataNode));
+        final Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
+        detachCluster(environment, 1, false);
+
+        logger.info("--> stop master-eligible node, clear its data and start it again - new cluster should form");
+        internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback(){
+            @Override
+            public boolean clearData(String nodeName) {
+                return true;
+            }
+        });
+
+        logger.info("--> start data-only only node and ensure 2 nodes stable cluster");
+        internalCluster().startDataOnlyNode(Settings.builder()
+                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
+                .build());
+        ensureStableCluster(2);
+    }
+
     public void testNoInitialBootstrapAfterDetach() throws Exception {
         bootstrapNodeId = 1;
         internalCluster().startMasterOnlyNode(Settings.builder()

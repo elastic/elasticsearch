@@ -260,7 +260,7 @@ public class SearchResponseTests extends ESTestCase {
                 }
                 expectedString.append("\"_clusters\":");
                 {
-                    expectedString.append("\"total\":5,");
+                    expectedString.append("{\"total\":5,");
                     expectedString.append("\"successful\":3,");
                     expectedString.append("\"skipped\":2},");
                 }

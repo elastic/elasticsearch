@@ -115,9 +115,10 @@ public final class TransportPutFollowAction
 
         String leaderIndex = request.getLeaderIndex();
         Version minNodeVersion = state.getNodes().getMinNodeVersion();
-        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
+        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterStateLeaderIndexMetadataAndHistoryUUIDs(
             client,
             remoteCluster,
+            true,
             leaderIndex,
             listener::onFailure,
             (historyUUID, metaDataTuple) -> createFollowerIndex(metaDataTuple, historyUUID, request, listener, minNodeVersion));
@@ -146,8 +147,8 @@ public final class TransportPutFollowAction
             || metaDataTuple.v1().getNodes().getMinNodeVersion().before(Version.V_6_7_0);
 
         if (pre67CompatibilityMode) {
-            logger.warn("Pre-6.7 nodes present in local/remote cluster. Cannot bootstrap from remote. Creating empty follower index [{}] " +
-                "and initiating following [{}, {}].", request.getFollowRequest().getFollowerIndex(), request.getRemoteCluster(),
+            logger.debug("Pre-6.7 nodes present in local/remote cluster. Cannot bootstrap from remote. Creating empty follower index " +
+                "[{}] and initiating following [{}, {}].", request.getFollowRequest().getFollowerIndex(), request.getRemoteCluster(),
                 request.getLeaderIndex());
             pre67PutFollow.doPre67PutFollow(request, leaderIndexMetaData, historyUUID, listener);
         } else {

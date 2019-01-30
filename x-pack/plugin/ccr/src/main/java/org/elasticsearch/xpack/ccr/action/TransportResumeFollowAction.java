@@ -133,9 +133,10 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         // Validates whether the leader cluster has been configured properly:
         client.getRemoteClusterClient(leaderCluster);
         final String leaderIndex = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
-        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
+        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterStateLeaderIndexMetadataAndHistoryUUIDs(
             client,
             leaderCluster,
+            false,
             leaderIndex,
             listener::onFailure,
             (leaderHistoryUUID, metaDataTuple) -> {

@@ -42,9 +42,9 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
             LogManager.getLogger(RestPutIndexTemplateAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
-            " Specifying include_type_name in put index template requests is deprecated."+
-            " The parameter will be removed in the next major version.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in put index " +
+            "template requests is deprecated. The parameter include_type_name should be provided and set to false to be " +
+            "compatible with the next major version.";
 
     public RestPutIndexTemplateAction(Settings settings, RestController controller) {
         super(settings);
@@ -60,9 +60,6 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
-        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            deprecationLogger.deprecatedAndMaybeLog("put_index_template_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
         if (request.hasParam("template")) {
             DEPRECATION_LOGGER.deprecated("Deprecated parameter[template] used, replaced by [index_patterns]");
             putRequest.patterns(Collections.singletonList(request.param("template")));
@@ -74,7 +71,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", ""));
 
-        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, true);
+        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
         Map<String, Object> sourceAsMap = prepareRequestSource(request, includeTypeName);
         putRequest.source(sourceAsMap);
 
@@ -89,6 +86,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
             newSourceAsMap.put("mappings", Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, sourceAsMap.get("mappings")));
             return newSourceAsMap;
         } else {
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog("put_index_template_with_types", TYPES_DEPRECATION_MESSAGE);
             return sourceAsMap;
         }
     }

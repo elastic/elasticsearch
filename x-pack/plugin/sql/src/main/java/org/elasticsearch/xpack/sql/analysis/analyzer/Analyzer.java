@@ -887,17 +887,17 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 NamedExpression expr = exprs.get(i);
                 NamedExpression transformed = (NamedExpression) expr.transformUp(ua -> {
                     Expression child = ua.child();
-                    if (child instanceof NamedExpression) {
-                        return child;
-                    }
-                    if (!child.resolved()) {
-                        return ua;
-                    }
                     if (child instanceof Cast) {
                         Cast c = (Cast) child;
                         if (c.field() instanceof NamedExpression) {
                             return new Alias(c.source(), ((NamedExpression) c.field()).name(), c);
                         }
+                    }
+                    if (child instanceof NamedExpression) {
+                        return child;
+                    }
+                    if (!child.resolved()) {
+                        return ua;
                     }
                     return new Alias(child.source(), child.sourceText(), child);
                 }, UnresolvedAlias.class);

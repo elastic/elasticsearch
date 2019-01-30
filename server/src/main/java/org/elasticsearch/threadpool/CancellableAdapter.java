@@ -19,7 +19,7 @@
 
 package org.elasticsearch.threadpool;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 
 import java.util.concurrent.Future;
 
@@ -32,9 +32,8 @@ class CancellableAdapter implements Scheduler.Cancellable {
     }
 
     @Override
-    @SuppressForbidden(reason="enabler for Cancellable.cancel, never interrupts")
     public boolean cancel() {
-        return future.cancel(false);
+        return FutureUtils.cancel(future);
     }
 
     @Override

@@ -1034,7 +1034,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
             return "timeout handler for [" + requestId + "][" + action + "]";
         }
 
-        public void scheduleTimeout(TimeValue timeout) {
+        private void scheduleTimeout(TimeValue timeout) {
             this.cancellable = threadPool.schedule(this, timeout, ThreadPool.Names.GENERIC);
         }
     }

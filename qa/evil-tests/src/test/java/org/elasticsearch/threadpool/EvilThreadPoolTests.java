@@ -42,12 +42,11 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.startsWith;
 
 public class EvilThreadPoolTests extends ESTestCase {
 
@@ -166,8 +165,7 @@ public class EvilThreadPoolTests extends ESTestCase {
                 assertTrue(o.isPresent());
                 assertThat(o.get(), instanceOf(Error.class));
                 assertThat(o.get(), hasToString(containsString("future error")));
-            },
-            Object::toString);
+            });
     }
 
     public void testExecutionExceptionOnDefaultThreadPoolTypes() throws InterruptedException {
@@ -237,13 +235,12 @@ public class EvilThreadPoolTests extends ESTestCase {
             checkExecutionException(getExecuteRunner(prioritizedExecutor), true);
             checkExecutionException(getSubmitRunner(prioritizedExecutor), false);
 
-            Function<Runnable, String> logMessageFunction = r -> PrioritizedEsThreadPoolExecutor.class.getName();
             // bias towards timeout
-            checkExecutionException(r -> prioritizedExecutor.execute(delayMillis(r, 10), TimeValue.ZERO, r), true, logMessageFunction);
+            checkExecutionException(r -> prioritizedExecutor.execute(delayMillis(r, 10), TimeValue.ZERO, r), true);
             // race whether timeout or success (but typically biased towards success)
-            checkExecutionException(r -> prioritizedExecutor.execute(r, TimeValue.ZERO, r), true, logMessageFunction);
+            checkExecutionException(r -> prioritizedExecutor.execute(r, TimeValue.ZERO, r), true);
             // bias towards no timeout.
-            checkExecutionException(r -> prioritizedExecutor.execute(r, TimeValue.timeValueMillis(10), r), true, logMessageFunction);
+            checkExecutionException(r -> prioritizedExecutor.execute(r, TimeValue.timeValueMillis(10), r), true);
         } finally {
             ThreadPool.terminate(prioritizedExecutor, 10, TimeUnit.SECONDS);
         }
@@ -275,11 +272,6 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     private void checkExecutionException(Consumer<Runnable> runner, boolean expectException) throws InterruptedException {
-        checkExecutionException(runner, expectException, Object::toString);
-    }
-    private void checkExecutionException(Consumer<Runnable> runner,
-                                         boolean expectException,
-                                         Function<Runnable, String> logMessageFunction) throws InterruptedException {
         final Runnable runnable;
         final boolean willThrow;
         if (randomBoolean()) {
@@ -314,8 +306,7 @@ public class EvilThreadPoolTests extends ESTestCase {
                     assertThat(o.get(), instanceOf(IllegalStateException.class));
                     assertThat(o.get(), hasToString(containsString("future exception")));
                 }
-            },
-            logMessageFunction);
+            });
     }
 
     Consumer<Runnable> getExecuteRunner(ExecutorService executor) {
@@ -364,8 +355,7 @@ public class EvilThreadPoolTests extends ESTestCase {
         final Consumer<Runnable> runner,
         final Runnable runnable,
         final boolean expectThrowable,
-        final Consumer<Optional<Throwable>> consumer,
-        final Function<Runnable, String> logMessageFunction) throws InterruptedException {
+        final Consumer<Optional<Throwable>> consumer) throws InterruptedException {
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
         final Thread.UncaughtExceptionHandler uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();
         final CountDownLatch uncaughtExceptionHandlerLatch = new CountDownLatch(1);
@@ -398,8 +388,9 @@ public class EvilThreadPoolTests extends ESTestCase {
                         if (event.getLevel() == Level.WARN) {
                             assertThat("no other warnings than those expected",
                                 event.getMessage().getFormattedMessage(),
-                                startsWith("failed to schedule " + logMessageFunction.apply(job)));
+                                equalTo("uncaught exception in scheduled thread [" + Thread.currentThread().getName() + "]"));
                             assertTrue(expectThrowable);
+                            assertNotNull(event.getThrown());
                             assertTrue("only one message allowed", throwableReference.compareAndSet(null, event.getThrown()));
                             uncaughtExceptionHandlerLatch.countDown();
                         }

@@ -32,9 +32,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 
 import java.util.concurrent.Delayed;
 import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
 import java.util.concurrent.RejectedExecutionHandler;
-import java.util.concurrent.RunnableScheduledFuture;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
@@ -209,7 +207,7 @@ public interface Scheduler {
 
         @Override
         public boolean cancel() {
-            boolean result = run;
+            final boolean result = run;
             run = false;
             return result;
         }
@@ -252,7 +250,7 @@ public interface Scheduler {
     }
 
     /**
-     * This subclass ensures to properly bubble up Throwable instances of type Error.
+     * This subclass ensures to properly bubble up Throwable instances of type Error and logs exceptions thrown in submitted/scheduled tasks
      */
     class SafeScheduledThreadPoolExecutor extends ScheduledThreadPoolExecutor {
         private static final Logger logger = LogManager.getLogger(SafeScheduledThreadPoolExecutor.class);
@@ -272,59 +270,13 @@ public interface Scheduler {
             super(corePoolSize);
         }
 
-        /**
-         * Decorate task with better toString.
-         */
-        @Override
-        protected <V> RunnableScheduledFuture<V> decorateTask(Runnable runnable, RunnableScheduledFuture<V> task) {
-            return new ToStringRunnableScheduledFuture<>(task, runnable);
-        }
-
         @Override
         protected void afterExecute(Runnable r, Throwable t) {
             Throwable exception = EsExecutors.rethrowErrors(r);
             if (exception != null) {
-                logger.warn(() -> new ParameterizedMessage("failed to schedule {}", r.toString()), exception);
-            }
-        }
-
-        private class ToStringRunnableScheduledFuture<V> extends FutureTask<V> implements RunnableScheduledFuture<V> {
-            private final RunnableScheduledFuture<V> task;
-            private final Runnable runnable;
-
-            private ToStringRunnableScheduledFuture(RunnableScheduledFuture<V> task, Runnable runnable) {
-                super(runnable, null);
-                this.task = task;
-                this.runnable = runnable;
-            }
-
-            @Override
-            public boolean isPeriodic() {
-                return task.isPeriodic();
-            }
-
-            @Override
-            public long getDelay(TimeUnit unit) {
-                return task.getDelay(unit);
-            }
-
-            @Override
-            public int compareTo(Delayed o) {
-                return -o.compareTo(task);
-            }
-
-            @SuppressForbidden(reason = "delegation, decorating a better toString, clients should preferably use Cancellable.cancel")
-            @Override
-            public boolean cancel(boolean mayInterruptIfRunning) {
-                boolean cancelled = super.cancel(mayInterruptIfRunning);
-                if (cancelled)
-                    remove(this);
-                return cancelled;
-            }
-
-            @Override
-            public String toString() {
-                return runnable.toString() + ": " + task.toString();
+                logger.warn(() ->
+                    new ParameterizedMessage("uncaught exception in scheduled thread [{}]", Thread.currentThread().getName()),
+                    exception);
             }
         }
     }

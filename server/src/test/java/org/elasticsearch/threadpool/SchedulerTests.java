@@ -44,7 +44,7 @@ public class SchedulerTests extends ESTestCase {
                 scheduleAndCancel(threadPool, executed, type));
             assertEquals(0, executed.get());
         } finally {
-            threadPool.shutdownNow();
+            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
     }
 
@@ -54,7 +54,7 @@ public class SchedulerTests extends ESTestCase {
         assertFalse(scheduled.isCancelled());
         assertTrue(scheduled.cancel());
         assertTrue(scheduled.isCancelled());
-        assertEquals("Cancel must auto-remove",0, schedulerQueueSize(threadPool));
+        assertEquals("Cancel must auto-remove", 0, schedulerQueueSize(threadPool));
     }
 
     private int schedulerQueueSize(ThreadPool threadPool) {
@@ -74,10 +74,10 @@ public class SchedulerTests extends ESTestCase {
             assertFalse(scheduled.isCancelled());
             assertTrue(scheduled.cancel());
             assertTrue(scheduled.isCancelled());
-            assertEquals("Cancel must auto-remove",0, executor.getQueue().size());
+            assertEquals("Cancel must auto-remove", 0, executor.getQueue().size());
             assertEquals(0, executed.get());
         } finally {
-            executor.shutdownNow();
+            Scheduler.terminate(executor, 10, TimeUnit.SECONDS);
         }
     }
 
@@ -99,9 +99,8 @@ public class SchedulerTests extends ESTestCase {
 
             assertThat(laterDelays,
                 Matchers.contains(initialDelays.stream().map(Matchers::lessThan).collect(Collectors.toList())));
-
         } finally {
-            threadPool.shutdownNow();
+            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
     }
 
@@ -136,7 +135,7 @@ public class SchedulerTests extends ESTestCase {
 
             assertTrue(missingExecutions.await(30, TimeUnit.SECONDS));
         } finally {
-            threadPool.shutdownNow();
+            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
     }
 
@@ -151,7 +150,7 @@ public class SchedulerTests extends ESTestCase {
             scheduler.schedule(missingExecutions::countDown, TimeValue.timeValueMillis(randomInt(5)), ThreadPool.Names.SAME);
             assertTrue(missingExecutions.await(30, TimeUnit.SECONDS));
         } finally {
-            executor.shutdownNow();
+            Scheduler.terminate(executor, 10, TimeUnit.SECONDS);
         }
     }
 }

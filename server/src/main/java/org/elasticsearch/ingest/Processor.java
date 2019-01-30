@@ -105,7 +105,6 @@ public interface Processor {
         /**
          * Provides scheduler support
          */
-        // todo: should we promote ScheduledCancellable to somewhere more appropriate for this external use?
         public final BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler;
 
         public Parameters(Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,  ThreadContext threadContext,

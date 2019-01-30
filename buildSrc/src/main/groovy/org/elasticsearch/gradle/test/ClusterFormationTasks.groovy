@@ -191,13 +191,21 @@ class ClusterFormationTasks {
             throw new GradleException("Unknown distribution: ${distro} in project ${project.path}")
         }
         Version version = Version.fromString(elasticsearchVersion)
-        String group = "downloads.zip" // dummy group, does not matter except for integ-test-zip, it is ignored by the fake ivy repo
+        String os = getOs()
+        String classifier = "${os}-x86_64"
+        String packaging = os.equals('windows') ? 'zip' : 'tar.gz'
         String artifactName = 'elasticsearch'
         if (distro.equals('oss') && Version.fromString(elasticsearchVersion).onOrAfter('6.3.0')) {
             artifactName += '-oss'
         }
-        String snapshotProject = distro == 'oss' ? 'oss-zip' : 'zip'
         Object dependency
+        String snapshotProject = "${os}-${os.equals('windows') ? 'zip' : 'tar'}"
+        if (version.before("7.0.0")) {
+            snapshotProject = "zip"
+        }
+        if (distro.equals("oss")) {
+            snapshotProject = "oss-" + snapshotProject
+        }
         boolean internalBuild = project.hasProperty('bwcVersions')
         VersionCollection.UnreleasedVersionInfo unreleasedInfo = null
         if (project.hasProperty('bwcVersions')) {
@@ -205,11 +213,16 @@ class ClusterFormationTasks {
             unreleasedInfo = project.bwcVersions.unreleasedInfo(version)
         }
         if (unreleasedInfo != null) {
-            dependency = project.dependencies.project(path: ":distribution:bwc:${unreleasedInfo.gradleProjectName}", configuration: snapshotProject)
+            dependency = project.dependencies.project(
+                        path: ":distribution:bwc:${unreleasedInfo.gradleProjectName}", configuration: snapshotProject)
         } else if (internalBuild && elasticsearchVersion.equals(VersionProperties.elasticsearch)) {
             dependency = project.dependencies.project(path: ":distribution:archives:${snapshotProject}")
         } else {
-            dependency = "${group}:${artifactName}:${elasticsearchVersion}@zip"
+            if (version.before('7.0.0')) {
+                classifier = "" // for bwc, before we had classifiers
+            }
+            // group does not matter as it is not used when we pull from the ivy repo that points to the download service
+            dependency = "dnm:${artifactName}:${elasticsearchVersion}${classifier}@${packaging}"
         }
         project.dependencies.add(configuration.name, dependency)
     }
@@ -335,8 +348,15 @@ class ClusterFormationTasks {
           the elasticsearch source tree then this should be the version of elasticsearch built by the source tree.
           If it isn't then Bad Things(TM) will happen. */
         Task extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
-            from {
-                project.zipTree(configuration.singleFile)
+            if (getOs().equals("windows")) {
+                from {
+                    project.zipTree(configuration.singleFile)
+                }
+            } else {
+                // macos and linux use tar
+                from {
+                    project.tarTree(project.resources.gzip(configuration.singleFile))
+                }
             }
             into node.baseDir
         }
@@ -944,5 +964,16 @@ class ClusterFormationTasks {
     static String findPluginName(Project pluginProject) {
         PluginPropertiesExtension extension = pluginProject.extensions.findByName('esplugin')
         return extension.name
+    }
+
+    /** Find the current OS */
+    static String getOs() {
+        String os = "linux"
+        if (Os.FAMILY_WINDOWS) {
+            os = "windows"
+        } else if (Os.FAMILY_MAC) {
+            os = "darwin"
+        }
+        return os
     }
 }

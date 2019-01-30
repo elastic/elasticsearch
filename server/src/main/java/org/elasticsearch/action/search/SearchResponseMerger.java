@@ -99,6 +99,7 @@ final class SearchResponseMerger {
      * That may change in the future as it's possible to introduce incremental merges as responses come in if necessary.
      */
     void add(SearchResponse searchResponse) {
+        assert searchResponse.getScrollId() == null : "merging scroll results is not supported";
         searchResponses.add(searchResponse);
     }
 

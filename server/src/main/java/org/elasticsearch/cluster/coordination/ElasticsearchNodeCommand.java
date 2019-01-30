@@ -121,7 +121,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     protected abstract void processNodePaths(Terminal terminal, Path[] dataPaths) throws IOException;
 
 
-    protected void writeNewMetaData(Terminal terminal, Manifest oldManifest, long newCurrentTerm, long newVersion,
+    protected void writeNewMetaData(Terminal terminal, Manifest oldManifest, long newCurrentTerm,
                                     MetaData oldMetaData, MetaData newMetaData, Path[] dataPaths) {
         try {
             terminal.println(Terminal.Verbosity.VERBOSE,
@@ -130,7 +130,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
             terminal.println(Terminal.Verbosity.VERBOSE, "New coordination metadata is " + newMetaData.coordinationMetaData());
             terminal.println(Terminal.Verbosity.VERBOSE, "Writing new global metadata to disk");
             long newGeneration = MetaData.FORMAT.write(newMetaData, dataPaths);
-            Manifest newManifest = new Manifest(newCurrentTerm, newVersion, newGeneration,
+            Manifest newManifest = new Manifest(newCurrentTerm, oldManifest.getClusterStateVersion(), newGeneration,
                     oldManifest.getIndexGenerations());
             terminal.println(Terminal.Verbosity.VERBOSE, "New manifest is " + newManifest);
             terminal.println(Terminal.Verbosity.VERBOSE, "Writing new manifest file to disk");

@@ -127,7 +127,6 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
                 .coordinationMetaData(newCoordinationMetaData)
                 .build();
 
-        long newCurrentTerm = manifest.getCurrentTerm() + 1;
-        writeNewMetaData(terminal, manifest, newCurrentTerm, manifest.getClusterStateVersion(), metaData, newMetaData, dataPaths);
+        writeNewMetaData(terminal, manifest, manifest.getCurrentTerm(), metaData, newMetaData, dataPaths);
     }
 }

@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -91,6 +92,31 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      *   computation from that point on.
      */
     volatile boolean primaryMode;
+
+    /**
+     * The current operation primary term. Management of this value is done through {@link IndexShard} and must only be done when safe. See
+     * {@link #setOperationPrimaryTerm(long)}.
+     */
+    private volatile long operationPrimaryTerm;
+
+    /**
+     * Returns the current operation primary term.
+     *
+     * @return the primary term
+     */
+    public long getOperationPrimaryTerm() {
+        return operationPrimaryTerm;
+    }
+
+    /**
+     * Sets the current operation primary term. This method should be invoked only when no other operations are possible on the shard. That
+     * is, either from the constructor of {@link IndexShard} or while holding all permits on the {@link IndexShard} instance.
+     *
+     * @param operationPrimaryTerm the new operation primary term
+     */
+    public void setOperationPrimaryTerm(final long operationPrimaryTerm) {
+        this.operationPrimaryTerm = operationPrimaryTerm;
+    }
 
     /**
      * Boolean flag that indicates if a relocation handoff is in progress. A handoff is started by calling {@link #startRelocationHandoff}

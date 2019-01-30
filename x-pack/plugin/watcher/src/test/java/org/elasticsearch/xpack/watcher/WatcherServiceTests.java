@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -181,7 +182,7 @@ public class WatcherServiceTests extends ESTestCase {
             String id = String.valueOf(i);
             SearchHit hit = new SearchHit(1, id, new Text("watch"), Collections.emptyMap());
             hit.version(1L);
-            hit.shard(new SearchShardTarget("nodeId", watchIndex, 0, "whatever"));
+            hit.shard(new SearchShardTarget("nodeId", new ShardId(watchIndex, 0), "whatever", OriginalIndices.NONE));
             hits[i] = hit;
 
             boolean active = randomBoolean();

@@ -242,6 +242,16 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         }
 
         @Override
+        public long getSeqNo() {
+            return delegate.getSeqNo();
+        }
+
+        @Override
+        public long getPrimaryTerm() {
+            return delegate.getPrimaryTerm();
+        }
+
+        @Override
         public String getRouting() {
             return fieldValue(RoutingFieldMapper.NAME);
         }

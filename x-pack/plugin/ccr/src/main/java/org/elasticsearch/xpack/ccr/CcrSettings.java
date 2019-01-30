@@ -58,6 +58,13 @@ public final class CcrSettings {
             Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     /**
+     * The timeout value to use for requests made as part of ccr recovery process.
+     * */
+    public static final Setting<TimeValue> INDICES_RECOVERY_ACTION_TIMEOUT_SETTING =
+        Setting.positiveTimeSetting("ccr.indices.recovery.internal_action_timeout", TimeValue.timeValueSeconds(60),
+            Property.Dynamic, Property.NodeScope);
+
+    /**
      * The settings defined by CCR.
      *
      * @return the settings
@@ -67,6 +74,7 @@ public final class CcrSettings {
                 XPackSettings.CCR_ENABLED_SETTING,
                 CCR_FOLLOWING_INDEX_SETTING,
                 RECOVERY_MAX_BYTES_PER_SECOND,
+                INDICES_RECOVERY_ACTION_TIMEOUT_SETTING,
                 INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
                 CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT,
                 CCR_WAIT_FOR_METADATA_TIMEOUT);
@@ -74,12 +82,15 @@ public final class CcrSettings {
 
     private final CombinedRateLimiter ccrRateLimiter;
     private volatile TimeValue recoveryActivityTimeout;
+    private volatile TimeValue recoveryActionTimeout;
 
     public CcrSettings(Settings settings, ClusterSettings clusterSettings) {
         this.recoveryActivityTimeout = INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.get(settings);
+        this.recoveryActionTimeout = INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.get(settings);
         this.ccrRateLimiter = new CombinedRateLimiter(RECOVERY_MAX_BYTES_PER_SECOND.get(settings));
         clusterSettings.addSettingsUpdateConsumer(RECOVERY_MAX_BYTES_PER_SECOND, this::setMaxBytesPerSec);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setRecoveryActivityTimeout);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTION_TIMEOUT_SETTING, this::setRecoveryActionTimeout);
     }
 
     private void setMaxBytesPerSec(ByteSizeValue maxBytesPerSec) {
@@ -90,11 +101,19 @@ public final class CcrSettings {
         this.recoveryActivityTimeout = recoveryActivityTimeout;
     }
 
+    private void setRecoveryActionTimeout(TimeValue recoveryActionTimeout) {
+        this.recoveryActionTimeout = recoveryActionTimeout;
+    }
+
     public CombinedRateLimiter getRateLimiter() {
         return ccrRateLimiter;
     }
 
     public TimeValue getRecoveryActivityTimeout() {
         return recoveryActivityTimeout;
+    }
+
+    public TimeValue getRecoveryActionTimeout() {
+        return recoveryActionTimeout;
     }
 }

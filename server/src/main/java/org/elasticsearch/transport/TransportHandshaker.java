@@ -231,8 +231,11 @@ final class TransportHandshaker {
             super.readFrom(in);
             this.requestVersion = requestVersion;
             version = Version.readVersion(in);
+            // During the handshake process, nodes set their stream version to the minimum compatibility
+            // version they support. When deserializing the response, we use the version the other node
+            // told us that it actually is in the handshake response (`version`).
             // TODO: On backport update to 6.7
-            if (requestVersion != null && requestVersion.onOrAfter(Version.V_7_0_0) && version.onOrAfter(Version.V_7_0_0)) {
+            if (requestVersion.onOrAfter(Version.V_7_0_0) && version.onOrAfter(Version.V_7_0_0)) {
                 clusterName = new ClusterName(in);
                 discoveryNode = new DiscoveryNode(in);
             } else {
@@ -251,6 +254,10 @@ final class TransportHandshaker {
             super.writeTo(out);
             assert version != null;
             Version.writeVersion(version, out);
+            // During the handshake process, nodes set their stream version to the minimum compatibility
+            // version they support. When deciding what response to send, we use the version the other node
+            // told us that it actually is in the handshake request (`requestVersion`). If it did not tell
+            // us a `requestVersion`, it is at least a pre-67 node.
             // TODO: On backport update to 6.7
             if (requestVersion != null && requestVersion.onOrAfter(Version.V_7_0_0) && version.onOrAfter(Version.V_7_0_0)) {
                 clusterName.writeTo(out);

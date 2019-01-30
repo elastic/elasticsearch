@@ -209,7 +209,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
         @Override
         public void setLocalNode(DiscoveryNode localNode) {
-
         }
 
         @Override

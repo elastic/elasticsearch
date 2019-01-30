@@ -240,6 +240,5 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
 
     @Override
     public void setLocalNode(DiscoveryNode localNode) {
-
     }
 }

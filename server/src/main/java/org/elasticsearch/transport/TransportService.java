@@ -232,7 +232,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                 logger.info("profile [{}]: {}", entry.getKey(), entry.getValue());
             }
         }
-
         localNode = localNodeFactory.apply(transport.boundAddress());
         transport.setLocalNode(localNode);
 

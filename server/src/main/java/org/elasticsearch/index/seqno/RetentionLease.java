@@ -101,7 +101,7 @@ public final class RetentionLease implements Writeable {
             // retention lease IDs can not contain these characters because they are used in encoding retention leases
             throw new IllegalArgumentException("retention lease ID can not contain any of [:;,] but was [" + id + "]");
         }
-        if (retainingSequenceNumber < SequenceNumbers.UNASSIGNED_SEQ_NO) {
+        if (retainingSequenceNumber < 0) {
             throw new IllegalArgumentException("retention lease retaining sequence number [" + retainingSequenceNumber + "] out of range");
         }
         if (timestamp < 0) {

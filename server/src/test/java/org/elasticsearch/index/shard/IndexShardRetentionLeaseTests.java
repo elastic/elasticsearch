@@ -113,7 +113,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
         final IndexShard indexShard = newStartedShard(primary, settings, new InternalEngineFactory());
         try {
             final long[] retainingSequenceNumbers = new long[1];
-            retainingSequenceNumbers[0] = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+            retainingSequenceNumbers[0] = randomLongBetween(0, Long.MAX_VALUE);
             if (primary) {
                 indexShard.addRetentionLease("0", retainingSequenceNumbers[0], "test-0", ActionListener.wrap(() -> {}));
             } else {

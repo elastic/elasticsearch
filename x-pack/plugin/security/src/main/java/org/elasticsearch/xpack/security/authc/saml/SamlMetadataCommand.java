@@ -93,7 +93,7 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
     private KeyStoreWrapper keyStoreWrapper;
 
     public static void main(String[] args) throws Exception {
-        new SamlMetadataCommand().main(args, Terminal.DEFAULT);
+        exit(new SamlMetadataCommand().main(args, Terminal.DEFAULT));
     }
 
     public SamlMetadataCommand() {

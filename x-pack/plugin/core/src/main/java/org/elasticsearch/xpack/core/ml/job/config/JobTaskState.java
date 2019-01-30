@@ -33,7 +33,7 @@ public class JobTaskState implements PersistentTaskState {
     private static ParseField REASON = new ParseField("reason");
 
     private static final ConstructingObjectParser<JobTaskState, Void> PARSER =
-            new ConstructingObjectParser<>(NAME,
+            new ConstructingObjectParser<>(NAME, true,
                     args -> new JobTaskState((JobState) args[0], (Long) args[1], (String) args[2]));
 
     static {

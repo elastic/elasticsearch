@@ -101,8 +101,9 @@ Closure commonPackageConfig(String type, boolean oss) {
   return {
     dependsOn "process${oss ? 'Oss' : ''}${type.capitalize()}Files"
     packageName "elasticsearch${oss ? '-oss' : ''}"
+    arch (type == 'deb' ? 'amd64' : 'X86_64')
     // Follow elasticsearch's file naming convention
-    archiveName "${packageName}-${project.version}.${type}"
+    archiveName "${packageName}-${project.version}-${archString}.${type}"
 
     String prefix = "${oss ? 'oss-' : ''}${type}"
     destinationDir = file("${prefix}/build/distributions")
@@ -333,7 +334,6 @@ Closure commonRpmConfig(boolean oss) {
     packager 'Elasticsearch'
     version = project.version.replace('-', '_')
     release = '1'
-    arch 'NOARCH'
     os 'LINUX'
     distribution 'Elasticsearch'
     vendor 'Elasticsearch'

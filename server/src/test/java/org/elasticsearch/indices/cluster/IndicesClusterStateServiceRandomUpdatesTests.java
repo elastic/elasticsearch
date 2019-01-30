@@ -384,7 +384,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         }
 
         // randomly start and fail allocated shards
-        List<ShardRouting> startedShards = new ArrayList<>();
+        final Map<ShardRouting, Long> startedShards = new HashMap<>();
         List<FailedShard> failedShards = new ArrayList<>();
         for (DiscoveryNode node : state.nodes()) {
             IndicesClusterStateService indicesClusterStateService = clusterStateServiceMap.get(node);
@@ -393,7 +393,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 for (MockIndexShard indexShard : indexService) {
                     ShardRouting persistedShardRouting = indexShard.routingEntry();
                     if (persistedShardRouting.initializing() && randomBoolean()) {
-                        startedShards.add(persistedShardRouting);
+                        startedShards.put(persistedShardRouting, indexShard.term());
                     } else if (rarely()) {
                         failedShards.add(new FailedShard(persistedShardRouting, "fake shard failure", new Exception(), randomBoolean()));
                     }
@@ -480,7 +480,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 null,
                 null,
                 primaryReplicaSyncer,
-                s -> {});
+                s -> {},
+                (s, leases, listener) -> {});
     }
 
     private class RecordingIndicesService extends MockIndicesService {

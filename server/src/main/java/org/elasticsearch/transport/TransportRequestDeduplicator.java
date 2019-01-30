@@ -37,9 +37,10 @@ public final class TransportRequestDeduplicator<T extends TransportRequest> {
     private final ConcurrentMap<T, CompositeListener> requests = ConcurrentCollections.newConcurrentMap();
 
     /**
-     * Register a listener for the given request with the deduplicator.
-     * If the request is not yet registered with the deduplicator it will invoke the passed callback with an {@link ActionListener}
-     * that must be completed by the caller when the request completes. If the request is already known to the deduplicator it will keep
+     * Ensures a given request not executed multiple times when another equal request is already in-flight.
+     * If the request is not yet known to the deduplicator it will invoke the passed callback with an {@link ActionListener}
+     * that must be completed by the caller when the request completes. Once that listener is completed the request will be removed from
+     * the deduplicator's internal state. If the request is already known to the deduplicator it will keep
      * track of the given listener and invoke it when the listener passed to the callback on first invocation is completed.
      * @param request Request to deduplicate
      * @param listener Listener to invoke on request completion

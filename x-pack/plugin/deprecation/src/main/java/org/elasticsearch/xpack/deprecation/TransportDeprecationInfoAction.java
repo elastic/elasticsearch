@@ -82,33 +82,33 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             final ThreadContext threadContext = client.threadPool().getThreadContext();
             ClientHelper.executeAsyncWithOrigin(threadContext, ClientHelper.DEPRECATION_ORIGIN, nodesInfoRequest,
                     ActionListener.<NodesInfoResponse>wrap(
-                        nodesInfoResponse -> {
-                            if (nodesInfoResponse.hasFailures()) {
-                                throw nodesInfoResponse.failures().get(0);
-                            }
-                            ClientHelper.executeAsyncWithOrigin(threadContext, ClientHelper.DEPRECATION_ORIGIN, nodesStatsRequest,
-                                    ActionListener.<NodesStatsResponse>wrap(
-                                            nodesStatsResponse -> {
-                                                if (nodesStatsResponse.hasFailures()) {
-                                                    throw nodesStatsResponse.failures().get(0);
-                                                }
+                    nodesInfoResponse -> {
+                        if (nodesInfoResponse.hasFailures()) {
+                            throw nodesInfoResponse.failures().get(0);
+                        }
+                        ClientHelper.executeAsyncWithOrigin(threadContext, ClientHelper.DEPRECATION_ORIGIN, nodesStatsRequest,
+                                ActionListener.<NodesStatsResponse>wrap(
+                                    nodesStatsResponse -> {
+                                        if (nodesStatsResponse.hasFailures()) {
+                                            throw nodesStatsResponse.failures().get(0);
+                                        }
 
-                                                getDatafeedConfigs(ActionListener.wrap(
-                                                        datafeeds -> {
-                                                            listener.onResponse(
-                                                                    DeprecationInfoAction.Response.from(nodesInfoResponse.getNodes(),
-                                                                    nodesStatsResponse.getNodes(), state, indexNameExpressionResolver,
-                                                                    request.indices(), request.indicesOptions(), datafeeds,
-                                                                    DeprecationChecks.CLUSTER_SETTINGS_CHECKS,
-                                                                    DeprecationChecks.NODE_SETTINGS_CHECKS,
-                                                                    DeprecationChecks.INDEX_SETTINGS_CHECKS,
-                                                                    DeprecationChecks.ML_SETTINGS_CHECKS));
-                                                         },
-                                                         listener::onFailure
-                                                ));
-                                            }, listener::onFailure),
-                            client.admin().cluster()::nodesStats);
-                        }, listener::onFailure), client.admin().cluster()::nodesInfo);
+                                        getDatafeedConfigs(ActionListener.wrap(
+                                            datafeeds -> {
+                                                listener.onResponse(
+                                                        DeprecationInfoAction.Response.from(nodesInfoResponse.getNodes(),
+                                                        nodesStatsResponse.getNodes(), state, indexNameExpressionResolver,
+                                                        request.indices(), request.indicesOptions(), datafeeds,
+                                                        DeprecationChecks.CLUSTER_SETTINGS_CHECKS,
+                                                        DeprecationChecks.NODE_SETTINGS_CHECKS,
+                                                        DeprecationChecks.INDEX_SETTINGS_CHECKS,
+                                                        DeprecationChecks.ML_SETTINGS_CHECKS));
+                                             },
+                                             listener::onFailure
+                                        ));
+                                    }, listener::onFailure),
+                        client.admin().cluster()::nodesStats);
+                    }, listener::onFailure), client.admin().cluster()::nodesInfo);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.DEPRECATION));
         }

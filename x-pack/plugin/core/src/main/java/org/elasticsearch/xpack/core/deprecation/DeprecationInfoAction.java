@@ -132,7 +132,7 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Response
                 .array("cluster_settings", clusterSettingsIssues.toArray())
                 .array("node_settings", nodeSettingsIssues.toArray())
                 .field("index_settings")
-                    .map(indexSettingsIssues)
+                .map(indexSettingsIssues)
                 .array("ml_settings", mlSettingsIssues.toArray())
                 .endObject();
         }

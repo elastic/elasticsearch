@@ -692,20 +692,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
         RestClientBuilder builder = RestClient.builder(hosts);
         configureClient(builder, settings);
-        builder.setStrictDeprecationMode(getStrictDeprecationMode());
+        builder.setStrictDeprecationMode(true);
         return builder.build();
-    }
-
-    /**
-     * Whether the used REST client should return any response containing at
-     * least one warning header as a failure.
-     * @deprecated always run in strict mode and use
-     *   {@link RequestOptions.Builder#setWarningsHandler} to override this
-     *   behavior on individual requests
-     */
-    @Deprecated
-    protected boolean getStrictDeprecationMode() {
-        return true;
     }
 
     protected static void configureClient(RestClientBuilder builder, Settings settings) throws IOException {

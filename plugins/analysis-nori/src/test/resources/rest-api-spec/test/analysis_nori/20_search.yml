@@ -16,7 +16,6 @@
   - do:
       index:
         index:  test
-        type:   type
         id:     1
         body:   { "text": "뿌리가 깊은 나무는" }
   - do:

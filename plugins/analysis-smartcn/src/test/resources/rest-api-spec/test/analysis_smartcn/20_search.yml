@@ -4,19 +4,18 @@
 "Index Smartcn content":
     - do:
         indices.create:
+            include_type_name: false
             index:  test
             body:
                 mappings:
-                    type:
-                        properties:
-                            text:
-                                type:     text
-                                analyzer: smartcn
+                    properties:
+                        text:
+                            type:     text
+                            analyzer: smartcn
 
     - do:
         index:
             index:  test
-            type:   type
             id:     1
             body:   { "text": "我购买了道具和服装" }
     - do:

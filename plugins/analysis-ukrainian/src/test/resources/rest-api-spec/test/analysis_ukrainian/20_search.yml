@@ -4,19 +4,18 @@
 "Index Stempel content":
     - do:
         indices.create:
+            include_type_name: false
             index:  test
             body:
                 mappings:
-                    type:
-                        properties:
-                            text:
-                                type:     text
-                                analyzer: ukrainian
+                    properties:
+                        text:
+                            type:     text
+                            analyzer: ukrainian
 
     - do:
         index:
             index:  test
-            type:   type
             id:     1
             body:   { "text": "Ця п'єса у свою чергу рухається по колу." }
     - do:

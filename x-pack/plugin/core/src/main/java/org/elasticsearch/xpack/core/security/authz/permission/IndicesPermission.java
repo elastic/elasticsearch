@@ -305,12 +305,8 @@ public final class IndicesPermission {
 
         private boolean check(String action, String index) {
             assert index != null;
-            return check(action) && (indexNameMatcher.test(index)
-                    && (allowRestrictedIndices
-                            // all good if it is not restricted
-                            || (false == RestrictedIndicesNames.NAMES_SET.contains(index))
-                            // allow monitor as a special case, even for restricted
-                            || IndexPrivilege.MONITOR.predicate().test(action)));
+            return check(action) && indexNameMatcher.test(index)
+                    && (allowRestrictedIndices || (false == RestrictedIndicesNames.NAMES_SET.contains(index)));
         }
 
         boolean hasQuery() {

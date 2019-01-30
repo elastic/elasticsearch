@@ -150,19 +150,27 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
 
         client().prepareIndex("test", "type", "1").setSource("num", 1).get();
 
-        GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings()
-            .setFields("num", "field1", "obj.subfield").includeDefaults(true).get();
+        // we need to await busily for the mapping because we don't require acking on the dynamic mapping of an index request.
+        assertBusy(() -> {
+            GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings()
+                .setFields("num", "field1", "obj.subfield").includeDefaults(true).get();
 
-        assertThat((Map<String, Object>) response.fieldMappings("test", "type", "num").sourceAsMap().get("num"),
-            hasEntry("index", Boolean.TRUE));
-        assertThat((Map<String, Object>) response.fieldMappings("test", "type", "num").sourceAsMap().get("num"),
-            hasEntry("type", "long"));
-        assertThat((Map<String, Object>) response.fieldMappings("test", "type", "field1").sourceAsMap().get("field1"),
-            hasEntry("index", Boolean.TRUE));
-        assertThat((Map<String, Object>) response.fieldMappings("test", "type", "field1").sourceAsMap().get("field1"),
-            hasEntry("type", "text"));
-        assertThat((Map<String, Object>) response.fieldMappings("test", "type", "obj.subfield").sourceAsMap().get("subfield"),
-            hasEntry("type", "keyword"));
+            assertNotNull(response.fieldMappings("test", "type", "num"));
+            assertThat((Map<String, Object>) response.fieldMappings("test", "type", "num").sourceAsMap().get("num"),
+                hasEntry("index", Boolean.TRUE));
+            assertThat((Map<String, Object>) response.fieldMappings("test", "type", "num").sourceAsMap().get("num"),
+                hasEntry("type", "long"));
+
+            assertNotNull(response.fieldMappings("test", "type", "field1"));
+            assertThat((Map<String, Object>) response.fieldMappings("test", "type", "field1").sourceAsMap().get("field1"),
+                hasEntry("index", Boolean.TRUE));
+            assertThat((Map<String, Object>) response.fieldMappings("test", "type", "field1").sourceAsMap().get("field1"),
+                hasEntry("type", "text"));
+
+            assertNotNull(response.fieldMappings("test", "type", "obj.subfield"));
+            assertThat((Map<String, Object>) response.fieldMappings("test", "type", "obj.subfield").sourceAsMap().get("subfield"),
+                hasEntry("type", "keyword"));
+        });
     }
 
     @SuppressWarnings("unchecked")

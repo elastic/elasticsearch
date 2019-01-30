@@ -474,12 +474,20 @@ public class ShardStateAction {
         }
     }
 
-    public void shardStarted(ShardRouting shardRouting, String message, ActionListener<Void> listener) {
-        shardStarted(shardRouting, message, listener, clusterService.state());
+    public void shardStarted(final ShardRouting shardRouting,
+                             final long primaryTerm,
+                             final String message,
+                             final ActionListener<Void> listener) {
+        shardStarted(shardRouting, primaryTerm, message, listener, clusterService.state());
     }
-    public void shardStarted(ShardRouting shardRouting, String message, ActionListener<Void> listener, ClusterState currentState) {
-        StartedShardEntry shardEntry = new StartedShardEntry(shardRouting.shardId(), shardRouting.allocationId().getId(), message);
-        sendShardAction(SHARD_STARTED_ACTION_NAME, currentState, shardEntry, listener);
+
+    public void shardStarted(final ShardRouting shardRouting,
+                             final long primaryTerm,
+                             final String message,
+                             final ActionListener<Void> listener,
+                             final ClusterState currentState) {
+        StartedShardEntry entry = new StartedShardEntry(shardRouting.shardId(), shardRouting.allocationId().getId(), primaryTerm, message);
+        sendShardAction(SHARD_STARTED_ACTION_NAME, currentState, entry, listener);
     }
 
     private static class ShardStartedTransportHandler implements TransportRequestHandler<StartedShardEntry> {
@@ -524,7 +532,7 @@ public class ShardStateAction {
             List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(tasks.size());
             Set<ShardRouting> seenShardRoutings = new HashSet<>(); // to prevent duplicates
             for (StartedShardEntry task : tasks) {
-                ShardRouting matched = currentState.getRoutingTable().getByAllocationId(task.shardId, task.allocationId);
+                final ShardRouting matched = currentState.getRoutingTable().getByAllocationId(task.shardId, task.allocationId);
                 if (matched == null) {
                     // tasks that correspond to non-existent shards are marked as successful. The reason is that we resend shard started
                     // events on every cluster state publishing that does not contain the shard as started yet. This means that old stale
@@ -533,6 +541,19 @@ public class ShardStateAction {
                     logger.debug("{} ignoring shard started task [{}] (shard does not exist anymore)", task.shardId, task);
                     builder.success(task);
                 } else {
+                    if (matched.primary() && task.primaryTerm > 0) {
+                        final IndexMetaData indexMetaData = currentState.metaData().index(task.shardId.getIndex());
+                        assert indexMetaData != null;
+                        final long currentPrimaryTerm = indexMetaData.primaryTerm(task.shardId.id());
+                        if (currentPrimaryTerm != task.primaryTerm) {
+                            assert currentPrimaryTerm > task.primaryTerm : "received a primary term with a higher term than in the " +
+                                "current cluster state (received [" + task.primaryTerm + "] but current is [" + currentPrimaryTerm + "])";
+                            logger.debug("{} ignoring shard started task [{}] (primary term {} does not match current term {})",
+                                task.shardId, task, task.primaryTerm, currentPrimaryTerm);
+                            builder.success(task);
+                            continue;
+                        }
+                    }
                     if (matched.initializing() == false) {
                         assert matched.active() : "expected active shard routing for task " + task + " but found " + matched;
                         // same as above, this might have been a stale in-flight request, so we just ignore.
@@ -577,6 +598,7 @@ public class ShardStateAction {
     public static class StartedShardEntry extends TransportRequest {
         final ShardId shardId;
         final String allocationId;
+        final long primaryTerm;
         final String message;
 
         StartedShardEntry(StreamInput in) throws IOException {
@@ -584,8 +606,12 @@ public class ShardStateAction {
             shardId = ShardId.readShardId(in);
             allocationId = in.readString();
             if (in.getVersion().before(Version.V_6_3_0)) {
-                final long primaryTerm = in.readVLong();
+                primaryTerm = in.readVLong();
                 assert primaryTerm == UNASSIGNED_PRIMARY_TERM : "shard is only started by itself: primary term [" + primaryTerm + "]";
+            } else if (in.getVersion().onOrAfter(Version.V_7_0_0)) {  // TODO update version to 6.7.0 after backport
+                primaryTerm = in.readVLong();
+            } else {
+                primaryTerm = UNASSIGNED_PRIMARY_TERM;
             }
             this.message = in.readString();
             if (in.getVersion().before(Version.V_6_3_0)) {
@@ -594,9 +620,10 @@ public class ShardStateAction {
             }
         }
 
-        public StartedShardEntry(ShardId shardId, String allocationId, String message) {
+        public StartedShardEntry(final ShardId shardId, final String allocationId, final long primaryTerm, final String message) {
             this.shardId = shardId;
             this.allocationId = allocationId;
+            this.primaryTerm = primaryTerm;
             this.message = message;
         }
 
@@ -607,6 +634,8 @@ public class ShardStateAction {
             out.writeString(allocationId);
             if (out.getVersion().before(Version.V_6_3_0)) {
                 out.writeVLong(0L);
+            } else if (out.getVersion().onOrAfter(Version.V_7_0_0)) {  // TODO update version to 6.7.0 after backport
+                out.writeVLong(primaryTerm);
             }
             out.writeString(message);
             if (out.getVersion().before(Version.V_6_3_0)) {
@@ -616,8 +645,8 @@ public class ShardStateAction {
 
         @Override
         public String toString() {
-            return String.format(Locale.ROOT, "StartedShardEntry{shardId [%s], allocationId [%s], message [%s]}",
-                shardId, allocationId, message);
+            return String.format(Locale.ROOT,  "StartedShardEntry{shardId [%s], allocationId [%s], primary term [%d], message [%s]}",
+                shardId, allocationId, primaryTerm, message);
         }
     }
 

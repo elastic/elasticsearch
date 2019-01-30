@@ -426,6 +426,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertThat(e.toString(), containsString("unit [D] not supported for date math"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37814")
     // Issue #7880
     public void testDateRangeInQueryStringWithTimeZone_7880() {
         //the mapping needs to be provided upfront otherwise we are not sure how many failures we get back

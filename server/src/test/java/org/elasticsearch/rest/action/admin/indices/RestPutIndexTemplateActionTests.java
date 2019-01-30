@@ -59,8 +59,11 @@ public class RestPutIndexTemplateActionTests extends RestActionTestCase {
             .endObject()
         .endObject();
 
+        Map<String, String> params = new HashMap<>();
+        params.put(INCLUDE_TYPE_NAME_PARAMETER, "false");
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.PUT)
+            .withParams(params)
             .withPath("/_template/_some_template")
             .withContent(BytesReference.bytes(content), XContentType.JSON)
             .build();
@@ -106,11 +109,8 @@ public class RestPutIndexTemplateActionTests extends RestActionTestCase {
                 .endObject()
             .endObject();
 
-        Map<String, String> params = new HashMap<>();
-        params.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
                 .withMethod(RestRequest.Method.PUT)
-                .withParams(params)
                 .withPath("/_template/_some_template")
                 .withContent(BytesReference.bytes(typedContent), XContentType.JSON)
                 .build();
@@ -118,6 +118,7 @@ public class RestPutIndexTemplateActionTests extends RestActionTestCase {
         assertWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE);
         boolean includeTypeName = true;
         Map<String, Object> source = action.prepareRequestSource(request, includeTypeName);
+        assertWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE);
 
         XContentBuilder expectedContent = XContentFactory.jsonBuilder().startObject()
             .startObject("mappings")

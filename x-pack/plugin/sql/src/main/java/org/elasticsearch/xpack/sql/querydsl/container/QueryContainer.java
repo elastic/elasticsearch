@@ -179,9 +179,6 @@ public class QueryContainer {
     }
 
     private Tuple<QueryContainer, FieldExtraction> nestedHitFieldRef(FieldAttribute attr) {
-        // Find the nested query for this field. If there isn't one then create it
-        List<FieldExtraction> nestedRefs = new ArrayList<>();
-
         String name = aliasName(attr);
         String format = attr.field().getDataType() == DataType.DATETIME ? "epoch_millis" : DocValueFieldsContext.USE_DEFAULT_FORMAT;
         Query q = rewriteToContainNestedField(query, attr.source(),
@@ -189,7 +186,6 @@ public class QueryContainer {
 
         SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, attr.field().getDataType(),
                 attr.field().isAggregatable(), attr.parent().name());
-        nestedRefs.add(nestedFieldRef);
 
         return new Tuple<>(new QueryContainer(q, aggs, columns, aliases, pseudoFunctions, scalarFunctions, sort, limit), nestedFieldRef);
     }

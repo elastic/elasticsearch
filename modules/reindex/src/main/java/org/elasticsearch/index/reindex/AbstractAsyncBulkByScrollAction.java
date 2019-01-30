@@ -36,7 +36,6 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -51,6 +50,7 @@ import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateScript;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -90,7 +90,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     protected final BulkByScrollTask task;
     protected final WorkerBulkByScrollTaskState worker;
     protected final ThreadPool threadPool;
-    protected final ClusterState clusterState;
 
     protected final Action mainAction;
     /**
@@ -114,9 +113,10 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      */
     private final BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> scriptApplier;
 
-    public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-            ThreadPool threadPool, Action mainAction, Request mainRequest, ClusterState clusterState,
-            ActionListener<BulkByScrollResponse> listener) {
+    public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, boolean needsSourceDocumentVersions,
+                                           boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient client,
+                                           ThreadPool threadPool, Action mainAction, Request mainRequest, 
+                                           ActionListener<BulkByScrollResponse> listener) {
 
         this.task = task;
         if (!task.isWorker()) {
@@ -127,7 +127,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         this.logger = logger;
         this.client = client;
         this.threadPool = threadPool;
-        this.clusterState = clusterState;
         this.mainAction = mainAction;
         this.mainRequest = mainRequest;
         this.listener = listener;
@@ -140,11 +139,13 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
          * them and if we add _doc as the first sort by default then sorts will never work.... So we add it here, only if there isn't
          * another sort.
          */
-        List<SortBuilder<?>> sorts = mainRequest.getSearchRequest().source().sorts();
+        final SearchSourceBuilder sourceBuilder = mainRequest.getSearchRequest().source();
+        List<SortBuilder<?>> sorts = sourceBuilder.sorts();
         if (sorts == null || sorts.isEmpty()) {
-            mainRequest.getSearchRequest().source().sort(fieldSort("_doc"));
+            sourceBuilder.sort(fieldSort("_doc"));
         }
-        mainRequest.getSearchRequest().source().version(needsSourceDocumentVersions());
+        sourceBuilder.version(needsSourceDocumentVersions);
+        sourceBuilder.seqNoAndPrimaryTerm(needsSourceDocumentSeqNoAndPrimaryTerm);
     }
 
     /**
@@ -156,12 +157,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         // The default script applier executes a no-op
         return (request, searchHit) -> request;
     }
-
-    /**
-     * Does this operation need the versions of the source documents?
-     */
-    protected abstract boolean needsSourceDocumentVersions();
-
+    
     /**
      * Build the {@link RequestWrapper} for a single search hit. This shouldn't handle
      * metadata or scripting. That will be handled by copyMetadata and

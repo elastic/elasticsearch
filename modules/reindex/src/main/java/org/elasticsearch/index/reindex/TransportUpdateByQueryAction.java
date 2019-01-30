@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -81,19 +82,19 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
      * Simple implementation of update-by-query using scrolling and bulk.
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest, TransportUpdateByQueryAction> {
+
+        private final boolean useSeqNoForCAS;
+
         AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                 ThreadPool threadPool, TransportUpdateByQueryAction action, UpdateByQueryRequest request, ClusterState clusterState,
                 ActionListener<BulkByScrollResponse> listener) {
-            super(task, logger, client, threadPool, action, request, clusterState, listener);
-        }
-
-        @Override
-        protected boolean needsSourceDocumentVersions() {
-            /*
-             * We always need the version of the source document so we can report a version conflict if we try to delete it and it has
-             * been changed.
-             */
-            return true;
+            super(task,
+                // not all nodes support sequence number powered optimistic concurrency control, we fall back to version
+                clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0) == false,
+                // all nodes support sequence number powered optimistic concurrency control and we can use it
+                clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0),
+                logger, client, threadPool, action, request, listener);
+            useSeqNoForCAS = clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0);
         }
 
         @Override
@@ -112,8 +113,13 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             index.type(doc.getType());
             index.id(doc.getId());
             index.source(doc.getSource(), doc.getXContentType());
-            index.versionType(VersionType.INTERNAL);
-            index.version(doc.getVersion());
+            if (useSeqNoForCAS) {
+                index.setIfSeqNo(doc.getSeqNo());
+                index.setIfPrimaryTerm(doc.getPrimaryTerm());
+            } else {
+                index.versionType(VersionType.INTERNAL);
+                index.version(doc.getVersion());
+            }
             index.setPipeline(mainRequest.getPipeline());
             return wrap(index);
         }

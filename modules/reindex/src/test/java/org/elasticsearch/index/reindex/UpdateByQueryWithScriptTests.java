@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.transport.TransportService;
 
@@ -61,6 +62,6 @@ public class UpdateByQueryWithScriptTests
         TransportUpdateByQueryAction transportAction = new TransportUpdateByQueryAction(threadPool,
             new ActionFilters(Collections.emptySet()), null, transportService, scriptService, null);
         return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, threadPool, transportAction, request,
-            null, listener());
+                ClusterState.EMPTY_STATE, listener());
     }
 }

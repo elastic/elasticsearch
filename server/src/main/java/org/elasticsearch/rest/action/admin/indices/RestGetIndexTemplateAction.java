@@ -51,8 +51,8 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
         Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER), Settings.FORMAT_PARAMS));
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
             LogManager.getLogger(RestGetIndexTemplateAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] The response format of get index template requests will change in "
-            + "the next major version. Please start using the `include_type_name` parameter set to `false` in the request to "
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] The response format of get index template requests will change"
+            + " in the next major version. Please start using the `include_type_name` parameter set to `false` in the request to "
             + "move to the new, typeless response format that will be the default in 7.0.";
     public RestGetIndexTemplateAction(final Settings settings, final RestController controller) {
         super(settings);

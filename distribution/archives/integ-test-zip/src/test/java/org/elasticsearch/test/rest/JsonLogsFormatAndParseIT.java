@@ -17,29 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.unconfigured_node_name;
+package org.elasticsearch.test.rest;
 
-import org.elasticsearch.common.logging.NodeNameInLogsIntegTestCase;
+import org.elasticsearch.common.logging.JsonLogsIntegTestCase;
 import org.hamcrest.Matcher;
 
-import java.io.IOException;
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.is;
 
-public class NodeNameInLogsIT extends NodeNameInLogsIntegTestCase {
+public class JsonLogsFormatAndParseIT extends JsonLogsIntegTestCase {
     @Override
     protected Matcher<String> nodeNameMatcher() {
-        return not("");
+        return is("node-0");
     }
 
     @Override
     protected BufferedReader openReader(Path logFile) {
+        assumeFalse("Skipping test because it is being run against an external cluster.",
+            logFile.getFileName().toString().equals("--external--"));
         return AccessController.doPrivileged((PrivilegedAction<BufferedReader>) () -> {
             try {
                 return Files.newBufferedReader(logFile, StandardCharsets.UTF_8);

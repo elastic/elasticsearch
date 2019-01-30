@@ -51,6 +51,6 @@ public class GeoHashGridTests extends GeoGridTestCase<InternalGeoHashGridBucket,
 
     @Override
     protected int randomPrecision() {
-        return randomIntBetween(1, 12);
+        return randomIntBetween(4, 12);
     }
 }

@@ -1,0 +1,40 @@
+--
+:api: set-upgrade-mode
+:request: SetUpgradeModeRequest
+:response: AcknowledgedResponse
+--
+[id="{upid}-{api}"]
+=== Set Upgrade Mode API
+
+The Set Upgrade Mode API temporarily halts all {ml} job and {dfeed} tasks when `enabled=true`. Their
+reported states remain unchanged. Consequently, when exiting upgrade mode the halted {ml} jobs and
+{dfeeds} will return to their previous state.
+
+It accepts a +{request}+ object and responds with a +{response}+ object.
+
+When `enabled=true`, no new jobs can be opened, and no job or {dfeed} tasks will
+be running. Be sure to set `enabled=false` once upgrade actions are completed.
+
+[id="{upid}-{api}-request"]
+==== Set Upgrade Mode Request
+
+A +{request}+ object gets created setting the desired `enabled` state.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request referencing enabling upgrade mode
+<2> Optionally setting the `timeout` value for how long the
+execution should wait.
+
+[id="{upid}-{api}-response"]
+==== Set Upgrade Mode Response
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> `isAcknowledged()` from the +{response}+ indicates if the setting was set successfully.
+
+include::../execution.asciidoc[]

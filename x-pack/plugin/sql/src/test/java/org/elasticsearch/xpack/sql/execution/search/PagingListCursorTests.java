@@ -26,12 +26,13 @@ public class PagingListCursorTests extends AbstractWireSerializingTestCase<Pagin
             values.add(Arrays.asList(randomArray(depth, s -> new Object[depth], () -> randomByte())));
         }
 
-        return new PagingListCursor(values, between(1, 20));
+        return new PagingListCursor(values, depth, between(1, 20));
     }
 
     @Override
     protected PagingListCursor mutateInstance(PagingListCursor instance) throws IOException {
-        return new PagingListCursor(instance.data(),
+        return new PagingListCursor(instance.data(), 
+                instance.columnCount(),
                 randomValueOtherThan(instance.pageSize(), () -> between(1, 20)));
     }
 

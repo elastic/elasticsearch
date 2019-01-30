@@ -241,7 +241,7 @@ public class Querier {
             while ((pop = data.pop()) != null) {
                 list.add(pop.v1());
             }
-            listener.onResponse(new PagingListRowSet(schema, list, cfg.pageSize()));
+            listener.onResponse(new PagingListRowSet(schema, list, schema.size(), cfg.pageSize()));
         }
 
         @Override

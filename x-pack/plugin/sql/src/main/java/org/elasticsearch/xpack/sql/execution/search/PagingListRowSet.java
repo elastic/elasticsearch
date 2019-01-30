@@ -15,21 +15,28 @@ import java.util.List;
 class PagingListRowSet extends ListRowSet {
 
     private final int pageSize;
+    private final int columnCount;
     private final Cursor cursor;
 
-    PagingListRowSet(List<List<?>> list, int pageSize) {
-        this(Schema.EMPTY, list, pageSize);
+    PagingListRowSet(List<List<?>> list, int columnCount, int pageSize) {
+        this(Schema.EMPTY, list, columnCount, pageSize);
     }
 
-    PagingListRowSet(Schema schema, List<List<?>> list, int pageSize) {
+    PagingListRowSet(Schema schema, List<List<?>> list, int columnCount, int pageSize) {
         super(schema, list);
+        this.columnCount = columnCount;
         this.pageSize = Math.min(pageSize, list.size());
-        this.cursor = list.size() > pageSize ? new PagingListCursor(list, pageSize) : Cursor.EMPTY;
+        this.cursor = list.size() > pageSize ? new PagingListCursor(list, columnCount, pageSize) : Cursor.EMPTY;
     }
 
     @Override
     public int size() {
         return pageSize;
+    }
+
+    @Override
+    public int columnCount() {
+        return columnCount;
     }
 
     @Override

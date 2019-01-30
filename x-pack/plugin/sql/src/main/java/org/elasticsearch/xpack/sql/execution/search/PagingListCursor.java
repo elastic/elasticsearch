@@ -26,22 +26,26 @@ public class PagingListCursor implements Cursor {
     public static final String NAME = "p";
 
     private final List<List<?>> data;
+    private final int columnCount;
     private final int pageSize;
 
-    PagingListCursor(List<List<?>> data, int pageSize) {
+    PagingListCursor(List<List<?>> data, int columnCount, int pageSize) {
         this.data = data;
+        this.columnCount = columnCount;
         this.pageSize = pageSize;
     }
 
     @SuppressWarnings("unchecked")
     public PagingListCursor(StreamInput in) throws IOException {
         data = (List<List<?>>) in.readGenericValue();
+        columnCount = in.readVInt();
         pageSize = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeGenericValue(data);
+        out.writeVInt(columnCount);
         out.writeVInt(pageSize);
     }
 
@@ -54,6 +58,10 @@ public class PagingListCursor implements Cursor {
         return data;
     }
 
+    int columnCount() {
+        return columnCount;
+    }
+
     int pageSize() {
         return pageSize;
     }
@@ -62,7 +70,7 @@ public class PagingListCursor implements Cursor {
     public void nextPage(Configuration cfg, Client client, NamedWriteableRegistry registry, ActionListener<RowSet> listener) {
         // the check is really a safety measure since the page initialization handles it already (by returning an empty cursor)
         List<List<?>> nextData = data.size() > pageSize ? data.subList(pageSize, data.size()) : emptyList();
-        listener.onResponse(new PagingListRowSet(nextData, pageSize));
+        listener.onResponse(new PagingListRowSet(nextData, columnCount, pageSize));
     }
 
     @Override
@@ -72,7 +80,7 @@ public class PagingListCursor implements Cursor {
 
     @Override
     public int hashCode() {
-        return Objects.hash(data, pageSize);
+        return Objects.hash(data, columnCount, pageSize);
     }
 
     @Override
@@ -86,7 +94,9 @@ public class PagingListCursor implements Cursor {
         }
 
         PagingListCursor other = (PagingListCursor) obj;
-        return Objects.equals(pageSize, other.pageSize) && Objects.equals(data, other.data);
+        return Objects.equals(pageSize, other.pageSize)
+                && Objects.equals(columnCount, other.columnCount)
+                && Objects.equals(data, other.data);
     }
 
     @Override

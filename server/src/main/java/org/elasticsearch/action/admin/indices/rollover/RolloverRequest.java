@@ -41,6 +41,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Request class to swap index under an alias upon satisfying conditions
+ *
+ * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
+ * Any changes done to this class should also go to that client class.
  */
 public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest, ToXContentObject {
 

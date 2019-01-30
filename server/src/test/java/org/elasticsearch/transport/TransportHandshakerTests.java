@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -54,6 +55,7 @@ public class TransportHandshakerTests extends ESTestCase {
     private DiscoveryNode localNode;
 
     @Override
+    @SuppressForbidden(reason = "Allow accessing localhost")
     public void setUp() throws Exception {
         super.setUp();
         String nodeId = "remote-node-id";

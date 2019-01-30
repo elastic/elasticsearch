@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,21 +35,21 @@ public class WatchStatusTests extends ESTestCase {
 
     public void testAckStatusIsResetOnUnmetCondition() {
         HashMap<String, ActionStatus> myMap = new HashMap<>();
-        ActionStatus actionStatus = new ActionStatus(ZonedDateTime.now());
+        ActionStatus actionStatus = new ActionStatus(ZonedDateTime.now(ZoneOffset.UTC));
         myMap.put("foo", actionStatus);
 
-        actionStatus.update(ZonedDateTime.now(), new LoggingAction.Result.Success("foo"));
-        actionStatus.onAck(ZonedDateTime.now());
+        actionStatus.update(ZonedDateTime.now(ZoneOffset.UTC), new LoggingAction.Result.Success("foo"));
+        actionStatus.onAck(ZonedDateTime.now(ZoneOffset.UTC));
         assertThat(actionStatus.ackStatus().state(), is(State.ACKED));
 
-        WatchStatus status = new WatchStatus(ZonedDateTime.now(), myMap);
-        status.onCheck(false, ZonedDateTime.now());
+        WatchStatus status = new WatchStatus(ZonedDateTime.now(ZoneOffset.UTC), myMap);
+        status.onCheck(false, ZonedDateTime.now(ZoneOffset.UTC));
 
         assertThat(status.actionStatus("foo").ackStatus().state(), is(State.AWAITS_SUCCESSFUL_EXECUTION));
     }
 
     public void testHeadersToXContent() throws Exception {
-        WatchStatus status = new WatchStatus(ZonedDateTime.now(), Collections.emptyMap());
+        WatchStatus status = new WatchStatus(ZonedDateTime.now(ZoneOffset.UTC), Collections.emptyMap());
         String key = randomAlphaOfLength(10);
         String value = randomAlphaOfLength(10);
         Map<String, String> headers = Collections.singletonMap(key, value);
@@ -78,7 +79,7 @@ public class WatchStatusTests extends ESTestCase {
     }
 
     public void testHeadersSerialization() throws IOException {
-        WatchStatus status = new WatchStatus(ZonedDateTime.now(), Collections.emptyMap());
+        WatchStatus status = new WatchStatus(ZonedDateTime.now(ZoneOffset.UTC), Collections.emptyMap());
         String key = randomAlphaOfLength(10);
         String value = randomAlphaOfLength(10);
         Map<String, String> headers = Collections.singletonMap(key, value);

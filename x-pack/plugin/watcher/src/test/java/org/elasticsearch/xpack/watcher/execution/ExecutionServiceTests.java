@@ -849,9 +849,10 @@ public class ExecutionServiceTests extends ESTestCase {
         doThrow(new EsRejectedExecutionException()).when(executor).execute(any());
         doThrow(new ElasticsearchException("whatever")).when(historyStore).forcePut(any());
 
-        Wid wid = new Wid(watch.id(), ZonedDateTime.now());
+        Wid wid = new Wid(watch.id(), ZonedDateTime.now(ZoneOffset.UTC));
 
-        TriggeredWatch triggeredWatch = new TriggeredWatch(wid, new ScheduleTriggerEvent(ZonedDateTime.now() ,ZonedDateTime.now()));
+        TriggeredWatch triggeredWatch = new TriggeredWatch(wid,
+            new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC) ,ZonedDateTime.now(ZoneOffset.UTC)));
         executionService.executeTriggeredWatches(Collections.singleton(triggeredWatch));
 
         verify(triggeredWatchStore, times(1)).delete(wid);
@@ -968,7 +969,7 @@ public class ExecutionServiceTests extends ESTestCase {
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
         when(ctx.knownWatch()).thenReturn(true);
         WatchStatus status = mock(WatchStatus.class);
-        when(status.state()).thenReturn(new WatchStatus.State(false, ZonedDateTime.now()));
+        when(status.state()).thenReturn(new WatchStatus.State(false, ZonedDateTime.now(ZoneOffset.UTC)));
         when(watch.status()).thenReturn(status);
         when(ctx.watch()).thenReturn(watch);
         Wid wid = new Wid(watch.id(), ZonedDateTime.now(ZoneOffset.UTC));
@@ -1076,7 +1077,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(watch.actions()).thenReturn(Collections.singletonList(actionWrapper));
 
         WatchStatus status = mock(WatchStatus.class);
-        when(status.state()).thenReturn(new WatchStatus.State(false, ZonedDateTime.now()));
+        when(status.state()).thenReturn(new WatchStatus.State(false, ZonedDateTime.now(ZoneOffset.UTC)));
         when(watch.status()).thenReturn(status);
 
         WatchRecord watchRecord = executionService.execute(ctx);

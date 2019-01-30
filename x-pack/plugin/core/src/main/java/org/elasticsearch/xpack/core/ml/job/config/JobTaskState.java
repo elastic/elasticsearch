@@ -79,6 +79,7 @@ public class JobTaskState implements PersistentTaskState {
         return state;
     }
 
+    @Nullable
     public String getReason() {
         return reason;
     }

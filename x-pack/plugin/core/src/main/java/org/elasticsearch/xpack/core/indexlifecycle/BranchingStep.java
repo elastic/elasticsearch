@@ -16,6 +16,11 @@ import org.elasticsearch.index.Index;
 import java.util.Objects;
 import java.util.function.BiPredicate;
 
+/**
+ * This step changes its {@link #getNextStepKey()} depending on the
+ * outcome of a defined predicate. It performs no changes to the
+ * cluster state.
+ */
 public class BranchingStep extends ClusterStateActionStep {
     public static final String NAME = "branch";
 
@@ -68,7 +73,7 @@ public class BranchingStep extends ClusterStateActionStep {
    @Override
    public final StepKey getNextStepKey() {
         if (predicateValue.get() == null) {
-            throw new UnsupportedOperationException("Cannot call getNextStepKey before performAction");
+            throw new IllegalStateException("Cannot call getNextStepKey before performAction");
         }
         return predicateValue.get() ? nextStepKeyOnTrue : nextStepKeyOnFalse;
    }

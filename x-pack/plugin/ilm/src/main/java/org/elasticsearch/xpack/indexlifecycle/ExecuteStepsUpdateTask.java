@@ -96,14 +96,15 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                     } catch (Exception exception) {
                         return moveToErrorStep(state, currentStep.getKey(), exception);
                     }
-                    if (currentStep.getNextStepKey() == null) {
+                    // set here to make sure that the clusterProcessed knows to execute the
+                    // correct step if it an async action
+                    nextStepKey = currentStep.getNextStepKey();
+                    if (nextStepKey == null) {
                         return state;
                     } else {
+                        logger.trace("[{}] moving cluster state to next step [{}]", index.getName(), nextStepKey);
                         state = IndexLifecycleRunner.moveClusterStateToNextStep(index, state, currentStep.getKey(),
-                            currentStep.getNextStepKey(), nowSupplier, false);
-                        // set here to make sure that the clusterProcessed knows to execute the
-                        // correct step if it an async action
-                        nextStepKey = currentStep.getNextStepKey();
+                            nextStepKey, nowSupplier, false);
                     }
                 } else {
                     // set here to make sure that the clusterProcessed knows to execute the

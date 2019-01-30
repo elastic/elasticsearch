@@ -139,7 +139,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
 
         assertTrue(steps.get(0) instanceof BranchingStep);
         assertThat(steps.get(0).getKey(), equalTo(expectedFirstKey));
-        expectThrows(UnsupportedOperationException.class, () -> steps.get(0).getNextStepKey());
+        expectThrows(IllegalStateException.class, () -> steps.get(0).getNextStepKey());
         assertThat(((BranchingStep) steps.get(0)).getNextStepKeyOnFalse(), equalTo(expectedSecondKey));
         assertThat(((BranchingStep) steps.get(0)).getNextStepKeyOnTrue(), equalTo(nextStepKey));
 

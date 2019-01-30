@@ -68,8 +68,7 @@ PUT _watcher/watch/my_watch
     "test_index": {
       "throttle_period": "15m",
       "index": {
-        "index": "test",
-        "doc_type": "test2"
+        "index": "test"
       }
     }
   }

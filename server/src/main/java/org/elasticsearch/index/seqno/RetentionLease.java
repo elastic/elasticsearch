@@ -28,7 +28,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -240,6 +242,16 @@ public final class RetentionLease implements Writeable {
                 ", timestamp=" + timestamp +
                 ", source='" + source + '\'' +
                 '}';
+    }
+
+    /**
+     * A utility method to convert a collection of retention leases to a map from retention lease ID to retention lease.
+     *
+     * @param leases the leases
+     * @return the map from retention lease ID to retention lease
+     */
+    static Map<String, RetentionLease> toMap(final Collection<RetentionLease> leases) {
+        return leases.stream().collect(Collectors.toMap(RetentionLease::id, Function.identity()));
     }
 
 }

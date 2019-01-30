@@ -85,6 +85,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.GetLicenseAction;
@@ -896,8 +897,6 @@ public class AuthorizationServiceTests extends ESTestCase {
                 IndicesPrivileges.builder().indices("*").privileges("monitor").allowRestrictedIndices(true).build() }, null);
         roleMap.put("restricted_monitor", restrictedMonitorRole);
         roleMap.put("unrestricted_monitor", unrestrictedMonitorRole);
-        final Authentication restrictedUserAuthn = createAuthentication(new User("restricted_user", "restricted_monitor"));
-        final Authentication unrestrictedUserAuthn = createAuthentication(new User("unrestricted_user", "unrestricted_monitor"));
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.builder()
@@ -908,7 +907,6 @@ public class AuthorizationServiceTests extends ESTestCase {
                     .numberOfReplicas(0)
                     .build(), true)
             .build());
-        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         List<Tuple<String, ? extends TransportRequest>> requests = new ArrayList<>();
         requests.add(new Tuple<>(IndicesStatsAction.NAME, new IndicesStatsRequest().indices(SECURITY_INDEX_NAME)));
@@ -921,12 +919,21 @@ public class AuthorizationServiceTests extends ESTestCase {
         for (final Tuple<String, ? extends TransportRequest> requestTuple : requests) {
             final String action = requestTuple.v1();
             final TransportRequest request = requestTuple.v2();
-            assertThrowsAuthorizationException(() -> authorize(restrictedUserAuthn, action, request), action, "restricted_user");
-            verify(auditTrail).accessDenied(requestId, restrictedUserAuthn, action, request, new String[] { "restricted_monitor" });
-            verifyNoMoreInteractions(auditTrail);
-            authorize(unrestrictedUserAuthn, action, request);
-            verify(auditTrail).accessGranted(requestId, unrestrictedUserAuthn, action, request, new String[] { "unrestricted_monitor" });
-            verifyNoMoreInteractions(auditTrail);
+            try (StoredContext storedContext = threadContext.stashContext()) {
+                final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+                final Authentication restrictedUserAuthn = createAuthentication(new User("restricted_user", "restricted_monitor"));
+                assertThrowsAuthorizationException(() -> authorize(restrictedUserAuthn, action, request), action, "restricted_user");
+                verify(auditTrail).accessDenied(requestId, restrictedUserAuthn, action, request, new String[] { "restricted_monitor" });
+                verifyNoMoreInteractions(auditTrail);
+            }
+            try (StoredContext storedContext = threadContext.stashContext()) {
+                final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+                final Authentication unrestrictedUserAuthn = createAuthentication(new User("unrestricted_user", "unrestricted_monitor"));
+                authorize(unrestrictedUserAuthn, action, request);
+                verify(auditTrail).accessGranted(requestId, unrestrictedUserAuthn, action, request,
+                        new String[] { "unrestricted_monitor" });
+                verifyNoMoreInteractions(auditTrail);
+            }
         }
     }
 

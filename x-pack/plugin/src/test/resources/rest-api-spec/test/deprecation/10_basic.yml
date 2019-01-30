@@ -17,8 +17,9 @@ setup:
 ---
 "Test ml":
   - skip:
+      version: "7.0.0 - "
       features: ["headers", "warnings"]
-      reason: testing a deprecated field
+      reason: this test needs adjusting to contain syntax deprecated in 7.x and removed in 8.0
 
 # Index the config directly to prevent the deprecated
 # use_dis_max field being rewritten by the parser. This
@@ -49,6 +50,7 @@ setup:
       indices.refresh:
         index: [.ml-config]
 
+# TODO: change the query and expected warnings to one that makes sense for 7.x
   - do:
       warnings:
         - Deprecated field [use_dis_max] used, replaced by [Set [tie_breaker] to 1 instead]

@@ -8,14 +8,9 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class MlDeprecationChecksTests extends ESTestCase {
 
@@ -32,6 +27,9 @@ public class MlDeprecationChecksTests extends ESTestCase {
 
         DatafeedConfig.Builder deprecatedDatafeed = new DatafeedConfig.Builder("df-with-deprecated-query", "job-id");
         deprecatedDatafeed.setIndices(Collections.singletonList("some-index"));
+        // TODO: once some query syntax has been removed from 8.0 and deprecated in 7.x reinstate this test
+        // to check that particular query syntax causes a deprecation warning
+        /*
         Map<String, Object> qs = new HashMap<>();
         qs.put("query", "foo");
         qs.put("use_dis_max", true);
@@ -43,7 +41,8 @@ public class MlDeprecationChecksTests extends ESTestCase {
         assertThat(issue.getDetails(), equalTo("[Deprecated field [use_dis_max] used, replaced by [Set [tie_breaker] to 1 instead]]"));
         assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.WARNING));
         assertThat(issue.getMessage(), equalTo("Datafeed [df-with-deprecated-query] uses deprecated query options"));
-        assertThat(issue.getUrl(), equalTo("https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
-                "#breaking_70_search_changes"));
+        assertThat(issue.getUrl(), equalTo("https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
+                "#breaking_80_search_changes"));
+        */
     }
 }

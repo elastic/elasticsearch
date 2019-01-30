@@ -225,6 +225,7 @@ public final class Verifier {
                 validateInExpression(p, localFailures);
                 validateConditional(p, localFailures);
 
+                checkHistogramInGrouping(p, localFailures);
                 checkFilterOnAggs(p, localFailures);
                 checkFilterOnGrouping(p, localFailures);
 
@@ -559,6 +560,37 @@ public final class Verifier {
             return true;
         }
         return false;
+    }
+    
+    private static void checkHistogramInGrouping(LogicalPlan p, Set<Failure> localFailures) {
+        // check if the query has a grouping function (Histogram) but no GROUP BY
+        if (p instanceof Project) {
+            Project proj = (Project) p;
+            
+            proj.projections().forEach(e -> {
+                if (Functions.isGrouping(e) == false) {
+                    e.collectFirstChildren(c -> {
+                        if (Functions.isGrouping(c)) {
+                            localFailures.add(fail(c, "[%s] needs to be part of the grouping", Expressions.name(c)));
+                            return true;
+                        }
+                        return false;
+                    });
+                } else {
+                    localFailures.add(fail(e, "[%s] needs to be part of the grouping", Expressions.name(e)));
+                }
+            });
+        } else if (p instanceof Aggregate) {
+            // if it does have a GROUP BY, check if the groupings contain the grouping functions (Histograms) 
+            Aggregate a = (Aggregate) p;
+
+            a.aggregates().forEach(as -> {
+                Expression exp = as instanceof Alias ? ((Alias) as).child() : as;
+                if (Functions.isGrouping(exp) && false == Expressions.anyMatch(a.groupings(), g -> exp.semanticEquals(g))) {
+                    localFailures.add(fail(exp, "[%s] needs to be part of the grouping", Expressions.name(exp)));
+                }
+            });
+        }
     }
 
     private static void checkFilterOnAggs(LogicalPlan p, Set<Failure> localFailures) {

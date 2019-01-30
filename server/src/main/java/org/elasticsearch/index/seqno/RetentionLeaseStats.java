@@ -95,7 +95,7 @@ public final class RetentionLeaseStats implements ToXContentFragment, Writeable 
                     builder.startObject();
                     {
                         builder.field("id", retentionLease.id());
-                        builder.field("retaining_sequence_number", retentionLease.retainingSequenceNumber());
+                        builder.field("retaining_seq_no", retentionLease.retainingSequenceNumber());
                         builder.field("timestamp", retentionLease.timestamp());
                         builder.field("source", retentionLease.source());
                     }

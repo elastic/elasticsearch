@@ -36,7 +36,7 @@ When `enabled=true` this API temporarily halts all job and {dfeed} tasks and
 prohibits new job and {dfeed} tasks from starting.
 
 Subsequently, you can call the API with the enabled parameter set to false,
- which causes {ml} jobs and {dfeeds} to return to their desired states.
+which causes {ml} jobs and {dfeeds} to return to their desired states.
 
 You can see the current value for the `upgrade_mode` setting by using the
 <<get-ml-info,get {ml} info API>>.

@@ -32,7 +32,7 @@ Now, we can execute a script that would increment the counter:
 
 [source,js]
 --------------------------------------------------
-POST test/_doc/1/_update
+POST test/_update/1
 {
     "script" : {
         "source": "ctx._source.counter += params.count",
@@ -51,7 +51,7 @@ will still add it, since it's a list):
 
 [source,js]
 --------------------------------------------------
-POST test/_doc/1/_update
+POST test/_update/1
 {
     "script" : {
         "source": "ctx._source.tags.add(params.tag)",
@@ -73,7 +73,7 @@ remove only one occurrence of it:
 
 [source,js]
 --------------------------------------------------
-POST test/_doc/1/_update
+POST test/_update/1
 {
     "script" : {
         "source": "if (ctx._source.tags.contains(params.tag)) { ctx._source.tags.remove(ctx._source.tags.indexOf(params.tag)) }",
@@ -95,7 +95,7 @@ We can also add a new field to the document:
 
 [source,js]
 --------------------------------------------------
-POST test/_doc/1/_update
+POST test/_update/1
 {
     "script" : "ctx._source.new_field = 'value_of_new_field'"
 }
@@ -107,7 +107,7 @@ Or remove a field from the document:
 
 [source,js]
 --------------------------------------------------
-POST test/_doc/1/_update
+POST test/_update/1
 {
     "script" : "ctx._source.remove('new_field')"
 }
@@ -121,7 +121,7 @@ the doc if the `tags` field contain `green`, otherwise it does nothing
 
 [source,js]
 --------------------------------------------------
-POST test/_doc/1/_update
+POST test/_update/1
 {
     "script" : {
         "source": "if (ctx._source.tags.contains(params.tag)) { ctx.op = 'delete' } else { ctx.op = 'none' }",
@@ -148,7 +148,7 @@ existing document:
 
 [source,js]
 --------------------------------------------------
-POST test/_doc/1/_update
+POST test/_update/1
 {
     "doc" : {
         "name" : "new_name"
@@ -169,7 +169,7 @@ By default updates that don't change anything detect that they don't change anyt
 
 [source,js]
 --------------------------------------------------
-POST test/_doc/1/_update
+POST test/_update/1
 {
     "doc" : {
         "name" : "new_name"
@@ -204,7 +204,7 @@ You can disable this behavior by setting "detect_noop": false like this:
 
 [source,js]
 --------------------------------------------------
-POST test/_doc/1/_update
+POST test/_update/1
 {
     "doc" : {
         "name" : "new_name"
@@ -225,7 +225,7 @@ will be inserted as a new document.  If the document does exist, then the
 
 [source,js]
 --------------------------------------------------
-POST test/_doc/1/_update
+POST test/_update/1
 {
     "script" : {
         "source": "ctx._source.counter += params.count",
@@ -251,7 +251,7 @@ or not -- i.e. the script handles initializing the document instead of the
 
 [source,js]
 --------------------------------------------------
-POST sessions/session/dh3sgudg8gsrgl/_update
+POST sessions/_update/dh3sgudg8gsrgl
 {
     "scripted_upsert":true,
     "script" : {
@@ -280,7 +280,7 @@ value:
 
 [source,js]
 --------------------------------------------------
-POST test/_doc/1/_update
+POST test/_update/1
 {
     "doc" : {
         "name" : "new_name"

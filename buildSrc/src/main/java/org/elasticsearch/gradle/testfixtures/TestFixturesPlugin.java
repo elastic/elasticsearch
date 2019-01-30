@@ -59,14 +59,17 @@ public class TestFixturesPlugin implements Plugin<Project> {
             disableTaskByType(tasks, JarHellTask.class);
 
             Task buildFixture = project.getTasks().create("buildFixture");
+            Task pullFixture = project.getTasks().create("pullFixture");
             Task preProcessFixture = project.getTasks().create("preProcessFixture");
             buildFixture.dependsOn(preProcessFixture);
+            pullFixture.dependsOn(preProcessFixture);
             Task postProcessFixture = project.getTasks().create("postProcessFixture");
 
             if (dockerComposeSupported(project) == false) {
                 preProcessFixture.setEnabled(false);
                 postProcessFixture.setEnabled(false);
                 buildFixture.setEnabled(false);
+                pullFixture.setEnabled(false);
                 return;
             }
 
@@ -81,7 +84,9 @@ public class TestFixturesPlugin implements Plugin<Project> {
             );
 
             buildFixture.dependsOn(tasks.getByName("composeUp"));
+            pullFixture.dependsOn(tasks.getByName("composePull"));
             tasks.getByName("composeUp").mustRunAfter(preProcessFixture);
+            tasks.getByName("composePull").mustRunAfter(preProcessFixture);
             postProcessFixture.dependsOn(buildFixture);
 
             configureServiceInfoForTask(

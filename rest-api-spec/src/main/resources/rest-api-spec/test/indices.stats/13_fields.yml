@@ -3,6 +3,7 @@ setup:
 
   - do:
       indices.create:
+          include_type_name: false
           index:  test1
           wait_for_active_shards: all
           body:
@@ -13,20 +14,19 @@ setup:
                 index.number_of_shards: 3
                 index.number_of_replicas: 0
               mappings:
-                  bar:
-                      properties:
-                          bar:
-                              type: text
-                              fielddata: true
-                              fields:
-                                  completion:
-                                      type: completion
-                          baz:
-                              type: text
-                              fielddata: true
-                              fields:
-                                  completion:
-                                      type: completion
+                  properties:
+                      bar:
+                          type: text
+                          fielddata: true
+                          fields:
+                              completion:
+                                  type: completion
+                      baz:
+                          type: text
+                          fielddata: true
+                          fields:
+                              completion:
+                                  type: completion
 
   - do:
       cluster.health:
@@ -35,14 +35,12 @@ setup:
   - do:
       index:
           index: test1
-          type:  bar
           id:    1
           body:  { "bar": "bar", "baz": "baz" }
 
   - do:
       index:
           index: test1
-          type:  bar
           id:    2
           body:  { "bar": "foo", "baz": "foo" }
 

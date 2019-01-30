@@ -1,6 +1,6 @@
 {
   "ml.set_upgrade_mode": {
-    "documentation": "TODO",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-set-upgrade-mode.html",
     "methods": [ "POST" ],
     "url": {
       "path": "/_ml/set_upgrade_mode",

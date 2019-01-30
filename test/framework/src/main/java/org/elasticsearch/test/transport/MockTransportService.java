@@ -407,6 +407,16 @@ public final class MockTransportService extends TransportService {
     }
 
     /**
+     * Adds a send behavior that is the default send behavior.
+     *
+     * @return {@code true} if no default send behavior was registered
+     */
+    public boolean addSendBehavior(StubbableTransport.SendRequestBehavior behavior) {
+        return transport().setDefaultSendBehavior(behavior);
+    }
+
+
+    /**
      * Adds a new connect behavior that is used for creating connections with the given delegate service.
      *
      * @return {@code true} if no other send behavior was registered for any of the addresses bound by delegate service.

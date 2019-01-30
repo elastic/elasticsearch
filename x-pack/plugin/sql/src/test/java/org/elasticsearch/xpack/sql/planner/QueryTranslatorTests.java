@@ -628,7 +628,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertTrue(eqe.output().get(0).dataType() == DataType.KEYWORD);
             assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
                 endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
-                        "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\",\"format\":\"use_field_mapping\"}]," +
+                        "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\"}]," +
                         "\"sort\":[{\"keyword\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
         }
         {
@@ -640,7 +640,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertTrue(eqe.output().get(0).dataType() == DataType.KEYWORD);
             assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
                 endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
-                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\",\"format\":\"use_field_mapping\"}]," +
+                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\"}]," +
                     "\"sort\":[{\"keyword\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
         }
     }
@@ -655,7 +655,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertTrue(eqe.output().get(0).dataType() == DataType.KEYWORD);
             assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
                 endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
-                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\",\"format\":\"use_field_mapping\"}]," +
+                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\"}]," +
                     "\"sort\":[{\"int\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"integer\"}}," +
                     "{\"keyword\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
 
@@ -669,7 +669,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertTrue(eqe.output().get(0).dataType() == DataType.KEYWORD);
             assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
                 endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
-                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\",\"format\":\"use_field_mapping\"}]," +
+                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\"}]," +
                     "\"sort\":[{\"int\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"integer\"}}," +
                     "{\"keyword\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
         }

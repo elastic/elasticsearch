@@ -169,8 +169,6 @@ public enum DataType {
      */
     private final boolean isRational;
 
-    private static final String DEFAULT_FORMAT = "use_field_mapping";
-
     /**
      * True if the type supports doc values by default
      */
@@ -246,6 +244,6 @@ public enum DataType {
     }
 
     public String format() {
-        return isDateBased() ? DateUtils.DATE_PARSE_FORMAT : DEFAULT_FORMAT;
+        return isDateBased() ? DateUtils.DATE_PARSE_FORMAT : null;
     }
 }

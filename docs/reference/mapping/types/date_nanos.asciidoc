@@ -73,3 +73,15 @@ happen. This also means, the sort values will be in milliseconds.
 Please be aware that aggregations do not support buckets in nanosecond
 resolution, even if you query a `date_nanos` typed field, the buckets
 will be in milliseconds.
+
+[[date-nanos-limitations]]
+==== Limitations
+
+There are a couple of limitations when using the `date_nanos` data type.
+
+Aggregations and scripts are still on millisecond resolution, even when
+using a `date_nanos` field.
+
+Running search requests that use a `date_nanos` and `date` field is limited to
+regular search requests. You cannot use `search_after` or scroll searches in
+this case. An error will be returned if this is tried.

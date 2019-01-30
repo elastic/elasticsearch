@@ -34,6 +34,7 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.time.DateUtils;
@@ -151,13 +152,14 @@ public final class SearchPhaseController {
      *
      * @param ignoreFrom Whether to ignore the from and sort all hits in each shard result.
      *                   Enabled only for scroll search, because that only retrieves hits of length 'size' in the query phase.
+     * @param isSearchAfterRequest Whether the request contains information about being a search after request
      * @param results the search phase results to obtain the sort docs from
      * @param bufferedTopDocs the pre-consumed buffered top docs
      * @param topDocsStats the top docs stats to fill
      * @param from the offset into the search results top docs
      * @param size the number of hits to return from the merged top docs
      */
-    static SortedTopDocs sortDocs(boolean ignoreFrom, Collection<? extends SearchPhaseResult> results,
+    static SortedTopDocs sortDocs(boolean ignoreFrom, boolean isSearchAfterRequest, Collection<? extends SearchPhaseResult> results,
                                   final Collection<TopDocs> bufferedTopDocs, final TopDocsStats topDocsStats, int from, int size) {
         if (results.isEmpty()) {
             return SortedTopDocs.EMPTY;
@@ -192,7 +194,7 @@ public final class SearchPhaseController {
         }
         final boolean hasHits = (groupedCompletionSuggestions.isEmpty() && topDocs.isEmpty()) == false;
         if (hasHits) {
-            final TopDocs mergedTopDocs = mergeTopDocs(topDocs, size, ignoreFrom ? 0 : from);
+            final TopDocs mergedTopDocs = mergeTopDocs(topDocs, size, ignoreFrom ? 0 : from, isSearchAfterRequest, ignoreFrom);
             final ScoreDoc[] mergedScoreDocs = mergedTopDocs == null ? EMPTY_DOCS : mergedTopDocs.scoreDocs;
             ScoreDoc[] scoreDocs = mergedScoreDocs;
             if (groupedCompletionSuggestions.isEmpty() == false) {
@@ -238,7 +240,7 @@ public final class SearchPhaseController {
         }
     }
 
-    static TopDocs mergeTopDocs(Collection<TopDocs> results, int topN, int from) {
+    static TopDocs mergeTopDocs(Collection<TopDocs> results, int topN, int from, boolean isSearchAfterRequest, boolean isScrollRequest) {
         if (results.isEmpty()) {
             return null;
         }
@@ -252,13 +254,13 @@ public final class SearchPhaseController {
             CollapseTopFieldDocs firstTopDocs = (CollapseTopFieldDocs) topDocs;
             final Sort sort = new Sort(firstTopDocs.fields);
             final CollapseTopFieldDocs[] shardTopDocs = results.toArray(new CollapseTopFieldDocs[numShards]);
-            transformNanoToMilli(shardTopDocs, sort);
+            transformNanoToMilli(shardTopDocs, sort, isSearchAfterRequest, isScrollRequest);
             mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs, setShardIndex);
         } else if (topDocs instanceof TopFieldDocs) {
             TopFieldDocs firstTopDocs = (TopFieldDocs) topDocs;
             Sort sort = new Sort(firstTopDocs.fields);
             final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
-            transformNanoToMilli(shardTopDocs, sort);
+            transformNanoToMilli(shardTopDocs, sort, isSearchAfterRequest, isScrollRequest);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs, setShardIndex);
         } else {
             final TopDocs[] shardTopDocs = results.toArray(new TopDocs[numShards]);
@@ -267,7 +269,7 @@ public final class SearchPhaseController {
         return mergedTopDocs;
     }
 
-    static void transformNanoToMilli(TopFieldDocs[] shardTopDocs, Sort sort) {
+    static void transformNanoToMilli(TopFieldDocs[] shardTopDocs, Sort sort, boolean isSearchAfterRequest, boolean isScrollRequest) {
         for (int sortIdx = 0; sortIdx < shardTopDocs[0].fields.length; sortIdx++) {
             final int idx = sortIdx;
 
@@ -318,6 +320,15 @@ public final class SearchPhaseController {
                     sort.getSort()[sortIdx] = regularSortField;
                 }
             } else {
+                if (isSearchAfterRequest) {
+                    throw new ElasticsearchException("search_after across indices with a sort on date and date_nanos field mappings " +
+                        "on the same field is not supported");
+                }
+                if (isScrollRequest) {
+                    throw new ElasticsearchException("scrolling across indices with a sort on date and date_nanos field mappings " +
+                        "on the same field is not supported");
+                }
+
                 // do the transformation for all shards
                 transformScoreToMilliseconds(shardTopDocs, sortIdx);
 
@@ -499,17 +510,17 @@ public final class SearchPhaseController {
      * @param queryResults a list of non-null query shard results
      */
     ReducedQueryPhase reducedScrollQueryPhase(Collection<? extends SearchPhaseResult> queryResults) {
-        return reducedQueryPhase(queryResults, true, SearchContext.TRACK_TOTAL_HITS_ACCURATE, true);
+        return reducedQueryPhase(queryResults, true, true, SearchContext.TRACK_TOTAL_HITS_ACCURATE, true);
     }
 
     /**
      * Reduces the given query results and consumes all aggregations and profile results.
      * @param queryResults a list of non-null query shard results
      */
-    public ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults,
-                                               boolean isScrollRequest, int trackTotalHitsUpTo, boolean performFinalReduce) {
+    public ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults, boolean isScrollRequest,
+                                               boolean isSearchAfterRequest, int trackTotalHitsUpTo, boolean performFinalReduce) {
         return reducedQueryPhase(queryResults, null, new ArrayList<>(), new TopDocsStats(trackTotalHitsUpTo),
-            0, isScrollRequest, performFinalReduce);
+            0, isScrollRequest, isSearchAfterRequest, performFinalReduce);
     }
 
     /**
@@ -526,7 +537,7 @@ public final class SearchPhaseController {
     private ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults,
                                                 List<InternalAggregations> bufferedAggs, List<TopDocs> bufferedTopDocs,
                                                 TopDocsStats topDocsStats, int numReducePhases, boolean isScrollRequest,
-                                                boolean performFinalReduce) {
+                                                boolean isSearchAfterRequest, boolean performFinalReduce) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
         if (queryResults.isEmpty()) { // early terminate we have nothing to reduce
@@ -584,7 +595,8 @@ public final class SearchPhaseController {
         final InternalAggregations aggregations = aggregationsList.isEmpty() ? null : reduceAggs(aggregationsList,
             firstResult.pipelineAggregators(), reduceContext);
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
-        final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, queryResults, bufferedTopDocs, topDocsStats, from, size);
+        final SortedTopDocs sortedTopDocs =
+            sortDocs(isScrollRequest, isSearchAfterRequest, queryResults, bufferedTopDocs, topDocsStats, from, size);
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
             topDocsStats.timedOut, topDocsStats.terminatedEarly, suggest, aggregations, shardResults, sortedTopDocs,
@@ -690,6 +702,8 @@ public final class SearchPhaseController {
         private final boolean hasAggs;
         private final boolean hasTopDocs;
         private final int bufferSize;
+        private final boolean isScrollRequest;
+        private final boolean isSearchAfterRequest;
         private int index;
         private final SearchPhaseController controller;
         private int numReducePhases = 0;
@@ -704,8 +718,11 @@ public final class SearchPhaseController {
          *                   the buffer is used to incrementally reduce aggregation results before all shards responded.
          */
         private QueryPhaseResultConsumer(SearchPhaseController controller, int expectedResultSize, int bufferSize,
-                                         boolean hasTopDocs, boolean hasAggs, int trackTotalHitsUpTo, boolean performFinalReduce) {
+                                         boolean hasTopDocs, boolean hasAggs, int trackTotalHitsUpTo, boolean performFinalReduce,
+                                         boolean isScrollRequest, boolean isSearchAfterRequest) {
             super(expectedResultSize);
+            this.isScrollRequest = isScrollRequest;
+            this.isSearchAfterRequest = isSearchAfterRequest;
             if (expectedResultSize != 1 && bufferSize < 2) {
                 throw new IllegalArgumentException("buffer size must be >= 2 if there is more than one expected result");
             }
@@ -743,7 +760,7 @@ public final class SearchPhaseController {
                 if (hasTopDocs) {
                     TopDocs reducedTopDocs = mergeTopDocs(Arrays.asList(topDocsBuffer),
                         // we have to merge here in the same way we collect on a shard
-                        querySearchResult.from() + querySearchResult.size(), 0);
+                        querySearchResult.from() + querySearchResult.size(), 0, isSearchAfterRequest, isScrollRequest);
                     Arrays.fill(topDocsBuffer, null);
                     topDocsBuffer[0] = reducedTopDocs;
                 }
@@ -773,7 +790,7 @@ public final class SearchPhaseController {
         @Override
         public ReducedQueryPhase reduce() {
             return controller.reducedQueryPhase(results.asList(), getRemainingAggs(), getRemainingTopDocs(), topDocsStats,
-                numReducePhases, false, performFinalReduce);
+                numReducePhases, false, isSearchAfterRequest, performFinalReduce);
         }
 
         /**
@@ -800,7 +817,9 @@ public final class SearchPhaseController {
      */
     InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> newSearchPhaseResults(SearchRequest request, int numShards) {
         SearchSourceBuilder source = request.source();
-        boolean isScrollRequest = request.scroll() != null;
+        final boolean isScrollRequest = request.scroll() != null;
+        final boolean isSearchAfterRequest = request.source() != null && request.source().searchAfter() != null
+            && request.source().searchAfter().length > 0;
         final boolean hasAggs = source != null && source.aggregations() != null;
         final boolean hasTopDocs = source == null || source.size() != 0;
         final int trackTotalHitsUpTo = resolveTrackTotalHits(request);
@@ -811,13 +830,13 @@ public final class SearchPhaseController {
             if (request.getBatchedReduceSize() < numShards) {
                 // only use this if there are aggs and if there are more shards than we should reduce at once
                 return new QueryPhaseResultConsumer(this, numShards, request.getBatchedReduceSize(), hasTopDocs, hasAggs,
-                    trackTotalHitsUpTo, finalReduce);
+                    trackTotalHitsUpTo, finalReduce, isScrollRequest, isSearchAfterRequest);
             }
         }
         return new InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult>(numShards) {
             @Override
             ReducedQueryPhase reduce() {
-                return reducedQueryPhase(results.asList(), isScrollRequest, trackTotalHitsUpTo, finalReduce);
+                return reducedQueryPhase(results.asList(), isScrollRequest, isSearchAfterRequest, trackTotalHitsUpTo, finalReduce);
             }
         };
     }

@@ -79,15 +79,19 @@ final class SearchResponseMerger {
     private final int from;
     private final int size;
     private final int trackTotalHitsUpTo;
+    private final boolean isSearchAfter;
+    private final boolean isScrollSearch;
     private final SearchTimeProvider searchTimeProvider;
     private final Function<Boolean, ReduceContext> reduceContextFunction;
     private final List<SearchResponse> searchResponses = new CopyOnWriteArrayList<>();
 
-    SearchResponseMerger(int from, int size, int trackTotalHitsUpTo, SearchTimeProvider searchTimeProvider,
-                         Function<Boolean, ReduceContext> reduceContextFunction) {
+    SearchResponseMerger(int from, int size, int trackTotalHitsUpTo, boolean isSearchAfter, boolean isScrollSearch,
+                         SearchTimeProvider searchTimeProvider, Function<Boolean, ReduceContext> reduceContextFunction) {
         this.from = from;
         this.size = size;
         this.trackTotalHitsUpTo = trackTotalHitsUpTo;
+        this.isSearchAfter = isSearchAfter;
+        this.isScrollSearch = isScrollSearch;
         this.searchTimeProvider = Objects.requireNonNull(searchTimeProvider);
         this.reduceContextFunction = Objects.requireNonNull(reduceContextFunction);
     }
@@ -166,7 +170,7 @@ final class SearchResponseMerger {
 
         //after going through all the hits and collecting all their distinct shards, we can assign shardIndex and set it to the ScoreDocs
         setShardIndex(shards, topDocsList);
-        TopDocs topDocs = mergeTopDocs(topDocsList, size, from);
+        TopDocs topDocs = mergeTopDocs(topDocsList, size, from, isSearchAfter, isScrollSearch);
         SearchHits mergedSearchHits = topDocsToSearchHits(topDocs, topDocsStats);
         Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
         InternalAggregations reducedAggs = InternalAggregations.reduce(aggs, reduceContextFunction.apply(true));

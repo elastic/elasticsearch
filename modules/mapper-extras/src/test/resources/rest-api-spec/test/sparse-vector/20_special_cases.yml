@@ -6,15 +6,15 @@ setup:
 
   - do:
       indices.create:
+        include_type_name: false
         index: test-index
         body:
           settings:
             number_of_replicas: 0
           mappings:
-            _doc:
-              properties:
-                my_sparse_vector:
-                   type: sparse_vector
+            properties:
+              my_sparse_vector:
+                 type: sparse_vector
 
 
 ---
@@ -23,7 +23,6 @@ setup:
   - do:
       index:
         index: test-index
-        type: _doc
         id: 1
         body:
           my_sparse_vector: {"1": 10}
@@ -31,7 +30,6 @@ setup:
   - do:
       index:
         index: test-index
-        type: _doc
         id: 2
         body:
           my_sparse_vector: {"1": 10, "10" : 10.5}
@@ -39,7 +37,6 @@ setup:
   - do:
       index:
         index: test-index
-        type: _doc
         id: 3
         body:
           my_sparse_vector: {"1": 10, "10" : 10.5, "100": 100.5}
@@ -92,7 +89,6 @@ setup:
 - do:
     index:
       index: test-index
-      type: _doc
       id: 1
       body:
         my_sparse_vector: {"1": 10}
@@ -100,7 +96,6 @@ setup:
 - do:
     index:
       index: test-index
-      type: _doc
       id: 2
       body:
         some_other_field: "random_value"
@@ -134,7 +129,6 @@ setup:
 - do:
     index:
       index: test-index
-      type: _doc
       id: 1
       body:
         my_sparse_vector: {"2": 230.0, "11" : 300.33, "12": -34.8988, "30": 15.555, "100": -200.0}
@@ -142,7 +136,6 @@ setup:
 - do:
     index:
       index: test-index
-      type: _doc
       id: 2
       body:
         my_sparse_vector: {"100": -200.0, "12": -34.8988, "11" : 300.33, "113": 15.555, "2": 230.0}
@@ -150,7 +143,6 @@ setup:
 - do:
     index:
       index: test-index
-      type: _doc
       id: 3
       body:
         my_sparse_vector: {"100": -200.0, "30": 15.555, "12": -34.8988, "11" : 300.33, "2": 230.0}

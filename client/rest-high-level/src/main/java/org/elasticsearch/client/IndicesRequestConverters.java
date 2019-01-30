@@ -54,6 +54,7 @@ import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.rest.BaseRestHandler;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -521,7 +522,9 @@ final class IndicesRequestConverters {
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withMasterTimeout(putIndexTemplateRequest.masterNodeTimeout());
-        params.withIncludeTypeName(false);
+        // Caution: line below doesn't actually set the include_type_name=false parameter. 
+        // params.withIncludeTypeName(false);
+        params.putParam(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, Boolean.FALSE.toString());
         if (putIndexTemplateRequest.create()) {
             params.putParam("create", Boolean.TRUE.toString());
         }

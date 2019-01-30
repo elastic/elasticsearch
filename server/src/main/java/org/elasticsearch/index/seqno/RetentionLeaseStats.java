@@ -32,9 +32,18 @@ import java.util.Objects;
 /**
  * Represents retention lease stats.
  */
-public class RetentionLeaseStats implements ToXContentFragment, Writeable {
+public final class RetentionLeaseStats implements ToXContentFragment, Writeable {
 
     private final Collection<RetentionLease> leases;
+
+    /**
+     * The underlying retention leases backing this stats object.
+     *
+     * @return the leases
+     */
+    public Collection<RetentionLease> leases() {
+        return leases;
+    }
 
     /**
      * Constructs a new retention lease stats object from the specified leases.

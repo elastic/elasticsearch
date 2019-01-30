@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RetentionLeaseIT extends ESIntegTestCase {
@@ -61,6 +62,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
         }
 
         final IndicesStatsResponse indicesStats = client().admin().indices().prepareStats("index").execute().actionGet();
+        assertThat(indicesStats.getShards(), arrayWithSize(1));
         final RetentionLeaseStats retentionLeaseStats = indicesStats.getShards()[0].getRetentionLeaseStats();
         assertThat(RetentionLease.toMap(retentionLeaseStats.leases()), equalTo(currentRetentionLeases));
     }

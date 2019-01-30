@@ -32,8 +32,7 @@ import static org.hamcrest.CoreMatchers.sameInstance;
 public class TransportRequestDeduplicatorTests extends ESTestCase {
 
     public void testRequestDeduplication() throws Exception {
-        AtomicInteger successCount;
-        successCount = new AtomicInteger();
+        AtomicInteger successCount = new AtomicInteger();
         AtomicInteger failureCount = new AtomicInteger();
         Exception failure = randomBoolean() ? new TransportException("simulated") : null;
         final TransportRequest request = new TransportRequest() {
@@ -71,11 +70,13 @@ public class TransportRequestDeduplicatorTests extends ESTestCase {
             t.join();
         }
         final ActionListener<Void> listener = listenerHolder.get();
+        assertThat(deduplicator.size(), equalTo(1));
         if (failure != null) {
             listener.onFailure(failure);
         } else {
             listener.onResponse(null);
         }
+        assertThat(deduplicator.size(), equalTo(0));
         assertBusy(() -> {
             if (failure != null) {
                 assertThat(successCount.get(), equalTo(0));

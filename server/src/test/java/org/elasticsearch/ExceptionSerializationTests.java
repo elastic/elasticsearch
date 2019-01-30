@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -278,7 +279,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testSearchException() throws IOException {
-        SearchShardTarget target = new SearchShardTarget("foo", new Index("bar", "_na_"), 1, null);
+        SearchShardTarget target = new SearchShardTarget("foo", new ShardId("bar", "_na_", 1), null, OriginalIndices.NONE);
         SearchException ex = serialize(new SearchException(target, "hello world"));
         assertEquals(target, ex.shard());
         assertEquals(ex.getMessage(), "hello world");

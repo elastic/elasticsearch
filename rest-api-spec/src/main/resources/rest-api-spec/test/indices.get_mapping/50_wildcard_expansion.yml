@@ -2,40 +2,52 @@
 setup:
   - do:
         indices.create:
+          include_type_name: false
           index: test-xxx
           body:
             settings:
               index:
                 number_of_replicas: 0
             mappings:
-              type_1: {}
+              properties:
+                foo:
+                  type: keyword
   - do:
         indices.create:
+          include_type_name: false
           index: test-xxy
           body:
             settings:
               index:
                 number_of_replicas: 0
             mappings:
-              type_2: {}
+              properties:
+                foo2:
+                  type: keyword
   - do:
         indices.create:
+          include_type_name: false
           index: test-xyy
           body:
             settings:
               index:
                 number_of_replicas: 0
             mappings:
-              type_3: {}
+              properties:
+                foo3:
+                  type: keyword
   - do:
         indices.create:
+          include_type_name: false
           index: test-yyy
           body:
             settings:
               index:
                 number_of_replicas: 0
             mappings:
-              type_4: {}
+              properties:
+                foo4:
+                  type: keyword
 
   - do:
         cluster.health:

@@ -11,14 +11,14 @@
 "Index and field":
     - do:
         indices.create:
+          include_type_name: false
           index: test
           body:
             mappings:
-              test:
-                properties:
-                  text:
-                    type:     text
-                    analyzer: standard
+              properties:
+                text:
+                  type:     text
+                  analyzer: standard
 
     - do:
         indices.analyze:

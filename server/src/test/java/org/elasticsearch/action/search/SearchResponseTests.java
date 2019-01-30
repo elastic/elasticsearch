@@ -128,7 +128,7 @@ public class SearchResponseTests extends ESTestCase {
             shardSearchFailures, randomBoolean() ? randomClusters() : SearchResponse.Clusters.EMPTY);
     }
 
-    private static SearchResponse.Clusters randomClusters() {
+    static SearchResponse.Clusters randomClusters() {
         int totalClusters = randomIntBetween(0, 10);
         int successfulClusters = randomIntBetween(0, totalClusters);
         int skippedClusters = totalClusters - successfulClusters;

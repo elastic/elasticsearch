@@ -25,6 +25,6 @@ public class OssTarTests extends ArchiveTestCase {
 
     @Override
     protected Distribution distribution() {
-        return Distribution.OSS_TAR;
+        return Distribution.OSS_LINUX;
     }
 }

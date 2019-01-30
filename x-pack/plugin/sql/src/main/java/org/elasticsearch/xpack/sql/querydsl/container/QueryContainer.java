@@ -11,7 +11,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
@@ -183,7 +182,7 @@ public class QueryContainer {
         List<FieldExtraction> nestedRefs = new ArrayList<>();
 
         String name = aliasName(attr);
-        String format = attr.field().getDataType() == DataType.DATE ? "epoch_millis" : DocValueFieldsContext.USE_DEFAULT_FORMAT;
+        String format = attr.field().getDataType() == DataType.DATETIME ? "epoch_millis" : null;
         Query q = rewriteToContainNestedField(query, attr.source(),
                 attr.nestedParent().name(), name, format, attr.field().isAggregatable());
 

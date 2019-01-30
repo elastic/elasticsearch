@@ -205,6 +205,16 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads an optional {@link Integer}.
+     */
+    public Integer readOptionalInt() throws IOException {
+        if (readBoolean()) {
+            return readInt();
+        }
+        return null;
+    }
+
+    /**
      * Reads an int stored in variable-length format.  Reads between one and
      * five bytes.  Smaller values take fewer bytes.  Negative numbers
      * will always use all 5 bytes and are therefore better serialized
@@ -653,6 +663,23 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
+    /**
+     * Read a {@linkplain DateTimeZone}.
+     */
+    public ZoneId readZoneId() throws IOException {
+        return ZoneId.of(readString());
+    }
+
+    /**
+     * Read an optional {@linkplain ZoneId}.
+     */
+    public ZoneId readOptionalZoneId() throws IOException {
+        if (readBoolean()) {
+            return ZoneId.of(readString());
+        }
+        return null;
+    }
+
     public int[] readIntArray() throws IOException {
         int length = readArraySize();
         int[] values = new int[length];
@@ -929,10 +956,24 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a list of objects
+     * Reads a list of objects. The list is expected to have been written using {@link StreamOutput#writeList(List)} or
+     * {@link StreamOutput#writeStreamableList(List)}.
+     *
+     * @return the list of objects
+     * @throws IOException if an I/O exception occurs reading the list
      */
-    public <T> List<T> readList(Writeable.Reader<T> reader) throws IOException {
+    public <T> List<T> readList(final Writeable.Reader<T> reader) throws IOException {
         return readCollection(reader, ArrayList::new);
+    }
+
+    /**
+     * Reads a list of strings. The list is expected to have been written using {@link StreamOutput#writeStringCollection(Collection)}.
+     *
+     * @return the list of strings
+     * @throws IOException if an I/O exception occurs reading the list
+     */
+    public List<String> readStringList() throws IOException {
+        return readList(StreamInput::readString);
     }
 
     /**

@@ -67,7 +67,7 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
         final Map<String, RetentionLease> currentRetentionLeases = new HashMap<>();
         for (int i = 0; i < length; i++) {
             final String id = randomValueOtherThanMany(currentRetentionLeases.keySet()::contains, () -> randomAlphaOfLength(8));
-            final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+            final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
             final String source = randomAlphaOfLength(8);
             final CountDownLatch latch = new CountDownLatch(1);
             final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
@@ -119,7 +119,7 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
         final int length = randomIntBetween(1, 8);
         for (int i = 0; i < length; i++) {
             final String id = randomAlphaOfLength(8);
-            final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+            final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
             final String source = randomAlphaOfLength(8);
             final CountDownLatch latch = new CountDownLatch(1);
             final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));

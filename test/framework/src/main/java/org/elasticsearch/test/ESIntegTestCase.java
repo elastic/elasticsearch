@@ -2020,13 +2020,18 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     newSettings.add(settings);
                 } else {
                     List<String> nodeNames = new ArrayList<>();
+
                     for (Settings nodeSettings : internalCluster().getDataOrMasterNodeInstances(Settings.class)) {
                         if (org.elasticsearch.node.Node.NODE_MASTER_SETTING.get(nodeSettings)) {
                             nodeNames.add(org.elasticsearch.node.Node.NODE_NAME_SETTING.get(nodeSettings));
                         }
                     }
-                    allNodesSettings.forEach(
-                            nodeSettings -> nodeNames.add(org.elasticsearch.node.Node.NODE_NAME_SETTING.get(nodeSettings)));
+
+                    for (Settings nodeSettings : allNodesSettings) {
+                        if (org.elasticsearch.node.Node.NODE_MASTER_SETTING.get(nodeSettings)) {
+                            nodeNames.add(org.elasticsearch.node.Node.NODE_NAME_SETTING.get(nodeSettings));
+                        }
+                    }
 
                     newSettings.add(Settings.builder().put(settings)
                             .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), nodeNames)

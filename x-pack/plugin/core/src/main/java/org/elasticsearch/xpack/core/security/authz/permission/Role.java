@@ -14,6 +14,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -93,6 +95,22 @@ public class Role {
         return indices().check(action);
     }
 
+
+    /**
+     * For given index patterns and index privileges determines allowed privileges and creates an instance of {@link ResourcePrivilegesMap}
+     * holding a map of resource to {@link ResourcePrivileges} where resource is index pattern and the map of index privilege to whether it
+     * is allowed or not.
+     *
+     * @param checkForIndexPatterns check permission grants for the set of index patterns
+     * @param allowRestrictedIndices if {@code true} then checks permission grants even for restricted indices by index matching
+     * @param checkForPrivileges check permission grants for the set of index privileges
+     * @return an instance of {@link ResourcePrivilegesMap}
+     */
+    public ResourcePrivilegesMap checkIndicesPrivileges(Set<String> checkForIndexPatterns, boolean allowRestrictedIndices,
+                                                                 Set<String> checkForPrivileges) {
+        return indices().checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices, checkForPrivileges);
+    }
+
     /**
      * Check if cluster permissions allow for the given action
      *
@@ -102,6 +120,34 @@ public class Role {
      */
     public boolean checkClusterAction(String action, TransportRequest request) {
         return cluster().check(action, request);
+    }
+
+    /**
+     * Check if cluster permissions grants the given cluster privilege
+     *
+     * @param clusterPrivilege cluster privilege
+     * @return {@code true} if cluster privilege is allowed else returns {@code false}
+     */
+    public boolean grants(ClusterPrivilege clusterPrivilege) {
+        return cluster().grants(clusterPrivilege);
+    }
+
+    /**
+     * For a given application, checks for the privileges for resources and returns an instance of {@link ResourcePrivilegesMap} holding a
+     * map of resource to {@link ResourcePrivileges} where the resource is application resource and the map of application privilege to
+     * whether it is allowed or not.
+     *
+     * @param applicationName checks privileges for the provided application name
+     * @param checkForResources check permission grants for the set of resources
+     * @param checkForPrivilegeNames check permission grants for the set of privilege names
+     * @param storedPrivileges stored {@link ApplicationPrivilegeDescriptor} for an application against which the access checks are
+     * performed
+     * @return an instance of {@link ResourcePrivilegesMap}
+     */
+    public ResourcePrivilegesMap checkApplicationResourcePrivileges(final String applicationName, Set<String> checkForResources,
+                                                                    Set<String> checkForPrivilegeNames,
+                                                                    Collection<ApplicationPrivilegeDescriptor> storedPrivileges) {
+        return application().checkResourcePrivileges(applicationName, checkForResources, checkForPrivilegeNames, storedPrivileges);
     }
 
     /**
@@ -236,4 +282,5 @@ public class Role {
             ), Sets.newHashSet(arp.getResources()));
         }
     }
+
 }

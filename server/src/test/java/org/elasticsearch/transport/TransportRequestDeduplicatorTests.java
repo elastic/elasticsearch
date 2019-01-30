@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.transport;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -42,19 +42,7 @@ public class TransportRequestDeduplicatorTests extends ESTestCase {
             }
         };
         final TransportRequestDeduplicator<TransportRequest> deduplicator = new TransportRequestDeduplicator<>();
-        final CompletableFuture<ActionListener<Void>> listenerFuture = new CompletableFuture<>();
-        deduplicator.executeOnce(request, new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void aVoid) {
-                successCount.incrementAndGet();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertThat(e, sameInstance(failure));
-                failureCount.incrementAndGet();
-            }
-        }, (req, reqListener) -> listenerFuture.complete(reqListener));
+        final SetOnce<ActionListener<Void>> listenerHolder = new SetOnce<>();
         int iterationsPerThread = scaledRandomIntBetween(100, 1000);
         Thread[] threads = new Thread[between(1, 4)];
         Phaser barrier = new Phaser(threads.length + 1);
@@ -64,7 +52,7 @@ public class TransportRequestDeduplicatorTests extends ESTestCase {
                 for (int n = 0; n < iterationsPerThread; n++) {
                     deduplicator.executeOnce(request, new ActionListener<Void>() {
                         @Override
-                        public void onResponse(final Void aVoid) {
+                        public void onResponse(Void aVoid) {
                             successCount.incrementAndGet();
                         }
 
@@ -73,7 +61,7 @@ public class TransportRequestDeduplicatorTests extends ESTestCase {
                             assertThat(e, sameInstance(failure));
                             failureCount.incrementAndGet();
                         }
-                    }, (req, reqListener) -> fail("Callback should not be invoked more than once."));
+                    }, (req, reqListener) -> listenerHolder.set(reqListener));
                 }
             });
             threads[i].start();
@@ -82,7 +70,7 @@ public class TransportRequestDeduplicatorTests extends ESTestCase {
         for (Thread t : threads) {
             t.join();
         }
-        final ActionListener<Void> listener = listenerFuture.get();
+        final ActionListener<Void> listener = listenerHolder.get();
         if (failure != null) {
             listener.onFailure(failure);
         } else {
@@ -91,9 +79,9 @@ public class TransportRequestDeduplicatorTests extends ESTestCase {
         assertBusy(() -> {
             if (failure != null) {
                 assertThat(successCount.get(), equalTo(0));
-                assertThat(failureCount.get(), equalTo(threads.length * iterationsPerThread + 1));
+                assertThat(failureCount.get(), equalTo(threads.length * iterationsPerThread));
             } else {
-                assertThat(successCount.get(), equalTo(threads.length * iterationsPerThread + 1));
+                assertThat(successCount.get(), equalTo(threads.length * iterationsPerThread));
                 assertThat(failureCount.get(), equalTo(0));
             }
         });

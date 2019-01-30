@@ -43,6 +43,7 @@ import static java.time.temporal.ChronoField.HOUR_OF_DAY;
 import static java.time.temporal.ChronoField.MINUTE_OF_DAY;
 import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
+import static java.time.temporal.ChronoField.SECOND_OF_DAY;
 
 enum DateFormat {
     Iso8601 {
@@ -81,7 +82,7 @@ enum DateFormat {
     },
     Java {
         private final List<ChronoField> FIELDS =
-            Arrays.asList(NANO_OF_SECOND, MINUTE_OF_DAY, HOUR_OF_DAY, DAY_OF_MONTH, MONTH_OF_YEAR);
+            Arrays.asList(NANO_OF_SECOND, SECOND_OF_DAY, MINUTE_OF_DAY, HOUR_OF_DAY, DAY_OF_MONTH, MONTH_OF_YEAR);
 
         @Override
         Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {

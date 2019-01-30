@@ -571,6 +571,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT FIRST(int) FROM test GROUP BY text HAVING FIRST(int) > 10"));
     }
 
+    public void testMinOnKeywordGroupByHavingUnsupported() {
+        assertEquals("1:52: HAVING filter is unsupported for function [MIN(keyword)]",
+            error("SELECT MIN(keyword) FROM test GROUP BY text HAVING MIN(keyword) > 10"));
+    }
+
     public void testMaxOnKeywordGroupByHavingUnsupported() {
         assertEquals("1:52: HAVING filter is unsupported for function [MAX(keyword)]",
             error("SELECT MAX(keyword) FROM test GROUP BY text HAVING MAX(keyword) > 10"));

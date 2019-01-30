@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.type;
 
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.sql.JDBCType;
@@ -75,7 +74,6 @@ public enum DataType {
     // @formatter:on
 
     private static final Map<String, DataType> odbcToEs;
-
     static {
         odbcToEs = new HashMap<>(36);
 
@@ -126,6 +124,7 @@ public enum DataType {
         odbcToEs.put("SQL_INTERVAL_DAY_TO_SECOND", INTERVAL_DAY_TO_SECOND);
     }
 
+
     /**
      * Elasticsearch type name
      */
@@ -169,6 +168,8 @@ public enum DataType {
      * True if the type represents a rational number
      */
     private final boolean isRational;
+
+    private static final String DEFAULT_FORMAT = "use_field_mapping";
 
     /**
      * True if the type supports doc values by default
@@ -245,6 +246,6 @@ public enum DataType {
     }
 
     public String format() {
-        return isDateBased() ? DateUtils.DATE_PARSE_FORMAT : DocValueFieldsContext.USE_DEFAULT_FORMAT;
+        return isDateBased() ? DateUtils.DATE_PARSE_FORMAT : DEFAULT_FORMAT;
     }
 }

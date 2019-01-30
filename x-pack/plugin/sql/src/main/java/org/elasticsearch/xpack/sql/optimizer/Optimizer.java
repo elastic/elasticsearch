@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.optimizer;
 
-import com.carrotsearch.hppc.IntObjectHashMap;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.CleanAliases;
 import org.elasticsearch.xpack.sql.expression.Alias;

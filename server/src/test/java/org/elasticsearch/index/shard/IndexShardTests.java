@@ -2114,10 +2114,9 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShard(shard, false);
         // Recovering from store should discard doc #1
         final ShardRouting replicaRouting = shard.routingEntry();
-        final IndexMetaData newShardIndexMetadata =
-                IndexMetaData.builder(shard.indexSettings().getIndexMetaData())
-                        .primaryTerm(replicaRouting.shardId().id(), shard.getOperationPrimaryTerm() + 1)
-                        .build();
+        final IndexMetaData newShardIndexMetadata = IndexMetaData.builder(shard.indexSettings().getIndexMetaData())
+                .primaryTerm(replicaRouting.shardId().id(), shard.getOperationPrimaryTerm() + 1)
+                .build();
         closeShards(shard);
         IndexShard newShard = newShard(
                 newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), true, ShardRoutingState.INITIALIZING,

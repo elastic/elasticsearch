@@ -17,6 +17,7 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.oauth2.sdk.AuthorizationCode;
 import com.nimbusds.oauth2.sdk.AuthorizationCodeGrant;
 import com.nimbusds.oauth2.sdk.ErrorObject;
+import com.nimbusds.oauth2.sdk.ResponseType;
 import com.nimbusds.oauth2.sdk.TokenErrorResponse;
 import com.nimbusds.oauth2.sdk.auth.Secret;
 import com.nimbusds.oauth2.sdk.id.State;
@@ -67,6 +68,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
@@ -174,13 +176,13 @@ public class OpenIdConnectAuthenticator {
                 exchangeCodeForToken(code, ActionListener.wrap(tokens -> {
                     final AccessToken accessToken = tokens.v1();
                     final JWT idToken = tokens.v2();
-                    validateAccessToken(accessToken, idToken, true);
+                    validateAccessToken(accessToken, idToken);
                     getUserClaims(accessToken, idToken, expectedNonce, listener);
                 }, listener::onFailure));
             } else {
                 final JWT idToken = response.getIDToken();
                 final AccessToken accessToken = response.getAccessToken();
-                validateAccessToken(accessToken, idToken, false);
+                validateAccessToken(accessToken, idToken);
                 getUserClaims(accessToken, idToken, expectedNonce, listener);
             }
         } catch (ElasticsearchSecurityException e) {
@@ -195,8 +197,8 @@ public class OpenIdConnectAuthenticator {
      * Collects all the user claims we can get for the authenticated user. This happens in two steps:
      * <ul>
      * <li>First we attempt to validate the Id Token we have received and get any claims it contains</li>
-     * <li>If the UserInfo endpoint is configured, we also attempt to get the user info response from there and parse the returned
-     * claims</li>
+     * <li>If we have received an Access Token and the UserInfo endpoint is configured, we also attempt to get the user info response
+     * from there and parse the returned claims</li>
      * </ul>
      *
      * @param accessToken    The {@link AccessToken} that the OP has issued for this user
@@ -204,13 +206,13 @@ public class OpenIdConnectAuthenticator {
      * @param expectedNonce  The nonce value we sent in the authentication request and should be contained in the Id Token
      * @param claimsListener The listener to notify with the resolved {@link JWTClaimsSet}
      */
-    private void getUserClaims(AccessToken accessToken, JWT idToken, Nonce expectedNonce, ActionListener<JWTClaimsSet> claimsListener) {
+    private void getUserClaims(@Nullable AccessToken accessToken, JWT idToken, Nonce expectedNonce, ActionListener<JWTClaimsSet> claimsListener) {
         try {
             JWTClaimsSet verifiedIdTokenClaims = idTokenValidator.validate(idToken, expectedNonce).toJWTClaimsSet();
             if (logger.isTraceEnabled()) {
                 logger.trace("Received and validated the Id Token for the user: [{}]", verifiedIdTokenClaims);
             }
-            if (opConfig.getUserinfoEndpoint() != null) {
+            if (accessToken != null && opConfig.getUserinfoEndpoint() != null) {
                 getAndCombineUserInfoClaims(accessToken, verifiedIdTokenClaims, claimsListener);
             } else {
                 claimsListener.onResponse(verifiedIdTokenClaims);
@@ -223,29 +225,39 @@ public class OpenIdConnectAuthenticator {
 
     /**
      * Validates an access token according to the
-     * <a href="https://openid.net/specs/openid-connect-core-1_0.html#ImplicitTokenValidation">specification</a>
+     * <a href="https://openid.net/specs/openid-connect-core-1_0.html#ImplicitTokenValidation">specification</a>.
+     * <p>
+     * When using the authorization code flow the OP might not provide the at_hash parameter in the
+     * Id Token as allowed in the specification. In such a case we can't validate the access token
+     * but this is considered safe as it was received in a back channel communication that was protected
+     * by TLS. Also when using the implicit flow with the response type set to "id_token", no Access
+     * Token will be returned from the OP
      *
-     * @param accessToken The Access Token to validate
+     * @param accessToken The Access Token to validate. Can be null when the configured response type is "id_token"
      * @param idToken     The Id Token that was received in the same response
-     * @param optional    When using the authorization code flow the OP might not provide the at_hash parameter in the
-     *                    Id Token as allowed in the specification. In such a case we can't validate the access token
-     *                    but this is considered safe as it was received in a back channel communication that was protected
-     *                    by TLS.
      */
-    private void validateAccessToken(AccessToken accessToken, JWT idToken, boolean optional) {
+    private void validateAccessToken(AccessToken accessToken, JWT idToken) {
         try {
-            // only "Bearer" is defined in the specification but check just in case
-            if (accessToken.getType().toString().equals("Bearer") == false) {
-                throw new ElasticsearchSecurityException("Invalid access token type [{}], while [Bearer] was expected",
-                    accessToken.getType());
+            if (rpConfig.getResponseType().equals(ResponseType.parse("id_token token")) ||
+                rpConfig.getResponseType().equals(ResponseType.parse("code"))) {
+                assert (accessToken != null) : "Access Token cannot be null for Response Type " + rpConfig.getResponseType().toString();
+                final boolean optional = rpConfig.getResponseType().equals(ResponseType.parse("code"));
+                // only "Bearer" is defined in the specification but check just in case
+                if (accessToken.getType().toString().equals("Bearer") == false) {
+                    throw new ElasticsearchSecurityException("Invalid access token type [{}], while [Bearer] was expected",
+                        accessToken.getType());
+                }
+                String atHashValue = idToken.getJWTClaimsSet().getStringClaim("at_hash");
+                if (null == atHashValue && optional == false) {
+                    throw new ElasticsearchSecurityException("Failed to verify access token. at_hash claim is missing from the ID Token");
+                }
+                AccessTokenHash atHash = new AccessTokenHash(atHashValue);
+                JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(idToken.getHeader().getAlgorithm().getName());
+                AccessTokenValidator.validate(accessToken, jwsAlgorithm, atHash);
+            } else if (rpConfig.getResponseType().equals(ResponseType.parse("id_token")) && accessToken != null) {
+                // This should NOT happen and indicates a misconfigured OP. Warn the user but do not fail
+                logger.warn("Access Token incorrectly returned from the OpenId Connect Provider while using \"id_token\" response type.");
             }
-            String atHashValue = idToken.getJWTClaimsSet().getStringClaim("at_hash");
-            if (null == atHashValue && optional == false) {
-                throw new ElasticsearchSecurityException("Failed to verify access token. at_hash claim is missing from the ID Token");
-            }
-            AccessTokenHash atHash = new AccessTokenHash(atHashValue);
-            JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(idToken.getHeader().getAlgorithm().getName());
-            AccessTokenValidator.validate(accessToken, jwsAlgorithm, atHash);
         } catch (Exception e) {
             throw new ElasticsearchSecurityException("Failed to verify access token.", e);
         }

@@ -32,7 +32,7 @@ The `SEMANTIC` is the identifier you give to the piece of text being matched. Fo
 duration of an event, so you could call it simply `duration`. Further, a string `55.3.244.1` might identify
 the `client` making a request.
 
-The `TYPE` is the type you wish to cast your named field. `int` and `float` are currently the only types supported for coercion.
+The `TYPE` is the type you wish to cast your named field. `int`, `long`, `double`, `float` and `boolean` are supported types for coercion.
 
 For example, you might want to match the following text:
 

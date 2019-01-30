@@ -105,13 +105,15 @@ task buildIntegTestZip(type: Zip) {
   with archiveFiles(transportModulesFiles, 'zip', true)
 }
 
-task buildZip(type: Zip) {
+task buildWindowsZip(type: Zip) {
   configure(commonZipConfig)
+  archiveClassifier = 'windows-x86_64'
   with archiveFiles(modulesFiles(false), 'zip', false)
 }
 
-task buildOssZip(type: Zip) {
+task buildOssWindowsZip(type: Zip) {
   configure(commonZipConfig)
+  archiveClassifier = 'windows-x86_64'
   with archiveFiles(modulesFiles(true), 'zip', true)
 }
 
@@ -122,13 +124,27 @@ Closure commonTarConfig = {
   fileMode 0644
 }
 
-task buildTar(type: Tar) {
+task buildDarwinTar(type: Tar) {
   configure(commonTarConfig)
+  archiveClassifier = 'darwin-x86_64'
   with archiveFiles(modulesFiles(false), 'tar', false)
 }
 
-task buildOssTar(type: Tar) {
+task buildOssDarwinTar(type: Tar) {
   configure(commonTarConfig)
+  archiveClassifier = 'darwin-x86_64'
+  with archiveFiles(modulesFiles(true), 'tar', true)
+}
+
+task buildLinuxTar(type: Tar) {
+  configure(commonTarConfig)
+  archiveClassifier = 'linux-x86_64'
+  with archiveFiles(modulesFiles(false), 'tar', false)
+}
+
+task buildOssLinuxTar(type: Tar) {
+  configure(commonTarConfig)
+  archiveClassifier = 'linux-x86_64'
   with archiveFiles(modulesFiles(true), 'tar', true)
 }
 

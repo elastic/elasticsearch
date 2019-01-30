@@ -72,7 +72,10 @@ The node that should be added to the exclusions list is specified using
 <<cluster-nodes,node filters>> in place of `node_name` here. If a call to the
 voting configuration exclusions API fails, you can safely retry it.  Only a
 successful response guarantees that the node has actually been removed from the
-voting configuration and will not be reinstated.
+voting configuration and will not be reinstated. If it's the active master that
+was removed from the voting configuration, then it will abdicate to another
+master-eligible node that's still in the voting configuration, if such a node
+is available.
 
 Although the voting configuration exclusions API is most useful for down-scaling
 a two-node to a one-node cluster, it is also possible to use it to remove

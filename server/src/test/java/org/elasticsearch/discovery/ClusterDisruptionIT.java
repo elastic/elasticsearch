@@ -28,6 +28,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -50,6 +51,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -108,7 +110,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         List<Semaphore> semaphores = new ArrayList<>(nodes.size());
         final AtomicInteger idGenerator = new AtomicInteger(0);
         final AtomicReference<CountDownLatch> countDownLatchRef = new AtomicReference<>();
-        final List<Exception> exceptedExceptions = Collections.synchronizedList(new ArrayList<Exception>());
+        final List<Exception> exceptedExceptions = new CopyOnWriteArrayList<>();
 
         logger.info("starting indexers");
         try {
@@ -214,18 +216,18 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 logger.info("done validating (iteration [{}])", iter);
             }
         } finally {
+            logger.info("shutting down indexers");
+            stop.set(true);
+            for (Thread indexer : indexers) {
+                indexer.interrupt();
+                indexer.join(60000);
+            }
             if (exceptedExceptions.size() > 0) {
                 StringBuilder sb = new StringBuilder();
                 for (Exception e : exceptedExceptions) {
                     sb.append("\n").append(e.getMessage());
                 }
                 logger.debug("Indexing exceptions during disruption: {}", sb);
-            }
-            logger.info("shutting down indexers");
-            stop.set(true);
-            for (Thread indexer : indexers) {
-                indexer.interrupt();
-                indexer.join(60000);
             }
         }
     }
@@ -374,6 +376,33 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
         ensureGreen("index");
         assertTrue(client().prepareGet("index", "_doc", "1").get().isExists());
+    }
+
+    public void testCannotJoinIfMasterLostDataFolder() throws Exception {
+        String masterNode = internalCluster().startMasterOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
+
+        internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public boolean clearData(String nodeName) {
+                return true;
+            }
+
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return Settings.builder().put(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), nodeName).build();
+            }
+
+            @Override
+            public boolean validateClusterForming() {
+                return false;
+            }
+        });
+
+        assertFalse(internalCluster().client(masterNode).admin().cluster().prepareHealth().get().isTimedOut());
+        assertTrue(internalCluster().client(masterNode).admin().cluster().prepareHealth().setWaitForNodes("2").setTimeout("2s").get()
+            .isTimedOut());
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataNode)); // otherwise we will fail during clean-up
     }
 
     /**

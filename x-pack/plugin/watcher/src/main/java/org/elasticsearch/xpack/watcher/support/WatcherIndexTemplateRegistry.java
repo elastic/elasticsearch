@@ -18,13 +18,20 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackClient;
+import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyUtils;
+import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
@@ -46,17 +53,23 @@ public class WatcherIndexTemplateRegistry implements ClusterStateListener {
             TEMPLATE_CONFIG_TRIGGERED_WATCHES, TEMPLATE_CONFIG_WATCH_HISTORY, TEMPLATE_CONFIG_WATCHES
     };
 
+    public static final PolicyConfig POLICY_WATCH_HISTORY = new PolicyConfig("watch-history-ilm-policy", "/watch-history-ilm-policy.json");
+
     private static final Logger logger = LogManager.getLogger(WatcherIndexTemplateRegistry.class);
 
     private final Client client;
     private final ThreadPool threadPool;
     private final TemplateConfig[] indexTemplates;
+    private final NamedXContentRegistry xContentRegistry;
     private final ConcurrentMap<String, AtomicBoolean> templateCreationsInProgress = new ConcurrentHashMap<>();
+    private final AtomicBoolean historyPolicyCreationInProgress = new AtomicBoolean();
 
-    public WatcherIndexTemplateRegistry(ClusterService clusterService, ThreadPool threadPool, Client client) {
+    public WatcherIndexTemplateRegistry(ClusterService clusterService, ThreadPool threadPool, Client client,
+                                        NamedXContentRegistry xContentRegistry) {
         this.client = client;
         this.threadPool = threadPool;
         this.indexTemplates = TEMPLATE_CONFIGS;
+        this.xContentRegistry = xContentRegistry;
         clusterService.addListener(this);
     }
 
@@ -82,6 +95,7 @@ public class WatcherIndexTemplateRegistry implements ClusterStateListener {
 
         if (event.localNodeMaster() || localNodeVersionAfterMaster) {
             addTemplatesIfMissing(state);
+            addIndexLifecyclePolicyIfMissing(state);
         }
     }
 
@@ -127,6 +141,54 @@ public class WatcherIndexTemplateRegistry implements ClusterStateListener {
         });
     }
 
+    // Package visible for testing
+    LifecyclePolicy loadWatcherHistoryPolicy() {
+        return LifecyclePolicyUtils.loadPolicy(POLICY_WATCH_HISTORY.policyName, POLICY_WATCH_HISTORY.fileName, xContentRegistry);
+    }
+
+    private void addIndexLifecyclePolicyIfMissing(ClusterState state) {
+        if (historyPolicyCreationInProgress.compareAndSet(false, true)) {
+            final LifecyclePolicy policyOnDisk = loadWatcherHistoryPolicy();
+
+            Optional<IndexLifecycleMetadata> maybeMeta = Optional.ofNullable(state.metaData().custom(IndexLifecycleMetadata.TYPE));
+            final boolean needsUpdating = maybeMeta
+                .flatMap(ilmMeta -> Optional.ofNullable(ilmMeta.getPolicies().get(policyOnDisk.getName())))
+                .isPresent() == false; // If there is no policy then one needs to be put;
+
+            if (needsUpdating) {
+                putPolicy(policyOnDisk, historyPolicyCreationInProgress);
+            } else {
+                historyPolicyCreationInProgress.set(false);
+            }
+        }
+    }
+
+    private void putPolicy(final LifecyclePolicy policy, final AtomicBoolean creationCheck) {
+        final Executor executor = threadPool.generic();
+        executor.execute(() -> {
+            PutLifecycleAction.Request request = new PutLifecycleAction.Request(policy);
+            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, request,
+                new ActionListener<PutLifecycleAction.Response>() {
+                    @Override
+                    public void onResponse(PutLifecycleAction.Response response) {
+                        creationCheck.set(false);
+                        if (response.isAcknowledged() == false) {
+                            logger.error("error adding watcher index lifecycle policy [{}], request was not acknowledged",
+                                policy.getName());
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        creationCheck.set(false);
+                        logger.error(new ParameterizedMessage("error adding watcher index lifecycle policy [{}]",
+                            policy.getName()), e);
+                    }
+                }, (req, listener) -> new XPackClient(client).ilmClient().putLifecyclePolicy(req, listener));
+        });
+    }
+
     public static boolean validate(ClusterState state) {
         return state.getMetaData().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME) &&
                 state.getMetaData().getTemplates().containsKey(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME) &&
@@ -153,9 +215,19 @@ public class WatcherIndexTemplateRegistry implements ClusterStateListener {
 
         public byte[] load() {
             String template = TemplateUtils.loadTemplate("/" + fileName + ".json", WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
-                    Pattern.quote("${xpack.watcher.template.version}"));
+                Pattern.quote("${xpack.watcher.template.version}"));
             assert template != null && template.length() > 0;
             return template.getBytes(StandardCharsets.UTF_8);
+        }
+    }
+    public static class PolicyConfig {
+
+        private final String policyName;
+        private String fileName;
+
+        PolicyConfig(String templateName, String fileName) {
+            this.policyName = templateName;
+            this.fileName = fileName;
         }
     }
 }

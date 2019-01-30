@@ -20,7 +20,6 @@
  - do:
       index:
           index:   test_1
-          type:    _doc
           id:      1
           body:    { foo: bar }
 
@@ -31,7 +30,7 @@
           realtime: false
 
  - is_false: ''
- 
+
  - do:
       exists:
           index:    test_1

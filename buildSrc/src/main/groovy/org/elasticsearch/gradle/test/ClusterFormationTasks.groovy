@@ -23,6 +23,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
@@ -171,6 +172,12 @@ class ClusterFormationTasks {
 
     /** Adds a dependency on the given distribution */
     static void configureDistributionDependency(Project project, String distro, Configuration configuration, String elasticsearchVersion) {
+        if (distro.equals("integ-test-zip")) {
+            // short circuit integ test so it doesn't complicate the rest of the distribution setup below
+            project.dependencies.add(configuration.name,
+                    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${elasticsearchVersion}@zip")
+            return
+        }
         // TEMP HACK
         // The oss docs CI build overrides the distro on the command line. This hack handles backcompat until CI is updated.
         if (distro.equals('oss-zip')) {
@@ -180,22 +187,44 @@ class ClusterFormationTasks {
             distro = 'default'
         }
         // END TEMP HACK
-        if (['integ-test-zip', 'oss', 'default'].contains(distro) == false) {
+        if (['oss', 'default'].contains(distro) == false) {
             throw new GradleException("Unknown distribution: ${distro} in project ${project.path}")
         }
         Version version = Version.fromString(elasticsearchVersion)
-        if (version.before('6.3.0') && distro.startsWith('oss-')) {
-            distro = distro.substring('oss-'.length())
-        }
-        String group = "downloads.zip"
-        if (distro.equals("integ-test-zip")) {
-            group = "org.elasticsearch.distribution.integ-test-zip"
-        }
+        String os = getOs()
+        String classifier = "${os}-x86_64"
+        String packaging = os.equals('windows') ? 'zip' : 'tar.gz'
         String artifactName = 'elasticsearch'
         if (distro.equals('oss') && Version.fromString(elasticsearchVersion).onOrAfter('6.3.0')) {
             artifactName += '-oss'
         }
-        project.dependencies.add(configuration.name, "${group}:${artifactName}:${elasticsearchVersion}@zip")
+        Object dependency
+        String snapshotProject = "${os}-${os.equals('windows') ? 'zip' : 'tar'}"
+        if (version.before("7.0.0")) {
+            snapshotProject = "zip"
+        }
+        if (distro.equals("oss")) {
+            snapshotProject = "oss-" + snapshotProject
+        }
+        boolean internalBuild = project.hasProperty('bwcVersions')
+        VersionCollection.UnreleasedVersionInfo unreleasedInfo = null
+        if (project.hasProperty('bwcVersions')) {
+            // NOTE: leniency is needed for external plugin authors using build-tools. maybe build the version compat info into build-tools?
+            unreleasedInfo = project.bwcVersions.unreleasedInfo(version)
+        }
+        if (unreleasedInfo != null) {
+            dependency = project.dependencies.project(
+                        path: ":distribution:bwc:${unreleasedInfo.gradleProjectName}", configuration: snapshotProject)
+        } else if (internalBuild && elasticsearchVersion.equals(VersionProperties.elasticsearch)) {
+            dependency = project.dependencies.project(path: ":distribution:archives:${snapshotProject}")
+        } else {
+            if (version.before('7.0.0')) {
+                classifier = "" // for bwc, before we had classifiers
+            }
+            // group does not matter as it is not used when we pull from the ivy repo that points to the download service
+            dependency = "dnm:${artifactName}:${elasticsearchVersion}${classifier}@${packaging}"
+        }
+        project.dependencies.add(configuration.name, dependency)
     }
 
     /** Adds a dependency on a different version of the given plugin, which will be retrieved using gradle's dependency resolution */
@@ -319,8 +348,15 @@ class ClusterFormationTasks {
           the elasticsearch source tree then this should be the version of elasticsearch built by the source tree.
           If it isn't then Bad Things(TM) will happen. */
         Task extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
-            from {
-                project.zipTree(configuration.singleFile)
+            if (getOs().equals("windows")) {
+                from {
+                    project.zipTree(configuration.singleFile)
+                }
+            } else {
+                // macos and linux use tar
+                from {
+                    project.tarTree(project.resources.gzip(configuration.singleFile))
+                }
             }
             into node.baseDir
         }
@@ -931,5 +967,16 @@ class ClusterFormationTasks {
     static String findPluginName(Project pluginProject) {
         PluginPropertiesExtension extension = pluginProject.extensions.findByName('esplugin')
         return extension.name
+    }
+
+    /** Find the current OS */
+    static String getOs() {
+        String os = "linux"
+        if (Os.FAMILY_WINDOWS) {
+            os = "windows"
+        } else if (Os.FAMILY_MAC) {
+            os = "darwin"
+        }
+        return os
     }
 }

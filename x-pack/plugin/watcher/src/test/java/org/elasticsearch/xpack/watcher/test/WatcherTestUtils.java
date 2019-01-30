@@ -89,7 +89,7 @@ public final class WatcherTestUtils {
         try {
             XContentBuilder xContentBuilder = jsonBuilder();
             xContentBuilder.value(sourceBuilder);
-            return new WatcherSearchTemplateRequest(indices, new String[0], searchType,
+            return new WatcherSearchTemplateRequest(indices, null, searchType,
                     WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS, BytesReference.bytes(xContentBuilder));
         } catch (IOException e) {
             throw new RuntimeException(e);

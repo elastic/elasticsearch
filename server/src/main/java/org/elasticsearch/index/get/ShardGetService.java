@@ -45,7 +45,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -55,6 +54,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public final class ShardGetService extends AbstractIndexShardComponent {
     private final MapperService mapperService;
@@ -77,15 +79,17 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
     public GetResult get(String type, String id, String[] gFields, boolean realtime, long version,
                             VersionType versionType, FetchSourceContext fetchSourceContext) {
-        return get(type, id, gFields, realtime, version, versionType, fetchSourceContext, false);
+        return
+            get(type, id, gFields, realtime, version, versionType, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, fetchSourceContext, false);
     }
 
     private GetResult get(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType,
-            FetchSourceContext fetchSourceContext, boolean readFromTranslog) {
+                          long ifSeqNo, long ifPrimaryTerm, FetchSourceContext fetchSourceContext, boolean readFromTranslog) {
         currentMetric.inc();
         try {
             long now = System.nanoTime();
-            GetResult getResult = innerGet(type, id, gFields, realtime, version, versionType, fetchSourceContext, readFromTranslog);
+            GetResult getResult =
+                innerGet(type, id, gFields, realtime, version, versionType, ifSeqNo, ifPrimaryTerm, fetchSourceContext, readFromTranslog);
 
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
@@ -98,8 +102,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
     }
 
-    public GetResult getForUpdate(String type, String id, long version, VersionType versionType) {
-        return get(type, id, new String[]{RoutingFieldMapper.NAME}, true, version, versionType,
+    public GetResult getForUpdate(String type, String id, long version, VersionType versionType, long ifSeqNo, long ifPrimaryTerm) {
+        return get(type, id, new String[]{RoutingFieldMapper.NAME}, true, version, versionType, ifSeqNo, ifPrimaryTerm,
             FetchSourceContext.FETCH_SOURCE, true);
     }
 
@@ -113,7 +117,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     public GetResult get(Engine.GetResult engineGetResult, String id, String type,
                             String[] fields, FetchSourceContext fetchSourceContext) {
         if (!engineGetResult.exists()) {
-            return new GetResult(shardId.getIndexName(), type, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, -1, false, null, null);
+            return new GetResult(shardId.getIndexName(), type, id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null);
         }
 
         currentMetric.inc();
@@ -151,7 +155,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     }
 
     private GetResult innerGet(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType,
-                               FetchSourceContext fetchSourceContext, boolean readFromTranslog) {
+                               long ifSeqNo, long ifPrimaryTerm, FetchSourceContext fetchSourceContext, boolean readFromTranslog) {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
         if (type == null || type.equals("_all")) {
             DocumentMapper mapper = mapperService.documentMapper();
@@ -162,14 +166,14 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         if (type != null) {
             Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
             get = indexShard.get(new Engine.Get(realtime, readFromTranslog, type, id, uidTerm)
-                    .version(version).versionType(versionType));
+                    .version(version).versionType(versionType).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm));
             if (get.exists() == false) {
                 get.close();
             }
         }
 
         if (get == null || get.exists() == false) {
-            return new GetResult(shardId.getIndexName(), type, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, -1, false, null, null);
+            return new GetResult(shardId.getIndexName(), type, id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null);
         }
 
         try {

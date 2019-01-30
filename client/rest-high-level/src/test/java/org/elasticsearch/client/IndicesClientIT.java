@@ -33,8 +33,6 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -43,10 +41,6 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -60,8 +54,6 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -70,14 +62,22 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
+import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.GetFieldMappingsRequest;
+import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
+import org.elasticsearch.client.indices.GetMappingsRequest;
+import org.elasticsearch.client.indices.GetMappingsResponse;
+import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
+import org.elasticsearch.client.indices.IndexTemplateMetaData;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
+import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Setting;
@@ -86,6 +86,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
@@ -93,7 +94,12 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
+import org.elasticsearch.rest.action.admin.indices.RestGetFieldMappingAction;
+import org.elasticsearch.rest.action.admin.indices.RestGetMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutMappingAction;
+import org.elasticsearch.rest.action.admin.indices.RestGetIndexTemplateAction;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -211,7 +217,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             mappingBuilder.startObject().startObject("properties").startObject("field");
             mappingBuilder.field("type", "text");
             mappingBuilder.endObject().endObject().endObject();
-            createIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder);
+            createIndexRequest.mapping(mappingBuilder);
 
             CreateIndexResponse createIndexResponse =
                     execute(createIndexRequest, highLevelClient().indices()::create, highLevelClient().indices()::createAsync);
@@ -222,6 +228,70 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
             Map<String, Object> aliasData =
                     (Map<String, Object>)XContentMapValues.extractValue(indexName + ".aliases.alias_name", getIndexResponse);
+            assertNotNull(aliasData);
+            assertEquals("1", aliasData.get("index_routing"));
+            Map<String, Object> filter = (Map) aliasData.get("filter");
+            Map<String, Object> term = (Map) filter.get("term");
+            assertEquals(2016, term.get("year"));
+
+            assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type", getIndexResponse));
+        }
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public void testCreateIndexWithTypes() throws IOException {
+        {
+            // Create index
+            String indexName = "plain_index";
+            assertFalse(indexExists(indexName));
+
+            org.elasticsearch.action.admin.indices.create.CreateIndexRequest createIndexRequest =
+                new org.elasticsearch.action.admin.indices.create.CreateIndexRequest(indexName);
+
+            org.elasticsearch.action.admin.indices.create.CreateIndexResponse createIndexResponse = execute(
+                createIndexRequest,
+                highLevelClient().indices()::create,
+                highLevelClient().indices()::createAsync,
+                expectWarnings(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE));
+            assertTrue(createIndexResponse.isAcknowledged());
+
+            assertTrue(indexExists(indexName));
+        }
+        {
+            // Create index with mappings, aliases and settings
+            String indexName = "rich_index";
+            assertFalse(indexExists(indexName));
+
+            org.elasticsearch.action.admin.indices.create.CreateIndexRequest createIndexRequest =
+                new org.elasticsearch.action.admin.indices.create.CreateIndexRequest(indexName);
+
+            Alias alias = new Alias("alias_name");
+            alias.filter("{\"term\":{\"year\":2016}}");
+            alias.routing("1");
+            createIndexRequest.alias(alias);
+
+            Settings.Builder settings = Settings.builder();
+            settings.put(SETTING_NUMBER_OF_REPLICAS, 2);
+            createIndexRequest.settings(settings);
+
+            XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
+            mappingBuilder.startObject().startObject("properties").startObject("field");
+            mappingBuilder.field("type", "text");
+            mappingBuilder.endObject().endObject().endObject();
+            createIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder);
+
+            org.elasticsearch.action.admin.indices.create.CreateIndexResponse createIndexResponse = execute(
+                createIndexRequest,
+                highLevelClient().indices()::create,
+                highLevelClient().indices()::createAsync,
+                expectWarnings(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE));
+            assertTrue(createIndexResponse.isAcknowledged());
+
+            Map<String, Object> getIndexResponse = getAsMap(indexName);
+            assertEquals("2", XContentMapValues.extractValue(indexName + ".settings.index.number_of_replicas", getIndexResponse));
+
+            Map<String, Object> aliasData =
+                (Map<String, Object>)XContentMapValues.extractValue(indexName + ".aliases.alias_name", getIndexResponse);
             assertNotNull(aliasData);
             assertEquals("1", aliasData.get("index_routing"));
             Map<String, Object> filter = (Map) aliasData.get("filter");
@@ -461,8 +531,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         mappingBuilder.endObject().endObject().endObject();
         putMappingRequest.source(mappingBuilder);
 
-        AcknowledgedResponse putMappingResponse =
-            execute(putMappingRequest, highLevelClient().indices()::putMapping, highLevelClient().indices()::putMappingAsync);
+        AcknowledgedResponse putMappingResponse = execute(putMappingRequest,
+            highLevelClient().indices()::putMapping,
+            highLevelClient().indices()::putMappingAsync);
         assertTrue(putMappingResponse.isAcknowledged());
 
         Map<String, Object> getIndexResponse = getAsMap(indexName);
@@ -470,8 +541,48 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         GetMappingsRequest request = new GetMappingsRequest().indices(indexName);
 
-        GetMappingsResponse getMappingsResponse =
-            execute(request, highLevelClient().indices()::getMapping, highLevelClient().indices()::getMappingAsync);
+        GetMappingsResponse getMappingsResponse = execute(
+            request,
+            highLevelClient().indices()::getMapping,
+            highLevelClient().indices()::getMappingAsync);
+
+        Map<String, Object> mappings = getMappingsResponse.mappings().get(indexName).sourceAsMap();
+        Map<String, String> type = new HashMap<>();
+        type.put("type", "text");
+        Map<String, Object> field = new HashMap<>();
+        field.put("field", type);
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("properties", field);
+        assertThat(mappings, equalTo(expected));
+    }
+
+    public void testGetMappingWithTypes() throws IOException {
+        String indexName = "test";
+        createIndex(indexName, Settings.EMPTY);
+
+        PutMappingRequest putMappingRequest = new PutMappingRequest(indexName);
+        XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
+        mappingBuilder.startObject().startObject("properties").startObject("field");
+        mappingBuilder.field("type", "text");
+        mappingBuilder.endObject().endObject().endObject();
+        putMappingRequest.source(mappingBuilder);
+
+        AcknowledgedResponse putMappingResponse = execute(putMappingRequest,
+            highLevelClient().indices()::putMapping,
+            highLevelClient().indices()::putMappingAsync);
+        assertTrue(putMappingResponse.isAcknowledged());
+
+        Map<String, Object> getIndexResponse = getAsMap(indexName);
+        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type", getIndexResponse));
+
+        org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest request =
+            new org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest().indices(indexName);
+
+        org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse getMappingsResponse = execute(
+            request,
+            highLevelClient().indices()::getMapping,
+            highLevelClient().indices()::getMappingAsync,
+            expectWarnings(RestGetMappingAction.TYPES_DEPRECATION_MESSAGE));
 
         Map<String, Object> mappings = getMappingsResponse.getMappings().get(indexName).get("_doc").sourceAsMap();
         Map<String, String> type = new HashMap<>();
@@ -500,7 +611,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         GetFieldMappingsRequest getFieldMappingsRequest = new GetFieldMappingsRequest()
             .indices(indexName)
-            .types("_doc")
             .fields("field");
 
         GetFieldMappingsResponse getFieldMappingsResponse =
@@ -509,10 +619,46 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 highLevelClient().indices()::getFieldMappingAsync);
 
         final Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fieldMappingMap =
-            getFieldMappingsResponse.mappings().get(indexName).get("_doc");
+            getFieldMappingsResponse.mappings().get(indexName);
 
         final GetFieldMappingsResponse.FieldMappingMetaData metaData =
             new GetFieldMappingsResponse.FieldMappingMetaData("field",
+                new BytesArray("{\"field\":{\"type\":\"text\"}}"));
+        assertThat(fieldMappingMap, equalTo(Collections.singletonMap("field", metaData)));
+    }
+
+    public void testGetFieldMappingWithTypes() throws IOException {
+        String indexName = "test";
+        createIndex(indexName, Settings.EMPTY);
+
+        PutMappingRequest putMappingRequest = new PutMappingRequest(indexName);
+        XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
+        mappingBuilder.startObject().startObject("properties").startObject("field");
+        mappingBuilder.field("type", "text");
+        mappingBuilder.endObject().endObject().endObject();
+        putMappingRequest.source(mappingBuilder);
+
+        AcknowledgedResponse putMappingResponse =
+            execute(putMappingRequest, highLevelClient().indices()::putMapping, highLevelClient().indices()::putMappingAsync);
+        assertTrue(putMappingResponse.isAcknowledged());
+
+        org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest =
+            new org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest()
+            .indices(indexName)
+            .types("_doc")
+            .fields("field");
+
+        org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse getFieldMappingsResponse =
+            execute(getFieldMappingsRequest,
+                highLevelClient().indices()::getFieldMapping,
+                highLevelClient().indices()::getFieldMappingAsync,
+                expectWarnings(RestGetFieldMappingAction.TYPES_DEPRECATION_MESSAGE));
+
+        final Map<String, org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData>
+            fieldMappingMap = getFieldMappingsResponse.mappings().get(indexName).get("_doc");
+
+        final  org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData metaData =
+            new  org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData("field",
                 new BytesArray("{\"field\":{\"type\":\"text\"}}"));
         assertThat(fieldMappingMap, equalTo(Collections.singletonMap("field", metaData)));
     }
@@ -879,7 +1025,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                         .put("index.number_of_replicas", 0)
                         .putNull("index.routing.allocation.require._name")
                         .build();
-        resizeRequest.setTargetIndex(new CreateIndexRequest("target").settings(targetSettings).alias(new Alias("alias")));
+        resizeRequest.setTargetIndex(new org.elasticsearch.action.admin.indices.create.CreateIndexRequest("target")
+            .settings(targetSettings)
+            .alias(new Alias("alias")));
         ResizeResponse resizeResponse = execute(resizeRequest, highLevelClient().indices()::shrink,
                 highLevelClient().indices()::shrinkAsync);
         assertTrue(resizeResponse.isAcknowledged());
@@ -902,7 +1050,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
         resizeRequest.setResizeType(ResizeType.SPLIT);
         Settings targetSettings = Settings.builder().put("index.number_of_shards", 4).put("index.number_of_replicas", 0).build();
-        resizeRequest.setTargetIndex(new CreateIndexRequest("target").settings(targetSettings).alias(new Alias("alias")));
+        resizeRequest.setTargetIndex(new org.elasticsearch.action.admin.indices.create.CreateIndexRequest("target")
+            .settings(targetSettings)
+            .alias(new Alias("alias")));
         ResizeResponse resizeResponse = execute(resizeRequest, highLevelClient().indices()::split, highLevelClient().indices()::splitAsync);
         assertTrue(resizeResponse.isAcknowledged());
         assertTrue(resizeResponse.isShardsAcknowledged());
@@ -1253,8 +1403,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testPutTemplate() throws Exception {
-        PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest()
+    public void testPutTemplateWithTypes() throws Exception {
+        org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplateRequest = 
+            new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest()
             .name("my-template")
             .patterns(Arrays.asList("pattern-1", "name-*"))
             .order(10)
@@ -1264,7 +1415,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             .alias(new Alias("alias-1").indexRouting("abc")).alias(new Alias("{index}-write").searchRouting("xyz"));
 
         AcknowledgedResponse putTemplateResponse = execute(putTemplateRequest,
-            highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync);
+            highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync,
+            expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
+            );
         assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
 
         Map<String, Object> templates = getAsMap("/_template/my-template");
@@ -1278,6 +1431,94 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat((Map<String, String>) extractValue("my-template.aliases.alias-1", templates), hasEntry("index_routing", "abc"));
         assertThat((Map<String, String>) extractValue("my-template.aliases.{index}-write", templates), hasEntry("search_routing", "xyz"));
     }
+    
+    @SuppressWarnings("unchecked")
+    public void testPutTemplate() throws Exception {
+        PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest("my-template")
+            .patterns(Arrays.asList("pattern-1", "name-*"))
+            .order(10)
+            .create(randomBoolean())
+            .settings(Settings.builder().put("number_of_shards", "3").put("number_of_replicas", "0"))
+            .mapping("{ \"properties\":{"
+                    + "\"host_name\": {\"type\":\"keyword\"}"
+                    + "}"
+                    + "}", XContentType.JSON)
+            .alias(new Alias("alias-1").indexRouting("abc")).alias(new Alias("{index}-write").searchRouting("xyz"));
+
+        AcknowledgedResponse putTemplateResponse = execute(putTemplateRequest,
+            highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync);
+        assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
+
+        Map<String, Object> templates = getAsMap("/_template/my-template");
+        assertThat(templates.keySet(), hasSize(1));
+        assertThat(extractValue("my-template.order", templates), equalTo(10));
+        assertThat(extractRawValues("my-template.index_patterns", templates), contains("pattern-1", "name-*"));
+        assertThat(extractValue("my-template.settings.index.number_of_shards", templates), equalTo("3"));
+        assertThat(extractValue("my-template.settings.index.number_of_replicas", templates), equalTo("0"));
+        assertThat(extractValue("my-template.mappings.properties.host_name.type", templates), equalTo("keyword"));
+        assertThat((Map<String, String>) extractValue("my-template.aliases.alias-1", templates), hasEntry("index_routing", "abc"));
+        assertThat((Map<String, String>) extractValue("my-template.aliases.{index}-write", templates), hasEntry("search_routing", "xyz"));
+    }
+    
+    public void testPutTemplateWithTypesUsingUntypedAPI() throws Exception {
+        PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest("my-template")
+            .patterns(Arrays.asList("pattern-1", "name-*"))
+            .order(10)
+            .create(randomBoolean())
+            .settings(Settings.builder().put("number_of_shards", "3").put("number_of_replicas", "0"))
+            .mapping("{ "
+                    + "\"my_doc_type\":{"
+                    + "\"properties\":{"
+                    + "\"host_name\": {\"type\":\"keyword\"}"
+                    + "}"
+                    + "}"
+                    + "}", XContentType.JSON)
+            .alias(new Alias("alias-1").indexRouting("abc")).alias(new Alias("{index}-write").searchRouting("xyz"));
+
+        
+        ElasticsearchStatusException badMappingError = expectThrows(ElasticsearchStatusException.class,
+                () -> execute(putTemplateRequest,
+                        highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync));
+        assertThat(badMappingError.getDetailedMessage(), 
+                containsString("Root mapping definition has unsupported parameters:  [my_doc_type"));
+    }    
+    
+    @SuppressWarnings("unchecked")
+    public void testPutTemplateWithNoTypesUsingTypedApi() throws Exception {
+        org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplateRequest = 
+            new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest()
+            .name("my-template")
+            .patterns(Arrays.asList("pattern-1", "name-*"))
+            .order(10)
+            .create(randomBoolean())
+            .settings(Settings.builder().put("number_of_shards", "3").put("number_of_replicas", "0"))
+            .mapping("my_doc_type",
+                    // Note that the declared type is missing from the mapping 
+                    "{ "
+                    + "\"properties\":{"
+                    + "\"host_name\": {\"type\":\"keyword\"},"
+                    + "\"description\": {\"type\":\"text\"}"
+                    + "}"
+                    + "}", XContentType.JSON)
+            .alias(new Alias("alias-1").indexRouting("abc")).alias(new Alias("{index}-write").searchRouting("xyz"));
+
+        AcknowledgedResponse putTemplateResponse = execute(putTemplateRequest,
+            highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync,
+            expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
+            );
+        assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
+
+        Map<String, Object> templates = getAsMap("/_template/my-template");
+        assertThat(templates.keySet(), hasSize(1));
+        assertThat(extractValue("my-template.order", templates), equalTo(10));
+        assertThat(extractRawValues("my-template.index_patterns", templates), contains("pattern-1", "name-*"));
+        assertThat(extractValue("my-template.settings.index.number_of_shards", templates), equalTo("3"));
+        assertThat(extractValue("my-template.settings.index.number_of_replicas", templates), equalTo("0"));
+        assertThat(extractValue("my-template.mappings.properties.host_name.type", templates), equalTo("keyword"));
+        assertThat(extractValue("my-template.mappings.properties.description.type", templates), equalTo("text"));
+        assertThat((Map<String, String>) extractValue("my-template.aliases.alias-1", templates), hasEntry("index_routing", "abc"));
+        assertThat((Map<String, String>) extractValue("my-template.aliases.{index}-write", templates), hasEntry("search_routing", "xyz"));
+    }    
 
     public void testPutTemplateBadRequests() throws Exception {
         RestHighLevelClient client = highLevelClient();
@@ -1342,50 +1583,68 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertFalse(response.isValid());
     }
 
-    public void testCRUDIndexTemplate() throws Exception {
+    // Tests the deprecated form of the API that returns templates with doc types (using the server-side's GetIndexTemplateResponse)
+    public void testCRUDIndexTemplateWithTypes() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
-        PutIndexTemplateRequest putTemplate1 = new PutIndexTemplateRequest().name("template-1")
+        org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplate1 = 
+            new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest().name("template-1")
             .patterns(Arrays.asList("pattern-1", "name-1")).alias(new Alias("alias-1"));
-        assertThat(execute(putTemplate1, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged(),
-            equalTo(true));
-        PutIndexTemplateRequest putTemplate2 = new PutIndexTemplateRequest().name("template-2")
+        assertThat(execute(putTemplate1, client.indices()::putTemplate, client.indices()::putTemplateAsync
+                , expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE))
+            .isAcknowledged(), equalTo(true));
+        org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplate2 = 
+            new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest().name("template-2")
             .patterns(Arrays.asList("pattern-2", "name-2"))
+            .mapping("custom_doc_type", "name", "type=text")
             .settings(Settings.builder().put("number_of_shards", "2").put("number_of_replicas", "0"));
-        assertThat(execute(putTemplate2, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged(),
-            equalTo(true));
+        assertThat(execute(putTemplate2, client.indices()::putTemplate, client.indices()::putTemplateAsync, 
+                expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE))
+                .isAcknowledged(), equalTo(true));
 
-        GetIndexTemplatesResponse getTemplate1 = execute(new GetIndexTemplatesRequest("template-1"),
-            client.indices()::getTemplate, client.indices()::getTemplateAsync);
+        org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse getTemplate1 = execute(
+                new GetIndexTemplatesRequest("template-1"),
+                client.indices()::getTemplate, client.indices()::getTemplateAsync, 
+                expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE));
         assertThat(getTemplate1.getIndexTemplates(), hasSize(1));
-        IndexTemplateMetaData template1 = getTemplate1.getIndexTemplates().get(0);
+        org.elasticsearch.cluster.metadata.IndexTemplateMetaData template1 = getTemplate1.getIndexTemplates().get(0);
         assertThat(template1.name(), equalTo("template-1"));
         assertThat(template1.patterns(), contains("pattern-1", "name-1"));
         assertTrue(template1.aliases().containsKey("alias-1"));
-
-        GetIndexTemplatesResponse getTemplate2 = execute(new GetIndexTemplatesRequest("template-2"),
-            client.indices()::getTemplate, client.indices()::getTemplateAsync);
+        
+        //Check the typed version of the call  
+        org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse getTemplate2 = 
+            execute(new GetIndexTemplatesRequest("template-2"),
+                client.indices()::getTemplate, client.indices()::getTemplateAsync, 
+                expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE));
         assertThat(getTemplate2.getIndexTemplates(), hasSize(1));
-        IndexTemplateMetaData template2 = getTemplate2.getIndexTemplates().get(0);
+        org.elasticsearch.cluster.metadata.IndexTemplateMetaData template2 = getTemplate2.getIndexTemplates().get(0);
         assertThat(template2.name(), equalTo("template-2"));
         assertThat(template2.patterns(), contains("pattern-2", "name-2"));
         assertTrue(template2.aliases().isEmpty());
         assertThat(template2.settings().get("index.number_of_shards"), equalTo("2"));
-        assertThat(template2.settings().get("index.number_of_replicas"), equalTo("0"));
+        assertThat(template2.settings().get("index.number_of_replicas"), equalTo("0"));      
+        // Ugly deprecated form of API requires use of doc type to get at mapping object which is CompressedXContent
+        assertTrue(template2.mappings().containsKey("custom_doc_type"));
 
         List<String> names = randomBoolean()
             ? Arrays.asList("*-1", "template-2")
             : Arrays.asList("template-*");
         GetIndexTemplatesRequest getBothRequest = new GetIndexTemplatesRequest(names);
-        GetIndexTemplatesResponse getBoth = execute(getBothRequest, client.indices()::getTemplate, client.indices()::getTemplateAsync);
+        org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse getBoth = execute(
+                getBothRequest, client.indices()::getTemplate, client.indices()::getTemplateAsync,
+                expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE));
         assertThat(getBoth.getIndexTemplates(), hasSize(2));
-        assertThat(getBoth.getIndexTemplates().stream().map(IndexTemplateMetaData::getName).toArray(),
+        assertThat(getBoth.getIndexTemplates().stream().map(org.elasticsearch.cluster.metadata.IndexTemplateMetaData::getName).toArray(),
             arrayContainingInAnyOrder("template-1", "template-2"));
 
         GetIndexTemplatesRequest getAllRequest = new GetIndexTemplatesRequest();
-        GetIndexTemplatesResponse getAll = execute(getAllRequest, client.indices()::getTemplate, client.indices()::getTemplateAsync);
+        org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse getAll = execute(
+                getAllRequest, client.indices()::getTemplate, client.indices()::getTemplateAsync,
+                expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE));
         assertThat(getAll.getIndexTemplates().size(), greaterThanOrEqualTo(2));
-        assertThat(getAll.getIndexTemplates().stream().map(IndexTemplateMetaData::getName).collect(Collectors.toList()),
+        assertThat(getAll.getIndexTemplates().stream().map(org.elasticsearch.cluster.metadata.IndexTemplateMetaData::getName)
+                .collect(Collectors.toList()),
             hasItems("template-1", "template-2"));
 
         assertTrue(execute(new DeleteIndexTemplateRequest("template-1"),
@@ -1396,14 +1655,96 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             client.indices()::deleteTemplate, client.indices()::deleteTemplateAsync)).status(), equalTo(RestStatus.NOT_FOUND));
 
         assertThat(execute(new GetIndexTemplatesRequest("template-*"),
-            client.indices()::getTemplate, client.indices()::getTemplateAsync).getIndexTemplates(), hasSize(1));
+            client.indices()::getTemplate, client.indices()::getTemplateAsync, 
+              expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)).getIndexTemplates(), hasSize(1));
         assertThat(execute(new GetIndexTemplatesRequest("template-*"),
-            client.indices()::getTemplate, client.indices()::getTemplateAsync).getIndexTemplates().get(0).name(), equalTo("template-2"));
+            client.indices()::getTemplate, client.indices()::getTemplateAsync, 
+              expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)).getIndexTemplates()
+                .get(0).name(), equalTo("template-2"));
 
         assertTrue(execute(new DeleteIndexTemplateRequest("template-*"),
             client.indices()::deleteTemplate, client.indices()::deleteTemplateAsync).isAcknowledged());
         assertThat(expectThrows(ElasticsearchException.class, () -> execute(new GetIndexTemplatesRequest("template-*"),
-            client.indices()::getTemplate, client.indices()::getTemplateAsync)).status(), equalTo(RestStatus.NOT_FOUND));
+            client.indices()::getTemplate, client.indices()::getTemplateAsync, 
+              expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE))).status(), equalTo(RestStatus.NOT_FOUND));
+    }
+
+    
+    public void testCRUDIndexTemplate() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        PutIndexTemplateRequest putTemplate1 = new PutIndexTemplateRequest("template-1")
+            .patterns(Arrays.asList("pattern-1", "name-1")).alias(new Alias("alias-1"));
+        assertThat(execute(putTemplate1, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged(),
+            equalTo(true));
+        PutIndexTemplateRequest putTemplate2 = new PutIndexTemplateRequest("template-2")
+            .patterns(Arrays.asList("pattern-2", "name-2"))
+            .mapping("{\"properties\": { \"name\": { \"type\": \"text\" }}}", XContentType.JSON)
+            .settings(Settings.builder().put("number_of_shards", "2").put("number_of_replicas", "0"));
+        assertThat(execute(putTemplate2, client.indices()::putTemplate, client.indices()::putTemplateAsync)
+                .isAcknowledged(), equalTo(true));
+
+        GetIndexTemplatesResponse getTemplate1 = execute(
+                new GetIndexTemplatesRequest("template-1"),
+                client.indices()::getIndexTemplate, client.indices()::getIndexTemplateAsync);
+        assertThat(getTemplate1.getIndexTemplates(), hasSize(1));
+        IndexTemplateMetaData template1 = getTemplate1.getIndexTemplates().get(0);
+        assertThat(template1.name(), equalTo("template-1"));
+        assertThat(template1.patterns(), contains("pattern-1", "name-1"));
+        assertTrue(template1.aliases().containsKey("alias-1"));
+        
+        GetIndexTemplatesResponse getTemplate2 = execute(new GetIndexTemplatesRequest("template-2"),
+            client.indices()::getIndexTemplate, client.indices()::getIndexTemplateAsync);
+        assertThat(getTemplate2.getIndexTemplates(), hasSize(1));
+        IndexTemplateMetaData template2 = getTemplate2.getIndexTemplates().get(0);
+        assertThat(template2.name(), equalTo("template-2"));
+        assertThat(template2.patterns(), contains("pattern-2", "name-2"));
+        assertTrue(template2.aliases().isEmpty());
+        assertThat(template2.settings().get("index.number_of_shards"), equalTo("2"));
+        assertThat(template2.settings().get("index.number_of_replicas"), equalTo("0"));      
+        // New API returns a MappingMetaData class rather than CompressedXContent for the mapping
+        assertTrue(template2.mappings().sourceAsMap().containsKey("properties"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> props = (Map<String, Object>) template2.mappings().sourceAsMap().get("properties");
+        assertTrue(props.containsKey("name"));
+        
+        
+
+        List<String> names = randomBoolean()
+            ? Arrays.asList("*-1", "template-2")
+            : Arrays.asList("template-*");
+        GetIndexTemplatesRequest getBothRequest = new GetIndexTemplatesRequest(names);
+        GetIndexTemplatesResponse getBoth = execute(
+                getBothRequest, client.indices()::getIndexTemplate, client.indices()::getIndexTemplateAsync);
+        assertThat(getBoth.getIndexTemplates(), hasSize(2));
+        assertThat(getBoth.getIndexTemplates().stream().map(IndexTemplateMetaData::name).toArray(),
+            arrayContainingInAnyOrder("template-1", "template-2"));
+
+        GetIndexTemplatesRequest getAllRequest = new GetIndexTemplatesRequest();
+        GetIndexTemplatesResponse getAll = execute(
+                getAllRequest, client.indices()::getIndexTemplate, client.indices()::getIndexTemplateAsync);
+        assertThat(getAll.getIndexTemplates().size(), greaterThanOrEqualTo(2));
+        assertThat(getAll.getIndexTemplates().stream().map(IndexTemplateMetaData::name)
+                .collect(Collectors.toList()),
+            hasItems("template-1", "template-2"));
+
+        assertTrue(execute(new DeleteIndexTemplateRequest("template-1"),
+            client.indices()::deleteTemplate, client.indices()::deleteTemplateAsync).isAcknowledged());
+        assertThat(expectThrows(ElasticsearchException.class, () -> execute(new GetIndexTemplatesRequest("template-1"),
+            client.indices()::getIndexTemplate, client.indices()::getIndexTemplateAsync)).status(), equalTo(RestStatus.NOT_FOUND));
+        assertThat(expectThrows(ElasticsearchException.class, () -> execute(new DeleteIndexTemplateRequest("template-1"),
+            client.indices()::deleteTemplate, client.indices()::deleteTemplateAsync)).status(), equalTo(RestStatus.NOT_FOUND));
+
+        assertThat(execute(new GetIndexTemplatesRequest("template-*"),
+            client.indices()::getIndexTemplate, client.indices()::getIndexTemplateAsync).getIndexTemplates(), hasSize(1));
+        assertThat(execute(new GetIndexTemplatesRequest("template-*"),
+            client.indices()::getIndexTemplate, client.indices()::getIndexTemplateAsync).getIndexTemplates()
+                .get(0).name(), equalTo("template-2"));
+
+        assertTrue(execute(new DeleteIndexTemplateRequest("template-*"),
+            client.indices()::deleteTemplate, client.indices()::deleteTemplateAsync).isAcknowledged());
+        assertThat(expectThrows(ElasticsearchException.class, () -> execute(new GetIndexTemplatesRequest("template-*"),
+            client.indices()::getIndexTemplate, client.indices()::getIndexTemplateAsync)).status(), equalTo(RestStatus.NOT_FOUND));
     }
 
     public void testIndexTemplatesExist() throws Exception {
@@ -1412,8 +1753,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         {
             for (String suffix : Arrays.asList("1", "2")) {
 
-                final PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest()
-                    .name("template-" + suffix)
+                final PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("template-" + suffix)
                     .patterns(Arrays.asList("pattern-" + suffix, "name-" + suffix))
                     .alias(new Alias("alias-" + suffix));
                 assertTrue(execute(putRequest, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged());

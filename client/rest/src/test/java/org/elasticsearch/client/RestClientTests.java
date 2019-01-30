@@ -273,6 +273,15 @@ public class RestClientTests extends RestClientTestCase {
             blacklist.put(n3.getHost(), new DeadHostState(new DeadHostState(new DeadHostState(timeSupplier))));
 
             /*
+             * case when fewer nodeTuple than blacklist, wont result in any IllegalCapacityException
+             */
+            {
+                NodeTuple<List<Node>> fewerNodeTuple = new NodeTuple<>(Arrays.asList(n1, n2), null);
+                assertSelectLivingHosts(Arrays.asList(n1), fewerNodeTuple, blacklist, NodeSelector.ANY);
+                assertSelectLivingHosts(Arrays.asList(n2), fewerNodeTuple, blacklist, not1);
+            }
+
+            /*
              * selectHosts will revive a single host if regardless of
              * blacklist time. It'll revive the node that is closest
              * to being revived that the NodeSelector is ok with.

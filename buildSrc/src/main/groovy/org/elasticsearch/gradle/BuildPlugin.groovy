@@ -904,6 +904,7 @@ class BuildPlugin implements Plugin<Project> {
         project.tasks.withType(RandomizedTestingTask) {task ->
             jvm "${project.runtimeJavaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel)
+            ifNoTests 'fail'
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
             project.sourceSets.matching { it.name == "test" }.all { test ->

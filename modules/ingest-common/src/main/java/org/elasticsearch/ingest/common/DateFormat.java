@@ -19,12 +19,18 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 import java.util.function.Function;
 
@@ -63,11 +69,25 @@ enum DateFormat {
             return ((base * 1000) - 10000) + (rest/1000000);
         }
     },
-    Joda {
+    Java {
         @Override
         Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            DateTimeFormatter parser = DateTimeFormat.forPattern(format).withZone(timezone).withLocale(locale);
-            return text -> parser.withDefaultYear((new DateTime(DateTimeZone.UTC)).getYear()).parseDateTime(text);
+
+            // support the 6.x BWC compatible way of parsing java 8 dates
+            if (format.startsWith("8")) {
+                format = format.substring(1);
+            }
+
+            int year = LocalDate.now(ZoneOffset.UTC).getYear();
+            DateFormatter formatter = DateFormatter.forPattern(format)
+                .withLocale(locale)
+                .withZone(DateUtils.dateTimeZoneToZoneId(timezone));
+            return text -> {
+                ZonedDateTime defaultZonedDateTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
+                TemporalAccessor accessor = formatter.parse(text);
+                long millis = DateFormatters.toZonedDateTime(accessor, defaultZonedDateTime).toInstant().toEpochMilli();
+                return new DateTime(millis, timezone);
+            };
         }
     };
 
@@ -84,7 +104,7 @@ enum DateFormat {
             case "TAI64N":
                 return Tai64n;
             default:
-                return Joda;
+                return Java;
         }
     }
 }

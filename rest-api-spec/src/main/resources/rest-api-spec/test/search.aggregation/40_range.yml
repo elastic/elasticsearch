@@ -1,20 +1,20 @@
 setup:
   - do:
       indices.create:
+          include_type_name: false
           index: test
           body:
             settings:
               number_of_replicas: 0
             mappings:
-              test:
-                properties:
-                  ip:
-                     type: ip
-                  double:
-                    type: double
-                  date:
-                    type: date
-                    format: epoch_second
+              properties:
+                ip:
+                   type: ip
+                double:
+                  type: double
+                date:
+                  type: date
+                  format: epoch_second
 
   - do:
       cluster.health:
@@ -25,21 +25,18 @@ setup:
   - do:
       index:
         index: test
-        type: test
         id: 1
         body: { "double" : 42 }
 
   - do:
       index:
         index: test
-        type: test
         id: 2
         body: { "double" : 100 }
 
   - do:
       index:
         index: test
-        type: test
         id: 3
         body: { "double" : 50 }
 
@@ -117,21 +114,18 @@ setup:
   - do:
       index:
         index: test
-        type: test
         id: 1
         body: { "ip" : "::1" }
 
   - do:
       index:
         index: test
-        type: test
         id: 2
         body: { "ip" : "192.168.0.1" }
 
   - do:
       index:
         index: test
-        type: test
         id: 3
         body: { "ip" : "192.168.0.7" }
 
@@ -199,13 +193,13 @@ setup:
 
   - match: { hits.total: 3 }
 
-  - length: { aggregations.ip_range.buckets: 2 } 
+  - length: { aggregations.ip_range.buckets: 2 }
 
   - match: { aggregations.ip_range.buckets.0.key: "::/24" }
 
   - match: { aggregations.ip_range.buckets.0.to: "0:100::" }
 
-  - match: { aggregations.ip_range.buckets.0.doc_count: 3 } 
+  - match: { aggregations.ip_range.buckets.0.doc_count: 3 }
 
   - match: { aggregations.ip_range.buckets.1.key: "192.168.0.0/16" }
 
@@ -213,7 +207,7 @@ setup:
 
   - match: { aggregations.ip_range.buckets.1.to: "192.169.0.0" }
 
-  - match: { aggregations.ip_range.buckets.1.doc_count: 2 } 
+  - match: { aggregations.ip_range.buckets.1.doc_count: 2 }
 
 ---
 "IP Range Key Generation":
@@ -236,21 +230,18 @@ setup:
   - do:
       index:
         index: test
-        type: test
         id: 1
         body: { "date" : 1000 }
 
   - do:
       index:
         index: test
-        type: test
         id: 2
         body: { "date" : 2000 }
 
   - do:
       index:
         index: test
-        type: test
         id: 3
         body: { "date" : 3000 }
 
@@ -270,7 +261,7 @@ setup:
   - match: { aggregations.date_range.buckets.0.key: "1000-3000" }
   - match: { aggregations.date_range.buckets.0.from: 1000000 }
   - match: { aggregations.date_range.buckets.0.to: 3000000 }
-  
+
   - match: { aggregations.date_range.buckets.1.doc_count: 1 }
   - match: { aggregations.date_range.buckets.1.key: "3000-4000" }
   - match: { aggregations.date_range.buckets.1.from: 3000000 }
@@ -281,35 +272,30 @@ setup:
   - do:
       index:
         index: test
-        type: test
         id: 1
         body: { "date" : "28800000000" }
 
   - do:
       index:
         index: test
-        type: test
         id: 2
         body: { "date" : "315561600000" }
 
   - do:
       index:
         index: test
-        type: test
         id: 3
         body: { "date" : "631180800000" }
 
   - do:
       index:
         index: test
-        type: test
         id: 4
         body: { "date" : "10000" }
 
   - do:
         index:
           index: test
-          type: test
           id: 5
           body: { "ip" : "192.168.0.1" }
 
@@ -334,7 +320,7 @@ setup:
                   to: '315561600000'
                 - key: Other
                   to: "200000"
-                  
+
   - match: { hits.total: 5 }
 
   - length: { aggregations.age_groups.buckets: 3 }
@@ -350,4 +336,3 @@ setup:
   - match: { aggregations.age_groups.buckets.2.key: "Generation Y" }
 
   - match: { aggregations.age_groups.buckets.2.doc_count: 2 }
-

@@ -74,8 +74,6 @@ public class DiscoveryUpgradeService {
 
     private static Logger logger = LogManager.getLogger(DiscoveryUpgradeService.class);
 
-    public static final String DISCOVERY_UPGRADE_PLACEHOLDER_PREFIX = "{discovery-upgrade-placeholder}";
-
     // how long to wait after activation before attempting to join a master or perform a bootstrap upgrade
     public static final Setting<TimeValue> BWC_PING_TIMEOUT_SETTING =
         Setting.timeSetting("discovery.zen.bwc_ping_timeout",
@@ -228,11 +226,6 @@ public class DiscoveryUpgradeService {
                                     nodeIds.add(knownNodeIdIterator.next());
                                 }
 
-                                while (nodeIds.size() < 2 * minimumMasterNodes - 2) {
-                                    final boolean added = nodeIds.add(DISCOVERY_UPGRADE_PLACEHOLDER_PREFIX + nodeIds.size());
-                                    assert added;
-                                }
-
                                 final VotingConfiguration votingConfiguration = new VotingConfiguration(nodeIds);
                                 assert votingConfiguration.hasQuorum(
                                     discoveryNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toList()));
@@ -350,9 +343,5 @@ public class DiscoveryUpgradeService {
         // and 'z' < '{', so by starting the ID with '{' we can be sure it's greater. This is terrible.
         return new DiscoveryNode(node.getName(), "{zen2}" + node.getId(), node.getEphemeralId(), node.getHostName(),
             node.getHostAddress(), node.getAddress(), node.getAttributes(), node.getRoles(), node.getVersion());
-    }
-
-    public static boolean isDiscoveryUpgradePlaceholder(String nodeId) {
-        return nodeId.startsWith(DISCOVERY_UPGRADE_PLACEHOLDER_PREFIX);
     }
 }

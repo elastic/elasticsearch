@@ -7,7 +7,7 @@
 ++++
 
 Sets a cluster wide upgrade_mode setting that prepares {ml} indices for an
-upgrade by temporarily halting all {ml} jobs and {dfeeds}.
+upgrade. 
 
 ==== Request
 //////////////////////////

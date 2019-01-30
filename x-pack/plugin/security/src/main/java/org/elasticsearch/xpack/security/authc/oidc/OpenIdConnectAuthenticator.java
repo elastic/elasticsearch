@@ -206,7 +206,8 @@ public class OpenIdConnectAuthenticator {
      * @param expectedNonce  The nonce value we sent in the authentication request and should be contained in the Id Token
      * @param claimsListener The listener to notify with the resolved {@link JWTClaimsSet}
      */
-    private void getUserClaims(@Nullable AccessToken accessToken, JWT idToken, Nonce expectedNonce, ActionListener<JWTClaimsSet> claimsListener) {
+    private void getUserClaims(@Nullable AccessToken accessToken, JWT idToken, Nonce expectedNonce,
+                               ActionListener<JWTClaimsSet> claimsListener) {
         try {
             JWTClaimsSet verifiedIdTokenClaims = idTokenValidator.validate(idToken, expectedNonce).toJWTClaimsSet();
             if (logger.isTraceEnabled()) {

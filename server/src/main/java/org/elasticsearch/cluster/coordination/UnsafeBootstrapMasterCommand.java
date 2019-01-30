@@ -49,8 +49,8 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
             "\n" +
             "You should run this tool only if you have permanently lost half\n" +
             "or more of the master-eligible nodes, and you cannot restore the cluster\n" +
-            "from a snapshot. This tool can result in arbitrary data loss and\n" +
-            "should be the last resort.\n" +
+            "from a snapshot. This tool can cause arbitrary data loss and its use " +
+            "should be your last resort.\n" +
             "If you have multiple survived master eligible nodes, consider running\n" +
             "this tool on the node with the highest cluster state (term, version) pair.\n" +
             "Do you want to proceed?\n";

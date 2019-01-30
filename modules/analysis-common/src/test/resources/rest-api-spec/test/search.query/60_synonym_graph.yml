@@ -1,6 +1,7 @@
 setup:
   - do:
       indices.create:
+        include_type_name: false
         index: test
         body:
           settings:
@@ -24,22 +25,19 @@ setup:
                   tokenizer: standard
                   filter: [ lowercase, graph_syns ]
           mappings:
-            test:
-              properties:
-                field:
-                  type: text
+            properties:
+              field:
+                type: text
 
   - do:
       index:
           index: test
-          type: test
           id: 1
           body:
             text: say wtf happened foo
   - do:
       index:
           index: test
-          type: test
           id: 2
           body:
             text: bar baz what the fudge man
@@ -47,7 +45,6 @@ setup:
   - do:
       index:
           index: test
-          type: test
           id: 3
           body:
             text: wtf
@@ -55,7 +52,6 @@ setup:
   - do:
       index:
           index: test
-          type: test
           id: 4
           body:
             text: what is the name for fudge
@@ -63,7 +59,6 @@ setup:
   - do:
       index:
           index: test
-          type: test
           id: 5
           body:
             text: bar two three
@@ -71,7 +66,6 @@ setup:
   - do:
       index:
           index: test
-          type: test
           id: 6
           body:
             text: bar baz two three
@@ -184,7 +178,6 @@ setup:
   - do:
       index:
           index: test
-          type: test
           id: 7
           body:
             text: "WTFD!"
@@ -192,7 +185,6 @@ setup:
   - do:
       index:
           index: test
-          type: test
           id: 8
           body:
             text: "Weird Al's WHAT THE FUDGESICLE"

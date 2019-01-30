@@ -175,6 +175,7 @@ public class NativeUsersStore {
                     client.prepareSearch(SECURITY_INDEX_NAME)
                         .setQuery(QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), USER_DOC_TYPE))
                         .setSize(0)
+                        .setTrackTotalHits(true)
                         .request(),
                     new ActionListener<SearchResponse>() {
                         @Override
@@ -578,6 +579,7 @@ public class NativeUsersStore {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareSearch(SECURITY_INDEX_NAME)
+                        .setTrackTotalHits(true)
                         .setQuery(QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE))
                         .setFetchSource(true).request(),
                     new ActionListener<SearchResponse>() {

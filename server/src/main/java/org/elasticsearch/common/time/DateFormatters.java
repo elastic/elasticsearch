@@ -46,7 +46,6 @@ import static java.time.temporal.ChronoField.DAY_OF_MONTH;
 import static java.time.temporal.ChronoField.DAY_OF_WEEK;
 import static java.time.temporal.ChronoField.DAY_OF_YEAR;
 import static java.time.temporal.ChronoField.HOUR_OF_DAY;
-import static java.time.temporal.ChronoField.MILLI_OF_SECOND;
 import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
 import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
@@ -77,10 +76,22 @@ public class DateFormatters {
     private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_PRINTER = new DateTimeFormatterBuilder()
         .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
         .appendLiteral('T')
-        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
-        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .optionalStart()
+        .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
+        .appendFraction(NANO_OF_SECOND, 3, 3, true)
+        .optionalEnd()
+        .optionalEnd()
         .optionalStart()
         .appendZoneOrOffsetId()
+        .optionalEnd()
+        .optionalEnd()
         .optionalEnd()
         .toFormatter(Locale.ROOT);
 
@@ -88,15 +99,25 @@ public class DateFormatters {
         .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
         .optionalStart()
         .appendLiteral('T')
-        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
         .optionalStart()
-        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
+        .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
+        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .optionalEnd()
         .optionalEnd()
         .optionalStart()
         .appendZoneOrOffsetId()
         .optionalEnd()
         .optionalStart()
         .append(TIME_ZONE_FORMATTER_NO_COLON)
+        .optionalEnd()
+        .optionalEnd()
         .optionalEnd()
         .optionalEnd()
         .toFormatter(Locale.ROOT);
@@ -124,11 +145,33 @@ public class DateFormatters {
         .optionalEnd()
         .toFormatter(Locale.ROOT);
 
+    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS = new DateTimeFormatterBuilder()
+        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+        .appendLiteral('T')
+        .optionalStart()
+        .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
+        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .optionalEnd()
+        .optionalEnd()
+        .optionalStart()
+        .appendZoneOrOffsetId()
+        .optionalEnd()
+        .optionalEnd()
+        .optionalEnd()
+        .toFormatter(Locale.ROOT);
+
     /**
      * Returns a generic ISO datetime parser where the date is mandatory and the time is optional with nanosecond resolution.
      */
     private static final DateFormatter STRICT_DATE_OPTIONAL_TIME_NANOS = new JavaDateFormatter("strict_date_optional_time_nanos",
-        STRICT_DATE_OPTIONAL_TIME_PRINTER, STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS);
+        STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS, STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS);
 
     /////////////////////////////////////////
     //
@@ -159,14 +202,14 @@ public class DateFormatters {
         .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
         .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
         .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
-        .appendFraction(MILLI_OF_SECOND, 1, 3, true)
+        .appendFraction(NANO_OF_SECOND, 1, 9, true)
         .toFormatter(Locale.ROOT);
 
     private static final DateTimeFormatter BASIC_TIME_PRINTER = new DateTimeFormatterBuilder()
         .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
         .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
         .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
-        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
+        .appendFraction(NANO_OF_SECOND, 3, 3, true)
         .toFormatter(Locale.ROOT);
 
     /*
@@ -265,7 +308,7 @@ public class DateFormatters {
     private static final DateFormatter BASIC_ORDINAL_DATE_TIME = new JavaDateFormatter("basic_ordinal_date_time",
         new DateTimeFormatterBuilder().appendPattern("yyyyDDD").append(BASIC_T_TIME_PRINTER)
             .appendZoneOrOffsetId().toFormatter(Locale.ROOT),
-        new DateTimeFormatterBuilder().appendPattern("yyyyDDD").append(BASIC_T_TIME_PRINTER)
+        new DateTimeFormatterBuilder().appendPattern("yyyyDDD").append(BASIC_T_TIME_FORMATTER)
             .appendZoneOrOffsetId().toFormatter(Locale.ROOT),
         new DateTimeFormatterBuilder().appendPattern("yyyyDDD").append(BASIC_T_TIME_FORMATTER)
             .append(TIME_ZONE_FORMATTER_NO_COLON).toFormatter(Locale.ROOT)
@@ -330,31 +373,32 @@ public class DateFormatters {
      * Returns a basic formatter that combines a basic weekyear date and time
      * without millis, separated by a 'T' (xxxx'W'wwe'T'HHmmssX).
      */
-    private static final DateFormatter STRICT_BASIC_WEEK_DATE_TIME_NO_MILLIS = new JavaDateFormatter("strict_basic_week_date_no_millis",
-        new DateTimeFormatterBuilder()
-            .append(STRICT_BASIC_WEEK_DATE_PRINTER)
-            .appendLiteral("T")
-            .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
-            .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
-            .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
-            .appendZoneOrOffsetId()
-            .toFormatter(Locale.ROOT),
-        new DateTimeFormatterBuilder()
-            .append(STRICT_BASIC_WEEK_DATE_PRINTER)
-            .appendLiteral("T")
-            .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
-            .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
-            .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
-            .appendZoneOrOffsetId()
-            .toFormatter(Locale.ROOT),
-        new DateTimeFormatterBuilder()
-            .append(STRICT_BASIC_WEEK_DATE_PRINTER)
-            .appendLiteral("T")
-            .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
-            .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
-            .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
-            .append(TIME_ZONE_FORMATTER_NO_COLON)
-            .toFormatter(Locale.ROOT)
+    private static final DateFormatter STRICT_BASIC_WEEK_DATE_TIME_NO_MILLIS =
+        new JavaDateFormatter("strict_basic_week_date_time_no_millis",
+            new DateTimeFormatterBuilder()
+                .append(STRICT_BASIC_WEEK_DATE_PRINTER)
+                .appendLiteral("T")
+                .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
+                .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
+                .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
+                .appendZoneOrOffsetId()
+                .toFormatter(Locale.ROOT),
+            new DateTimeFormatterBuilder()
+                .append(STRICT_BASIC_WEEK_DATE_PRINTER)
+                .appendLiteral("T")
+                .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
+                .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
+                .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
+                .appendZoneOrOffsetId()
+                .toFormatter(Locale.ROOT),
+            new DateTimeFormatterBuilder()
+                .append(STRICT_BASIC_WEEK_DATE_PRINTER)
+                .appendLiteral("T")
+                .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
+                .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
+                .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
+                .append(TIME_ZONE_FORMATTER_NO_COLON)
+                .toFormatter(Locale.ROOT)
     );
 
     /*
@@ -372,7 +416,7 @@ public class DateFormatters {
             .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
             .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
             .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
-            .appendFraction(MILLI_OF_SECOND, 3, 3, true)
+            .appendFraction(NANO_OF_SECOND, 3, 9, true)
             .appendZoneOrOffsetId()
             .toFormatter(Locale.ROOT),
         new DateTimeFormatterBuilder()
@@ -381,7 +425,7 @@ public class DateFormatters {
             .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
             .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
             .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
-            .appendFraction(MILLI_OF_SECOND, 3, 3, true)
+            .appendFraction(NANO_OF_SECOND, 3, 9, true)
             .append(TIME_ZONE_FORMATTER_NO_COLON)
             .toFormatter(Locale.ROOT)
     );
@@ -390,7 +434,7 @@ public class DateFormatters {
      * An ISO date formatter that formats or parses a date without an offset, such as '2011-12-03'.
      */
     private static final DateFormatter STRICT_DATE = new JavaDateFormatter("strict_date",
-        DateTimeFormatter.ISO_LOCAL_DATE.withResolverStyle(ResolverStyle.LENIENT));
+        DateTimeFormatter.ISO_LOCAL_DATE.withResolverStyle(ResolverStyle.LENIENT).withLocale(Locale.ROOT));
 
     /*
      * A date formatter that formats or parses a date plus an hour without an offset, such as '2011-12-03T01'.
@@ -438,7 +482,7 @@ public class DateFormatters {
         .appendLiteral('T')
         .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
         .optionalStart()
-        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
+        .appendFraction(NANO_OF_SECOND, 3, 9, true)
         .optionalEnd()
         .toFormatter(Locale.ROOT);
 
@@ -495,12 +539,12 @@ public class DateFormatters {
     // NOTE: this is not a strict formatter to retain the joda time based behaviour, even though it's named like this
     private static final DateTimeFormatter STRICT_HOUR_MINUTE_SECOND_MILLIS_FORMATTER = new DateTimeFormatterBuilder()
         .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
-        .appendFraction(MILLI_OF_SECOND, 1, 3, true)
+        .appendFraction(NANO_OF_SECOND, 1, 9, true)
         .toFormatter(Locale.ROOT);
 
     private static final DateTimeFormatter STRICT_HOUR_MINUTE_SECOND_MILLIS_PRINTER = new DateTimeFormatterBuilder()
         .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
-        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
+        .appendFraction(NANO_OF_SECOND, 3, 3, true)
         .toFormatter(Locale.ROOT);
 
     /*
@@ -515,7 +559,9 @@ public class DateFormatters {
         new JavaDateFormatter("strict_hour_minute_second_millis",
             STRICT_HOUR_MINUTE_SECOND_MILLIS_PRINTER, STRICT_HOUR_MINUTE_SECOND_MILLIS_FORMATTER);
 
-    private static final DateFormatter STRICT_HOUR_MINUTE_SECOND_FRACTION = STRICT_HOUR_MINUTE_SECOND_MILLIS;
+    private static final DateFormatter STRICT_HOUR_MINUTE_SECOND_FRACTION =
+        new JavaDateFormatter("strict_hour_minute_second_fraction",
+            STRICT_HOUR_MINUTE_SECOND_MILLIS_PRINTER, STRICT_HOUR_MINUTE_SECOND_MILLIS_FORMATTER);
 
     /*
      * Returns a formatter that combines a full date, two digit hour of day,
@@ -533,12 +579,26 @@ public class DateFormatters {
             .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
             .appendLiteral("T")
             .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
-            //  this one here is lenient as well to retain joda time based bwc compatibility
-            .appendFraction(MILLI_OF_SECOND, 1, 3, true)
+            // this one here is lenient as well to retain joda time based bwc compatibility
+            .appendFraction(NANO_OF_SECOND, 1, 9, true)
             .toFormatter(Locale.ROOT)
     );
 
-    private static final DateFormatter STRICT_DATE_HOUR_MINUTE_SECOND_MILLIS = STRICT_DATE_HOUR_MINUTE_SECOND_FRACTION;
+    private static final DateFormatter STRICT_DATE_HOUR_MINUTE_SECOND_MILLIS = new JavaDateFormatter(
+        "strict_date_hour_minute_second_millis",
+        new DateTimeFormatterBuilder()
+            .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+            .appendLiteral("T")
+            .append(STRICT_HOUR_MINUTE_SECOND_MILLIS_PRINTER)
+            .toFormatter(Locale.ROOT),
+        new DateTimeFormatterBuilder()
+            .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+            .appendLiteral("T")
+            .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
+            //  this one here is lenient as well to retain joda time based bwc compatibility
+            .appendFraction(NANO_OF_SECOND, 1, 9, true)
+            .toFormatter(Locale.ROOT)
+    );
 
     /*
      * Returns a formatter for a two digit hour of day. (HH)
@@ -562,7 +622,7 @@ public class DateFormatters {
         .optionalStart()
         .appendLiteral(':')
         .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
-        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
+        .appendFraction(NANO_OF_SECOND, 3, 9, true)
         .optionalEnd()
         .toFormatter(Locale.ROOT);
 
@@ -586,7 +646,7 @@ public class DateFormatters {
         .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
         .appendLiteral(':')
         .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
-        .appendFraction(MILLI_OF_SECOND, 1, 3, true)
+        .appendFraction(NANO_OF_SECOND, 1, 9, true)
         .toFormatter(Locale.ROOT);
 
     private static final DateTimeFormatter STRICT_TIME_PRINTER = new DateTimeFormatterBuilder()
@@ -595,7 +655,7 @@ public class DateFormatters {
         .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
         .appendLiteral(':')
         .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
-        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
+        .appendFraction(NANO_OF_SECOND, 3, 3, true)
         .toFormatter(Locale.ROOT);
 
     /*
@@ -783,13 +843,11 @@ public class DateFormatters {
 
     private static final DateTimeFormatter DATE_FORMATTER = new DateTimeFormatterBuilder()
         .appendValue(ChronoField.YEAR, 1, 5, SignStyle.NORMAL)
-        .optionalStart()
         .appendLiteral('-')
         .appendValue(MONTH_OF_YEAR, 1, 2, SignStyle.NOT_NEGATIVE)
         .optionalStart()
         .appendLiteral('-')
         .appendValue(DAY_OF_MONTH, 1, 2, SignStyle.NOT_NEGATIVE)
-        .optionalEnd()
         .optionalEnd()
         .toFormatter(Locale.ROOT);
 
@@ -819,7 +877,7 @@ public class DateFormatters {
             .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
             .optionalEnd()
             .optionalStart()
-            .appendFraction(MILLI_OF_SECOND, 1, 3, true)
+            .appendFraction(NANO_OF_SECOND, 1, 9, true)
             .optionalEnd()
             .optionalStart().appendZoneOrOffsetId().optionalEnd()
             .optionalStart().appendOffset("+HHmm", "Z").optionalEnd()
@@ -840,7 +898,16 @@ public class DateFormatters {
         .appendValue(MINUTE_OF_HOUR, 1, 2, SignStyle.NOT_NEGATIVE)
         .appendLiteral(':')
         .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
-        .appendFraction(MILLI_OF_SECOND, 1, 3, true)
+        .appendFraction(NANO_OF_SECOND, 1, 3, true)
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter HOUR_MINUTE_SECOND_FRACTION_FORMATTER = new DateTimeFormatterBuilder()
+        .appendValue(HOUR_OF_DAY, 1, 2, SignStyle.NOT_NEGATIVE)
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 1, 2, SignStyle.NOT_NEGATIVE)
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
+        .appendFraction(NANO_OF_SECOND, 1, 9, true)
         .toFormatter(Locale.ROOT);
 
     private static final DateTimeFormatter ORDINAL_DATE_FORMATTER = new DateTimeFormatterBuilder()
@@ -875,7 +942,7 @@ public class DateFormatters {
 
     private static final DateTimeFormatter TIME_PREFIX = new DateTimeFormatterBuilder()
         .append(TIME_NO_MILLIS_FORMATTER)
-        .appendFraction(MILLI_OF_SECOND, 1, 3, true)
+        .appendFraction(NANO_OF_SECOND, 1, 9, true)
         .toFormatter(Locale.ROOT);
 
     private static final DateTimeFormatter WEEK_DATE_FORMATTER = new DateTimeFormatterBuilder()
@@ -913,8 +980,7 @@ public class DateFormatters {
     /*
      * Returns a formatter that combines a full date, two digit hour of day,
      * two digit minute of hour, two digit second of minute, and three digit
-     * fraction of second (yyyy-MM-dd'T'HH:mm:ss.SSS). Parsing will parse up
-     * to 3 fractional second digits.
+     * fraction of second (yyyy-MM-dd'T'HH:mm:ss.SSS).
      */
     private static final DateFormatter DATE_HOUR_MINUTE_SECOND_MILLIS =
         new JavaDateFormatter("date_hour_minute_second_millis",
@@ -929,7 +995,18 @@ public class DateFormatters {
                 .append(HOUR_MINUTE_SECOND_MILLIS_FORMATTER)
                 .toFormatter(Locale.ROOT));
 
-    private static final DateFormatter DATE_HOUR_MINUTE_SECOND_FRACTION = DATE_HOUR_MINUTE_SECOND_MILLIS;
+    private static final DateFormatter DATE_HOUR_MINUTE_SECOND_FRACTION =
+        new JavaDateFormatter("date_hour_minute_second_fraction",
+            new DateTimeFormatterBuilder()
+                .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+                .appendLiteral("T")
+                .append(STRICT_HOUR_MINUTE_SECOND_MILLIS_PRINTER)
+                .toFormatter(Locale.ROOT),
+            new DateTimeFormatterBuilder()
+                .append(DATE_FORMATTER)
+                .appendLiteral("T")
+                .append(HOUR_MINUTE_SECOND_FRACTION_FORMATTER)
+                .toFormatter(Locale.ROOT));
 
     /*
      * Returns a formatter that combines a full date, two digit hour of day,
@@ -963,7 +1040,7 @@ public class DateFormatters {
         .optionalStart()
         .appendLiteral(':')
         .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
-        .appendFraction(MILLI_OF_SECOND, 1, 3, true)
+        .appendFraction(NANO_OF_SECOND, 1, 9, true)
         .optionalEnd()
         .toFormatter(Locale.ROOT);
 
@@ -1034,6 +1111,9 @@ public class DateFormatters {
     private static final DateFormatter HOUR_MINUTE_SECOND_MILLIS = new JavaDateFormatter("hour_minute_second_millis",
         STRICT_HOUR_MINUTE_SECOND_MILLIS_PRINTER, HOUR_MINUTE_SECOND_MILLIS_FORMATTER);
 
+    private static final DateFormatter HOUR_MINUTE_SECOND_FRACTION = new JavaDateFormatter("hour_minute_second_fraction",
+        STRICT_HOUR_MINUTE_SECOND_MILLIS_PRINTER, HOUR_MINUTE_SECOND_FRACTION_FORMATTER);
+
     /*
      * Returns a formatter for a two digit hour of day and two digit minute of
      * hour. (HH:mm)
@@ -1068,7 +1148,7 @@ public class DateFormatters {
         .optionalStart()
         .appendLiteral(':')
         .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
-        .appendFraction(MILLI_OF_SECOND, 1, 3, true)
+        .appendFraction(NANO_OF_SECOND, 1, 9, true)
         .optionalEnd()
         .toFormatter(Locale.ROOT);
 
@@ -1273,7 +1353,7 @@ public class DateFormatters {
     //
     /////////////////////////////////////////
 
-    public static DateFormatter forPattern(String input) {
+    static DateFormatter forPattern(String input) {
         if (Strings.hasLength(input)) {
             input = input.trim();
         }
@@ -1332,7 +1412,7 @@ public class DateFormatters {
         } else if ("hourMinuteSecond".equals(input) || "hour_minute_second".equals(input)) {
             return HOUR_MINUTE_SECOND;
         } else if ("hourMinuteSecondFraction".equals(input) || "hour_minute_second_fraction".equals(input)) {
-            return HOUR_MINUTE_SECOND_MILLIS;
+            return HOUR_MINUTE_SECOND_FRACTION;
         } else if ("hourMinuteSecondMillis".equals(input) || "hour_minute_second_millis".equals(input)) {
             return HOUR_MINUTE_SECOND_MILLIS;
         } else if ("ordinalDate".equals(input) || "ordinal_date".equals(input)) {
@@ -1453,18 +1533,21 @@ public class DateFormatters {
         assert formatters.size() > 0;
 
         List<DateTimeFormatter> dateTimeFormatters = new ArrayList<>(formatters.size());
+        DateTimeFormatterBuilder roundupBuilder = new DateTimeFormatterBuilder();
         DateTimeFormatter printer = null;
         for (DateFormatter formatter : formatters) {
             assert formatter instanceof JavaDateFormatter;
             JavaDateFormatter javaDateFormatter = (JavaDateFormatter) formatter;
-            DateTimeFormatter dateTimeFormatter = javaDateFormatter.getParser();
             if (printer == null) {
                 printer = javaDateFormatter.getPrinter();
             }
-            dateTimeFormatters.add(dateTimeFormatter);
+            dateTimeFormatters.add(javaDateFormatter.getParser());
+            roundupBuilder.appendOptional(javaDateFormatter.getRoundupParser());
         }
+        DateTimeFormatter roundUpParser = roundupBuilder.toFormatter(Locale.ROOT);
 
-        return new JavaDateFormatter(pattern, printer, dateTimeFormatters.toArray(new DateTimeFormatter[0]));
+        return new JavaDateFormatter(pattern, printer, builder -> builder.append(roundUpParser),
+            dateTimeFormatters.toArray(new DateTimeFormatter[0]));
     }
 
     private static final ZonedDateTime EPOCH_ZONED_DATE_TIME = Instant.EPOCH.atZone(ZoneOffset.UTC);

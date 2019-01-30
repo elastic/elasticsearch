@@ -6,10 +6,12 @@
 
 package org.elasticsearch.xpack.core.ccr.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
@@ -48,7 +50,8 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
 
-        public static Request fromXContent(final XContentParser parser, final String followerIndex) throws IOException {
+        public static Request fromXContent(final XContentParser parser, final String followerIndex, ActiveShardCount waitForActiveShards)
+            throws IOException {
             Body body = Body.PARSER.parse(parser, null);
             if (followerIndex != null) {
                 if (body.getFollowerIndex() == null) {
@@ -61,10 +64,12 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             }
             Request request = new Request();
             request.setBody(body);
+            request.waitForActiveShards(waitForActiveShards);
             return request;
         }
 
         private Body body = new Body();
+        private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
 
         public Request() {
         }
@@ -75,6 +80,27 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
         public void setBody(Body body) {
             this.body = body;
+        }
+
+        public ActiveShardCount waitForActiveShards() {
+            return waitForActiveShards;
+        }
+
+        /**
+         * Sets the number of shard copies that should be active for follower index creation to
+         * return. Defaults to {@link ActiveShardCount#NONE}, which will not wait for any shards
+         * to be active. Set this value to {@link ActiveShardCount#DEFAULT} to wait for the primary
+         * shard to be active. Set this value to {@link ActiveShardCount#ALL} to  wait for all shards
+         * (primary and all replicas) to be active before returning.
+         *
+         * @param waitForActiveShards number of active shard copies to wait on
+         */
+        public void waitForActiveShards(ActiveShardCount waitForActiveShards) {
+            if (waitForActiveShards.equals(ActiveShardCount.DEFAULT)) {
+                this.waitForActiveShards = ActiveShardCount.NONE;
+            } else {
+                this.waitForActiveShards = waitForActiveShards;
+            }
         }
 
         @Override
@@ -95,12 +121,20 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             body = new Body(in);
+            // TODO: Update after backport
+            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+                waitForActiveShards(ActiveShardCount.readFrom(in));
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             body.writeTo(out);
+            // TODO: Update after backport
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+                waitForActiveShards.writeTo(out);
+            }
         }
 
         @Override
@@ -292,6 +326,15 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
         @Override
         public int hashCode() {
             return Objects.hash(followIndexCreated, followIndexShardsAcked, indexFollowingStarted);
+        }
+
+        @Override
+        public String toString() {
+            return "PutFollowAction.Response{" +
+                "followIndexCreated=" + followIndexCreated +
+                ", followIndexShardsAcked=" + followIndexShardsAcked +
+                ", indexFollowingStarted=" + indexFollowingStarted +
+                '}';
         }
     }
 

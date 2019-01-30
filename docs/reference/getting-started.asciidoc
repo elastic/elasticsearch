@@ -65,9 +65,7 @@ A type used to be a logical category/partition of your index to allow you to sto
 [float]
 === Document
 
-A document is a basic unit of information that can be indexed. For example, you can have a document for a single customer, another document for a single product, and yet another for a single order. This document is expressed in http://json.org/[JSON] (JavaScript Object Notation) which is a ubiquitous internet data interchange format.
-
-Within an index/type, you can store as many documents as you want. Note that although a document physically resides in an index, a document actually must be indexed/assigned to a type inside an index.
+A document is a basic unit of information that can be indexed. For example, you can have a document for a single customer, another document for a single product, and yet another for a single order. This document is expressed in http://json.org/[JSON] (JavaScript Object Notation) which is a ubiquitous internet data interchange format. Within an index, you can store as many documents as you want.
 
 [[getting-started-shards-and-replicas]]
 [float]
@@ -496,7 +494,7 @@ If we study the above commands carefully, we can actually see a pattern of how w
 
 [source,js]
 --------------------------------------------------
-<HTTP Verb> /<Index>/<Type>/<ID>
+<HTTP Verb> /<Index>/<Endpoint>/<ID>
 --------------------------------------------------
 // NOTCONSOLE
 
@@ -572,7 +570,7 @@ This example shows how to update our previous document (ID of 1) by changing the
 
 [source,js]
 --------------------------------------------------
-POST /customer/_doc/1/_update?pretty
+POST /customer/_update/1?pretty
 {
   "doc": { "name": "Jane Doe" }
 }
@@ -584,7 +582,7 @@ This example shows how to update our previous document (ID of 1) by changing the
 
 [source,js]
 --------------------------------------------------
-POST /customer/_doc/1/_update?pretty
+POST /customer/_update/1?pretty
 {
   "doc": { "name": "Jane Doe", "age": 20 }
 }
@@ -596,7 +594,7 @@ Updates can also be performed by using simple scripts. This example uses a scrip
 
 [source,js]
 --------------------------------------------------
-POST /customer/_doc/1/_update?pretty
+POST /customer/_update/1?pretty
 {
   "script" : "ctx._source.age += 5"
 }
@@ -633,7 +631,7 @@ As a quick example, the following call indexes two documents (ID 1 - John Doe an
 
 [source,js]
 --------------------------------------------------
-POST /customer/_doc/_bulk?pretty
+POST /customer/_bulk?pretty
 {"index":{"_id":"1"}}
 {"name": "John Doe" }
 {"index":{"_id":"2"}}
@@ -645,7 +643,7 @@ This example updates the first document (ID of 1) and then deletes the second do
 
 [source,sh]
 --------------------------------------------------
-POST /customer/_doc/_bulk?pretty
+POST /customer/_bulk?pretty
 {"update":{"_id":"1"}}
 {"doc": { "name": "John Doe becomes Jane Doe" } }
 {"delete":{"_id":"2"}}
@@ -692,7 +690,7 @@ You can download the sample dataset (accounts.json) from https://github.com/elas
 
 [source,sh]
 --------------------------------------------------
-curl -H "Content-Type: application/json" -XPOST "localhost:9200/bank/_doc/_bulk?pretty&refresh" --data-binary "@accounts.json"
+curl -H "Content-Type: application/json" -XPOST "localhost:9200/bank/_bulk?pretty&refresh" --data-binary "@accounts.json"
 curl "localhost:9200/_cat/indices?v"
 --------------------------------------------------
 // NOTCONSOLE
@@ -719,7 +717,7 @@ yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    12
 // TESTRESPONSE[s/128.6kb/\\d+(\\.\\d+)?[mk]?b/]
 // TESTRESPONSE[s/l7sSYV2cQXmu6_4rJWVIww/.+/ _cat]
 
-Which means that we just successfully bulk indexed 1000 documents into the bank index (under the `_doc` type).
+Which means that we just successfully bulk indexed 1000 documents into the bank index.
 
 [[getting-started-search-API]]
 === The Search API
@@ -793,7 +791,11 @@ As for the response, we see the following parts:
 * `hits._score` and `max_score` - ignore these fields for now
 
 The accuracy of `hits.total` is controlled by the request parameter `track_total_hits`, when set to true
-the request will track the total hits accurately (`"relation": "eq"`).
+the request will track the total hits accurately (`"relation": "eq"`). It defaults to `10,000`
+which means that the total hit count is accurately tracked up to `10,000` documents.
+You can force an accurate count by setting `track_total_hits` to true explicitly.
+See the <<search-request-track-total-hits, request body>> documentation
+for more details.
 
 Here is the same exact search above using the alternative request body method:
 

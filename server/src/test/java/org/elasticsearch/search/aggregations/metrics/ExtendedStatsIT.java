@@ -73,7 +73,8 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
             sum += val;
             sumOfSqrs += val * val;
         }
-        return (sumOfSqrs - ((sum * sum) / vals.length)) / vals.length;
+        double variance  = (sumOfSqrs - ((sum * sum) / vals.length)) / vals.length;
+        return variance < 0  ? 0 : variance;
     }
 
     @Override

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
@@ -198,6 +197,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: Invalid datetime field [ABS]. Use any datetime function.", error("SELECT EXTRACT(ABS FROM date) FROM test"));
     }
 
+    public void testSubtractFromInterval() {
+        assertEquals("1:8: Cannot subtract a datetime[CAST('2000-01-01' AS DATETIME)] " +
+                "from an interval[INTERVAL 1 MONTH]; do you mean the reverse?",
+            error("SELECT INTERVAL 1 MONTH - CAST('2000-01-01' AS DATETIME)"));
+    }
+
     public void testMultipleColumns() {
         // xxx offset is that of the order by field
         assertEquals("1:43: Unknown column [xxx]\nline 1:8: Unknown column [xxx]",
@@ -378,7 +383,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testNotSupportedAggregateOnString() {
-        assertEquals("1:8: [MAX(keyword)] argument must be [numeric or date], found value [keyword] type [keyword]",
+        assertEquals("1:8: [MAX(keyword)] argument must be [date, datetime or numeric], found value [keyword] type [keyword]",
             error("SELECT MAX(keyword) FROM test"));
     }
 
@@ -533,19 +538,13 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testErrorMessageForPercentileWithSecondArgBasedOnAField() {
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), indexResolution, new Verifier(new Metrics()));
-        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> analyzer.analyze(parser.createStatement(
-            "SELECT PERCENTILE(int, ABS(int)) FROM test"), true));
-        assertEquals("2nd argument of PERCENTILE must be constant, received [ABS(int)]",
-            e.getMessage());
+        assertEquals("1:8: Second argument of PERCENTILE must be a constant, received [ABS(int)]",
+            error("SELECT PERCENTILE(int, ABS(int)) FROM test"));
     }
 
     public void testErrorMessageForPercentileRankWithSecondArgBasedOnAField() {
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), indexResolution, new Verifier(new Metrics()));
-        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> analyzer.analyze(parser.createStatement(
-            "SELECT PERCENTILE_RANK(int, ABS(int)) FROM test"), true));
-        assertEquals("2nd argument of PERCENTILE_RANK must be constant, received [ABS(int)]",
-            e.getMessage());
+        assertEquals("1:8: Second argument of PERCENTILE_RANK must be a constant, received [ABS(int)]",
+            error("SELECT PERCENTILE_RANK(int, ABS(int)) FROM test"));
     }
 }
 

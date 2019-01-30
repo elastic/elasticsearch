@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
@@ -112,8 +113,8 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                 waitForMetadataTimeOut = newWaitForTimeOut;
             }
         };
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(CcrSettings.CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT, updater);
-        waitForMetadataTimeOut = CcrSettings.CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT, updater);
+        waitForMetadataTimeOut = CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT.get(settings);
     }
 
     public synchronized AutoFollowStats getStats() {
@@ -373,9 +374,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                     autoFollowIndices(autoFollowMetadata, clusterState, remoteClusterState, patterns);
                 } else {
                     assert remoteError != null;
-                    String expectedErrorMessage = "unknown cluster alias [" + remoteCluster + "]";
-                    if (remoteError instanceof IllegalArgumentException &&
-                        expectedErrorMessage.equals(remoteError.getMessage())) {
+                    if (remoteError instanceof NoSuchRemoteClusterException) {
                         LOGGER.info("AutoFollower for cluster [{}] has stopped, because remote connection is gone", remoteCluster);
                         remoteClusterConnectionMissing = true;
                         return;

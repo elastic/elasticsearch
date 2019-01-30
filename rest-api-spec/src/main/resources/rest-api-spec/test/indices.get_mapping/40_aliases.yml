@@ -3,10 +3,10 @@
 
   - do:
         indices.create:
+          include_type_name: false
           index: test_index
           body:
               mappings:
-                test_type:
                   properties:
                     text:
                       type:     text
@@ -24,4 +24,3 @@
 
   - match: {test_index.mappings.properties.text.type:     text}
   - match: {test_index.mappings.properties.text.analyzer: whitespace}
-

@@ -196,7 +196,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             Body(StreamInput in) throws IOException {
                 name = in.readString();
                 remoteCluster = in.readString();
-                leaderIndexPatterns = in.readList(StreamInput::readString);
+                leaderIndexPatterns = in.readStringList();
                 followIndexNamePattern = in.readOptionalString();
                 if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
                     fromStreamInput(in);
@@ -218,7 +218,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(name);
                 out.writeString(remoteCluster);
-                out.writeStringList(leaderIndexPatterns);
+                out.writeStringCollection(leaderIndexPatterns);
                 out.writeOptionalString(followIndexNamePattern);
                 if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
                     super.writeTo(out);

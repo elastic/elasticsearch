@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -31,7 +32,7 @@ public class PutFollowActionRequestTests extends AbstractSerializingTestCase<Put
 
     @Override
     protected PutFollowAction.Request doParseInstance(XContentParser parser) throws IOException {
-        return PutFollowAction.Request.fromXContent(parser, null);
+        return PutFollowAction.Request.fromXContent(parser, null, ActiveShardCount.DEFAULT);
     }
 
     @Override

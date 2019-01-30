@@ -72,6 +72,7 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -621,6 +622,13 @@ public abstract class Engine implements Closeable {
                 Releasables.close(searcher);
                 throw new VersionConflictEngineException(shardId, get.type(), get.id(),
                         get.versionType().explainConflictForReads(docIdAndVersion.version, get.version()));
+            }
+            if (get.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
+                get.getIfSeqNo() != docIdAndVersion.seqNo || get.getIfPrimaryTerm() != docIdAndVersion.primaryTerm
+            )) {
+                Releasables.close(searcher);
+                throw new VersionConflictEngineException(shardId, get.type(), get.id(),
+                    get.getIfSeqNo(), get.getIfPrimaryTerm(), docIdAndVersion.seqNo, docIdAndVersion.primaryTerm);
             }
         }
 
@@ -1556,6 +1564,8 @@ public abstract class Engine implements Closeable {
         private final boolean readFromTranslog;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
+        private long ifSeqNo = UNASSIGNED_SEQ_NO;
+        private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
         public Get(boolean realtime, boolean readFromTranslog, String type, String id, Term uid) {
             this.realtime = realtime;
@@ -1602,6 +1612,26 @@ public abstract class Engine implements Closeable {
         public boolean isReadFromTranslog() {
             return readFromTranslog;
         }
+
+
+        public Get setIfSeqNo(long seqNo) {
+            this.ifSeqNo = seqNo;
+            return this;
+        }
+
+        public long getIfSeqNo() {
+            return ifSeqNo;
+        }
+
+        public Get setIfPrimaryTerm(long primaryTerm) {
+            this.ifPrimaryTerm = primaryTerm;
+            return this;
+        }
+        
+        public long getIfPrimaryTerm() {
+            return ifPrimaryTerm;
+        }
+
     }
 
     public static class GetResult implements Releasable {

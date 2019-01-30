@@ -24,6 +24,7 @@ import java.util.Objects;
 
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
+import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 
 /**
  * Response to perform an sql query
@@ -36,6 +37,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     private List<ColumnInfo> columns;
     // TODO investigate reusing Page here - it probably is much more efficient
     private List<List<Object>> rows;
+    private static final String INTERVAL_CLASS_NAME = "Interval";
 
     public SqlQueryResponse() {
     }
@@ -173,7 +175,12 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             ZonedDateTime zdt = (ZonedDateTime) value;
             // use the ISO format
             builder.value(StringUtils.toString(zdt));
-        } else {
+        } else if (mode == CLI && value != null && value.getClass().getSuperclass().getSimpleName().equals(INTERVAL_CLASS_NAME)) {
+            // use the SQL format for intervals when sending back the response for CLI
+            // all other clients will receive ISO 8601 formatted intervals
+            builder.value(value.toString());
+        }
+        else {
             builder.value(value);
         }
         return builder;

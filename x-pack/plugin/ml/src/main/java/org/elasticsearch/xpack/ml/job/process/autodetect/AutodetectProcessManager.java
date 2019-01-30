@@ -473,7 +473,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                                                 .setAwaitCompletion(false)
                                                 .setFinish(false)
                                                 .kill();
-                                           processByAllocation.remove(jobTask.getAllocationId());
+                                            processByAllocation.remove(jobTask.getAllocationId());
                                         } finally {
                                             setJobState(jobTask, JobState.FAILED, e1.getMessage(), e2 -> closeHandler.accept(e1, true));
                                         }
@@ -484,7 +484,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                             logger.warn("Failed to gather information required to open job [" + jobId + "]", e1);
                             setJobState(jobTask, JobState.FAILED, e1.getMessage(), e2 -> closeHandler.accept(e1, true));
                         });
-                   },
+                    },
                     e -> closeHandler.accept(e, true)
                 ));
             },

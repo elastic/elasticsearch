@@ -2015,7 +2015,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             if (org.elasticsearch.node.Node.NODE_MASTER_SETTING.get(settings) == false) {
                 newSettings.add(settings);
             } else {
-                currentNodeId += 1;
+                currentNodeId++;
                 if (currentNodeId != bootstrapMasterNodeId) {
                     newSettings.add(settings);
                 } else {

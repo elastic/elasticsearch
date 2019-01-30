@@ -275,4 +275,9 @@ public class MockTransport implements Transport, LifecycleComponent {
         }
         return false;
     }
+
+    @Override
+    public void setLocalNode(DiscoveryNode localNode) {
+
+    }
 }

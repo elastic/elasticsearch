@@ -238,4 +238,8 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public void setLocalNode(DiscoveryNode localNode) {
+
+    }
 }

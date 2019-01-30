@@ -97,6 +97,11 @@ public final class StubbableTransport implements Transport {
     }
 
     @Override
+    public void setLocalNode(DiscoveryNode localNode) {
+        delegate.setLocalNode(localNode);
+    }
+
+    @Override
     public <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
         delegate.registerRequestHandler(reg);
     }

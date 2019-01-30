@@ -40,6 +40,7 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
+import static org.elasticsearch.cluster.coordination.DiscoveryUpgradeService.DISCOVERY_UPGRADE_PLACEHOLDER_PREFIX;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -274,8 +275,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 "discovery will continue using [] from hosts providers and [" + localNode +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
-        assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, "n1", "n2", "n3",
-            BOOTSTRAP_PLACEHOLDER_PREFIX + "n4", BOOTSTRAP_PLACEHOLDER_PREFIX + "n5"), emptyList(), emptyList(), 0L).getDescription(),
+        assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, "n1", "n2", "n3", BOOTSTRAP_PLACEHOLDER_PREFIX + "n4",
+            DISCOVERY_UPGRADE_PLACEHOLDER_PREFIX + "n5"), emptyList(), emptyList(), 0L).getDescription(),
             is("master not discovered or elected yet, an election requires 3 nodes with ids [n1, n2, n3], " +
                 "have discovered [] which is not a quorum; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +

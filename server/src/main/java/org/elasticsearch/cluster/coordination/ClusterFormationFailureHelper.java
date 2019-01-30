@@ -193,6 +193,7 @@ public class ClusterFormationFailureHelper {
 
             final Set<String> realNodeIds = new HashSet<>(nodeIds);
             realNodeIds.removeIf(ClusterBootstrapService::isBootstrapPlaceholder);
+            realNodeIds.removeIf(DiscoveryUpgradeService::isDiscoveryUpgradePlaceholder);
             assert requiredNodes <= realNodeIds.size() : nodeIds;
 
             if (nodeIds.size() == 1) {

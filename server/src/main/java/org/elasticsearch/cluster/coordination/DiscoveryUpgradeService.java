@@ -47,12 +47,15 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -71,6 +74,8 @@ import static org.elasticsearch.discovery.zen.ZenDiscovery.PING_TIMEOUT_SETTING;
 public class DiscoveryUpgradeService {
 
     private static Logger logger = LogManager.getLogger(DiscoveryUpgradeService.class);
+
+    public static final String DISCOVERY_UPGRADE_PLACEHOLDER_PREFIX = "{discovery-upgrade-placeholder}";
 
     // how long to wait after activation before attempting to join a master or perform a bootstrap upgrade
     public static final Setting<TimeValue> BWC_PING_TIMEOUT_SETTING =
@@ -130,7 +135,11 @@ public class DiscoveryUpgradeService {
             : lastAcceptedClusterState.getMinimumMasterNodesOnPublishingMaster();
 
         assert joiningRound == null : joiningRound;
-        joiningRound = new JoiningRound(enableUnsafeBootstrappingOnUpgrade && lastKnownLeader.isPresent(), minimumMasterNodes);
+        final Set<String> knownMasterNodeIds = new HashSet<>();
+        lastAcceptedClusterState.nodes().getMasterNodes().forEach(c -> knownMasterNodeIds.add(c.key));
+
+        joiningRound
+            = new JoiningRound(enableUnsafeBootstrappingOnUpgrade && lastKnownLeader.isPresent(), minimumMasterNodes, knownMasterNodeIds);
         joiningRound.scheduleNextAttempt();
     }
 
@@ -168,10 +177,12 @@ public class DiscoveryUpgradeService {
     private class JoiningRound {
         private final boolean upgrading;
         private final int minimumMasterNodes;
+        private final Set<String> knownMasterNodeIds;
 
-        JoiningRound(boolean upgrading, int minimumMasterNodes) {
+        JoiningRound(boolean upgrading, int minimumMasterNodes, Set<String> knownMasterNodeIds) {
             this.upgrading = upgrading;
             this.minimumMasterNodes = minimumMasterNodes;
+            this.knownMasterNodeIds = knownMasterNodeIds;
         }
 
         private boolean isRunning() {
@@ -210,8 +221,25 @@ public class DiscoveryUpgradeService {
                         // no Zen1 nodes found, but the last-known master was a Zen1 node, so this is a rolling upgrade
                         transportService.getThreadPool().generic().execute(() -> {
                             try {
-                                initialConfigurationConsumer.accept(new VotingConfiguration(discoveryNodes.stream()
-                                    .map(DiscoveryNode::getId).collect(Collectors.toSet())));
+                                Set<String> nodeIds = new HashSet<>();
+                                discoveryNodes.forEach(n -> nodeIds.add(n.getId()));
+
+                                final Iterator<String> knownNodeIdIterator = knownMasterNodeIds.iterator();
+                                while (nodeIds.size() < 2 * minimumMasterNodes - 1 && knownNodeIdIterator.hasNext()) {
+                                    nodeIds.add(knownNodeIdIterator.next());
+                                }
+
+                                while (nodeIds.size() < 2 * minimumMasterNodes - 2) {
+                                    final boolean added = nodeIds.add(DISCOVERY_UPGRADE_PLACEHOLDER_PREFIX + nodeIds.size());
+                                    assert added;
+                                }
+
+                                final VotingConfiguration votingConfiguration = new VotingConfiguration(nodeIds);
+                                assert votingConfiguration.hasQuorum(
+                                    discoveryNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toList()));
+                                assert 2 * minimumMasterNodes - 2 <= nodeIds.size() : nodeIds + " too small for " + minimumMasterNodes;
+
+                                initialConfigurationConsumer.accept(votingConfiguration);
                             } catch (Exception e) {
                                 logger.debug("exception during bootstrapping upgrade, retrying", e);
                             } finally {
@@ -323,5 +351,9 @@ public class DiscoveryUpgradeService {
         // and 'z' < '{', so by starting the ID with '{' we can be sure it's greater. This is terrible.
         return new DiscoveryNode(node.getName(), "{zen2}" + node.getId(), node.getEphemeralId(), node.getHostName(),
             node.getHostAddress(), node.getAddress(), node.getAttributes(), node.getRoles(), node.getVersion());
+    }
+
+    public static boolean isDiscoveryUpgradePlaceholder(String nodeId) {
+        return nodeId.startsWith(DISCOVERY_UPGRADE_PLACEHOLDER_PREFIX);
     }
 }

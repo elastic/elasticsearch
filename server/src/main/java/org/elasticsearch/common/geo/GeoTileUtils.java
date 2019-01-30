@@ -20,6 +20,7 @@ package org.elasticsearch.common.geo;
 
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
@@ -77,36 +78,23 @@ public class GeoTileUtils {
     }
 
     /**
-     * Parse a precision that can be expressed as an integer or a distance measure like "1km", "10m".
+     * Parse an integer precision (zoom level). The {@link ValueType#INT} allows it to be a number or a string.
      *
-     * The precision is expressed as a zoom level between 0 and MAX_ZOOM.
+     * The precision is expressed as a zoom level between 0 and {@link #MAX_ZOOM} (inclusive).
      *
      * @param parser {@link XContentParser} to parse the value from
      * @return int representing precision
      */
     public static int parsePrecision(XContentParser parser) throws IOException, ElasticsearchParseException {
-        XContentParser.Token token = parser.currentToken();
-        if (token.equals(XContentParser.Token.VALUE_NUMBER)) {
-            return XContentMapValues.nodeIntegerValue(parser.intValue());
-        } else {
-            String precision = parser.text();
-            try {
-                // we want to treat simple integer strings as precision levels, not distances
-                return XContentMapValues.nodeIntegerValue(precision);
-            } catch (NumberFormatException e) {
-                // try to parse as a distance value
-                final int parsedPrecision = GeoUtils.quadTreeLevelsForPrecision(precision);
-                try {
-                    return checkPrecisionRange(parsedPrecision);
-                } catch (IllegalArgumentException e2) {
-                    // this happens when distance too small, so precision > max.
-                    // We'd like to see the original string
-                    throw new IllegalArgumentException("precision too high [" + precision + "]", e2);
-                }
-            }
-        }
+        final Object node = parser.currentToken().equals(XContentParser.Token.VALUE_NUMBER)
+            ? Integer.valueOf(parser.intValue())
+            : parser.text();
+        return XContentMapValues.nodeIntegerValue(node);
     }
 
+    /**
+     * Assert the precision value is within the allowed range, and return it if ok, or throw.
+     */
     public static int checkPrecisionRange(int precision) {
         if (precision < 0 || precision > MAX_ZOOM) {
             throw new IllegalArgumentException("Invalid geotile_grid precision of " +

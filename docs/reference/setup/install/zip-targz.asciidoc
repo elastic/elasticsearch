@@ -32,19 +32,19 @@ The `.zip` archive for Elasticsearch v{version} can be downloaded and installed 
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.zip
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.zip.sha512
-shasum -a 512 -c elasticsearch-{version}.zip.sha512 <1>
-unzip elasticsearch-{version}.zip
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip.sha512
+shasum -a 512 -c elasticsearch-{version}-windows-x86_64.zip.sha512 <1>
+unzip elasticsearch-{version}-windows-x86_64.zip
 cd elasticsearch-{version}/ <2>
 --------------------------------------------
 <1> Compares the SHA of the downloaded `.zip` archive and the published checksum, which should output
-    `elasticsearch-{version}.zip: OK`.
+    `elasticsearch-{version}-windows-x86_64.zip: OK`.
 <2> This directory is known as `$ES_HOME`.
 
 Alternatively, you can download the following package, which contains only 
 features that are available under the Apache 2.0 license: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.zip
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-windows-x86_64.zip
 
 endif::[]
 
@@ -64,19 +64,19 @@ The `.tar.gz` archive for Elasticsearch v{version} can be downloaded and install
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.tar.gz
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.tar.gz.sha512
-shasum -a 512 -c elasticsearch-{version}.tar.gz.sha512 <1>
-tar -xzf elasticsearch-{version}.tar.gz
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz.sha512
+shasum -a 512 -c elasticsearch-{version}-linux-x86_64.tar.gz.sha512 <1>
+tar -xzf elasticsearch-{version}-linux-x86_64.tar.gz
 cd elasticsearch-{version}/ <2>
 --------------------------------------------
 <1> Compares the SHA of the downloaded `.tar.gz` archive and the published checksum, which should output
-    `elasticsearch-{version}.tar.gz: OK`.
+    `elasticsearch-{version}-linux-x86_64.tar.gz: OK`.
 <2> This directory is known as `$ES_HOME`.
 
 Alternatively, you can download the following package, which includes only 
 Apache 2.0 licensed code: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.tar.gz
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-linux-x86_64.tar.gz
 
 endif::[]
 

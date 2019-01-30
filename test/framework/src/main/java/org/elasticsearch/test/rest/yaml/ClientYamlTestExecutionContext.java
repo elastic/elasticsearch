@@ -98,24 +98,53 @@ public class ClientYamlTestExecutionContext {
             }
         }
 
-        // When running tests against a mixed 7.x/6.x cluster we specify 'include_type_name=false' if it is not
-        // explicitly set. This allows us to omit the parameter in the test description, while still being able
-        // to communicate with 6.x nodes where include_type_name defaults to 'true'.
+        if (esVersion().before(Version.V_7_0_0)) {
+            adaptRequestForOlderVersion(apiName, bodies, requestParams);
+        }
+
+        HttpEntity entity = createEntity(bodies, requestHeaders);
+        try {
+            response = callApiInternal(apiName, requestParams, entity, requestHeaders, nodeSelector);
+            return response;
+        } catch(ClientYamlTestResponseException e) {
+            response = e.getRestTestResponse();
+            throw e;
+        } finally {
+            // if we hit a bad exception the response is null
+            Object responseBody = response != null ? response.getBody() : null;
+            //we always stash the last response body
+            stash.stashValue("body", responseBody);
+        }
+    }
+
+    /**
+     * To allow tests to run against a mixed 7.x/6.x cluster, we make certain modifications to the
+     * request related to types.
+     *
+     * Specifically, we generally use typeless index creation and document writes in test set-up code.
+     * This functionality is supported in 7.x, but is not supported in 6.x (or is not the default
+     * behavior). Here we modify the request so that it will work against a 6.x node.
+     */
+    private void adaptRequestForOlderVersion(String apiName,
+                                             List<Map<String, Object>> bodies,
+                                             Map<String, String> requestParams) {
+        // For index creations, we specify 'include_type_name=false' if it is not explicitly set. This
+        // allows us to omit the parameter in the test description, while still being able to communicate
+        // with 6.x nodes where include_type_name defaults to 'true'.
         if (apiName.equals("indices.create") && requestParams.containsKey(INCLUDE_TYPE_NAME_PARAMETER) == false) {
             requestParams.put(INCLUDE_TYPE_NAME_PARAMETER, "false");
         }
 
-        // When running tests against a mixed 7.x/6.x cluster we need to add the type to the document API
-        // requests if its not already included.
+        // We add the type to the document API requests if it's not already included.
         if ((apiName.equals("index") || apiName.equals("update") || apiName.equals("delete") || apiName.equals("get"))
-                && esVersion().before(Version.V_7_0_0) && requestParams.containsKey("type") == false) {
+                && requestParams.containsKey("type") == false) {
             requestParams.put("type", "_doc");
         }
 
-        // When running tests against a mixed 7.x/6.x cluster we need to add the type to the bulk API requests
-        // if its not already included. The type can either be on the request parameters or in the action metadata
-        // in the body of the request so we need to be sensitive to both scenarios
-        if (apiName.equals("bulk") && esVersion().before(Version.V_7_0_0) && requestParams.containsKey("type") == false) {
+        // We also add the type to the bulk API requests if it's not already included. The type can either
+        // be on the request parameters or in the action metadata in the body of the request so we need to
+        // be sensitive to both scenarios.
+        if (apiName.equals("bulk") && requestParams.containsKey("type") == false) {
             if (requestParams.containsKey("index")) {
                 requestParams.put("type", "_doc");
             } else {
@@ -143,20 +172,6 @@ public class ClientYamlTestExecutionContext {
                     }
                 }
             }
-        }
-
-        HttpEntity entity = createEntity(bodies, requestHeaders);
-        try {
-            response = callApiInternal(apiName, requestParams, entity, requestHeaders, nodeSelector);
-            return response;
-        } catch(ClientYamlTestResponseException e) {
-            response = e.getRestTestResponse();
-            throw e;
-        } finally {
-            // if we hit a bad exception the response is null
-            Object responseBody = response != null ? response.getBody() : null;
-            //we always stash the last response body
-            stash.stashValue("body", responseBody);
         }
     }
 

@@ -26,7 +26,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -35,7 +37,7 @@ import java.util.concurrent.CountDownLatch;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RetentionLeaseIT extends ESIntegTestCase {
+public class RetentionLeaseStatsTests extends ESSingleNodeTestCase {
 
     public void testRetentionLeaseStats() throws InterruptedException {
         final Settings settings = Settings.builder()
@@ -44,11 +46,8 @@ public class RetentionLeaseIT extends ESIntegTestCase {
                 .build();
         createIndex("index", settings);
         ensureGreen("index");
-        final String primaryShardNodeId = clusterService().state().routingTable().index("index").shard(0).primaryShard().currentNodeId();
-        final String primaryShardNodeName = clusterService().state().nodes().get(primaryShardNodeId).getName();
-        final IndexShard primary = internalCluster()
-                .getInstance(IndicesService.class, primaryShardNodeName)
-                .getShardOrNull(new ShardId(resolveIndex("index"), 0));
+        final IndexShard primary =
+                node().injector().getInstance(IndicesService.class).getShardOrNull(new ShardId(resolveIndex("index"), 0));
         final int length = randomIntBetween(0, 8);
         final Map<String, RetentionLease> currentRetentionLeases = new HashMap<>();
         for (int i = 0; i < length; i++) {

@@ -108,6 +108,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
+import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
@@ -1893,6 +1894,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Collection<RetentionLease> getRetentionLeases() {
         verifyNotClosed();
         return replicationTracker.getRetentionLeases();
+    }
+
+    public RetentionLeaseStats getRetentionLeaseStats() {
+        verifyNotClosed();
+        return new RetentionLeaseStats(getRetentionLeases());
     }
 
     /**

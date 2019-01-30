@@ -204,7 +204,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (remoteClusterIndices.isEmpty()) {
                 executeLocalSearch(task, timeProvider, searchRequest, localIndices, clusterState, listener);
             } else {
-                if (searchRequest.isCcsMinimizeRoundtrips()) {
+                if (shouldMinimizeRoundtrips(searchRequest)) {
                     ccsRemoteReduce(searchRequest, localIndices, remoteClusterIndices, timeProvider, searchService::createReduceContext,
                         remoteClusterService, threadPool, listener,
                         (r, l) -> executeLocalSearch(task, timeProvider, r, localIndices, clusterState, l));
@@ -235,6 +235,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             Rewriteable.rewriteAndFetch(searchRequest.source(), searchService.getRewriteContext(timeProvider::getAbsoluteStartMillis),
                 rewriteListener);
         }
+    }
+
+    static boolean shouldMinimizeRoundtrips(SearchRequest searchRequest) {
+        if (searchRequest.isCcsMinimizeRoundtrips() == false) {
+            return false;
+        }
+        if (searchRequest.scroll() != null) {
+            return false;
+        }
+        SearchSourceBuilder source = searchRequest.source();
+        return source == null || source.collapse() == null || source.collapse().getInnerHits() == null ||
+            source.collapse().getInnerHits().isEmpty();
     }
 
     static void ccsRemoteReduce(SearchRequest searchRequest, OriginalIndices localIndices, Map<String, OriginalIndices> remoteIndices,

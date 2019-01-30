@@ -39,15 +39,18 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
@@ -776,6 +779,49 @@ public class TransportSearchActionTests extends ESTestCase {
             assertEquals(originalFrom, merger.from);
             assertEquals(originalSize, merger.size);
             assertEquals(trackTotalHitsUpTo, merger.trackTotalHitsUpTo);
+        }
+    }
+
+    public void testShouldMinimizeRoundtrips() throws Exception {
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            assertTrue(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(new SearchSourceBuilder());
+            assertTrue(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.scroll("5s");
+            assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            searchRequest.source(source);
+            CollapseBuilder collapseBuilder = new CollapseBuilder("field");
+            source.collapse(collapseBuilder);
+            collapseBuilder.setInnerHits(new InnerHitBuilder("inner"));
+            assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
+        }
+        {
+            SearchRequestTests searchRequestTests = new SearchRequestTests();
+            searchRequestTests.setUp();
+            SearchRequest searchRequest = searchRequestTests.createSearchRequest();
+            searchRequest.scroll((Scroll)null);
+            SearchSourceBuilder source = searchRequest.source();
+            if (source != null) {
+                CollapseBuilder collapse = source.collapse();
+                if (collapse != null) {
+                    collapse.setInnerHits(Collections.emptyList());
+                }
+            }
+            searchRequest.setCcsMinimizeRoundtrips(true);
+            assertTrue(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
+            searchRequest.setCcsMinimizeRoundtrips(false);
+            assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
         }
     }
 }

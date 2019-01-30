@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.deprecation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -23,9 +24,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,16 +71,19 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Response
         private List<DeprecationIssue> clusterSettingsIssues;
         private List<DeprecationIssue> nodeSettingsIssues;
         private Map<String, List<DeprecationIssue>> indexSettingsIssues;
+        private List<DeprecationIssue> mlSettingsIssues;
 
         public Response() {
         }
 
         public Response(List<DeprecationIssue> clusterSettingsIssues,
                         List<DeprecationIssue> nodeSettingsIssues,
-                        Map<String, List<DeprecationIssue>> indexSettingsIssues) {
+                        Map<String, List<DeprecationIssue>> indexSettingsIssues,
+                        List<DeprecationIssue> mlSettingsIssues) {
             this.clusterSettingsIssues = clusterSettingsIssues;
             this.nodeSettingsIssues = nodeSettingsIssues;
             this.indexSettingsIssues = indexSettingsIssues;
+            this.mlSettingsIssues = mlSettingsIssues;
         }
 
         public List<DeprecationIssue> getClusterSettingsIssues() {
@@ -91,12 +98,21 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Response
             return indexSettingsIssues;
         }
 
+        public List<DeprecationIssue> getMlSettingsIssues() {
+            return mlSettingsIssues;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             clusterSettingsIssues = in.readList(DeprecationIssue::new);
             nodeSettingsIssues = in.readList(DeprecationIssue::new);
             indexSettingsIssues = in.readMapOfLists(StreamInput::readString, DeprecationIssue::new);
+            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
+                mlSettingsIssues = in.readList(DeprecationIssue::new);
+            } else {
+                mlSettingsIssues = Collections.emptyList();
+            }
         }
 
         @Override
@@ -105,6 +121,9 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Response
             out.writeList(clusterSettingsIssues);
             out.writeList(nodeSettingsIssues);
             out.writeMapOfLists(indexSettingsIssues, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+                out.writeList(mlSettingsIssues);
+            }
         }
 
         @Override
@@ -113,10 +132,10 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Response
                 .array("cluster_settings", clusterSettingsIssues.toArray())
                 .array("node_settings", nodeSettingsIssues.toArray())
                 .field("index_settings")
-                .map(indexSettingsIssues)
+                    .map(indexSettingsIssues)
+                .array("ml_settings", mlSettingsIssues.toArray())
                 .endObject();
         }
-
 
         @Override
         public boolean equals(Object o) {
@@ -125,12 +144,13 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Response
             Response response = (Response) o;
             return Objects.equals(clusterSettingsIssues, response.clusterSettingsIssues) &&
                 Objects.equals(nodeSettingsIssues, response.nodeSettingsIssues) &&
-                Objects.equals(indexSettingsIssues, response.indexSettingsIssues);
+                Objects.equals(indexSettingsIssues, response.indexSettingsIssues) &&
+                Objects.equals(mlSettingsIssues, response.mlSettingsIssues);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(clusterSettingsIssues, nodeSettingsIssues, indexSettingsIssues);
+            return Objects.hash(clusterSettingsIssues, nodeSettingsIssues, indexSettingsIssues, mlSettingsIssues);
         }
 
         /**
@@ -145,22 +165,30 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Response
          * @param indexNameExpressionResolver Used to resolve indices into their concrete names
          * @param indices The list of index expressions to evaluate using `indexNameExpressionResolver`
          * @param indicesOptions The options to use when resolving and filtering which indices to check
+         * @param datafeeds The ml datafeed configurations
          * @param clusterSettingsChecks The list of cluster-level checks
          * @param nodeSettingsChecks The list of node-level checks
          * @param indexSettingsChecks The list of index-level checks that will be run across all specified
          *                            concrete indices
+         * @param mlSettingsCheck The list of ml checks
          * @return The list of deprecation issues found in the cluster
          */
         public static DeprecationInfoAction.Response from(List<NodeInfo> nodesInfo, List<NodeStats> nodesStats, ClusterState state,
-                                                   IndexNameExpressionResolver indexNameExpressionResolver,
-                                                   String[] indices, IndicesOptions indicesOptions,
-                                                   List<Function<ClusterState,DeprecationIssue>>clusterSettingsChecks,
-                                                   List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> nodeSettingsChecks,
-                                                   List<Function<IndexMetaData, DeprecationIssue>> indexSettingsChecks) {
+                                                  IndexNameExpressionResolver indexNameExpressionResolver,
+                                                  String[] indices, IndicesOptions indicesOptions,
+                                                  List<DatafeedConfig> datafeeds,
+                                                  List<Function<ClusterState,DeprecationIssue>>clusterSettingsChecks,
+                                                  List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> nodeSettingsChecks,
+                                                  List<Function<IndexMetaData, DeprecationIssue>> indexSettingsChecks,
+                                                  List<Function<DatafeedConfig, DeprecationIssue>> mlSettingsCheck) {
             List<DeprecationIssue> clusterSettingsIssues = filterChecks(clusterSettingsChecks,
                 (c) -> c.apply(state));
             List<DeprecationIssue> nodeSettingsIssues = filterChecks(nodeSettingsChecks,
                 (c) -> c.apply(nodesInfo, nodesStats));
+            List<DeprecationIssue> mlSettingsIssues = new ArrayList<>();
+            for (DatafeedConfig config : datafeeds) {
+                mlSettingsIssues.addAll(filterChecks(mlSettingsCheck, (c) -> c.apply(config)));
+            }
 
             String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, indices);
 
@@ -174,7 +202,7 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Response
                 }
             }
 
-            return new DeprecationInfoAction.Response(clusterSettingsIssues, nodeSettingsIssues, indexSettingsIssues);
+            return new DeprecationInfoAction.Response(clusterSettingsIssues, nodeSettingsIssues, indexSettingsIssues, mlSettingsIssues);
         }
     }
 

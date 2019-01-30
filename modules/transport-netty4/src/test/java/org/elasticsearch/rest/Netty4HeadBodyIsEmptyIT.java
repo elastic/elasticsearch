@@ -195,9 +195,7 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
         for (Map.Entry<String, String> param : params.entrySet()) {
             request.addParameter(param.getKey(), param.getValue());
         }
-        request.setOptions(expectVersionSpecificWarnings(w -> {
-            w.current(expectedWarnings);
-        }));
+        request.setOptions(expectWarnings(expectedWarnings));
         Response response = client().performRequest(request);
         assertEquals(expectedStatusCode, response.getStatusLine().getStatusCode());
         assertThat(Integer.valueOf(response.getHeader("Content-Length")), matcher);

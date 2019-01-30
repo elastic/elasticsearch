@@ -45,7 +45,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
@@ -53,6 +52,7 @@ import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
+import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.RandomCreateIndexGenerator;
 import org.elasticsearch.common.CheckedFunction;
@@ -60,6 +60,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 
@@ -921,14 +922,16 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Assert.assertEquals(expectedParams, request.getParameters());
     }
 
-    public void testPutTemplateRequest() throws Exception {
+    public void testPutTemplateRequestWithTypes() throws Exception {
         Map<String, String> names = new HashMap<>();
         names.put("log", "log");
         names.put("template#1", "template%231");
         names.put("-#template", "-%23template");
         names.put("foo^bar", "foo%5Ebar");
 
-        PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest().name(ESTestCase.randomFrom(names.keySet()))
+        org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplateRequest = 
+                new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest()
+                .name(ESTestCase.randomFrom(names.keySet()))
                 .patterns(Arrays.asList(ESTestCase.generateRandomStringArray(20, 100, false, false)));
         if (ESTestCase.randomBoolean()) {
             putTemplateRequest.order(ESTestCase.randomInt());
@@ -939,14 +942,15 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         if (ESTestCase.randomBoolean()) {
             putTemplateRequest.settings(Settings.builder().put("setting-" + ESTestCase.randomInt(), ESTestCase.randomTimeValue()));
         }
+        Map<String, String> expectedParams = new HashMap<>();
         if (ESTestCase.randomBoolean()) {
             putTemplateRequest.mapping("doc-" + ESTestCase.randomInt(),
                 "field-" + ESTestCase.randomInt(), "type=" + ESTestCase.randomFrom("text", "keyword"));
         }
+        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
         if (ESTestCase.randomBoolean()) {
             putTemplateRequest.alias(new Alias("alias-" + ESTestCase.randomInt()));
         }
-        Map<String, String> expectedParams = new HashMap<>();
         if (ESTestCase.randomBoolean()) {
             expectedParams.put("create", Boolean.TRUE.toString());
             putTemplateRequest.create(true);
@@ -955,9 +959,8 @@ public class IndicesRequestConvertersTests extends ESTestCase {
             String cause = ESTestCase.randomUnicodeOfCodepointLengthBetween(1, 50);
             putTemplateRequest.cause(cause);
             expectedParams.put("cause", cause);
-        }
+        }        
         RequestConvertersTests.setRandomMasterTimeout(putTemplateRequest, expectedParams);
-        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
 
         Request request = IndicesRequestConverters.putTemplate(putTemplateRequest);
         Assert.assertThat(request.getEndpoint(), equalTo("/_template/" + names.get(putTemplateRequest.name())));
@@ -965,6 +968,49 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.assertToXContentBody(putTemplateRequest, request.getEntity());
     }
 
+    public void testPutTemplateRequest() throws Exception {
+        Map<String, String> names = new HashMap<>();
+        names.put("log", "log");
+        names.put("template#1", "template%231");
+        names.put("-#template", "-%23template");
+        names.put("foo^bar", "foo%5Ebar");
+
+        PutIndexTemplateRequest putTemplateRequest = 
+                new PutIndexTemplateRequest(ESTestCase.randomFrom(names.keySet()))
+                .patterns(Arrays.asList(ESTestCase.generateRandomStringArray(20, 100, false, false)));
+        if (ESTestCase.randomBoolean()) {
+            putTemplateRequest.order(ESTestCase.randomInt());
+        }
+        if (ESTestCase.randomBoolean()) {
+            putTemplateRequest.version(ESTestCase.randomInt());
+        }
+        if (ESTestCase.randomBoolean()) {
+            putTemplateRequest.settings(Settings.builder().put("setting-" + ESTestCase.randomInt(), ESTestCase.randomTimeValue()));
+        }
+        Map<String, String> expectedParams = new HashMap<>();
+        if (ESTestCase.randomBoolean()) {
+            putTemplateRequest.mapping("{ \"properties\": { \"field-" + ESTestCase.randomInt() + 
+                    "\" : { \"type\" : \"" + ESTestCase.randomFrom("text", "keyword") + "\" }}}", XContentType.JSON);
+        }
+        if (ESTestCase.randomBoolean()) {
+            putTemplateRequest.alias(new Alias("alias-" + ESTestCase.randomInt()));
+        }
+        if (ESTestCase.randomBoolean()) {
+            expectedParams.put("create", Boolean.TRUE.toString());
+            putTemplateRequest.create(true);
+        }
+        if (ESTestCase.randomBoolean()) {
+            String cause = ESTestCase.randomUnicodeOfCodepointLengthBetween(1, 50);
+            putTemplateRequest.cause(cause);
+            expectedParams.put("cause", cause);
+        }        
+        RequestConvertersTests.setRandomMasterTimeout(putTemplateRequest, expectedParams);
+
+        Request request = IndicesRequestConverters.putTemplate(putTemplateRequest);
+        Assert.assertThat(request.getEndpoint(), equalTo("/_template/" + names.get(putTemplateRequest.name())));
+        Assert.assertThat(request.getParameters(), equalTo(expectedParams));
+        RequestConvertersTests.assertToXContentBody(putTemplateRequest, request.getEntity());
+    }
     public void testValidateQuery() throws Exception {
         String[] indices = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
         String[] types = ESTestCase.randomBoolean() ? ESTestCase.generateRandomStringArray(5, 5, false, false) : null;
@@ -1012,9 +1058,9 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomMasterTimeout(getTemplatesRequest::setMasterNodeTimeout, expectedParams);
         RequestConvertersTests.setRandomLocal(getTemplatesRequest::setLocal, expectedParams);
-        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
 
-        Request request = IndicesRequestConverters.getTemplates(getTemplatesRequest);
+        Request request = IndicesRequestConverters.getTemplatesWithDocumentTypes(getTemplatesRequest);
+        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
         Assert.assertThat(request.getEndpoint(),
             equalTo("/_template/" + names.stream().map(encodes::get).collect(Collectors.joining(","))));
         Assert.assertThat(request.getParameters(), equalTo(expectedParams));

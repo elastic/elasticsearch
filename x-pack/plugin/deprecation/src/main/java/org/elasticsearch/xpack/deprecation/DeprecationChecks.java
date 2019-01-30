@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -64,6 +65,12 @@ public class DeprecationChecks {
             IndexDeprecationChecks::shardOnStartupCheck,
             IndexDeprecationChecks::classicSimilarityMappingCheck,
             IndexDeprecationChecks::classicSimilaritySettingsCheck
+        ));
+
+    static List<Function<DatafeedConfig, DeprecationIssue>> ML_SETTINGS_CHECKS =
+            Collections.unmodifiableList(Arrays.asList(
+                    MlDeprecationChecks::checkDataFeedAggregations,
+                    MlDeprecationChecks::checkDataFeedQuery
             ));
 
     /**

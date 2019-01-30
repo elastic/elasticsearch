@@ -86,6 +86,22 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         assertOK(client.performRequest(new Request("POST", "/" + followIndex + "/_ccr/pause_follow")));
     }
 
+    protected static void putAutoFollowPattern(String patternName, String remoteCluster, String indexPattern) throws IOException {
+        Request putPatternRequest = new Request("PUT", "/_ccr/auto_follow/" + patternName);
+        putPatternRequest.setJsonEntity("{\"leader_index_patterns\": [\"" + indexPattern + "\"], \"remote_cluster\": \"" +
+            remoteCluster + "\"}");
+        assertOK(client().performRequest(putPatternRequest));
+    }
+
+    protected static void deleteAutoFollowPattern(String patternName) throws IOException {
+        Request putPatternRequest = new Request("DELETE", "/_ccr/auto_follow/" + patternName);
+        assertOK(client().performRequest(putPatternRequest));
+    }
+
+    protected static void unfollow(String followIndex) throws IOException {
+        assertOK(client().performRequest(new Request("POST", "/" + followIndex + "/_ccr/unfollow")));
+    }
+
     protected static void verifyDocuments(final String index, final int expectedNumDocs, final String query) throws IOException {
         verifyDocuments(index, expectedNumDocs, query, adminClient());
     }

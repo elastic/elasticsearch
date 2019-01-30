@@ -61,6 +61,7 @@ import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
+import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequestTests;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
@@ -816,6 +817,22 @@ public class MLRequestConvertersTests extends ESTestCase {
             assertNull(request.getParameters().get("explain"));
         }
         assertEquals(sample, requestEntityToString(request));
+    }
+
+    public void testSetUpgradeMode() {
+        SetUpgradeModeRequest setUpgradeModeRequest = new SetUpgradeModeRequest(true);
+
+        Request request = MLRequestConverters.setUpgradeMode(setUpgradeModeRequest);
+        assertThat(request.getEndpoint(), equalTo("/_xpack/ml/set_upgrade_mode"));
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+        assertThat(request.getParameters().get(SetUpgradeModeRequest.ENABLED.getPreferredName()), equalTo(Boolean.toString(true)));
+        assertThat(request.getParameters().containsKey(SetUpgradeModeRequest.TIMEOUT.getPreferredName()), is(false));
+
+        setUpgradeModeRequest.setTimeout(TimeValue.timeValueHours(1));
+        setUpgradeModeRequest.setEnabled(false);
+        request = MLRequestConverters.setUpgradeMode(setUpgradeModeRequest);
+        assertThat(request.getParameters().get(SetUpgradeModeRequest.ENABLED.getPreferredName()), equalTo(Boolean.toString(false)));
+        assertThat(request.getParameters().get(SetUpgradeModeRequest.TIMEOUT.getPreferredName()), is("1h"));
     }
 
     private static Job createValidJob(String jobId) {

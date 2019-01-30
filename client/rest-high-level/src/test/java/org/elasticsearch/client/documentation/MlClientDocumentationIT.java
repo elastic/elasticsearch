@@ -99,6 +99,7 @@ import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
+import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
@@ -3079,6 +3080,57 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::get-ml-info-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testSetUpgradeMode() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::set-upgrade-mode-request
+            SetUpgradeModeRequest request = new SetUpgradeModeRequest(true); // <1>
+            request.setTimeout(TimeValue.timeValueMinutes(10)); // <2>
+            // end::set-upgrade-mode-request
+
+            // Set to false so that the cluster setting does not have to be unset at the end of the test.
+            request.setEnabled(false);
+
+            // tag::set-upgrade-mode-execute
+            AcknowledgedResponse acknowledgedResponse = client.machineLearning().setUpgradeMode(request, RequestOptions.DEFAULT);
+            // end::set-upgrade-mode-execute
+
+            // tag::set-upgrade-mode-response
+            boolean acknowledged = acknowledgedResponse.isAcknowledged(); // <1>
+            // end::set-upgrade-mode-response
+            assertThat(acknowledged, is(true));
+        }
+        {
+            SetUpgradeModeRequest request = new SetUpgradeModeRequest(false);
+
+            // tag::set-upgrade-mode-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::set-upgrade-mode-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::set-upgrade-mode-execute-async
+            client.machineLearning()
+                .setUpgradeModeAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::set-upgrade-mode-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
         }
     }
 

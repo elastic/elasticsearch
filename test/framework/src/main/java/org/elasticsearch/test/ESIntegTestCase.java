@@ -68,6 +68,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -266,6 +267,17 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Property that controls whether ThirdParty Integration tests are run (not the default).
      */
     public static final String SYSPROP_THIRDPARTY = "tests.thirdparty";
+
+    /**
+     * See {@link #addExtraClusterBootstrapSettings(List)}.
+     * Please note that this value is being reset to -1 after each test. See {@link #resetBootstrapMasterNodeId()}.
+     */
+    protected int bootstrapMasterNodeId = -1;
+
+    @After
+    public void resetBootstrapMasterNodeId() {
+        bootstrapMasterNodeId = -1;
+    }
 
     /**
      * Annotation for third-party integration tests.
@@ -1987,16 +1999,57 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Performs cluster bootstrap when {@link #bootstrapMasterNodeId} is started with the names of all
+     * previously started master-eligible nodes.
+     * If {@link #bootstrapMasterNodeId} is -1 (default), this method does nothing.
+     */
+    protected List<Settings> bootstrapMasterNodeWithSpecifiedId(List<Settings> allNodesSettings) {
+        if (bootstrapMasterNodeId == -1) { // fast-path
+            return allNodesSettings;
+        }
+
+        int currentNodeId = internalCluster().numMasterNodes();
+        List<Settings> newSettings = new ArrayList<>();
+
+        for (Settings settings : allNodesSettings) {
+            if (org.elasticsearch.node.Node.NODE_MASTER_SETTING.get(settings) == false) {
+                newSettings.add(settings);
+            } else {
+                currentNodeId += 1;
+                if (currentNodeId != bootstrapMasterNodeId) {
+                    newSettings.add(settings);
+                } else {
+                    List<String> nodeNames = new ArrayList<>();
+                    for (Settings nodeSettings : internalCluster().getDataOrMasterNodeInstances(Settings.class)) {
+                        if (org.elasticsearch.node.Node.NODE_MASTER_SETTING.get(nodeSettings)) {
+                            nodeNames.add(org.elasticsearch.node.Node.NODE_NAME_SETTING.get(nodeSettings));
+                        }
+                    }
+                    allNodesSettings.forEach(
+                            nodeSettings -> nodeNames.add(org.elasticsearch.node.Node.NODE_NAME_SETTING.get(nodeSettings)));
+
+                    newSettings.add(Settings.builder().put(settings)
+                            .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), nodeNames)
+                            .build());
+                }
+            }
+        }
+
+        return newSettings;
+    }
+
+    /**
      * This method is called before starting a collection of nodes.
      * At this point the test has a holistic view on all nodes settings and might perform settings adjustments as needed.
      * For instance, the test could retrieve master node names and fill in
      * {@link org.elasticsearch.cluster.coordination.ClusterBootstrapService#INITIAL_MASTER_NODES_SETTING} setting.
+     * By default, this method delegates to {@link #bootstrapMasterNodeWithSpecifiedId(List)} method.
      *
      * @param allNodesSettings list of node settings before update
      * @return list of node settings after update
      */
     protected List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
-        return allNodesSettings;
+        return bootstrapMasterNodeWithSpecifiedId(allNodesSettings);
     }
 
     /**

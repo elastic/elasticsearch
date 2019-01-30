@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExc
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -36,7 +35,6 @@ import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateExceptio
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -47,12 +45,10 @@ import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -69,8 +65,6 @@ import static org.hamcrest.Matchers.nullValue;
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.discovery.zen:TRACE")
 public class MinimumMasterNodesIT extends ESIntegTestCase {
 
-    private int bootstrapNodeId;
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final HashSet<Class<? extends Plugin>> classes = new HashSet<>(super.nodePlugins());
@@ -78,28 +72,8 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         return classes;
     }
 
-    @Override
-    protected List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
-        if (internalCluster().size() + allNodesSettings.size()  == bootstrapNodeId) {
-            List<String> nodeNames = new ArrayList<>();
-            Collections.addAll(nodeNames, internalCluster().getNodeNames());
-            allNodesSettings.forEach(settings -> nodeNames.add(Node.NODE_NAME_SETTING.get(settings)));
-
-            List<Settings> otherNodesSettings = allNodesSettings.subList(0, allNodesSettings.size() - 1);
-            Settings lastNodeSettings = allNodesSettings.get(allNodesSettings.size()-1);
-            List<Settings> newSettings = new ArrayList<>();
-            newSettings.addAll(otherNodesSettings);
-            newSettings.add(Settings.builder().put(lastNodeSettings)
-                    .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), nodeNames)
-                    .build());
-            return newSettings;
-        }
-        return allNodesSettings;
-    }
-
     public void testTwoNodesNoMasterBlock() throws Exception {
-        //bootstrap cluster once second node is started
-        bootstrapNodeId = 2;
+        bootstrapMasterNodeId = 2;
 
         Settings settings = Settings.builder()
                 .put("discovery.zen.minimum_master_nodes", 2)
@@ -233,8 +207,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
     }
 
     public void testThreeNodesNoMasterBlock() throws Exception {
-        //bootstrap cluster once 3rd node is started
-        bootstrapNodeId = 3;
+        bootstrapMasterNodeId = 3;
 
         Settings settings = Settings.builder()
                 .put("discovery.zen.minimum_master_nodes", 3)
@@ -310,8 +283,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
     }
 
     public void testCannotCommitStateThreeNodes() throws Exception {
-        //bootstrap cluster once 3rd node is started
-        bootstrapNodeId = 3;
+        bootstrapMasterNodeId = 3;
 
         Settings settings = Settings.builder()
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")

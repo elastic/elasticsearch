@@ -66,29 +66,12 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     }
 
     @Override
-    protected List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
-        final Settings firstNodeSettings = allNodesSettings.get(0);
-        final List<Settings> otherNodesSettings = allNodesSettings.subList(1, allNodesSettings.size());
-        final List<String> masterNodeNames = allNodesSettings.stream()
-                .filter(org.elasticsearch.node.Node.NODE_MASTER_SETTING::get)
-                .map(org.elasticsearch.node.Node.NODE_NAME_SETTING::get)
-                .collect(Collectors.toList());
-        final List<Settings> updatedSettings = new ArrayList<>();
-
-        updatedSettings.add(Settings.builder().put(firstNodeSettings)
-                .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), masterNodeNames)
-                .build());
-        updatedSettings.addAll(otherNodesSettings);
-
-        return updatedSettings;
-    }
-
-    @Override
     protected boolean addMockHttpTransport() {
         return false; // enable http
     }
 
     public void testRollingRestartOfTwoNodeCluster() throws Exception {
+        bootstrapMasterNodeId = 2;
         final List<String> nodes = internalCluster().startNodes(2);
         createIndex("test",
             Settings.builder()
@@ -148,6 +131,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     }
 
     public void testClearVotingTombstonesNotWaitingForRemoval() throws Exception {
+        bootstrapMasterNodeId = 3;
         List<String> nodes = internalCluster().startNodes(3);
         RestClient restClient = getRestClient();
         Response response = restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/" + nodes.get(2)));
@@ -160,6 +144,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     }
 
     public void testClearVotingTombstonesWaitingForRemoval() throws Exception {
+        bootstrapMasterNodeId = 3;
         List<String> nodes = internalCluster().startNodes(3);
         RestClient restClient = getRestClient();
         String nodeToWithdraw = nodes.get(randomIntBetween(0, 2));
@@ -173,6 +158,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     }
 
     public void testFailsOnUnknownNode() throws Exception {
+        bootstrapMasterNodeId = 3;
         internalCluster().startNodes(3);
         RestClient restClient = getRestClient();
         try {

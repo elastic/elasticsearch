@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
@@ -86,43 +85,34 @@ enum DateFormat {
 
         @Override
         Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            // in case you are wondering why we do not call 'DateFormatter.forPattern(format)' for all cases here, but only for the
-            // non java time case:
-            // When the joda date formatter parses a date then a year is always set, so that no fallback can be used, like
-            // done in the JodaDateFormatter.withYear() code below
-            // This means that we leave the existing parsing logic in place, but will fall back to the new java date parsing logic, if an
-            // "8" is prepended to the date format string
-            int year = LocalDate.now(ZoneOffset.UTC).getYear();
-            ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(timezone);
+            // support the 6.x BWC compatible way of parsing java 8 dates
             if (format.startsWith("8")) {
-                DateFormatter formatter = DateFormatter.forPattern(format)
-                    .withLocale(locale)
-                    .withZone(zoneId);
-                return text -> {
-                    TemporalAccessor accessor = formatter.parse(text);
-                    // if there is no year, we fall back to the current one and
-                    // fill the rest of the date up with the parsed date
-                    if (accessor.isSupported(ChronoField.YEAR) == false) {
-                        ZonedDateTime newTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
-                        for (ChronoField field : FIELDS) {
-                            if (accessor.isSupported(field)) {
-                                newTime = newTime.with(field, accessor.get(field));
-                            }
-                        }
+                format = format.substring(1);
+            }
 
-                        accessor = newTime.withZoneSameLocal(zoneId);
+            ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(timezone);
+            int year = LocalDate.now(ZoneOffset.UTC).getYear();
+            DateFormatter formatter = DateFormatter.forPattern(format)
+                .withLocale(locale)
+                .withZone(zoneId);
+            return text -> {
+                TemporalAccessor accessor = formatter.parse(text);
+                // if there is no year, we fall back to the current one and
+                // fill the rest of the date up with the parsed date
+                if (accessor.isSupported(ChronoField.YEAR) == false) {
+                    ZonedDateTime newTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
+                    for (ChronoField field : FIELDS) {
+                        if (accessor.isSupported(field)) {
+                            newTime = newTime.with(field, accessor.get(field));
+                        }
                     }
 
-                    long millis = DateFormatters.from(accessor).toInstant().toEpochMilli();
-                    return new DateTime(millis, timezone);
-                };
-            } else {
-                DateFormatter formatter = Joda.forPattern(format)
-                    .withYear(year)
-                    .withZone(zoneId)
-                    .withLocale(locale);
-                return text -> new DateTime(formatter.parseMillis(text), timezone);
-            }
+                    accessor = newTime.withZoneSameLocal(zoneId);
+                }
+
+                long millis = DateFormatters.from(accessor).toInstant().toEpochMilli();
+                return new DateTime(millis, timezone);
+            };
         }
     };
 

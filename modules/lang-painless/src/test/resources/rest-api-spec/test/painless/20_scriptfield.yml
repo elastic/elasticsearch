@@ -3,25 +3,24 @@
 setup:
     - do:
         indices.create:
+          include_type_name: false
           index: test
           body:
             mappings:
-              test:
-                properties:
-                  foo:
-                    type: keyword
-                  missing:
-                    type: keyword
-                  date:
-                    type: date
-                    format: yyyy/MM/dd
-                  dates:
-                    type: date
-                    format: yyyy/MM/dd
+              properties:
+                foo:
+                  type: keyword
+                missing:
+                  type: keyword
+                date:
+                  type: date
+                  format: yyyy/MM/dd
+                dates:
+                  type: date
+                  format: yyyy/MM/dd
     - do:
         index:
             index: test
-            type: test
             id: 1
             body: {
               "foo": "aaa",
@@ -156,4 +155,3 @@ setup:
     - match: { error.failed_shards.0.reason.caused_by.reason: "While loop has no escape." }
     - match: { error.failed_shards.0.reason.type: "script_exception" }
     - match: { error.failed_shards.0.reason.reason: "compile error" }
-

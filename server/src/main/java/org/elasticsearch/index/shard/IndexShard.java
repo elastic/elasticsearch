@@ -306,6 +306,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
         this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays);
         final String aId = shardRouting.allocationId().getId();
+        final long primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
+        this.pendingPrimaryTerm = primaryTerm;
         this.globalCheckpointListeners =
                 new GlobalCheckpointListeners(shardId, threadPool.executor(ThreadPool.Names.LISTENER), threadPool.scheduler(), logger);
         final ReplicationTracker replicationTracker =
@@ -313,6 +315,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         shardId,
                         aId,
                         indexSettings,
+                        primaryTerm,
                         UNASSIGNED_SEQ_NO,
                         globalCheckpointListeners::globalCheckpointUpdated,
                         threadPool::absoluteTimeInMillis,
@@ -337,9 +340,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         indexShardOperationPermits = new IndexShardOperationPermits(shardId, threadPool);
         searcherWrapper = indexSearcherWrapper;
-        final long primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
-        this.pendingPrimaryTerm = primaryTerm;
-        replicationTracker.setOperationPrimaryTerm(primaryTerm);
         refreshListeners = buildRefreshListeners();
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);

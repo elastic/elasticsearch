@@ -40,6 +40,7 @@ import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.AbstractSearchTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 
@@ -76,6 +77,19 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
         assertEquals(deserializedRequest.getAliasFilter(), shardSearchTransportRequest.getAliasFilter());
         assertEquals(deserializedRequest.indexBoost(), shardSearchTransportRequest.indexBoost(), 0.0f);
         assertEquals(deserializedRequest.getClusterAlias(), shardSearchTransportRequest.getClusterAlias());
+        assertEquals(shardSearchTransportRequest.allowPartialSearchResults(), deserializedRequest.allowPartialSearchResults());
+    }
+
+    public void testAllowPartialResultsSerializationPre7_0_0() throws IOException {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0));
+        ShardSearchTransportRequest shardSearchTransportRequest = createShardSearchTransportRequest();
+        ShardSearchTransportRequest deserializedRequest =
+            copyWriteable(shardSearchTransportRequest, namedWriteableRegistry, ShardSearchTransportRequest::new, version);
+        if (version.before(Version.V_6_3_0)) {
+            assertFalse(deserializedRequest.allowPartialSearchResults());
+        } else {
+            assertEquals(shardSearchTransportRequest.allowPartialSearchResults(), deserializedRequest.allowPartialSearchResults());
+        }
     }
 
     private ShardSearchTransportRequest createShardSearchTransportRequest() throws IOException {

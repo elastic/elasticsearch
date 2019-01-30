@@ -39,7 +39,6 @@
   - match: {_clusters.total: 2}
   - match: {_clusters.successful: 2}
   - match: {_clusters.skipped: 0}
-  - match: {_clusters.ccs_reduction: "remote"}
   - match: {num}
   - match: { _shards.total: 5 }
   - match: { hits.total: 11 }
@@ -67,7 +66,6 @@
   - match: {_clusters.total: 2}
   - match: {_clusters.successful: 2}
   - match: {_clusters.skipped: 0}
-  - match: {_clusters.ccs_reduction: "remote"}
   - match: { _shards.total: 5 }
   - match: { hits.total: 6}
   - match: { hits.hits.0._index: "my_remote_cluster:test_index"}
@@ -88,7 +86,6 @@
   - match: {_clusters.total: 1}
   - match: {_clusters.successful: 1}
   - match: {_clusters.skipped: 0}
-  - match: {_clusters.ccs_reduction: "remote"}
   - match: { _shards.total: 3 }
   - match: { hits.total: 6}
   - match: { hits.hits.0._index: "my_remote_cluster:test_index"}
@@ -139,7 +136,6 @@
   - match: {_clusters.total: 1}
   - match: {_clusters.successful: 1}
   - match: {_clusters.skipped: 0}
-  - match: {_clusters.ccs_reduction: "remote"}
   - match: { _shards.total: 3 }
   - match: { hits.total: 6 }
   - match: { hits.hits.0._index: "test_remote_cluster:test_index" }
@@ -169,7 +165,6 @@
   - match: {_clusters.total: 2}
   - match: {_clusters.successful: 2}
   - match: {_clusters.skipped: 0}
-  - match: {_clusters.ccs_reduction: "remote"}
   - match: { _shards.total: 6 }
   - match: { hits.total: 12 }
 
@@ -184,7 +179,6 @@
   - match: {_clusters.total: 1}
   - match: {_clusters.successful: 1}
   - match: {_clusters.skipped: 0}
-  - match: {_clusters.ccs_reduction: "remote"}
   - match: { _shards.total: 3 }
   - match: { hits.total: 2 }
   - match: { hits.hits.0._source.filter_field: 1 }
@@ -201,7 +195,6 @@
   - match: {_clusters.total: 1}
   - match: {_clusters.successful: 1}
   - match: {_clusters.skipped: 0}
-  - match: {_clusters.ccs_reduction: "remote"}
   - match: { _shards.total: 4 }
   - match: { hits.total: 2 }
   - match: { hits.hits.0._source.filter_field: 1 }
@@ -218,7 +211,6 @@
   - match: {_clusters.total: 1}
   - match: {_clusters.successful: 1}
   - match: {_clusters.skipped: 0}
-  - match: {_clusters.ccs_reduction: "remote"}
   - match: { _shards.total: 1 }
   - match: { hits.total: 1 }
   - match: { hits.hits.0._index: "my_remote_cluster:single_doc_index"}

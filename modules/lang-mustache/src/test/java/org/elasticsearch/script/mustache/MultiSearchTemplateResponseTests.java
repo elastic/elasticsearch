@@ -64,8 +64,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         int totalClusters = randomIntBetween(0, 10);
         int successfulClusters = randomIntBetween(0, totalClusters);
         int skippedClusters = totalClusters - successfulClusters;
-        SearchResponse.CCSReduction executionMode = randomFrom(SearchResponse.CCSReduction.values());
-        return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters, executionMode);
+        return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters);
     }
 
     private static  MultiSearchTemplateResponse createTestInstanceWithFailures() {

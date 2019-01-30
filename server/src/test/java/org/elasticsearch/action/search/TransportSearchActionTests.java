@@ -437,7 +437,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertEquals(0, searchResponse.getClusters().getSkipped());
                 assertEquals(totalClusters, searchResponse.getClusters().getTotal());
                 assertEquals(totalClusters, searchResponse.getClusters().getSuccessful());
-                assertEquals(SearchResponse.CCSReduction.REMOTE, searchResponse.getClusters().getCCSReduction());
                 assertEquals(totalClusters + 1, searchResponse.getNumReducePhases());
             }
             {
@@ -542,7 +541,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertEquals(totalClusters, searchResponse.getClusters().getTotal());
                 int successful = totalClusters - disconnectedNodesIndices.size();
                 assertEquals(successful, searchResponse.getClusters().getSuccessful());
-                assertEquals(SearchResponse.CCSReduction.REMOTE, searchResponse.getClusters().getCCSReduction());
                 assertEquals(successful == 0 ? 0 : successful + 1, searchResponse.getNumReducePhases());
             }
 
@@ -582,7 +580,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertEquals(0, searchResponse.getClusters().getSkipped());
                 assertEquals(totalClusters, searchResponse.getClusters().getTotal());
                 assertEquals(totalClusters, searchResponse.getClusters().getSuccessful());
-                assertEquals(SearchResponse.CCSReduction.REMOTE, searchResponse.getClusters().getCCSReduction());
                 assertEquals(totalClusters + 1, searchResponse.getNumReducePhases());
             }
             assertEquals(0, service.getConnectionManager().size());

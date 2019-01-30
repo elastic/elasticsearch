@@ -223,8 +223,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 int successfulClusters = searchShardsResponses.size() + localClusters;
                                 executeSearch((SearchTask) task, timeProvider, searchRequest, localIndices,
                                     remoteShardIterators, clusterNodeLookup, clusterState, remoteAliasFilters, listener,
-                                    new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters.get(),
-                                        SearchResponse.CCSReduction.LOCAL));
+                                    new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters.get()));
                             },
                             listener::onFailure));
                 }
@@ -337,7 +336,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             @Override
             SearchResponse createFinalResponse() {
                 SearchResponse.Clusters clusters = new SearchResponse.Clusters(totalClusters, searchResponseMerger.numResponses(),
-                    skippedClusters.get(), SearchResponse.CCSReduction.REMOTE);
+                    skippedClusters.get());
                 return searchResponseMerger.getMergedResponse(clusters);
             }
         };

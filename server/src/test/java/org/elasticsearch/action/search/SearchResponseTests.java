@@ -46,7 +46,6 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.junit.After;
 import org.junit.Before;
 
@@ -131,8 +130,7 @@ public class SearchResponseTests extends ESTestCase {
         int totalClusters = randomIntBetween(0, 10);
         int successfulClusters = randomIntBetween(0, totalClusters);
         int skippedClusters = totalClusters - successfulClusters;
-        SearchResponse.CCSReduction ccsReduction = randomFrom(SearchResponse.CCSReduction.values());
-        return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters, ccsReduction);
+        return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters);
     }
 
     /**
@@ -247,7 +245,7 @@ public class SearchResponseTests extends ESTestCase {
                         new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f), null, null, null, false, null, 1
                     ),
                 null, 0, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY,
-                new SearchResponse.Clusters(5, 3, 2, SearchResponse.CCSReduction.LOCAL));
+                new SearchResponse.Clusters(5, 3, 2));
             StringBuilder expectedString = new StringBuilder();
             expectedString.append("{");
             {
@@ -262,7 +260,6 @@ public class SearchResponseTests extends ESTestCase {
                 }
                 expectedString.append("\"_clusters\":");
                 {
-                    expectedString.append("{\"ccs_reduction\":\"local\",");
                     expectedString.append("\"total\":5,");
                     expectedString.append("\"successful\":3,");
                     expectedString.append("\"skipped\":2},");
@@ -294,18 +291,5 @@ public class SearchResponseTests extends ESTestCase {
         assertEquals(searchResponse.getTotalShards(), deserialized.getTotalShards());
         assertEquals(searchResponse.getSkippedShards(), deserialized.getSkippedShards());
         assertEquals(searchResponse.getClusters(), deserialized.getClusters());
-    }
-
-    public void testSerializationPre7_0_0() throws IOException {
-        SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null, 1, 1, 0, 100L,
-            ShardSearchFailure.EMPTY_ARRAY, randomClusters());
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_1_0, VersionUtils.getPreviousVersion(Version.V_7_0_0));
-        SearchResponse deserialized = copyStreamable(searchResponse, namedWriteableRegistry, SearchResponse::new, version);
-        SearchResponse.Clusters clusters = searchResponse.getClusters();
-        SearchResponse.Clusters deserializedClusters = deserialized.getClusters();
-        assertEquals(clusters.getSkipped(), deserializedClusters.getSkipped());
-        assertEquals(clusters.getSuccessful(), deserializedClusters.getSuccessful());
-        assertEquals(clusters.getTotal(), deserializedClusters.getTotal());
-        assertNull(deserializedClusters.getCCSReduction());
     }
 }

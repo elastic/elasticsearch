@@ -1009,13 +1009,6 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads an optional enum with type E that was serialized based on the value of its ordinal
-     */
-    public <E extends Enum<E>> E readOptionalEnum(Class<E> enumClass) throws IOException {
-        return readBoolean() ? readEnum(enumClass) : null;
-    }
-
-    /**
      * Reads an enum with type E that was serialized based on the value of its ordinal
      */
     public <E extends Enum<E>> E readEnum(Class<E> enumClass) throws IOException {

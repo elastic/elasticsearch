@@ -813,15 +813,6 @@ public class BytesStreamsTests extends ESTestCase {
         assertEquals(0, input.available());
     }
 
-    public void testOptionalEnum() throws IOException {
-        TestEnum value = randomFrom(TestEnum.values());
-        BytesStreamOutput output = new BytesStreamOutput();
-        output.writeOptionalEnum(value);
-        StreamInput input = output.bytes().streamInput();
-        assertEquals(value, input.readOptionalEnum(TestEnum.class));
-        assertEquals(0, input.available());
-    }
-
     private static void assertEqualityAfterSerialize(TimeValue value, int expectedSize) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeTimeValue(value);

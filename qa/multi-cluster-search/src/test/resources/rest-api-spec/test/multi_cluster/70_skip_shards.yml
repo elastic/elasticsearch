@@ -35,7 +35,6 @@
   - match: { hits.total: 1 }
   - match: { hits.hits.0._index: "skip_shards_index"}
   - is_false: num_reduce_phases
-  - match: {_clusters.ccs_reduction: "local"}
   - match: { _shards.total: 2 }
   - match: { _shards.successful: 2 }
   - match: { _shards.skipped : 1}
@@ -54,7 +53,6 @@
   - match: { hits.total: 1 }
   - match: { hits.hits.0._index: "my_remote_cluster:single_doc_index"}
   - is_false: num_reduce_phases
-  - match: {_clusters.ccs_reduction: "local"}
   - match: { _shards.total: 2 }
   - match: { _shards.successful: 2 }
   - match: { _shards.skipped : 1}

@@ -1094,18 +1094,6 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an optional enum with type E based on its ordinal value
-     */
-    public <E extends Enum<E>> void writeOptionalEnum(@Nullable E enumValue) throws IOException {
-        if (enumValue == null) {
-            writeBoolean(false);
-        } else {
-            writeBoolean(true);
-            writeEnum(enumValue);
-        }
-    }
-
-    /**
      * Writes an enum with type E based on its ordinal value
      */
     public <E extends Enum<E>> void writeEnum(E enumValue) throws IOException {

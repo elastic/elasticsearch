@@ -73,7 +73,6 @@ GET /cluster_one:twitter/_search
     "skipped": 0
   },
   "_clusters": {
-    "ccs_reduction": "remote",
     "total": 1,
     "successful": 1,
     "skipped": 0
@@ -140,7 +139,6 @@ will be prefixed with their remote cluster name:
     "skipped": 0
   },
   "_clusters": {
-    "ccs_reduction": "remote",
     "total": 2,
     "successful": 2,
     "skipped": 0
@@ -234,7 +232,6 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
     "skipped": 0
   },
   "_clusters": { <1>
-    "ccs_reduction": "remote",
     "total": 3,
     "successful": 2,
     "skipped": 1
@@ -315,12 +312,6 @@ cluster, which is problematic in presence of network latency.
 The <<search-request-body, search API>> supports the `ccs_minimize_roundtrips`
 parameter, which defaults to `true` and can be set to `false` in case
 minimizing network round-trips is not desirable.
-Whenever a cross-cluster search request is executed, the `_clusters` section
-returned as part of the search response holds the information on where the
-reduction has happened: `remote` (meaning that minimizing round-trips was
-enabled and possible with the provided request), or `local` (meaning  that
-minimizing round-trips was either disabled explicitly or not possible with
-the provided request).
 
 Note that all the communication between the nodes, regardless of which cluster
 they belong to and the selected reduce mode, happens through the

@@ -42,7 +42,7 @@ subprojects {
 
   integTestRunner {
     systemProperty 'tests.audit.logfile',
-        "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }_audit.log"
+        "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }_audit.json"
   }
 
   runqa {

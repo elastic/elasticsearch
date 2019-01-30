@@ -494,8 +494,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
 
         @Override
         public String toString() {
-            return "Clusters{total=" + total +
-                ", successful=" + successful + ", skipped=" + skipped + '}';
+            return "Clusters{total=" + total + ", successful=" + successful + ", skipped=" + skipped + '}';
         }
     }
 }

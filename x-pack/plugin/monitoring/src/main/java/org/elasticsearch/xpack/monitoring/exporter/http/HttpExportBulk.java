@@ -161,7 +161,10 @@ class HttpExportBulk extends ExportBulk {
             // Adds final bulk separator
             out.write(xContent.streamSeparator());
 
-            logger.trace("http exporter [{}] - added index request [index={}, id={}, monitoring data type={}]", name, index, id, doc.getType());
+            logger.trace(
+                "http exporter [{}] - added index request [index={}, id={}, monitoring data type={}]",
+                name, index, id, doc.getType()
+            );
 
             return BytesReference.toBytes(out.bytes());
         } catch (Exception e) {

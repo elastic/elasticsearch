@@ -49,9 +49,13 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private LogicalPlan accept(String sql) {
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
-        EsIndex test = new EsIndex("test", mapping);
+        EsIndex test = getTestEsIndex();
         return accept(IndexResolution.valid(test), sql);
+    }
+
+    private EsIndex getTestEsIndex() {
+        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
+        return new EsIndex("test", mapping);
     }
 
     private LogicalPlan accept(IndexResolution resolution, String sql) {
@@ -382,11 +386,6 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT AVG(date) FROM test"));
     }
 
-    public void testNotSupportedAggregateOnString() {
-        assertEquals("1:8: [MAX(keyword)] argument must be [date, datetime or numeric], found value [keyword] type [keyword]",
-            error("SELECT MAX(keyword) FROM test"));
-    }
-
     public void testInvalidTypeForStringFunction_WithOneArg() {
         assertEquals("1:8: [LENGTH] argument must be [string], found value [1] type [integer]",
             error("SELECT LENGTH(1)"));
@@ -570,6 +569,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testTopHitsGroupByHavingUnsupported() {
         assertEquals("1:50: HAVING filter is unsupported for function [FIRST(int)]",
             error("SELECT FIRST(int) FROM test GROUP BY text HAVING FIRST(int) > 10"));
+    }
+
+    public void testMaxOnKeywordGroupByHavingUnsupported() {
+        assertEquals("1:52: HAVING filter is unsupported for function [MAX(keyword)]",
+            error("SELECT MAX(keyword) FROM test GROUP BY text HAVING MAX(keyword) > 10"));
     }
 }
 

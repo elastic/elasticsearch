@@ -22,7 +22,7 @@ public class Last extends TopHits {
 
     @Override
     protected NodeInfo<Last> info() {
-        return NodeInfo.create(this, Last::new, field(), sortField());
+        return NodeInfo.create(this, Last::new, field(), orderField());
     }
 
     @Override

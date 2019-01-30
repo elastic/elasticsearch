@@ -1214,28 +1214,49 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testTranslateMinToFirst() {
-        Min f1 =  new Min(EMPTY, new FieldAttribute(EMPTY, "str", new EsField("str", DataType.KEYWORD, emptyMap(), true)));
-        Min f2 =  new Min(EMPTY, getFieldAttribute());
+        Min min1 =  new Min(EMPTY, new FieldAttribute(EMPTY, "str", new EsField("str", DataType.KEYWORD, emptyMap(), true)));
+        Min min2 =  new Min(EMPTY, getFieldAttribute());
 
-        Aggregate p = new Aggregate(EMPTY, FROM(), emptyList(), Arrays.asList(f1, f2));
-        LogicalPlan result = new ReplaceMinMaxWithTopHits().apply(p);
-        assertTrue(result instanceof Aggregate);
-        List<? extends NamedExpression> aggregates = ((Aggregate) result).aggregates();
+        OrderBy plan = new OrderBy(EMPTY, new Aggregate(EMPTY, FROM(), emptyList(), Arrays.asList(min1, min2)),
+            Arrays.asList(
+                new Order(EMPTY, min1, OrderDirection.ASC, Order.NullsPosition.LAST),
+                new Order(EMPTY, min2, OrderDirection.ASC, Order.NullsPosition.LAST)));
+        LogicalPlan result = new ReplaceMinMaxWithTopHits().apply(plan);
+        assertTrue(result instanceof OrderBy);
+        List<Order> order = ((OrderBy) result).order();
+        assertEquals(2, order.size());
+        assertEquals(First.class, order.get(0).child().getClass());
+        assertEquals(min2, order.get(1).child());;
+        First first = (First) order.get(0).child();
+
+        assertTrue(((OrderBy) result).child() instanceof Aggregate);
+        List<? extends NamedExpression> aggregates = ((Aggregate) ((OrderBy) result).child()).aggregates();
         assertEquals(2, aggregates.size());
         assertEquals(First.class, aggregates.get(0).getClass());
-        assertEquals(f2, aggregates.get(1));
+        assertSame(first, aggregates.get(0));
+        assertEquals(min2, aggregates.get(1));
     }
 
     public void testTranslateMaxToLast() {
-        Max f1 =  new Max(EMPTY, new FieldAttribute(EMPTY, "str", new EsField("str", DataType.KEYWORD, emptyMap(), true)));
-        Max f2 =  new Max(EMPTY, getFieldAttribute());
+        Max max1 =  new Max(EMPTY, new FieldAttribute(EMPTY, "str", new EsField("str", DataType.KEYWORD, emptyMap(), true)));
+        Max max2 =  new Max(EMPTY, getFieldAttribute());
 
-        Aggregate p = new Aggregate(EMPTY, FROM(), emptyList(), Arrays.asList(f1, f2));
-        LogicalPlan result = new ReplaceMinMaxWithTopHits().apply(p);
-        assertTrue(result instanceof Aggregate);
-        List<? extends NamedExpression> aggregates = ((Aggregate) result).aggregates();
+        OrderBy plan = new OrderBy(EMPTY, new Aggregate(EMPTY, FROM(), emptyList(), Arrays.asList(max1, max2)),
+            Arrays.asList(
+                new Order(EMPTY, max1, OrderDirection.ASC, Order.NullsPosition.LAST),
+                new Order(EMPTY, max2, OrderDirection.ASC, Order.NullsPosition.LAST)));
+        LogicalPlan result = new ReplaceMinMaxWithTopHits().apply(plan);
+        assertTrue(result instanceof OrderBy);
+        List<Order> order = ((OrderBy) result).order();
+        assertEquals(Last.class, order.get(0).child().getClass());
+        assertEquals(max2, order.get(1).child());;
+        Last last = (Last) order.get(0).child();
+
+        assertTrue(((OrderBy) result).child() instanceof Aggregate);
+        List<? extends NamedExpression> aggregates = ((Aggregate) ((OrderBy) result).child()).aggregates();
         assertEquals(2, aggregates.size());
         assertEquals(Last.class, aggregates.get(0).getClass());
-        assertEquals(f2, aggregates.get(1));
+        assertSame(last, aggregates.get(0));
+        assertEquals(max2, aggregates.get(1));
     }
 }

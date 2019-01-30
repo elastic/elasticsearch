@@ -18,7 +18,10 @@ import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.Score;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
@@ -67,7 +70,7 @@ import static org.elasticsearch.xpack.sql.stats.FeatureMetric.WHERE;
  */
 public final class Verifier {
     private final Metrics metrics;
-    
+
     public Verifier(Metrics metrics) {
         this.metrics = metrics;
     }
@@ -427,9 +430,15 @@ public final class Verifier {
             unsupported.add(e);
             return true;
         } else if (e instanceof TopHits) {
-            // First and last cannot be used in having
+            // First and Last cannot be used in having
             unsupported.add(e);
             return true;
+        } else if (e instanceof Min || e instanceof Max) {
+            if (((AggregateFunction) e).field().dataType().isString()) {
+                // Min & Max on a Keyword field will be translated to First & Last respectively
+                unsupported.add(e);
+                return true;
+            }
         }
 
         // skip literals / foldable

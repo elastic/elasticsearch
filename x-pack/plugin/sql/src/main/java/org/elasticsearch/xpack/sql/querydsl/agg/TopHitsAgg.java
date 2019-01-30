@@ -9,15 +9,14 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xpack.sql.querydsl.container.Sort;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-import java.util.Arrays;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
+import static org.elasticsearch.xpack.sql.querydsl.container.Sort.Missing.LAST;
 
 public class TopHitsAgg extends LeafAgg {
 
@@ -39,18 +38,20 @@ public class TopHitsAgg extends LeafAgg {
     @Override
     AggregationBuilder toBuilder() {
         // Sort missing values (NULLs) as last to get the first/last non-null value
-        List<SortBuilder<?>> sortBuilderList;
+        List<SortBuilder<?>> sortBuilderList = new ArrayList<>(2);
         if (sortField != null) {
-            sortBuilderList = Arrays.asList(
-                new FieldSortBuilder(sortField).order(sortOrder).missing(Sort.Missing.LAST.position())
-                    .unmappedType(sortFieldDataType.esType),
-                new FieldSortBuilder(fieldName()).order(sortOrder).missing(Sort.Missing.LAST.position())
-                    .unmappedType(fieldDataType.esType));
-        } else {
-            sortBuilderList = Collections.singletonList(
-                new FieldSortBuilder(fieldName()).order(sortOrder).missing(Sort.Missing.LAST.position())
-                    .unmappedType(fieldDataType.esType));
+            sortBuilderList.add(
+                new FieldSortBuilder(sortField)
+                    .order(sortOrder)
+                    .missing(LAST.position())
+                    .unmappedType(sortFieldDataType.esType));
         }
+        sortBuilderList.add(
+                new FieldSortBuilder(fieldName())
+                    .order(sortOrder)
+                    .missing(LAST.position())
+                    .unmappedType(fieldDataType.esType));
+
         return topHits(id()).docValueField(fieldName(), fieldDataType.format()).sorts(sortBuilderList).size(1);
     }
 
@@ -66,9 +67,9 @@ public class TopHitsAgg extends LeafAgg {
             return false;
         }
         TopHitsAgg that = (TopHitsAgg) o;
-        return Objects.equals(sortField, that.sortField) &&
-            sortOrder == that.sortOrder &&
-            fieldDataType == that.fieldDataType;
+        return Objects.equals(sortField, that.sortField)
+            && sortOrder == that.sortOrder
+            && fieldDataType == that.fieldDataType;
     }
 
     @Override

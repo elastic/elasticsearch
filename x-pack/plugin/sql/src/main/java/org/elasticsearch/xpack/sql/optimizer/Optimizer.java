@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.optimizer;
 
+import com.carrotsearch.hppc.IntObjectHashMap;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.CleanAliases;
 import org.elasticsearch.xpack.sql.expression.Alias;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRank;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Stats;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
@@ -627,35 +629,38 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class ReplaceMinMaxWithTopHits extends OptimizerRule<Aggregate> {
+    static class ReplaceMinMaxWithTopHits extends OptimizerRule<LogicalPlan> {
 
         @Override
-        protected LogicalPlan rule(Aggregate aggregate) {
-            List<NamedExpression> newAggregates = new ArrayList<>(aggregate.aggregates().size());
-            for (Expression agg : aggregate.aggregates()) {
-                Expression newAggFunction = agg.transformDown(a -> {
-                    if (a.field().dataType().isString()) {
-                        return new First(a.source(), a.field(), null);
-                    }
-                    return a;
-                }, Min.class);
-
-                if (newAggFunction != agg) {
-                    newAggregates.add((NamedExpression) newAggFunction);
-                } else {
-                    newAggFunction = agg.transformDown(a -> {
-                        if (a.field().dataType().isString()) {
-                            return new Last(a.source(), a.field(), null);
+        protected LogicalPlan rule(LogicalPlan plan) {
+            Map<ExpressionId, TopHits> seen = new HashMap<>();
+            return plan.transformExpressionsDown(e -> {
+                if (e instanceof Min) {
+                    Min min = (Min) e;
+                    if (min.field().dataType().isString()) {
+                        TopHits topHits = seen.get(min.id());
+                        if (topHits != null) {
+                            return topHits;
                         }
-                        return a;
-                    }, Max.class);
-                    newAggregates.add((NamedExpression) newAggFunction);
+                        topHits = new First(min.source(), min.field(), null);
+                        seen.put(min.id(), topHits);
+                        return topHits;
+                    }
                 }
-            }
-            if (!newAggregates.equals(aggregate.aggregates())) {
-                return new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), newAggregates);
-            }
-            return aggregate;
+                if (e instanceof Max) {
+                    Max max = (Max) e;
+                    if (max.field().dataType().isString()) {
+                        TopHits topHits = seen.get(max.id());
+                        if (topHits != null) {
+                            return topHits;
+                        }
+                        topHits = new Last(max.source(), max.field(), null);
+                        seen.put(max.id(), topHits);
+                        return topHits;
+                    }
+                }
+                return e;
+            });
         }
     }
 

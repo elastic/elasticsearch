@@ -855,7 +855,7 @@ final class QueryTranslator {
         @Override
         protected LeafAgg toAgg(String id, First f) {
             return new TopHitsAgg(id, topAggsField(f, f.field()), f.dataType(),
-                topAggsField(f, f.sortField()), f.sortFieldDataType(), SortOrder.ASC);
+                topAggsField(f, f.orderField()), f.orderField() == null ? null : f.orderField().dataType(), SortOrder.ASC);
         }
     }
 
@@ -864,7 +864,7 @@ final class QueryTranslator {
         @Override
         protected LeafAgg toAgg(String id, Last l) {
             return new TopHitsAgg(id, topAggsField(l, l.field()), l.dataType(),
-                topAggsField(l, l.sortField()), l.sortFieldDataType(), SortOrder.DESC);
+                topAggsField(l, l.orderField()), l.orderField() == null ? null : l.orderField().dataType(), SortOrder.DESC);
         }
     }
 

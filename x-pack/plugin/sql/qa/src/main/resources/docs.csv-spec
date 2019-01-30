@@ -1009,11 +1009,25 @@ schema::FIRST(first_name):s
 // tag::firstWithOneArg
 SELECT FIRST(first_name) FROM emp;
 
-FIRST(first_name)
------------------
+   FIRST(first_name)
+--------------------
 Alejandro
 
 // end::firstWithOneArg
+;
+
+firstWithOneArgAndGroupBy
+schema::gender:s|FIRST(first_name):s
+// tag::firstWithOneArgAndGroupBy
+SELECT gender, FIRST(first_name) FROM emp GROUP BY gender ORDER BY gender;
+
+   gender   |   FIRST(first_name)
+------------+--------------------
+null        |   Berni
+F           |   Alejandro
+M           |   Amabile
+
+// end::firstWithOneArgAndGroupBy
 ;
 
 firstWithTwoArgs
@@ -1021,11 +1035,25 @@ schema::FIRST(first_name, birth_date):s
 // tag::firstWithTwoArgs
 SELECT FIRST(first_name, birth_date) FROM emp;
 
-FIRST(first_name, birth_date)
------------------------------
+   FIRST(first_name, birth_date)
+--------------------------------
 Remzi
 
 // end::firstWithTwoArgs
+;
+
+firstWithTwoArgsAndGroupBy
+schema::gender:s|FIRST(first_name, birth_date):s
+// tag::firstWithTwoArgsAndGroupBy
+SELECT gender, FIRST(first_name, birth_date) FROM emp GROUP BY gender ORDER BY gender;
+
+    gender    |   FIRST(first_name, birth_date)
+--------------+--------------------------------
+null          |   Lillian
+F             |   Sumant
+M             |   Remzi
+
+// end::firstWithTwoArgsAndGroupBy
 ;
 
 lastWithOneArg
@@ -1033,11 +1061,26 @@ schema::LAST(first_name):s
 // tag::lastWithOneArg
 SELECT LAST(first_name) FROM emp;
 
-LAST(first_name)
----------------
+   LAST(first_name)
+-------------------
 Zvonko
 
 // end::lastWithOneArg
+;
+
+
+lastWithOneArgAndGroupBy
+schema::gender:s|LAST(first_name):s
+// tag::lastWithOneArgAndGroupBy
+SELECT gender, LAST(first_name) FROM emp GROUP BY gender ORDER BY gender;
+
+   gender   |   LAST(first_name)
+------------+-------------------
+null        |   Patricio
+F           |   Xinglin
+M           |   Zvonko
+
+// end::lastWithOneArgAndGroupBy
 ;
 
 
@@ -1046,11 +1089,25 @@ schema::LAST(first_name, birth_date):s
 // tag::lastWithTwoArgs
 SELECT LAST(first_name, birth_date) FROM emp;
 
-LAST(first_name, birth_date)
----------------------------
+   LAST(first_name, birth_date)
+-------------------------------
 Hilari
 
 // end::lastWithTwoArgs
+;
+
+lastWithTwoArgsAndGroupBy
+schema::gender:s|LAST(first_name, birth_date):s
+// tag::lastWithTwoArgsAndGroupBy
+SELECT gender, LAST(first_name, birth_date) FROM emp GROUP BY gender ORDER BY gender;
+
+   gender  |   LAST(first_name, birth_date)
+-----------+-------------------------------
+null       |   Eberhardt
+F          |   Valdiodio
+M          |   Hilari
+
+// end::lastWithTwoArgsAndGroupBy
 ;
 
 aggMax

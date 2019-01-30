@@ -16,18 +16,18 @@ import java.util.Collections;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
+/**
+ * Super class of Aggregation functions on field types other than numeric, that need to be
+ * translated into an ES {@link org.elasticsearch.search.aggregations.metrics.TopHits} aggregation.
+ */
 public abstract class TopHits extends AggregateFunction {
 
     TopHits(Source source, Expression field, Expression sortField) {
         super(source, field, sortField != null ? Collections.singletonList(sortField) : Collections.emptyList());
     }
 
-    public Expression sortField() {
+    public Expression orderField() {
         return parameters().isEmpty() ? null : parameters().get(0);
-    }
-
-    public DataType sortFieldDataType() {
-        return parameters().isEmpty() ? null : parameters().get(0).dataType();
     }
 
     @Override
@@ -49,17 +49,17 @@ public abstract class TopHits extends AggregateFunction {
                 functionName(), field().dataType().esType));
         }
 
-        if (sortField() != null) {
-            if (sortField().foldable()) {
+        if (orderField() != null) {
+            if (orderField().foldable()) {
                 return new TypeResolution(format(null, "Second argument of [{}] must be a table column, found constant [{}]",
                     functionName(),
-                    Expressions.name(sortField())));
+                    Expressions.name(orderField())));
             }
             try {
-                ((FieldAttribute) sortField()).exactAttribute();
+                ((FieldAttribute) orderField()).exactAttribute();
             } catch (MappingException ex) {
                 return new TypeResolution(format(null, "[{}] cannot operate on second argument field of data type [{}]",
-                    functionName(), sortField().dataType().esType));
+                    functionName(), orderField().dataType().esType));
             }
         }
         return TypeResolution.TYPE_RESOLVED;

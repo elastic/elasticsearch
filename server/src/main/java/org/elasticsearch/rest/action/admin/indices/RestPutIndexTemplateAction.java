@@ -87,7 +87,9 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
             newSourceAsMap.put("mappings", Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, sourceAsMap.get("mappings")));
             return newSourceAsMap;
         } else {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("put_index_template_with_types", TYPES_DEPRECATION_MESSAGE);
+            if(includeTypeName && sourceAsMap.containsKey("mappings") ) {
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("put_index_template_with_types", TYPES_DEPRECATION_MESSAGE);                
+            }
             return sourceAsMap;
         }
     }

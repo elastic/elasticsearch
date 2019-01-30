@@ -90,7 +90,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -320,7 +319,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         worker.rethrottle(1);
         setupClient(new TestThreadPool(getTestName()) {
             @Override
-            public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
                 // While we're here we can check that the sleep made it through
                 assertThat(delay.nanos(), greaterThan(0L));
                 assertThat(delay.seconds(), lessThanOrEqualTo(10L));
@@ -439,7 +438,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         AtomicReference<Runnable> capturedCommand = new AtomicReference<>();
         setupClient(new TestThreadPool(getTestName()) {
             @Override
-            public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
                 capturedDelay.set(delay);
                 capturedCommand.set(command);
                 return null;
@@ -615,7 +614,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
          */
         setupClient(new TestThreadPool(getTestName()) {
             @Override
-            public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
                 /*
                  * This is called twice:
                  * 1. To schedule the throttling. When that happens we immediately cancel the task.
@@ -626,7 +625,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 if (delay.nanos() > 0) {
                     generic().execute(() -> taskManager.cancel(testTask, reason, () -> {}));
                 }
-                return super.schedule(delay, name, command);
+                return super.schedule(command, delay, name);
             }
         });
 

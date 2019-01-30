@@ -391,7 +391,7 @@ public class FollowersChecker {
         }
 
         private void scheduleNextWakeUp() {
-            transportService.getThreadPool().schedule(followerCheckInterval, Names.SAME, new Runnable() {
+            transportService.getThreadPool().schedule(new Runnable() {
                 @Override
                 public void run() {
                     handleWakeUp();
@@ -401,7 +401,7 @@ public class FollowersChecker {
                 public String toString() {
                     return FollowerChecker.this + "::handleWakeUp";
                 }
-            });
+            }, followerCheckInterval, Names.SAME);
         }
 
         @Override

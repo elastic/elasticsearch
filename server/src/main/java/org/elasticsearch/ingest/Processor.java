@@ -23,9 +23,9 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.Scheduler;
 
 import java.util.Map;
-import java.util.concurrent.ScheduledFuture;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 
@@ -105,10 +105,11 @@ public interface Processor {
         /**
          * Provides scheduler support
          */
-        public final BiFunction<Long, Runnable, ScheduledFuture<?>> scheduler;
+        // todo: should we promote ScheduledCancellable to somewhere more appropriate for this external use?
+        public final BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler;
 
         public Parameters(Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,  ThreadContext threadContext,
-                          LongSupplier relativeTimeSupplier, BiFunction<Long, Runnable, ScheduledFuture<?>> scheduler,
+                          LongSupplier relativeTimeSupplier, BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
             IngestService ingestService) {
             this.env = env;
             this.scriptService = scriptService;

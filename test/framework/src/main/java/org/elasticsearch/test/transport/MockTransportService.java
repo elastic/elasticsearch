@@ -375,7 +375,7 @@ public final class MockTransportService extends TransportService {
                         runnable.run();
                     } else {
                         requestsToSendWhenCleared.add(runnable);
-                        threadPool.schedule(delay, ThreadPool.Names.GENERIC, runnable);
+                        threadPool.schedule(runnable, delay, ThreadPool.Names.GENERIC);
                     }
                 }
             }

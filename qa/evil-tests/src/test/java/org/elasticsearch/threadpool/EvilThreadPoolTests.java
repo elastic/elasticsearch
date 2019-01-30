@@ -19,6 +19,11 @@
 
 package org.elasticsearch.threadpool;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -26,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.junit.After;
 import org.junit.Before;
 
@@ -36,10 +42,12 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 public class EvilThreadPoolTests extends ESTestCase {
 
@@ -108,7 +116,12 @@ public class EvilThreadPoolTests extends ESTestCase {
         try {
             checkExecutionError(getExecuteRunner(prioritizedExecutor));
             checkExecutionError(getSubmitRunner(prioritizedExecutor));
+            // bias towards timeout
+            checkExecutionError(r -> prioritizedExecutor.execute(delayMillis(r, 10), TimeValue.ZERO, r));
+            // race whether timeout or success (but typically biased towards success)
             checkExecutionError(r -> prioritizedExecutor.execute(r, TimeValue.ZERO, r));
+            // bias towards no timeout.
+            checkExecutionError(r -> prioritizedExecutor.execute(r, TimeValue.timeValueMillis(10), r));
         } finally {
             ThreadPool.terminate(prioritizedExecutor, 10, TimeUnit.SECONDS);
         }
@@ -153,7 +166,8 @@ public class EvilThreadPoolTests extends ESTestCase {
                 assertTrue(o.isPresent());
                 assertThat(o.get(), instanceOf(Error.class));
                 assertThat(o.get(), hasToString(containsString("future error")));
-            });
+            },
+            Object::toString);
     }
 
     public void testExecutionExceptionOnDefaultThreadPoolTypes() throws InterruptedException {
@@ -170,10 +184,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             final boolean expectExceptionOnSchedule =
                 // fixed_auto_queue_size wraps stuff into TimedRunnable, which is an AbstractRunnable
                 // TODO: this is dangerous as it will silently swallow exceptions, and possibly miss calling a response listener
-                ThreadPool.THREAD_POOL_TYPES.get(executor) != ThreadPool.ThreadPoolType.FIXED_AUTO_QUEUE_SIZE
-                    // scheduler just swallows the exception here
-                    // TODO: bubble these exceptions up
-                    && ThreadPool.THREAD_POOL_TYPES.get(executor) != ThreadPool.ThreadPoolType.DIRECT;
+                ThreadPool.THREAD_POOL_TYPES.get(executor) != ThreadPool.ThreadPoolType.FIXED_AUTO_QUEUE_SIZE;
             checkExecutionException(getScheduleRunner(executor), expectExceptionOnSchedule);
         }
     }
@@ -219,14 +230,20 @@ public class EvilThreadPoolTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37708")
     public void testExecutionExceptionOnSinglePrioritizingThreadPoolExecutor() throws InterruptedException {
         final PrioritizedEsThreadPoolExecutor prioritizedExecutor = EsExecutors.newSinglePrioritizing("test",
             EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext(), threadPool.scheduler());
         try {
             checkExecutionException(getExecuteRunner(prioritizedExecutor), true);
             checkExecutionException(getSubmitRunner(prioritizedExecutor), false);
-            checkExecutionException(r -> prioritizedExecutor.execute(r, TimeValue.ZERO, r), true);
+
+            Function<Runnable, String> logMessageFunction = r -> PrioritizedEsThreadPoolExecutor.class.getName();
+            // bias towards timeout
+            checkExecutionException(r -> prioritizedExecutor.execute(delayMillis(r, 10), TimeValue.ZERO, r), true, logMessageFunction);
+            // race whether timeout or success (but typically biased towards success)
+            checkExecutionException(r -> prioritizedExecutor.execute(r, TimeValue.ZERO, r), true, logMessageFunction);
+            // bias towards no timeout.
+            checkExecutionException(r -> prioritizedExecutor.execute(r, TimeValue.timeValueMillis(10), r), true, logMessageFunction);
         } finally {
             ThreadPool.terminate(prioritizedExecutor, 10, TimeUnit.SECONDS);
         }
@@ -235,26 +252,44 @@ public class EvilThreadPoolTests extends ESTestCase {
     public void testExecutionExceptionOnScheduler() throws InterruptedException {
         final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY);
         try {
-            // scheduler just swallows the exceptions
-            // TODO: bubble these exceptions up
-            checkExecutionException(getExecuteRunner(scheduler), false);
-            checkExecutionException(getSubmitRunner(scheduler), false);
-            checkExecutionException(r -> scheduler.schedule(r, randomFrom(0, 1), TimeUnit.MILLISECONDS), false);
+            checkExecutionException(getExecuteRunner(scheduler), true);
+            // while submit does return a Future, we choose to log exceptions anyway,
+            // since this is the semi-internal SafeScheduledThreadPoolExecutor that is being used,
+            // which also logs exceptions for schedule calls.
+            checkExecutionException(getSubmitRunner(scheduler), true);
+            checkExecutionException(r -> scheduler.schedule(r, randomFrom(0, 1), TimeUnit.MILLISECONDS), true);
         } finally {
             Scheduler.terminate(scheduler, 10, TimeUnit.SECONDS);
         }
     }
 
+    private Runnable delayMillis(Runnable r, int ms) {
+        return () -> {
+            try {
+                Thread.sleep(ms);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            r.run();
+        };
+    }
+
     private void checkExecutionException(Consumer<Runnable> runner, boolean expectException) throws InterruptedException {
-        logger.info("checking exception for {}", runner);
+        checkExecutionException(runner, expectException, Object::toString);
+    }
+    private void checkExecutionException(Consumer<Runnable> runner,
+                                         boolean expectException,
+                                         Function<Runnable, String> logMessageFunction) throws InterruptedException {
         final Runnable runnable;
         final boolean willThrow;
         if (randomBoolean()) {
+            logger.info("checking direct exception for {}", runner);
             runnable = () -> {
                 throw new IllegalStateException("future exception");
             };
             willThrow = expectException;
         } else {
+            logger.info("checking abstract runnable exception for {}", runner);
             runnable = new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
@@ -275,10 +310,12 @@ public class EvilThreadPoolTests extends ESTestCase {
             o -> {
                 assertEquals(willThrow, o.isPresent());
                 if (willThrow) {
+                    if (o.get() instanceof Error) throw (Error) o.get();
                     assertThat(o.get(), instanceOf(IllegalStateException.class));
                     assertThat(o.get(), hasToString(containsString("future exception")));
                 }
-            });
+            },
+            logMessageFunction);
     }
 
     Consumer<Runnable> getExecuteRunner(ExecutorService executor) {
@@ -313,7 +350,7 @@ public class EvilThreadPoolTests extends ESTestCase {
         return new Consumer<Runnable>() {
             @Override
             public void accept(Runnable runnable) {
-                threadPool.schedule(randomFrom(TimeValue.ZERO, TimeValue.timeValueMillis(1)), executor, runnable);
+                threadPool.schedule(runnable, randomFrom(TimeValue.ZERO, TimeValue.timeValueMillis(1)), executor);
             }
 
             @Override
@@ -324,10 +361,11 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     private void runExecutionTest(
-            final Consumer<Runnable> runner,
-            final Runnable runnable,
-            final boolean expectThrowable,
-            final Consumer<Optional<Throwable>> consumer) throws InterruptedException {
+        final Consumer<Runnable> runner,
+        final Runnable runnable,
+        final boolean expectThrowable,
+        final Consumer<Optional<Throwable>> consumer,
+        final Function<Runnable, String> logMessageFunction) throws InterruptedException {
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
         final Thread.UncaughtExceptionHandler uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();
         final CountDownLatch uncaughtExceptionHandlerLatch = new CountDownLatch(1);
@@ -335,31 +373,66 @@ public class EvilThreadPoolTests extends ESTestCase {
         try {
             Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
                 assertTrue(expectThrowable);
-                throwableReference.set(e);
+                assertTrue("Only one message allowed", throwableReference.compareAndSet(null, e));
                 uncaughtExceptionHandlerLatch.countDown();
             });
 
+
             final CountDownLatch supplierLatch = new CountDownLatch(1);
 
-            try {
-                runner.accept(() -> {
-                    try {
-                        runnable.run();
-                    } finally {
-                        supplierLatch.countDown();
+            Runnable job = () -> {
+                try {
+                    runnable.run();
+                } finally {
+                    supplierLatch.countDown();
+                }
+            };
+
+            // snoop on logging to also handle the cases where exceptions are simply logged in Scheduler.
+            final Logger schedulerLogger = LogManager.getLogger(Scheduler.SafeScheduledThreadPoolExecutor.class);
+            final MockLogAppender appender = new MockLogAppender();
+            appender.addExpectation(
+                new MockLogAppender.LoggingExpectation() {
+                    @Override
+                    public void match(LogEvent event) {
+                        if (event.getLevel() == Level.WARN) {
+                            assertThat("no other warnings than those expected",
+                                event.getMessage().getFormattedMessage(),
+                                startsWith("failed to schedule " + logMessageFunction.apply(job)));
+                            assertTrue(expectThrowable);
+                            assertTrue("only one message allowed", throwableReference.compareAndSet(null, event.getThrown()));
+                            uncaughtExceptionHandlerLatch.countDown();
+                        }
+                    }
+
+                    @Override
+                    public void assertMatched() {
                     }
                 });
-            } catch (Throwable t) {
-                consumer.accept(Optional.of(t));
-                return;
+
+            appender.start();
+            Loggers.addAppender(schedulerLogger, appender);
+            try {
+                try {
+                    runner.accept(job);
+                } catch (Throwable t) {
+                    consumer.accept(Optional.of(t));
+                    return;
+                }
+
+                supplierLatch.await();
+
+                if (expectThrowable) {
+                    uncaughtExceptionHandlerLatch.await();
+                }
+            } finally {
+                Loggers.removeAppender(schedulerLogger, appender);
+                appender.stop();
             }
 
-            supplierLatch.await();
-
-            if (expectThrowable) {
-                uncaughtExceptionHandlerLatch.await();
-            }
             consumer.accept(Optional.ofNullable(throwableReference.get()));
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
         } finally {
             Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
         }

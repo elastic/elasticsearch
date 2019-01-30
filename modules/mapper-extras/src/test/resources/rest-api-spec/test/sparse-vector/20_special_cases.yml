@@ -1,5 +1,6 @@
 setup:
   - skip:
+      features: headers
       version: " - 6.99.99"
       reason: "sparse_vector field was introduced in 7.0.0"
 
@@ -48,6 +49,8 @@ setup:
 
 # query vector of type integer
   - do:
+      headers:
+        Content-Type: application/json
       search:
         rest_total_hits_as_int: true
         body:
@@ -55,7 +58,7 @@ setup:
             script_score:
               query: {match_all: {} }
               script:
-                source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'].value)"
+                source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
                 params:
                   query_vector: {"1": 10}
 
@@ -66,6 +69,8 @@ setup:
 
 # query vector of type double
   - do:
+      headers:
+        Content-Type: application/json
       search:
         rest_total_hits_as_int: true
         body:
@@ -73,7 +78,7 @@ setup:
             script_score:
               query: {match_all: {} }
               script:
-                source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'].value)"
+                source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
                 params:
                   query_vector: {"1": 10.0}
 
@@ -83,7 +88,7 @@ setup:
   - match: {hits.hits.2._id: "3"}
 
 ---
-"Documents missing vector field":
+"Distance functions for documents missing vector field should return 0":
 - do:
     index:
       index: test-index
@@ -104,7 +109,8 @@ setup:
     indices.refresh: {}
 
 - do:
-    catch: /A document doesn't have a value for a vector field!/
+    headers:
+      Content-Type: application/json
     search:
       rest_total_hits_as_int: true
       body:
@@ -112,25 +118,15 @@ setup:
           script_score:
             query: {match_all: {} }
             script:
-              source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'].value)"
-              params:
-                query_vector: {"1": 10.0}
-
-- do:
-    search:
-      rest_total_hits_as_int: true
-      body:
-        query:
-          script_score:
-            query: {match_all: {} }
-            script:
-              source: "doc['my_sparse_vector'].value == null ? 0 : cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'].value)"
+              source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
               params:
                 query_vector: {"1": 10.0}
 
 - match: {hits.total: 2}
 - match: {hits.hits.0._id: "1"}
 - match: {hits.hits.1._id: "2"}
+- match: {hits.hits.1._score: 0.0}
+
 
 ---
 "Dimensions can be sorted differently":
@@ -163,6 +159,8 @@ setup:
     indices.refresh: {}
 
 - do:
+    headers:
+      Content-Type: application/json
     search:
       rest_total_hits_as_int: true
       body:
@@ -170,7 +168,7 @@ setup:
           script_score:
             query: {match_all: {} }
             script:
-              source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'].value)"
+              source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
               params:
                 query_vector: {"100": -200.0, "11" : 300.33, "12": -34.8988, "2": 230.0, "30": 15.555}
 

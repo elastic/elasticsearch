@@ -1,5 +1,6 @@
 setup:
   - skip:
+      features: headers
       version: " - 6.99.99"
       reason: "sparse_vector field was introduced in 7.0.0"
 
@@ -44,6 +45,8 @@ setup:
 ---
 "Dot Product":
 - do:
+    headers:
+      Content-Type: application/json
     search:
       rest_total_hits_as_int: true
       body:
@@ -51,7 +54,7 @@ setup:
           script_score:
             query: {match_all: {} }
             script:
-              source: "dotProductSparse(params.query_vector, doc['my_sparse_vector'].value)"
+              source: "dotProductSparse(params.query_vector, doc['my_sparse_vector'])"
               params:
                 query_vector: {"2": 0.5, "10" : 111.3, "50": -13.0, "113": 14.8, "4545": -156.0}
 
@@ -72,6 +75,8 @@ setup:
 ---
 "Cosine Similarity":
 - do:
+    headers:
+      Content-Type: application/json
     search:
       rest_total_hits_as_int: true
       body:
@@ -79,7 +84,7 @@ setup:
           script_score:
             query: {match_all: {} }
             script:
-              source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'].value)"
+              source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
               params:
                 query_vector: {"2": -0.5, "10" : 111.3, "50": -13.0, "113": 14.8, "4545": -156.0}
 

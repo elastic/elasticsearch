@@ -46,18 +46,19 @@ public final class VectorScriptDocValues extends ScriptDocValues<BytesRef> {
         }
     }
 
-    public BytesRef getValue() {
+    // package private access only for {@link ScoreScriptUtils}
+    BytesRef getValue() {
         return value;
     }
 
     @Override
     public BytesRef get(int index) {
-        throw new UnsupportedOperationException("this operation is not supported on vector doc values");
+        throw new UnsupportedOperationException("this operation is not supported on the doc values of the vector field");
     }
 
     @Override
     public int size() {
-        throw new UnsupportedOperationException("this operation is not supported on vector doc values");
+        throw new UnsupportedOperationException("this operation is not supported on the doc values of the vector field");
     }
 
 }

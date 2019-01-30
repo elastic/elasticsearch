@@ -19,12 +19,11 @@
 
 
 class org.elasticsearch.index.query.VectorScriptDocValues {
-  BytesRef getValue()
 }
 
 static_import {
-    float cosineSimilarity(List, BytesRef) bound_to org.elasticsearch.index.query.ScoreScriptUtils$CosineSimilarity
-    float dotProduct(List, BytesRef) from_class org.elasticsearch.index.query.ScoreScriptUtils
-    float dotProductSparse(Map, BytesRef)  bound_to org.elasticsearch.index.query.ScoreScriptUtils$DotProductSparse
-    float cosineSimilaritySparse(Map, BytesRef)  bound_to org.elasticsearch.index.query.ScoreScriptUtils$CosineSimilaritySparse
+    double cosineSimilarity(List, VectorScriptDocValues) bound_to org.elasticsearch.index.query.ScoreScriptUtils$CosineSimilarity
+    double dotProduct(List, VectorScriptDocValues) from_class org.elasticsearch.index.query.ScoreScriptUtils
+    double dotProductSparse(Map, VectorScriptDocValues)  bound_to org.elasticsearch.index.query.ScoreScriptUtils$DotProductSparse
+    double cosineSimilaritySparse(Map, VectorScriptDocValues)  bound_to org.elasticsearch.index.query.ScoreScriptUtils$CosineSimilaritySparse
 }

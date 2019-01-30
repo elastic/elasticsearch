@@ -92,7 +92,7 @@ cosine similarity between a given query vector and document vectors.
         "match_all": {}
       },
       "script": {
-        "source": "cosineSimilarity(params.queryVector, doc['my_dense_vector'].value)",
+        "source": "cosineSimilarity(params.queryVector, doc['my_dense_vector'])",
         "params": {
           "queryVector": [4, 3.4, -1.2]  <1>
         }
@@ -116,7 +116,7 @@ between a given query vector and document vectors.
         "match_all": {}
       },
       "script": {
-        "source": "cosineSimilaritySparse(params.queryVector, doc['my_sparse_vector'].value)",
+        "source": "cosineSimilaritySparse(params.queryVector, doc['my_sparse_vector'])",
         "params": {
           "queryVector": {"2": -0.5, "10" : 111.3, "50": -13.0, "113": 14.8, "4545": -156.0}
         }
@@ -139,7 +139,7 @@ dot product between a given query vector and document vectors.
         "match_all": {}
       },
       "script": {
-        "source": "dotProduct(params.queryVector, doc['my_dense_vector'].value)",
+        "source": "dotProduct(params.queryVector, doc['my_dense_vector'])",
         "params": {
           "queryVector": [4, 3.4, -1.2]
         }
@@ -162,7 +162,7 @@ between a given query vector and document vectors.
         "match_all": {}
       },
       "script": {
-        "source": "dotProductSparse(params.queryVector, doc['my_sparse_vector'].value)",
+        "source": "dotProductSparse(params.queryVector, doc['my_sparse_vector'])",
         "params": {
           "queryVector": {"2": -0.5, "10" : 111.3, "50": -13.0, "113": 14.8, "4545": -156.0}
         }
@@ -173,31 +173,8 @@ between a given query vector and document vectors.
 --------------------------------------------------
 // NOTCONSOLE
 
-
-Be aware, if a document doesn't have a value for a vector field on which
-a distance function is executed, an error will be thrown. You can
-guard against missing values as shown below, and provide your own
-custom score for this case.
-
-[source,js]
---------------------------------------------------
-{
-  "query": {
-    "script_score": {
-      "query": {
-        "match_all": {}
-      },
-      "script": {
-        "source": "doc['my_dense_vector'].value == null ? 0 : cosineSimilarity(params.query_vector, doc['my_dense_vector'].value)",
-        "params": {
-          "queryVector": [4, 3.4, -1.2]
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-// NOTCONSOLE
+NOTE: If a document doesn't have a value for a vector field on which
+a distance function is executed, 0 will be returned as a result.
 
 
 [[random-functions]]

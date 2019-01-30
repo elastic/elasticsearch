@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.VectorEncoderDecoder;
 
 import java.util.Iterator;
@@ -33,58 +32,60 @@ public class ScoreScriptUtils {
     //**************FUNCTIONS FOR DENSE VECTORS
 
     /**
-     * Calculate a dot product between two dense vectors
+     * Calculate a dot product between a query's dense vector and documents' dense vectors
      *
      * @param queryVector the query vector parsed as {@code List<Number>} from json
-     * @param docVectorBR BytesRef representing encoded document vector
+     * @param dvs VectorScriptDocValues representing encoded documents' vectors
      */
-    public static float dotProduct(List<Number> queryVector, BytesRef docVectorBR){
-        float[] docVector = VectorEncoderDecoder.decodeDenseVector(docVectorBR);
+    public static double dotProduct(List<Number> queryVector, VectorScriptDocValues dvs){
+        if (dvs.getValue() == null) return 0;
+        float[] docVector = VectorEncoderDecoder.decodeDenseVector(dvs.getValue());
         return intDotProduct(queryVector, docVector);
     }
 
     /**
-     * Calculate cosine similarity between two dense vectors
+     * Calculate cosine similarity between a query's dense vector and documents' dense vectors
      *
      * CosineSimilarity is implemented as a class to use
      * painless script caching to calculate queryVectorMagnitude
      * only once per script execution for all documents.
-     * A user will call `cosineSimilarity(params.queryVector, doc['my_vector'].getValue())`
+     * A user will call `cosineSimilarity(params.queryVector, doc['my_vector'])`
      */
     public static final class CosineSimilarity {
-        final float queryVectorMagnitude;
+        final double queryVectorMagnitude;
         List<Number> queryVector;
 
         // calculate queryVectorMagnitude once per query execution
         public CosineSimilarity(List<Number> queryVector) {
             this.queryVector = queryVector;
             float floatValue;
-            float dotProduct = 0f;
+            double dotProduct = 0;
             for (Number value : queryVector) {
                 floatValue = value.floatValue();
                 dotProduct += floatValue * floatValue;
             }
-            this.queryVectorMagnitude = (float) Math.sqrt(dotProduct);
+            this.queryVectorMagnitude = Math.sqrt(dotProduct);
         }
 
-        public float cosineSimilarity(BytesRef docVectorBR) {
-            float[] docVector = VectorEncoderDecoder.decodeDenseVector(docVectorBR);
+        public double cosineSimilarity(VectorScriptDocValues dvs) {
+            if (dvs.getValue() == null) return 0;
+            float[] docVector = VectorEncoderDecoder.decodeDenseVector(dvs.getValue());
 
             // calculate docVector magnitude
-            float dotProduct = 0f;
+            double dotProduct = 0f;
             for (int dim = 0; dim < docVector.length; dim++) {
                 dotProduct += docVector[dim] * docVector[dim];
             }
-            final float docVectorMagnitude = (float) Math.sqrt(dotProduct);
+            final double docVectorMagnitude = Math.sqrt(dotProduct);
 
-            float docQueryDotProduct = intDotProduct(queryVector, docVector);
+            double docQueryDotProduct = intDotProduct(queryVector, docVector);
             return docQueryDotProduct / (docVectorMagnitude * queryVectorMagnitude);
         }
     }
 
-    private static float intDotProduct(List<Number> v1, float[] v2){
+    private static double intDotProduct(List<Number> v1, float[] v2){
         int dims = Math.min(v1.size(), v2.length);
-        float v1v2DotProduct = 0f;
+        double v1v2DotProduct = 0;
         int dim = 0;
         Iterator<Number> v1Iter = v1.iterator();
         while(dim < dims) {
@@ -98,12 +99,12 @@ public class ScoreScriptUtils {
     //**************FUNCTIONS FOR SPARSE VECTORS
 
     /**
-     * Calculate a dot product between two sparse vectors
+     * Calculate a dot product between a query's sparse vector and documents' sparse vectors
      *
      * DotProductSparse is implemented as a class to use
      * painless script caching to prepare queryVector
      * only once per script execution for all documents.
-     * A user will call `dotProductSparse(params.queryVector, doc['my_vector'].getValue())`
+     * A user will call `dotProductSparse(params.queryVector, doc['my_vector'])`
      */
     public static final class DotProductSparse {
         float[] queryValues;
@@ -126,25 +127,26 @@ public class ScoreScriptUtils {
             sortSparseDimsValues(queryDims, queryValues, n);
         }
 
-        public float dotProductSparse(BytesRef docVectorBR) {
-            int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(docVectorBR);
-            float[] docValues = VectorEncoderDecoder.decodeSparseVector(docVectorBR);
+        public double dotProductSparse(VectorScriptDocValues dvs) {
+            if (dvs.getValue() == null) return 0;
+            int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(dvs.getValue());
+            float[] docValues = VectorEncoderDecoder.decodeSparseVector(dvs.getValue());
             return intDotProductSparse(queryValues, queryDims, docValues, docDims);
         }
     }
 
     /**
-     * Calculate cosine similarity between two sparse vectors
+     * Calculate cosine similarity between a query's sparse vector and documents' sparse vectors
      *
      * CosineSimilaritySparse is implemented as a class to use
      * painless script caching to prepare queryVector and calculate queryVectorMagnitude
      * only once per script execution for all documents.
-     * A user will call `cosineSimilaritySparse(params.queryVector, doc['my_vector'].getValue())`
+     * A user will call `cosineSimilaritySparse(params.queryVector, doc['my_vector'])`
      */
     public static final class CosineSimilaritySparse {
         float[] queryValues;
         int[] queryDims;
-        float queryVectorMagnitude;
+        double queryVectorMagnitude;
 
         // prepare queryVector once per script execution
         public CosineSimilaritySparse(Map<String, Number> queryVector) {
@@ -152,7 +154,7 @@ public class ScoreScriptUtils {
             int n = queryVector.size();
             queryValues = new float[n];
             queryDims = new int[n];
-            float dotProduct = 0f;
+            double dotProduct = 0;
             int i = 0;
             for (Map.Entry<String, Number> dimValue : queryVector.entrySet()) {
                 queryDims[i] = Integer.parseInt(dimValue.getKey());
@@ -160,29 +162,30 @@ public class ScoreScriptUtils {
                 dotProduct +=  queryValues[i] *  queryValues[i];
                 i++;
             }
-            this.queryVectorMagnitude = (float) Math.sqrt(dotProduct);
+            this.queryVectorMagnitude = Math.sqrt(dotProduct);
             // Sort dimensions in the ascending order and sort values in the same order as their corresponding dimensions
             sortSparseDimsValues(queryDims, queryValues, n);
         }
 
-        public float cosineSimilaritySparse(BytesRef docVectorBR) {
-            int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(docVectorBR);
-            float[] docValues = VectorEncoderDecoder.decodeSparseVector(docVectorBR);
+        public double cosineSimilaritySparse(VectorScriptDocValues dvs) {
+            if (dvs.getValue() == null) return 0;
+            int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(dvs.getValue());
+            float[] docValues = VectorEncoderDecoder.decodeSparseVector(dvs.getValue());
 
             // calculate docVector magnitude
-            float dotProduct = 0f;
+            double dotProduct = 0;
             for (float value : docValues) {
                 dotProduct += value * value;
             }
-            final float docVectorMagnitude = (float) Math.sqrt(dotProduct);
+            final double docVectorMagnitude = Math.sqrt(dotProduct);
 
-            float docQueryDotProduct = intDotProductSparse(queryValues, queryDims, docValues, docDims);
+            double docQueryDotProduct = intDotProductSparse(queryValues, queryDims, docValues, docDims);
             return docQueryDotProduct / (docVectorMagnitude * queryVectorMagnitude);
         }
     }
 
-    private static float intDotProductSparse(float[] v1Values, int[] v1Dims, float[] v2Values, int[] v2Dims) {
-        float v1v2DotProduct = 0f;
+    private static double intDotProductSparse(float[] v1Values, int[] v1Dims, float[] v2Values, int[] v2Dims) {
+        double v1v2DotProduct = 0;
         int v1Index = 0;
         int v2Index = 0;
         // find common dimensions among vectors v1 and v2 and calculate dotProduct based on common dimensions

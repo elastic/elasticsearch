@@ -240,8 +240,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public ShardSnapshotStatus(String nodeId, State state, String reason) {
             this.nodeId = nodeId;
             this.state = state;
-            this.reason = reason;
             // If the state is failed we have to have a reason for this failure
+            if (state.failed() && reason == null) {
+                reason = "failed";
+            }
+            this.reason = reason;
             assert state.failed() == false || reason != null;
         }
 

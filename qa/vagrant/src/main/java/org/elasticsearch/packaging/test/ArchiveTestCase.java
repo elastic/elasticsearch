@@ -287,15 +287,17 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
 
         if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
             assertTrue(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
-            Platforms.onLinux(() -> {
-                final Result result = sh.run(bin.elasticsearchCertutil + " help");
+            final Platforms.PlatformAction action = () -> {
+                Result result = sh.run(bin.elasticsearchCertutil + " --help");
                 assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
-            });
 
-            Platforms.onWindows(() -> {
-                final Result result = sh.run(bin.elasticsearchCertutil + " help");
-                assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
-            });
+                // Ensure that the exit code from the java command is passed back up through the shell script
+                result = sh.runIgnoreExitCode(bin.elasticsearchCertutil + " invalid-command");
+                assertThat(result.exitCode, is(64));
+                assertThat(result.stdout, containsString("Unknown command [invalid-command]"));
+            };
+            Platforms.onLinux(action);
+            Platforms.onWindows(action);
         } else if (distribution().equals(Distribution.OSS_LINUX) || distribution().equals(Distribution.OSS_WINDOWS)) {
             assertFalse(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
         }

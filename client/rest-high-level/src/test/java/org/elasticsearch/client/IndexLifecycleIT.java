@@ -184,20 +184,15 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
 
         createIndex("squash", Settings.EMPTY);
 
-        ExplainLifecycleRequest req = new ExplainLifecycleRequest("foo-01", "baz-01", "squash");
-        // Occasionally the explain is so fast that the indices have not yet left the "new" phase,
-        // so we assertBusy here in the event that they haven't progressed to the "hot" phase yet.
+        // The injected Unfollow step will run pretty rapidly here, so we need
+        // to wait for it to settle into the "stable" step of waiting to be
+        // ready to roll over
         assertBusy(() -> {
+            ExplainLifecycleRequest req = new ExplainLifecycleRequest("foo-01", "baz-01", "squash");
             ExplainLifecycleResponse response = execute(req, highLevelClient().indexLifecycle()::explainLifecycle,
                 highLevelClient().indexLifecycle()::explainLifecycleAsync);
             Map<String, IndexLifecycleExplainResponse> indexResponses = response.getIndexResponses();
             assertEquals(3, indexResponses.size());
-
-            IndexLifecycleExplainResponse squashResponse = indexResponses.get("squash");
-            assertNotNull(squashResponse);
-            assertFalse(squashResponse.managedByILM());
-            assertEquals("squash", squashResponse.getIndex());
-
             IndexLifecycleExplainResponse fooResponse = indexResponses.get("foo-01");
             assertNotNull(fooResponse);
             assertTrue(fooResponse.managedByILM());
@@ -214,6 +209,11 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             assertEquals("hot", bazResponse.getPhase());
             assertEquals("rollover", bazResponse.getAction());
             assertEquals("check-rollover-ready", bazResponse.getStep());
+            IndexLifecycleExplainResponse squashResponse = indexResponses.get("squash");
+            assertNotNull(squashResponse);
+            assertFalse(squashResponse.managedByILM());
+            assertEquals("squash", squashResponse.getIndex());
+
         });
     }
 

@@ -18,8 +18,9 @@ dependencies {
 }
 
 ext.expansions = { oss ->
+  String classifier = 'linux-x86_64'
   return [
-    'elasticsearch' : oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}.tar.gz",
+    'elasticsearch' : oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}-${classifier}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}-${classifier}.tar.gz",
     'jdkUrl' : 'https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz',
     'jdkVersion' : '11.0.2',
     'license': oss ? 'Apache-2.0' : 'Elastic License',

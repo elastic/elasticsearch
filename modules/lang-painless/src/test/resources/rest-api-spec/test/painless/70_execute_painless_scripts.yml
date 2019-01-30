@@ -1,17 +1,17 @@
 setup:
   - do:
       indices.create:
+        include_type_name: false
         index: my-index
         body:
           mappings:
-            doc:
-              properties:
-                rank:
-                  type: long
-                field:
-                  type: keyword
-                text:
-                  type: text
+            properties:
+              rank:
+                type: long
+              field:
+                type: keyword
+              text:
+                type: text
 
 ---
 "Execute with defaults":

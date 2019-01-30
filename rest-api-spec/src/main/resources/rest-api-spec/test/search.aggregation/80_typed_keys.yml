@@ -2,25 +2,24 @@ setup:
 
   - do:
       indices.create:
+          include_type_name: false
           index: test
           body:
             settings:
               number_of_replicas: 0
             mappings:
-              test:
-                properties:
-                  name:
-                     type: keyword
-                  num:
-                     type: integer
-                  created:
-                    type: date
+              properties:
+                name:
+                   type: keyword
+                num:
+                   type: integer
+                created:
+                  type: date
 
   - do:
      bulk:
         refresh: true
         index: test
-        type: test
         body:
           - '{"index": {}}'
           - '{"name": "one", "num": 1, "created": "2010-03-12T01:07:45"}'

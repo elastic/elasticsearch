@@ -107,7 +107,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                                              listener::onFailure
                                         ));
                                     }, listener::onFailure),
-                        client.admin().cluster()::nodesStats);
+                                client.admin().cluster()::nodesStats);
                     }, listener::onFailure), client.admin().cluster()::nodesInfo);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.DEPRECATION));

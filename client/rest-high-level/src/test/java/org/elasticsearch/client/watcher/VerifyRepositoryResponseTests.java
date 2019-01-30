@@ -20,6 +20,7 @@
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
@@ -52,27 +53,7 @@ public class VerifyRepositoryResponseTests extends ESTestCase {
         return new VerifyRepositoryResponse(nodes);
     }
 
-    private static XContentBuilder toXContent(VerifyRepositoryResponse.NodeView node, XContentBuilder builder) throws IOException {
-        builder.startObject(node.getNodeId());
-        {
-            builder.field("name", node.getName());
-        }
-        builder.endObject();
-        return builder;
-    }
-
     private static XContentBuilder toXContent(VerifyRepositoryResponse response, XContentBuilder builder) throws IOException {
-        builder.startObject();
-        {
-            builder.startObject("nodes");
-            {
-                for (VerifyRepositoryResponse.NodeView node : response.getNodes()) {
-                    toXContent(node, builder);
-                }
-            }
-            builder.endObject();
-        }
-        builder.endObject();
-        return builder;
+        return response.toXContent(builder, ToXContent.EMPTY_PARAMS);
     }
 }

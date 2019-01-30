@@ -27,10 +27,16 @@ POST /_ml/set_upgrade_mode?enabled=false&timeout=10m
 
 ==== Description
 
-Before starting the upgrade process on {ml} related indices, you must halt all
-{dfeeds} and jobs. This API simplifies that task. This API should be used during
-other upgrades to prevent {ml} jobs and {dfeeds} changing nodes as the upgrade
-progresses.
+When upgrading your cluster, in some circumstances you must restart your nodes and
+reindex your {ml} indices. In those circumstances, there must be no {ml} jobs running. 
+You can close the {ml} jobs, do the upgrade, then open all the jobs again. 
+Alternatively, you can use this API to temporarily halt tasks associated 
+with the jobs and {dfeeds} and prevent new jobs from opening. You can also use this 
+API during upgrades that do not require you to reindex your {ml} indices, 
+though stopping jobs is not a requirement in that case.
+
+For more information, see {stack-ref}/upgrading-elastic-stack.html[Upgrading the {stack}].
+
 
 When `enabled=true` this API temporarily halts all job and {dfeed} tasks and
 prohibits new job and {dfeed} tasks from starting.

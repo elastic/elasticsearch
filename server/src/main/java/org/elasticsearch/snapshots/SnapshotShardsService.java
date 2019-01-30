@@ -80,6 +80,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 import static org.elasticsearch.transport.EmptyTransportResponseHandler.INSTANCE_SAME;
 
@@ -552,8 +553,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 }
                 if (changedCount > 0) {
                     logger.trace("changed cluster state triggered by {} snapshot state updates", changedCount);
-                    return ClusterTasksResult.<UpdateIndexShardSnapshotStatusRequest>builder().successes(tasks).build(
-                        ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(entries)).build());
+                    return ClusterTasksResult.<UpdateIndexShardSnapshotStatusRequest>builder().successes(tasks)
+                        .build(ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,
+                            new SnapshotsInProgress(unmodifiableList(entries))).build());
                 }
             }
             return ClusterTasksResult.<UpdateIndexShardSnapshotStatusRequest>builder().successes(tasks).build(currentState);

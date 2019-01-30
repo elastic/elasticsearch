@@ -73,10 +73,16 @@ install_package() {
                 ;;
         esac
     done
+    local rpm_classifier="-x86_64"
+    local deb_classifier="-amd64"
+    if [[ $version == 6* ]]; then
+      rpm_classifier=""
+      deb_classifier=""
+    fi
     if is_rpm; then
-        rpm $rpmCommand $PACKAGE_NAME-$version.rpm
+        rpm $rpmCommand $PACKAGE_NAME-$version$rpm_classifier.rpm
     elif is_dpkg; then
-        run dpkg $dpkgCommand -i $PACKAGE_NAME-$version.deb
+        run dpkg $dpkgCommand -i $PACKAGE_NAME-$version$deb_classifier.deb
         [[ "$status" -eq 0 ]] || {
             echo "dpkg failed:"
             echo "$output"

@@ -48,7 +48,7 @@ The following is a list of the events that can be generated:
 In 6.5.0, there is a new <<audit-log-output, `logfile` audit output>> format.
 This format also brings in a few changes for audit event attributes.
 
-The new format is output to the `<clustername>_audit.log` file.
+The new format is output to the `<clustername>_audit.json` file.
 The audit entries are formatted as flat JSON documents (that is to say, no
 nested objects), one per line. Hence, the attribute names are JSON keys and they
 follow a dotted name syntax. Any attributes that lack a value (`null`) are not

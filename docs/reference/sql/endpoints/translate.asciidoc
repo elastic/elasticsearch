@@ -27,8 +27,7 @@ Which returns:
     "size" : 10,
     "docvalue_fields" : [
         {
-            "field": "page_count",
-            "format": "use_field_mapping"
+            "field": "page_count"
         },
         {
             "field": "release_date",

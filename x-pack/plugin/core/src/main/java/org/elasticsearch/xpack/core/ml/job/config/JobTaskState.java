@@ -29,8 +29,7 @@ public class JobTaskState implements PersistentTaskState {
     private static ParseField ALLOCATION_ID = new ParseField("allocation_id");
 
     private static final ConstructingObjectParser<JobTaskState, Void> PARSER =
-            new ConstructingObjectParser<>(NAME,
-                    args -> new JobTaskState((JobState) args[0], (Long) args[1]));
+            new ConstructingObjectParser<>(NAME, true, args -> new JobTaskState((JobState) args[0], (Long) args[1]));
 
     static {
         PARSER.declareField(constructorArg(), p -> {

@@ -23,20 +23,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.seqno.RetentionLease;
-import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.*;
 
 public class RetentionLeaseIT extends ESIntegTestCase {
 

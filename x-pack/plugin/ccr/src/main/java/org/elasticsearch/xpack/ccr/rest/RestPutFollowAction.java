@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ccr.rest;
 
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -36,7 +37,8 @@ public class RestPutFollowAction extends BaseRestHandler {
 
     static Request createRequest(RestRequest restRequest) throws IOException {
         try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
-            return Request.fromXContent(parser, restRequest.param("index"));
+            ActiveShardCount waitForActiveShards = ActiveShardCount.parseString(restRequest.param("wait_for_active_shards"));
+            return Request.fromXContent(parser, restRequest.param("index"), waitForActiveShards);
         }
     }
 }

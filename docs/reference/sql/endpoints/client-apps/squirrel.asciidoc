@@ -1,13 +1,13 @@
 [role="xpack"]
 [testenv="platinum"]
 [[sql-client-apps-squirrel]]
-=== SQquirelL SQL
+=== SQuirreL SQL
 
 beta[]
 
 [quote, http://squirrel-sql.sourceforge.net/]
 ____
-http://squirrel-sql.sourceforge.net/[SQuirelL SQL] is a graphical, [multi-platform] Java program that will allow you to view the structure of a JDBC compliant database [...].
+http://squirrel-sql.sourceforge.net/[SQuirreL SQL] is a graphical, [multi-platform] Java program that will allow you to view the structure of a JDBC compliant database [...].
 ____
 
 ==== Prerequisites

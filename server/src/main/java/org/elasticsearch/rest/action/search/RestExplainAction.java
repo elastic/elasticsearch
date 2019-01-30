@@ -47,10 +47,12 @@ public class RestExplainAction extends BaseRestHandler {
         "Specifying a type in explain requests is deprecated.";
 
     public RestExplainAction(RestController controller) {
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_explain", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_explain", this);
         controller.registerHandler(GET, "/{index}/_explain/{id}", this);
         controller.registerHandler(POST, "/{index}/_explain/{id}", this);
+
+        // Deprecated typed endpoints.
+        controller.registerHandler(GET, "/{index}/{type}/{id}/_explain", this);
+        controller.registerHandler(POST, "/{index}/{type}/{id}/_explain", this);
     }
 
     @Override

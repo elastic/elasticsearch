@@ -304,7 +304,7 @@ setup:
         index: test
         type: test
         id: 4
-        body: { "date" : "-2524492800000" }
+        body: { "date" : "10000" }
 
   - do:
         index:
@@ -324,16 +324,16 @@ setup:
             age_groups:
               date_range:
                 field: date
-                missing: "-2240496000000"
+                missing: "0"
                 ranges:
                 - key: Generation Y
                   from: '315561600000'
                   to: '946713600000'
                 - key: Generation X
-                  from: "-157737600000"
+                  from: "200000"
                   to: '315561600000'
                 - key: Other
-                  to: "-2208960000000"
+                  to: "200000"
                   
   - match: { hits.total: 5 }
 

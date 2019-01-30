@@ -47,6 +47,8 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_mtermvectors", this);
         controller.registerHandler(GET, "/{index}/_mtermvectors", this);
         controller.registerHandler(POST, "/{index}/_mtermvectors", this);
+
+        // Deprecated typed endpoints.
         controller.registerHandler(GET, "/{index}/{type}/_mtermvectors", this);
         controller.registerHandler(POST, "/{index}/{type}/_mtermvectors", this);
     }

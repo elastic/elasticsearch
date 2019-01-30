@@ -11,6 +11,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 * <<breaking_70_aggregations_changes>>
 * <<breaking_70_cluster_changes>>
+* <<breaking_70_discovery_changes>>
 * <<breaking_70_indices_changes>>
 * <<breaking_70_mappings_changes>>
 * <<breaking_70_search_changes>>
@@ -24,6 +25,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 * <<breaking_70_snapshotstats_changes>>
 * <<breaking_70_restclient_changes>>
 * <<breaking_70_low_level_restclient_changes>>
+* <<breaking_70_logging_changes>>
 
 [float]
 === Indices created before 7.0
@@ -44,6 +46,7 @@ Elasticsearch 6.x in order to be readable by Elasticsearch 7.x.
 include::migrate_7_0/aggregations.asciidoc[]
 include::migrate_7_0/analysis.asciidoc[]
 include::migrate_7_0/cluster.asciidoc[]
+include::migrate_7_0/discovery.asciidoc[]
 include::migrate_7_0/indices.asciidoc[]
 include::migrate_7_0/mappings.asciidoc[]
 include::migrate_7_0/search.asciidoc[]
@@ -56,3 +59,4 @@ include::migrate_7_0/scripting.asciidoc[]
 include::migrate_7_0/snapshotstats.asciidoc[]
 include::migrate_7_0/restclient.asciidoc[]
 include::migrate_7_0/low_level_restclient.asciidoc[]
+include::migrate_7_0/logging.asciidoc[]

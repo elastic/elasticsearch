@@ -5,10 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
@@ -16,12 +13,12 @@ import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 
-public abstract class UnaryExpression extends NamedExpression {
+public abstract class UnaryExpression extends Expression {
 
     private final Expression child;
 
-    protected UnaryExpression(Location location, Expression child) {
-        super(location, null, singletonList(child), null);
+    protected UnaryExpression(Source source, Expression child) {
+        super(source, singletonList(child));
         this.child = child;
     }
 
@@ -44,7 +41,7 @@ public abstract class UnaryExpression extends NamedExpression {
     }
 
     @Override
-    public boolean nullable() {
+    public Nullability nullable() {
         return child.nullable();
     }
 
@@ -56,21 +53,6 @@ public abstract class UnaryExpression extends NamedExpression {
     @Override
     public DataType dataType() {
         return child.dataType();
-    }
-
-    @Override
-    public Attribute toAttribute() {
-        throw new SqlIllegalArgumentException("Not supported yet");
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new SqlIllegalArgumentException("Not supported yet");
-    }
-
-    @Override
-    protected Pipe makePipe() {
-        throw new SqlIllegalArgumentException("Not supported yet");
     }
 
     @Override

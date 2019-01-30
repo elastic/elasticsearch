@@ -357,18 +357,16 @@ Below is an example of how to set up a field for sorting German names in
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "name": {   <1>
-          "type": "text",
-          "fields": {
-            "sort": {  <2>
-              "type": "icu_collation_keyword",
-              "index": false,
-              "language": "de",
-              "country": "DE",
-              "variant": "@collation=phonebook"
-            }
+    "properties": {
+      "name": {   <1>
+        "type": "text",
+        "fields": {
+          "sort": {  <2>
+            "type": "icu_collation_keyword",
+            "index": false,
+            "language": "de",
+            "country": "DE",
+            "variant": "@collation=phonebook"
           }
         }
       }

@@ -21,6 +21,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
+import org.elasticsearch.index.query.IntervalFilterScript;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Query;
@@ -287,6 +288,9 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(ScriptedMetricAggContexts.ReduceScript.class)) {
             ScriptedMetricAggContexts.ReduceScript.Factory factory = mockCompiled::createMetricAggReduceScript;
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(IntervalFilterScript.class)) {
+            IntervalFilterScript.Factory factory = mockCompiled::createIntervalFilterScript;
+            return context.factoryClazz.cast(factory);
         }
         ContextCompiler compiler = contexts.get(context);
         if (compiler != null) {
@@ -352,6 +356,15 @@ public class MockScriptEngine implements ScriptEngine {
 
         public ScriptedMetricAggContexts.ReduceScript createMetricAggReduceScript(Map<String, Object> params, List<Object> states) {
             return new MockMetricAggReduceScript(params, states, script != null ? script : ctx -> 42d);
+        }
+
+        public IntervalFilterScript createIntervalFilterScript() {
+            return new IntervalFilterScript() {
+                @Override
+                public boolean execute(Interval interval) {
+                    return false;
+                }
+            };
         }
     }
 

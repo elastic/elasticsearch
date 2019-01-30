@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[delete-license]]
-=== Delete License API
+=== Delete license API
+++++
+<titleabbrev>Delete license</titleabbrev>
+++++
 
 This API enables you to delete licensing information.
 

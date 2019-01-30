@@ -1,6 +1,9 @@
 [role="xpack"]
 [[watcher-api-stats]]
 === Stats API
+++++
+<titleabbrev>Stats</titleabbrev>
+++++
 
 The `stats` API returns the current {watcher} metrics.
 

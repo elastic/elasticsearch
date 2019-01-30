@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
@@ -36,6 +37,9 @@ public interface ScriptWeaver {
             }
             if (attr instanceof AggregateFunctionAttribute) {
                 return scriptWithAggregate((AggregateFunctionAttribute) attr);
+            }
+            if (attr instanceof GroupingFunctionAttribute) {
+                return scriptWithGrouping((GroupingFunctionAttribute) attr);
             }
             if (attr instanceof FieldAttribute) {
                 return scriptWithField((FieldAttribute) attr);
@@ -75,7 +79,7 @@ public interface ScriptWeaver {
 
     default ScriptTemplate scriptWithAggregate(AggregateFunctionAttribute aggregate) {
         String template = "{}";
-        if (aggregate.dataType() == DataType.DATE) {
+        if (aggregate.dataType().isDateBased()) {
             template = "{sql}.asDateTime({})";
         }
         return new ScriptTemplate(processScript(template),
@@ -83,6 +87,16 @@ public interface ScriptWeaver {
                 dataType());
     }
 
+    default ScriptTemplate scriptWithGrouping(GroupingFunctionAttribute grouping) {
+        String template = "{}";
+        if (grouping.dataType().isDateBased()) {
+            template = "{sql}.asDateTime({})";
+        }
+        return new ScriptTemplate(processScript(template),
+                paramsBuilder().grouping(grouping).build(),
+                dataType());
+    }
+    
     default ScriptTemplate scriptWithField(FieldAttribute field) {
         return new ScriptTemplate(processScript("doc[{}].value"),
                 paramsBuilder().variable(field.name()).build(),

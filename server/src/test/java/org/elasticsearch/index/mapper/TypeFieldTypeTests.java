@@ -18,11 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field.Store;
-import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -35,8 +30,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.VersionUtils;
 import org.mockito.Mockito;
-
-import java.io.IOException;
 
 public class TypeFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -81,36 +74,5 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
         Mockito.when(mapperService.documentMapper()).thenReturn(mapper);
         query = ft.termQuery("my_type", context);
         assertEquals(new MatchNoDocsQuery(), query);
-        assertWarnings(TypeFieldMapper.TypeFieldType.TYPES_DEPRECATION_MESSAGE);
-    }
-
-    public void testExistsQuery() {
-        QueryShardContext context = Mockito.mock(QueryShardContext.class);
-        TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();
-        ft.setName(TypeFieldMapper.NAME);
-        ft.existsQuery(context);
-        assertWarnings(TypeFieldMapper.TypeFieldType.TYPES_DEPRECATION_MESSAGE);
-    }
-
-    public void testRangeQuery() {
-        QueryShardContext context = Mockito.mock(QueryShardContext.class);
-        MapperService mapperService = Mockito.mock(MapperService.class);
-        DocumentMapper mapper = Mockito.mock(DocumentMapper.class);
-        Mockito.when(context.getMapperService()).thenReturn(mapperService);
-        Mockito.when(mapperService.documentMapper()).thenReturn(mapper);
-        Mockito.when(mapper.type()).thenReturn("my_type");
-
-        TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();
-        ft.setName(TypeFieldMapper.NAME);
-        ft.rangeQuery("type1", "type2", true, true, context);
-        assertWarnings(TypeFieldMapper.TypeFieldType.TYPES_DEPRECATION_MESSAGE);
-    }
-
-    static DirectoryReader openReaderWithNewType(String type, IndexWriter writer) throws IOException {
-        Document doc = new Document();
-        StringField typeField = new StringField(TypeFieldMapper.NAME, type, Store.NO);
-        doc.add(typeField);
-        writer.addDocument(doc);
-        return DirectoryReader.open(writer);
     }
 }

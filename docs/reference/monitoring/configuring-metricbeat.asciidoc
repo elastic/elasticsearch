@@ -6,8 +6,6 @@
 <titleabbrev>Collecting monitoring data with {metricbeat}</titleabbrev>
 ++++
 
-beta[]
-
 In 6.5 and later, you can use {metricbeat} to collect data about {es} 
 and ship it to the monitoring cluster, rather than routing it through exporters 
 as described in <<collecting-monitoring-data>>. 
@@ -163,6 +161,10 @@ output.elasticsearch:
 ----------------------------------
 <1> In this example, the data is stored on a monitoring cluster with nodes 
 `es-mon-1` and `es-mon-2`. 
+
+IMPORTANT: The {es} {monitor-features} use ingest pipelines, therefore the
+cluster that stores the monitoring data must have at least one 
+<<ingest,ingest node>>. 
 
 For more information about these configuration options, see 
 {metricbeat-ref}/elasticsearch-output.html[Configure the {es} output].

@@ -83,5 +83,5 @@ public class GroupShardsIteratorTests extends ESTestCase {
             shardRouting = ShardRoutingHelper.moveToStarted(shardRouting);
         }
         return shardRouting;
-    };
+    }
 }

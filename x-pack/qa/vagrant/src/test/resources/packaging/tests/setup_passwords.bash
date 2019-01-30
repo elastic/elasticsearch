@@ -62,7 +62,7 @@ SETUP_AUTO
         false
     }
 
-    curl -s -XGET localhost:9200 | grep "missing authentication token for REST"
+    curl -s -XGET localhost:9200 | grep "missing authentication credentials for REST"
 
     # Disable bash history expansion because passwords can contain "!"
     set +H

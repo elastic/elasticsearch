@@ -26,7 +26,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -49,6 +48,10 @@ public class RestGetAction extends BaseRestHandler {
         "document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
 
     public RestGetAction(final RestController controller) {
+        controller.registerHandler(GET, "/{index}/_doc/{id}", this);
+        controller.registerHandler(HEAD, "/{index}/_doc/{id}", this);
+
+        // Deprecated typed endpoints.
         controller.registerHandler(GET, "/{index}/{type}/{id}", this);
         controller.registerHandler(HEAD, "/{index}/{type}/{id}", this);
     }
@@ -60,12 +63,14 @@ public class RestGetAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        String type = request.param("type");
-        if (!type.equals(MapperService.SINGLE_MAPPING_NAME)) {
+        GetRequest getRequest;
+        if (request.hasParam("type")) {
             deprecationLogger.deprecatedAndMaybeLog("get_with_types", TYPES_DEPRECATION_MESSAGE);
+            getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
+        } else {
+            getRequest = new GetRequest(request.param("index"), request.param("id"));
         }
 
-        final GetRequest getRequest = new GetRequest(request.param("index"), type, request.param("id"));
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
         getRequest.routing(request.param("routing"));
         getRequest.preference(request.param("preference"));

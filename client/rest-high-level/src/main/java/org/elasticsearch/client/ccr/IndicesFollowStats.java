@@ -41,6 +41,7 @@ public final class IndicesFollowStats {
     private static final ConstructingObjectParser<Tuple<String, List<ShardFollowStats>>, Void> ENTRY_PARSER =
         new ConstructingObjectParser<>(
             "entry",
+            true,
             args -> {
                 String index = (String) args[0];
                 @SuppressWarnings("unchecked")
@@ -54,7 +55,9 @@ public final class IndicesFollowStats {
         ENTRY_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), ShardFollowStats.PARSER, SHARDS_FIELD);
     }
 
-    static final ConstructingObjectParser<IndicesFollowStats, Void> PARSER = new ConstructingObjectParser<>("indices",
+    static final ConstructingObjectParser<IndicesFollowStats, Void> PARSER = new ConstructingObjectParser<>(
+        "indices",
+        true,
         args -> {
             @SuppressWarnings("unchecked")
             List<Tuple<String, List<ShardFollowStats>>> entries = (List<Tuple<String, List<ShardFollowStats>>>) args[0];
@@ -116,6 +119,7 @@ public final class IndicesFollowStats {
         static final ConstructingObjectParser<ShardFollowStats, Void> PARSER =
             new ConstructingObjectParser<>(
                 "shard-follow-stats",
+                true,
                 args -> new ShardFollowStats(
                     (String) args[0],
                     (String) args[1],
@@ -152,6 +156,7 @@ public final class IndicesFollowStats {
         static final ConstructingObjectParser<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>, Void> READ_EXCEPTIONS_ENTRY_PARSER =
             new ConstructingObjectParser<>(
                 "shard-follow-stats-read-exceptions-entry",
+                true,
                 args -> new AbstractMap.SimpleEntry<>((long) args[0], Tuple.tuple((Integer) args[1], (ElasticsearchException)args[2])));
 
         static {

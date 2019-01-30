@@ -6,7 +6,8 @@
 package org.elasticsearch.xpack.sql.expression.predicate.fulltext;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.expression.Nullability;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
@@ -30,12 +31,12 @@ public abstract class FullTextPredicate extends Expression {
     // common properties
     private final String analyzer;
 
-    FullTextPredicate(Location location, String query, String options, List<Expression> children) {
-        super(location, children);
+    FullTextPredicate(Source source, String query, String options, List<Expression> children) {
+        super(source, children);
         this.query = query;
         this.options = options;
         // inferred
-        this.optionMap = FullTextUtils.parseSettings(options, location);
+        this.optionMap = FullTextUtils.parseSettings(options, source);
         this.analyzer = optionMap.get("analyzer");
     }
 
@@ -56,8 +57,8 @@ public abstract class FullTextPredicate extends Expression {
     }
 
     @Override
-    public boolean nullable() {
-        return false;
+    public Nullability nullable() {
+        return Nullability.FALSE;
     }
 
     @Override

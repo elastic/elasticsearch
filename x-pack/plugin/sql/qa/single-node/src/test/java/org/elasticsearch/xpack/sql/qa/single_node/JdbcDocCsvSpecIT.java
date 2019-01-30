@@ -74,7 +74,7 @@ public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
 
     @Override
     protected boolean logEsResultSet() {
-        return true;
+        return false;
     }
 
     @Override

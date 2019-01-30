@@ -80,7 +80,8 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         for (int i = 0; i < numDocs; i++) {
             // Index doc but not advance local checkpoint.
             shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                SourceToParse.source(shard.shardId().getIndexName(), "_doc", Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
+                new SourceToParse(shard.shardId().getIndexName(), "_doc", Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
+                SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
                 randomBoolean() ? IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP : randomNonNegativeLong(), true);
         }
 
@@ -149,8 +150,8 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         for (int i = 0; i < numDocs; i++) {
             // Index doc but not advance local checkpoint.
             shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                SourceToParse.source(shard.shardId().getIndexName(), "_doc", Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
-                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+                new SourceToParse(shard.shardId().getIndexName(), "_doc", Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
+                SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         }
 
         String allocationId = shard.routingEntry().allocationId().getId();

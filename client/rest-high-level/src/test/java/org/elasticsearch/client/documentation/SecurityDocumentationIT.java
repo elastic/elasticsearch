@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.documentation;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -43,7 +44,6 @@ import org.elasticsearch.client.security.DeleteRoleResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
-import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.ExpressionRoleMapping;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
@@ -84,7 +84,6 @@ import org.hamcrest.Matchers;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -518,18 +517,18 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             //tag::enable-user-execute
             EnableUserRequest request = new EnableUserRequest("enable_user", RefreshPolicy.NONE);
-            EmptyResponse response = client.security().enableUser(request, RequestOptions.DEFAULT);
+            boolean response = client.security().enableUser(RequestOptions.DEFAULT, request);
             //end::enable-user-execute
 
-            assertNotNull(response);
+            assertTrue(response);
         }
 
         {
             //tag::enable-user-execute-listener
             EnableUserRequest request = new EnableUserRequest("enable_user", RefreshPolicy.NONE);
-            ActionListener<EmptyResponse> listener = new ActionListener<EmptyResponse>() {
+            ActionListener<Boolean> listener = new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(EmptyResponse setUserEnabledResponse) {
+                public void onResponse(Boolean response) {
                     // <1>
                 }
 
@@ -545,7 +544,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::enable-user-execute-async
-            client.security().enableUserAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.security().enableUserAsync(RequestOptions.DEFAULT, request, listener); // <1>
             // end::enable-user-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -562,18 +561,18 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             //tag::disable-user-execute
             DisableUserRequest request = new DisableUserRequest("disable_user", RefreshPolicy.NONE);
-            EmptyResponse response = client.security().disableUser(request, RequestOptions.DEFAULT);
+            boolean response = client.security().disableUser(RequestOptions.DEFAULT, request);
             //end::disable-user-execute
 
-            assertNotNull(response);
+            assertTrue(response);
         }
 
         {
             //tag::disable-user-execute-listener
             DisableUserRequest request = new DisableUserRequest("disable_user", RefreshPolicy.NONE);
-            ActionListener<EmptyResponse> listener = new ActionListener<EmptyResponse>() {
+            ActionListener<Boolean> listener = new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(EmptyResponse setUserEnabledResponse) {
+                public void onResponse(Boolean response) {
                     // <1>
                 }
 
@@ -589,7 +588,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::disable-user-execute-async
-            client.security().disableUserAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.security().disableUserAsync(RequestOptions.DEFAULT, request, listener); // <1>
             // end::disable-user-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -639,8 +638,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             List<Role> roles = response.getRoles();
             assertNotNull(response);
-            // 21 system roles plus the three we created
-            assertThat(roles.size(), equalTo(24));
+            // 24 system roles plus the three we created
+            assertThat(roles.size(), equalTo(27));
         }
 
         {
@@ -741,8 +740,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             HasPrivilegesRequest request = new HasPrivilegesRequest(
                 Sets.newHashSet("monitor", "manage"),
                 Sets.newHashSet(
-                    IndicesPrivileges.builder().indices("logstash-2018-10-05").privileges("read", "write").build(),
-                    IndicesPrivileges.builder().indices("logstash-2018-*").privileges("read").build()
+                    IndicesPrivileges.builder().indices("logstash-2018-10-05").privileges("read", "write")
+                        .allowRestrictedIndices(false).build(),
+                    IndicesPrivileges.builder().indices("logstash-2018-*").privileges("read")
+                        .allowRestrictedIndices(true).build()
                 ),
                 null
             );
@@ -1037,17 +1038,17 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             //tag::change-password-execute
             ChangePasswordRequest request = new ChangePasswordRequest("change_password_user", newPassword, RefreshPolicy.NONE);
-            EmptyResponse response = client.security().changePassword(request, RequestOptions.DEFAULT);
+            boolean response = client.security().changePassword(RequestOptions.DEFAULT, request);
             //end::change-password-execute
 
-            assertNotNull(response);
+            assertTrue(response);
         }
         {
             //tag::change-password-execute-listener
             ChangePasswordRequest request = new ChangePasswordRequest("change_password_user", password, RefreshPolicy.NONE);
-            ActionListener<EmptyResponse> listener = new ActionListener<EmptyResponse>() {
+            ActionListener<Boolean> listener = new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(EmptyResponse response) {
+                public void onResponse(Boolean response) {
                     // <1>
                 }
 
@@ -1063,7 +1064,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             //tag::change-password-execute-async
-            client.security().changePasswordAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.security().changePasswordAsync(RequestOptions.DEFAULT, request, listener); // <1>
             //end::change-password-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -1323,19 +1324,52 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         String accessToken;
         String refreshToken;
         {
-            // Setup user
+            // Setup users
             final char[] password = "password".toCharArray();
-            User invalidate_token_user = new User("invalidate_token", Collections.singletonList("kibana_user"));
-            PutUserRequest putUserRequest = new PutUserRequest(invalidate_token_user, password, true, RefreshPolicy.IMMEDIATE);
+            User user = new User("user", Collections.singletonList("kibana_user"));
+            PutUserRequest putUserRequest = new PutUserRequest(user, password, true, RefreshPolicy.IMMEDIATE);
             PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
             assertTrue(putUserResponse.isCreated());
 
+            User this_user = new User("this_user", Collections.singletonList("kibana_user"));
+            PutUserRequest putThisUserRequest = new PutUserRequest(this_user, password, true, RefreshPolicy.IMMEDIATE);
+            PutUserResponse putThisUserResponse = client.security().putUser(putThisUserRequest, RequestOptions.DEFAULT);
+            assertTrue(putThisUserResponse.isCreated());
+
+            User that_user = new User("that_user", Collections.singletonList("kibana_user"));
+            PutUserRequest putThatUserRequest = new PutUserRequest(that_user, password, true, RefreshPolicy.IMMEDIATE);
+            PutUserResponse putThatUserResponse = client.security().putUser(putThatUserRequest, RequestOptions.DEFAULT);
+            assertTrue(putThatUserResponse.isCreated());
+
+            User other_user = new User("other_user", Collections.singletonList("kibana_user"));
+            PutUserRequest putOtherUserRequest = new PutUserRequest(other_user, password, true, RefreshPolicy.IMMEDIATE);
+            PutUserResponse putOtherUserResponse = client.security().putUser(putOtherUserRequest, RequestOptions.DEFAULT);
+            assertTrue(putOtherUserResponse.isCreated());
+
+            User extra_user = new User("extra_user", Collections.singletonList("kibana_user"));
+            PutUserRequest putExtraUserRequest = new PutUserRequest(extra_user, password, true, RefreshPolicy.IMMEDIATE);
+            PutUserResponse putExtraUserResponse = client.security().putUser(putExtraUserRequest, RequestOptions.DEFAULT);
+            assertTrue(putExtraUserResponse.isCreated());
+
             // Create tokens
-            final CreateTokenRequest createTokenRequest = CreateTokenRequest.passwordGrant("invalidate_token", password);
+            final CreateTokenRequest createTokenRequest = CreateTokenRequest.passwordGrant("user", password);
             final CreateTokenResponse tokenResponse = client.security().createToken(createTokenRequest, RequestOptions.DEFAULT);
             accessToken = tokenResponse.getAccessToken();
             refreshToken = tokenResponse.getRefreshToken();
+            final CreateTokenRequest createThisTokenRequest = CreateTokenRequest.passwordGrant("this_user", password);
+            final CreateTokenResponse thisTokenResponse = client.security().createToken(createThisTokenRequest, RequestOptions.DEFAULT);
+            assertNotNull(thisTokenResponse);
+            final CreateTokenRequest createThatTokenRequest = CreateTokenRequest.passwordGrant("that_user", password);
+            final CreateTokenResponse thatTokenResponse = client.security().createToken(createThatTokenRequest, RequestOptions.DEFAULT);
+            assertNotNull(thatTokenResponse);
+            final CreateTokenRequest createOtherTokenRequest = CreateTokenRequest.passwordGrant("other_user", password);
+            final CreateTokenResponse otherTokenResponse = client.security().createToken(createOtherTokenRequest, RequestOptions.DEFAULT);
+            assertNotNull(otherTokenResponse);
+            final CreateTokenRequest createExtraTokenRequest = CreateTokenRequest.passwordGrant("extra_user", password);
+            final CreateTokenResponse extraTokenResponse = client.security().createToken(createExtraTokenRequest, RequestOptions.DEFAULT);
+            assertNotNull(extraTokenResponse);
         }
+
         {
             // tag::invalidate-access-token-request
             InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.accessToken(accessToken);
@@ -1347,15 +1381,54 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::invalidate-token-execute
 
             // tag::invalidate-token-response
-            boolean isCreated = invalidateTokenResponse.isCreated();
+            final List<ElasticsearchException> errors = invalidateTokenResponse.getErrors();
+            final int invalidatedTokens = invalidateTokenResponse.getInvalidatedTokens();
+            final int previouslyInvalidatedTokens = invalidateTokenResponse.getPreviouslyInvalidatedTokens();
             // end::invalidate-token-response
-            assertTrue(isCreated);
+            assertTrue(errors.isEmpty());
+            assertThat(invalidatedTokens, equalTo(1));
+            assertThat(previouslyInvalidatedTokens, equalTo(0));
         }
 
         {
             // tag::invalidate-refresh-token-request
             InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.refreshToken(refreshToken);
             // end::invalidate-refresh-token-request
+            InvalidateTokenResponse invalidateTokenResponse =
+                client.security().invalidateToken(invalidateTokenRequest, RequestOptions.DEFAULT);
+            assertTrue(invalidateTokenResponse.getErrors().isEmpty());
+            assertThat(invalidateTokenResponse.getInvalidatedTokens(), equalTo(1));
+            assertThat(invalidateTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        }
+
+        {
+            // tag::invalidate-user-tokens-request
+            InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.userTokens("other_user");
+            // end::invalidate-user-tokens-request
+            InvalidateTokenResponse invalidateTokenResponse =
+                client.security().invalidateToken(invalidateTokenRequest, RequestOptions.DEFAULT);
+            assertTrue(invalidateTokenResponse.getErrors().isEmpty());
+            // We have one refresh and one access token for that user
+            assertThat(invalidateTokenResponse.getInvalidatedTokens(), equalTo(2));
+            assertThat(invalidateTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        }
+
+        {
+            // tag::invalidate-user-realm-tokens-request
+            InvalidateTokenRequest invalidateTokenRequest = new InvalidateTokenRequest(null, null, "default_native", "extra_user");
+            // end::invalidate-user-realm-tokens-request
+            InvalidateTokenResponse invalidateTokenResponse =
+                client.security().invalidateToken(invalidateTokenRequest, RequestOptions.DEFAULT);
+            assertTrue(invalidateTokenResponse.getErrors().isEmpty());
+            // We have one refresh and one access token for that user in this realm
+            assertThat(invalidateTokenResponse.getInvalidatedTokens(), equalTo(2));
+            assertThat(invalidateTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        }
+
+        {
+            // tag::invalidate-realm-tokens-request
+            InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.realmTokens("default_native");
+            // end::invalidate-realm-tokens-request
 
             ActionListener<InvalidateTokenResponse> listener;
             //tag::invalidate-token-execute-listener
@@ -1385,8 +1458,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             final InvalidateTokenResponse response = future.get(30, TimeUnit.SECONDS);
             assertNotNull(response);
-            assertTrue(response.isCreated());// technically, this should be false, but the API is broken
-            // See https://github.com/elastic/elasticsearch/issues/35115
+            assertTrue(response.getErrors().isEmpty());
+            //We still have 4 tokens ( 2 access_tokens and 2 refresh_tokens ) for the default_native realm
+            assertThat(response.getInvalidatedTokens(), equalTo(4));
+            assertThat(response.getPreviouslyInvalidatedTokens(), equalTo(0));
         }
     }
 

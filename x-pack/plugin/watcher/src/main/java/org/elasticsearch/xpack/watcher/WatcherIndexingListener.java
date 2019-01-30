@@ -194,7 +194,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
         // if there is no master node configured in the current state, this node should not try to trigger anything, but consider itself
         // inactive. the same applies, if there is a cluster block that does not allow writes
         if (Strings.isNullOrEmpty(event.state().nodes().getMasterNodeId()) ||
-                event.state().getBlocks().hasGlobalBlock(ClusterBlockLevel.WRITE)) {
+                event.state().getBlocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE)) {
             configuration = INACTIVE;
             return;
         }

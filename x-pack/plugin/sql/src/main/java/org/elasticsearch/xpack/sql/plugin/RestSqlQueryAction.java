@@ -37,7 +37,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSqlQueryAction.class));
 
-    RestSqlQueryAction(RestController controller) {
+    public RestSqlQueryAction(RestController controller) {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
                 GET, Protocol.SQL_QUERY_REST_ENDPOINT, this,
@@ -55,7 +55,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             sqlRequest = SqlQueryRequest.fromXContent(parser);
         }
-        
+            
         /*
          * Since we support {@link TextFormat} <strong>and</strong>
          * {@link XContent} outputs we can't use {@link RestToXContentListener}

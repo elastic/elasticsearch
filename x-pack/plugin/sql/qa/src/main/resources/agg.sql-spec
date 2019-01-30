@@ -18,13 +18,13 @@ SELECT gender g FROM "test_emp" WHERE emp_no < 10020 GROUP BY g ORDER BY gender;
 groupByOnTextOnAliasOrderDesc
 SELECT gender g FROM "test_emp" WHERE emp_no < 10020 GROUP BY g ORDER BY g DESC;
 
-groupByOnDate
+groupByOnDateTime
 SELECT birth_date b FROM "test_emp" GROUP BY birth_date ORDER BY birth_date DESC;
-groupByOnDateWithWhereClause
+groupByOnDateTimeWithWhereClause
 SELECT birth_date b FROM "test_emp" WHERE emp_no < 10020 GROUP BY birth_date ORDER BY birth_date DESC;
-groupByOnDateWithWhereAndLimit
+groupByOnDateTimeWithWhereAndLimit
 SELECT birth_date b FROM "test_emp" WHERE emp_no < 10020 GROUP BY birth_date ORDER BY birth_date DESC LIMIT 1;
-groupByOnDateOnAlias
+groupByOnDateTimeOnAlias
 SELECT birth_date b FROM "test_emp" WHERE emp_no < 10020 GROUP BY b ORDER BY birth_date DESC;
 
 groupByOnNumber
@@ -62,13 +62,13 @@ SELECT gender g, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY g, l 
 groupByMultiOnTextOnAliasOrderDesc
 SELECT gender g, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY g, l ORDER BY g, l ASC;
 
-groupByMultiOnDate
+groupByMultiOnDateTime
 SELECT birth_date b, languages l FROM "test_emp" GROUP BY birth_date, languages ORDER BY birth_date DESC, languages;
-groupByMultiOnDateWithWhereClause
+groupByMultiOnDateTimeWithWhereClause
 SELECT birth_date b, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY birth_date, languages ORDER BY birth_date DESC, languages;
-groupByMultiOnDateWithWhereAndLimit
+groupByMultiOnDateTimeWithWhereAndLimit
 SELECT birth_date b, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY birth_date, languages ORDER BY birth_date DESC, languages LIMIT 1;
-groupByMultiOnDateOnAlias
+groupByMultiOnDateTimeOnAlias
 SELECT birth_date b, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY b, l ORDER BY birth_date DESC, languages;
 
 groupByMultiAddScalar
@@ -110,6 +110,8 @@ aggCountWithAlias
 SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g ORDER BY gender;
 countDistinct
 SELECT COUNT(DISTINCT hire_date) AS count FROM test_emp;
+countDistinctAndCountSimpleWithAlias
+SELECT COUNT(*) cnt, COUNT(DISTINCT first_name) as names, gender FROM test_emp GROUP BY gender ORDER BY gender;
 
 aggCountAliasAndWhereClauseMultiGroupBy
 SELECT gender g, languages l, COUNT(*) c FROM "test_emp" WHERE emp_no < 10020 GROUP BY gender, languages ORDER BY gender, languages;
@@ -121,6 +123,8 @@ aggCountWithAliasMultiGroupBy
 SELECT gender g, languages l, COUNT(*) c FROM "test_emp" GROUP BY g, l ORDER BY gender, languages;
 aggCountWithAliasMultiGroupByDifferentOrder
 SELECT gender g, languages l, COUNT(*) c FROM "test_emp" GROUP BY g, l ORDER BY languages ASC, gender DESC;
+aggCountDistinctWithAliasAndGroupBy
+SELECT COUNT(*) cnt, COUNT(DISTINCT first_name) as names, gender FROM test_emp GROUP BY gender ORDER BY gender;
 
 
 
@@ -161,12 +165,20 @@ aggCountStarAndHavingBetween
 SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING c BETWEEN 10 AND 70 ORDER BY gender ASC;
 aggCountStarAndHavingBetweenWithLimit
 SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING c BETWEEN 10 AND 70 ORDER BY gender LIMIT 1;
+aggCountDistinctAndHavingBetweenWithLimit
+SELECT gender g, COUNT(DISTINCT first_name) c FROM "test_emp" GROUP BY g HAVING c BETWEEN 40 AND 50 ORDER BY gender LIMIT 1;
 aggCountOnColumnAndHavingOnAliasAndFunction
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND COUNT(gender) < 70 ORDER BY gender;
 aggCountOnColumnAndHavingOnAliasAndFunctionWildcard -> COUNT(*/1) vs COUNT(gender)
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND COUNT(*) < 70 ORDER BY gender;
 aggCountOnColumnAndHavingOnAliasAndFunctionConstant
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND COUNT(1) < 70 ORDER BY gender;
+aggDistinctCountWithAliasAndHaving
+SELECT COUNT(*) c, COUNT(DISTINCT first_name) AS names, gender FROM test_emp GROUP BY gender HAVING names > 40 ORDER BY gender;
+aggDistinctCountWithFunctionWildcardAndHaving
+SELECT COUNT(*) c, COUNT(DISTINCT first_name) AS names, gender FROM test_emp GROUP BY gender HAVING names < 50 AND c < 50 ORDER BY gender;
+aggDistinctCountWithFunctionWildcardAndFunctionConstantAndHaving
+SELECT COUNT(*) c, COUNT(DISTINCT first_name) AS names, COUNT(123) AS c123, gender FROM test_emp GROUP BY gender HAVING names < 50 AND c < 50 AND c123 < 50 ORDER BY gender;
 
 aggCountAndHavingMultiGroupBy
 SELECT gender g, languages l, COUNT(*) c FROM "test_emp" GROUP BY g, l HAVING COUNT(*) > 10 ORDER BY gender, l;
@@ -195,7 +207,21 @@ aggCountOnColumnAndHavingOnAliasAndFunctionWildcardMultiGroupBy -> COUNT(*/1) vs
 SELECT gender g, languages l, COUNT(gender) c FROM "test_emp" GROUP BY g, l HAVING c > 10 AND COUNT(*) < 70 ORDER BY gender, languages;
 aggCountOnColumnAndHavingOnAliasAndFunctionConstantMultiGroupBy
 SELECT gender g, languages l, COUNT(gender) c FROM "test_emp" GROUP BY g, l HAVING c > 10 AND COUNT(1) < 70 ORDER BY gender, languages;
+aggCountOnDistinctColumnAndHavingOnAliasAndFunctionConstantMultiGroupBy
+SELECT gender g, languages l, COUNT(DISTINCT last_name) c FROM "test_emp" GROUP BY g, l HAVING c > 5 AND COUNT(1) < 70 ORDER BY gender, languages;
 
+aggCount
+SELECT COUNT(last_name) c FROM test_emp;
+aggCountAndCountDistinct
+SELECT COUNT(last_name) c, COUNT(DISTINCT last_name) distinct_names FROM test_emp;
+aggCountAndCountDistinctWithHaving
+SELECT COUNT(last_name) c, COUNT(DISTINCT last_name) distinct_names, gender FROM test_emp GROUP BY gender HAVING distinct_names > 10 ORDER BY gender;
+aggCountMultiComparisonWithHaving
+SELECT COUNT(last_name) ln, COUNT(distinct last_name) dln, COUNT(first_name) fn, COUNT(distinct first_name) dfn, COUNT(*) ccc FROM test_emp GROUP BY gender HAVING dln>5 AND ln>32 AND dfn>1 AND fn>1 AND ccc>5 ORDER BY gender DESC;
+aggCountMultiComparisonWithHavingAndNullGrouping
+SELECT gender, COUNT(last_name) ln, COUNT(distinct last_name) dln, COUNT(first_name) fn, COUNT(distinct first_name) dfn, COUNT(*) ccc FROM test_emp GROUP BY gender HAVING dln>1 AND ln>1 AND dfn>1 AND fn>1 AND ccc>1 ORDER BY gender DESC;
+aggCountWithHavingAndWhere
+SELECT COUNT(last_name) c, COUNT(DISTINCT last_name) distinct_names, gender FROM test_emp WHERE salary > 65000 GROUP BY gender HAVING distinct_names > 10 ORDER BY gender;
 
 // MIN
 aggMinImplicit
@@ -222,7 +248,7 @@ aggMinWithCastAndFilter
 SELECT gender g, CAST(MIN(emp_no) AS SMALLINT) m, COUNT(1) c FROM "test_emp" WHERE emp_no < 10020 GROUP BY gender ORDER BY gender;
 aggMinWithAlias
 SELECT gender g, MIN(emp_no) m FROM "test_emp" GROUP BY g ORDER BY gender;
-aggMinOnDate
+aggMinOnDateTime
 SELECT gender, MIN(birth_date) m FROM "test_emp" GROUP BY gender ORDER BY gender;
 
 // Conditional MIN
@@ -278,8 +304,10 @@ aggMaxAndCountWithFilterAndLimit
 SELECT gender g, MAX(emp_no) m, COUNT(1) c FROM "test_emp" WHERE emp_no > 10000 GROUP BY gender ORDER BY gender LIMIT 1;
 aggMaxWithAlias
 SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g ORDER BY gender;
-aggMaxOnDate
+aggMaxOnDateTime
 SELECT gender, MAX(birth_date) m FROM "test_emp" GROUP BY gender ORDER BY gender;
+aggAvgAndMaxWithLikeFilter
+SELECT CAST(AVG(salary) AS LONG) AS avg, CAST(SUM(salary) AS LONG) AS s FROM "test_emp" WHERE first_name LIKE 'G%';
 
 // Conditional MAX
 aggMaxWithHaving
@@ -454,9 +482,9 @@ selectCountWhereIsNull
 SELECT COUNT(*) count FROM test_emp WHERE first_name IS NULL;
 selectLanguagesCountWithNullsAndGroupByLanguage
 SELECT languages l, COUNT(*) c FROM test_emp GROUP BY languages ORDER BY languages;
-selectHireDateGroupByHireDate
+selectHireDateTimeGroupByHireDateTime
 SELECT hire_date HD, COUNT(*) c FROM test_emp GROUP BY hire_date ORDER BY hire_date DESC;
-selectHireDateGroupByHireDate
+selectHireDateTimeGroupByHireDateTime
 SELECT hire_date HD, COUNT(*) c FROM test_emp GROUP BY hire_date ORDER BY hire_date DESC;
 selectSalaryGroupBySalary
 SELECT salary, COUNT(*) c FROM test_emp GROUP BY salary ORDER BY salary DESC;

@@ -28,24 +28,27 @@ DESCRIBE test_alias;
 
        column       |     type      |    mapping    
 --------------------+---------------+---------------
-birth_date          |TIMESTAMP      |DATE           
-dep                 |STRUCT         |NESTED         
-dep.dep_id          |VARCHAR        |KEYWORD        
-dep.dep_name        |VARCHAR        |TEXT           
-dep.dep_name.keyword|VARCHAR        |KEYWORD        
-dep.from_date       |TIMESTAMP      |DATE           
-dep.to_date         |TIMESTAMP      |DATE           
-emp_no              |INTEGER        |INTEGER        
-extra_gender        |VARCHAR        |KEYWORD        
-extra_no            |INTEGER        |INTEGER        
-first_name          |VARCHAR        |TEXT           
-first_name.keyword  |VARCHAR        |KEYWORD        
-gender              |VARCHAR        |KEYWORD        
-hire_date           |TIMESTAMP      |DATE           
-languages           |TINYINT        |BYTE           
-last_name           |VARCHAR        |TEXT           
-last_name.keyword   |VARCHAR        |KEYWORD        
-salary              |INTEGER        |INTEGER                   
+birth_date          |TIMESTAMP      |datetime
+dep                 |STRUCT         |nested
+dep.dep_id          |VARCHAR        |keyword
+dep.dep_name        |VARCHAR        |text
+dep.dep_name.keyword|VARCHAR        |keyword
+dep.from_date       |TIMESTAMP      |datetime
+dep.to_date         |TIMESTAMP      |datetime
+emp_no              |INTEGER        |integer
+extra               |STRUCT         |object
+extra.info          |STRUCT         |object
+extra.info.gender   |VARCHAR        |keyword
+extra_gender        |VARCHAR        |keyword
+extra_no            |INTEGER        |integer
+first_name          |VARCHAR        |text
+first_name.keyword  |VARCHAR        |keyword
+gender              |VARCHAR        |keyword
+hire_date           |TIMESTAMP      |datetime
+languages           |TINYINT        |byte
+last_name           |VARCHAR        |text
+last_name.keyword   |VARCHAR        |keyword
+salary              |INTEGER        |integer
 ;
 
 describePattern
@@ -53,24 +56,27 @@ DESCRIBE "test_*";
 
        column       |     type      |    mapping    
 --------------------+---------------+---------------
-birth_date          |TIMESTAMP      |DATE           
-dep                 |STRUCT         |NESTED         
-dep.dep_id          |VARCHAR        |KEYWORD        
-dep.dep_name        |VARCHAR        |TEXT           
-dep.dep_name.keyword|VARCHAR        |KEYWORD        
-dep.from_date       |TIMESTAMP      |DATE           
-dep.to_date         |TIMESTAMP      |DATE           
-emp_no              |INTEGER        |INTEGER        
-extra_gender        |VARCHAR        |KEYWORD        
-extra_no            |INTEGER        |INTEGER        
-first_name          |VARCHAR        |TEXT           
-first_name.keyword  |VARCHAR        |KEYWORD        
-gender              |VARCHAR        |KEYWORD        
-hire_date           |TIMESTAMP      |DATE           
-languages           |TINYINT        |BYTE           
-last_name           |VARCHAR        |TEXT           
-last_name.keyword   |VARCHAR        |KEYWORD        
-salary              |INTEGER        |INTEGER                 
+birth_date          |TIMESTAMP      |datetime
+dep                 |STRUCT         |nested
+dep.dep_id          |VARCHAR        |keyword
+dep.dep_name        |VARCHAR        |text
+dep.dep_name.keyword|VARCHAR        |keyword
+dep.from_date       |TIMESTAMP      |datetime
+dep.to_date         |TIMESTAMP      |datetime
+emp_no              |INTEGER        |integer
+extra               |STRUCT         |object
+extra.info          |STRUCT         |object
+extra.info.gender   |VARCHAR        |keyword
+extra_gender        |VARCHAR        |keyword
+extra_no            |INTEGER        |integer
+first_name          |VARCHAR        |text
+first_name.keyword  |VARCHAR        |keyword
+gender              |VARCHAR        |keyword
+hire_date           |TIMESTAMP      |datetime
+languages           |TINYINT        |byte
+last_name           |VARCHAR        |text
+last_name.keyword   |VARCHAR        |keyword
+salary              |INTEGER        |integer
 ;
 
 showAlias
@@ -78,7 +84,7 @@ SHOW TABLES LIKE 'test\_alias' ESCAPE '\';
 
 name:s               | type:s
 
-test_alias           | ALIAS
+test_alias           | VIEW
 ;
 
 showPattern
@@ -86,13 +92,13 @@ SHOW TABLES LIKE 'test_%';
 
 name:s               | type:s
 
-test_alias           | ALIAS
-test_alias_emp       | ALIAS
+test_alias           | VIEW
+test_alias_emp       | VIEW
 test_emp             | BASE TABLE
 test_emp_copy        | BASE TABLE
 ;
 
-testGroupByOnAlias
+groupByOnAlias
 SELECT gender g, PERCENTILE(emp_no, 97) p1 FROM test_alias GROUP BY g ORDER BY g DESC;
 
 g:s             | p1:d
@@ -102,7 +108,7 @@ F               | 10099.52
 null            | 10019.0
 ;
 
-testGroupByOnPattern
+groupByOnPattern
 SELECT gender, PERCENTILE(emp_no, 97) p1 FROM "test_*" WHERE gender is NOT NULL GROUP BY gender;
 
 gender:s             | p1:d

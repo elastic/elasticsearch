@@ -1,10 +1,10 @@
 [role="xpack"]
 [[tls-transport]]
-==== Encrypting Communications Between Nodes in a Cluster
+==== Encrypting communications between nodes in a cluster
 
 The transport networking layer is used for internal communication between nodes
-in a cluster. When {security} is enabled, you must use TLS to ensure that
-communication between the nodes is encrypted.
+in a cluster. When {security-features} are enabled, you must use TLS to ensure
+that communication between the nodes is encrypted.
 
 . <<node-certificates,Generate node certificates>>.
 
@@ -25,7 +25,7 @@ xpack.security.transport.ssl.truststore.path: certs/elastic-certificates.p12 <3>
 <1> If you used the `--dns` or `--ip` options with the `elasticsearch-certutil cert` command
 and you want to enable strict hostname checking, set the verification mode to
 `full`.
-See <<ssl-tls-settings, `xpack.ssl.verification_mode`>> for a description of these values.
+See <<ssl-tls-settings, `xpack.security.transport.ssl.verification_mode`>> for a description of these values.
 
 <2> If you created a separate certificate for each node, then you might need to
 customize this path on each node. If the filename matches the node name, you can
@@ -54,7 +54,7 @@ xpack.security.transport.ssl.certificate_authorities: [ "/home/es/config/ca.crt"
 <1> If you used the `--dns` or `--ip` options with the `elasticsearch-certutil cert` command
 and you want to enable strict hostname checking, set the verification mode to
 `full`.
-See <<ssl-tls-settings, `xpack.ssl.verification_mode`>> for a description of these values.
+See <<ssl-tls-settings, `xpack.security.transport.ssl.verification_mode`>> for a description of these values.
 <2> The full path to the node key file. This must be a location within the
     {es} configuration directory.
 <3> The full path to the node certificate. This must be a location within the

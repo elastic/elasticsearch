@@ -51,15 +51,16 @@ public class RestTermVectorsAction extends BaseRestHandler {
         "Specifying types in term vector requests is deprecated.";
 
     public RestTermVectorsAction(RestController controller) {
-        controller.registerHandler(GET, "/{index}/{type}/_termvectors", this);
-        controller.registerHandler(POST, "/{index}/{type}/_termvectors", this);
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_termvectors", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_termvectors", this);
-
         controller.registerHandler(GET, "/{index}/_termvectors", this);
         controller.registerHandler(POST, "/{index}/_termvectors", this);
         controller.registerHandler(GET, "/{index}/_termvectors/{id}", this);
         controller.registerHandler(POST, "/{index}/_termvectors/{id}", this);
+
+        // Deprecated typed endpoints.
+        controller.registerHandler(GET, "/{index}/{type}/_termvectors", this);
+        controller.registerHandler(POST, "/{index}/{type}/_termvectors", this);
+        controller.registerHandler(GET, "/{index}/{type}/{id}/_termvectors", this);
+        controller.registerHandler(POST, "/{index}/{type}/{id}/_termvectors", this);
     }
 
     @Override

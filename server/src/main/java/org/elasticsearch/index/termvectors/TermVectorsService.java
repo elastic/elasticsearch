@@ -50,6 +50,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
@@ -68,8 +69,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
-
-import static org.elasticsearch.index.mapper.SourceToParse.source;
 
 public class TermVectorsService  {
 
@@ -302,8 +301,8 @@ public class TermVectorsService  {
 
     private static Fields generateTermVectorsFromDoc(IndexShard indexShard, TermVectorsRequest request) throws IOException {
         // parse the document, at the moment we do update the mapping, just like percolate
-        ParsedDocument parsedDocument =
-            parseDocument(indexShard, indexShard.shardId().getIndexName(), request.type(), request.doc(), request.xContentType());
+        ParsedDocument parsedDocument = parseDocument(indexShard, indexShard.shardId().getIndexName(), request.type(), request.doc(),
+            request.xContentType(), request.routing());
 
         // select the right fields and generate term vectors
         ParseContext.Document doc = parsedDocument.rootDoc();
@@ -332,10 +331,11 @@ public class TermVectorsService  {
     }
 
     private static ParsedDocument parseDocument(IndexShard indexShard, String index, String type, BytesReference doc,
-                                                XContentType xContentType) {
+                                                XContentType xContentType, String routing) {
         MapperService mapperService = indexShard.mapperService();
         DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate(type);
-        ParsedDocument parsedDocument = docMapper.getDocumentMapper().parse(source(index, type, "_id_for_tv_api", doc, xContentType));
+        ParsedDocument parsedDocument = docMapper.getDocumentMapper().parse(
+            new SourceToParse(index, type, "_id_for_tv_api", doc, xContentType, routing));
         if (docMapper.getMapping() != null) {
             parsedDocument.addDynamicMappingsUpdate(docMapper.getMapping());
         }

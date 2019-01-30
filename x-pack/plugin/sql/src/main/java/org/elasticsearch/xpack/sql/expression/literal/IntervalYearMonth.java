@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.expression.literal;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.io.IOException;
@@ -57,5 +58,11 @@ public class IntervalYearMonth extends Interval<Period> {
     public IntervalYearMonth sub(Interval<Period> interval) {
         return new IntervalYearMonth(interval().minus(interval.interval()).normalized(),
                 DataTypes.compatibleInterval(dataType(), interval.dataType()));
+    }
+
+    @Override
+    public Interval<Period> mul(long mul) {
+        int i = DataTypeConversion.safeToInt(mul);
+        return new IntervalYearMonth(interval().multipliedBy(i), dataType());
     }
 }

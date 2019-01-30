@@ -30,7 +30,6 @@ import org.elasticsearch.discovery.zen.MembershipAction;
 import org.elasticsearch.discovery.zen.PublishClusterStateAction;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
@@ -96,6 +95,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
      * The temporal unicast responses is empty. When partition is solved the one ping response contains a master node.
      * The rejoining node should take this master node and connect.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37687")
     public void testUnicastSinglePingResponseContainsMaster() throws Exception {
         internalCluster().setHostsListContainsOnlyFirstNode(true);
         List<String> nodes = startCluster(4);
@@ -132,12 +132,10 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
     /**
      * Test cluster join with issues in cluster state publishing *
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37685")
     public void testClusterJoinDespiteOfPublishingIssues() throws Exception {
-        // TODO: enable this for Zen2 once lag-detection is implemented
-        String masterNode = internalCluster().startMasterOnlyNode(
-            Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build());
-        String nonMasterNode = internalCluster().startDataOnlyNode(
-            Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build());
+        String masterNode = internalCluster().startMasterOnlyNode();
+        String nonMasterNode = internalCluster().startDataOnlyNode();
 
         DiscoveryNodes discoveryNodes = internalCluster().getInstance(ClusterService.class, nonMasterNode).state().nodes();
 
@@ -204,6 +202,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(3);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37539")
     public void testElectMasterWithLatestVersion() throws Exception {
         final Set<String> nodes = new HashSet<>(internalCluster().startNodes(3));
         ensureStableCluster(3);

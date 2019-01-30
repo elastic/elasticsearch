@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.indexlifecycle.IndexLifecycle;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.notification.email.Authentication;
 import org.elasticsearch.xpack.watcher.notification.email.Email;
@@ -161,6 +162,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         }
 
         types.add(CommonAnalysisPlugin.class);
+        // ILM is required for watcher template index settings
+        types.add(IndexLifecycle.class);
         return types;
     }
 
@@ -340,7 +343,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 assertThat("could not find executed watch record for watch " + watchName, searchResponse.getHits().getTotalHits().value,
                         greaterThanOrEqualTo(minimumExpectedWatchActionsWithActionPerformed));
                 if (assertConditionMet) {
-                    assertThat((Integer) XContentMapValues.extractValue("result.input.payload.hits.total.value",
+                    assertThat((Integer) XContentMapValues.extractValue("result.input.payload.hits.total",
                             searchResponse.getHits().getAt(0).getSourceAsMap()), greaterThanOrEqualTo(1));
                 }
             });

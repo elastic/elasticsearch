@@ -24,6 +24,7 @@ import org.elasticsearch.plugins.Plugin;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 public abstract class NodeConfigurationSource {
 
@@ -50,6 +51,10 @@ public abstract class NodeConfigurationSource {
     public abstract Settings nodeSettings(int nodeOrdinal);
 
     public abstract Path nodeConfigPath(int nodeOrdinal);
+
+    public List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
+        return allNodesSettings;
+    }
 
     /** Returns plugins that should be loaded on the node */
     public Collection<Class<? extends Plugin>> nodePlugins() {

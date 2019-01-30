@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.sql.expression;
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
 
 abstract class UnresolvedNamedExpression extends NamedExpression implements Unresolvable {
 
-    UnresolvedNamedExpression(Location location, List<Expression> children) {
-        super(location, "<unresolved>", children, new ExpressionId());
+    UnresolvedNamedExpression(Source source, List<Expression> children) {
+        super(source, "<unresolved>", children, new ExpressionId());
     }
 
     @Override

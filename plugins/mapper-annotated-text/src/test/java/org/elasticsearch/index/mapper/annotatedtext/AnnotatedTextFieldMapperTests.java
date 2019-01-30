@@ -51,6 +51,7 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.IndicesService;
@@ -115,7 +116,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
 
         // Use example of typed and untyped annotations
         String annotatedText = "He paid [Stormy Daniels](Stephanie+Clifford&Payee) hush money";
-        SourceToParse sourceToParse = SourceToParse.source("test", "type", "1", BytesReference
+        SourceToParse sourceToParse = new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", annotatedText)
@@ -130,7 +131,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexShard shard = indexService.getShard(0);
         shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-            sourceToParse, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+            sourceToParse, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         shard.refresh("test");
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
             LeafReader leaf = searcher.getDirectoryReader().leaves().get(0).reader();
@@ -170,7 +171,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
                 new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
         String annotatedText = "foo [bar](MissingEndBracket baz";
-        SourceToParse sourceToParse = SourceToParse.source("test", "type", "1", BytesReference
+        SourceToParse sourceToParse = new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", annotatedText)
@@ -185,7 +186,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexShard shard = indexService.getShard(0);
         shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-            sourceToParse, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+            sourceToParse, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         shard.refresh("test");
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
             LeafReader leaf = searcher.getDirectoryReader().leaves().get(0).reader();
@@ -259,7 +260,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")
@@ -291,7 +292,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")
@@ -315,7 +316,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")
@@ -346,7 +347,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
         for (String option : supportedOptions.keySet()) {
             jsonDoc.field(option, "1234");
         }
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(jsonDoc.endObject()),
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(jsonDoc.endObject()),
                 XContentType.JSON));
 
         for (Map.Entry<String, IndexOptions> entry : supportedOptions.entrySet()) {
@@ -368,7 +369,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        SourceToParse sourceToParse = SourceToParse.source("test", "type", "1", BytesReference
+        SourceToParse sourceToParse = new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .array("field", new String[] {"a", "b"})
@@ -384,7 +385,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexShard shard = indexService.getShard(0);
         shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-            sourceToParse, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+            sourceToParse, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         shard.refresh("test");
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
             LeafReader leaf = searcher.getDirectoryReader().leaves().get(0).reader();
@@ -410,7 +411,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        SourceToParse sourceToParse = SourceToParse.source("test", "type", "1", BytesReference
+        SourceToParse sourceToParse = new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .array("field", new String[]{"a", "b"})
@@ -426,7 +427,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexShard shard = indexService.getShard(0);
         shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-            sourceToParse, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+            sourceToParse, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         shard.refresh("test");
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
             LeafReader leaf = searcher.getDirectoryReader().leaves().get(0).reader();
@@ -569,7 +570,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field1", "1234")

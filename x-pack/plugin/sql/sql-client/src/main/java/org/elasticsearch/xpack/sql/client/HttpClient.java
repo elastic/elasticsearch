@@ -32,11 +32,9 @@ import java.io.InputStream;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.sql.SQLException;
+import java.time.ZoneId;
 import java.util.Collections;
-import java.util.TimeZone;
 import java.util.function.Function;
-
-import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
 
 /**
  * A specialized high-level REST client with support for SQL-related functions.
@@ -65,10 +63,10 @@ public class HttpClient {
 
     public SqlQueryResponse queryInit(String query, int fetchSize) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
-        // method called only from CLI. "client_id" is set to "cli"
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(query, Collections.emptyList(), null, TimeZone.getTimeZone("UTC"),
+        // method called only from CLI
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(query, Collections.emptyList(), null, ZoneId.of("Z"),
             fetchSize, TimeValue.timeValueMillis(cfg.queryTimeout()), TimeValue.timeValueMillis(cfg.pageTimeout()),
-            new RequestInfo(Mode.PLAIN, CLI));
+            new RequestInfo(Mode.CLI));
         return query(sqlRequest);
     }
 
@@ -77,15 +75,15 @@ public class HttpClient {
     }
 
     public SqlQueryResponse nextPage(String cursor) throws SQLException {
-        // method called only from CLI. "client_id" is set to "cli"
+        // method called only from CLI
         SqlQueryRequest sqlRequest = new SqlQueryRequest(cursor, TimeValue.timeValueMillis(cfg.queryTimeout()),
-                TimeValue.timeValueMillis(cfg.pageTimeout()), new RequestInfo(Mode.PLAIN, CLI));
+                TimeValue.timeValueMillis(cfg.pageTimeout()), new RequestInfo(Mode.CLI));
         return post(Protocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
     }
 
-    public boolean queryClose(String cursor) throws SQLException {
+    public boolean queryClose(String cursor, Mode mode) throws SQLException {
         SqlClearCursorResponse response = post(Protocol.CLEAR_CURSOR_REST_ENDPOINT,
-            new SqlClearCursorRequest(cursor, new RequestInfo(Mode.PLAIN)),
+            new SqlClearCursorRequest(cursor, new RequestInfo(mode)),
             SqlClearCursorResponse::fromXContent);
         return response.isSucceeded();
     }

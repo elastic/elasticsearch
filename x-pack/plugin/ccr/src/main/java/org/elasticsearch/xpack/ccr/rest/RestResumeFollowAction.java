@@ -35,8 +35,14 @@ public class RestResumeFollowAction extends BaseRestHandler {
     }
 
     static Request createRequest(RestRequest restRequest) throws IOException {
-        try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
-            return Request.fromXContent(parser, restRequest.param("index"));
+        if (restRequest.hasContentOrSourceParam()) {
+            try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
+                return Request.fromXContent(parser, restRequest.param("index"));
+            }
+        } else {
+            Request request = new Request();
+            request.setFollowerIndex(restRequest.param("index"));
+            return request;
         }
     }
 }

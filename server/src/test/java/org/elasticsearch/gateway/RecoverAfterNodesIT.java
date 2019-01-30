@@ -31,6 +31,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -39,6 +41,23 @@ import static org.hamcrest.Matchers.hasItem;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoMinMasterNodes = false)
 public class RecoverAfterNodesIT extends ESIntegTestCase {
     private static final TimeValue BLOCK_WAIT_TIMEOUT = TimeValue.timeValueSeconds(10);
+
+    @Override
+    protected List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
+        if (internalCluster().numDataAndMasterNodes() == 0) {
+            final Settings firstNodeSettings = allNodesSettings.get(0);
+            final List<Settings> otherNodesSettings = allNodesSettings.subList(1, allNodesSettings.size());
+
+            final List<Settings> updatedSettings = new ArrayList<>();
+            updatedSettings.add(Settings.builder().put(firstNodeSettings)
+                    .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
+                            Node.NODE_NAME_SETTING.get(firstNodeSettings)).build());
+            updatedSettings.addAll(otherNodesSettings);
+
+            return updatedSettings;
+        }
+        return super.addExtraClusterBootstrapSettings(allNodesSettings);
+    }
 
     public Set<ClusterBlock> waitForNoBlocksOnNode(TimeValue timeout, Client nodeClient) throws InterruptedException {
         long start = System.currentTimeMillis();
@@ -60,9 +79,7 @@ public class RecoverAfterNodesIT extends ESIntegTestCase {
 
     public void testRecoverAfterNodes() throws Exception {
         logger.info("--> start node (1)");
-        Client clientNode1 = startNode(Settings.builder()
-                .put("gateway.recover_after_nodes", 3)
-                .put(ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 1), 1);
+        Client clientNode1 = startNode(Settings.builder().put("gateway.recover_after_nodes", 3), 1);
         assertThat(clientNode1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA_WRITE),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
@@ -89,8 +106,7 @@ public class RecoverAfterNodesIT extends ESIntegTestCase {
         logger.info("--> start master_node (1)");
         Client master1 = startNode(Settings.builder()
             .put("gateway.recover_after_master_nodes", 2).put(Node.NODE_DATA_SETTING.getKey(), false)
-            .put(Node.NODE_MASTER_SETTING.getKey(), true)
-            .put(ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 1), 1);
+            .put(Node.NODE_MASTER_SETTING.getKey(), true), 1);
         assertThat(master1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA_WRITE),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
@@ -136,8 +152,7 @@ public class RecoverAfterNodesIT extends ESIntegTestCase {
         Client master1 = startNode(Settings.builder()
             .put("gateway.recover_after_data_nodes", 2)
             .put(Node.NODE_DATA_SETTING.getKey(), false)
-            .put(Node.NODE_MASTER_SETTING.getKey(), true)
-            .put(ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 1), 1);
+            .put(Node.NODE_MASTER_SETTING.getKey(), true), 1);
         assertThat(master1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA_WRITE),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));

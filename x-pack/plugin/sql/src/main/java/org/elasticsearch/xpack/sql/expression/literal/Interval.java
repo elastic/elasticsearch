@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.expression.literal;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.io.IOException;
@@ -46,6 +47,8 @@ public abstract class Interval<I extends TemporalAmount> implements NamedWriteab
 
     public abstract Interval<I> sub(Interval<I> interval);
 
+    public abstract Interval<I> mul(long mul);
+
     @Override
     public int hashCode() {
         return Objects.hash(interval, intervalType);
@@ -73,6 +76,6 @@ public abstract class Interval<I extends TemporalAmount> implements NamedWriteab
 
     @Override
     public String toString() {
-        return intervalType.name() + "[" + interval + "]";
+        return StringUtils.toString(interval);
     }
 }

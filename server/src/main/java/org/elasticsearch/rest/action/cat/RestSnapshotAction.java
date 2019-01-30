@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -97,7 +96,7 @@ public class RestSnapshotAction extends AbstractCatAction {
                 .endHeaders();
     }
 
-    private static final DateFormatter FORMATTER = DateFormatters.forPattern("HH:mm:ss").withZone(ZoneOffset.UTC);
+    private static final DateFormatter FORMATTER = DateFormatter.forPattern("HH:mm:ss").withZone(ZoneOffset.UTC);
 
     private Table buildTable(RestRequest req, GetSnapshotsResponse getSnapshotsResponse) {
         Table table = getTableWithHeader(req);

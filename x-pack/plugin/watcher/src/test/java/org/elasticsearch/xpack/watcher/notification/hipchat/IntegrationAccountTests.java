@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.notification.hipchat;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -36,7 +37,9 @@ public class IntegrationAccountTests extends ESTestCase {
         Settings.Builder sb = Settings.builder();
 
         String authToken = randomAlphaOfLength(50);
-        sb.put(IntegrationAccount.AUTH_TOKEN_SETTING, authToken);
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(IntegrationAccount.SECURE_AUTH_TOKEN_SETTING.getKey(), authToken);
+        sb.setSecureSettings(secureSettings);
 
         String host = HipChatServer.DEFAULT.host();
         if (randomBoolean()) {
@@ -90,13 +93,16 @@ public class IntegrationAccountTests extends ESTestCase {
             new IntegrationAccount("_name", sb.build(), HipChatServer.DEFAULT, mock(HttpClient.class), mock(Logger.class));
             fail("Expected SettingsException");
         } catch (SettingsException e) {
-            assertThat(e.getMessage(), is("hipchat account [_name] missing required [auth_token] setting"));
+            assertThat(e.getMessage(), is("hipchat account [_name] missing required [secure_auth_token] secure setting"));
         }
     }
 
     public void testSettingsWithoutRoom() throws Exception {
         Settings.Builder sb = Settings.builder();
-        sb.put(IntegrationAccount.AUTH_TOKEN_SETTING, randomAlphaOfLength(50));
+        String authToken = randomAlphaOfLength(50);
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(IntegrationAccount.SECURE_AUTH_TOKEN_SETTING.getKey(), authToken);
+        sb.setSecureSettings(secureSettings);
         try {
             new IntegrationAccount("_name", sb.build(), HipChatServer.DEFAULT, mock(HttpClient.class), mock(Logger.class));
             fail("Expected SettingsException");
@@ -107,7 +113,10 @@ public class IntegrationAccountTests extends ESTestCase {
 
     public void testSettingsWithoutMultipleRooms() throws Exception {
         Settings.Builder sb = Settings.builder();
-        sb.put(IntegrationAccount.AUTH_TOKEN_SETTING, randomAlphaOfLength(50));
+        String authToken = randomAlphaOfLength(50);
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(IntegrationAccount.SECURE_AUTH_TOKEN_SETTING.getKey(), authToken);
+        sb.setSecureSettings(secureSettings);
         sb.put(IntegrationAccount.ROOM_SETTING, "_r1,_r2");
         try {
             new IntegrationAccount("_name", sb.build(), HipChatServer.DEFAULT, mock(HttpClient.class), mock(Logger.class));
@@ -121,10 +130,12 @@ public class IntegrationAccountTests extends ESTestCase {
         String token = randomAlphaOfLength(10);
         HttpClient httpClient = mock(HttpClient.class);
         String room = "Room with Spaces";
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(IntegrationAccount.SECURE_AUTH_TOKEN_SETTING.getKey(), token);
         IntegrationAccount account = new IntegrationAccount("_name", Settings.builder()
                 .put("host", "_host")
                 .put("port", "443")
-                .put("auth_token", token)
+                .setSecureSettings(secureSettings)
                 .put("room", room)
                 .build(), HipChatServer.DEFAULT, httpClient, mock(Logger.class));
 

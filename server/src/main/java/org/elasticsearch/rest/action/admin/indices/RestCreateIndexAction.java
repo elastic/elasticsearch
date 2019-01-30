@@ -19,9 +19,12 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -36,7 +39,17 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class RestCreateIndexAction extends BaseRestHandler {
+<<<<<<< HEAD
     public RestCreateIndexAction(RestController controller) {
+=======
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(RestCreateIndexAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in create " +
+        "index requests is deprecated. The parameter will be removed in the next major version.";
+
+    public RestCreateIndexAction(Settings settings, RestController controller) {
+        super(settings);
+>>>>>>> master
         controller.registerHandler(RestRequest.Method.PUT, "/{index}", this);
     }
 
@@ -47,7 +60,13 @@ public class RestCreateIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = request.paramAsBoolean("include_type_name", true);
+        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
+            DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+
+        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+            deprecationLogger.deprecatedAndMaybeLog("create_index_with_types", TYPES_DEPRECATION_MESSAGE);
+        }
+
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
         if (request.hasContent()) {
             Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.content(), false, request.getXContentType()).v2();

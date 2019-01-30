@@ -121,7 +121,7 @@ public final class CcrLicenseChecker {
                 client.getRemoteClusterClient(clusterAlias),
                 request,
                 onFailure,
-                remoteClusterStateResponse   -> {
+                remoteClusterStateResponse -> {
                     ClusterState remoteClusterState = remoteClusterStateResponse.getState();
                     IndexMetaData leaderIndexMetaData = remoteClusterState.getMetaData().index(leaderIndex);
                     if (leaderIndexMetaData == null) {
@@ -328,7 +328,7 @@ public final class CcrLicenseChecker {
                 message.append(indices.length == 1 ? " index " : " indices ");
                 message.append(Arrays.toString(indices));
 
-                HasPrivilegesResponse.ResourcePrivileges resourcePrivileges = response.getIndexPrivileges().get(0);
+                HasPrivilegesResponse.ResourcePrivileges resourcePrivileges = response.getIndexPrivileges().iterator().next();
                 for (Map.Entry<String, Boolean> entry : resourcePrivileges.getPrivileges().entrySet()) {
                     if (entry.getValue() == false) {
                         message.append(", privilege for action [");

@@ -10,7 +10,6 @@ setup:
   - do:
       index:
           index:  test_1
-          type:   test
           id:     1
           body:   { foo: bar }
 
@@ -93,7 +92,7 @@ setup:
         body:
           query:
             match_all: {}
-          script_fields: 
+          script_fields:
             "test1" : { "script" : { "lang": "painless", "source": "1;" }}
             "test2" : { "script" : { "lang": "painless", "source": "1;" }}
             "test3" : { "script" : { "lang": "painless", "source": "1;" }}
@@ -111,7 +110,7 @@ setup:
         index: test_1
         body:
           query:
-            regexp: 
+            regexp:
               foo: "^\\[\\]\\r\\\\]|\\\\.)*\\](?:(?:\\r\\n)?[\\t])*)(?:\\.(?:(?:\\r\\n)?[\\t])*(?:[^()<>@,;:\\\\\" |
                    .\\[\\]\\000-\\031]+(?:(?:(?:\\r\\n)?[\\t])+|\\Z|(?=[\\[\"()<>@,;:\\\\\".\\[\\]]))|\\[([^\\[\\ |
                    ]\\r\\\\]|\\\\.)*\\](?:(?:\\r\\n)?[\\t])*))*(?:,@(?:(?:\\r\\n)?[ \\t])*(?:[^()<>@,;:\\\\\".\\  |

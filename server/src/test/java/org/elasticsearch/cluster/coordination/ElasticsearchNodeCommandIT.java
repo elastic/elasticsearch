@@ -44,7 +44,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -386,11 +389,11 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         ensureStableCluster(4);
     }
 
-    public void testAllMasterEligibleNodesFailed() throws Exception {
+    public void testAllMasterEligibleNodesFailedDanglingIndexImport() throws Exception {
         bootstrapNodeId = 1;
 
-        logger.info("--> start master-eligible node and bootstrap cluster");
-        String masterNode = internalCluster().startMasterOnlyNode(Settings.builder()
+        logger.info("--> start mixed data and master-eligible node and bootstrap cluster");
+        String masterNode = internalCluster().startNode(Settings.builder()
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
                 .build()); // node ordinal 0
 
@@ -399,6 +402,14 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
                 .build()); // node ordinal 1
         ensureStableCluster(2);
+
+        logger.info("--> index 1 doc and ensure index is green");
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        ensureGreen("test");
+
+        logger.info("--> verify 1 doc in the index");
+        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
+        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
 
         logger.info("--> stop data-only node and detach it from the old cluster");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataNode));
@@ -418,6 +429,15 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
                 .build());
         ensureStableCluster(2);
+
+        logger.info("--> verify that the dangling index exists and has green status");
+        assertBusy(() -> {
+            assertThat(client().admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
+        });
+        ensureGreen("test");
+
+        logger.info("--> verify the doc is there");
+        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
     }
 
     public void testNoInitialBootstrapAfterDetach() throws Exception {

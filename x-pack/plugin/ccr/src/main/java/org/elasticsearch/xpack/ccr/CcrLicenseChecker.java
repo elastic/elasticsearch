@@ -25,6 +25,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
@@ -110,7 +111,7 @@ public final class CcrLicenseChecker {
             final String clusterAlias,
             final String leaderIndex,
             final Consumer<Exception> onFailure,
-            final BiConsumer<String[], IndexMetaData> consumer) {
+            final BiConsumer<String[], Tuple<ClusterState, IndexMetaData>> consumer) {
 
         final ClusterStateRequest request = new ClusterStateRequest();
         request.clear();
@@ -134,7 +135,7 @@ public final class CcrLicenseChecker {
                     hasPrivilegesToFollowIndices(remoteClient, new String[] {leaderIndex}, e -> {
                         if (e == null) {
                             fetchLeaderHistoryUUIDs(remoteClient, leaderIndexMetaData, onFailure, historyUUIDs ->
-                                    consumer.accept(historyUUIDs, leaderIndexMetaData));
+                                    consumer.accept(historyUUIDs, new Tuple<>(remoteClusterState, leaderIndexMetaData)));
                         } else {
                             onFailure.accept(e);
                         }

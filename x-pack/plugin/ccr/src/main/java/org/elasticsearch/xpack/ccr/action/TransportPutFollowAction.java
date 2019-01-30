@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -23,7 +24,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -52,6 +55,7 @@ public final class TransportPutFollowAction
     private final RestoreService restoreService;
     private final CcrLicenseChecker ccrLicenseChecker;
     private final ActiveShardsObserver activeShardsObserver;
+    private final Pre67PutFollow pre67PutFollow;
 
     @Inject
     public TransportPutFollowAction(
@@ -63,6 +67,7 @@ public final class TransportPutFollowAction
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final Client client,
             final RestoreService restoreService,
+            final AllocationService allocationService,
             final CcrLicenseChecker ccrLicenseChecker) {
         super(
                 settings,
@@ -77,6 +82,7 @@ public final class TransportPutFollowAction
         this.restoreService = restoreService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
+        this.pre67PutFollow = new Pre67PutFollow(client, clusterService, allocationService, activeShardsObserver);
     }
 
     @Override
@@ -108,18 +114,22 @@ public final class TransportPutFollowAction
         client.getRemoteClusterClient(remoteCluster);
 
         String leaderIndex = request.getLeaderIndex();
+        Version minNodeVersion = state.getNodes().getMinNodeVersion();
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
             client,
             remoteCluster,
             leaderIndex,
             listener::onFailure,
-            (historyUUID, leaderIndexMetaData) -> createFollowerIndex(leaderIndexMetaData, request, listener));
+            (historyUUID, metaDataTuple) -> createFollowerIndex(metaDataTuple, historyUUID, request, listener, minNodeVersion));
     }
 
     private void createFollowerIndex(
-            final IndexMetaData leaderIndexMetaData,
+            final Tuple<ClusterState, IndexMetaData> metaDataTuple,
+            final String [] historyUUID,
             final PutFollowAction.Request request,
-            final ActionListener<PutFollowAction.Response> listener) {
+            final ActionListener<PutFollowAction.Response> listener,
+            final Version localClusterMinNodeVersion) {
+        IndexMetaData leaderIndexMetaData = metaDataTuple.v2();
         if (leaderIndexMetaData == null) {
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist"));
             return;
@@ -132,39 +142,49 @@ public final class TransportPutFollowAction
             return;
         }
 
-        final Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowRequest().getFollowerIndex())
-            .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        final String leaderClusterRepoName = CcrRepository.NAME_PREFIX + request.getRemoteCluster();
-        final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
-            .indices(request.getLeaderIndex()).indicesOptions(request.indicesOptions()).renamePattern("^(.*)$")
-            .renameReplacement(request.getFollowRequest().getFollowerIndex()).masterNodeTimeout(request.masterNodeTimeout())
-            .indexSettings(settingsBuilder);
+        boolean pre67CompatibilityMode = localClusterMinNodeVersion.before(Version.V_6_7_0)
+            || metaDataTuple.v1().getNodes().getMinNodeVersion().before(Version.V_6_7_0);
 
-        final Client clientWithHeaders = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
+        if (pre67CompatibilityMode) {
+            logger.warn("Pre-6.7 nodes present in local/remote cluster. Cannot bootstrap from remote. Creating empty follower index [{}] " +
+                "and initiating following [{}, {}].", request.getFollowRequest().getFollowerIndex(), request.getRemoteCluster(),
+                request.getLeaderIndex());
+            pre67PutFollow.doPre67PutFollow(request, leaderIndexMetaData, historyUUID, listener);
+        } else {
+            final Settings.Builder settingsBuilder = Settings.builder()
+                .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowRequest().getFollowerIndex())
+                .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
+            final String leaderClusterRepoName = CcrRepository.NAME_PREFIX + request.getRemoteCluster();
+            final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
+                .indices(request.getLeaderIndex()).indicesOptions(request.indicesOptions()).renamePattern("^(.*)$")
+                .renameReplacement(request.getFollowRequest().getFollowerIndex()).masterNodeTimeout(request.masterNodeTimeout())
+                .indexSettings(settingsBuilder);
 
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
+            final Client clientWithHeaders = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
 
-            @Override
-            protected void doRun() throws Exception {
-                restoreService.restoreSnapshot(restoreRequest, new ActionListener<RestoreService.RestoreCompletionResponse>() {
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
 
-                    @Override
-                    public void onResponse(RestoreService.RestoreCompletionResponse response) {
-                        afterRestoreStarted(clientWithHeaders, request, listener, response);
-                    }
+                @Override
+                protected void doRun() throws Exception {
+                    restoreService.restoreSnapshot(restoreRequest, new ActionListener<RestoreService.RestoreCompletionResponse>() {
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                });
-            }
-        });
+                        @Override
+                        public void onResponse(RestoreService.RestoreCompletionResponse response) {
+                            afterRestoreStarted(clientWithHeaders, request, listener, response);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    });
+                }
+            });
+        }
     }
 
     private void afterRestoreStarted(Client clientWithHeaders, PutFollowAction.Request request,

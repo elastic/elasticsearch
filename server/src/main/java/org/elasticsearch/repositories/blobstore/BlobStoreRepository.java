@@ -193,7 +193,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static final String DATA_BLOB_PREFIX = "__";
 
-    private final Settings settings;
+    protected final Settings settings;
 
     private final RateLimiter snapshotRateLimiter;
 

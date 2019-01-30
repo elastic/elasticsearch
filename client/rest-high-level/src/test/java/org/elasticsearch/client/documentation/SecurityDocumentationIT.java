@@ -1936,7 +1936,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::invalidate-api-key-response
             InvalidateApiKeyResponse invalidateApiKeyResponse = client.security().invalidateApiKey(invalidateApiKeyRequest,
                     RequestOptions.DEFAULT);
-            // tag::invalidate-api-key-response
+            // end::invalidate-api-key-response
 
             final List<ElasticsearchException> errors = invalidateApiKeyResponse.getErrors();
             final List<String> invalidatedApiKeyIds = invalidateApiKeyResponse.getInvalidatedApiKeys();

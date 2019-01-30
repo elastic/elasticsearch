@@ -122,25 +122,25 @@ public class ClientYamlTestExecutionContext {
             } else {
                 for (int i = 0; i < bodies.size(); i++) {
                     Map<String, Object> body = bodies.get(i);
-                    Map<String, Object> action_metadata;
+                    Map<String, Object> actionMetadata;
                     if (body.containsKey("index")) {
-                        action_metadata = (Map<String, Object>) body.get("index");
+                        actionMetadata = (Map<String, Object>) body.get("index");
                         i++;
                     } else if (body.containsKey("create")) {
-                        action_metadata = (Map<String, Object>) body.get("create");
+                        actionMetadata = (Map<String, Object>) body.get("create");
                         i++;
                     } else if (body.containsKey("update")) {
-                        action_metadata = (Map<String, Object>) body.get("update");
+                        actionMetadata = (Map<String, Object>) body.get("update");
                         i++;
                     } else if (body.containsKey("delete")) {
-                        action_metadata = (Map<String, Object>) body.get("delete");
+                        actionMetadata = (Map<String, Object>) body.get("delete");
                     } else {
                         // action metadata is malformed so leave it malformed since
                         // the test is probably testing for malformed action metadata
                         continue;
                     }
-                    if (action_metadata.containsKey("_type") == false) {
-                        action_metadata.put("_type", "_doc");
+                    if (actionMetadata.containsKey("_type") == false) {
+                        actionMetadata.put("_type", "_doc");
                     }
                 }
             }

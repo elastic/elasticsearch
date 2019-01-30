@@ -255,8 +255,7 @@ public final class SecurityClient {
      */
     @Deprecated
     public boolean enableUser(RequestOptions options, EnableUserRequest request) throws IOException {
-        return restHighLevelClient.performRequest(request, SecurityRequestConverters::enableUser, options,
-            RestHighLevelClient::convertExistsResponse, emptySet());
+        return enableUser(request, options);
     }
 
     /**
@@ -287,8 +286,7 @@ public final class SecurityClient {
     @Deprecated
     public void enableUserAsync(RequestOptions options, EnableUserRequest request,
                                 ActionListener<Boolean> listener) {
-        restHighLevelClient.performRequestAsync(request, SecurityRequestConverters::enableUser, options,
-            RestHighLevelClient::convertExistsResponse, listener, emptySet());
+        enableUserAsync(request, options, listener);
     }
 
     /**
@@ -319,8 +317,7 @@ public final class SecurityClient {
      */
     @Deprecated
     public boolean disableUser(RequestOptions options, DisableUserRequest request) throws IOException {
-        return restHighLevelClient.performRequest(request, SecurityRequestConverters::disableUser, options,
-            RestHighLevelClient::convertExistsResponse, emptySet());
+        return disableUser(request, options);
     }
 
     /**
@@ -351,8 +348,7 @@ public final class SecurityClient {
     @Deprecated
     public void disableUserAsync(RequestOptions options, DisableUserRequest request,
                                  ActionListener<Boolean> listener) {
-        restHighLevelClient.performRequestAsync(request, SecurityRequestConverters::disableUser, options,
-            RestHighLevelClient::convertExistsResponse, listener, emptySet());
+        disableUserAsync(request, options, listener);
     }
 
     /**
@@ -543,8 +539,7 @@ public final class SecurityClient {
      */
     @Deprecated
     public boolean changePassword(RequestOptions options, ChangePasswordRequest request) throws IOException {
-        return restHighLevelClient.performRequest(request, SecurityRequestConverters::changePassword, options,
-            RestHighLevelClient::convertExistsResponse, emptySet());
+        return changePassword(request, options);
     }
 
     /**
@@ -575,8 +570,7 @@ public final class SecurityClient {
     @Deprecated
     public void changePasswordAsync(RequestOptions options, ChangePasswordRequest request,
                                     ActionListener<Boolean> listener) {
-        restHighLevelClient.performRequestAsync(request, SecurityRequestConverters::changePassword, options,
-            RestHighLevelClient::convertExistsResponse, listener, emptySet());
+        changePasswordAsync(request, options, listener);
     }
 
     /**

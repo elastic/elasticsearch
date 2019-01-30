@@ -44,7 +44,7 @@ public class RestReindexActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestReindexAction(Settings.EMPTY, controller());
+        action = new RestReindexAction(controller());
     }
 
     public void testBuildRemoteInfoNoRemote() throws IOException {

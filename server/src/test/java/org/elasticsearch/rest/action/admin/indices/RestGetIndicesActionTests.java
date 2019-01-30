@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -47,7 +46,7 @@ public class RestGetIndicesActionTests extends RestActionTestCase {
             .withParams(params)
             .build();
 
-        RestGetIndicesAction handler = new RestGetIndicesAction(Settings.EMPTY, mock(RestController.class));
+        RestGetIndicesAction handler = new RestGetIndicesAction(mock(RestController.class));
         handler.prepareRequest(request, mock(NodeClient.class));
         assertWarnings(RestGetIndicesAction.TYPES_DEPRECATION_MESSAGE);
 

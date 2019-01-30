@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;

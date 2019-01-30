@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -38,7 +37,7 @@ public class RestCreateIndexActionTests extends RestActionTestCase {
 
     @Before
     public void setupAction() {
-        action = new RestCreateIndexAction(Settings.EMPTY, controller());
+        action = new RestCreateIndexAction(controller());
     }
 
     public void testIncludeTypeName() throws IOException {

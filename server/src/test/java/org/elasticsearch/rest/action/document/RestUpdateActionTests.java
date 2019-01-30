@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -30,7 +29,7 @@ public class RestUpdateActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestUpdateAction(Settings.EMPTY, controller());
+        new RestUpdateAction(controller());
     }
 
     public void testTypeInPath() {

@@ -214,22 +214,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
      */
     private void processIndexShardSnapshots(ClusterChangedEvent event) {
         final SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
-        Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> survivors = new HashMap<>();
-        // First, remove snapshots that are no longer there
-        for (Map.Entry<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> entry : shardSnapshots.entrySet()) {
-            final Snapshot snapshot = entry.getKey();
-            if (snapshotsInProgress != null && snapshotsInProgress.snapshot(snapshot) != null) {
-                survivors.put(entry.getKey(), entry.getValue());
-            } else {
-                // abort any running snapshots of shards for the removed entry;
-                // this could happen if for some reason the cluster state update for aborting
-                // running shards is missed, then the snapshot is removed is a subsequent cluster
-                // state update, which is being processed here
-                for (IndexShardSnapshotStatus snapshotStatus : entry.getValue().values()) {
-                    snapshotStatus.abortIfNotCompleted("snapshot has been removed in cluster state, aborting");
-                }
-            }
-        }
+        final Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> survivors = cancelRemoved(snapshotsInProgress);
 
         // For now we will be mostly dealing with a single snapshot at a time but might have multiple simultaneously running
         // snapshots in the future
@@ -307,6 +292,26 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         }
     }
 
+    private Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> cancelRemoved(SnapshotsInProgress snapshotsInProgress) {
+        Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> survivors = new HashMap<>();
+        // First, remove snapshots that are no longer there
+        for (Map.Entry<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> entry : shardSnapshots.entrySet()) {
+            final Snapshot snapshot = entry.getKey();
+            if (snapshotsInProgress != null && snapshotsInProgress.snapshot(snapshot) != null) {
+                survivors.put(entry.getKey(), entry.getValue());
+            } else {
+                // abort any running snapshots of shards for the removed entry;
+                // this could happen if for some reason the cluster state update for aborting
+                // running shards is missed, then the snapshot is removed is a subsequent cluster
+                // state update, which is being processed here
+                for (IndexShardSnapshotStatus snapshotStatus : entry.getValue().values()) {
+                    snapshotStatus.abortIfNotCompleted("snapshot has been removed in cluster state, aborting");
+                }
+            }
+        }
+        return survivors;
+    }
+
     private Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> newSnapshots(SnapshotsInProgress snapshotsInProgress,
                              Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> survivors, String localNodeId) {
         final Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> newSnapshots = new HashMap<>();
@@ -318,10 +323,11 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 Map<ShardId, IndexShardSnapshotStatus> snapshotShards = shardSnapshots.getOrDefault(snapshot, emptyMap());
                 for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : entry.shards()) {
                     // Add all new shards to start processing on
+                    final ShardId shardId = shard.key;
                     if (localNodeId.equals(shard.value.nodeId()) && shard.value.state() == State.INIT
-                        && snapshotShards.containsKey(shard.key) == false) {
-                        logger.trace("[{}] - Adding shard to the queue", shard.key);
-                        startedShards.put(shard.key, IndexShardSnapshotStatus.newInitializing());
+                        && snapshotShards.containsKey(shardId) == false) {
+                        logger.trace("[{}] - Adding shard to the queue", shardId);
+                        startedShards.put(shardId, IndexShardSnapshotStatus.newInitializing());
                     }
                 }
                 if (startedShards.isEmpty() == false) {

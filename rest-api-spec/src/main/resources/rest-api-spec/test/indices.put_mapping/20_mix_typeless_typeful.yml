@@ -54,6 +54,11 @@
 ---
 "PUT mapping with _doc on an index that has types":
 
+  - skip:
+      version: " - 6.99.99"
+      reason: Backport first
+
+
  - do:
       indices.create:
           include_type_name: true

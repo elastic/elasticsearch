@@ -693,7 +693,7 @@ public class TextFieldMapper extends FieldMapper {
             return createPhrasePrefixQuery(stream, name(), slop, maxExpansions, prefixField, usePrefix);
         }
 
-        static boolean hasGaps(TokenStream stream) throws IOException {
+        public static boolean hasGaps(TokenStream stream) throws IOException {
             assert stream instanceof CachingTokenFilter;
             PositionIncrementAttribute posIncAtt = stream.getAttribute(PositionIncrementAttribute.class);
             stream.reset();

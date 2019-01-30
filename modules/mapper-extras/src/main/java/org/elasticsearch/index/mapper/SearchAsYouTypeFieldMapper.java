@@ -236,6 +236,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
+        private ShingleFieldType shingleFieldForPositions(int positions) {
+            final int indexFromShingleSize = Math.max(positions - 2, 0);
+            return shingleFields[Math.min(indexFromShingleSize, shingleFields.length - 1)];
+        }
+
         @Override
         public Query existsQuery(QueryShardContext context) {
             if (omitNorms()) {
@@ -267,9 +272,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             if (shingleFields.length == 0 || slop > 0 || hasGaps(stream) || numPos <= 1) {
                 return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
             }
-            int shingleSize = Math.min(numPos-2, shingleFields.length);
-            stream = new FixedShingleFilter(stream, shingleSize);
-            return shingleFields[numPos-1].phraseQuery(stream, 0, true);
+            final ShingleFieldType shingleField = shingleFieldForPositions(numPos);
+            stream = new FixedShingleFilter(stream, shingleField.shingleSize);
+            return shingleField.phraseQuery(stream, 0, true);
         }
 
         @Override
@@ -278,9 +283,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             if (shingleFields.length == 0 || slop > 0 || hasGaps(stream) || numPos <= 1) {
                 return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
             }
-            int shingleSize = Math.min(numPos-2, shingleFields.length);
-            stream = new FixedShingleFilter(stream, shingleSize);
-            return shingleFields[numPos-2].multiPhraseQuery(stream, 0, true);
+            final ShingleFieldType shingleField = shingleFieldForPositions(numPos);
+            stream = new FixedShingleFilter(stream, shingleField.shingleSize);
+            return shingleField.multiPhraseQuery(stream, 0, true);
         }
 
         @Override
@@ -290,7 +295,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 return TextFieldMapper.createPhrasePrefixQuery(stream, name(), slop, maxExpansions,
                     null, null);
             }
-            ShingleFieldType shingleField = shingleFields[Math.min(numPos-2, shingleFields.length-1)];
+            final ShingleFieldType shingleField = shingleFieldForPositions(numPos);
             stream = new FixedShingleFilter(stream, shingleField.shingleSize);
             return shingleField.phrasePrefixQuery(stream, 0, maxExpansions);
         }

@@ -28,6 +28,15 @@ setup:
         body:
           a_field: "quick red fox lazy brown dog"
 
+  # this document should not be matched
+  - do:
+      index:
+        index: test
+        type: _doc
+        id: 2
+        body:
+          a_field: "xylophone xylophone xylophone"
+
   - do:
       indices.refresh: {}
 
@@ -122,18 +131,6 @@ setup:
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
-  # make sure we're not just always returning a match
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: test
-        body:
-          query:
-            term:
-              a_field._2gram: "avoid matching"
-
-  - match: { hits.total: 0 }
-
 ---
 "search on 3gram":
 
@@ -185,18 +182,6 @@ setup:
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
-  # make sure we're not just always returning a match
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: test
-        body:
-          query:
-            term:
-              a_field._3gram: "avoid matching"
-
-  - match: { hits.total: 0 }
-
 ---
 "search on 4gram":
 
@@ -236,21 +221,9 @@ setup:
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
-  # make sure we're not just always returning a match
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: test
-        body:
-          query:
-            term:
-              a_field._4gram: "avoid matching"
-
-  - match: { hits.total: 0 }
-
-  # we won't check all the terms that this field generates because there are many
+# we won't check all the terms that this field generates because there are many
 ---
-"search on prefix":
+"term query on prefix field with prefix term":
 
   # search term as prefix
   - do:
@@ -265,7 +238,9 @@ setup:
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
-  # search term as infix
+---
+"term query on prefix field with infix term":
+
   - do:
       search:
         rest_total_hits_as_int: true
@@ -278,7 +253,9 @@ setup:
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
-  # ensure we're generating the last token as a shingle
+---
+"term query on prefix field with trailing term":
+
   - do:
       search:
         rest_total_hits_as_int: true
@@ -527,6 +504,351 @@ setup:
           query:
             prefix:
               a_field: "fox lazy brown do"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"prefix query on root field with trailing term":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            prefix:
+              a_field: "do"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase query on root field with 1 prefix term":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              a_field: "quick"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase query on root field with 2 prefix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              a_field: "quick red"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase query on root field with 3 prefix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              a_field: "quick red fox"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase query on root field with 4 prefix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              a_field: "quick red fox lazy"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase query on root field with 5 prefix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              a_field: "quick red fox lazy brown"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase query on root field with 1 infix term":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              a_field: "red"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase query on root field with 2 infix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              a_field: "red fox"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase query on root field with 3 infix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              a_field: "red fox lazy"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase query on root field with 4 infix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              a_field: "red fox lazy brown"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase query on root field with 5 infix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              a_field: "red fox lazy brown dog"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase query on root field with trailing term":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              a_field: "dog"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase prefix query on root field with 1 prefix term":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase_prefix:
+              a_field: "qui"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase prefix query on root field with 2 prefix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase_prefix:
+              a_field: "quick r"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase prefix query on root field with 3 prefix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase_prefix:
+              a_field: "quick red f"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase prefix query on root field with 4 prefix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase_prefix:
+              a_field: "quick red fox la"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase prefix query on root field with 5 prefix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase_prefix:
+              a_field: "quick red fox lazy br"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase prefix query on root field with 1 infix term":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase_prefix:
+              a_field: "re"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase prefix query on root field with 2 infix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase_prefix:
+              a_field: "red f"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase prefix query on root field with 3 infix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase_prefix:
+              a_field: "red fox la"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase prefix query on root field with 4 infix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase_prefix:
+              a_field: "red fox lazy br"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase prefix query on root field with 5 infix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase_prefix:
+              a_field: "red fox lazy brown d"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"phrase prefix query on root field with trailing term":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase_prefix:
+              a_field: "do"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }

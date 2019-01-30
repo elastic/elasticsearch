@@ -23,8 +23,10 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
@@ -45,6 +47,7 @@ import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouType
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.ShingleFieldMapper;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.ShingleFieldType;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -67,6 +70,7 @@ import static org.hamcrest.collection.IsArrayContainingInAnyOrder.arrayContainin
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(MapperExtrasPlugin.class);
@@ -407,6 +411,126 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(q, equalTo(expected));
         }
 
+    }
+
+    public void testMatchPhrase() throws IOException {
+        final IndexService indexService = createIndex("test", Settings.EMPTY);
+        final QueryShardContext queryShardContext = indexService.newQueryShardContext(randomInt(20), null,
+            () -> { throw new UnsupportedOperationException(); }, null);
+        final String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+                .startObject("properties")
+                    .startObject("a_field")
+                        .field("type", "search_as_you_type")
+                    .endObject()
+                .endObject()
+            .endObject()
+            .endObject());
+
+        queryShardContext.getMapperService().merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+
+        {
+            final Query actual = new MatchPhraseQueryBuilder("a_field", "one")
+                .toQuery(queryShardContext);
+            final Query expected = new TermQuery(new Term("a_field", "one"));
+            assertThat(actual, equalTo(expected));
+        }
+
+        {
+            final Query actual = new MatchPhraseQueryBuilder("a_field", "one two")
+                .toQuery(queryShardContext);
+            final Query expected = new MultiPhraseQuery.Builder()
+                .add(new Term("a_field._2gram", "one two"))
+                .build();
+            assertThat(actual, equalTo(expected));
+        }
+
+        {
+            final Query actual = new MatchPhraseQueryBuilder("a_field", "one two three")
+                .toQuery(queryShardContext);
+            final Query expected = new MultiPhraseQuery.Builder()
+                .add(new Term("a_field._3gram", "one two three"))
+                .build();
+            assertThat(actual, equalTo(expected));
+        }
+
+        {
+            final Query actual = new MatchPhraseQueryBuilder("a_field", "one two three four")
+                .toQuery(queryShardContext);
+            final Query expected = new MultiPhraseQuery.Builder()
+                .add(new Term("a_field._3gram", "one two three"))
+                .add(new Term("a_field._3gram", "two three four"))
+                .build();
+            assertThat(actual, equalTo(expected));
+        }
+
+        {
+            final Query actual = new MatchPhraseQueryBuilder("a_field", "one two")
+                .slop(1)
+                .toQuery(queryShardContext);
+            final Query expected = new MultiPhraseQuery.Builder()
+                .add(new Term("a_field", "one"))
+                .add(new Term("a_field", "two"))
+                .setSlop(1)
+                .build();
+            assertThat(actual, equalTo(expected));
+        }
+
+        {
+            final Query actual = new MatchPhraseQueryBuilder("a_field._2gram", "one two")
+                .toQuery(queryShardContext);
+            final Query expected = new TermQuery(new Term("a_field._2gram", "one two"));
+            assertThat(actual, equalTo(expected));
+        }
+
+        {
+            final Query actual = new MatchPhraseQueryBuilder("a_field._2gram", "one two three")
+                .toQuery(queryShardContext);
+            final Query expected = new MultiPhraseQuery.Builder()
+                .add(new Term("a_field._2gram", "one two"))
+                .add(new Term("a_field._2gram", "two three"))
+                .build();
+            assertThat(actual, equalTo(expected));
+        }
+
+        {
+            final Query actual = new MatchPhraseQueryBuilder("a_field._3gram", "one two three")
+                .toQuery(queryShardContext);
+            final Query expected = new TermQuery(new Term("a_field._3gram", "one two three"));
+            assertThat(actual, equalTo(expected));
+        }
+
+        {
+            final Query actual = new MatchPhraseQueryBuilder("a_field._3gram", "one two three four")
+                .toQuery(queryShardContext);
+            final Query expected = new MultiPhraseQuery.Builder()
+                .add(new Term("a_field._3gram", "one two three"))
+                .add(new Term("a_field._3gram", "two three four"))
+                .build();
+            assertThat(actual, equalTo(expected));
+        }
+
+        // todo are these queries generated for the prefix field right?
+        {
+            final Query actual = new MatchPhraseQueryBuilder("a_field._index_prefix", "one two")
+                .toQuery(queryShardContext);
+            final Query expected = new MatchNoDocsQuery("Matching no documents because no terms present");
+            assertThat(actual, equalTo(expected));
+        }
+
+        {
+            final Query actual = new MatchPhraseQueryBuilder("a_field._index_prefix", "one two three")
+                .toQuery(queryShardContext);
+            final Query expected = new TermQuery(new Term("a_field._index_prefix", "one two three"));
+            logger.error("ACTUAL PREFIX " + actual.getClass() + " " + actual);
+            assertThat(actual, equalTo(expected));
+        }
+
+        {
+            expectThrows(IllegalArgumentException.class,
+                () -> new MatchPhraseQueryBuilder("a_field._index_prefix", "one two three four").toQuery(queryShardContext));
+        }
     }
 
     private void documentParsingTestCase(Collection<String> values) throws IOException {

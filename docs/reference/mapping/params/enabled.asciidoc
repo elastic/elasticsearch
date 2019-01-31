@@ -18,23 +18,21 @@ in any other way:
 PUT my_index
 {
   "mappings": {
-    "session": {
-      "properties": {
-        "user_id": {
-          "type":  "keyword"
-        },
-        "last_updated": {
-          "type": "date"
-        },
-        "session_data": { <1>
-          "enabled": false
-        }
+    "properties": {
+      "user_id": {
+        "type":  "keyword"
+      },
+      "last_updated": {
+        "type": "date"
+      },
+      "session_data": { <1>
+        "enabled": false
       }
     }
   }
 }
 
-PUT my_index/session/session_1
+PUT my_index/_doc/session_1
 {
   "user_id": "kimchy",
   "session_data": { <2>
@@ -45,7 +43,7 @@ PUT my_index/session/session_1
   "last_updated": "2015-12-06T18:20:22"
 }
 
-PUT my_index/session/session_2
+PUT my_index/_doc/session_2
 {
   "user_id": "jpountz",
   "session_data": "none", <3>
@@ -66,13 +64,11 @@ retrieved, but none of its contents are indexed in any way:
 PUT my_index
 {
   "mappings": {
-    "session": { <1>
-      "enabled": false
-    }
+    "enabled": false <1>
   }
 }
 
-PUT my_index/session/session_1
+PUT my_index/_doc/session_1
 {
   "user_id": "kimchy",
   "session_data": {
@@ -83,12 +79,12 @@ PUT my_index/session/session_1
   "last_updated": "2015-12-06T18:20:22"
 }
 
-GET my_index/session/session_1 <2>
+GET my_index/_doc/session_1 <2>
 
 GET my_index/_mapping <3>
 --------------------------------------------------
 // CONSOLE
-<1> The entire `session` mapping type is disabled.
+<1> The entire mapping type is disabled.
 <2> The document can be retrieved.
 <3> Checking the mapping reveals that no fields have been added.
 

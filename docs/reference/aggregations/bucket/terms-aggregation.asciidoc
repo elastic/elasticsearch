@@ -10,20 +10,18 @@ A multi-bucket value source based aggregation where buckets are dynamically buil
 PUT /products
 {
     "mappings": {
-        "product": {
-            "properties": {
-                "genre": {
-                    "type": "keyword"
-                },
-                "product": {
-                    "type": "keyword"
-                }
+        "properties": {
+            "genre": {
+                "type": "keyword"
+            },
+            "product": {
+                "type": "keyword"
             }
         }
     }
 }
 
-POST /products/product/_bulk?refresh
+POST /products/_bulk?refresh
 {"index":{"_id":0}}
 {"genre": "rock", "product": "Product A"}
 {"index":{"_id":1}}
@@ -99,12 +97,13 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
 <1> an upper bound of the error on the document counts for each term, see <<search-aggregations-bucket-terms-aggregation-approximate-counts,below>>
-<2> when there are lots of unique terms, elasticsearch only returns the top terms; this number is the sum of the document counts for all buckets that are not part of the response
+<2> when there are lots of unique terms, Elasticsearch only returns the top terms; this number is the sum of the document counts for all buckets that are not part of the response
 <3> the list of the top buckets, the meaning of `top` being defined by the <<search-aggregations-bucket-terms-aggregation-order,order>>
 
 By default, the `terms` aggregation will return the buckets for the top ten terms ordered by the `doc_count`. One can
 change this default behaviour by setting the `size` parameter.
 
+[[search-aggregations-bucket-terms-aggregation-size]]
 ==== Size
 
 The `size` parameter can be set to define how many term buckets should be returned out of the overall terms list. By
@@ -113,6 +112,11 @@ and once all shards respond, it will reduce the results to the final list that w
 This means that if the number of unique terms is greater than `size`, the returned list is slightly off and not accurate
 (it could be that the term counts are slightly off and it could even be that a term that should have been in the top
 size buckets was not returned).
+
+NOTE: If you want to retrieve **all** terms or all combinations of terms in a nested `terms` aggregation
+      you should use the <<search-aggregations-bucket-composite-aggregation,Composite>> aggregation which
+      allows to paginate over all possible terms rather than setting a size greater than the cardinality of the field in the
+      `terms` aggregation. The `terms` aggregation is meant to return the `top` terms and does not allow pagination.
 
 [[search-aggregations-bucket-terms-aggregation-approximate-counts]]
 ==== Document counts are approximate
@@ -210,12 +214,11 @@ one can increase the accuracy of the returned terms and avoid the overhead of st
 the client.
 
 
-NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, elasticsearch will
+NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, Elasticsearch will
         override it and reset it to be equal to `size`.
 
 
-The default `shard_size` will be `size` if the search request needs to go to a single shard, and `(size * 1.5 + 10)`
-otherwise.
+The default `shard_size` is `(size * 1.5 + 10)`.
 
 ==== Calculating Document Count Error
 
@@ -609,7 +612,7 @@ GET /_search
     "aggs" : {
         "genres" : {
             "terms" : {
-                "field" : "gender",
+                "field" : "genre",
                 "script" : {
                     "source" : "'Genre: ' +_value",
                     "lang" : "painless"
@@ -647,7 +650,7 @@ GET /_search
 // CONSOLE
 
 In the above example, buckets will be created for all the tags that has the word `sport` in them, except those starting
-with `water_` (so the tag `water_sports` will no be aggregated). The `include` regular expression will determine what
+with `water_` (so the tag `water_sports` will not be aggregated). The `include` regular expression will determine what
 values are "allowed" to be aggregated, while the `exclude` determines the values that should not be aggregated. When
 both are defined, the `exclude` has precedence, meaning, the `include` is evaluated first and only then the `exclude`.
 
@@ -740,7 +743,7 @@ expire then we may be missing accounts of interest and have set our numbers too 
 * increase the `size` parameter to return more results per partition (could be heavy on memory) or
 * increase the `num_partitions` to consider less accounts per request (could increase overall processing time as we need to make more requests)
 
-Ultimately this is a balancing act between managing the elasticsearch resources required to process a single request and the volume
+Ultimately this is a balancing act between managing the Elasticsearch resources required to process a single request and the volume
 of requests that the client application must issue to complete a task.
 
 ==== Multi-field terms aggregation

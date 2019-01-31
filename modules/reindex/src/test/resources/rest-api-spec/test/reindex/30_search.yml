@@ -3,13 +3,11 @@
   - do:
       index:
         index:  test
-        type:   test
         id:     1
         body:   { "text": "test" }
   - do:
       index:
         index:  test
-        type:   test
         id:     2
         body:   { "text": "junk" }
   - do:
@@ -29,6 +27,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: target
   - match: { hits.total: 1 }
 
@@ -37,13 +36,11 @@
   - do:
       index:
         index:  test
-        type:   test
         id:     1
         body:   { "order": 1 }
   - do:
       index:
         index:  test
-        type:   test
         id:     2
         body:   { "order": 2 }
   - do:
@@ -62,11 +59,13 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: target
   - match: { hits.total: 1 }
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: target
         q: order:1
   - match: { hits.total: 1 }

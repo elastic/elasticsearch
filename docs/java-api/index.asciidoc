@@ -5,8 +5,11 @@ include::../Versions.asciidoc[]
 
 [preface]
 == Preface
-This section describes the Java API that elasticsearch provides. All
-elasticsearch operations are executed using a
+
+deprecated[7.0.0, The `TransportClient` is deprecated in favour of the {java-rest}/java-rest-high.html[Java High Level REST Client] and will be removed in Elasticsearch 8.0. The {java-rest}/java-rest-high-level-migration.html[migration guide] describes all the steps needed to migrate.]
+
+This section describes the Java API that Elasticsearch provides. All
+Elasticsearch operations are executed using a
 <<client,Client>> object. All
 operations are completely asynchronous in nature (either accepts a
 listener, or returns a future).
@@ -17,11 +20,6 @@ Additionally, operations on a client may be accumulated and executed in
 Note, all the APIs are exposed through the
 Java API (actually, the Java API is used internally to execute them).
 
-WARNING: Starting from version 5.6.0, a new Java client has been
-released: the {java-rest}/java-rest-high.html[Java High Level REST Client].
-This new client is designed to replace the `TransportClient` in Java
-applications which will be deprecated in future versions of Elasticsearch.
-
 == Javadoc
 
 The javadoc for the transport client can be found at {transport-client-javadoc}/index.html.
@@ -29,7 +27,7 @@ The javadoc for the transport client can be found at {transport-client-javadoc}/
 == Maven Repository
 
 Elasticsearch is hosted on
-http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22elasticsearch%22[Maven
+http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.elasticsearch.client%22[Maven
 Central].
 
 For example, you can define the latest version in your `pom.xml` file:
@@ -83,7 +81,7 @@ You need to also include Log4j 2 dependencies:
 <dependency>
     <groupId>org.apache.logging.log4j</groupId>
     <artifactId>log4j-core</artifactId>
-    <version>2.9.1</version>
+    <version>2.11.1</version>
 </dependency>
 --------------------------------------------------
 
@@ -111,7 +109,7 @@ If you want to use another logger than Log4j 2, you can use http://www.slf4j.org
 <dependency>
     <groupId>org.apache.logging.log4j</groupId>
     <artifactId>log4j-to-slf4j</artifactId>
-    <version>2.9.1</version>
+    <version>2.11.1</version>
 </dependency>
 <dependency>
     <groupId>org.slf4j</groupId>
@@ -132,61 +130,10 @@ and add it as a dependency. As an example, we will use the `slf4j-simple` logger
 </dependency>
 --------------------------------------------------
 
+:client-tests: {docdir}/../../server/src/test/java/org/elasticsearch/client/documentation
+:hlrc-tests: {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client
 
-== Dealing with JAR dependency conflicts
-
-If you want to use Elasticsearch in your Java application, you may have to deal with version conflicts with third party
-dependencies like Guava and Joda.  For instance, perhaps Elasticsearch uses Joda 2.8, while your code uses Joda 2.1.
-
-You have two choices:
-
-* The simplest solution is to upgrade. Newer module versions are likely to have fixed old bugs.
-The further behind you fall, the harder it will be to upgrade later. Of course, it is possible that you are using a
-third party dependency that in turn depends on an outdated version of a package, which prevents you from upgrading.
-
-* The second option is to relocate the troublesome dependencies and to shade them either with your own application
-or with Elasticsearch and any plugins needed by the Elasticsearch client.
-
-The https://www.elastic.co/blog/to-shade-or-not-to-shade["To shade or not to shade" blog post] describes
-all the steps for doing so.
-
-== Embedding jar with dependencies
-
-If you want to create a single jar containing your application and all dependencies, you should not
-use `maven-assembly-plugin` for that because it can not deal with `META-INF/services` structure which is
-required by Lucene jars.
-
-Instead, you can use `maven-shade-plugin` and configure it as follow:
-
-[source,xml]
---------------------------------------------------
-<plugin>
-    <groupId>org.apache.maven.plugins</groupId>
-    <artifactId>maven-shade-plugin</artifactId>
-    <version>2.4.1</version>
-    <executions>
-        <execution>
-            <phase>package</phase>
-            <goals><goal>shade</goal></goals>
-            <configuration>
-                <transformers>
-                    <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
-                </transformers>
-            </configuration>
-        </execution>
-    </executions>
-</plugin>
---------------------------------------------------
-
-Note that if you have a `main` class you want to automatically call when running `java -jar yourjar.jar`, just add
-it to the `transformers`:
-
-[source,xml]
---------------------------------------------------
-<transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-    <mainClass>org.elasticsearch.demo.Generate</mainClass>
-</transformer>
---------------------------------------------------
+:client-reindex-tests: {docdir}/../../modules/reindex/src/test/java/org/elasticsearch/client/documentation
 
 include::client.asciidoc[]
 
@@ -197,7 +144,5 @@ include::search.asciidoc[]
 include::aggs.asciidoc[]
 
 include::query-dsl.asciidoc[]
-
-include::indexed-scripts.asciidoc[]
 
 include::admin/index.asciidoc[]

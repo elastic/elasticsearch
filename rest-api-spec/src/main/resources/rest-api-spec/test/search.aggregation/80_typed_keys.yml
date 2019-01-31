@@ -1,29 +1,25 @@
 setup:
-  - skip:
-      version: " - 5.3.99"
-      reason: typed_keys parameter was added in 5.4.0
 
   - do:
       indices.create:
+          include_type_name: false
           index: test
           body:
             settings:
               number_of_replicas: 0
             mappings:
-              test:
-                properties:
-                  name:
-                     type: keyword
-                  num:
-                     type: integer
-                  created:
-                    type: date
+              properties:
+                name:
+                   type: keyword
+                num:
+                   type: integer
+                created:
+                  type: date
 
   - do:
      bulk:
         refresh: true
         index: test
-        type: test
         body:
           - '{"index": {}}'
           - '{"name": "one", "num": 1, "created": "2010-03-12T01:07:45"}'
@@ -36,6 +32,7 @@ setup:
 "Test typed keys parameter for avg aggregation":
   - do:
       search:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           size: 0
@@ -49,6 +46,7 @@ setup:
 "Test typed keys parameter for cardinality aggregation":
   - do:
       search:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           size: 0
@@ -62,6 +60,7 @@ setup:
 "Test typed keys parameter for extended_stats aggregation":
   - do:
       search:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           size: 0
@@ -75,6 +74,7 @@ setup:
 "Test typed keys parameter for max aggregation":
   - do:
       search:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           size: 0
@@ -88,6 +88,7 @@ setup:
 "Test typed keys parameter for min aggregation":
   - do:
       search:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           size: 0
@@ -101,6 +102,7 @@ setup:
 "Test typed keys parameter for percentiles aggregation":
   - do:
       search:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           size: 0
@@ -114,6 +116,7 @@ setup:
 "Test typed keys parameter for percentile_ranks aggregation":
   - do:
       search:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           size: 0
@@ -128,6 +131,7 @@ setup:
 "Test typed keys parameter for stats aggregation":
   - do:
       search:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           size: 0
@@ -141,6 +145,7 @@ setup:
 "Test typed keys parameter for sum aggregation":
   - do:
       search:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           size: 0
@@ -154,6 +159,7 @@ setup:
 "Test typed keys parameter for terms and top_hits aggregation":
   - do:
       search:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           size: 0
@@ -174,6 +180,7 @@ setup:
 "Test typed keys parameter for terms aggregation":
   - do:
       search:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           size: 0
@@ -187,6 +194,7 @@ setup:
 "Test typed keys parameter for value_count aggregation":
   - do:
       search:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           size: 0
@@ -198,8 +206,15 @@ setup:
 
 ---
 "Test typed keys parameter for date_histogram aggregation and max_bucket pipeline aggregation":
+  - skip:
+      features: warnings
+      version: " - 6.3.99"
+      reason:  "deprecation added in 6.4.0"
   - do:
+      warnings:
+          - 'The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.'
       search:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           size: 0

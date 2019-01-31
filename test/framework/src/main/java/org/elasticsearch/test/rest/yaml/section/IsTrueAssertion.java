@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -42,7 +42,7 @@ public class IsTrueAssertion extends Assertion {
         return new IsTrueAssertion(parser.getTokenLocation(), ParserUtils.parseField(parser));
     }
 
-    private static final Logger logger = Loggers.getLogger(IsTrueAssertion.class);
+    private static final Logger logger = LogManager.getLogger(IsTrueAssertion.class);
 
     public IsTrueAssertion(XContentLocation location, String field) {
         super(location, field, true);

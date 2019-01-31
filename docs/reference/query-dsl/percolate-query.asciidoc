@@ -16,15 +16,13 @@ Create an index with two fields:
 PUT /my-index
 {
     "mappings": {
-        "doc": {
-            "properties": {
-                "message": {
-                    "type": "text"
-                },
-                "query": {
-                    "type": "percolator"
-                }
-            }
+        "properties": {
+             "message": {
+                 "type": "text"
+             },
+             "query": {
+                 "type": "percolator"
+             }
         }
     }
 }
@@ -37,14 +35,14 @@ the `percolator` query before it gets indexed into a temporary index.
 The `query` field is used for indexing the query documents. It will hold a
 json object that represents an actual Elasticsearch query. The `query` field
 has been configured to use the <<percolator,percolator field type>>. This field
-type understands the query dsl and stored the query in such a way that it can be
+type understands the query dsl and stores the query in such a way that it can be
 used later on to match documents defined on the `percolate` query.
 
 Register a query in the percolator:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/doc/1?refresh
+PUT /my-index/_doc/1?refresh
 {
     "query" : {
         "match" : {
@@ -83,20 +81,23 @@ The above request will yield the following response:
   "took": 13,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 0.5753642,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.26152915,
     "hits": [
       { <1>
         "_index": "my-index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
-        "_score": 0.5753642,
+        "_score": 0.26152915,
         "_source": {
           "query": {
             "match": {
@@ -117,6 +118,10 @@ The above request will yield the following response:
 <1> The query with id `1` matches our document.
 <2> The `_percolator_document_slot` field indicates which document has matched with this query.
     Useful when percolating multiple document simultaneously.
+
+TIP: To provide a simple example, this documentation uses one index `my-index` for both the percolate queries and documents.
+This set-up can work well when there are just a few percolate queries registered. However, with heavier usage it is recommended
+to store queries and documents in separate indices. Please see <<how-it-works, How it Works Under the Hood>> for more details.
 
 [float]
 ==== Parameters
@@ -143,6 +148,42 @@ In that case the `document` parameter can be substituted with the following para
 `routing`:: Optionally, routing to be used to fetch document to percolate.
 `preference`:: Optionally, preference to be used to fetch document to percolate.
 `version`:: Optionally, the expected version of the document to be fetched.
+
+[float]
+==== Percolating in a filter context
+
+In case you are not interested in the score, better performance can be expected by wrapping
+the percolator query in a `bool` query's filter clause or in a `constant_score` query:
+
+[source,js]
+--------------------------------------------------
+GET /my-index/_search
+{
+    "query" : {
+        "constant_score": {
+            "filter": {
+                "percolate" : {
+                    "field" : "query",
+                    "document" : {
+                        "message" : "A new bonsai tree in the office"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+At index time terms are extracted from the percolator query and the percolator
+can often determine whether a query matches just by looking at those extracted
+terms. However, computing scores requires to deserialize each matching query
+and run it against the percolated document, which is a much more expensive
+operation. Hence if computing scores is not required the `percolate` query
+should be wrapped in a `constant_score` query or a `bool` query's filter clause.
+
+Note that the `percolate` query never gets cached by the query cache.
 
 [float]
 ==== Percolating multiple documents
@@ -191,20 +232,23 @@ GET /my-index/_search
   "took": 13,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 1.5606477,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.7093853,
     "hits": [
       {
         "_index": "my-index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
-        "_score": 1.5606477,
+        "_score": 0.7093853,
         "_source": {
           "query": {
             "match": {
@@ -241,7 +285,7 @@ Index the document we want to percolate:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/doc/2
+PUT /my-index/_doc/2
 {
   "message" : "A new bonsai tree in the office"
 }
@@ -254,7 +298,7 @@ Index response:
 --------------------------------------------------
 {
   "_index": "my-index",
-  "_type": "doc",
+  "_type": "_doc",
   "_id": "2",
   "_version": 1,
   "_shards": {
@@ -263,7 +307,7 @@ Index response:
     "failed": 0
   },
   "result": "created",
-  "_seq_no" : 0,
+  "_seq_no" : 1,
   "_primary_term" : 1
 }
 --------------------------------------------------
@@ -279,7 +323,7 @@ GET /my-index/_search
         "percolate" : {
             "field": "query",
             "index" : "my-index",
-            "type" : "doc",
+            "type" : "_doc",
             "id" : "2",
             "version" : 1 <1>
         }
@@ -311,7 +355,7 @@ Save a query:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/doc/3?refresh
+PUT /my-index/_doc/3?refresh
 {
     "query" : {
         "match" : {
@@ -327,7 +371,7 @@ Save another query:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/doc/4?refresh
+PUT /my-index/_doc/4?refresh
 {
     "query" : {
         "match" : {
@@ -371,41 +415,23 @@ This will yield the following response.
   "took": 7,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
   "hits": {
-    "total": 2,
-    "max_score": 0.5753642,
+    "total" : {
+        "value": 2,
+        "relation": "eq"
+    },
+    "max_score": 0.26152915,
     "hits": [
       {
         "_index": "my-index",
-        "_type": "doc",
-        "_id": "4",
-        "_score": 0.5753642,
-        "_source": {
-          "query": {
-            "match": {
-              "message": "lazy dog"
-            }
-          }
-        },
-        "highlight": {
-          "message": [
-            "The quick brown fox jumps over the <em>lazy</em> <em>dog</em>" <1>
-          ]
-        },
-        "fields" : {
-          "_percolator_document_slot" : [0]
-        }
-      },
-      {
-        "_index": "my-index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "3",
-        "_score": 0.5753642,
+        "_score": 0.26152915,
         "_source": {
           "query": {
             "match": {
@@ -416,6 +442,27 @@ This will yield the following response.
         "highlight": {
           "message": [
             "The quick <em>brown</em> <em>fox</em> jumps over the lazy dog" <1>
+          ]
+        },
+        "fields" : {
+          "_percolator_document_slot" : [0]
+        }
+      },
+      {
+        "_index": "my-index",
+        "_type": "_doc",
+        "_id": "4",
+        "_score": 0.26152915,
+        "_source": {
+          "query": {
+            "match": {
+              "message": "lazy dog"
+            }
+          }
+        },
+        "highlight": {
+          "message": [
+            "The quick brown fox jumps over the <em>lazy</em> <em>dog</em>" <1>
           ]
         },
         "fields" : {
@@ -476,20 +523,23 @@ The slightly different response:
   "took": 13,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 1.5606477,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.7093853,
     "hits": [
       {
         "_index": "my-index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
-        "_score": 1.5606477,
+        "_score": 0.7093853,
         "_source": {
           "query": {
             "match": {
@@ -572,20 +622,23 @@ The above search request returns a response similar to this:
   "took": 13,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 0.5753642,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.26152915,
     "hits": [
       {
         "_index": "my-index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
-        "_score": 0.5753642,
+        "_score": 0.26152915,
         "_source": {
           "query": {
             "match": {
@@ -607,6 +660,7 @@ The above search request returns a response similar to this:
     query with `_name` parameter set to `query1`.
 
 [float]
+[[how-it-works]]
 ==== How it Works Under the Hood
 
 When indexing a document into an index that has the <<percolator,percolator field type>> mapping configured, the query
@@ -643,3 +697,11 @@ GET /_search
 
 NOTE: The above example assumes that there is a `query` field of type
 `percolator` in the mappings.
+
+Given the design of percolation, it often makes sense to use separate indices for the percolate queries and documents
+being percolated, as opposed to a single index as we do in examples. There are a few benefits to this approach:
+
+- Because percolate queries contain a different set of fields from the percolated documents, using two separate indices
+allows for fields to be stored in a denser, more efficient way.
+- Percolate queries do not scale in the same way as other queries, so percolation performance may benefit from using
+a different index configuration, like the number of primary shards.

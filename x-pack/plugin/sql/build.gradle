@@ -1,0 +1,142 @@
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask
+
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+    name 'x-pack-sql'
+    description 'The Elasticsearch plugin that powers SQL for Elasticsearch'
+    classname 'org.elasticsearch.xpack.sql.plugin.SqlPlugin'
+    extendedPlugins = ['x-pack-core', 'lang-painless']
+}
+
+configurations {
+    // Bundles the sql-cli.jar into the distribution
+    bin
+}
+
+archivesBaseName = 'x-pack-sql'
+
+// All integration tests live in qa modules
+integTest.enabled = false
+
+task internalClusterTest(type: RandomizedTestingTask,
+        group: JavaBasePlugin.VERIFICATION_GROUP,
+        dependsOn: unitTest.dependsOn) {
+    include '**/*IT.class'
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+}
+check.dependsOn internalClusterTest
+internalClusterTest.mustRunAfter test
+
+dependencies {
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    compileOnly project(path: xpackModule('core'), configuration: 'default')
+    compileOnly(project(':modules:lang-painless')) {
+        // exclude ASM to not affect featureAware task on Java 10+
+        exclude group: "org.ow2.asm"
+    }
+    compile project('sql-action')
+    compile "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
+    compile "org.antlr:antlr4-runtime:4.5.3"
+    testCompile "org.elasticsearch.test:framework:${version}"
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+    testCompile project(path: ':modules:reindex', configuration: 'runtime')
+    testCompile project(path: ':modules:parent-join', configuration: 'runtime')
+    testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
+
+    bin(project(path: xpackModule('sql:sql-cli'))) {
+        // sql-cli bundles all of its dependencies into a single executable jar
+        transitive = false
+    }
+}
+
+/* Bundle the sql-cli into the binary files. It should end up
+ * in $ES_HOME/bin/x-pack/. This is useful because it is an
+ * executable jar that can be moved wherever it is needed.
+ */
+bundlePlugin {
+    from (configurations.bin) {
+        into 'bin'
+    }
+}
+
+// add all sub-projects of the qa sub-project
+gradle.projectsEvaluated {
+    project.subprojects
+            .find { it.path == project.path + ":qa" }
+            .subprojects
+            .findAll { it.path.startsWith(project.path + ":qa") }
+            .each { check.dependsOn it.check }
+}
+
+
+/**********************************************
+ *          SQL Parser regeneration           *
+ **********************************************/
+
+configurations {
+    regenerate
+}
+
+dependencies {
+    regenerate 'org.antlr:antlr4:4.5.3'
+}
+
+String grammarPath = 'src/main/antlr'
+String outputPath = 'src/main/java/org/elasticsearch/xpack/sql/parser'
+
+task cleanGenerated(type: Delete) {
+    delete fileTree(grammarPath) {
+        include '*.tokens'
+    }
+    delete fileTree(outputPath) {
+        include 'SqlBase*.java'
+    }
+}
+
+task regenParser(type: JavaExec) {
+    dependsOn cleanGenerated
+    main = 'org.antlr.v4.Tool'
+    classpath = configurations.regenerate
+    systemProperty 'file.encoding', 'UTF-8'
+    systemProperty 'user.language', 'en'
+    systemProperty 'user.country', 'US'
+    systemProperty 'user.variant', ''
+    args '-Werror',
+         '-package', 'org.elasticsearch.xpack.sql.parser',
+         '-listener',
+         '-visitor',
+         '-o', outputPath,
+         "${file(grammarPath)}/SqlBase.g4"
+}
+
+task regen {
+    dependsOn regenParser
+    doLast {
+        // moves token files to grammar directory for use with IDE's
+        ant.move(file: "${outputPath}/SqlBase.tokens", toDir: grammarPath)
+        ant.move(file: "${outputPath}/SqlBaseLexer.tokens", toDir: grammarPath)
+        // make the generated classes package private
+        ant.replaceregexp(match: 'public ((interface|class) \\QSqlBase\\E\\w+)',
+                          replace: '\\1',
+                          encoding: 'UTF-8') {
+            fileset(dir: outputPath, includes: 'SqlBase*.java')
+        }
+        // nuke timestamps/filenames in generated files
+        ant.replaceregexp(match: '\\Q// Generated from \\E.*',
+                          replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
+                          encoding: 'UTF-8') {
+            fileset(dir: outputPath, includes: 'SqlBase*.java')
+        }
+        // remove tabs in antlr generated files
+        ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
+            fileset(dir: outputPath, includes: 'SqlBase*.java')
+        }
+        // fix line endings
+        ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
+            patternset(includes: 'SqlBase*.java')
+        }
+    }
+}

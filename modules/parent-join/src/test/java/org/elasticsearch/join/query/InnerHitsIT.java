@@ -56,6 +56,8 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -66,6 +68,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -86,30 +89,23 @@ public class InnerHitsIT extends ParentChildTestCase {
     }
 
     public void testSimpleParentChild() throws Exception {
-        if (legacy()) {
-            assertAcked(prepareCreate("articles")
-                .addMapping("article", "title", "type=text")
-                .addMapping("comment", "_parent", "type=article", "message", "type=text,fielddata=true")
-            );
-        } else {
-            assertAcked(prepareCreate("articles")
-                .addMapping("doc", jsonBuilder().startObject().startObject("doc").startObject("properties")
-                    .startObject("join_field")
-                        .field("type", "join")
-                        .startObject("relations")
-                            .field("article", "comment")
-                        .endObject()
+        assertAcked(prepareCreate("articles")
+            .addMapping("doc", jsonBuilder().startObject().startObject("doc").startObject("properties")
+                .startObject("join_field")
+                    .field("type", "join")
+                    .startObject("relations")
+                        .field("article", "comment")
                     .endObject()
-                    .startObject("title")
-                        .field("type", "text")
-                    .endObject()
-                    .startObject("message")
-                        .field("type", "text")
-                        .field("fielddata", true)
-                    .endObject()
-                    .endObject().endObject().endObject()
-                ));
-        }
+                .endObject()
+                .startObject("title")
+                    .field("type", "text")
+                .endObject()
+                .startObject("message")
+                    .field("type", "text")
+                    .field("fielddata", true)
+                .endObject()
+                .endObject().endObject().endObject()
+            ));
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(createIndexRequest("articles", "article", "p1", null, "title", "quick brown fox"));
@@ -133,16 +129,17 @@ public class InnerHitsIT extends ParentChildTestCase {
 
         assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
         SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-        assertThat(innerHits.getTotalHits(), equalTo(2L));
+        assertThat(innerHits.getTotalHits().value, equalTo(2L));
 
         assertThat(innerHits.getAt(0).getId(), equalTo("c1"));
-        assertThat(innerHits.getAt(0).getType(), equalTo(legacy() ? "comment" : "doc"));
+        assertThat(innerHits.getAt(0).getType(), equalTo("doc"));
         assertThat(innerHits.getAt(1).getId(), equalTo("c2"));
-        assertThat(innerHits.getAt(1).getType(), equalTo(legacy() ? "comment" : "doc"));
+        assertThat(innerHits.getAt(1).getType(), equalTo("doc"));
 
+        final boolean seqNoAndTerm = randomBoolean();
         response = client().prepareSearch("articles")
             .setQuery(hasChildQuery("comment", matchQuery("message", "elephant"), ScoreMode.None)
-                .innerHit(new InnerHitBuilder()))
+                .innerHit(new InnerHitBuilder().setSeqNoAndPrimaryTerm(seqNoAndTerm)))
             .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -150,14 +147,30 @@ public class InnerHitsIT extends ParentChildTestCase {
 
         assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
         innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-        assertThat(innerHits.getTotalHits(), equalTo(3L));
+        assertThat(innerHits.getTotalHits().value, equalTo(3L));
 
         assertThat(innerHits.getAt(0).getId(), equalTo("c4"));
-        assertThat(innerHits.getAt(0).getType(), equalTo(legacy() ? "comment" : "doc"));
+        assertThat(innerHits.getAt(0).getType(), equalTo("doc"));
         assertThat(innerHits.getAt(1).getId(), equalTo("c5"));
-        assertThat(innerHits.getAt(1).getType(), equalTo(legacy() ? "comment" : "doc"));
+        assertThat(innerHits.getAt(1).getType(), equalTo("doc"));
         assertThat(innerHits.getAt(2).getId(), equalTo("c6"));
-        assertThat(innerHits.getAt(2).getType(), equalTo(legacy() ? "comment" : "doc"));
+        assertThat(innerHits.getAt(2).getType(), equalTo("doc"));
+
+        if (seqNoAndTerm) {
+            assertThat(innerHits.getAt(0).getPrimaryTerm(), equalTo(1L));
+            assertThat(innerHits.getAt(1).getPrimaryTerm(), equalTo(1L));
+            assertThat(innerHits.getAt(2).getPrimaryTerm(), equalTo(1L));
+            assertThat(innerHits.getAt(0).getSeqNo(), greaterThanOrEqualTo(0L));
+            assertThat(innerHits.getAt(1).getSeqNo(), greaterThanOrEqualTo(0L));
+            assertThat(innerHits.getAt(2).getSeqNo(), greaterThanOrEqualTo(0L));
+        } else {
+            assertThat(innerHits.getAt(0).getPrimaryTerm(), equalTo(UNASSIGNED_PRIMARY_TERM));
+            assertThat(innerHits.getAt(1).getPrimaryTerm(), equalTo(UNASSIGNED_PRIMARY_TERM));
+            assertThat(innerHits.getAt(2).getPrimaryTerm(), equalTo(UNASSIGNED_PRIMARY_TERM));
+            assertThat(innerHits.getAt(0).getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+            assertThat(innerHits.getAt(1).getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+            assertThat(innerHits.getAt(2).getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+        }
 
         response = client().prepareSearch("articles")
             .setQuery(
@@ -179,24 +192,16 @@ public class InnerHitsIT extends ParentChildTestCase {
     }
 
     public void testRandomParentChild() throws Exception {
-        if (legacy()) {
-            assertAcked(prepareCreate("idx")
-                .addMapping("parent")
-                .addMapping("child1", "_parent", "type=parent")
-                .addMapping("child2", "_parent", "type=parent")
-            );
-        } else {
-            assertAcked(prepareCreate("idx")
-                .addMapping("doc", jsonBuilder().startObject().startObject("doc").startObject("properties")
-                    .startObject("join_field")
-                        .field("type", "join")
-                        .startObject("relations")
-                            .field("parent", new String[] {"child1", "child2"})
-                        .endObject()
+        assertAcked(prepareCreate("idx")
+            .addMapping("doc", jsonBuilder().startObject().startObject("doc").startObject("properties")
+                .startObject("join_field")
+                    .field("type", "join")
+                    .startObject("relations")
+                        .field("parent", new String[] {"child1", "child2"})
                     .endObject()
-                    .endObject().endObject().endObject()
-                ));
-        }
+                .endObject()
+                .endObject().endObject().endObject()
+            ));
         int numDocs = scaledRandomIntBetween(5, 50);
         List<IndexRequestBuilder> requestBuilders = new ArrayList<>();
 
@@ -225,13 +230,13 @@ public class InnerHitsIT extends ParentChildTestCase {
         BoolQueryBuilder boolQuery = new BoolQueryBuilder();
         boolQuery.should(constantScoreQuery(hasChildQuery("child1", matchAllQuery(), ScoreMode.None)
             .innerHit(new InnerHitBuilder().setName("a")
-                .addSort(new FieldSortBuilder("_uid").order(SortOrder.ASC)).setSize(size))));
+                .addSort(new FieldSortBuilder("_id").order(SortOrder.ASC)).setSize(size))));
         boolQuery.should(constantScoreQuery(hasChildQuery("child2", matchAllQuery(), ScoreMode.None)
             .innerHit(new InnerHitBuilder().setName("b")
-                .addSort(new FieldSortBuilder("_uid").order(SortOrder.ASC)).setSize(size))));
+                .addSort(new FieldSortBuilder("_id").order(SortOrder.ASC)).setSize(size))));
         SearchResponse searchResponse = client().prepareSearch("idx")
             .setSize(numDocs)
-            .addSort("_uid", SortOrder.ASC)
+            .addSort("_id", SortOrder.ASC)
             .setQuery(boolQuery)
             .get();
 
@@ -243,15 +248,15 @@ public class InnerHitsIT extends ParentChildTestCase {
         int offset2 = 0;
         for (int parent = 0; parent < numDocs; parent++) {
             SearchHit searchHit = searchResponse.getHits().getAt(parent);
-            assertThat(searchHit.getType(), equalTo(legacy() ? "parent" : "doc"));
+            assertThat(searchHit.getType(), equalTo("doc"));
             assertThat(searchHit.getId(), equalTo(String.format(Locale.ENGLISH, "p_%03d", parent)));
             assertThat(searchHit.getShard(), notNullValue());
 
             SearchHits inner = searchHit.getInnerHits().get("a");
-            assertThat(inner.getTotalHits(), equalTo((long) child1InnerObjects[parent]));
+            assertThat(inner.getTotalHits().value, equalTo((long) child1InnerObjects[parent]));
             for (int child = 0; child < child1InnerObjects[parent] && child < size; child++) {
                 SearchHit innerHit =  inner.getAt(child);
-                assertThat(innerHit.getType(), equalTo(legacy() ? "child1" : "doc"));
+                assertThat(innerHit.getType(), equalTo("doc"));
                 String childId = String.format(Locale.ENGLISH, "c1_%04d", offset1 + child);
                 assertThat(innerHit.getId(), equalTo(childId));
                 assertThat(innerHit.getNestedIdentity(), nullValue());
@@ -259,10 +264,10 @@ public class InnerHitsIT extends ParentChildTestCase {
             offset1 += child1InnerObjects[parent];
 
             inner = searchHit.getInnerHits().get("b");
-            assertThat(inner.getTotalHits(), equalTo((long) child2InnerObjects[parent]));
+            assertThat(inner.getTotalHits().value, equalTo((long) child2InnerObjects[parent]));
             for (int child = 0; child < child2InnerObjects[parent] && child < size; child++) {
                 SearchHit innerHit = inner.getAt(child);
-                assertThat(innerHit.getType(), equalTo(legacy() ? "child2" : "doc"));
+                assertThat(innerHit.getType(), equalTo("doc"));
                 String childId = String.format(Locale.ENGLISH, "c2_%04d", offset2 + child);
                 assertThat(innerHit.getId(), equalTo(childId));
                 assertThat(innerHit.getNestedIdentity(), nullValue());
@@ -272,16 +277,9 @@ public class InnerHitsIT extends ParentChildTestCase {
     }
 
     public void testInnerHitsOnHasParent() throws Exception {
-        if (legacy()) {
-            assertAcked(prepareCreate("stack")
-                .addMapping("question", "body", "type=text")
-                .addMapping("answer", "_parent", "type=question", "body", "type=text")
-            );
-        } else {
-            assertAcked(prepareCreate("stack")
-                .addMapping("doc", addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "question", "answer"),
-                    "body", "text")));
-        }
+        assertAcked(prepareCreate("stack")
+            .addMapping("doc", addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "question", "answer"),
+                "body", "text")));
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(createIndexRequest("stack", "question", "1", null, "body", "I'm using HTTPS + Basic authentication "
             + "to protect a resource. How can I throttle authentication attempts to protect against brute force attacks?"));
@@ -293,7 +291,7 @@ public class InnerHitsIT extends ParentChildTestCase {
         indexRandom(true, requests);
 
         SearchResponse response = client().prepareSearch("stack")
-            .addSort("_uid", SortOrder.ASC)
+            .addSort("_id", SortOrder.ASC)
             .setQuery(
                 boolQuery()
                     .must(matchQuery("body", "fail2ban"))
@@ -304,32 +302,24 @@ public class InnerHitsIT extends ParentChildTestCase {
 
         SearchHit searchHit = response.getHits().getAt(0);
         assertThat(searchHit.getId(), equalTo("3"));
-        assertThat(searchHit.getType(), equalTo(legacy() ? "answer" : "doc"));
-        assertThat(searchHit.getInnerHits().get("question").getTotalHits(), equalTo(1L));
-        assertThat(searchHit.getInnerHits().get("question").getAt(0).getType(), equalTo(legacy() ? "question" : "doc"));
+        assertThat(searchHit.getType(), equalTo("doc"));
+        assertThat(searchHit.getInnerHits().get("question").getTotalHits().value, equalTo(1L));
+        assertThat(searchHit.getInnerHits().get("question").getAt(0).getType(), equalTo("doc"));
         assertThat(searchHit.getInnerHits().get("question").getAt(0).getId(), equalTo("1"));
 
         searchHit = response.getHits().getAt(1);
         assertThat(searchHit.getId(), equalTo("4"));
-        assertThat(searchHit.getType(), equalTo(legacy() ? "answer" : "doc"));
-        assertThat(searchHit.getInnerHits().get("question").getTotalHits(), equalTo(1L));
-        assertThat(searchHit.getInnerHits().get("question").getAt(0).getType(), equalTo(legacy() ? "question" : "doc"));
+        assertThat(searchHit.getType(), equalTo("doc"));
+        assertThat(searchHit.getInnerHits().get("question").getTotalHits().value, equalTo(1L));
+        assertThat(searchHit.getInnerHits().get("question").getAt(0).getType(), equalTo("doc"));
         assertThat(searchHit.getInnerHits().get("question").getAt(0).getId(), equalTo("2"));
     }
 
     public void testParentChildMultipleLayers() throws Exception {
-        if (legacy()) {
-            assertAcked(prepareCreate("articles")
-                .addMapping("article", "title", "type=text")
-                .addMapping("comment", "_parent", "type=article", "message", "type=text")
-                .addMapping("remark", "_parent", "type=comment", "message", "type=text")
-            );
-        } else {
-            assertAcked(prepareCreate("articles")
-                .addMapping("doc",
-                    addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
-                        "article", "comment", "comment", "remark"), "title", "text", "message", "text")));
-        }
+        assertAcked(prepareCreate("articles")
+            .addMapping("doc",
+                addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
+                    "article", "comment", "comment", "remark"), "title", "text", "message", "text")));
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(createIndexRequest("articles", "article", "1", null, "title", "quick brown fox"));
@@ -352,14 +342,14 @@ public class InnerHitsIT extends ParentChildTestCase {
 
         assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
         SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-        assertThat(innerHits.getTotalHits(), equalTo(1L));
+        assertThat(innerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerHits.getAt(0).getId(), equalTo("3"));
-        assertThat(innerHits.getAt(0).getType(), equalTo(legacy() ? "comment" : "doc"));
+        assertThat(innerHits.getAt(0).getType(), equalTo("doc"));
 
         innerHits = innerHits.getAt(0).getInnerHits().get("remark");
-        assertThat(innerHits.getTotalHits(), equalTo(1L));
+        assertThat(innerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerHits.getAt(0).getId(), equalTo("5"));
-        assertThat(innerHits.getAt(0).getType(), equalTo(legacy() ? "remark" : "doc"));
+        assertThat(innerHits.getAt(0).getType(), equalTo("doc"));
 
         response = client().prepareSearch("articles")
             .setQuery(hasChildQuery("comment",
@@ -373,31 +363,20 @@ public class InnerHitsIT extends ParentChildTestCase {
 
         assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
         innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-        assertThat(innerHits.getTotalHits(), equalTo(1L));
+        assertThat(innerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerHits.getAt(0).getId(), equalTo("4"));
-        assertThat(innerHits.getAt(0).getType(), equalTo(legacy() ? "comment" : "doc"));
+        assertThat(innerHits.getAt(0).getType(), equalTo("doc"));
 
         innerHits = innerHits.getAt(0).getInnerHits().get("remark");
-        assertThat(innerHits.getTotalHits(), equalTo(1L));
+        assertThat(innerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerHits.getAt(0).getId(), equalTo("6"));
-        assertThat(innerHits.getAt(0).getType(), equalTo(legacy() ? "remark" : "doc"));
+        assertThat(innerHits.getAt(0).getType(), equalTo("doc"));
     }
 
     public void testRoyals() throws Exception {
-        if (legacy()) {
-            assertAcked(
-                prepareCreate("royals")
-                    .addMapping("king")
-                    .addMapping("prince", "_parent", "type=king")
-                    .addMapping("duke", "_parent", "type=prince")
-                    .addMapping("earl", "_parent", "type=duke")
-                    .addMapping("baron", "_parent", "type=earl")
-            );
-        } else {
-            assertAcked(prepareCreate("royals")
-                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
-                    "king", "prince", "prince", "duke", "duke", "earl", "earl", "baron")));
-        }
+        assertAcked(prepareCreate("royals")
+            .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
+                "king", "prince", "prince", "duke", "duke", "earl", "earl", "baron")));
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(createIndexRequest("royals", "king", "king", null));
@@ -423,7 +402,7 @@ public class InnerHitsIT extends ParentChildTestCase {
                     hasChildQuery("baron", matchAllQuery(), ScoreMode.None)
                         .innerHit(new InnerHitBuilder().setName("barons")),
                     ScoreMode.None).innerHit(new InnerHitBuilder()
-                    .addSort(SortBuilders.fieldSort("_uid").order(SortOrder.ASC))
+                    .addSort(SortBuilders.fieldSort("_id").order(SortOrder.ASC))
                     .setName("earls")
                     .setSize(4))
                 )
@@ -432,45 +411,40 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertThat(response.getHits().getAt(0).getId(), equalTo("duke"));
 
         SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("earls");
-        assertThat(innerHits.getTotalHits(), equalTo(4L));
+        assertThat(innerHits.getTotalHits().value, equalTo(4L));
         assertThat(innerHits.getAt(0).getId(), equalTo("earl1"));
         assertThat(innerHits.getAt(1).getId(), equalTo("earl2"));
         assertThat(innerHits.getAt(2).getId(), equalTo("earl3"));
         assertThat(innerHits.getAt(3).getId(), equalTo("earl4"));
 
         SearchHits innerInnerHits = innerHits.getAt(0).getInnerHits().get("barons");
-        assertThat(innerInnerHits.getTotalHits(), equalTo(1L));
+        assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron1"));
 
         innerInnerHits = innerHits.getAt(1).getInnerHits().get("barons");
-        assertThat(innerInnerHits.getTotalHits(), equalTo(1L));
+        assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron2"));
 
         innerInnerHits = innerHits.getAt(2).getInnerHits().get("barons");
-        assertThat(innerInnerHits.getTotalHits(), equalTo(1L));
+        assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron3"));
 
         innerInnerHits = innerHits.getAt(3).getInnerHits().get("barons");
-        assertThat(innerInnerHits.getTotalHits(), equalTo(1L));
+        assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron4"));
 
         innerHits = response.getHits().getAt(0).getInnerHits().get("princes");
-        assertThat(innerHits.getTotalHits(), equalTo(1L));
+        assertThat(innerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerHits.getAt(0).getId(), equalTo("prince"));
 
         innerInnerHits = innerHits.getAt(0).getInnerHits().get("kings");
-        assertThat(innerInnerHits.getTotalHits(), equalTo(1L));
+        assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerInnerHits.getAt(0).getId(), equalTo("king"));
     }
 
     public void testMatchesQueriesParentChildInnerHits() throws Exception {
-        if (legacy()) {
-            assertAcked(prepareCreate("index")
-                .addMapping("child", "_parent", "type=parent"));
-        } else {
-            assertAcked(prepareCreate("index")
-                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
-        }
+        assertAcked(prepareCreate("index")
+            .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(createIndexRequest("index", "parent", "1", null));
         requests.add(createIndexRequest("index", "child", "3", "1", "field", "value1"));
@@ -482,16 +456,16 @@ public class InnerHitsIT extends ParentChildTestCase {
         SearchResponse response = client().prepareSearch("index")
             .setQuery(hasChildQuery("child", matchQuery("field", "value1").queryName("_name1"), ScoreMode.None)
                 .innerHit(new InnerHitBuilder()))
-            .addSort("_uid", SortOrder.ASC)
+            .addSort("_id", SortOrder.ASC)
             .get();
         assertHitCount(response, 2);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits(), equalTo(1L));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
         assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
         assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name1"));
 
         assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
-        assertThat(response.getHits().getAt(1).getInnerHits().get("child").getTotalHits(), equalTo(1L));
+        assertThat(response.getHits().getAt(1).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
         assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
         assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name1"));
 
@@ -499,22 +473,18 @@ public class InnerHitsIT extends ParentChildTestCase {
             .innerHit(new InnerHitBuilder());
         response = client().prepareSearch("index")
             .setQuery(query)
-            .addSort("_uid", SortOrder.ASC)
+            .addSort("_id", SortOrder.ASC)
             .get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits(), equalTo(1L));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
         assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
         assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name2"));
     }
 
     public void testUseMaxDocInsteadOfSize() throws Exception {
-        if (legacy()) {
-            assertAcked(prepareCreate("index1").addMapping("child", "_parent", "type=parent"));
-        } else {
-            assertAcked(prepareCreate("index1")
-                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
-        }
+        assertAcked(prepareCreate("index1")
+            .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         client().admin().indices().prepareUpdateSettings("index1")
             .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH))
             .get();
@@ -533,14 +503,9 @@ public class InnerHitsIT extends ParentChildTestCase {
     }
 
     public void testNestedInnerHitWrappedInParentChildInnerhit() throws Exception {
-        if (legacy()) {
-            assertAcked(prepareCreate("test")
-                .addMapping("child_type", "_parent", "type=parent_type", "nested_type", "type=nested"));
-        } else {
-            assertAcked(prepareCreate("test")
-                .addMapping("doc", addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
-                    "parent_type", "child_type"), "nested_type", "nested")));
-        }
+        assertAcked(prepareCreate("test")
+            .addMapping("doc", addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
+                "parent_type", "child_type"), "nested_type", "nested")));
         createIndexRequest("test", "parent_type", "1", null, "key", "value").get();
         createIndexRequest("test", "child_type", "2", "1", "nested_type", Collections.singletonMap("key", "value")).get();
         refresh();
@@ -551,28 +516,17 @@ public class InnerHitsIT extends ParentChildTestCase {
             .get();
         assertHitCount(response, 1);
         SearchHit hit = response.getHits().getAt(0);
-        if (legacy()) {
-            assertThat(hit.getInnerHits().get("child_type").getAt(0).field("_parent").getValue(), equalTo("1"));
-        } else {
-            String parentId = (String) extractValue("join_field.parent", hit.getInnerHits().get("child_type").getAt(0).getSourceAsMap());
-            assertThat(parentId, equalTo("1"));
-        }
+        String parentId = (String) extractValue("join_field.parent", hit.getInnerHits().get("child_type").getAt(0).getSourceAsMap());
+        assertThat(parentId, equalTo("1"));
         assertThat(hit.getInnerHits().get("child_type").getAt(0).getInnerHits().get("nested_type").getAt(0).field("_parent"), nullValue());
     }
 
     public void testInnerHitsWithIgnoreUnmapped() throws Exception {
-        if (legacy()) {
-            assertAcked(prepareCreate("index1")
-                .addMapping("parent_type", "nested_type", "type=nested")
-                .addMapping("child_type", "_parent", "type=parent_type")
-            );
-        } else {
-            assertAcked(prepareCreate("index1")
-                .addMapping("doc", addFieldMappings(
-                    buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent_type", "child_type"),
-                    "nested_type", "nested"))
-            );
-        }
+        assertAcked(prepareCreate("index1")
+            .addMapping("doc", addFieldMappings(
+                buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent_type", "child_type"),
+                "nested_type", "nested"))
+        );
         assertAcked(prepareCreate("index2"));
         createIndexRequest("index1", "parent_type", "1", null, "nested_type", Collections.singletonMap("key", "value")).get();
         createIndexRequest("index1", "child_type", "2", "1").get();
@@ -592,18 +546,11 @@ public class InnerHitsIT extends ParentChildTestCase {
     }
 
     public void testTooHighResultWindow() throws Exception {
-        if (legacy()) {
-            assertAcked(prepareCreate("index1")
-                .addMapping("parent_type", "nested_type", "type=nested")
-                .addMapping("child_type", "_parent", "type=parent_type")
-            );
-        } else {
-            assertAcked(prepareCreate("index1")
-                .addMapping("doc", addFieldMappings(
-                    buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent_type", "child_type"),
-                    "nested_type", "nested"))
-            );
-        }
+        assertAcked(prepareCreate("index1")
+            .addMapping("doc", addFieldMappings(
+                buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent_type", "child_type"),
+                "nested_type", "nested"))
+        );
         createIndexRequest("index1", "parent_type", "1", null, "nested_type", Collections.singletonMap("key", "value")).get();
         createIndexRequest("index1", "child_type", "2", "1").get();
         refresh();

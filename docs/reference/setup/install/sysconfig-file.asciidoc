@@ -5,7 +5,7 @@
 
 `MAX_OPEN_FILES`::
 
-    Maximum number of open files, defaults to `65536`.
+    Maximum number of open files, defaults to `65535`.
 
 `MAX_LOCKED_MEMORY`::
 
@@ -19,7 +19,7 @@
     information, check the
     https://github.com/torvalds/linux/blob/master/Documentation/sysctl/vm.txt[linux kernel documentation]
     about `max_map_count`. This is set via `sysctl` before starting
-    elasticsearch. Defaults to `262144`.
+    Elasticsearch. Defaults to `262144`.
 
 `ES_PATH_CONF`::
 
@@ -34,7 +34,7 @@
 `RESTART_ON_UPGRADE`::
 
     Configure restart on package upgrade, defaults to `false`. This means you
-    will have to restart your elasticsearch instance after installing a
+    will have to restart your Elasticsearch instance after installing a
     package manually. The reason for this is to ensure, that upgrades in a
     cluster do not result in a continuous shard reallocation resulting in high
     network traffic and reducing the response times of your cluster.

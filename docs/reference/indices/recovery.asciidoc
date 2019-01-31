@@ -90,7 +90,8 @@ Response:
         "repository" : "my_repository",
         "snapshot" : "my_snapshot",
         "index" : "index1",
-        "version" : "{version}"
+        "version" : "{version}",
+        "restoreUUID": "PDh1ZAOaRbiGIVtCvZOMww"
       },
       "target" : {
         "id" : "ryqJ5lO5S4-lSFbGntkEkg",

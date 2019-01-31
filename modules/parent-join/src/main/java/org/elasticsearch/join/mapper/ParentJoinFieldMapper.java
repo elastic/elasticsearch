@@ -23,6 +23,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -40,6 +42,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -92,10 +95,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         if (settings.getIndexMetaData().isRoutingPartitionedIndex()) {
             throw new IllegalStateException("cannot create join field [" + name + "] " +
                 "for the partitioned index " + "[" + settings.getIndex().getName() + "]");
-        }
-        if (settings.isSingleType() == false) {
-            throw new IllegalStateException("cannot create join field [" + name + "] " +
-                "on multi-types index [" + settings.getIndex().getName() + "]");
         }
     }
 
@@ -236,6 +235,11 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             BytesRef binaryValue = (BytesRef) value;
             return binaryValue.utf8ToString();
         }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            return new DocValuesFieldExistsQuery(name());
+        }
     }
 
     // The meta field that ensures that there is no other parent-join in the mapping
@@ -308,8 +312,8 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        super.doMerge(mergeWith, updateAllTypes);
+    protected void doMerge(Mapper mergeWith) {
+        super.doMerge(mergeWith);
         ParentJoinFieldMapper joinMergeWith = (ParentJoinFieldMapper) mergeWith;
         List<String> conflicts = new ArrayList<>();
         for (ParentIdFieldMapper mapper : parentIdFields) {
@@ -339,7 +343,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                         conflicts.add("cannot remove child [" + child + "] in join field [" + name() + "]");
                     }
                 }
-                ParentIdFieldMapper merged = (ParentIdFieldMapper) self.merge(mergeWithMapper, updateAllTypes);
+                ParentIdFieldMapper merged = (ParentIdFieldMapper) self.merge(mergeWithMapper);
                 newParentIdFields.add(merged);
             }
         }
@@ -348,7 +352,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
         this.eagerGlobalOrdinals = joinMergeWith.eagerGlobalOrdinals;
         this.parentIdFields = Collections.unmodifiableList(newParentIdFields);
-        this.uniqueFieldMapper = (MetaJoinFieldMapper) uniqueFieldMapper.merge(joinMergeWith.uniqueFieldMapper, updateAllTypes);
+        this.uniqueFieldMapper = (MetaJoinFieldMapper) uniqueFieldMapper.merge(joinMergeWith.uniqueFieldMapper);
         uniqueFieldMapper.setFieldMapper(this);
     }
 
@@ -371,7 +375,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         context.path().add(simpleName());
         XContentParser.Token token = context.parser().currentToken();
         String name = null;
@@ -433,7 +437,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         context.doc().add(field);
         context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
         context.path().remove();
-        return null;
     }
 
     @Override

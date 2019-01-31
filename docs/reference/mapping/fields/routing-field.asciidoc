@@ -13,12 +13,12 @@ value per document.  For instance:
 
 [source,js]
 ------------------------------
-PUT my_index/my_type/1?routing=user1&refresh=true <1>
+PUT my_index/_doc/1?routing=user1&refresh=true <1>
 {
   "title": "This is a document"
 }
 
-GET my_index/my_type/1?routing=user1 <2>
+GET my_index/_doc/1?routing=user1 <2>
 ------------------------------
 // CONSOLE
 // TESTSETUP
@@ -82,22 +82,20 @@ custom `routing` value required for all CRUD operations:
 PUT my_index2
 {
   "mappings": {
-    "my_type": {
-      "_routing": {
-        "required": true <1>
-      }
+    "_routing": {
+      "required": true <1>
     }
   }
 }
 
-PUT my_index2/my_type/1 <2>
+PUT my_index2/_doc/1 <2>
 {
   "text": "No routing value provided"
 }
 ------------------------------
 // CONSOLE
 // TEST[catch:bad_request]
-<1> Routing is required for `my_type` documents.
+<1> Routing is required for `_doc` documents.
 <2> This index request throws a `routing_missing_exception`.
 
 ==== Unique IDs with custom routing

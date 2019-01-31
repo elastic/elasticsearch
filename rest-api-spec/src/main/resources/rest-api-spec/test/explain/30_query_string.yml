@@ -1,19 +1,22 @@
 ---
 "explain with query_string parameters":
+  - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
+
   - do:
       indices.create:
+          include_type_name: false
           index:  test
           body:
             mappings:
-              test:
-                properties:
-                  number:
-                    type: integer
+              properties:
+                number:
+                  type: integer
 
   - do:
       index:
           index:  test
-          type:   test
           id:     1
           body:   { field: foo bar}
 
@@ -24,7 +27,6 @@
   - do:
       explain:
         index:  test
-        type:   test
         id:     1
         q: bar
         df: field
@@ -34,7 +36,6 @@
   - do:
       explain:
         index:  test
-        type:   test
         id:     1
         q: field:foo field:xyz
 
@@ -43,7 +44,6 @@
   - do:
       explain:
         index:  test
-        type:   test
         id:     1
         q: field:foo field:xyz
         default_operator: AND
@@ -53,17 +53,6 @@
   - do:
       explain:
         index:  test
-        type:   test
-        id:     1
-        q: field:bars
-        analyzer: snowball
-
-  - is_true: matched
-
-  - do:
-      explain:
-        index:  test
-        type:   test
         id:     1
         q: field:BA*
 
@@ -72,7 +61,6 @@
   - do:
       explain:
         index:  test
-        type:   test
         id:     1
         q: number:foo
         lenient: true

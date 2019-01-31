@@ -1,0 +1,108 @@
+[[java-rest-high-snapshot-get-snapshots]]
+=== Get Snapshots API
+
+Use the Get Snapshot API to get snapshots.
+
+[[java-rest-high-snapshot-get-snapshots-request]]
+==== Get Snapshots Request
+
+A `GetSnapshotsRequest`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-snapshots-request]
+--------------------------------------------------
+
+==== Required Arguments
+The following arguments are mandatory:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-snapshots-request-repositoryName]
+--------------------------------------------------
+<1> The name of the repository.
+
+==== Optional Arguments
+The following arguments are optional:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-snapshots-request-snapshots]
+--------------------------------------------------
+<1> An array of snapshots to get. Otherwise it will return all snapshots for a repository.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-snapshots-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`.
+<2> Timeout to connect to the master node as a `String`.
+
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-snapshots-request-verbose]
+--------------------------------------------------
+<1> `Boolean` indicating if the response should be verbose.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-snapshots-request-ignore-unavailable]
+--------------------------------------------------
+<1> `Boolean` indicating if unavailable snapshots should be ignored. Otherwise the request will
+fail if any of the snapshots are unavailable.
+
+[[java-rest-high-snapshot-get-snapshots-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-snapshots-execute]
+--------------------------------------------------
+
+[[java-rest-high-snapshot-get-snapshots-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a get snapshots request requires both the
+`GetSnapshotsRequest` instance and an `ActionListener` instance to be
+passed as arguments to the asynchronous method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-snapshots-execute-async]
+--------------------------------------------------
+<1> The `GetSnapshotsRequest` to execute and the `ActionListener` to use when
+the execution completes.
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back with the `onResponse` method
+if the execution is successful or the `onFailure` method if the execution
+failed.
+
+A typical listener for `GetSnapshotsResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-snapshots-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument.
+<2> Called in case of a failure. The raised exception is provided as an
+argument.
+
+[[java-rest-high-snapshot-get-snapshots-response]]
+==== Get Snapshots Response
+
+The returned `GetSnapshotsResponse` allows the retrieval of information about the requested
+snapshots:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-snapshots-response]
+--------------------------------------------------
+<1> The REST status of a snapshot
+<2> The snapshot id
+<3> The current state of the snapshot
+<4> Information about failures that occurred during the shard snapshot process.
+<5> The snapshot start time
+<6> The snapshot end time

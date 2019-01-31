@@ -23,6 +23,26 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 import org.apache.lucene.util.LuceneTestCase;
+import org.bouncycastle.bcpg.ArmoredOutputStream;
+import org.bouncycastle.bcpg.BCPGOutputStream;
+import org.bouncycastle.bcpg.HashAlgorithmTags;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.openpgp.PGPEncryptedData;
+import org.bouncycastle.openpgp.PGPException;
+import org.bouncycastle.openpgp.PGPKeyPair;
+import org.bouncycastle.openpgp.PGPPrivateKey;
+import org.bouncycastle.openpgp.PGPPublicKey;
+import org.bouncycastle.openpgp.PGPSecretKey;
+import org.bouncycastle.openpgp.PGPSignature;
+import org.bouncycastle.openpgp.PGPSignatureGenerator;
+import org.bouncycastle.openpgp.operator.PGPDigestCalculator;
+import org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder;
+import org.bouncycastle.openpgp.operator.bc.BcPGPContentSignerBuilder;
+import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentSignerBuilder;
+import org.bouncycastle.openpgp.operator.jcajce.JcaPGPDigestCalculatorProviderBuilder;
+import org.bouncycastle.openpgp.operator.jcajce.JcaPGPKeyPair;
+import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyEncryptorBuilder;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
@@ -34,15 +54,18 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
-import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
@@ -65,13 +88,19 @@ import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.UserPrincipal;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -82,6 +111,8 @@ import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
 
@@ -92,6 +123,7 @@ public class InstallPluginCommandTests extends ESTestCase {
     private InstallPluginCommand defaultCommand;
 
     private final Function<String, Path> temp;
+    private final MockTerminal terminal = new MockTerminal();
 
     private final FileSystem fs;
     private final boolean isPosix;
@@ -109,18 +141,26 @@ public class InstallPluginCommandTests extends ESTestCase {
         System.setProperty("java.io.tmpdir", temp.apply("tmpdir").toString());
     }
 
+    @BeforeClass
+    public static void testIfFipsMode() {
+        assumeFalse("Can't run in a FIPS JVM because this depends on BouncyCastle (non-fips)", inFipsJvm());
+    }
+
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
         skipJarHellCommand = new InstallPluginCommand() {
             @Override
-            void jarHellCheck(Path candidate, Path pluginsDir) throws Exception {
+            void jarHellCheck(PluginInfo candidateInfo, Path candidate, Path pluginsDir, Path modulesDir) throws Exception {
                 // no jarhell check
             }
         };
         defaultCommand = new InstallPluginCommand();
+        terminal.reset();
     }
 
+    @Override
     @After
     @SuppressForbidden(reason = "resets java.io.tmpdir")
     public void tearDown() throws Exception {
@@ -176,7 +216,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("path.home", home)
             .build();
-        return Tuple.tuple(home, new Environment(settings));
+        return Tuple.tuple(home, TestEnvironment.newEnvironment(settings));
     }
 
     static Path createPluginDir(Function<String, Path> temp) throws IOException {
@@ -210,10 +250,10 @@ public class InstallPluginCommandTests extends ESTestCase {
 
     /** creates a plugin .zip and returns the url for testing */
     static String createPluginUrl(String name, Path structure, String... additionalProps) throws IOException {
-        return createPlugin(name, structure, false, additionalProps).toUri().toURL().toString();
+        return createPlugin(name, structure, additionalProps).toUri().toURL().toString();
     }
 
-    static Path createPlugin(String name, Path structure, boolean createSecurityPolicyFile, String... additionalProps) throws IOException {
+    static void writePlugin(String name, Path structure, String... additionalProps) throws IOException {
         String[] properties = Stream.concat(Stream.of(
             "description", "fake desc",
             "name", name,
@@ -222,28 +262,44 @@ public class InstallPluginCommandTests extends ESTestCase {
             "java.version", System.getProperty("java.specification.version"),
             "classname", "FakePlugin"
         ), Arrays.stream(additionalProps)).toArray(String[]::new);
-        PluginTestUtil.writeProperties(structure, properties);
-        if (createSecurityPolicyFile) {
-            String securityPolicyContent = "grant {\n  permission java.lang.RuntimePermission \"setFactory\";\n};\n";
-            Files.write(structure.resolve("plugin-security.policy"), securityPolicyContent.getBytes(StandardCharsets.UTF_8));
+        PluginTestUtil.writePluginProperties(structure, properties);
+        String className = name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1) + "Plugin";
+        writeJar(structure.resolve("plugin.jar"), className);
+    }
+
+    static void writePluginSecurityPolicy(Path pluginDir, String... permissions) throws IOException {
+        StringBuilder securityPolicyContent = new StringBuilder("grant {\n  ");
+        for (String permission : permissions) {
+            securityPolicyContent.append("permission java.lang.RuntimePermission \"");
+            securityPolicyContent.append(permission);
+            securityPolicyContent.append("\";");
         }
-        writeJar(structure.resolve("plugin.jar"), "FakePlugin");
-        return writeZip(structure, "elasticsearch");
+        securityPolicyContent.append("\n};\n");
+        Files.write(pluginDir.resolve("plugin-security.policy"), securityPolicyContent.toString().getBytes(StandardCharsets.UTF_8));
     }
 
-    MockTerminal installPlugin(String pluginUrl, Path home) throws Exception {
-        return installPlugin(pluginUrl, home, skipJarHellCommand);
+    static Path createPlugin(String name, Path structure, String... additionalProps) throws IOException {
+        writePlugin(name, structure, additionalProps);
+        return writeZip(structure, null);
     }
 
-    MockTerminal installPlugin(String pluginUrl, Path home, InstallPluginCommand command) throws Exception {
-        Environment env = new Environment(Settings.builder().put("path.home", home).build());
-        MockTerminal terminal = new MockTerminal();
-        command.execute(terminal, pluginUrl, true, env);
-        return terminal;
+    void installPlugin(String pluginUrl, Path home) throws Exception {
+        installPlugin(pluginUrl, home, skipJarHellCommand);
+    }
+
+    void installPlugin(String pluginUrl, Path home, InstallPluginCommand command) throws Exception {
+        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
+        command.execute(terminal, pluginUrl, false, env);
     }
 
     void assertPlugin(String name, Path original, Environment env) throws IOException {
-        Path got = env.pluginsFile().resolve(name);
+        assertPluginInternal(name, env.pluginsFile());
+        assertConfigAndBin(name, original, env);
+        assertInstallCleaned(env);
+    }
+
+    void assertPluginInternal(String name, Path pluginsFile) throws IOException {
+        Path got = pluginsFile.resolve(name);
         assertTrue("dir " + name + " exists", Files.exists(got));
 
         if (isPosix) {
@@ -259,10 +315,12 @@ public class InstallPluginCommandTests extends ESTestCase {
                     PosixFilePermission.OTHERS_READ,
                     PosixFilePermission.OTHERS_EXECUTE));
         }
-
         assertTrue("jar was copied", Files.exists(got.resolve("plugin.jar")));
         assertFalse("bin was not copied", Files.exists(got.resolve("bin")));
         assertFalse("config was not copied", Files.exists(got.resolve("config")));
+    }
+
+    void assertConfigAndBin(String name, Path original, Environment env) throws IOException {
         if (Files.exists(original.resolve("bin"))) {
             Path binDir = env.binFile().resolve(name);
             assertTrue("bin dir exists", Files.exists(binDir));
@@ -316,7 +374,6 @@ public class InstallPluginCommandTests extends ESTestCase {
                 }
             }
         }
-        assertInstallCleaned(env);
     }
 
     void assertInstallCleaned(Environment env) throws IOException {
@@ -376,6 +433,16 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("no protocol"));
     }
 
+    public void testFileNotMaven() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        String dir = randomAlphaOfLength(10) + ":" + randomAlphaOfLength(5) + "\\" + randomAlphaOfLength(5);
+        Exception e = expectThrows(Exception.class,
+            // has two colons, so it appears similar to maven coordinates
+            () -> installPlugin("file:" + dir, env.v1()));
+        assertFalse(e.getMessage(), e.getMessage().contains("maven.org"));
+        assertTrue(e.getMessage(), e.getMessage().contains(dir));
+    }
+
     public void testUnknownPlugin() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         UserException e = expectThrows(UserException.class, () -> installPlugin("foo", env.v1()));
@@ -399,6 +466,15 @@ public class InstallPluginCommandTests extends ESTestCase {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         String pluginZip = createPluginUrl("lang-painless", pluginDir);
+        UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
+        assertTrue(e.getMessage(), e.getMessage().contains("is a system module"));
+        assertInstallCleaned(env.v2());
+    }
+
+    public void testBuiltinXpackModule() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        String pluginZip = createPluginUrl("x-pack", pluginDir);
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("is a system module"));
         assertInstallCleaned(env.v2());
@@ -476,7 +552,7 @@ public class InstallPluginCommandTests extends ESTestCase {
 
     public void testBinConflict() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
-        Path pluginDir = createPluginDir(temp);
+        Path pluginDir =  createPluginDir(temp);
         Path binDir = pluginDir.resolve("bin");
         Files.createDirectory(binDir);
         Files.createFile(binDir.resolve("somescript"));
@@ -598,6 +674,7 @@ public class InstallPluginCommandTests extends ESTestCase {
     public void testConfigNotDir() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
+        Files.createDirectories(pluginDir);
         Path configDir = pluginDir.resolve("config");
         Files.createFile(configDir);
         String pluginZip = createPluginUrl("fake", pluginDir);
@@ -618,35 +695,23 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertInstallCleaned(env.v2());
     }
 
-    public void testConfigConflict() throws Exception {
-        Tuple<Path, Environment> env = createEnv(fs, temp);
-        Path pluginDir = createPluginDir(temp);
-        Path configDir = pluginDir.resolve("config");
-        Files.createDirectory(configDir);
-        Files.createFile(configDir.resolve("myconfig.yml"));
-        String pluginZip = createPluginUrl("elasticsearch.yml", pluginDir);
-        FileAlreadyExistsException e = expectThrows(FileAlreadyExistsException.class, () -> installPlugin(pluginZip, env.v1()));
-        assertTrue(e.getMessage(), e.getMessage().contains(env.v2().configFile().resolve("elasticsearch.yml").toString()));
-        assertInstallCleaned(env.v2());
-    }
-
     public void testMissingDescriptor() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         Files.createFile(pluginDir.resolve("fake.yml"));
-        String pluginZip = writeZip(pluginDir, "elasticsearch").toUri().toURL().toString();
+        String pluginZip = writeZip(pluginDir, null).toUri().toURL().toString();
         NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("plugin-descriptor.properties"));
         assertInstallCleaned(env.v2());
     }
 
-    public void testMissingDirectory() throws Exception {
+    public void testContainsIntermediateDirectory() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         Files.createFile(pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES));
-        String pluginZip = writeZip(pluginDir, null).toUri().toURL().toString();
+        String pluginZip = writeZip(pluginDir, "elasticsearch").toUri().toURL().toString();
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
-        assertTrue(e.getMessage(), e.getMessage().contains("`elasticsearch` directory is missing in the plugin zip"));
+        assertThat(e.getMessage(), containsString("This plugin was built with an older plugin structure"));
         assertInstallCleaned(env.v2());
     }
 
@@ -654,14 +719,15 @@ public class InstallPluginCommandTests extends ESTestCase {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path zip = createTempDir().resolve("broken.zip");
         try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(zip))) {
-            stream.putNextEntry(new ZipEntry("elasticsearch/../blah"));
+            stream.putNextEntry(new ZipEntry("../blah"));
         }
         String pluginZip = zip.toUri().toURL().toString();
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("resolving outside of plugin directory"));
+        assertInstallCleaned(env.v2());
     }
 
-    public void testOfficialPluginsHelpSorted() throws Exception {
+    public void testOfficialPluginsHelpSortedAndMissingObviouslyWrongPlugins() throws Exception {
         MockTerminal terminal = new MockTerminal();
         new InstallPluginCommand() {
             @Override
@@ -684,27 +750,40 @@ public class InstallPluginCommandTests extends ESTestCase {
                 assertTrue(prev + " < " + line, prev.compareTo(line) < 0);
                 prev = line;
                 line = reader.readLine();
+                // qa is not really a plugin and it shouldn't sneak in
+                assertThat(line, not(endsWith("qa")));
+                assertThat(line, not(endsWith("example")));
             }
         }
     }
 
-    public void testOfficialPluginsIncludesXpack() throws Exception {
-        MockTerminal terminal = new MockTerminal();
-        new InstallPluginCommand() {
+    public void testInstallXPack() throws IOException {
+        runInstallXPackTest(Build.Flavor.DEFAULT, UserException.class, "this distribution of Elasticsearch contains X-Pack by default");
+        runInstallXPackTest(
+                Build.Flavor.OSS,
+                UserException.class,
+                "X-Pack is not available with the oss distribution; to use X-Pack features use the default distribution");
+        runInstallXPackTest(Build.Flavor.UNKNOWN, IllegalStateException.class, "your distribution is broken");
+    }
+
+    private <T extends Exception> void runInstallXPackTest(
+            final Build.Flavor flavor, final Class<T> clazz, final String expectedMessage) throws IOException {
+        final InstallPluginCommand flavorCommand = new InstallPluginCommand() {
             @Override
-            protected boolean addShutdownHook() {
-                return false;
+            Build.Flavor buildFlavor() {
+                return flavor;
             }
-        }.main(new String[] { "--help" }, terminal);
-        assertTrue(terminal.getOutput(), terminal.getOutput().contains("x-pack"));
+        };
+
+        final Environment environment = createEnv(fs, temp).v2();
+        final T exception = expectThrows(clazz, () -> flavorCommand.execute(terminal, "x-pack", false, environment));
+        assertThat(exception, hasToString(containsString(expectedMessage)));
     }
 
     public void testInstallMisspelledOfficialPlugins() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
-        UserException e = expectThrows(UserException.class, () -> installPlugin("xpack", env.v1()));
-        assertThat(e.getMessage(), containsString("Unknown plugin xpack, did you mean [x-pack]?"));
 
-        e = expectThrows(UserException.class, () -> installPlugin("analysis-smartnc", env.v1()));
+        UserException e = expectThrows(UserException.class, () -> installPlugin("analysis-smartnc", env.v1()));
         assertThat(e.getMessage(), containsString("Unknown plugin analysis-smartnc, did you mean [analysis-smartcn]?"));
 
         e = expectThrows(UserException.class, () -> installPlugin("repository", env.v1()));
@@ -718,6 +797,9 @@ public class InstallPluginCommandTests extends ESTestCase {
         MockTerminal terminal = new MockTerminal();
         installPlugin(terminal, true);
         assertThat(terminal.getOutput(), containsString("WARNING: plugin requires additional permissions"));
+        assertThat(terminal.getOutput(), containsString("-> Downloading"));
+        // No progress bar in batch mode
+        assertThat(terminal.getOutput(), not(containsString("100%")));
     }
 
     public void testQuietFlagDisabled() throws Exception {
@@ -751,36 +833,85 @@ public class InstallPluginCommandTests extends ESTestCase {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         // if batch is enabled, we also want to add a security policy
-        String pluginZip = createPlugin("fake", pluginDir, isBatch).toUri().toURL().toString();
+        if (isBatch) {
+            writePluginSecurityPolicy(pluginDir, "setFactory");
+        }
+        String pluginZip = createPlugin("fake", pluginDir).toUri().toURL().toString();
         skipJarHellCommand.execute(terminal, pluginZip, isBatch, env.v2());
     }
 
-    public MockTerminal assertInstallPluginFromUrl(String pluginId, String name, String url, String stagingHash,
-                                                   String shaExtension, Function<byte[], String> shaCalculator) throws Exception {
+    void assertInstallPluginFromUrl(
+            final String pluginId,
+            final String name,
+            final String url,
+            final String stagingHash,
+            final boolean isSnapshot,
+            final String shaExtension,
+            final Function<byte[], String> shaCalculator,
+            final PGPSecretKey secretKey,
+            final BiFunction<byte[], PGPSecretKey, String> signature) throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        Path pluginZip = createPlugin(name, pluginDir, false);
+        Path pluginZip = createPlugin(name, pluginDir);
         InstallPluginCommand command = new InstallPluginCommand() {
             @Override
-            Path downloadZip(Terminal terminal, String urlString, Path tmpDir) throws IOException {
+            Path downloadZip(Terminal terminal, String urlString, Path tmpDir, boolean isBatch) throws IOException {
                 assertEquals(url, urlString);
                 Path downloadedPath = tmpDir.resolve("downloaded.zip");
                 Files.copy(pluginZip, downloadedPath);
                 return downloadedPath;
             }
             @Override
-            URL openUrl(String urlString) throws Exception {
-                String expectedUrl = url + shaExtension;
-                if (expectedUrl.equals(urlString)) {
+            URL openUrl(String urlString) throws IOException {
+                if ((url + shaExtension).equals(urlString)) {
                     // calc sha an return file URL to it
                     Path shaFile = temp.apply("shas").resolve("downloaded.zip" + shaExtension);
                     byte[] zipbytes = Files.readAllBytes(pluginZip);
                     String checksum = shaCalculator.apply(zipbytes);
                     Files.write(shaFile, checksum.getBytes(StandardCharsets.UTF_8));
                     return shaFile.toUri().toURL();
+                } else if ((url + ".asc").equals(urlString)) {
+                    final Path ascFile = temp.apply("asc").resolve("downloaded.zip" + ".asc");
+                    final byte[] zipBytes = Files.readAllBytes(pluginZip);
+                    final String asc = signature.apply(zipBytes, secretKey);
+                    Files.write(ascFile, asc.getBytes(StandardCharsets.UTF_8));
+                    return ascFile.toUri().toURL();
                 }
                 return null;
             }
+
+            @Override
+            void verifySignature(Path zip, String urlString) throws IOException, PGPException {
+                if (InstallPluginCommand.OFFICIAL_PLUGINS.contains(name)) {
+                    super.verifySignature(zip, urlString);
+                } else {
+                    throw new UnsupportedOperationException("verify signature should not be called for unofficial plugins");
+                }
+            }
+
+            @Override
+            InputStream pluginZipInputStream(Path zip) throws IOException {
+                return new ByteArrayInputStream(Files.readAllBytes(zip));
+            }
+
+            @Override
+            String getPublicKeyId() {
+                return Long.toHexString(secretKey.getKeyID()).toUpperCase(Locale.ROOT);
+            }
+
+            @Override
+            InputStream getPublicKey() {
+                try {
+                    final ByteArrayOutputStream output = new ByteArrayOutputStream();
+                    final ArmoredOutputStream armored = new ArmoredOutputStream(output);
+                    secretKey.getPublicKey().encode(armored);
+                    armored.close();
+                    return new ByteArrayInputStream(output.toByteArray());
+                } catch (final IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+
             @Override
             boolean urlExists(Terminal terminal, String urlString) throws IOException {
                 return urlString.equals(url);
@@ -789,66 +920,110 @@ public class InstallPluginCommandTests extends ESTestCase {
             String getStagingHash() {
                 return stagingHash;
             }
+
             @Override
-            void jarHellCheck(Path candidate, Path pluginsDir) throws Exception {
+            boolean isSnapshot() {
+                return isSnapshot;
+            }
+
+            @Override
+            void jarHellCheck(PluginInfo candidateInfo, Path candidate, Path pluginsDir, Path modulesDir) throws Exception {
                 // no jarhell check
             }
         };
-        MockTerminal terminal = installPlugin(pluginId, env.v1(), command);
+        installPlugin(pluginId, env.v1(), command);
         assertPlugin(name, pluginDir, env.v2());
-        return terminal;
     }
 
-    public void assertInstallPluginFromUrl(String pluginId, String name, String url, String stagingHash) throws Exception {
-        MessageDigest digest = MessageDigest.getInstance("SHA-512");
-        assertInstallPluginFromUrl(pluginId, name, url, stagingHash, ".sha512", checksumAndFilename(digest, url));
+    public void assertInstallPluginFromUrl(
+            final String pluginId, final String name, final String url, final String stagingHash, boolean isSnapshot) throws Exception {
+        final MessageDigest digest = MessageDigest.getInstance("SHA-512");
+        assertInstallPluginFromUrl(
+                pluginId, name, url, stagingHash, isSnapshot, ".sha512", checksumAndFilename(digest, url), newSecretKey(), this::signature);
     }
 
-    public void testOfficalPlugin() throws Exception {
-        String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" + Version.CURRENT + ".zip";
-        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null);
+    public void testOfficialPlugin() throws Exception {
+        String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" +
+            Build.CURRENT.getQualifiedVersion() + ".zip";
+        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, false);
     }
 
-    public void testOfficalPluginStaging() throws Exception {
+    public void testOfficialPluginSnapshot() throws Exception {
+        String url = String.format(
+                Locale.ROOT,
+                "https://snapshots.elastic.co/%s-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-%s.zip",
+                Version.CURRENT,
+                Build.CURRENT.getQualifiedVersion());
+        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123", true);
+    }
+
+    public void testInstallReleaseBuildOfPluginOnSnapshotBuild() {
+        String url = String.format(
+                Locale.ROOT,
+                "https://snapshots.elastic.co/%s-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-%s.zip",
+                Version.CURRENT,
+                Build.CURRENT.getQualifiedVersion());
+        // attemping to install a release build of a plugin (no staging ID) on a snapshot build should throw a user exception
+        final UserException e =
+                expectThrows(UserException.class, () -> assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, true));
+        assertThat(e.exitCode, equalTo(ExitCodes.CONFIG));
+        assertThat(
+                e, hasToString(containsString("attempted to install release build of official plugin on snapshot build of Elasticsearch")));
+    }
+
+    public void testOfficialPluginStaging() throws Exception {
         String url = "https://staging.elastic.co/" + Version.CURRENT + "-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
-            + Version.CURRENT + ".zip";
-        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123");
+            + Build.CURRENT.getQualifiedVersion() + ".zip";
+        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123", false);
     }
 
-    public void testOfficalPlatformPlugin() throws Exception {
+    public void testOfficialPlatformPlugin() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" + Platforms.PLATFORM_NAME +
-            "-" + Version.CURRENT + ".zip";
-        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null);
+            "-" + Build.CURRENT.getQualifiedVersion() + ".zip";
+        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, false);
     }
 
-    public void testOfficalPlatformPluginStaging() throws Exception {
+    public void testOfficialPlatformPluginSnapshot() throws Exception {
+        String url = String.format(
+                Locale.ROOT,
+                "https://snapshots.elastic.co/%s-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-%s-%s.zip",
+                Version.CURRENT,
+                Platforms.PLATFORM_NAME,
+                Build.CURRENT.getQualifiedVersion());
+        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123", true);
+    }
+
+    public void testOfficialPlatformPluginStaging() throws Exception {
         String url = "https://staging.elastic.co/" + Version.CURRENT + "-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
-            + Platforms.PLATFORM_NAME + "-"+ Version.CURRENT + ".zip";
-        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123");
+            + Platforms.PLATFORM_NAME + "-"+ Build.CURRENT.getQualifiedVersion() + ".zip";
+        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123", false);
     }
 
     public void testMavenPlugin() throws Exception {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-1.0.0.zip";
-        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null);
+        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, false);
     }
 
     public void testMavenPlatformPlugin() throws Exception {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-" + Platforms.PLATFORM_NAME + "-1.0.0.zip";
-        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null);
+        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, false);
     }
 
     public void testMavenSha1Backcompat() throws Exception {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-1.0.0.zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
-        MockTerminal terminal = assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, ".sha1", checksum(digest));
+        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, false, ".sha1", checksum(digest), null, (b, p) -> null);
         assertTrue(terminal.getOutput(), terminal.getOutput().contains("sha512 not found, falling back to sha1"));
     }
 
     public void testOfficialShaMissing() throws Exception {
-        String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" + Version.CURRENT + ".zip";
+        String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" +
+            Build.CURRENT.getQualifiedVersion() + ".zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
         UserException e = expectThrows(UserException.class, () ->
-            assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, ".sha1", checksum(digest)));
+            assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, false,
+                ".sha1", checksum(digest), null, (b, p) -> null)
+        );
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertEquals("Plugin checksum missing: " + url + ".sha512", e.getMessage());
     }
@@ -856,22 +1031,26 @@ public class InstallPluginCommandTests extends ESTestCase {
     public void testMavenShaMissing() throws Exception {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-1.0.0.zip";
         UserException e = expectThrows(UserException.class, () ->
-            assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, ".dne", bytes -> null));
+            assertInstallPluginFromUrl(
+                    "mygroup:myplugin:1.0.0", "myplugin", url, null, false, ".dne", bytes -> null, null, (b, p) -> null));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertEquals("Plugin checksum missing: " + url + ".sha1", e.getMessage());
     }
 
     public void testInvalidShaFileMissingFilename() throws Exception {
-        String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" + Version.CURRENT + ".zip";
+        String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" +
+            Build.CURRENT.getQualifiedVersion() + ".zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-512");
-        UserException e = expectThrows(UserException.class, () ->
-                assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, ".sha512", checksum(digest)));
+        UserException e = expectThrows(UserException.class,
+                () -> assertInstallPluginFromUrl(
+                        "analysis-icu", "analysis-icu", url, null, false, ".sha512", checksum(digest), null, (b, p) -> null));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().startsWith("Invalid checksum file"));
     }
 
     public void testInvalidShaFileMismatchFilename() throws Exception {
-        String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" + Version.CURRENT + ".zip";
+        String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" +
+            Build.CURRENT.getQualifiedVersion()+ ".zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-512");
         UserException e = expectThrows(UserException.class, () ->
                 assertInstallPluginFromUrl(
@@ -879,14 +1058,18 @@ public class InstallPluginCommandTests extends ESTestCase {
                         "analysis-icu",
                         url,
                         null,
+                        false,
                         ".sha512",
-                        checksumAndString(digest, "  repository-s3-" + Version.CURRENT + ".zip")));
+                        checksumAndString(digest, "  repository-s3-" + Build.CURRENT.getQualifiedVersion() + ".zip"),
+                        null,
+                        (b, p) -> null));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertThat(e, hasToString(matches("checksum file at \\[.*\\] is not for this plugin")));
     }
 
     public void testInvalidShaFileContainingExtraLine() throws Exception {
-        String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" + Version.CURRENT + ".zip";
+        String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" +
+            Build.CURRENT.getQualifiedVersion() + ".zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-512");
         UserException e = expectThrows(UserException.class, () ->
             assertInstallPluginFromUrl(
@@ -894,22 +1077,29 @@ public class InstallPluginCommandTests extends ESTestCase {
                     "analysis-icu",
                     url,
                     null,
+                    false,
                     ".sha512",
-                    checksumAndString(digest, "  analysis-icu-" + Version.CURRENT + ".zip\nfoobar")));
+                    checksumAndString(digest, "  analysis-icu-" + Build.CURRENT.getQualifiedVersion() + ".zip\nfoobar"),
+                    null,
+                    (b, p) -> null));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().startsWith("Invalid checksum file"));
     }
 
     public void testSha512Mismatch() throws Exception {
-        String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" + Version.CURRENT + ".zip";
+        String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" +
+            Build.CURRENT.getQualifiedVersion() + ".zip";
         UserException e = expectThrows(UserException.class, () ->
             assertInstallPluginFromUrl(
                     "analysis-icu",
                     "analysis-icu",
                     url,
                     null,
+                    false,
                     ".sha512",
-                    bytes -> "foobar  analysis-icu-" + Version.CURRENT + ".zip"));
+                    bytes -> "foobar  analysis-icu-" + Build.CURRENT.getQualifiedVersion() + ".zip",
+                    null,
+                    (b, p) -> null));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("SHA-512 mismatch, expected foobar"));
     }
@@ -917,37 +1107,77 @@ public class InstallPluginCommandTests extends ESTestCase {
     public void testSha1Mismatch() throws Exception {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-1.0.0.zip";
         UserException e = expectThrows(UserException.class, () ->
-            assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, ".sha1", bytes -> "foobar"));
+            assertInstallPluginFromUrl(
+                    "mygroup:myplugin:1.0.0", "myplugin", url, null, false, ".sha1", bytes -> "foobar", null, (b, p) -> null));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("SHA-1 mismatch, expected foobar"));
     }
 
-    public void testKeystoreNotRequired() throws Exception {
-        Tuple<Path, Environment> env = createEnv(fs, temp);
-        Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir, "requires.keystore", "false");
-        installPlugin(pluginZip, env.v1());
-        assertFalse(Files.exists(KeyStoreWrapper.keystorePath(env.v2().configFile())));
+    public void testPublicKeyIdMismatchToExpectedPublicKeyId() throws Exception {
+        final String icu = "analysis-icu";
+        final String url =
+                "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/" + icu + "-" +
+                    Build.CURRENT.getQualifiedVersion() + ".zip";
+        final MessageDigest digest = MessageDigest.getInstance("SHA-512");
+        /*
+         * To setup a situation where the expected public key ID does not match the public key ID used for signing, we generate a new public
+         * key at the moment of signing (see the signature invocation). Note that this key will not match the key that we push down to the
+         * install plugin command.
+         */
+        final PGPSecretKey signingKey = newSecretKey(); // the actual key used for signing
+        final String actualID = Long.toHexString(signingKey.getKeyID()).toUpperCase(Locale.ROOT);
+        final BiFunction<byte[], PGPSecretKey, String> signature = (b, p) -> signature(b, signingKey);
+        final PGPSecretKey verifyingKey = newSecretKey(); // the expected key used for signing
+        final String expectedID = Long.toHexString(verifyingKey.getKeyID()).toUpperCase(Locale.ROOT);
+        final IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () ->
+                        assertInstallPluginFromUrl(
+                                icu, icu, url, null, false, ".sha512", checksumAndFilename(digest, url), verifyingKey, signature));
+        assertThat(e, hasToString(containsString("key id [" + actualID + "] does not match expected key id [" + expectedID + "]")));
     }
 
-    public void testKeystoreRequiredAlreadyExists() throws Exception {
-        Tuple<Path, Environment> env = createEnv(fs, temp);
-        KeyStoreWrapper keystore = KeyStoreWrapper.create(new char[0]);
-        keystore.save(env.v2().configFile());
-        byte[] expectedBytes = Files.readAllBytes(KeyStoreWrapper.keystorePath(env.v2().configFile()));
-        Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir, "requires.keystore", "true");
-        installPlugin(pluginZip, env.v1());
-        byte[] gotBytes = Files.readAllBytes(KeyStoreWrapper.keystorePath(env.v2().configFile()));
-        assertArrayEquals("Keystore was modified", expectedBytes, gotBytes);
+    public void testFailedSignatureVerification() throws Exception {
+        final String icu = "analysis-icu";
+        final String url =
+                "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/" + icu + "-" +
+                    Build.CURRENT.getQualifiedVersion() + ".zip";
+        final MessageDigest digest = MessageDigest.getInstance("SHA-512");
+        /*
+         * To setup a situation where signature verification fails, we will mutate the input byte array by modifying a single byte to some
+         * random byte value other than the actual value. This is enough to change the signature and cause verification to intentionally
+         * fail.
+         */
+        final BiFunction<byte[], PGPSecretKey, String> signature = (b, p) -> {
+            final byte[] bytes = Arrays.copyOf(b, b.length);
+            bytes[0] = randomValueOtherThan(b[0], ESTestCase::randomByte);
+            return signature(bytes, p);
+        };
+        final IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () ->
+                        assertInstallPluginFromUrl(
+                                icu, icu, url, null, false, ".sha512", checksumAndFilename(digest, url), newSecretKey(), signature));
+        assertThat(e, hasToString(equalTo("java.lang.IllegalStateException: signature verification for [" + url + "] failed")));
     }
 
-    public void testKeystoreRequiredCreated() throws Exception {
-        Tuple<Path, Environment> env = createEnv(fs, temp);
-        Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir, "requires.keystore", "true");
-        MockTerminal terminal = installPlugin(pluginZip, env.v1());
-        assertTrue(Files.exists(KeyStoreWrapper.keystorePath(env.v2().configFile())));
+    public PGPSecretKey newSecretKey() throws NoSuchAlgorithmException, NoSuchProviderException, PGPException {
+        final KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
+        kpg.initialize(2048);
+        final KeyPair pair = kpg.generateKeyPair();
+        final PGPDigestCalculator sha1Calc = new JcaPGPDigestCalculatorProviderBuilder().build().get(HashAlgorithmTags.SHA1);
+        final PGPKeyPair pkp = new JcaPGPKeyPair(PGPPublicKey.RSA_GENERAL, pair, new Date());
+        return new PGPSecretKey(
+                PGPSignature.DEFAULT_CERTIFICATION,
+                pkp,
+                "example@example.com",
+                sha1Calc,
+                null,
+                null,
+                new JcaPGPContentSignerBuilder(pkp.getPublicKey().getAlgorithm(), HashAlgorithmTags.SHA1),
+                new JcePBESecretKeyEncryptorBuilder(PGPEncryptedData.CAST5, sha1Calc)
+                        .setProvider(new BouncyCastleProvider())
+                        .build("passphrase".toCharArray()));
     }
 
     private Function<byte[], String> checksum(final MessageDigest digest) {
@@ -963,4 +1193,91 @@ public class InstallPluginCommandTests extends ESTestCase {
         return bytes -> MessageDigests.toHexString(digest.digest(bytes)) + s;
     }
 
+    private String signature(final byte[] bytes, final PGPSecretKey secretKey) {
+        try {
+            final PGPPrivateKey privateKey
+                    = secretKey.extractPrivateKey(
+                            new BcPBESecretKeyDecryptorBuilder(
+                                    new JcaPGPDigestCalculatorProviderBuilder().build()).build("passphrase".toCharArray()));
+            final PGPSignatureGenerator generator =
+                    new PGPSignatureGenerator(
+                            new BcPGPContentSignerBuilder(privateKey.getPublicKeyPacket().getAlgorithm(), HashAlgorithmTags.SHA512));
+            generator.init(PGPSignature.BINARY_DOCUMENT, privateKey);
+            final ByteArrayOutputStream output = new ByteArrayOutputStream();
+            try (BCPGOutputStream pout = new BCPGOutputStream(new ArmoredOutputStream(output));
+                 InputStream is = new ByteArrayInputStream(bytes)) {
+                final byte[] buffer = new byte[1024];
+                int read;
+                while ((read = is.read(buffer)) != -1) {
+                    generator.update(buffer, 0, read);
+                }
+                generator.generate().encode(pout);
+            }
+            return new String(output.toByteArray(), "UTF-8");
+        } catch (IOException | PGPException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    // checks the plugin requires a policy confirmation, and does not install when that is rejected by the user
+    // the plugin is installed after this method completes
+    private void assertPolicyConfirmation(Tuple<Path, Environment> env, String pluginZip, String... warnings) throws Exception {
+        for (int i = 0; i < warnings.length; ++i) {
+            String warning = warnings[i];
+            for (int j = 0; j < i; ++j) {
+                terminal.addTextInput("y"); // accept warnings we have already tested
+            }
+            // default answer, does not install
+            terminal.addTextInput("");
+            UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
+            assertEquals("installation aborted by user", e.getMessage());
+
+            assertThat(terminal.getOutput(), containsString("WARNING: " + warning));
+            try (Stream<Path> fileStream = Files.list(env.v2().pluginsFile())) {
+                assertThat(fileStream.collect(Collectors.toList()), empty());
+            }
+
+            // explicitly do not install
+            terminal.reset();
+            for (int j = 0; j < i; ++j) {
+                terminal.addTextInput("y"); // accept warnings we have already tested
+            }
+            terminal.addTextInput("n");
+            e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
+            assertEquals("installation aborted by user", e.getMessage());
+            assertThat(terminal.getOutput(), containsString("WARNING: " + warning));
+            try (Stream<Path> fileStream = Files.list(env.v2().pluginsFile())) {
+                assertThat(fileStream.collect(Collectors.toList()), empty());
+            }
+        }
+
+        // allow installation
+        terminal.reset();
+        for (int j = 0; j < warnings.length; ++j) {
+            terminal.addTextInput("y");
+        }
+        installPlugin(pluginZip, env.v1());
+        for (String warning : warnings) {
+            assertThat(terminal.getOutput(), containsString("WARNING: " + warning));
+        }
+    }
+
+    public void testPolicyConfirmation() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        writePluginSecurityPolicy(pluginDir, "setAccessible", "setFactory");
+        String pluginZip = createPluginUrl("fake", pluginDir);
+
+        assertPolicyConfirmation(env, pluginZip, "plugin requires additional permissions");
+        assertPlugin("fake", pluginDir, env.v2());
+    }
+
+    public void testPluginWithNativeController() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        String pluginZip = createPluginUrl("fake", pluginDir, "has.native.controller", "true");
+
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> installPlugin(pluginZip, env.v1()));
+        assertThat(e, hasToString(containsString("plugins can not have native controllers")));
+    }
 }

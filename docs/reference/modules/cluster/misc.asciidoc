@@ -22,6 +22,76 @@ user with access to the <<cluster-update-settings,cluster-update-settings>>
 API can make the cluster read-write again.
 
 
+[[cluster-shard-limit]]
+
+==== Cluster Shard Limit
+
+There is a soft limit on the number of shards in a cluster, based on the number
+of nodes in the cluster. This is intended to prevent operations which may
+unintentionally destabilize the cluster.
+
+IMPORTANT: This limit is intended as a safety net, not a sizing recommendation. The
+exact number of shards your cluster can safely support depends on your hardware
+configuration and workload, but should remain well below this limit in almost
+all cases, as the default limit is set quite high.
+
+If an operation, such as creating a new index, restoring a snapshot of an index,
+or opening a closed index would lead to the number of shards in the cluster
+going over this limit, the operation will fail with an error indicating the
+shard limit.
+
+If the cluster is already over the limit, due to changes in node membership or
+setting changes, all operations that create or open indices will fail until
+either the limit is increased as described below, or some indices are
+<<indices-open-close,closed>> or <<indices-delete-index,deleted>> to bring the
+number of shards below the limit.
+
+Replicas count towards this limit, but closed indexes do not. An index with 5
+primary shards and 2 replicas will be counted as 15 shards. Any closed index
+is counted as 0, no matter how many shards and replicas it contains.
+
+The limit defaults to 1,000 shards per data node, and can be dynamically
+adjusted using the following property:
+
+`cluster.max_shards_per_node`::
+
+     Controls the number of shards allowed in the cluster per data node.
+
+For example, a 3-node cluster with the default setting would allow 3,000 shards
+total, across all open indexes. If the above setting is changed to 500, then
+the cluster would allow 1,500 shards total.
+
+NOTE: If there are no data nodes in the cluster, the limit will not be enforced.
+This allows the creation of indices during cluster creation if dedicated master
+nodes are set up before data nodes.
+
+[[user-defined-data]]
+==== User Defined Cluster Metadata
+
+User-defined metadata can be stored and retrieved using the Cluster Settings API.
+This can be used to store arbitrary, infrequently-changing data about the cluster
+without the need to create an index to store it. This data may be stored using
+any key prefixed with `cluster.metadata.`.  For example, to store the email
+address of the administrator of a cluster under the key `cluster.metadata.administrator`,
+issue this request:
+
+[source,js]
+-------------------------------
+PUT /_cluster/settings
+{
+  "persistent": {
+    "cluster.metadata.administrator": "sysadmin@example.com"
+  }
+}
+-------------------------------
+// CONSOLE
+
+IMPORTANT: User-defined cluster metadata is not intended to store sensitive or
+confidential information. Any information stored in user-defined cluster
+metadata will be viewable by anyone with access to the
+<<cluster-get-settings,Cluster Get Settings>> API, and is recorded in the
+{es} logs.
+
 [[cluster-max-tombstones]]
 ==== Index Tombstones
 
@@ -56,3 +126,40 @@ PUT /_cluster/settings
 }
 -------------------------------
 // CONSOLE
+
+
+[[persistent-tasks-allocation]]
+==== Persistent Tasks Allocations
+
+Plugins can create a kind of tasks called persistent tasks. Those tasks are
+usually long-live tasks and are stored in the cluster state, allowing the
+tasks to be revived after a full cluster restart.
+
+Every time a persistent task is created, the master node takes care of
+assigning the task to a node of the cluster, and the assigned node will then
+pick up the task and execute it locally. The process of assigning persistent
+tasks to nodes is controlled by the following properties, which can be updated
+dynamically:
+
+`cluster.persistent_tasks.allocation.enable`::
++
+--
+Enable or disable allocation for persistent tasks:
+
+* `all` -             (default) Allows persistent tasks to be assigned to nodes
+* `none` -            No allocations are allowed for any type of persistent task
+
+This setting does not affect the persistent tasks that are already being executed.
+Only newly created persistent tasks, or tasks that must be reassigned (after a node
+left the cluster, for example), are impacted by this setting.
+--
+
+`cluster.persistent_tasks.allocation.recheck_interval`::
+
+     The master node will automatically check whether persistent tasks need to
+     be assigned when the cluster state changes significantly. However, there
+     may be other factors, such as memory usage, that affect whether persistent
+     tasks can be assigned to nodes but do not cause the cluster state to change.
+     This setting controls how often assignment checks are performed to react to
+     these factors. The default is 30 seconds. The minimum permitted value is 10
+     seconds.

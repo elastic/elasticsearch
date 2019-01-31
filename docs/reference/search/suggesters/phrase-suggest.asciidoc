@@ -33,12 +33,12 @@ PUT test
           "trigram": {
             "type": "custom",
             "tokenizer": "standard",
-            "filter": ["standard", "shingle"]
+            "filter": ["shingle"]
           },
           "reverse": {
             "type": "custom",
             "tokenizer": "standard",
-            "filter": ["standard", "reverse"]
+            "filter": ["reverse"]
           }
         },
         "filter": {
@@ -52,28 +52,26 @@ PUT test
     }
   },
   "mappings": {
-    "test": {
-      "properties": {
-        "title": {
-          "type": "text",
-          "fields": {
-            "trigram": {
-              "type": "text",
-              "analyzer": "trigram"
-            },
-            "reverse": {
-              "type": "text",
-              "analyzer": "reverse"
-            }
+    "properties": {
+      "title": {
+        "type": "text",
+        "fields": {
+          "trigram": {
+            "type": "text",
+            "analyzer": "trigram"
+          },
+          "reverse": {
+            "type": "text",
+            "analyzer": "reverse"
           }
         }
       }
     }
   }
 }
-POST test/test?refresh=true
+POST test/_doc?refresh=true
 {"title": "noble warriors"}
-POST test/test?refresh=true
+POST test/_doc?refresh=true
 {"title": "nobel prize"}
 --------------------------------------------------
 // CONSOLE
@@ -126,7 +124,7 @@ The response contains suggestions scored by the most likely spell correction fir
         "options" : [ {
           "text" : "nobel prize",
           "highlighted": "<em>nobel</em> prize",
-          "score" : 0.5962314
+          "score" : 0.48614594
         }]
       }
     ]

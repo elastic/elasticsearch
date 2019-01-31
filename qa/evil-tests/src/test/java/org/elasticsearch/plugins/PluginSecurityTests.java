@@ -19,74 +19,16 @@
 
 package org.elasticsearch.plugins;
 
-import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.Version;
-import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.nio.file.Path;
-import java.security.Permission;
-import java.security.PermissionCollection;
-import java.security.Permissions;
-import java.util.Collections;
-import java.util.List;
-import java.util.function.Supplier;
+import java.util.Set;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 /** Tests plugin manager security check */
 public class PluginSecurityTests extends ESTestCase {
-
-    private final Supplier<Path> tmpFile = LuceneTestCase::createTempDir;
-
-    public void testHasNativeController() throws IOException {
-        assumeTrue(
-                "test cannot run with security manager enabled",
-                System.getSecurityManager() == null);
-        final PluginInfo info =
-                new PluginInfo("fake", "fake", Version.CURRENT.toString(), "Fake", true, false);
-        final MockTerminal terminal = new MockTerminal();
-        terminal.addTextInput("y");
-        terminal.addTextInput("y");
-        final Path policyFile = this.getDataPath("security/simple-plugin-security.policy");
-        PluginSecurity.readPolicy(info, policyFile, terminal, tmpFile, false);
-        final String output = terminal.getOutput();
-        assertThat(output, containsString("plugin forks a native controller"));
-    }
-
-    public void testDeclineNativeController() throws IOException {
-        assumeTrue(
-                "test cannot run with security manager enabled",
-                System.getSecurityManager() == null);
-        final PluginInfo info =
-                new PluginInfo("fake", "fake", Version.CURRENT.toString(), "Fake", true, false);
-        final MockTerminal terminal = new MockTerminal();
-        terminal.addTextInput("y");
-        terminal.addTextInput("n");
-        final Path policyFile = this.getDataPath("security/simple-plugin-security.policy");
-        RuntimeException e = expectThrows(
-                RuntimeException.class,
-                () -> PluginSecurity.readPolicy(info, policyFile, terminal, tmpFile, false));
-        assertThat(e, hasToString(containsString("installation aborted by user")));
-    }
-
-    public void testDoesNotHaveNativeController() throws IOException {
-        assumeTrue(
-                "test cannot run with security manager enabled",
-                System.getSecurityManager() == null);
-        final PluginInfo info =
-                new PluginInfo("fake", "fake", Version.CURRENT.toString(), "Fake", false, false);
-        final MockTerminal terminal = new MockTerminal();
-        terminal.addTextInput("y");
-        final Path policyFile = this.getDataPath("security/simple-plugin-security.policy");
-        PluginSecurity.readPolicy(info, policyFile, terminal, tmpFile, false);
-        final String output = terminal.getOutput();
-        assertThat(output, not(containsString("plugin forks a native controller")));
-    }
 
     /** Test that we can parse the set of permissions correctly for a simple policy */
     public void testParsePermissions() throws Exception {
@@ -95,11 +37,8 @@ public class PluginSecurityTests extends ESTestCase {
                 System.getSecurityManager() == null);
         Path scratch = createTempDir();
         Path testFile = this.getDataPath("security/simple-plugin-security.policy");
-        Permissions expected = new Permissions();
-        expected.add(new RuntimePermission("queuePrintJob"));
-        PermissionCollection actual =
-                PluginSecurity.parsePermissions(Terminal.DEFAULT, testFile, scratch);
-        assertEquals(expected, actual);
+        Set<String> actual = PluginSecurity.parsePermissions(testFile, scratch);
+        assertThat(actual, contains(PluginSecurity.formatPermission(new RuntimePermission("queuePrintJob"))));
     }
 
     /** Test that we can parse the set of permissions correctly for a complex policy */
@@ -109,12 +48,10 @@ public class PluginSecurityTests extends ESTestCase {
                 System.getSecurityManager() == null);
         Path scratch = createTempDir();
         Path testFile = this.getDataPath("security/complex-plugin-security.policy");
-        Permissions expected = new Permissions();
-        expected.add(new RuntimePermission("getClassLoader"));
-        expected.add(new RuntimePermission("closeClassLoader"));
-        PermissionCollection actual =
-                PluginSecurity.parsePermissions(Terminal.DEFAULT, testFile, scratch);
-        assertEquals(expected, actual);
+        Set<String> actual = PluginSecurity.parsePermissions(testFile, scratch);
+        assertThat(actual, containsInAnyOrder(
+            PluginSecurity.formatPermission(new RuntimePermission("getClassLoader")),
+            PluginSecurity.formatPermission(new RuntimePermission("closeClassLoader"))));
     }
 
     /** Test that we can format some simple permissions properly */
@@ -131,20 +68,7 @@ public class PluginSecurityTests extends ESTestCase {
                 System.getSecurityManager() == null);
         Path scratch = createTempDir();
         Path testFile = this.getDataPath("security/unresolved-plugin-security.policy");
-        PermissionCollection actual =
-                PluginSecurity.parsePermissions(Terminal.DEFAULT, testFile, scratch);
-        List<Permission> permissions = Collections.list(actual.elements());
-        assertEquals(1, permissions.size());
-        assertEquals(
-                "org.fake.FakePermission fakeName",
-                PluginSecurity.formatPermission(permissions.get(0)));
+        Set<String> permissions = PluginSecurity.parsePermissions(testFile, scratch);
+        assertThat(permissions, contains("org.fake.FakePermission fakeName"));
     }
-
-    /** no guaranteed equals on these classes, we assert they contain the same set */
-    private void assertEquals(PermissionCollection expected, PermissionCollection actual) {
-        assertEquals(
-                asSet(Collections.list(expected.elements())),
-                asSet(Collections.list(actual.elements())));
-    }
-
 }

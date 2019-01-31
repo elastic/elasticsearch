@@ -1,7 +1,3 @@
-package org.elasticsearch.painless;
-
-import org.elasticsearch.common.SuppressForbidden;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -21,13 +17,19 @@ import org.elasticsearch.common.SuppressForbidden;
  * under the License.
  */
 
+package org.elasticsearch.painless;
+
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.painless.Locals.LocalMethod;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.lang.invoke.MutableCallSite;
 import java.lang.invoke.WrongMethodTypeException;
+import java.util.Map;
 
 /**
  * Painless invokedynamic bootstrap for the call site.
@@ -72,16 +74,16 @@ public final class DefBootstrap {
     public static final int SHIFT_OPERATOR = 9;
     /** static bootstrap parameter indicating a request to normalize an index for array-like-access */
     public static final int INDEX_NORMALIZE = 10;
-    
+
     // constants for the flags parameter of operators
-    /** 
-     * static bootstrap parameter indicating the binary operator allows nulls (e.g. == and +) 
+    /**
+     * static bootstrap parameter indicating the binary operator allows nulls (e.g. == and +)
      * <p>
      * requires additional {@link MethodHandles#catchException} guard, which will invoke
      * the fallback if a null is encountered.
      */
     public static final int OPERATOR_ALLOWS_NULL = 1 << 0;
-    
+
     /**
      * static bootstrap parameter indicating the binary operator is part of compound assignment (e.g. +=).
      * <p>
@@ -89,7 +91,7 @@ public final class DefBootstrap {
      * to cast back to the receiver's type, depending on types seen.
      */
     public static final int OPERATOR_COMPOUND_ASSIGNMENT = 1 << 1;
-    
+
     /**
      * static bootstrap parameter indicating an explicit cast to the return type.
      * <p>
@@ -104,20 +106,23 @@ public final class DefBootstrap {
         /** maximum number of types before we go megamorphic */
         static final int MAX_DEPTH = 5;
 
-        private final Definition definition;
-        private final Lookup lookup;
+        private final PainlessLookup painlessLookup;
+        private final Map<String, LocalMethod> localMethods;
+        private final MethodHandles.Lookup methodHandlesLookup;
         private final String name;
         private final int flavor;
         private final Object[] args;
         int depth; // pkg-protected for testing
 
-        PIC(Definition definition, Lookup lookup, String name, MethodType type, int initialDepth, int flavor, Object[] args) {
+        PIC(PainlessLookup painlessLookup, Map<String, LocalMethod> localMethods,
+                MethodHandles.Lookup methodHandlesLookup, String name, MethodType type, int initialDepth, int flavor, Object[] args) {
             super(type);
             if (type.parameterType(0) != Object.class) {
                 throw new BootstrapMethodError("The receiver type (1st arg) of invokedynamic descriptor must be Object.");
             }
-            this.definition = definition;
-            this.lookup = lookup;
+            this.painlessLookup = painlessLookup;
+            this.localMethods = localMethods;
+            this.methodHandlesLookup = methodHandlesLookup;
             this.name = name;
             this.flavor = flavor;
             this.args = args;
@@ -129,7 +134,7 @@ public final class DefBootstrap {
 
             setTarget(fallback);
         }
-        
+
         /**
          * guard method for inline caching: checks the receiver's class is the same
          * as the cached class
@@ -144,11 +149,11 @@ public final class DefBootstrap {
         private MethodHandle lookup(int flavor, String name, Class<?> receiver) throws Throwable {
             switch(flavor) {
                 case METHOD_CALL:
-                    return Def.lookupMethod(definition, lookup, type(), receiver, name, args);
+                    return Def.lookupMethod(painlessLookup, localMethods, methodHandlesLookup, type(), receiver, name, args);
                 case LOAD:
-                    return Def.lookupGetter(definition, receiver, name);
+                    return Def.lookupGetter(painlessLookup, receiver, name);
                 case STORE:
-                    return Def.lookupSetter(definition, receiver, name);
+                    return Def.lookupSetter(painlessLookup, receiver, name);
                 case ARRAY_LOAD:
                     return Def.lookupArrayLoad(receiver);
                 case ARRAY_STORE:
@@ -156,13 +161,13 @@ public final class DefBootstrap {
                 case ITERATOR:
                     return Def.lookupIterator(receiver);
                 case REFERENCE:
-                    return Def.lookupReference(definition, lookup, (String) args[0], receiver, name);
+                    return Def.lookupReference(painlessLookup, localMethods, methodHandlesLookup, (String) args[0], receiver, name);
                 case INDEX_NORMALIZE:
                     return Def.lookupIndexNormalize(receiver);
                 default: throw new AssertionError();
             }
         }
-        
+
         /**
          * Creates the {@link MethodHandle} for the megamorphic call site
          * using {@link ClassValue} and {@link MethodHandles#exactInvoker(MethodType)}:
@@ -182,7 +187,7 @@ public final class DefBootstrap {
                 }
             };
             return MethodHandles.foldArguments(MethodHandles.exactInvoker(type),
-                    MEGAMORPHIC_LOOKUP.bindTo(megamorphicCache));            
+                    MEGAMORPHIC_LOOKUP.bindTo(megamorphicCache));
         }
 
         /**
@@ -195,18 +200,18 @@ public final class DefBootstrap {
             if (depth >= MAX_DEPTH) {
                 // we revert the whole cache and build a new megamorphic one
                 final MethodHandle target = this.createMegamorphicHandle();
-                
+
                 setTarget(target);
-                return target.invokeWithArguments(callArgs);                    
+                return target.invokeWithArguments(callArgs);
             } else {
                 final Class<?> receiver = callArgs[0].getClass();
                 final MethodHandle target = lookup(flavor, name, receiver).asType(type());
-    
+
                 MethodHandle test = CHECK_CLASS.bindTo(receiver);
                 MethodHandle guard = MethodHandles.guardWithTest(test, target, getTarget());
-                
+
                 depth++;
-    
+
                 setTarget(guard);
                 return target.invokeWithArguments(callArgs);
             }
@@ -216,24 +221,24 @@ public final class DefBootstrap {
         private static final MethodHandle FALLBACK;
         private static final MethodHandle MEGAMORPHIC_LOOKUP;
         static {
-            final Lookup lookup = MethodHandles.lookup();
-            final Lookup publicLookup = MethodHandles.publicLookup();
+            final MethodHandles.Lookup methodHandlesLookup = MethodHandles.lookup();
+            final MethodHandles.Lookup publicMethodHandlesLookup = MethodHandles.publicLookup();
             try {
-                CHECK_CLASS = lookup.findStatic(lookup.lookupClass(), "checkClass",
-                                              MethodType.methodType(boolean.class, Class.class, Object.class));
-                FALLBACK = lookup.findVirtual(lookup.lookupClass(), "fallback",
+                CHECK_CLASS = methodHandlesLookup.findStatic(methodHandlesLookup.lookupClass(), "checkClass",
+                        MethodType.methodType(boolean.class, Class.class, Object.class));
+                FALLBACK = methodHandlesLookup.findVirtual(methodHandlesLookup.lookupClass(), "fallback",
                         MethodType.methodType(Object.class, Object[].class));
-                MethodHandle mh = publicLookup.findVirtual(ClassValue.class, "get",
+                MethodHandle mh = publicMethodHandlesLookup.findVirtual(ClassValue.class, "get",
                         MethodType.methodType(Object.class, Class.class));
-                mh = MethodHandles.filterArguments(mh, 1, 
-                        publicLookup.findVirtual(Object.class, "getClass", MethodType.methodType(Class.class)));
+                mh = MethodHandles.filterArguments(mh, 1,
+                        publicMethodHandlesLookup.findVirtual(Object.class, "getClass", MethodType.methodType(Class.class)));
                 MEGAMORPHIC_LOOKUP = mh.asType(mh.type().changeReturnType(MethodHandle.class));
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);
             }
         }
     }
-    
+
     /**
      * CallSite that implements the monomorphic inlining cache (for operators).
      */
@@ -252,14 +257,14 @@ public final class DefBootstrap {
             if (initialDepth > 0) {
                 initialized = true;
             }
-            
+
             MethodHandle fallback = FALLBACK.bindTo(this)
               .asCollector(Object[].class, type.parameterCount())
               .asType(type);
 
             setTarget(fallback);
         }
-        
+
         /**
          * Does a slow lookup for the operator
          */
@@ -290,7 +295,7 @@ public final class DefBootstrap {
                 default: throw new AssertionError();
             }
         }
-        
+
         private MethodHandle lookupGeneric() {
             MethodHandle target = DefMath.lookupGeneric(name);
             if ((flags & OPERATOR_EXPLICIT_CAST) != 0) {
@@ -302,7 +307,7 @@ public final class DefBootstrap {
             }
             return target;
         }
-        
+
         /**
          * Called when a new type is encountered or if cached type does not match.
          * In that case we revert to a generic, but slower operator handling.
@@ -315,7 +320,7 @@ public final class DefBootstrap {
                 setTarget(generic.asType(type()));
                 return generic.invokeWithArguments(args);
             }
-            
+
             final MethodType type = type();
             MethodHandle target = lookup(args);
             // for math operators: WrongMethodType can be confusing. convert into a ClassCastException if they screw up.
@@ -361,18 +366,18 @@ public final class DefBootstrap {
             // very special cases, where even the receiver can be null (see JLS rules for string concat)
             // we wrap + with an NPE catcher, and use our generic method in that case.
             if (flavor == BINARY_OPERATOR && (flags & OPERATOR_ALLOWS_NULL) != 0) {
-                MethodHandle handler = MethodHandles.dropArguments(lookupGeneric().asType(type()), 
-                                                                   0, 
+                MethodHandle handler = MethodHandles.dropArguments(lookupGeneric().asType(type()),
+                                                                   0,
                                                                    NullPointerException.class);
                 guard = MethodHandles.catchException(guard, NullPointerException.class, handler);
             }
-            
+
             initialized = true;
 
             setTarget(guard);
             return target.invokeWithArguments(args);
         }
-        
+
         /**
          * guard method for inline caching: checks the receiver's class is the same
          * as the cached class
@@ -388,7 +393,7 @@ public final class DefBootstrap {
         static boolean checkRHS(Class<?> left, Class<?> right, Object leftObject, Object rightObject) {
             return rightObject.getClass() == right;
         }
-        
+
         /**
          * guard method for inline caching: checks the receiver's class and the first argument
          * are the same as the cached receiver and first argument.
@@ -396,22 +401,22 @@ public final class DefBootstrap {
         static boolean checkBoth(Class<?> left, Class<?> right, Object leftObject, Object rightObject) {
             return leftObject.getClass() == left && rightObject.getClass() == right;
         }
-        
+
         private static final MethodHandle CHECK_LHS;
         private static final MethodHandle CHECK_RHS;
         private static final MethodHandle CHECK_BOTH;
         private static final MethodHandle FALLBACK;
         static {
-            final Lookup lookup = MethodHandles.lookup();
+            final MethodHandles.Lookup methodHandlesLookup = MethodHandles.lookup();
             try {
-                CHECK_LHS = lookup.findStatic(lookup.lookupClass(), "checkLHS",
-                                              MethodType.methodType(boolean.class, Class.class, Object.class));
-                CHECK_RHS = lookup.findStatic(lookup.lookupClass(), "checkRHS",
-                                              MethodType.methodType(boolean.class, Class.class, Class.class, Object.class, Object.class));
-                CHECK_BOTH = lookup.findStatic(lookup.lookupClass(), "checkBoth",
-                                              MethodType.methodType(boolean.class, Class.class, Class.class, Object.class, Object.class));
-                FALLBACK = lookup.findVirtual(lookup.lookupClass(), "fallback",
-                                              MethodType.methodType(Object.class, Object[].class));
+                CHECK_LHS = methodHandlesLookup.findStatic(methodHandlesLookup.lookupClass(), "checkLHS",
+                        MethodType.methodType(boolean.class, Class.class, Object.class));
+                CHECK_RHS = methodHandlesLookup.findStatic(methodHandlesLookup.lookupClass(), "checkRHS",
+                        MethodType.methodType(boolean.class, Class.class, Class.class, Object.class, Object.class));
+                CHECK_BOTH = methodHandlesLookup.findStatic(methodHandlesLookup.lookupClass(), "checkBoth",
+                        MethodType.methodType(boolean.class, Class.class, Class.class, Object.class, Object.class));
+                FALLBACK = methodHandlesLookup.findVirtual(methodHandlesLookup.lookupClass(), "fallback",
+                        MethodType.methodType(Object.class, Object[].class));
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);
             }
@@ -427,12 +432,13 @@ public final class DefBootstrap {
      *   <li>{@code flavor}: type of dynamic call it is (and which part of whitelist to look at).
      *   <li>{@code args}: flavor-specific args.
      * </ul>
-     * And we take the {@link Definition} used to compile the script for whitelist checking.
+     * And we take the {@link PainlessLookup} used to compile the script for whitelist checking.
      * <p>
      * see https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-6.html#jvms-6.5.invokedynamic
      */
-    public static CallSite bootstrap(Definition definition, Lookup lookup, String name, MethodType type, int initialDepth, int flavor,
-            Object... args) {
+    @SuppressWarnings("unchecked")
+    public static CallSite bootstrap(PainlessLookup painlessLookup, Map<String, LocalMethod> localMethods,
+            MethodHandles.Lookup methodHandlesLookup, String name, MethodType type, int initialDepth, int flavor, Object... args) {
         // validate arguments
         switch(flavor) {
             // "function-call" like things get a polymorphic cache
@@ -451,7 +457,7 @@ public final class DefBootstrap {
                 if (args.length != numLambdas + 1) {
                     throw new BootstrapMethodError("Illegal number of parameters: expected " + numLambdas + " references");
                 }
-                return new PIC(definition, lookup, name, type, initialDepth, flavor, args);
+                return new PIC(painlessLookup, localMethods, methodHandlesLookup, name, type, initialDepth, flavor, args);
             case LOAD:
             case STORE:
             case ARRAY_LOAD:
@@ -461,7 +467,7 @@ public final class DefBootstrap {
                 if (args.length > 0) {
                     throw new BootstrapMethodError("Illegal static bootstrap parameters for flavor: " + flavor);
                 }
-                return new PIC(definition, lookup, name, type, initialDepth, flavor, args);
+                return new PIC(painlessLookup, localMethods, methodHandlesLookup, name, type, initialDepth, flavor, args);
             case REFERENCE:
                 if (args.length != 1) {
                     throw new BootstrapMethodError("Invalid number of parameters for reference call");
@@ -469,7 +475,7 @@ public final class DefBootstrap {
                 if (args[0] instanceof String == false) {
                     throw new BootstrapMethodError("Illegal parameter for reference call: " + args[0]);
                 }
-                return new PIC(definition, lookup, name, type, initialDepth, flavor, args);
+                return new PIC(painlessLookup, localMethods, methodHandlesLookup, name, type, initialDepth, flavor, args);
 
             // operators get monomorphic cache, with a generic impl for a fallback
             case UNARY_OPERATOR:

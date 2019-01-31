@@ -6,14 +6,12 @@
   - do:
       index:
           index:  test
-          type:   test
           id:     1
           body:   { foo: bar }
 
   - do:
       index:
           index:  test
-          type:   test
           id:     2
           body:   { foo: bar }
 
@@ -23,11 +21,13 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         filter_path: "*"
         body: "{ \"query\": { \"match_all\": {} } }"
 
   - gte: { took: 0 }
+  - is_false: _clusters
   - is_true: _shards.total
   - is_true: hits.total
   - is_true: hits.hits.0._index
@@ -39,6 +39,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         filter_path: "took"
         body: "{ \"query\": { \"match_all\": {} } }"
@@ -55,6 +56,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         filter_path: "_shards.*"
         body: "{ \"query\": { \"match_all\": {} } }"
@@ -71,6 +73,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         filter_path: [ "hits.**._i*", "**.total" ]
         body: "{ \"query\": { \"match_all\": {} } }"
@@ -91,13 +94,14 @@
       bulk:
         refresh: true
         body: |
-          {"index": {"_index": "index-1", "_type": "type-1", "_id": "1"}}
+          {"index": {"_index": "index-1", "_id": "1"}}
           {"name": "First document", "properties": {"size": 123, "meta": {"foo": "bar"}}}
-          {"index": {"_index": "index-1", "_type": "type-1", "_id": "2"}}
+          {"index": {"_index": "index-1", "_id": "2"}}
           {"name": "Second document", "properties": {"size": 465, "meta": {"foo": "bar", "baz": "qux"}}}
 
   - do:
       search:
+        rest_total_hits_as_int: true
         filter_path: [  "-**._source.properties", "**._source" ]
         body: { query: { match_all: {} } }
 
@@ -111,6 +115,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         filter_path: [ "**.properties" , "-hits.hits._source.properties.meta" ]
         body: { query: { match_all: {} } }
 
@@ -128,6 +133,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         filter_path: "**._source,-**.meta.foo"
         body: { query: { match_all: {} } }
 

@@ -81,5 +81,4 @@ public class ByteBufBytesReferenceTests extends AbstractBytesReferenceTestCase {
         channelBuffer.readInt(); // this advances the index of the channel buffer
         assertEquals(utf8ToString, byteBufBytesReference.utf8ToString());
     }
-
 }

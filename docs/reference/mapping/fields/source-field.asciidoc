@@ -16,10 +16,8 @@ within the index. For this reason, it can be disabled as follows:
 PUT tweets
 {
   "mappings": {
-    "tweet": {
-      "_source": {
-        "enabled": false
-      }
+    "_source": {
+      "enabled": false
     }
   }
 }
@@ -88,22 +86,20 @@ as follows:
 PUT logs
 {
   "mappings": {
-    "event": {
-      "_source": {
-        "includes": [
-          "*.count",
-          "meta.*"
-        ],
-        "excludes": [
-          "meta.description",
-          "meta.other.*"
-        ]
-      }
+    "_source": {
+      "includes": [
+        "*.count",
+        "meta.*"
+      ],
+      "excludes": [
+        "meta.description",
+        "meta.other.*"
+      ]
     }
   }
 }
 
-PUT logs/event/1
+PUT logs/_doc/1
 {
   "requests": {
     "count": 10,
@@ -119,7 +115,7 @@ PUT logs/event/1
   }
 }
 
-GET logs/event/_search
+GET logs/_search
 {
   "query": {
     "match": {

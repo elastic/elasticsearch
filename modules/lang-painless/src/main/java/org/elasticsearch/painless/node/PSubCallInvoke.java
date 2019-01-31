@@ -19,12 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 
 import java.util.List;
 import java.util.Objects;
@@ -35,11 +34,11 @@ import java.util.Set;
  */
 final class PSubCallInvoke extends AExpression {
 
-    private final Method method;
-    private final Type box;
+    private final PainlessMethod method;
+    private final Class<?> box;
     private final List<AExpression> arguments;
 
-    PSubCallInvoke(Location location, Method method, Type box, List<AExpression> arguments) {
+    PSubCallInvoke(Location location, PainlessMethod method, Class<?> box, List<AExpression> arguments) {
         super(location);
 
         this.method = Objects.requireNonNull(method);
@@ -57,33 +56,33 @@ final class PSubCallInvoke extends AExpression {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
-            expression.expected = method.arguments.get(argument);
+            expression.expected = method.typeParameters.get(argument);
             expression.internal = true;
             expression.analyze(locals);
             arguments.set(argument, expression.cast(locals));
         }
 
         statement = true;
-        actual = method.rtn;
+        actual = method.returnType;
     }
 
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        if (box.clazz.isPrimitive()) {
-            writer.box(box.type);
+        if (box.isPrimitive()) {
+            writer.box(MethodWriter.getType(box));
         }
 
         for (AExpression argument : arguments) {
             argument.write(writer, globals);
         }
 
-        method.write(writer);
+        writer.invokeMethodCall(method);
     }
 
     @Override
     public String toString() {
-        return singleLineToStringWithOptionalArgs(arguments, prefix, method.name);
+        return singleLineToStringWithOptionalArgs(arguments, prefix, method.javaMethod.getName());
     }
 }

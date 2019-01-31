@@ -20,17 +20,15 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Constant;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.WriterConstants;
 
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
-
-import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.WriterConstants;
 
 /**
  * Represents a regex constant. All regexes are constants.
@@ -74,8 +72,8 @@ public final class ERegex extends AExpression {
         }
 
         constant = new Constant(
-            location, locals.getDefinition().PatternType.type, "regexAt$" + location.getOffset(), this::initializeConstant);
-        actual = locals.getDefinition().PatternType;
+            location, MethodWriter.getType(Pattern.class), "regexAt$" + location.getOffset(), this::initializeConstant);
+        actual = Pattern.class;
     }
 
     @Override

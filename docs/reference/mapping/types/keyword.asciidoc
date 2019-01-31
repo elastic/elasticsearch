@@ -18,11 +18,9 @@ Below is an example of a mapping for a keyword field:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "tags": {
-          "type":  "keyword"
-        }
+    "properties": {
+      "tags": {
+        "type":  "keyword"
       }
     }
   }
@@ -62,8 +60,10 @@ The following parameters are accepted by `keyword` fields:
 
 <<ignore-above,`ignore_above`>>::
 
-    Do not index any string longer than this value.  Defaults to
-    `2147483647` so that all values would be accepted.
+    Do not index any string longer than this value.  Defaults to `2147483647`
+    so that all values would be accepted. Please however note that default
+    dynamic mapping rules create a sub `keyword` field that overrides this
+    default by setting `ignore_above: 256`.
 
 <<mapping-index,`index`>>::
 
@@ -100,6 +100,12 @@ The following parameters are accepted by `keyword` fields:
 
     How to pre-process the keyword prior to indexing. Defaults to `null`,
     meaning the keyword is kept as-is.
+
+`split_queries_on_whitespace`::
+
+    Whether <<full-text-queries,full text queries>> should split the input on whitespace
+    when building a query for this field.
+    Accepts `true` or `false` (default).
 
 NOTE: Indexes imported from 2.x do not support `keyword`. Instead they will
 attempt to downgrade `keyword` into `string`. This allows you to merge modern

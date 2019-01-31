@@ -19,13 +19,16 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.client.NodeSelector;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -37,6 +40,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
+
 /**
  * Execution context passed across the REST tests.
  * Holds the REST client used to communicate with elasticsearch.
@@ -45,7 +50,7 @@ import java.util.Map;
  */
 public class ClientYamlTestExecutionContext {
 
-    private static final Logger logger = Loggers.getLogger(ClientYamlTestExecutionContext.class);
+    private static final Logger logger = LogManager.getLogger(ClientYamlTestExecutionContext.class);
 
     private static final XContentType[] STREAMING_CONTENT_TYPES = new XContentType[]{XContentType.JSON, XContentType.SMILE};
 
@@ -67,6 +72,15 @@ public class ClientYamlTestExecutionContext {
      */
     public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,
                                     Map<String, String> headers) throws IOException {
+        return callApi(apiName, params, bodies, headers, NodeSelector.ANY);
+    }
+
+    /**
+     * Calls an elasticsearch api with the parameters and request body provided as arguments.
+     * Saves the obtained response in the execution context.
+     */
+    public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,
+                                    Map<String, String> headers, NodeSelector nodeSelector) throws IOException {
         //makes a copy of the parameters before modifying them for this specific request
         Map<String, String> requestParams = new HashMap<>(params);
         requestParams.putIfAbsent("error_trace", "true"); // By default ask for error traces, this my be overridden by params
@@ -84,9 +98,57 @@ public class ClientYamlTestExecutionContext {
             }
         }
 
+        // Although include_type_name defaults to false, there is a large number of typed index creations
+        // in REST tests that need to be manually converted to typeless calls. As a temporary measure, we
+        // specify include_type_name=true in indices.create calls, unless the parameter has been set otherwise.
+        // This workaround will be removed once we convert all index creations to be typeless.
+        if (apiName.equals("indices.create") && requestParams.containsKey(INCLUDE_TYPE_NAME_PARAMETER) == false) {
+            requestParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
+        }
+
+        // When running tests against a mixed 7.x/6.x cluster we need to add the type to the document API
+        // requests if its not already included.
+        if ((apiName.equals("index") || apiName.equals("update") || apiName.equals("delete") || apiName.equals("get"))
+                && esVersion().before(Version.V_7_0_0) && requestParams.containsKey("type") == false) {
+            requestParams.put("type", "_doc");
+        }
+
+        // When running tests against a mixed 7.x/6.x cluster we need to add the type to the bulk API requests
+        // if its not already included. The type can either be on the request parameters or in the action metadata
+        // in the body of the request so we need to be sensitive to both scenarios
+        if (apiName.equals("bulk") && esVersion().before(Version.V_7_0_0) && requestParams.containsKey("type") == false) {
+            if (requestParams.containsKey("index")) {
+                requestParams.put("type", "_doc");
+            } else {
+                for (int i = 0; i < bodies.size(); i++) {
+                    Map<String, Object> body = bodies.get(i);
+                    Map<String, Object> actionMetadata;
+                    if (body.containsKey("index")) {
+                        actionMetadata = (Map<String, Object>) body.get("index");
+                        i++;
+                    } else if (body.containsKey("create")) {
+                        actionMetadata = (Map<String, Object>) body.get("create");
+                        i++;
+                    } else if (body.containsKey("update")) {
+                        actionMetadata = (Map<String, Object>) body.get("update");
+                        i++;
+                    } else if (body.containsKey("delete")) {
+                        actionMetadata = (Map<String, Object>) body.get("delete");
+                    } else {
+                        // action metadata is malformed so leave it malformed since
+                        // the test is probably testing for malformed action metadata
+                        continue;
+                    }
+                    if (actionMetadata.containsKey("_type") == false) {
+                        actionMetadata.put("_type", "_doc");
+                    }
+                }
+            }
+        }
+
         HttpEntity entity = createEntity(bodies, requestHeaders);
         try {
-            response = callApiInternal(apiName, requestParams, entity, requestHeaders);
+            response = callApiInternal(apiName, requestParams, entity, requestHeaders, nodeSelector);
             return response;
         } catch(ClientYamlTestResponseException e) {
             response = e.getRestTestResponse();
@@ -147,14 +209,14 @@ public class ClientYamlTestExecutionContext {
     private BytesRef bodyAsBytesRef(Map<String, Object> bodyAsMap, XContentType xContentType) throws IOException {
         Map<String, Object> finalBodyAsMap = stash.replaceStashedValues(bodyAsMap);
         try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
-            return builder.map(finalBodyAsMap).bytes().toBytesRef();
+            return BytesReference.bytes(builder.map(finalBodyAsMap)).toBytesRef();
         }
     }
 
     // pkg-private for testing
-    ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
-                                                   HttpEntity entity, Map<String, String> headers) throws IOException  {
-        return clientYamlTestClient.callApi(apiName, params, entity, headers);
+    ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params, HttpEntity entity,
+            Map<String, String> headers, NodeSelector nodeSelector) throws IOException  {
+        return clientYamlTestClient.callApi(apiName, params, entity, headers, nodeSelector);
     }
 
     /**
@@ -182,6 +244,10 @@ public class ClientYamlTestExecutionContext {
      */
     public Version esVersion() {
         return clientYamlTestClient.getEsVersion();
+    }
+
+    public Version masterVersion() {
+        return clientYamlTestClient.getMasterVersion();
     }
 
 }

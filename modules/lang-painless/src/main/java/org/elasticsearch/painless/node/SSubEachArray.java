@@ -20,14 +20,13 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -42,10 +41,10 @@ final class SSubEachArray extends AStatement {
     private AExpression expression;
     private final SBlock block;
 
-    private Cast cast = null;
+    private PainlessCast cast = null;
     private Variable array = null;
     private Variable index = null;
-    private Type indexed = null;
+    private Class<?> indexed = null;
 
     SSubEachArray(Location location, Variable variable, AExpression expression, SBlock block) {
         super(location);
@@ -64,13 +63,10 @@ final class SSubEachArray extends AStatement {
     void analyze(Locals locals) {
         // We must store the array and index as variables for securing slots on the stack, and
         // also add the location offset to make the names unique in case of nested for each loops.
-        array = locals.addVariable(location, expression.actual, "#array" + location.getOffset(),
-                true);
-        index = locals.addVariable(location, locals.getDefinition().intType, "#index" + location.getOffset(),
-                true);
-        indexed = locals.getDefinition().getType(expression.actual.struct,
-                expression.actual.dimensions - 1);
-        cast = locals.getDefinition().caster.getLegalCast(location, indexed, variable.type, true, true);
+        array = locals.addVariable(location, expression.actual, "#array" + location.getOffset(), true);
+        index = locals.addVariable(location, int.class, "#index" + location.getOffset(), true);
+        indexed = expression.actual.getComponentType();
+        cast = AnalyzerCaster.getLegalCast(location, indexed, variable.clazz, true, true);
     }
 
     @Override
@@ -78,9 +74,9 @@ final class SSubEachArray extends AStatement {
         writer.writeStatementOffset(location);
 
         expression.write(writer, globals);
-        writer.visitVarInsn(array.type.type.getOpcode(Opcodes.ISTORE), array.getSlot());
+        writer.visitVarInsn(MethodWriter.getType(array.clazz).getOpcode(Opcodes.ISTORE), array.getSlot());
         writer.push(-1);
-        writer.visitVarInsn(index.type.type.getOpcode(Opcodes.ISTORE), index.getSlot());
+        writer.visitVarInsn(MethodWriter.getType(index.clazz).getOpcode(Opcodes.ISTORE), index.getSlot());
 
         Label begin = new Label();
         Label end = new Label();
@@ -88,16 +84,16 @@ final class SSubEachArray extends AStatement {
         writer.mark(begin);
 
         writer.visitIincInsn(index.getSlot(), 1);
-        writer.visitVarInsn(index.type.type.getOpcode(Opcodes.ILOAD), index.getSlot());
-        writer.visitVarInsn(array.type.type.getOpcode(Opcodes.ILOAD), array.getSlot());
+        writer.visitVarInsn(MethodWriter.getType(index.clazz).getOpcode(Opcodes.ILOAD), index.getSlot());
+        writer.visitVarInsn(MethodWriter.getType(array.clazz).getOpcode(Opcodes.ILOAD), array.getSlot());
         writer.arrayLength();
         writer.ifICmp(MethodWriter.GE, end);
 
-        writer.visitVarInsn(array.type.type.getOpcode(Opcodes.ILOAD), array.getSlot());
-        writer.visitVarInsn(index.type.type.getOpcode(Opcodes.ILOAD), index.getSlot());
-        writer.arrayLoad(indexed.type);
+        writer.visitVarInsn(MethodWriter.getType(array.clazz).getOpcode(Opcodes.ILOAD), array.getSlot());
+        writer.visitVarInsn(MethodWriter.getType(index.clazz).getOpcode(Opcodes.ILOAD), index.getSlot());
+        writer.arrayLoad(MethodWriter.getType(indexed));
         writer.writeCast(cast);
-        writer.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.getSlot());
+        writer.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
 
         if (loopCounter != null) {
             writer.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
@@ -113,6 +109,6 @@ final class SSubEachArray extends AStatement {
 
     @Override
     public String toString() {
-        return singleLineToString(variable.type.name, variable.name, expression, block);
+        return singleLineToString(PainlessLookupUtility.typeToCanonicalTypeName(variable.clazz), variable.name, expression, block);
     }
 }

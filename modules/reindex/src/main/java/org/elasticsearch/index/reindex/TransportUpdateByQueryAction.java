@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -27,14 +28,12 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.script.Script;
@@ -47,16 +46,18 @@ import java.util.Map;
 import java.util.function.BiFunction;
 
 public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateByQueryRequest, BulkByScrollResponse> {
+
+    private final ThreadPool threadPool;
     private final Client client;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
 
     @Inject
-    public TransportUpdateByQueryAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver, Client client, TransportService transportService,
-            ScriptService scriptService, ClusterService clusterService) {
-        super(settings, UpdateByQueryAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, UpdateByQueryRequest::new);
+    public TransportUpdateByQueryAction(ThreadPool threadPool, ActionFilters actionFilters, Client client,
+                                        TransportService transportService, ScriptService scriptService, ClusterService clusterService) {
+        super(UpdateByQueryAction.NAME, transportService, actionFilters,
+            (Writeable.Reader<UpdateByQueryRequest>) UpdateByQueryRequest::new);
+        this.threadPool = threadPool;
         this.client = client;
         this.scriptService = scriptService;
         this.clusterService = clusterService;
@@ -71,47 +72,36 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 ClusterState state = clusterService.state();
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
                     bulkByScrollTask);
-                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, request, scriptService, state,
+                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, this, request, state,
                     listener).start();
             }
         );
     }
 
-    @Override
-    protected void doExecute(UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
-        throw new UnsupportedOperationException("task required");
-    }
-
     /**
      * Simple implementation of update-by-query using scrolling and bulk.
      */
-    static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest> {
-        AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-                                 ThreadPool threadPool, UpdateByQueryRequest request, ScriptService scriptService, ClusterState clusterState,
-                                 ActionListener<BulkByScrollResponse> listener) {
-            this(task, logger, client, threadPool, request, scriptService, clusterState, listener, client.settings());
-        }
+    static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest, TransportUpdateByQueryAction> {
+
+        private final boolean useSeqNoForCAS;
 
         AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-                ThreadPool threadPool, UpdateByQueryRequest request, ScriptService scriptService, ClusterState clusterState,
-                ActionListener<BulkByScrollResponse> listener, Settings settings) {
-            super(task, logger, client, threadPool, request, scriptService, clusterState, listener, settings);
-        }
-
-        @Override
-        protected boolean needsSourceDocumentVersions() {
-            /*
-             * We always need the version of the source document so we can report a version conflict if we try to delete it and it has been
-             * changed.
-             */
-            return true;
+                ThreadPool threadPool, TransportUpdateByQueryAction action, UpdateByQueryRequest request, ClusterState clusterState,
+                ActionListener<BulkByScrollResponse> listener) {
+            super(task,
+                // not all nodes support sequence number powered optimistic concurrency control, we fall back to version
+                clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0) == false,
+                // all nodes support sequence number powered optimistic concurrency control and we can use it
+                clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0),
+                logger, client, threadPool, action, request, listener);
+            useSeqNoForCAS = clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0);
         }
 
         @Override
         public BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
             Script script = mainRequest.getScript();
             if (script != null) {
-                return new UpdateByQueryScriptApplier(worker, scriptService, script, script.getParams());
+                return new UpdateByQueryScriptApplier(worker, mainAction.scriptService, script, script.getParams());
             }
             return super.buildScriptApplier();
         }
@@ -123,8 +113,13 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             index.type(doc.getType());
             index.id(doc.getId());
             index.source(doc.getSource(), doc.getXContentType());
-            index.versionType(VersionType.INTERNAL);
-            index.version(doc.getVersion());
+            if (useSeqNoForCAS) {
+                index.setIfSeqNo(doc.getSeqNo());
+                index.setIfPrimaryTerm(doc.getPrimaryTerm());
+            } else {
+                index.versionType(VersionType.INTERNAL);
+                index.version(doc.getVersion());
+            }
             index.setPipeline(mainRequest.getPipeline());
             return wrap(index);
         }
@@ -159,11 +154,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             @Override
             protected void scriptChangedRouting(RequestWrapper<?> request, Object to) {
                 throw new IllegalArgumentException("Modifying [" + RoutingFieldMapper.NAME + "] not allowed");
-            }
-
-            @Override
-            protected void scriptChangedParent(RequestWrapper<?> request, Object to) {
-                throw new IllegalArgumentException("Modifying [" + ParentFieldMapper.NAME + "] not allowed");
             }
 
         }

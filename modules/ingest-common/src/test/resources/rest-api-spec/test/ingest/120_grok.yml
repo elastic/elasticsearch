@@ -27,7 +27,6 @@ teardown:
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: {field1: "123.42 400 <foo>"}
@@ -35,7 +34,6 @@ teardown:
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.val: 123.42 }
   - match: { _source.status: 400 }
@@ -66,7 +64,6 @@ teardown:
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: {field1: "<foo>"}
@@ -74,7 +71,6 @@ teardown:
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.msg: "foo" }
 
@@ -103,7 +99,6 @@ teardown:
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: {field1: "<foo>"}
@@ -111,7 +106,6 @@ teardown:
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.msg: "foo" }
 
@@ -158,6 +152,6 @@ teardown:
 ---
 "Test Grok Patterns Retrieval":
   - do:
-      ingest.processor.grok: {}
+      ingest.processor_grok: {}
   - length: { patterns: 303 }
   - match: { patterns.PATH: "(?:%{UNIXPATH}|%{WINPATH})" }

@@ -25,7 +25,7 @@ open file handles (`ulimit -n`) to 65,536, you can do the following:
 [source,sh]
 --------------------------------
 sudo su  <1>
-ulimit -n 65536 <2>
+ulimit -n 65535 <2>
 su elasticsearch <3>
 --------------------------------
 <1> Become `root`.
@@ -35,7 +35,6 @@ su elasticsearch <3>
 The new limit is only applied during the current session.
 
 You can consult all currently applied limits with `ulimit -a`.
-
 
 [[limits.conf]]
 ==== `/etc/security/limits.conf`
@@ -47,7 +46,7 @@ the `limits.conf` file:
 
 [source,sh]
 --------------------------------
-elasticsearch  -  nofile  65536
+elasticsearch  -  nofile  65535
 --------------------------------
 
 This change will only take effect the next time the `elasticsearch` user opens
@@ -66,7 +65,6 @@ following line:
 --------------------------------
 ===============================
 
-
 [[sysconfig]]
 ==== Sysconfig file
 
@@ -80,7 +78,6 @@ Debian::  `/etc/default/elasticsearch`
 
 However, for systems which uses `systemd`, system limits need to be specified
 via <<systemd,systemd>>.
-
 
 [[systemd]]
 ==== Systemd configuration
@@ -110,40 +107,3 @@ Once finished, run the following command to reload units:
 ---------------------------------
 sudo systemctl daemon-reload
 ---------------------------------
-
-[[jvm-options]]
-==== Setting JVM options
-
-The preferred method of setting Java Virtual Machine options (including
-system properties and JVM flags) is via the `jvm.options` configuration
-file. The default location of this file is `config/jvm.options` (when
-installing from the tar or zip distributions) and
-`/etc/elasticsearch/jvm.options` (when installing from the Debian or RPM
-packages). This file contains a line-delimited list of JVM arguments,
-which must begin with `-`. You can add custom JVM flags to this file and
-check this configuration into your version control system.
-
-An alternative mechanism for setting Java Virtual Machine options is
-via the `ES_JAVA_OPTS` environment variable. For instance:
-
-[source,sh]
----------------------------------
-export ES_JAVA_OPTS="$ES_JAVA_OPTS -Djava.io.tmpdir=/path/to/temp/dir"
-./bin/elasticsearch
----------------------------------
-
-When using the RPM or Debian packages, `ES_JAVA_OPTS` can be specified in the
-<<sysconfig,system configuration file>>.
-
-The JVM has a built-in mechanism for observing the `JAVA_TOOL_OPTIONS`
-environment variable. We intentionally ignore this environment variable in our
-packaging scripts. The primary reason for this is that on some OS (e.g., Ubuntu)
-there are agents installed by default via this environment variable that we do
-not want interfering with Elasticsearch.
-
-Additionally, some other Java programs support the `JAVA_OPTS` environment
-variable. This is *not* a mechanism built into the JVM but instead a convention
-in the ecosystem. However, we do not support this environment variable, instead
-supporting setting JVM options via the `jvm.options` file or the environment
-variable `ES_JAVA_OPTS` as above.
-

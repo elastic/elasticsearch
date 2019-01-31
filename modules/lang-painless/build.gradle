@@ -17,8 +17,6 @@
  * under the License.
  */
 
-import org.apache.tools.ant.types.Path
-
 esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'
   classname 'org.elasticsearch.painless.PainlessPlugin'
@@ -26,18 +24,20 @@ esplugin {
 
 integTestCluster {
   module project.project(':modules:mapper-extras')
+  systemProperty 'es.scripting.update.ctx_in_params', 'false'
 }
 
 dependencies {
   compile 'org.antlr:antlr4-runtime:4.5.3'
   compile 'org.ow2.asm:asm-debug-all:5.1'
+  compile project('spi')
 }
 
 dependencyLicenses {
   mapping from: /asm-.*/, to: 'asm'
 }
 
-test {
+unitTest {
   jvmArg '-XX:-OmitStackTraceInFastThrow'
 }
 

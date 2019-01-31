@@ -29,7 +29,7 @@ task bwcTest {
   group = 'verification'
 }
 
-for (Version version : wireCompatVersions) {
+for (Version version : bwcVersions.wireCompatible) {
   String baseName = "v${version}"
 
   Task mixedClusterTest = tasks.create(name: "${baseName}#mixedClusterTest", type: RestIntegTestTask) {
@@ -37,14 +37,13 @@ for (Version version : wireCompatVersions) {
     includePackaged = true
   }
 
-  /* This project runs the core REST tests against a 2 node cluster where one of
+  /* This project runs the core REST tests against a 4 node cluster where two of
      the nodes has a different minor.  */
   Object extension = extensions.findByName("${baseName}#mixedClusterTestCluster")
-  configure(extensions.findByName("${baseName}#mixedClusterTestCluster")) {
-    distribution = 'zip'
+  configure(extension) {
     numNodes = 4
     numBwcNodes = 2
-    bwcVersion = project.wireCompatVersions[-1]
+    bwcVersion = version
   }
 
   Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
@@ -54,14 +53,21 @@ for (Version version : wireCompatVersions) {
   if (project.bwc_tests_enabled) {
     bwcTest.dependsOn(versionBwcTest)
   }
+
+  tasks.getByName("${baseName}#mixedClusterTestRunner").configure {
+    /* To support taking index snapshots, we have to set path.repo setting */
+    systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
+  }
 }
 
-test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+unitTest.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
 // basic integ tests includes testing bwc against the most recent version
 task integTest {
   if (project.bwc_tests_enabled) {
-    dependsOn = ["v${wireCompatVersions[-1]}#bwcTest"]
+    for (final def version : bwcVersions.unreleasedWireCompatible) {
+      dependsOn "v${version}#bwcTest"
+    }
   }
 }
 

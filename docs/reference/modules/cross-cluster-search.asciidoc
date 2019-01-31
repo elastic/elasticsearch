@@ -2,63 +2,21 @@
 == Cross Cluster Search
 
 The _cross cluster search_ feature allows any node to act as a federated client across
-multiple clusters. In contrast to the <<modules-tribe,tribe node>> feature, a  cross cluster search node won't
-join the remote cluster, instead it connects to a remote cluster in a light fashion in order to execute
+multiple clusters. A cross cluster search node won't join the remote cluster, instead
+it connects to a remote cluster in a light fashion in order to execute
 federated search requests.
 
-Cross cluster search works by configuring a remote cluster in the cluster state and connecting only to a
-limited number of nodes in the remote cluster. Each remote cluster is referenced by a name and a list of seed nodes.
-When a remote cluster is registered, its cluster state is retrieved from one of the seed nodes so that up to 3
-_gateway nodes_ are selected to be connected to as part of upcoming cross cluster search requests.
-Cross cluster search requests consist of uni-directional connections from the coordinating node to the previously
-selected remote nodes only. It is possible to tag which nodes should be selected through
-node attributes (see <<cross-cluster-search-settings>>).
-
-Each node in a cluster that has remote clusters configured connects to one or more _gateway nodes_ and uses
-them to federate search requests to the remote cluster.
-
 [float]
-=== Configuring Cross Cluster Search
+=== Using cross cluster search
 
-Remote clusters can be specified globally using <<cluster-update-settings,cluster settings>>
-(which can be updated dynamically), or local to individual nodes using the
-`elasticsearch.yml` file.
-
-If a remote cluster is configured via `elasticsearch.yml` only the nodes with
-that configuration will be able to connect to the remote cluster. In other
-words, federated search requests will have to be sent specifically to those
-nodes. Remote clusters set via the <<cluster-update-settings,cluster settings API>>
-will be available on every node in the cluster.
-
-[WARNING]
-This feature was added as Beta in Elasticsearch `v5.3` with further improvements made in 5.4 and 5.5. It requires gateway eligible nodes to be on `v5.5` onwards.
-
-The `elasticsearch.yml` config file for a _cross cluster search_ node just needs to list the
-remote clusters that should be connected to, for instance:
-
-[source,yaml]
---------------------------------
-search:
-    remote:
-        cluster_one: <1>
-            seeds: 127.0.0.1:9300
-        cluster_two: <1>
-            seeds: 127.0.0.1:9301
-
---------------------------------
-<1> `cluster_one` and `cluster_two` are arbitrary cluster aliases representing the connection to each cluster.
-These names are subsequently used to distinguish between local and remote indices.
-
-The equivalent example using the <<cluster-update-settings,cluster settings API>>
-to add remote clusters to all nodes in the cluster would look like the
-following:
+Cross-cluster search requires <<modules-remote-clusters,configuring remote clusters>>.
 
 [source,js]
 --------------------------------
 PUT _cluster/settings
 {
   "persistent": {
-    "search": {
+    "cluster": {
       "remote": {
         "cluster_one": {
           "seeds": [
@@ -69,6 +27,11 @@ PUT _cluster/settings
           "seeds": [
             "127.0.0.1:9301"
           ]
+        },
+        "cluster_three": {
+          "seeds": [
+            "127.0.0.1:9302"
+          ]
         }
       }
     }
@@ -76,60 +39,87 @@ PUT _cluster/settings
 }
 --------------------------------
 // CONSOLE
+// TEST[setup:host]
+// TEST[s/127.0.0.1:9300/\${transport_host}/]
 
-A remote cluster can be deleted from the cluster settings by setting its seeds to `null`:
+To search the `twitter` index on remote cluster `cluster_one` the index name
+must be prefixed with the cluster alias separated by a `:` character:
 
 [source,js]
---------------------------------
-PUT _cluster/settings
+--------------------------------------------------
+GET /cluster_one:twitter/_search
 {
-  "persistent": {
-    "search": {
-      "remote": {
-        "cluster_one": {
-          "seeds": null <1>
-        }
-      }
+  "query": {
+    "match": {
+      "user": "kimchy"
     }
   }
 }
---------------------------------
+--------------------------------------------------
 // CONSOLE
-<1> `cluster_one` would be removed from the cluster settings, leaving `cluster_two` intact.
-
-
-[float]
-=== Using cross cluster search
-
-To search the `twitter` index on remote cluster `cluster_1` the index name must be prefixed with the cluster alias
-separated by a `:` character:
+// TEST[continued]
+// TEST[setup:twitter]
 
 [source,js]
 --------------------------------------------------
-POST /cluster_one:twitter/tweet/_search
+{
+  "took": 150,
+  "timed_out": false,
+  "num_reduce_phases": 2,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "_clusters": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0
+  },
+  "hits": {
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 1,
+    "hits": [
+      {
+        "_index": "cluster_one:twitter",
+        "_type": "_doc",
+        "_id": "0",
+        "_score": 1,
+        "_source": {
+          "user": "kimchy",
+          "date": "2009-11-15T14:12:12",
+          "message": "trying out Elasticsearch",
+          "likes": 0
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 150/"took": "$body.took"/]
+// TESTRESPONSE[s/"max_score": 1/"max_score": "$body.hits.max_score"/]
+// TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
+
+
+Indices can also be searched with the same name on different clusters:
+
+[source,js]
+--------------------------------------------------
+GET /cluster_one:twitter,twitter/_search
 {
   "query": {
-    "match_all": {}
+    "match": {
+      "user": "kimchy"
+    }
   }
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:we don't have two clusters set up during docs testing]
-
-In contrast to the `tribe` feature cross cluster search can also search indices with the same name on different
-clusters:
-
-[source,js]
---------------------------------------------------
-POST /cluster_one:twitter,twitter/tweet/_search
-{
-  "query": {
-    "match_all": {}
-  }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[skip:we don't have two clusters set up during docs testing]
+// TEST[continued]
 
 Search results are disambiguated the same way as the indices are disambiguated in the request. Even if index names are
 identical these indices will be treated as different indices when results are merged. All results retrieved from a
@@ -139,68 +129,190 @@ will be prefixed with their remote cluster name:
 [source,js]
 --------------------------------------------------
 {
-  "took" : 89,
-  "timed_out" : false,
-  "_shards" : {
-    "total" : 10,
-    "successful" : 10,
-    "failed" : 0
+  "took": 150,
+  "timed_out": false,
+  "num_reduce_phases": 3,
+  "_shards": {
+    "total": 2,
+    "successful": 2,
+    "failed": 0,
+    "skipped": 0
   },
-  "hits" : {
-    "total" : 2,
-    "max_score" : 1.0,
-    "hits" : [
+  "_clusters": {
+    "total": 2,
+    "successful": 2,
+    "skipped": 0
+  },
+  "hits": {
+    "total" : {
+        "value": 2,
+        "relation": "eq"
+    },
+    "max_score": 1,
+    "hits": [
       {
-        "_index" : "cluster_one:twitter",
-        "_type" : "tweet",
-        "_id" : "1",
-        "_score" : 1.0,
-        "_source" : {
-          "user" : "kimchy",
-          "postDate" : "2009-11-15T14:12:12",
-          "message" : "trying out Elasticsearch"
+        "_index": "cluster_one:twitter",
+        "_type": "_doc",
+        "_id": "0",
+        "_score": 1,
+        "_source": {
+          "user": "kimchy",
+          "date": "2009-11-15T14:12:12",
+          "message": "trying out Elasticsearch",
+          "likes": 0
         }
       },
       {
-        "_index" : "twitter",
-        "_type" : "tweet",
-        "_id" : "1",
-        "_score" : 1.0,
-        "_source" : {
-          "user" : "kimchy",
-          "postDate" : "2009-11-15T14:12:12",
-          "message" : "trying out Elasticsearch"
+        "_index": "twitter",
+        "_type": "_doc",
+        "_id": "0",
+        "_score": 2,
+        "_source": {
+          "user": "kimchy",
+          "date": "2009-11-15T14:12:12",
+          "message": "trying out Elasticsearch",
+          "likes": 0
         }
       }
     ]
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"took": 150/"took": "$body.took"/]
+// TESTRESPONSE[s/"max_score": 1/"max_score": "$body.hits.max_score"/]
+// TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
+// TESTRESPONSE[s/"_score": 2/"_score": "$body.hits.hits.1._score"/]
 
 [float]
-[[cross-cluster-search-settings]]
-=== Cross cluster search settings
+=== Skipping disconnected clusters
 
-`search.remote.connections_per_cluster`::
+By default all remote clusters that are searched via Cross Cluster Search need to be available when
+the search request is executed, otherwise the whole request fails and no search results are returned
+despite some of the clusters are available. Remote clusters can be made optional through the
+boolean `skip_unavailable` setting, set to `false` by default.
 
-  The number of nodes to connect to per remote cluster. The default is `3`.
+[source,js]
+--------------------------------
+PUT _cluster/settings
+{
+  "persistent": {
+    "cluster.remote.cluster_two.skip_unavailable": true <1>
+  }
+}
+--------------------------------
+// CONSOLE
+// TEST[continued]
+<1> `cluster_two` is made optional
 
-`search.remote.initial_connect_timeout`::
+[source,js]
+--------------------------------------------------
+GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
+{
+  "query": {
+    "match": {
+      "user": "kimchy"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+<1> Search against the `twitter` index in `cluster_one`, `cluster_two` and also locally
 
-  The time to wait for remote connections to be established when the node starts. The default is `30s`.
+[source,js]
+--------------------------------------------------
+{
+  "took": 150,
+  "timed_out": false,
+  "num_reduce_phases": 3,
+  "_shards": {
+    "total": 2,
+    "successful": 2,
+    "failed": 0,
+    "skipped": 0
+  },
+  "_clusters": { <1>
+    "total": 3,
+    "successful": 2,
+    "skipped": 1
+  },
+  "hits": {
+    "total" : {
+        "value": 2,
+        "relation": "eq"
+    },
+    "max_score": 1,
+    "hits": [
+      {
+        "_index": "cluster_one:twitter",
+        "_type": "_doc",
+        "_id": "0",
+        "_score": 1,
+        "_source": {
+          "user": "kimchy",
+          "date": "2009-11-15T14:12:12",
+          "message": "trying out Elasticsearch",
+          "likes": 0
+        }
+      },
+      {
+        "_index": "twitter",
+        "_type": "_doc",
+        "_id": "0",
+        "_score": 2,
+        "_source": {
+          "user": "kimchy",
+          "date": "2009-11-15T14:12:12",
+          "message": "trying out Elasticsearch",
+          "likes": 0
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 150/"took": "$body.took"/]
+// TESTRESPONSE[s/"max_score": 1/"max_score": "$body.hits.max_score"/]
+// TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
+// TESTRESPONSE[s/"_score": 2/"_score": "$body.hits.hits.1._score"/]
+<1> The `clusters` section indicates that one cluster was unavailable and got skipped
 
-`search.remote.node.attr`::
+[float]
+[[ccs-reduction]]
+=== CCS reduction phase
 
-  A node attribute to filter out nodes that are eligible as a gateway node in
-  the remote cluster. For instance a node can have a node attribute
-  `node.attr.gateway: true` such that only nodes with this attribute will be
-  connected to if `search.remote.node.attr` is set to `gateway`.
+Cross-cluster search requests can be executed in two ways:
 
-`search.remote.connect`::
+- the CCS coordinating node minimizes network round-trips by sending one search
+request to each cluster. Each cluster performs the search independently,
+reducing and fetching results. Once the CCS node has received all the
+responses, it performs another reduction and returns the relevant results back
+to the user. This strategy is beneficial when there is network latency between
+the CCS coordinating node and the remote clusters involved, which is typically
+the case. A single request is sent to each remote cluster, at the cost of
+retrieving `from` + `size` already fetched results. This is the default
+strategy, used whenever possible. In case a scroll is provided, or inner hits
+are requested as part of field collapsing, this strategy is not supported hence
+network round-trips cannot be minimized and the following strategy is used
+instead.
 
-  By default, any node in the cluster can act as a cross-cluster client and
-  connect to remote clusters. The `search.remote.connect` setting can be set
-  to `false` (defaults to `true`) to prevent certain nodes from connecting to
-  remote clusters. Cross-cluster search requests must be sent to a node that
-  is allowed to act as a cross-cluster client.
+- the CCS coordinating node sends a <<search-shards,search shards>> request to
+each remote cluster, in order to collect information about their corresponding
+remote indices involved in the search request and the shards where their data
+is located. Once each cluster has responded to such request, the search
+executes as if all shards were part of the same cluster. The coordinating node
+sends one request to each shard involved, each shard executes the query and
+returns its own results which are then reduced (and fetched, depending on the
+<<search-request-search-type, search type>>) by the CCS coordinating node.
+This strategy may be beneficial whenever there is very low network latency
+between the CCS coordinating node and the remote clusters involved, as it
+treats all shards the same, at the cost of sending many requests to each remote
+cluster, which is problematic in presence of network latency.
+
+The <<search-request-body, search API>> supports the `ccs_minimize_roundtrips`
+parameter, which defaults to `true` and can be set to `false` in case
+minimizing network round-trips is not desirable.
+
+Note that all the communication between the nodes, regardless of which cluster
+they belong to and the selected reduce mode, happens through the
+<<modules-transport,transport layer>>.

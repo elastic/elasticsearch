@@ -8,30 +8,29 @@
             place:
               properties:
                 name:
-                  type: text
+                  type: keyword
   - do:
       index:
         index:   test
-        type:    place
         id:      1
         refresh: true
-        body:    { "name": "bob's house" }
+        body:    { "name": "bob! house" }
 
   - do:
       indices.put_mapping:
+        include_type_name: false
         index: test
-        type:  place
         body:
           properties:
             name:
-              type: text
+              type: keyword
               fields:
                 english:
                   type:     text
-                  analyzer: english
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           query:
@@ -47,6 +46,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           query:

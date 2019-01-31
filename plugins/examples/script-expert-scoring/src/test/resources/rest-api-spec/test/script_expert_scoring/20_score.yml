@@ -9,19 +9,16 @@ setup:
   - do:
       index:
         index:  test
-        type:   test
         id:     1
         body:   { "important_field": "foo" }
   - do:
         index:
           index:  test
-          type:   test
           id:     2
           body:   { "important_field": "foo foo foo" }
   - do:
         index:
           index:  test
-          type:   test
           id:     3
           body:   { "important_field": "foo foo" }
 
@@ -31,6 +28,7 @@ setup:
 "document scoring":
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           query:

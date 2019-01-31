@@ -10,17 +10,15 @@ Example:
 PUT /museums
 {
     "mappings": {
-        "doc": {
-            "properties": {
-                "location": {
-                    "type": "geo_point"
-                }
+        "properties": {
+            "location": {
+                "type": "geo_point"
             }
         }
     }
 }
 
-POST /museums/doc/_bulk?refresh
+POST /museums/_bulk?refresh
 {"index":{"_id":1}}
 {"location": "52.374081,4.912350", "city": "Amsterdam", "name": "NEMO Science Museum"}
 {"index":{"_id":2}}
@@ -60,8 +58,8 @@ The response for the above aggregation:
     "aggregations": {
         "centroid": {
             "location": {
-                "lat": 51.00982963107526,
-                "lon": 3.9662130922079086
+                "lat": 51.009829603135586,
+                "lon": 3.9662130642682314
             },
             "count": 6
         }
@@ -113,8 +111,8 @@ The response for the above aggregation:
                    "doc_count": 3,
                    "centroid": {
                       "location": {
-                         "lat": 52.371655656024814,
-                         "lon": 4.909563297405839
+                         "lat": 52.371655642054975,
+                         "lon": 4.9095632415264845
                       },
                       "count": 3
                    }
@@ -125,7 +123,7 @@ The response for the above aggregation:
                    "centroid": {
                       "location": {
                          "lat": 48.86055548675358,
-                         "lon": 2.3316944623366
+                         "lon": 2.331694420427084
                       },
                       "count": 2
                    }

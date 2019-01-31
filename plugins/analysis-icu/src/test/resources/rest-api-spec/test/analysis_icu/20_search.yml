@@ -4,6 +4,7 @@
 "Index ICU content":
     - do:
         indices.create:
+            include_type_name: false
             index:  test
             body:
                 settings:
@@ -12,23 +13,21 @@
                             analyzer:
                                 my_analyzer:
                                     tokenizer:  standard
-                                    filter: ["standard", "lowercase", "my_collator"]
+                                    filter: ["lowercase", "my_collator"]
                             filter:
                                 my_collator:
                                     type: icu_collation
                                     language: en
                                     strength: primary
                 mappings:
-                    type:
-                        properties:
-                            text:
-                                type:     text
-                                analyzer: my_analyzer
+                    properties:
+                        text:
+                            type:     text
+                            analyzer: my_analyzer
 
     - do:
         index:
             index:  test
-            type:   type
             id:     1
             body:   { "text": "Bâton enflammé" }
     - do:
@@ -36,6 +35,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:

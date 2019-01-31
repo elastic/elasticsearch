@@ -57,10 +57,11 @@ setup() {
     # other tests. Commenting out lots of test cases seems like a reasonably
     # common workflow.
     if [ $BATS_TEST_NUMBER == 1 ] ||
-            [[ $BATS_TEST_NAME =~ install_jvm.*example ]] ||
+            [[ $BATS_TEST_NAME =~ install_a_sample_plugin ]] ||
             [ ! -d "$ESHOME" ]; then
         clean_before_test
         install
+        set_debug_logging
     fi
 }
 
@@ -89,58 +90,76 @@ else
     }
 fi
 
-@test "[$GROUP] install jvm-example plugin with a symlinked plugins path" {
+@test "[$GROUP] install a sample plugin with a symlinked plugins path" {
     # Clean up after the last time this test was run
-    rm -rf /tmp/plugins.*
-    rm -rf /tmp/old_plugins.*
+    rm -rf /var/plugins.*
+    rm -rf /var/old_plugins.*
 
     rm -rf "$ESPLUGINS"
-    local es_plugins=$(mktemp -d -t 'plugins.XXXX')
+    # The custom plugins directory is not under /tmp or /var/tmp because
+    # systemd's private temp directory functionally means different
+    # processes can have different views of what's in these directories
+    local es_plugins=$(mktemp -p /var -d -t 'plugins.XXXX')
     chown -R elasticsearch:elasticsearch "$es_plugins"
     ln -s "$es_plugins" "$ESPLUGINS"
 
-    install_jvm_example
+    install_plugin_example
     start_elasticsearch_service
+
     # check that symlinked plugin was actually picked up
-    curl -s localhost:9200/_cat/configured_example | sed 's/ *$//' > /tmp/installed
-    echo "foo" > /tmp/expected
+    curl -XGET -H 'Content-Type: application/json' 'http://localhost:9200/_cat/plugins?h=component' | sed 's/ *$//' > /tmp/installed
+    echo "custom-settings" > /tmp/expected
     diff /tmp/installed /tmp/expected
+
+    curl -XGET -H 'Content-Type: application/json' 'http://localhost:9200/_cluster/settings?include_defaults&filter_path=defaults.custom.simple' > /tmp/installed
+    echo -n '{"defaults":{"custom":{"simple":"foo"}}}' > /tmp/expected
+    diff /tmp/installed /tmp/expected
+
     stop_elasticsearch_service
-    remove_jvm_example
+    remove_plugin_example
 
     unlink "$ESPLUGINS"
 }
 
-@test "[$GROUP] install jvm-example plugin with a custom CONFIG_DIR" {
+@test "[$GROUP] install a sample plugin with a custom CONFIG_DIR" {
     # Clean up after the last time we ran this test
     rm -rf /tmp/config.*
 
     move_config
 
-    ES_PATH_CONF="$ESCONFIG" install_jvm_example
+    ES_PATH_CONF="$ESCONFIG" install_plugin_example
     ES_PATH_CONF="$ESCONFIG" start_elasticsearch_service
-    diff  <(curl -s localhost:9200/_cat/configured_example | sed 's/ //g') <(echo "foo")
+
+    # check that symlinked plugin was actually picked up
+    curl -XGET -H 'Content-Type: application/json' 'http://localhost:9200/_cat/plugins?h=component' | sed 's/ *$//' > /tmp/installed
+    echo "custom-settings" > /tmp/expected
+    diff /tmp/installed /tmp/expected
+
+    curl -XGET -H 'Content-Type: application/json' 'http://localhost:9200/_cluster/settings?include_defaults&filter_path=defaults.custom.simple' > /tmp/installed
+    echo -n '{"defaults":{"custom":{"simple":"foo"}}}' > /tmp/expected
+    diff /tmp/installed /tmp/expected
+
     stop_elasticsearch_service
-    ES_PATH_CONF="$ESCONFIG" remove_jvm_example
+    ES_PATH_CONF="$ESCONFIG" remove_plugin_example
 }
 
-@test "[$GROUP] install jvm-example plugin from a directory with a space" {
+@test "[$GROUP] install a sample plugin from a directory with a space" {
     rm -rf "/tmp/plugins with space"
     mkdir -p "/tmp/plugins with space"
-    local zip=$(ls jvm-example-*.zip)
+    local zip=$(ls custom-settings-*.zip)
     cp $zip "/tmp/plugins with space"
 
-    install_jvm_example "/tmp/plugins with space/$zip"
-    remove_jvm_example
+    install_plugin_example "/tmp/plugins with space/$zip"
+    remove_plugin_example
 }
 
-@test "[$GROUP] install jvm-example plugin to elasticsearch directory with a space" {
+@test "[$GROUP] install a sample plugin to elasticsearch directory with a space" {
     [ "$GROUP" == "TAR PLUGINS" ] || skip "Test case only supported by TAR PLUGINS"
 
     move_elasticsearch "/tmp/elastic search"
 
-    install_jvm_example
-    remove_jvm_example
+    install_plugin_example
+    remove_plugin_example
 }
 
 @test "[$GROUP] fail if java executable is not found" {
@@ -161,8 +180,8 @@ fi
 
 # Note that all of the tests from here to the end of the file expect to be run
 # in sequence and don't take well to being run one at a time.
-@test "[$GROUP] install jvm-example plugin" {
-    install_jvm_example
+@test "[$GROUP] install a sample plugin" {
+    install_plugin_example
 }
 
 @test "[$GROUP] install icu plugin" {
@@ -171,6 +190,10 @@ fi
 
 @test "[$GROUP] install kuromoji plugin" {
     install_and_check_plugin analysis kuromoji
+}
+
+@test "[$GROUP] install nori plugin" {
+    install_and_check_plugin analysis nori
 }
 
 @test "[$GROUP] install phonetic plugin" {
@@ -201,27 +224,23 @@ fi
     install_and_check_plugin discovery ec2 aws-java-sdk-core-*.jar
 }
 
-@test "[$GROUP] install discovery-file plugin" {
-    install_and_check_plugin discovery file
-}
-
 @test "[$GROUP] install ingest-attachment plugin" {
-    # we specify the version on the poi-3.15.jar so that the test does
+    # we specify the version on the poi-4.0.0.jar so that the test does
     # not spuriously pass if the jar is missing but the other poi jars
     # are present
-    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-3.15.jar poi-ooxml-3.15.jar poi-ooxml-schemas-*.jar poi-scratchpad-*.jar
-}
-
-@test "[$GROUP] install ingest-geoip plugin" {
-    install_and_check_plugin ingest geoip geoip2-*.jar jackson-annotations-*.jar jackson-databind-*.jar maxmind-db-*.jar
-}
-
-@test "[$GROUP] install ingest-user-agent plugin" {
-    install_and_check_plugin ingest user-agent
+    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-4.0.0.jar poi-ooxml-4.0.0.jar poi-ooxml-schemas-*.jar poi-scratchpad-*.jar
 }
 
 @test "[$GROUP] check ingest-common module" {
     check_module ingest-common jcodings-*.jar joni-*.jar
+}
+
+@test "[$GROUP] check ingest-geoip module" {
+    check_module ingest-geoip geoip2-*.jar jackson-annotations-*.jar jackson-databind-*.jar maxmind-db-*.jar
+}
+
+@test "[$GROUP] check ingest-user-agent module" {
+    check_module ingest-user-agent
 }
 
 @test "[$GROUP] check lang-expression module" {
@@ -241,6 +260,10 @@ fi
 
 @test "[$GROUP] install murmur3 mapper plugin" {
     install_and_check_plugin mapper murmur3
+}
+
+@test "[$GROUP] install annotated-text mapper plugin" {
+    install_and_check_plugin mapper annotated-text
 }
 
 @test "[$GROUP] check reindex module" {
@@ -271,6 +294,10 @@ fi
     install_and_check_plugin store smb
 }
 
+@test "[$GROUP] install transport-nio plugin" {
+    install_and_check_plugin transport nio
+}
+
 @test "[$GROUP] check the installed plugins can be listed with 'plugins list' and result matches the list of plugins in plugins pom" {
     "$ESHOME/bin/elasticsearch-plugin" list | cut -d'@' -f1 > /tmp/installed
     compare_plugins_list "/tmp/installed" "'plugins list'"
@@ -289,8 +316,8 @@ fi
     stop_elasticsearch_service
 }
 
-@test "[$GROUP] remove jvm-example plugin" {
-    remove_jvm_example
+@test "[$GROUP] remove a sample plugin" {
+    remove_plugin_example
 }
 
 @test "[$GROUP] remove icu plugin" {
@@ -299,6 +326,10 @@ fi
 
 @test "[$GROUP] remove kuromoji plugin" {
     remove_plugin analysis-kuromoji
+}
+
+@test "[$GROUP] remove nori plugin" {
+    remove_plugin analysis-nori
 }
 
 @test "[$GROUP] remove phonetic plugin" {
@@ -329,24 +360,16 @@ fi
     remove_plugin discovery-ec2
 }
 
-@test "[$GROUP] remove discovery-file plugin" {
-    remove_plugin discovery-file
-}
-
 @test "[$GROUP] remove ingest-attachment plugin" {
     remove_plugin ingest-attachment
 }
 
-@test "[$GROUP] remove ingest-geoip plugin" {
-    remove_plugin ingest-geoip
-}
-
-@test "[$GROUP] remove ingest-user-agent plugin" {
-    remove_plugin ingest-user-agent
-}
-
 @test "[$GROUP] remove murmur3 mapper plugin" {
     remove_plugin mapper-murmur3
+}
+
+@test "[$GROUP] remove annotated-text mapper plugin" {
+    remove_plugin mapper-annotated-text
 }
 
 @test "[$GROUP] remove size mapper plugin" {
@@ -373,6 +396,10 @@ fi
     remove_plugin store-smb
 }
 
+@test "[$GROUP] remove transport-nio plugin" {
+    remove_plugin transport-nio
+}
+
 @test "[$GROUP] start elasticsearch with all plugins removed" {
     start_elasticsearch_service
 }
@@ -391,9 +418,9 @@ fi
     stop_elasticsearch_service
 }
 
-@test "[$GROUP] install jvm-example with different logging modes and check output" {
-    local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
-    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" > /tmp/plugin-cli-output
+@test "[$GROUP] install a sample plugin with different logging modes and check output" {
+    local relativePath=${1:-$(readlink -m custom-settings-*.zip)}
+    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install --batch "file://$relativePath" > /tmp/plugin-cli-output
     # exclude progress line
     local loglines=$(cat /tmp/plugin-cli-output | grep -v "^[[:cntrl:]]" | wc -l)
     [ "$loglines" -eq "2" ] || {
@@ -401,17 +428,17 @@ fi
         cat /tmp/plugin-cli-output
         false
     }
-    remove_jvm_example
+    remove_plugin_example
 
-    local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
-    sudo -E -u $ESPLUGIN_COMMAND_USER ES_JAVA_OPTS="-Des.logger.level=DEBUG" "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" > /tmp/plugin-cli-output
+    local relativePath=${1:-$(readlink -m custom-settings-*.zip)}
+    sudo -E -u $ESPLUGIN_COMMAND_USER ES_JAVA_OPTS="-Des.logger.level=DEBUG" "$ESHOME/bin/elasticsearch-plugin" install --batch "file://$relativePath" > /tmp/plugin-cli-output
     local loglines=$(cat /tmp/plugin-cli-output | grep -v "^[[:cntrl:]]" | wc -l)
     [ "$loglines" -gt "2" ] || {
         echo "Expected more than 2 lines excluding progress bar but the output had $loglines lines and was:"
         cat /tmp/plugin-cli-output
         false
     }
-    remove_jvm_example
+    remove_plugin_example
 }
 
 @test "[$GROUP] test java home with space" {
@@ -448,7 +475,7 @@ fi
 }
 
 @test "[$GROUP] test umask" {
-    install_jvm_example $(readlink -m jvm-example-*.zip) 0077
+    install_plugin_example $(readlink -m custom-settings-*.zip) 0077
 }
 
 @test "[$GROUP] hostname" {

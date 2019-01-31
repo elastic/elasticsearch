@@ -32,18 +32,16 @@ index.
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "text": {
-          "type":        "text",
-          "term_vector": "with_positions_offsets"
-        }
+    "properties": {
+      "text": {
+        "type":        "text",
+        "term_vector": "with_positions_offsets"
       }
     }
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "text": "Quick brown fox"
 }

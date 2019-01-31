@@ -1,0 +1,68 @@
+--
+:api: update-aliases
+:request: IndicesAliasesRequest
+:response: IndicesAliasesResponse
+--
+
+[id="{upid}-{api}"]
+=== Index Aliases API
+
+[id="{upid}-{api}-request"]
+==== Indices Aliases Request
+
+The Index Aliases API allows aliasing an index with a name, with all APIs
+automatically converting the alias name to the actual index name.
+
+An +{request}+ must have at least one `AliasActions`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Creates an `IndicesAliasesRequest`
+<2> Creates an `AliasActions` that aliases index `test1` with `alias1`
+<3> Adds the alias action to the request
+
+The following action types are supported: `add` - alias an index, `remove` - 
+removes the alias associated with the index, and `remove_index` - deletes the
+index. 
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request2]
+--------------------------------------------------
+<1> Creates an alias `alias1` with an optional filter on field `year`
+<2> Creates an alias `alias2` associated with two indices and with an optional routing
+<3> Removes the associated alias `alias3`
+<4> `remove_index` is just like <<java-rest-high-delete-index>>
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the all the nodes to acknowledge the operation as a `TimeValue`
+<2> Timeout to wait for the all the nodes to acknowledge the operation as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Indices Aliases Response
+
+The returned +{response}+ allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Indicates whether all of the nodes have acknowledged the request

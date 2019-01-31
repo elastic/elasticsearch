@@ -23,7 +23,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
-import org.elasticsearch.common.geo.builders.ShapeBuilders;
+import org.elasticsearch.common.geo.builders.MultiPointBuilder;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
@@ -76,6 +76,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
+import static org.elasticsearch.index.query.QueryBuilders.wrapperQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.exponentialDecayFunction;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.randomFunction;
 
@@ -189,7 +190,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             // tag::geo_shape
             GeoShapeQueryBuilder qb = geoShapeQuery(
                     "pin.location",                                      // <1>
-                    ShapeBuilders.newMultiPoint(                         // <2>
+                    new MultiPointBuilder(                         // <2>
                             new CoordinatesBuilder()
                         .coordinate(0, 0)
                         .coordinate(0, 10)
@@ -206,11 +207,10 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             // Using pre-indexed shapes
             GeoShapeQueryBuilder qb = geoShapeQuery(
                         "pin.location",                                  // <1>
-                        "DEU",                                           // <2>
-                        "countries");                                    // <3>
-            qb.relation(ShapeRelation.WITHIN)                            // <4>
-                .indexedShapeIndex("shapes")                             // <5>
-                .indexedShapePath("location");                           // <6>
+                        "DEU");                                  // <2>
+            qb.relation(ShapeRelation.WITHIN)                            // <3>
+                .indexedShapeIndex("shapes")                             // <4>
+                .indexedShapePath("location");                           // <5>
             // end::indexed_geo_shape
         }
     }
@@ -235,9 +235,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
 
     public void testIds() {
         // tag::ids
-        idsQuery("my_type", "type2")
-                .addIds("1", "4", "100");
-
         idsQuery()                                                   // <1>
                 .addIds("1", "4", "100");
         // end::ids
@@ -448,5 +445,12 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                 "user",                                              // <1>
                 "k?mch*");                                           // <2>
         // end::wildcard
+    }
+
+    public void testWrapper() {
+        // tag::wrapper
+        String query = "{\"term\": {\"user\": \"kimchy\"}}"; // <1>
+        wrapperQuery(query);
+        // end::wrapper
     }
 }

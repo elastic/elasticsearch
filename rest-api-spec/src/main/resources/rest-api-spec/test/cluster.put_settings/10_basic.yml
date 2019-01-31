@@ -4,22 +4,22 @@
       cluster.put_settings:
         body:
           transient:
-            discovery.zen.minimum_master_nodes: 1
+            cluster.routing.allocation.enable: "none"
         flat_settings: true
 
-  - match: {transient: {discovery.zen.minimum_master_nodes: "1"}}
+  - match: {transient: {cluster.routing.allocation.enable: "none"}}
 
   - do:
       cluster.get_settings:
         flat_settings: true
 
-  - match: {transient: {discovery.zen.minimum_master_nodes: "1"}}
+  - match: {transient: {cluster.routing.allocation.enable: "none"}}
 
   - do:
       cluster.put_settings:
         body:
           transient:
-            discovery.zen.minimum_master_nodes: null
+            cluster.routing.allocation.enable: null
         flat_settings: true
 
   - match: {transient: {}}
@@ -35,22 +35,22 @@
       cluster.put_settings:
         body:
           persistent:
-            cluster.routing.allocation.disk.threshold_enabled: false
+            cluster.routing.allocation.enable: "none"
         flat_settings: true
 
-  - match: {persistent: {cluster.routing.allocation.disk.threshold_enabled: "false"}}
+  - match: {persistent: {cluster.routing.allocation.enable: "none"}}
 
   - do:
       cluster.get_settings:
         flat_settings: true
 
-  - match: {persistent: {cluster.routing.allocation.disk.threshold_enabled: "false"}}
+  - match: {persistent: {cluster.routing.allocation.enable: "none"}}
 
   - do:
       cluster.put_settings:
         body:
           persistent:
-            cluster.routing.allocation.disk.threshold_enabled: null
+            cluster.routing.allocation.enable: null
         flat_settings: true
 
   - match: {persistent: {}}
@@ -63,11 +63,6 @@
 
 ---
 "Test get a default settings":
-
-# this can't be bumped to 5.0.2 until snapshots are published
- - skip:
-        version: " - 5.0.3"
-        reason:  Fetching default group setting was buggy until 5.0.3
 
  - do:
       cluster.get_settings:

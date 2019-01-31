@@ -2,8 +2,10 @@
 === Install Elasticsearch with Debian Package
 
 The Debian package for Elasticsearch can be <<install-deb,downloaded from our website>>
-or from our  <<deb-repo,APT repository>>. It can be used to install
+or from our <<deb-repo,APT repository>>. It can be used to install
 Elasticsearch on any Debian-based system such as Debian and Ubuntu.
+
+include::license.asciidoc[]
 
 The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page. Other versions can
@@ -103,6 +105,36 @@ endif::[]
 
 include::skip-set-kernel-parameters.asciidoc[]
 
+ifeval::["{release-state}"!="unreleased"]
+
+[NOTE]
+==================================================
+
+An alternative package which contains only features that are available under the
+Apache 2.0 license is also available. To install it, use the following sources list:
+
+ifeval::["{release-state}"=="prerelease"]
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+echo "deb https://artifacts.elastic.co/packages/oss-{major-version}-prerelease/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
+--------------------------------------------------
+
+endif::[]
+
+ifeval::["{release-state}"!="prerelease"]
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+echo "deb https://artifacts.elastic.co/packages/oss-{major-version}/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
+--------------------------------------------------
+
+endif::[]
+
+==================================================
+
+endif::[]
+
 [[install-deb]]
 ==== Download and install the Debian package manually
 
@@ -118,38 +150,35 @@ The Debian package for Elasticsearch v{version} can be downloaded from the websi
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.deb
-sha1sum elasticsearch-{version}.deb <1>
-sudo dpkg -i elasticsearch-{version}.deb
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-amd64.deb
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-amd64.deb.sha512
+shasum -a 512 -c elasticsearch-{version}-amd64.deb.sha512 <1>
+sudo dpkg -i elasticsearch-{version}-amd64.deb
 --------------------------------------------
-<1> Compare the SHA produced by `sha1sum` or `shasum` with the
-    https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.deb.sha1[published SHA].
+<1> Compares the SHA of the downloaded Debian package and the published checksum, which should output
+    `elasticsearch-{version}-amd64.deb: OK`.
+    
+Alternatively, you can download the following package, which contains only 
+features that are available under the Apache 2.0 license: 
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-amd64.deb    
 
 endif::[]
+
+ifdef::include-xpack[]
+[[deb-enable-indices]]
+==== Enable automatic creation of {xpack} indices
+
+{xpack} will try to automatically create a number of indices within Elasticsearch.
+include::xpack-indices.asciidoc[]
+
+endif::include-xpack[]
+
+==== SysV `init` vs `systemd`
 
 include::init-systemd.asciidoc[]
 
 [[deb-running-init]]
-==== Running Elasticsearch with SysV `init`
-
-Use the `update-rc.d` command to configure Elasticsearch to start automatically
-when the system boots up:
-
-[source,sh]
---------------------------------------------------
-sudo update-rc.d elasticsearch defaults 95 10
---------------------------------------------------
-
-Elasticsearch can be started and stopped using the `service` command:
-
-[source,sh]
---------------------------------------------
-sudo -i service elasticsearch start
-sudo -i service elasticsearch stop
---------------------------------------------
-
-If Elasticsearch fails to start for any reason, it will print the reason for
-failure to STDOUT. Log files can be found in `/var/log/elasticsearch/`.
+include::deb-init.asciidoc[]
 
 [[deb-running-systemd]]
 include::systemd.asciidoc[]

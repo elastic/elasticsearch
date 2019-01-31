@@ -19,7 +19,6 @@
  */
 package org.elasticsearch.test.test;
 
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -27,21 +26,26 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,15 +56,18 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.DATA;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.INGEST;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.MASTER;
-import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
+import static org.elasticsearch.node.Node.NODE_MASTER_SETTING;
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -70,6 +77,10 @@ import static org.hamcrest.Matchers.not;
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
 public class InternalTestClusterTests extends ESTestCase {
 
+    private static Collection<Class<? extends Plugin>> mockPlugins() {
+        return Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class, MockHttpTransport.TestPlugin.class);
+    }
+
     public void testInitializiationIsConsistent() {
         long clusterSeed = randomLong();
         boolean masterNodes = randomBoolean();
@@ -78,30 +89,28 @@ public class InternalTestClusterTests extends ESTestCase {
         String clusterName = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
         NodeConfigurationSource nodeConfigurationSource = NodeConfigurationSource.EMPTY;
         int numClientNodes = randomIntBetween(0, 10);
-        boolean enableHttpPipelining = randomBoolean();
         String nodePrefix = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
 
         Path baseDir = createTempDir();
         InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             randomBoolean(), minNumDataNodes, maxNumDataNodes, clusterName, nodeConfigurationSource, numClientNodes,
-            enableHttpPipelining, nodePrefix, Collections.emptyList(), Function.identity());
+            nodePrefix, Collections.emptyList(), Function.identity());
         InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             randomBoolean(), minNumDataNodes, maxNumDataNodes, clusterName, nodeConfigurationSource, numClientNodes,
-            enableHttpPipelining, nodePrefix, Collections.emptyList(), Function.identity());
+            nodePrefix, Collections.emptyList(), Function.identity());
         // TODO: this is not ideal - we should have a way to make sure ports are initialized in the same way
         assertClusters(cluster0, cluster1, false);
-
     }
 
     /**
      * a set of settings that are expected to have different values betweem clusters, even they have been initialized with the same
-     * base settins.
+     * base settings.
      */
     static final Set<String> clusterUniqueSettings = new HashSet<>();
 
     static {
         clusterUniqueSettings.add(ClusterName.CLUSTER_NAME_SETTING.getKey());
-        clusterUniqueSettings.add(TcpTransport.PORT.getKey());
+        clusterUniqueSettings.add(TransportSettings.PORT.getKey());
         clusterUniqueSettings.add("http.port");
     }
 
@@ -129,32 +138,6 @@ public class InternalTestClusterTests extends ESTestCase {
         }
     }
 
-    private void assertMMNinNodeSetting(InternalTestCluster cluster, int masterNodes) {
-        for (final String node : cluster.getNodeNames()) {
-            assertMMNinNodeSetting(node, cluster, masterNodes);
-        }
-    }
-
-    private void assertMMNinNodeSetting(String node, InternalTestCluster cluster, int masterNodes) {
-        final int minMasterNodes = masterNodes / 2 + 1;
-        Settings nodeSettings = cluster.client(node).admin().cluster().prepareNodesInfo(node).get().getNodes().get(0).getSettings();
-        assertEquals("node setting of node [" + node + "] has the wrong min_master_node setting: ["
-            + nodeSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) + "]",
-            DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(nodeSettings).intValue(), minMasterNodes);
-    }
-
-    private void assertMMNinClusterSetting(InternalTestCluster cluster, int masterNodes) {
-        final int minMasterNodes = masterNodes / 2 + 1;
-        for (final String node : cluster.getNodeNames()) {
-            Settings stateSettings = cluster.client(node).admin().cluster().prepareState().setLocal(true)
-                .get().getState().getMetaData().settings();
-
-            assertEquals("dynamic setting for node [" + node + "] has the wrong min_master_node setting : ["
-                    + stateSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) + "]",
-                DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(stateSettings).intValue(), minMasterNodes);
-        }
-    }
-
     public void testBeforeTest() throws Exception {
         final boolean autoManageMinMasterNodes = randomBoolean();
         long clusterSeed = randomLong();
@@ -175,6 +158,7 @@ public class InternalTestClusterTests extends ESTestCase {
         final String clusterName1 = "shared1";
         final String clusterName2 = "shared2";
         String transportClient = getTestTransportType();
+        final long bootstrapNodeSelectionSeed = randomLong();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -182,14 +166,22 @@ public class InternalTestClusterTests extends ESTestCase {
                     .put(
                         NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
                         2 * ((masterNodes ? InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES : 0) + maxNumDataNodes + numClientNodes))
-                    .put(NetworkModule.HTTP_ENABLED.getKey(), false)
+                    .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
+                    .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
                 if (autoManageMinMasterNodes == false) {
                     assert minNumDataNodes == maxNumDataNodes;
                     assert masterNodes == false;
-                    settings.put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minNumDataNodes / 2 + 1);
                 }
                 return settings.build();
+            }
+
+            @Override
+            public List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
+                if (autoManageMinMasterNodes) {
+                    return allNodesSettings;
+                }
+                return addBootstrapConfiguration(new Random(bootstrapNodeSelectionSeed), allNodesSettings);
             }
 
             @Override
@@ -204,17 +196,15 @@ public class InternalTestClusterTests extends ESTestCase {
             }
         };
 
-        boolean enableHttpPipelining = randomBoolean();
         String nodePrefix = "foobar";
 
         Path baseDir = createTempDir();
-        final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class);
         InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
-            enableHttpPipelining, nodePrefix, mockPlugins, Function.identity());
+            nodePrefix, mockPlugins(), Function.identity());
         InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, clusterName2, nodeConfigurationSource, numClientNodes,
-            enableHttpPipelining, nodePrefix, mockPlugins, Function.identity());
+            nodePrefix, mockPlugins(), Function.identity());
 
         assertClusters(cluster0, cluster1, false);
         long seed = randomLong();
@@ -234,14 +224,24 @@ public class InternalTestClusterTests extends ESTestCase {
                 Client other = iterator1.next();
                 assertSettings(client.settings(), other.settings(), false);
             }
-            assertArrayEquals(cluster0.getNodeNames(), cluster1.getNodeNames());
-            assertMMNinNodeSetting(cluster0, cluster0.numMasterNodes());
-            assertMMNinNodeSetting(cluster1, cluster0.numMasterNodes());
             cluster0.afterTest();
             cluster1.afterTest();
         } finally {
             IOUtils.close(cluster0, cluster1);
         }
+    }
+
+    private static List<Settings> addBootstrapConfiguration(Random random, List<Settings> allNodesSettings) {
+        final List<Settings> updatedSettings = new ArrayList<>(allNodesSettings);
+        final int bootstrapIndex = randomFrom(random, IntStream.range(0, updatedSettings.size())
+            .filter(i -> NODE_MASTER_SETTING.get(allNodesSettings.get(i))).boxed().collect(Collectors.toList()));
+        final Settings settings = updatedSettings.get(bootstrapIndex);
+        assertFalse(INITIAL_MASTER_NODES_SETTING.exists(settings));
+        assertTrue(NODE_MASTER_SETTING.get(settings));
+        updatedSettings.set(bootstrapIndex,
+            Settings.builder().put(settings).putList(INITIAL_MASTER_NODES_SETTING.getKey(), allNodesSettings.stream()
+                .filter(NODE_MASTER_SETTING::get).map(NODE_NAME_SETTING::get).collect(Collectors.toList())).build());
+        return updatedSettings;
     }
 
     public void testDataFolderAssignmentAndCleaning() throws IOException, InterruptedException {
@@ -256,11 +256,13 @@ public class InternalTestClusterTests extends ESTestCase {
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
-                return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false)
+                return Settings.builder()
                     .put(
                         NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
                         2 + (masterNodes ? InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES : 0) + maxNumDataNodes + numClientNodes)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
+                    .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
+                    .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
                     .build();
             }
 
@@ -275,22 +277,20 @@ public class InternalTestClusterTests extends ESTestCase {
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
         };
-        boolean enableHttpPipelining = randomBoolean();
         String nodePrefix = "test";
         Path baseDir = createTempDir();
         InternalTestCluster cluster = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             true, minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
-            enableHttpPipelining, nodePrefix, Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class),
-            Function.identity());
+            nodePrefix, mockPlugins(), Function.identity());
         try {
             cluster.beforeTest(random(), 0.0);
             final int originalMasterCount = cluster.numMasterNodes();
-            assertMMNinNodeSetting(cluster, originalMasterCount);
             final Map<String,Path[]> shardNodePaths = new HashMap<>();
             for (String name: cluster.getNodeNames()) {
                 shardNodePaths.put(name, getNodePaths(cluster, name));
             }
-            String poorNode = randomFrom(cluster.getNodeNames());
+            String poorNode = randomValueOtherThanMany(n -> originalMasterCount == 1 && n.equals(cluster.getMasterName()),
+                () -> randomFrom(cluster.getNodeNames()));
             Path dataPath = getNodePaths(cluster, poorNode)[0];
             final Path testMarker = dataPath.resolve("testMarker");
             Files.createDirectories(testMarker);
@@ -299,10 +299,6 @@ public class InternalTestClusterTests extends ESTestCase {
                 expectedMasterCount--;
             }
             cluster.stopRandomNode(InternalTestCluster.nameFilter(poorNode));
-            if (expectedMasterCount != originalMasterCount) {
-                // check for updated
-                assertMMNinClusterSetting(cluster, expectedMasterCount);
-            }
             assertFileExists(testMarker); // stopping a node half way shouldn't clean data
 
             final String stableNode = randomFrom(cluster.getNodeNames());
@@ -315,14 +311,8 @@ public class InternalTestClusterTests extends ESTestCase {
             expectedMasterCount++;
             assertThat(getNodePaths(cluster, newNode1)[0], equalTo(dataPath));
             assertFileExists(testMarker); // starting a node should re-use data folders and not clean it
-            if (expectedMasterCount > 1) { // this is the first master, it's in cluster state settings won't be updated
-                assertMMNinClusterSetting(cluster, expectedMasterCount);
-            }
-            assertMMNinNodeSetting(newNode1, cluster, expectedMasterCount);
-
             final String newNode2 =  cluster.startNode();
             expectedMasterCount++;
-            assertMMNinClusterSetting(cluster, expectedMasterCount);
             final Path newDataPath = getNodePaths(cluster, newNode2)[0];
             final Path newTestMarker = newDataPath.resolve("newTestMarker");
             assertThat(newDataPath, not(dataPath));
@@ -341,8 +331,6 @@ public class InternalTestClusterTests extends ESTestCase {
                 assertThat("data paths for " + name + " changed", getNodePaths(cluster, name),
                     equalTo(shardNodePaths.get(name)));
             }
-            assertMMNinNodeSetting(cluster, originalMasterCount);
-
         } finally {
             cluster.close();
         }
@@ -364,17 +352,31 @@ public class InternalTestClusterTests extends ESTestCase {
         String transportClient = getTestTransportType();
         InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, false,
                 false, 0, 0, "test", new NodeConfigurationSource() {
+
+            private boolean bootstrapConfigurationSet;
+
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder()
                         .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), numNodes)
-                        .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                         .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0)
                         // speedup join timeout as setting initial state timeout to 0 makes split
                         // elections more likely
                         .put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "3s")
+                        .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
+                        .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
                         .build();
+            }
+
+            @Override
+            public List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
+                if (bootstrapConfigurationSet || allNodesSettings.stream().noneMatch(NODE_MASTER_SETTING::get)) {
+                    return allNodesSettings;
+                }
+
+                bootstrapConfigurationSet = true;
+                return addBootstrapConfiguration(random(), allNodesSettings);
             }
 
             @Override
@@ -387,7 +389,7 @@ public class InternalTestClusterTests extends ESTestCase {
                 return Settings.builder()
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
-        }, 0, randomBoolean(), "", Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class), Function.identity());
+        }, 0, "", mockPlugins(), Function.identity());
         cluster.beforeTest(random(), 0.0);
         List<DiscoveryNode.Role> roles = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
@@ -397,10 +399,6 @@ public class InternalTestClusterTests extends ESTestCase {
             roles.add(role);
         }
 
-        final Settings minMasterNodes = Settings.builder()
-            .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(),
-                roles.stream().filter(role -> role == MASTER).count() / 2 + 1
-            ).build();
         try {
             Map<DiscoveryNode.Role, Set<String>> pathsPerRole = new HashMap<>();
             for (int i = 0; i < numNodes; i++) {
@@ -408,13 +406,13 @@ public class InternalTestClusterTests extends ESTestCase {
                 final String node;
                 switch (role) {
                     case MASTER:
-                        node = cluster.startMasterOnlyNode(minMasterNodes);
+                        node = cluster.startMasterOnlyNode();
                         break;
                     case DATA:
-                        node = cluster.startDataOnlyNode(minMasterNodes);
+                        node = cluster.startDataOnlyNode();
                         break;
                     case INGEST:
-                        node = cluster.startCoordinatingOnlyNode(minMasterNodes);
+                        node = cluster.startCoordinatingOnlyNode(Settings.EMPTY);
                         break;
                     default:
                         throw new IllegalStateException("get your story straight");
@@ -424,6 +422,7 @@ public class InternalTestClusterTests extends ESTestCase {
                     assertTrue(rolePaths.add(path.toString()));
                 }
             }
+            cluster.validateClusterFormed();
             cluster.fullRestart();
 
             Map<DiscoveryNode.Role, Set<String>> result = new HashMap<>();
@@ -453,9 +452,11 @@ public class InternalTestClusterTests extends ESTestCase {
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
-                return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false)
+                return Settings.builder()
                     .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
+                    .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
+                    .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
                     .build();
             }
 
@@ -470,40 +471,50 @@ public class InternalTestClusterTests extends ESTestCase {
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
         };
-        boolean enableHttpPipelining = randomBoolean();
         String nodePrefix = "test";
         Path baseDir = createTempDir();
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(mockPlugins());
+        plugins.add(NodeAttrCheckPlugin.class);
         InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, false, true, 2, 2,
-            "test", nodeConfigurationSource, 0, enableHttpPipelining, nodePrefix,
-            Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class), Function.identity());
+            "test", nodeConfigurationSource, 0, nodePrefix,
+            plugins, Function.identity());
         try {
             cluster.beforeTest(random(), 0.0);
-            assertMMNinNodeSetting(cluster, 2);
             switch (randomInt(2)) {
                 case 0:
                     cluster.stopRandomDataNode();
-                    assertMMNinClusterSetting(cluster, 1);
                     cluster.startNode();
-                    assertMMNinClusterSetting(cluster, 2);
-                    assertMMNinNodeSetting(cluster, 2);
                     break;
                 case 1:
-                    cluster.rollingRestart(new InternalTestCluster.RestartCallback() {
-                        @Override
-                        public Settings onNodeStopped(String nodeName) throws Exception {
-                            assertMMNinClusterSetting(cluster, 1);
-                            return super.onNodeStopped(nodeName);
-                        }
-                    });
-                    assertMMNinClusterSetting(cluster, 2);
+                    cluster.rollingRestart(InternalTestCluster.EMPTY_CALLBACK);
                     break;
                 case 2:
                     cluster.fullRestart();
                     break;
             }
-            assertMMNinNodeSetting(cluster, 2);
         } finally {
             cluster.close();
+        }
+    }
+
+    /**
+     * Plugin that adds a simple node attribute as setting and checks if that node attribute is not already defined.
+     * Allows to check that the full-cluster restart logic does not copy over plugin-derived settings.
+     */
+    public static class NodeAttrCheckPlugin extends Plugin {
+
+        private final Settings settings;
+
+        public NodeAttrCheckPlugin(Settings settings) {
+            this.settings = settings;
+        }
+
+        @Override
+        public Settings additionalSettings() {
+            if (settings.get("node.attr.dummy") != null) {
+                fail("dummy setting already exists");
+            }
+            return Settings.builder().put("node.attr.dummy", true).build();
         }
     }
 }

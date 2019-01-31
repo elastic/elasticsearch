@@ -2,20 +2,19 @@
 "Test percolator basics via rest":
   - do:
       indices.create:
+        include_type_name: false
         index: queries_index
         body:
           mappings:
-            doc:
-              properties:
-                query:
-                  type: percolator
-                foo:
-                  type: keyword
+            properties:
+              query:
+                type: percolator
+              foo:
+                type: keyword
 
   - do:
       index:
         index: queries_index
-        type: doc
         id:   test_percolator
         body:
           query:
@@ -26,6 +25,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           - query:
               percolate:
@@ -36,6 +36,7 @@
 
   - do:
       msearch:
+        rest_total_hits_as_int: true
         body:
           - index: queries_index
           - query:

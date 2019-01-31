@@ -36,5 +36,5 @@ http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/
 
 Serbian::
 
-not-released-yet[`serbian_normalization`],
+http://lucene.apache.org/core/7_1_0/analyzers-common/org/apache/lucene/analysis/sr/SerbianNormalizationFilter.html[`serbian_normalization`]
 

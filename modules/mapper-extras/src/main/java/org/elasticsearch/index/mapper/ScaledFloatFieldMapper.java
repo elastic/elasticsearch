@@ -25,9 +25,12 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -36,6 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
@@ -55,9 +59,10 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -154,10 +159,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     builder.nullValue(ScaledFloatFieldMapper.parse(propNode));
                     iterator.remove();
                 } else if (propName.equals("ignore_malformed")) {
-                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue(name, "ignore_malformed", propNode, parserContext));
+                    builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode, name + ".ignore_malformed"));
                     iterator.remove();
                 } else if (propName.equals("coerce")) {
-                    builder.coerce(TypeParsers.nodeBooleanValue(name, "coerce", propNode, parserContext));
+                    builder.coerce(XContentMapValues.nodeBooleanValue(propNode, name + ".coerce"));
                     iterator.remove();
                 } else if (propName.equals("scaling_factor")) {
                     builder.scalingFactor(ScaledFloatFieldMapper.parse(propNode));
@@ -204,18 +209,26 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType other, List<String> conflicts, boolean strict) {
-            super.checkCompatibility(other, conflicts, strict);
+        public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
+            super.checkCompatibility(other, conflicts);
             if (scalingFactor != ((ScaledFloatFieldType) other).getScalingFactor()) {
                 conflicts.add("mapper [" + name() + "] has different [scaling_factor] values");
             }
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            }
+        }
+
+        @Override
         public Query termQuery(Object value, QueryShardContext context) {
             failIfNotIndexed();
-            double queryValue = parse(value);
-            long scaledValue = Math.round(queryValue * scalingFactor);
+            long scaledValue = Math.round(scale(value));
             Query query = NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
@@ -228,8 +241,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             failIfNotIndexed();
             List<Long> scaledValues = new ArrayList<>(values.size());
             for (Object value : values) {
-                double queryValue = parse(value);
-                long scaledValue = Math.round(queryValue * scalingFactor);
+                long scaledValue = Math.round(scale(value));
                 scaledValues.add(scaledValue);
             }
             Query query = NumberFieldMapper.NumberType.LONG.termsQuery(name(), Collections.unmodifiableList(scaledValues));
@@ -244,19 +256,19 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             failIfNotIndexed();
             Long lo = null;
             if (lowerTerm != null) {
-                double dValue = parse(lowerTerm);
+                double dValue = scale(lowerTerm);
                 if (includeLower == false) {
                     dValue = Math.nextUp(dValue);
                 }
-                lo = Math.round(Math.ceil(dValue * scalingFactor));
+                lo = Math.round(Math.ceil(dValue));
             }
             Long hi = null;
             if (upperTerm != null) {
-                double dValue = parse(upperTerm);
+                double dValue = scale(upperTerm);
                 if (includeUpper == false) {
                     dValue = Math.nextDown(dValue);
                 }
-                hi = Math.round(Math.floor(dValue * scalingFactor));
+                hi = Math.round(Math.floor(dValue));
             }
             Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues());
             if (boost() != 1f) {
@@ -289,7 +301,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DocValueFormat docValueFormat(String format, DateTimeZone timeZone) {
+        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
             if (timeZone != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
                     + "] does not support custom time zones");
@@ -312,6 +324,19 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public int hashCode() {
             return 31 * super.hashCode() + Double.hashCode(scalingFactor);
+        }
+
+        /**
+         * Parses input value and multiplies it with the scaling factor.
+         * Uses the round-trip of creating a {@link BigDecimal} from the stringified {@code double}
+         * input to ensure intuitively exact floating point operations.
+         * (e.g. for a scaling factor of 100, JVM behaviour results in {@code 79.99D * 100 ==> 7998.99..} compared to
+         * {@code scale(79.99) ==> 7999})
+         * @param input Input value to parse floating point num from
+         * @return Scaled value
+         */
+        private double scale(Object input) {
+            return new BigDecimal(Double.toString(parse(input))).multiply(BigDecimal.valueOf(scalingFactor)).doubleValue();
         }
     }
 
@@ -406,11 +431,14 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         boolean docValued = fieldType().hasDocValues();
         boolean stored = fieldType().stored();
         fields.addAll(NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, docValued, stored));
+        if (docValued == false && (indexed || stored)) {
+            createFieldNamesField(context, fields);
+        }
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        super.doMerge(mergeWith, updateAllTypes);
+    protected void doMerge(Mapper mergeWith) {
+        super.doMerge(mergeWith);
         ScaledFloatFieldMapper other = (ScaledFloatFieldMapper) mergeWith;
         if (other.ignoreMalformed.explicit()) {
             this.ignoreMalformed = other.ignoreMalformed;

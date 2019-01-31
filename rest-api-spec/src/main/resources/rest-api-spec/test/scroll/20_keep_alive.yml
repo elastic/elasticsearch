@@ -17,14 +17,12 @@
   - do:
       index:
         index:  test_scroll
-        type:   test
         id:     1
         body:   { foo: 1 }
 
   - do:
       index:
         index:  test_scroll
-        type:   test
         id:     2
         body:   { foo: 1 }
 
@@ -41,6 +39,7 @@
   - do:
       catch: /.*Keep alive for scroll.*is too large.*/
       search:
+        rest_total_hits_as_int: true
         index: test_scroll
         size: 1
         scroll: 2m
@@ -51,6 +50,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_scroll
         size: 1
         scroll: 1m
@@ -66,5 +66,6 @@
   - do:
       catch: /.*Keep alive for scroll.*is too large.*/
       scroll:
+        rest_total_hits_as_int: true
         scroll_id: $scroll_id
         scroll: 3m

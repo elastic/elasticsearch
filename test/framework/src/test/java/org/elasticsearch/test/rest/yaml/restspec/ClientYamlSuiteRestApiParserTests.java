@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseRestSpecIndexApi() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, REST_SPEC_INDEX_API);
-        ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("location", parser);
+        ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("index.json", parser);
 
         assertThat(restApi, notNullValue());
         assertThat(restApi.getName(), equalTo("index"));
@@ -47,14 +47,14 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         assertThat(restApi.getPathParts(), hasEntry("id", false));
         assertThat(restApi.getParams().size(), equalTo(4));
         assertThat(restApi.getParams().keySet(), containsInAnyOrder("wait_for_active_shards", "op_type", "parent", "refresh"));
-        restApi.getParams().entrySet().stream().forEach(e -> assertThat(e.getValue(), equalTo(false)));
+        restApi.getParams().entrySet().forEach(e -> assertThat(e.getValue(), equalTo(false)));
         assertThat(restApi.isBodySupported(), equalTo(true));
         assertThat(restApi.isBodyRequired(), equalTo(true));
     }
 
     public void testParseRestSpecGetTemplateApi() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, REST_SPEC_GET_TEMPLATE_API);
-        ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("location", parser);
+        ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("indices.get_template.json", parser);
         assertThat(restApi, notNullValue());
         assertThat(restApi.getName(), equalTo("indices.get_template"));
         assertThat(restApi.getMethods().size(), equalTo(1));
@@ -71,7 +71,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
 
     public void testParseRestSpecCountApi() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, REST_SPEC_COUNT_API);
-        ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("location", parser);
+        ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("count.json", parser);
         assertThat(restApi, notNullValue());
         assertThat(restApi.getName(), equalTo("count"));
         assertThat(restApi.getMethods().size(), equalTo(2));
@@ -83,12 +83,37 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         assertThat(restApi.getPaths().get(2), equalTo("/{index}/{type}/_count"));
         assertThat(restApi.getPathParts().size(), equalTo(2));
         assertThat(restApi.getPathParts().keySet(), containsInAnyOrder("index", "type"));
-        restApi.getPathParts().entrySet().stream().forEach(e -> assertThat(e.getValue(), equalTo(false)));
+        restApi.getPathParts().entrySet().forEach(e -> assertThat(e.getValue(), equalTo(false)));
         assertThat(restApi.getParams().size(), equalTo(1));
         assertThat(restApi.getParams().keySet(), contains("ignore_unavailable"));
         assertThat(restApi.getParams(), hasEntry("ignore_unavailable", false));
         assertThat(restApi.isBodySupported(), equalTo(true));
         assertThat(restApi.isBodyRequired(), equalTo(false));
+    }
+
+    public void testRequiredBodyWithoutUrlParts() throws Exception {
+        String spec = "{\n" +
+            "  \"count\": {\n" +
+            "    \"documentation\": \"whatever\",\n" +
+            "    \"methods\": [ \"GET\", \"POST\" ],\n" +
+            "    \"url\": {\n" +
+            "      \"path\": \"/whatever\",\n" +
+            "      \"paths\": [ \"/whatever\" ]\n" +
+            "    },\n" +
+            "    \"body\": {\n" +
+            "      \"description\" : \"whatever\",\n" +
+            "      \"required\" : true\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+
+        parser = createParser(YamlXContent.yamlXContent, spec);
+        ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("count.json", parser);
+
+        assertThat(restApi, notNullValue());
+        assertThat(restApi.getPathParts().isEmpty(), equalTo(true));
+        assertThat(restApi.getParams().isEmpty(), equalTo(true));
+        assertThat(restApi.isBodyRequired(), equalTo(true));
     }
 
     private static final String REST_SPEC_COUNT_API = "{\n" +

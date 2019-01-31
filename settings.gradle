@@ -1,10 +1,11 @@
+import org.elasticsearch.gradle.Version
+
 String dirName = rootProject.projectDir.name
 rootProject.name = dirName
 
 List projects = [
   'build-tools',
   'rest-api-spec',
-  'core',
   'docs',
   'client:rest',
   'client:rest-high-level',
@@ -14,116 +15,33 @@ List projects = [
   'client:client-benchmark-noop-api-plugin',
   'client:benchmark',
   'benchmarks',
-  'distribution:integ-test-zip',
-  'distribution:bwc-release-snapshot',
-  'distribution:bwc-stable-snapshot',
-  'distribution:zip',
-  'distribution:tar',
-  'distribution:deb',
-  'distribution:rpm',
+  'distribution:archives:integ-test-zip',
+  'distribution:archives:oss-windows-zip',
+  'distribution:archives:windows-zip',
+  'distribution:archives:oss-darwin-tar',
+  'distribution:archives:darwin-tar',
+  'distribution:archives:oss-linux-tar',
+  'distribution:archives:linux-tar',
+  'distribution:docker',
+  'distribution:packages:oss-deb',
+  'distribution:packages:deb',
+  'distribution:packages:oss-rpm',
+  'distribution:packages:rpm',
+  'distribution:bwc:bugfix',
+  'distribution:bwc:maintenance',
+  'distribution:bwc:minor',
+  'distribution:bwc:staged',
   'distribution:tools:java-version-checker',
+  'distribution:tools:launchers',
   'distribution:tools:plugin-cli',
+  'server',
+  'server:cli',
   'test:framework',
-  'test:fixtures:example-fixture',
   'test:fixtures:hdfs-fixture',
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:old-elasticsearch',
-  'test:logger-usage',
-  'modules:aggs-matrix-stats',
-  'modules:analysis-common',
-  'modules:ingest-common',
-  'modules:lang-expression',
-  'modules:lang-mustache',
-  'modules:lang-painless',
-  'modules:mapper-extras',
-  'modules:parent-join',
-  'modules:percolator',
-  'modules:reindex',
-  'modules:repository-url',
-  'modules:transport-netty4',
-  'modules:tribe',
-  'plugins:analysis-icu',
-  'plugins:analysis-kuromoji',
-  'plugins:analysis-phonetic',
-  'plugins:analysis-smartcn',
-  'plugins:analysis-stempel',
-  'plugins:analysis-ukrainian',
-  'plugins:discovery-azure-classic',
-  'plugins:discovery-ec2',
-  'plugins:discovery-file',
-  'plugins:discovery-gce',
-  'plugins:ingest-geoip',
-  'plugins:ingest-attachment',
-  'plugins:ingest-user-agent',
-  'plugins:mapper-murmur3',
-  'plugins:mapper-size',
-  'plugins:repository-azure',
-  'plugins:repository-gcs',
-  'plugins:repository-hdfs',
-  'plugins:repository-s3',
-  'plugins:jvm-example',
-  'plugins:store-smb',
-  'qa:auto-create-index',
-  'qa:evil-tests',
-  'qa:full-cluster-restart',
-  'qa:integration-bwc',
-  'qa:mixed-cluster',
-  'qa:multi-cluster-search',
-  'qa:no-bootstrap-tests',
-  'qa:reindex-from-old',
-  'qa:rolling-upgrade',
-  'qa:smoke-test-client',
-  'qa:smoke-test-http',
-  'qa:smoke-test-ingest-with-all-dependencies',
-  'qa:smoke-test-ingest-disabled',
-  'qa:smoke-test-multinode',
-  'qa:smoke-test-plugins',
-  'qa:smoke-test-reindex-with-all-modules',
-  'qa:smoke-test-tribe-node',
-  'qa:vagrant',
-  'qa:verify-version-constants',
-  'qa:wildfly',
-  'qa:query-builder-bwc'
+  'test:logger-usage'
 ]
-
-File examplePluginsDir = new File(rootProject.projectDir, 'plugins/examples')
-List<String> examplePlugins = []
-for (File example : examplePluginsDir.listFiles()) {
-  if (example.isDirectory() == false) continue;
-  if (example.name.startsWith('build') || example.name.startsWith('.')) continue;
-  projects.add("example-plugins:${example.name}".toString())
-  examplePlugins.add(example.name)
-}
-
-boolean isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
-if (isEclipse) {
-  // eclipse cannot handle an intermediate dependency between main and test, so we must create separate projects
-  // for core-src and core-tests
-  projects << 'core-tests'
-}
-
-include projects.toArray(new String[0])
-
-project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
-project(':example-plugins').projectDir = new File(rootProject.projectDir, 'plugins/examples')
-
-for (String example : examplePlugins) {
-  project(":example-plugins:${example}").projectDir = new File(rootProject.projectDir, "plugins/examples/${example}")
-}
-
-/* bwc and bwc-unreleased share the same build directory and build file, but
- * apply to different backwards compatibility branches. */
-project(':distribution:bwc-release-snapshot').projectDir =
-    new File(rootProject.projectDir, 'distribution/bwc')
-project(':distribution:bwc-stable-snapshot').projectDir =
-    new File(rootProject.projectDir, 'distribution/bwc')
-
-if (isEclipse) {
-  project(":core").projectDir = new File(rootProject.projectDir, 'core/src/main')
-  project(":core").buildFileName = 'eclipse-build.gradle'
-  project(":core-tests").projectDir = new File(rootProject.projectDir, 'core/src/test')
-  project(":core-tests").buildFileName = 'eclipse-build.gradle'
-}
 
 /**
   * Iterates over sub directories, looking for build.gradle, and adds a project if found
@@ -135,15 +53,95 @@ void addSubProjects(String path, File dir) {
   if (dir.isDirectory() == false) return;
   if (dir.name == 'buildSrc') return;
   if (new File(dir, 'build.gradle').exists() == false) return;
+  if (findProject(dir) != null) return;
 
-  String projectName = "${path}:${dir.name}"
+  final String projectName = "${path}:${dir.name}"
   include projectName
-  if (path.isEmpty()) {
-    project(projectName).projectDir = dir
+  if (path.isEmpty() || path.startsWith(':example-plugins')) {
+      project(projectName).projectDir = dir
+    }
+    for (File subdir : dir.listFiles()) {
+      addSubProjects(projectName, subdir)
+    }
   }
-  for (File subdir : dir.listFiles()) {
-    addSubProjects(projectName, subdir)
-  }
+
+
+// include example plugins first, so adding plugin dirs below won't muck with :example-plugins
+File examplePluginsDir = new File(rootProject.projectDir, 'plugins/examples')
+for (File example : examplePluginsDir.listFiles()) {
+  if (example.isDirectory() == false) continue;
+  if (example.name.startsWith('build') || example.name.startsWith('.')) continue;
+  addSubProjects(':example-plugins', example)
+}
+project(':example-plugins').projectDir = new File(rootProject.projectDir, 'plugins/examples')
+
+addSubProjects('', new File(rootProject.projectDir, 'libs'))
+addSubProjects('', new File(rootProject.projectDir, 'modules'))
+addSubProjects('', new File(rootProject.projectDir, 'plugins'))
+addSubProjects('', new File(rootProject.projectDir, 'qa'))
+addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
+
+List startTasks = gradle.startParameter.taskNames
+boolean isEclipse =
+    System.getProperty("eclipse.launcher") != null ||    // Detects gradle launched from the Eclipse IDE
+    System.getProperty("eclipse.application") != null || // Detects gradle launched from the Eclipse compiler server
+    startTasks.contains("eclipse") ||                    // Detects gradle launched from the command line to do Eclipse stuff
+    startTasks.contains("cleanEclipse");
+if (isEclipse) {
+  // eclipse cannot handle an intermediate dependency between main and test, so we must create separate projects
+  // for server-src and server-tests
+  projects << 'server-tests'
+  projects << 'libs:core-tests'
+  projects << 'libs:dissect-tests'
+  projects << 'libs:nio-tests'
+  projects << 'libs:x-content-tests'
+  projects << 'libs:secure-sm-tests'
+  projects << 'libs:grok-tests'
+  projects << 'libs:geo-tests'
+  projects << 'libs:ssl-config-tests'
+}
+
+include projects.toArray(new String[0])
+
+project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
+
+if (isEclipse) {
+  project(":server").projectDir = new File(rootProject.projectDir, 'server/src/main')
+  project(":server").buildFileName = 'eclipse-build.gradle'
+  project(":server-tests").projectDir = new File(rootProject.projectDir, 'server/src/test')
+  project(":server-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:core").projectDir = new File(rootProject.projectDir, 'libs/core/src/main')
+  project(":libs:core").buildFileName = 'eclipse-build.gradle'
+  project(":libs:core-tests").projectDir = new File(rootProject.projectDir, 'libs/core/src/test')
+  project(":libs:core-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:dissect").projectDir = new File(rootProject.projectDir, 'libs/dissect/src/main')
+  project(":libs:dissect").buildFileName = 'eclipse-build.gradle'
+  project(":libs:dissect-tests").projectDir = new File(rootProject.projectDir, 'libs/dissect/src/test')
+  project(":libs:dissect-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:nio").projectDir = new File(rootProject.projectDir, 'libs/nio/src/main')
+  project(":libs:nio").buildFileName = 'eclipse-build.gradle'
+  project(":libs:nio-tests").projectDir = new File(rootProject.projectDir, 'libs/nio/src/test')
+  project(":libs:nio-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:x-content").projectDir = new File(rootProject.projectDir, 'libs/x-content/src/main')
+  project(":libs:x-content").buildFileName = 'eclipse-build.gradle'
+  project(":libs:x-content-tests").projectDir = new File(rootProject.projectDir, 'libs/x-content/src/test')
+  project(":libs:x-content-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:secure-sm").projectDir = new File(rootProject.projectDir, 'libs/secure-sm/src/main')
+  project(":libs:secure-sm").buildFileName = 'eclipse-build.gradle'
+  project(":libs:secure-sm-tests").projectDir = new File(rootProject.projectDir, 'libs/secure-sm/src/test')
+  project(":libs:secure-sm-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:grok").projectDir = new File(rootProject.projectDir, 'libs/grok/src/main')
+  project(":libs:grok").buildFileName = 'eclipse-build.gradle'
+  project(":libs:grok-tests").projectDir = new File(rootProject.projectDir, 'libs/grok/src/test')
+  project(":libs:grok-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:geo").projectDir = new File(rootProject.projectDir, 'libs/geo/src/main')
+  project(":libs:geo").buildFileName = 'eclipse-build.gradle'
+  project(":libs:geo-tests").projectDir = new File(rootProject.projectDir, 'libs/geo/src/test')
+  project(":libs:geo-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:ssl-config").projectDir = new File(rootProject.projectDir, 'libs/ssl-config/src/main')
+  project(":libs:ssl-config").buildFileName = 'eclipse-build.gradle'
+  project(":libs:ssl-config-tests").projectDir = new File(rootProject.projectDir, 'libs/ssl-config/src/test')
+  project(":libs:ssl-config-tests").buildFileName = 'eclipse-build.gradle'
 }
 
 // look for extra plugins for elasticsearch
@@ -153,3 +151,7 @@ if (extraProjects.exists()) {
     addSubProjects('', extraProjectDir)
   }
 }
+
+project(":libs:cli").name = 'elasticsearch-cli'
+project(":libs:geo").name = 'elasticsearch-geo'
+project(":libs:ssl-config").name = 'elasticsearch-ssl-config'

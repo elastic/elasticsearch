@@ -5,6 +5,8 @@ Elasticsearch is provided as a `.zip` and as a `.tar.gz` package.  These
 packages can be used to install Elasticsearch on any system and are the
 easiest package format to use when trying out Elasticsearch.
 
+include::license.asciidoc[]
+
 The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page.
 Other versions can be found on the
@@ -30,14 +32,19 @@ The `.zip` archive for Elasticsearch v{version} can be downloaded and installed 
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.zip
-sha1sum elasticsearch-{version}.zip <1>
-unzip elasticsearch-{version}.zip
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip.sha512
+shasum -a 512 -c elasticsearch-{version}-windows-x86_64.zip.sha512 <1>
+unzip elasticsearch-{version}-windows-x86_64.zip
 cd elasticsearch-{version}/ <2>
 --------------------------------------------
-<1> Compare the SHA produced by `sha1sum` or `shasum` with the
-    https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.zip.sha1[published SHA].
+<1> Compares the SHA of the downloaded `.zip` archive and the published checksum, which should output
+    `elasticsearch-{version}-windows-x86_64.zip: OK`.
 <2> This directory is known as `$ES_HOME`.
+
+Alternatively, you can download the following package, which contains only 
+features that are available under the Apache 2.0 license: 
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-windows-x86_64.zip
 
 endif::[]
 
@@ -57,34 +64,33 @@ The `.tar.gz` archive for Elasticsearch v{version} can be downloaded and install
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.tar.gz
-sha1sum elasticsearch-{version}.tar.gz <1>
-tar -xzf elasticsearch-{version}.tar.gz
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz.sha512
+shasum -a 512 -c elasticsearch-{version}-linux-x86_64.tar.gz.sha512 <1>
+tar -xzf elasticsearch-{version}-linux-x86_64.tar.gz
 cd elasticsearch-{version}/ <2>
 --------------------------------------------
-<1> Compare the SHA produced by `sha1sum` or `shasum` with the
-    https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.tar.gz.sha1[published SHA].
+<1> Compares the SHA of the downloaded `.tar.gz` archive and the published checksum, which should output
+    `elasticsearch-{version}-linux-x86_64.tar.gz: OK`.
 <2> This directory is known as `$ES_HOME`.
+
+Alternatively, you can download the following package, which includes only 
+Apache 2.0 licensed code: 
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-linux-x86_64.tar.gz
 
 endif::[]
 
+ifdef::include-xpack[]
+[[zip-targz-enable-indices]]
+==== Enable automatic creation of {xpack} indices
+
+{xpack} will try to automatically create a number of indices within {es}.
+include::xpack-indices.asciidoc[]
+
+endif::include-xpack[]
+
 [[zip-targz-running]]
-==== Running Elasticsearch from the command line
-
-Elasticsearch can be started from the command line as follows:
-
-[source,sh]
---------------------------------------------
-./bin/elasticsearch
---------------------------------------------
-
-By default, Elasticsearch runs in the foreground, prints its logs to the
-standard output (`stdout`), and can be stopped by pressing `Ctrl-C`.
-
-NOTE: All scripts packaged with Elasticsearch require a version of Bash
-that supports arrays and assume that Bash is available at `/bin/bash`.
-As such, Bash should be available at this path either directly or via a
-symbolic link.
+include::zip-targz-start.asciidoc[]
 
 include::check-running.asciidoc[]
 
@@ -92,27 +98,7 @@ Log printing to `stdout` can be disabled using the `-q` or `--quiet`
 option on the command line.
 
 [[setup-installation-daemon]]
-==== Running as a daemon
-
-To run Elasticsearch as a daemon, specify `-d` on the command line, and record
-the process ID in a file using the `-p` option:
-
-[source,sh]
---------------------------------------------
-./bin/elasticsearch -d -p pid
---------------------------------------------
-
-Log messages can be found in the `$ES_HOME/logs/` directory.
-
-To shut down Elasticsearch, kill the process ID recorded in the `pid` file:
-
-[source,sh]
---------------------------------------------
-kill `cat pid`
---------------------------------------------
-
-NOTE: The startup scripts provided in the <<rpm,RPM>> and <<deb,Debian>>
-packages take care of starting and stopping the Elasticsearch process for you.
+include::zip-targz-daemon.asciidoc[]
 
 [[zip-targz-configuring]]
 ==== Configuring Elasticsearch on the command line

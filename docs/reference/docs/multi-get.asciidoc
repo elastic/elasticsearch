@@ -2,10 +2,14 @@
 == Multi Get API
 
 Multi GET API allows to get multiple documents based on an index, type
-(optional) and id (and possibly routing). The response includes a `docs`
-array with all the fetched documents, each element similar in structure
-to a document provided by the <<docs-get,get>>
-API. Here is an example:
+(optional) and id (and possibly routing). The response includes a `docs` array
+with all the fetched documents in order corresponding to the original multi-get
+request (if there was a failure for a specific get, an object containing this
+error is included in place in the response instead). The structure of a
+successful get is similar in structure to a document provided by the
+<<docs-get,get>> API.
+
+Here is an example:
 
 [source,js]
 --------------------------------------------------
@@ -14,12 +18,12 @@ GET /_mget
     "docs" : [
         {
             "_index" : "test",
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "1"
         },
         {
             "_index" : "test",
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "2"
         }
     ]
@@ -36,11 +40,11 @@ GET /test/_mget
 {
     "docs" : [
         {
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "1"
         },
         {
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "2"
         }
     ]
@@ -52,7 +56,7 @@ And type:
 
 [source,js]
 --------------------------------------------------
-GET /test/type/_mget
+GET /test/_doc/_mget
 {
     "docs" : [
         {
@@ -71,51 +75,9 @@ request:
 
 [source,js]
 --------------------------------------------------
-GET /test/type/_mget
+GET /test/_doc/_mget
 {
     "ids" : ["1", "2"]
-}
---------------------------------------------------
-// CONSOLE
-
-[float]
-[[mget-type]]
-=== Optional Type
-
-The mget API allows for `_type` to be optional. Set it to `_all` or leave it empty in order
-to fetch the first document matching the id across all types.
-
-If you don't set the type and have many documents sharing the same `_id`, you will end up
-getting only the first matching document.
-
-For example, if you have a document 1 within typeA and typeB then following request
-will give you back only the same document twice:
-
-[source,js]
---------------------------------------------------
-GET /test/_mget
-{
-    "ids" : ["1", "1"]
-}
---------------------------------------------------
-// CONSOLE
-
-You need in that case to explicitly set the `_type`:
-
-[source,js]
---------------------------------------------------
-GET /test/_mget/
-{
-  "docs" : [
-        {
-            "_type":"typeA",
-            "_id" : "1"
-        },
-        {
-            "_type":"typeB",
-            "_id" : "1"
-        }
-    ]
 }
 --------------------------------------------------
 // CONSOLE
@@ -127,7 +89,7 @@ GET /test/_mget/
 By default, the `_source` field will be returned for every document (if stored).
 Similar to the <<get-source-filtering,get>> API, you can retrieve only parts of
 the `_source` (or not at all) by using the `_source` parameter. You can also use
-the url parameters `_source`,`_source_include` & `_source_exclude` to specify defaults,
+the url parameters `_source`,`_source_includes` & `_source_excludes` to specify defaults,
 which will be used when there are no per-document instructions.
 
 For example:
@@ -139,19 +101,19 @@ GET /_mget
     "docs" : [
         {
             "_index" : "test",
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "1",
             "_source" : false
         },
         {
             "_index" : "test",
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "2",
             "_source" : ["field3", "field4"]
         },
         {
             "_index" : "test",
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "3",
             "_source" : {
                 "include": ["user"],
@@ -178,13 +140,13 @@ GET /_mget
     "docs" : [
         {
             "_index" : "test",
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "1",
             "stored_fields" : ["field1", "field2"]
         },
         {
             "_index" : "test",
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "2",
             "stored_fields" : ["field3", "field4"]
         }
@@ -198,7 +160,7 @@ as a default to be applied to all documents.
 
 [source,js]
 --------------------------------------------------
-GET /test/type/_mget?stored_fields=field1,field2
+GET /test/_doc/_mget?stored_fields=field1,field2
 {
     "docs" : [
         {
@@ -228,13 +190,13 @@ GET /_mget?routing=key1
     "docs" : [
         {
             "_index" : "test",
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "1",
-            "_routing" : "key2"
+            "routing" : "key2"
         },
         {
             "_index" : "test",
-            "_type" : "type",
+            "_type" : "_doc",
             "_id" : "2"
         }
     ]
@@ -242,8 +204,8 @@ GET /_mget?routing=key1
 --------------------------------------------------
 // CONSOLE
 
-In this example, document `test/type/2` will be fetch from shard corresponding to routing key `key1` but
-document `test/type/1` will be fetch from shard corresponding to routing key `key2`.
+In this example, document `test/_doc/2` will be fetch from shard corresponding to routing key `key1` but
+document `test/_doc/1` will be fetch from shard corresponding to routing key `key2`.
 
 [float]
 [[mget-security]]

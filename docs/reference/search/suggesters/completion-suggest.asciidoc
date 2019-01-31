@@ -27,14 +27,12 @@ which indexes the field values for fast completions.
 PUT music
 {
     "mappings": {
-        "song" : {
-            "properties" : {
-                "suggest" : {
-                    "type" : "completion"
-                },
-                "title" : {
-                    "type": "keyword"
-                }
+        "properties" : {
+            "suggest" : {
+                "type" : "completion"
+            },
+            "title" : {
+                "type": "keyword"
             }
         }
     }
@@ -86,7 +84,7 @@ the suggestions will be scored. Indexing a suggestion is as follows:
 
 [source,js]
 --------------------------------------------------
-PUT music/song/1?refresh
+PUT music/_doc/1?refresh
 {
     "suggest" : {
         "input": [ "Nevermind", "Nirvana" ],
@@ -112,7 +110,7 @@ You can index multiple suggestions for a document as follows:
 
 [source,js]
 --------------------------------------------------
-PUT music/song/1?refresh
+PUT music/_doc/1?refresh
 {
     "suggest" : [
         {
@@ -134,7 +132,7 @@ a weight with suggestion(s) in the shorthand form.
 
 [source,js]
 --------------------------------------------------
-PUT music/song/1?refresh
+PUT music/_doc/1?refresh
 {
   "suggest" : [ "Nevermind", "Nirvana" ]
 }
@@ -177,8 +175,8 @@ returns this response:
 --------------------------------------------------
 {
   "_shards" : {
-    "total" : 5,
-    "successful" : 5,
+    "total" : 1,
+    "successful" : 1,
     "skipped" : 0,
     "failed" : 0
   },
@@ -193,7 +191,7 @@ returns this response:
       "options" : [ {
         "text" : "Nirvana",
         "_index": "music",
-        "_type": "song",
+        "_type": "_doc",
         "_id": "1",
         "_score": 1.0,
         "_source": {
@@ -251,14 +249,17 @@ Which should look like:
     "took": 6,
     "timed_out": false,
     "_shards" : {
-        "total" : 5,
-        "successful" : 5,
+        "total" : 1,
+        "successful" : 1,
         "skipped" : 0,
         "failed" : 0
     },
     "hits": {
-        "total" : 0,
-        "max_score" : 0.0,
+        "total" : {
+            "value": 0,
+            "relation": "eq"
+        },
+        "max_score" : null,
         "hits" : []
     },
     "suggest": {
@@ -269,7 +270,7 @@ Which should look like:
             "options" : [ {
                 "text" : "Nirvana",
                 "_index": "music",
-                "_type": "song",
+                "_type": "_doc",
                 "_id": "1",
                 "_score": 1.0,
                 "_source": {

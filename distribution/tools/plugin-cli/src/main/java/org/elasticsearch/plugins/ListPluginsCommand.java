@@ -20,6 +20,7 @@
 package org.elasticsearch.plugins;
 
 import joptsimple.OptionSet;
+import org.elasticsearch.Version;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.env.Environment;
@@ -56,17 +57,17 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
         }
         Collections.sort(plugins);
         for (final Path plugin : plugins) {
-            terminal.println(Terminal.Verbosity.SILENT, plugin.getFileName().toString());
-            try {
-                PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin.toAbsolutePath()));
-                terminal.println(Terminal.Verbosity.VERBOSE, info.toString());
-            } catch (IllegalArgumentException e) {
-                if (e.getMessage().contains("incompatible with version")) {
-                    terminal.println("WARNING: " + e.getMessage());
-                } else {
-                    throw e;
-                }
-            }
+            printPlugin(env, terminal, plugin, "");
+        }
+    }
+
+    private void printPlugin(Environment env, Terminal terminal, Path plugin, String prefix) throws IOException {
+        terminal.println(Terminal.Verbosity.SILENT, prefix + plugin.getFileName().toString());
+        PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin.toAbsolutePath()));
+        terminal.println(Terminal.Verbosity.VERBOSE, info.toString(prefix));
+        if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
+            terminal.println("WARNING: plugin [" + info.getName() + "] was built for Elasticsearch version " + info.getVersion() +
+                " but version " + Version.CURRENT + " is required");
         }
     }
 }

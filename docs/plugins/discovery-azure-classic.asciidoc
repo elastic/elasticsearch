@@ -37,7 +37,7 @@ discovery:
 .Binding the network host
 ==============================================
 
-The keystore file must be placed in a directory accessible by elasticsearch like the `config` directory.
+The keystore file must be placed in a directory accessible by Elasticsearch like the `config` directory.
 
 It's important to define `network.host` as by default it's bound to `localhost`.
 
@@ -95,7 +95,7 @@ The following are a list of settings that can further control the discovery:
 `discovery.azure.endpoint.name`::
 
     When using `public_ip` this setting is used to identify the endpoint name
-    used to forward requests to elasticsearch (aka transport port name).
+    used to forward requests to Elasticsearch (aka transport port name).
     Defaults to `elasticsearch`. In Azure management console, you could define
     an endpoint `elasticsearch` forwarding for example requests on public IP
     on port 8100 to the virtual machine on port 9300.
@@ -131,7 +131,7 @@ discovery:
 We will expose here one strategy which is to hide our Elasticsearch cluster from outside.
 
 With this strategy, only VMs behind the same virtual port can talk to each
-other.  That means that with this mode, you can use elasticsearch unicast
+other.  That means that with this mode, you can use Elasticsearch unicast
 discovery to build a cluster, using the Azure API to retrieve information
 about your nodes.
 
@@ -177,7 +177,7 @@ cat azure-cert.pem azure-pk.pem > azure.pem.txt
 openssl pkcs12 -export -in azure.pem.txt -out azurekeystore.pkcs12 -name azure -noiter -nomaciter
 ----
 
-Upload the `azure-certificate.cer` file both in the elasticsearch Cloud Service (under `Manage Certificates`),
+Upload the `azure-certificate.cer` file both in the Elasticsearch Cloud Service (under `Manage Certificates`),
 and under `Settings -> Manage Certificates`.
 
 IMPORTANT: When prompted for a password, you need to enter a non empty one.
@@ -354,7 +354,7 @@ sudo dpkg -i elasticsearch-{version}.deb
 ----
 // NOTCONSOLE
 
-Check that elasticsearch is running:
+Check that Elasticsearch is running:
 
 [source,js]
 ----
@@ -371,7 +371,9 @@ This command should give you a JSON result:
   "cluster_name" : "elasticsearch",
   "cluster_uuid" : "AT69_T_DTp-1qgIJlatQqA",
   "version" : {
-    "number" : "{version}",
+    "number" : "{version_qualified}",
+    "build_flavor" : "{build_flavor}",
+    "build_type" : "zip",
     "build_hash" : "f27399d",
     "build_date" : "2016-03-30T09:51:41.449Z",
     "build_snapshot" : false,
@@ -393,11 +395,11 @@ This command should give you a JSON result:
 // So much s/// but at least we test that the layout is close to matching....
 
 [[discovery-azure-classic-long-plugin]]
-===== Install elasticsearch cloud azure plugin
+===== Install Elasticsearch cloud azure plugin
 
 [source,sh]
 ----
-# Stop elasticsearch
+# Stop Elasticsearch
 sudo service elasticsearch stop
 
 # Install the plugin
@@ -428,7 +430,7 @@ discovery:
 # path.data: /mnt/resource/elasticsearch/data
 ----
 
-Restart elasticsearch:
+Restart Elasticsearch:
 
 [source,sh]
 ----

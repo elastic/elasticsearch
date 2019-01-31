@@ -1,69 +1,9 @@
 ---
-"Index data, search, and create things in the cluster state that we'll validate are there after the ugprade":
-  - do:
-      indices.create:
-        index: test_index
-        body:
-          settings:
-            index:
-              number_of_replicas: 0
-  - do:
-      indices.create:
-        index: index_with_replicas # dummy index to ensure we can recover indices with replicas just fine
-        body:
-          # if the node with the replica is the first to be restarted, then delayed
-          # allocation will kick in, and the cluster health won't return to GREEN
-          # before timing out
-          index.unassigned.node_left.delayed_timeout: "100ms"
-  - do:
-      bulk:
-        refresh: true
-        body:
-          - '{"index": {"_index": "test_index", "_type": "doc"}}'
-          - '{"f1": "v1_old", "f2": 0}'
-          - '{"index": {"_index": "test_index", "_type": "doc"}}'
-          - '{"f1": "v2_old", "f2": 1}'
-          - '{"index": {"_index": "test_index", "_type": "doc"}}'
-          - '{"f1": "v3_old", "f2": 2}'
-          - '{"index": {"_index": "test_index", "_type": "doc"}}'
-          - '{"f1": "v4_old", "f2": 3}'
-          - '{"index": {"_index": "test_index", "_type": "doc"}}'
-          - '{"f1": "v5_old", "f2": 4}'
-
-  - do:
-      bulk:
-        refresh: true
-        body:
-          - '{"index": {"_index": "index_with_replicas", "_type": "doc"}}'
-          - '{"f1": "d_old"}'
-          - '{"index": {"_index": "index_with_replicas", "_type": "doc"}}'
-          - '{"f1": "d_old"}'
-          - '{"index": {"_index": "index_with_replicas", "_type": "doc"}}'
-          - '{"f1": "d_old"}'
-          - '{"index": {"_index": "index_with_replicas", "_type": "doc"}}'
-          - '{"f1": "d_old"}'
-          - '{"index": {"_index": "index_with_replicas", "_type": "doc"}}'
-          - '{"f1": "d_old"}'
-
-  - do:
-      indices.refresh:
-        index: test_index,index_with_replicas
-
-  - do:
-      search:
-        index: test_index
-
-  - match: { hits.total: 5 }
-
-  - do:
-      search:
-        index: index_with_replicas
-
-  - match: { hits.total: 5 }
-
+"Create things in the cluster state that we'll validate are there after the upgrade":
   - do:
       snapshot.create_repository:
         repository: my_repo
+        verify: false
         body:
           type: url
           settings:
@@ -82,6 +22,21 @@
   - match: { "acknowledged": true }
 
   - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_search_template", "_type": "doc"}}'
+          - '{"f1": "v1_old"}'
+          - '{"index": {"_index": "test_search_template", "_type": "doc"}}'
+          - '{"f1": "v2_old"}'
+          - '{"index": {"_index": "test_search_template", "_type": "doc"}}'
+          - '{"f1": "v3_old"}'
+          - '{"index": {"_index": "test_search_template", "_type": "doc"}}'
+          - '{"f1": "v4_old"}'
+          - '{"index": {"_index": "test_search_template", "_type": "doc"}}'
+          - '{"f1": "v5_old"}'
+
+  - do:
       put_script:
         id: test_search_template
         body:
@@ -95,8 +50,174 @@
 
   - do:
       search_template:
+        rest_total_hits_as_int: true
+        index: test_search_template
         body:
           id: test_search_template
           params:
             f1: v5_old
   - match: { hits.total: 1 }
+
+---
+"Index percolator queries and use the percolate query in old cluster":
+  - do:
+      indices.create:
+        index: queries
+        body:
+          mappings:
+            doc:
+              properties:
+                query:
+                  type: percolator
+                field1:
+                  type: keyword
+                field2:
+                  type: keyword
+                field3:
+                  type: keyword
+
+  - do:
+       index:
+         index: queries
+         type: doc
+         id: q1
+         body:
+          query:
+            term:
+              field1: value
+
+  - do:
+      index:
+        index: queries
+        type: doc
+        id: q2
+        body:
+          query:
+            bool:
+              must:
+                - term:
+                    field1: value
+                - term:
+                    field2: value
+
+  - do:
+      index:
+        index: queries
+        type: doc
+        id: q3
+        body:
+          query:
+            bool:
+              minimum_should_match: 2
+              should:
+                - term:
+                    field2: value
+                - term:
+                    field3: value
+
+  - do:
+      indices.refresh:
+        index: queries
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: queries
+        body:
+          query:
+            percolate:
+              field: query
+              document:
+                field1: value
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: q1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: queries
+        body:
+          sort: _id
+          query:
+            percolate:
+              field: query
+              document:
+                field1: value
+                field2: value
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: q1 }
+  - match: { hits.hits.1._id: q2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: queries
+        body:
+          sort: _id
+          query:
+            percolate:
+              field: query
+              document:
+                field2: value
+                field3: value
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: q3 }
+
+---
+"Create a task result record in the old cluster":
+  - do:
+      indices.create:
+        index: reindexed_index
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "reindexed_index", "_type": "doc"}}'
+          - '{"f1": "1"}'
+          - '{"index": {"_index": "reindexed_index", "_type": "doc"}}'
+          - '{"f1": "2"}'
+          - '{"index": {"_index": "reindexed_index", "_type": "doc"}}'
+          - '{"f1": "3"}'
+          - '{"index": {"_index": "reindexed_index", "_type": "doc"}}'
+          - '{"f1": "4"}'
+          - '{"index": {"_index": "reindexed_index", "_type": "doc"}}'
+          - '{"f1": "5"}'
+
+  - do:
+      reindex:
+        wait_for_completion: false
+        body:
+          source:
+            index: reindexed_index
+            size: 1
+          dest:
+            index: reindexed_index_copy
+  - match: {task: '/.+:\d+/'}
+  - set: {task: task}
+
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $task
+
+---
+"Create an index with _all explicitly disabled":
+  - skip:
+      features: warnings
+  - do:
+      warnings:
+        - "[_all] is deprecated in 6.0+ and will be removed in 7.0. As a replacement, you can use [copy_to] on mapping fields to create your own catch all field."
+      indices.create:
+        index: all-index
+        body:
+          mappings:
+            type:
+              _all:
+                enabled: false
+              properties:
+                field:
+                  type: text

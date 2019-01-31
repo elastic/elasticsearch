@@ -33,23 +33,31 @@ parameters
     : LP ( decltype ID ( COMMA decltype ID )* )? RP
     ;
 
+statement
+    : rstatement
+    | dstatement ( SEMICOLON | EOF )
+    ;
+
 // Note we use a predicate on the if/else case here to prevent the
 // "dangling-else" ambiguity by forcing the 'else' token to be consumed
 // as soon as one is found.  See (https://en.wikipedia.org/wiki/Dangling_else).
-statement
+rstatement
     : IF LP expression RP trailer ( ELSE trailer | { _input.LA(1) != ELSE }? )                 # if
     | WHILE LP expression RP ( trailer | empty )                                               # while
-    | DO block WHILE LP expression RP delimiter                                                # do
     | FOR LP initializer? SEMICOLON expression? SEMICOLON afterthought? RP ( trailer | empty ) # for
     | FOR LP decltype ID COLON expression RP trailer                                           # each
     | FOR LP ID IN expression RP trailer                                                       # ineach
-    | declaration delimiter                                                                    # decl
-    | CONTINUE delimiter                                                                       # continue
-    | BREAK delimiter                                                                          # break
-    | RETURN expression delimiter                                                              # return
     | TRY block trap+                                                                          # try
-    | THROW expression delimiter                                                               # throw
-    | expression delimiter                                                                     # expr
+    ;
+
+dstatement
+    : DO block WHILE LP expression RP # do
+    | declaration                     # decl
+    | CONTINUE                        # continue
+    | BREAK                           # break
+    | RETURN expression?              # return
+    | THROW expression                # throw
+    | expression                      # expr
     ;
 
 trailer
@@ -58,7 +66,7 @@ trailer
     ;
 
 block
-    : LBRACK statement* RBRACK
+    : LBRACK statement* dstatement? RBRACK
     ;
 
 empty
@@ -88,11 +96,6 @@ declvar
 
 trap
     : CATCH LP TYPE ID RP block
-    ;
-
-delimiter
-    : SEMICOLON
-    | EOF
     ;
 
 expression
@@ -169,8 +172,8 @@ braceaccess
     ;
 
 arrayinitializer
-    : NEW TYPE ( LBRACE expression RBRACE )+ ( postdot postfix* )?                                   # newstandardarray
-    | NEW TYPE LBRACE RBRACE LBRACK ( expression ( COMMA expression )* )? SEMICOLON? RBRACK postfix* # newinitializedarray
+    : NEW TYPE ( LBRACE expression RBRACE )+ ( postdot postfix* )?                        # newstandardarray
+    | NEW TYPE LBRACE RBRACE LBRACK ( expression ( COMMA expression )* )? RBRACK postfix* # newinitializedarray
     ;
 
 listinitializer
@@ -206,10 +209,8 @@ lamtype
     ;
 
 funcref
-    : TYPE REF ID      # classfuncref       // reference to a static or instance method,
-                                            // e.g. ArrayList::size or Integer::compare
-    | decltype REF NEW # constructorfuncref // reference to a constructor, e.g. ArrayList::new
-    | ID REF ID        # capturingfuncref   // reference to an instance method, e.g. object::toString
-                                            // currently limited to capture of a simple variable (id).
-    | THIS REF ID      # localfuncref       // reference to a local function, e.g. this::myfunc
+    : TYPE REF ID      # classfuncref
+    | decltype REF NEW # constructorfuncref
+    | ID REF ID        # capturingfuncref
+    | THIS REF ID      # localfuncref
     ;

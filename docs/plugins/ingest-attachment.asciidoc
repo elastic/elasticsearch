@@ -25,6 +25,7 @@ include::install_remove.asciidoc[]
 | `field`                | yes       | -                | The field to get the base64 encoded field from
 | `target_field`         | no        | attachment       | The field that will hold the attachment information
 | `indexed_chars`        | no        | 100000           | The number of chars being used for extraction to prevent huge fields. Use `-1` for no limit.
+| `indexed_chars_field`  | no        | `null`           | Field name from which you can overwrite the number of chars being used for extraction. See `indexed_chars`.
 | `properties`           | no        | all properties   | Array of properties to select to be stored. Can be `content`, `title`, `name`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language`
 | `ignore_missing`       | no        | `false`          | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 |======
@@ -44,11 +45,11 @@ PUT _ingest/pipeline/attachment
     }
   ]
 }
-PUT my_index/my_type/my_id?pipeline=attachment
+PUT my_index/_doc/my_id?pipeline=attachment
 {
   "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0="
 }
-GET my_index/my_type/my_id
+GET my_index/_doc/my_id
 --------------------------------------------------
 // CONSOLE
 
@@ -59,9 +60,11 @@ Returns this:
 {
   "found": true,
   "_index": "my_index",
-  "_type": "my_type",
+  "_type": "_doc",
   "_id": "my_id",
   "_version": 1,
+  "_seq_no": 22,
+  "_primary_term": 1,
   "_source": {
     "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
     "attachment": {
@@ -73,7 +76,7 @@ Returns this:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 
 To specify only some fields to be extracted:
@@ -98,6 +101,119 @@ PUT _ingest/pipeline/attachment
 NOTE: Extracting contents from binary data is a resource intensive operation and
       consumes a lot of resources. It is highly recommended to run pipelines
       using this processor in a dedicated ingest node.
+
+[[ingest-attachment-extracted-chars]]
+==== Limit the number of extracted chars
+
+To prevent extracting too many chars and overload the node memory, the number of chars being used for extraction 
+is limited by default to `100000`. You can change this value by setting `indexed_chars`. Use `-1` for no limit but 
+ensure when setting this that your node will have enough HEAP to extract the content of very big documents.
+
+You can also define this limit per document by extracting from a given field the limit to set. If the document
+has that field, it will overwrite the `indexed_chars` setting. To set this field, define the `indexed_chars_field`
+setting.
+
+For example:
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/attachment
+{
+  "description" : "Extract attachment information",
+  "processors" : [
+    {
+      "attachment" : {
+        "field" : "data",
+        "indexed_chars" : 11,
+        "indexed_chars_field" : "max_size"
+      }
+    }
+  ]
+}
+PUT my_index/_doc/my_id?pipeline=attachment
+{
+  "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0="
+}
+GET my_index/_doc/my_id
+--------------------------------------------------
+// CONSOLE
+
+Returns this:
+
+[source,js]
+--------------------------------------------------
+{
+  "found": true,
+  "_index": "my_index",
+  "_type": "_doc",
+  "_id": "my_id",
+  "_version": 1,
+  "_seq_no": 35,
+  "_primary_term": 1,
+  "_source": {
+    "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
+    "attachment": {
+      "content_type": "application/rtf",
+      "language": "sl",
+      "content": "Lorem ipsum",
+      "content_length": 11
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
+
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/attachment
+{
+  "description" : "Extract attachment information",
+  "processors" : [
+    {
+      "attachment" : {
+        "field" : "data",
+        "indexed_chars" : 11,
+        "indexed_chars_field" : "max_size"
+      }
+    }
+  ]
+}
+PUT my_index/_doc/my_id_2?pipeline=attachment
+{
+  "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
+  "max_size": 5
+}
+GET my_index/_doc/my_id_2
+--------------------------------------------------
+// CONSOLE
+
+Returns this:
+
+[source,js]
+--------------------------------------------------
+{
+  "found": true,
+  "_index": "my_index",
+  "_type": "_doc",
+  "_id": "my_id_2",
+  "_version": 1,
+  "_seq_no": 40,
+  "_primary_term": 1,
+  "_source": {
+    "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
+    "max_size": 5,
+    "attachment": {
+      "content_type": "application/rtf",
+      "language": "ro",
+      "content": "Lorem",
+      "content_length": 5
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
+
 
 [[ingest-attachment-with-arrays]]
 ==== Using the Attachment Processor with arrays
@@ -150,7 +266,7 @@ PUT _ingest/pipeline/attachment
     }
   ]
 }
-PUT my_index/my_type/my_id?pipeline=attachment
+PUT my_index/_doc/my_id?pipeline=attachment
 {
   "attachments" : [
     {
@@ -163,7 +279,7 @@ PUT my_index/my_type/my_id?pipeline=attachment
     }
   ]
 }
-GET my_index/my_type/my_id
+GET my_index/_doc/my_id
 --------------------------------------------------
 // CONSOLE
 
@@ -172,9 +288,11 @@ Returns this:
 --------------------------------------------------
 {
   "_index" : "my_index",
-  "_type" : "my_type",
+  "_type" : "_doc",
   "_id" : "my_id",
   "_version" : 1,
+  "_seq_no" : 50,
+  "_primary_term" : 1,
   "found" : true,
   "_source" : {
     "attachments" : [
@@ -202,7 +320,7 @@ Returns this:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 
 Note that the `target_field` needs to be set, otherwise the

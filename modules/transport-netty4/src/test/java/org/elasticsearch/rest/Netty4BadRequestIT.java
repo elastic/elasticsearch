@@ -19,6 +19,8 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Setting;
@@ -30,7 +32,6 @@ import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
@@ -42,7 +43,7 @@ import static org.hamcrest.Matchers.hasToString;
 public class Netty4BadRequestIT extends ESRestTestCase {
 
     public void testBadRequest() throws IOException {
-        final Response response = client().performRequest("GET", "/_nodes/settings", Collections.emptyMap());
+        final Response response = client().performRequest(new Request("GET", "/_nodes/settings"));
         final ObjectPath objectPath = ObjectPath.createFromResponse(response);
         final Map<String, Object> map = objectPath.evaluate("nodes");
         int maxMaxInitialLineLength = Integer.MIN_VALUE;
@@ -69,9 +70,35 @@ public class Netty4BadRequestIT extends ESRestTestCase {
         final ResponseException e =
                 expectThrows(
                         ResponseException.class,
-                        () -> client().performRequest(randomFrom("GET", "POST", "PUT"), path, Collections.emptyMap()));
+                        () -> client().performRequest(new Request(randomFrom("GET", "POST", "PUT"), path)));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(BAD_REQUEST.getStatus()));
         assertThat(e, hasToString(containsString("too_long_frame_exception")));
         assertThat(e, hasToString(matches("An HTTP line is larger than \\d+ bytes")));
+    }
+
+    public void testInvalidParameterValue() throws IOException {
+        final Request request = new Request("GET", "/_cluster/settings");
+        request.addParameter("pretty", "neither-true-nor-false");
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        final Response response = e.getResponse();
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
+        final ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        final Map<String, Object> map = objectPath.evaluate("error");
+        assertThat(map.get("type"), equalTo("illegal_argument_exception"));
+        assertThat(map.get("reason"), equalTo("Failed to parse value [neither-true-nor-false] as only [true] or [false] are allowed."));
+    }
+
+    public void testInvalidHeaderValue() throws IOException {
+        final Request request = new Request("GET", "/_cluster/settings");
+        final RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Content-Type", "\t");
+        request.setOptions(options);
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        final Response response = e.getResponse();
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
+        final ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        final Map<String, Object> map = objectPath.evaluate("error");
+        assertThat(map.get("type"), equalTo("content_type_header_exception"));
+        assertThat(map.get("reason"), equalTo("java.lang.IllegalArgumentException: invalid Content-Type header []"));
     }
 }

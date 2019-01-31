@@ -11,14 +11,14 @@
 "Index and field":
     - do:
         indices.create:
+          include_type_name: false
           index: test
           body:
             mappings:
-              test:
-                properties:
-                  text:
-                    type:     text
-                    analyzer: standard
+              properties:
+                text:
+                  type:     text
+                  analyzer: standard
 
     - do:
         indices.analyze:
@@ -58,9 +58,6 @@
 
 ---
 "Custom filter in request":
-    - skip:
-        version: " - 5.99.99"
-        reason: token filter name changed in 6.0, so this needs to be skipped on mixed clusters
     - do:
         indices.analyze:
           body:
@@ -78,55 +75,3 @@
     - match:  { detail.tokenizer.tokens.2.token: buzz }
     - match:  { detail.tokenfilters.0.name: "_anonymous_tokenfilter" }
     - match:  { detail.tokenfilters.0.tokens.0.token: bar }
-
----
-"Synonym filter with tokenizer":
-    - skip:
-        version: " - 5.99.99"
-        reason: to support synonym same analysis chain were added in 6.0.0
-    - do:
-        indices.create:
-          index: test_synonym
-          body:
-            settings:
-              index:
-                analysis:
-                  tokenizer:
-                    trigram:
-                      type: nGram
-                      min_gram: 3
-                      max_gram: 3
-                  filter:
-                    synonym:
-                      type: synonym
-                      synonyms: ["kimchy => shay"]
-
-    - do:
-        indices.analyze:
-          index: test_synonym
-          body:
-            tokenizer: trigram
-            filter: [synonym]
-            text: kimchy
-    - length: { tokens: 2 }
-    - match:  { tokens.0.token: sha }
-    - match:  { tokens.1.token: hay }
-
----
-"Custom normalizer in request":
-    - skip:
-        version: " - 5.99.99"
-        reason:  normalizer support in 6.0.0
-    - do:
-        indices.analyze:
-          body:
-            text: ABc
-            explain: true
-            filter: ["lowercase"]
-
-    - length: { detail.tokenizer.tokens: 1 }
-    - length: { detail.tokenfilters.0.tokens: 1 }
-    - match:  { detail.tokenizer.name: keyword_for_normalizer }
-    - match:  { detail.tokenizer.tokens.0.token: ABc }
-    - match:  { detail.tokenfilters.0.name: lowercase }
-    - match:  { detail.tokenfilters.0.tokens.0.token: abc }

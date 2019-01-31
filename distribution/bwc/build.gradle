@@ -17,139 +17,258 @@
  * under the License.
  */
 
-
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionCollection
+
+import java.nio.charset.StandardCharsets
+
+import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
 
 /**
- * This is a dummy project which does a local checkout of the previous
- * wire compat version's branch, and builds a snapshot. This allows backcompat
- * tests to test against the next unreleased version, closest to this version,
- * without relying on snapshots.
+ *  We want to be able to do BWC tests for unreleased versions without relying on and waiting for snapshots.
+ *  For this we need to check out and build the unreleased versions.
+ *  Since These depend on the current version, we can't name the Gradle projects statically, and don't know what the
+ *  unreleased versions are when Gradle projects are set up, so we use "build-unreleased-version-*" as placeholders
+ *  and configure them to build various versions here.
  */
-String bwcVersion
-boolean enabled = true
-if (project.name == 'bwc-stable-snapshot') {
-  /* bwc-stable is only used if the last version is on a stable branch instead
-   * of a bugfix branch */
-  enabled = indexCompatVersions[-1].bugfix == 0
-  bwcVersion = indexCompatVersions[-1]
-} else if (project.name == 'bwc-release-snapshot') {
-  if (indexCompatVersions[-1].bugfix == 0) {
-    /* The last version is on a stable branch so it is handled by the bwc-stable
-     * project. This project will instead handle the version before that which
-     * *should* be on a stable branch. */
-    bwcVersion = indexCompatVersions[-2]
-  } else {
-    // The last version is on a release branch so it is handled by this project
-    bwcVersion = indexCompatVersions[-1]
-  }
-} else {
-  throw new InvalidUserDataException("Unsupport project name ${project.name}")
-}
+bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unreleasedVersion -> project("${project.path}:${unreleasedVersion.gradleProjectName}") {
+    Version bwcVersion = unreleasedVersion.version
+    String bwcBranch = unreleasedVersion.branch
+    apply plugin: 'distribution'
+    // Not published so no need to assemble
+    assemble.enabled = false
 
-if (enabled) {
-  apply plugin: 'distribution'
-  // Not published so no need to assemble
-  tasks.remove(assemble)
-  build.dependsOn.remove('assemble')
+    File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
 
-  def (String major, String minor, String bugfix) = bwcVersion.split('\\.')
-  def (String currentMajor, String currentMinor, String currentBugfix) = version.split('\\.')
-  String bwcBranch
-  if (project.name == 'bwc-stable-snapshot') {
-    bwcBranch = "${major}.x"
-  } else {
-    bwcBranch = "${major}.${minor}"
-  }
-  File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
+    final String remote = System.getProperty("tests.bwc.remote", "elastic")
 
-  final String remote = System.getProperty("tests.bwc.remote", "elastic")
+    boolean gitFetchLatest
+    final String gitFetchLatestProperty = System.getProperty("tests.bwc.git_fetch_latest", "true")
+    if ("true".equals(gitFetchLatestProperty)) {
+        gitFetchLatest = true
+    } else if ("false".equals(gitFetchLatestProperty)) {
+        gitFetchLatest = false
+    } else {
+        throw new GradleException("tests.bwc.git_fetch_latest must be [true] or [false] but was [" + gitFetchLatestProperty + "]")
+    }
 
-  task createClone(type: LoggedExec) {
-    onlyIf { checkoutDir.exists() == false }
-    commandLine = ['git', 'clone', rootDir, checkoutDir]
-  }
+    task createClone(type: LoggedExec) {
+        onlyIf { checkoutDir.exists() == false }
+        commandLine = ['git', 'clone', rootDir, checkoutDir]
+    }
 
-  task findRemote(type: LoggedExec) {
-    dependsOn createClone
-    workingDir = checkoutDir
-    commandLine = ['git', 'remote', '-v']
-    doLast {
-      project.ext.remoteExists = false
-      output.toString('UTF-8').eachLine {
-        if (it.contains("${remote}\thttps://github.com/${remote}/elasticsearch.git")) {
-          project.ext.remoteExists = true
+    task findRemote(type: LoggedExec) {
+        dependsOn createClone
+        workingDir = checkoutDir
+        commandLine = ['git', 'remote', '-v']
+        ByteArrayOutputStream output = new ByteArrayOutputStream()
+        standardOutput = output
+        doLast {
+            project.ext.remoteExists = false
+            output.toString('UTF-8').eachLine {
+                if (it.contains("${remote}\t")) {
+                    project.ext.remoteExists = true
+                }
+            }
         }
-      }
     }
-  }
 
-  task addRemote(type: LoggedExec) {
-    dependsOn findRemote
-    onlyIf { project.ext.remoteExists == false }
-    workingDir = checkoutDir
-    commandLine = ['git', 'remote', 'add', "${remote}", "https://github.com/${remote}/elasticsearch.git"]
-  }
-
-  task fetchLatest(type: LoggedExec) {
-    onlyIf { project.gradle.startParameter.isOffline() == false }
-    dependsOn addRemote
-    workingDir = checkoutDir
-    commandLine = ['git', 'fetch', '--all']
-  }
-
-  String buildMetadataKey = "bwc_refspec_${project.path.substring(1)}"
-  task checkoutBwcBranch(type: LoggedExec) {
-    String refspec = System.getProperty("tests.bwc.refspec", buildMetadata.get(buildMetadataKey, "${remote}/${bwcBranch}"))
-    dependsOn fetchLatest
-    workingDir = checkoutDir
-    commandLine = ['git', 'checkout', refspec]
-    doFirst {
-      println "Checking out elasticsearch ${refspec} for branch ${bwcBranch}"
+    task addRemote(type: LoggedExec) {
+        dependsOn findRemote
+        onlyIf { project.ext.remoteExists == false }
+        workingDir = checkoutDir
+        commandLine = ['git', 'remote', 'add', "${remote}", "https://github.com/${remote}/elasticsearch.git"]
     }
-  }
 
-  File buildMetadataFile = project.file("build/${project.name}/build_metadata")
-  task writeBuildMetadata(type: LoggedExec) {
-    dependsOn checkoutBwcBranch
-    workingDir = checkoutDir
-    commandLine = ['git', 'rev-parse', 'HEAD']
-    ignoreExitValue = true
-    ByteArrayOutputStream output = new ByteArrayOutputStream()
-    standardOutput = output
-    doLast {
-      if (execResult.exitValue != 0) {
-        output.toString('UTF-8').eachLine { line -> logger.error(line) }
-        execResult.assertNormalExitValue()
-      }
-      project.mkdir(buildMetadataFile.parent)
-      String commit = output.toString('UTF-8')
-      buildMetadataFile.setText("${buildMetadataKey}=${commit}", 'UTF-8')
-      println "Checked out elasticsearch commit ${commit}"
+    task fetchLatest(type: LoggedExec) {
+        onlyIf { project.gradle.startParameter.isOffline() == false && gitFetchLatest }
+        dependsOn addRemote
+        workingDir = checkoutDir
+        commandLine = ['git', 'fetch', '--all']
     }
-  }
 
-  File bwcDeb = file("${checkoutDir}/distribution/deb/build/distributions/elasticsearch-${bwcVersion}.deb")
-  File bwcRpm = file("${checkoutDir}/distribution/rpm/build/distributions/elasticsearch-${bwcVersion}.rpm")
-  File bwcZip = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${bwcVersion}.zip")
-  task buildBwcVersion(type: GradleBuild) {
-    dependsOn checkoutBwcBranch, writeBuildMetadata
-    dir = checkoutDir
-    tasks = [':distribution:deb:assemble', ':distribution:rpm:assemble', ':distribution:zip:assemble']
-    startParameter.systemPropertiesArgs = ['build.snapshot': 'true']
-    doLast {
-      List missing = [bwcDeb, bwcRpm, bwcZip].grep { file ->
-        false == file.exists() }
-      if (false == missing.empty) {
-        throw new InvalidUserDataException(
-          "Building bwc version didn't generate expected files ${missing}")
-      }
+    String buildMetadataKey = "bwc_refspec_${project.path.substring(1)}"
+    task checkoutBwcBranch(type: LoggedExec) {
+        String refspec = System.getProperty("tests.bwc.refspec.${bwcBranch}", buildMetadata.get(buildMetadataKey, "${remote}/${bwcBranch}"))
+        dependsOn fetchLatest
+        workingDir = checkoutDir
+        commandLine = ['git', 'checkout', refspec]
+        doFirst {
+            println "Checking out elasticsearch ${refspec} for branch ${bwcBranch}"
+        }
     }
-  }
 
-  artifacts {
-    'default' file: bwcDeb, name: 'elasticsearch', type: 'deb', builtBy: buildBwcVersion
-    'default' file: bwcRpm, name: 'elasticsearch', type: 'rpm', builtBy: buildBwcVersion
-    'default' file: bwcZip, name: 'elasticsearch', type: 'zip', builtBy: buildBwcVersion
-  }
+    File buildMetadataFile = project.file("build/${project.name}/build_metadata")
+    task writeBuildMetadata(type: LoggedExec) {
+        dependsOn checkoutBwcBranch
+        workingDir = checkoutDir
+        commandLine = ['git', 'rev-parse', 'HEAD']
+        ignoreExitValue = true
+        ByteArrayOutputStream output = new ByteArrayOutputStream()
+        standardOutput = output
+        doLast {
+            if (execResult.exitValue != 0) {
+                output.toString('UTF-8').eachLine { line -> logger.error(line) }
+                execResult.assertNormalExitValue()
+            }
+            project.mkdir(buildMetadataFile.parent)
+            String commit = output.toString('UTF-8')
+            buildMetadataFile.setText("${buildMetadataKey}=${commit}", 'UTF-8')
+            println "Checked out elasticsearch commit ${commit}"
+        }
+    }
+
+    Map<String, File> artifactFiles = [:]
+    List<String> projectDirs = []
+    List<String> projects = ['deb', 'rpm']
+    if (bwcVersion.onOrAfter('7.0.0')) {
+      projects.addAll(['windows-zip', 'darwin-tar', 'linux-tar'])
+    } else {
+      projects.add('zip')
+    }
+
+    for (String projectName : projects) {
+        String baseDir = "distribution"
+        String classifier = ""
+        String extension = projectName
+        if (bwcVersion.onOrAfter('7.0.0') && (projectName.contains('zip') || projectName.contains('tar'))) {
+          int index = projectName.indexOf('-')
+          classifier = "-${projectName.substring(0, index)}-x86_64"
+          extension = projectName.substring(index + 1)
+          if (extension.equals('tar')) {
+            extension += '.gz'
+          }
+        }
+        if (bwcVersion.onOrAfter('6.3.0')) {
+            baseDir += projectName.endsWith('zip') || projectName.endsWith('tar') ? '/archives' : '/packages'
+            // add oss variant first
+            projectDirs.add("${baseDir}/oss-${projectName}")
+            artifactFiles.put("oss-" + projectName, file("${checkoutDir}/${baseDir}/oss-${projectName}/build/distributions/elasticsearch-oss-${bwcVersion}-SNAPSHOT${classifier}.${extension}"))
+        }
+        projectDirs.add("${baseDir}/${projectName}")
+        artifactFiles.put(projectName,
+                file("${checkoutDir}/${baseDir}/${projectName}/build/distributions/elasticsearch-${bwcVersion}-SNAPSHOT${classifier}.${extension}"))
+    }
+    
+    Closure createRunBwcGradleTask = { name, extraConfig ->
+        task "$name"(type: Exec) {
+            dependsOn checkoutBwcBranch, writeBuildMetadata
+            workingDir = checkoutDir
+            doFirst {
+                // Execution time so that the checkouts are available
+                List<String> lines = file("${checkoutDir}/.ci/java-versions.properties").readLines()
+                environment(
+                        'JAVA_HOME',
+                        getJavaHome(it, Integer.parseInt(
+                                lines
+                                        .findAll({ it.startsWith("ES_BUILD_JAVA=java") })
+                                        .collect({ it.replace("ES_BUILD_JAVA=java", "").trim() })
+                                        .join("!!")
+                        ))
+                )
+                environment(
+                        'RUNTIME_JAVA_HOME',
+                        getJavaHome(it, Integer.parseInt(
+                                lines
+                                        .findAll({ it.startsWith("ES_RUNTIME_JAVA=java") })
+                                        .collect({ it.replace("ES_RUNTIME_JAVA=java", "").trim() })
+                                        .join("!!")
+                        ))
+                )
+            }
+
+            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                executable 'cmd'
+                args '/C', 'call', new File(checkoutDir, 'gradlew').toString()
+            } else {
+                executable new File(checkoutDir, 'gradlew').toString()
+            }
+            if (gradle.startParameter.isOffline()) {
+                args "--offline"
+            }
+
+            args "-Dbuild.snapshot=true"
+            final LogLevel logLevel = gradle.startParameter.logLevel
+            if ([LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG].contains(logLevel)) {
+                args "--${logLevel.name().toLowerCase(Locale.ENGLISH)}"
+            }
+            final String showStacktraceName = gradle.startParameter.showStacktrace.name()
+            assert ["INTERNAL_EXCEPTIONS", "ALWAYS", "ALWAYS_FULL"].contains(showStacktraceName)
+            if (showStacktraceName.equals("ALWAYS")) {
+                args "--stacktrace"
+            } else if (showStacktraceName.equals("ALWAYS_FULL")) {
+                args "--full-stacktrace"
+            }
+            standardOutput = new IndentingOutputStream(System.out, bwcVersion)
+            errorOutput = new IndentingOutputStream(System.err, bwcVersion)
+            configure extraConfig
+        }
+    }
+
+    createRunBwcGradleTask("buildBwcVersion") {
+        for (String dir : projectDirs) {
+            args ":${dir.replace('/', ':')}:assemble"
+        }
+        doLast {
+            List missing = artifactFiles.values().grep { file ->
+                false == file.exists()
+            }
+            if (false == missing.empty) {
+                throw new InvalidUserDataException("Building ${bwcVersion} didn't generate expected files ${missing}")
+            }
+        }
+    }
+
+    createRunBwcGradleTask("resolveAllBwcDependencies") {
+        args 'resolveAllDependencies'
+    }
+
+    resolveAllDependencies.dependsOn resolveAllBwcDependencies
+
+    for (e in artifactFiles) {
+        String projectName = e.key
+        File artifactFile = e.value
+        String artifactFileName = artifactFile.name
+        String artifactName = artifactFileName.contains('oss') ? 'elasticsearch-oss' : 'elasticsearch'
+        String suffix = artifactFile.toString()[-3..-1]
+        int archIndex = artifactFileName.indexOf('x86_64')
+        String classifier = ''
+        if (archIndex != -1) {
+            int osIndex = artifactFileName.lastIndexOf('-', archIndex - 2)
+            classifier = "${artifactFileName.substring(osIndex + 1, archIndex - 1)}-x86_64"
+        }
+        configurations.create(projectName)
+        artifacts {
+            it.add(projectName, [file: artifactFile, name: artifactName, classifier: classifier, type: suffix, builtBy: buildBwcVersion])
+        }
+    }
+    // make sure no dependencies were added to assemble; we want it to be a no-op
+    assemble.dependsOn = []
+}}
+
+class IndentingOutputStream extends OutputStream {
+
+    public final byte[] indent
+    private final OutputStream delegate
+
+    public IndentingOutputStream(OutputStream delegate, Object version) {
+        this.delegate = delegate
+        indent = " [${version}] ".getBytes(StandardCharsets.UTF_8)
+    }
+
+    @Override
+    public void write(int b) {
+        write([b] as int[], 0, 1)
+    }
+
+    public void write(int[] bytes, int offset, int length) {
+        for (int i = 0; i < bytes.length; i++) {
+            delegate.write(bytes[i])
+            if (bytes[i] == '\n') {
+                delegate.write(indent)
+            }
+        }
+    }
 }

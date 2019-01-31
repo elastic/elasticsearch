@@ -39,18 +39,18 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.join.mapper.MetaJoinFieldMapper;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
-import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalMin;
+import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -105,11 +105,12 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                 expectedMinValue = Math.min(expectedMinValue, expectedValues.v2());
             }
             assertEquals(expectedTotalChildren, child.getDocCount());
+            assertTrue(JoinAggregationInspectionHelper.hasValue(child));
             assertEquals(expectedMinValue, ((InternalMin) child.getAggregations().get("in_child")).getValue(), Double.MIN_VALUE);
         });
 
         for (String parent : expectedParentChildRelations.keySet()) {
-            testCase(new TermInSetQuery(UidFieldMapper.NAME, new BytesRef(Uid.createUid(PARENT_TYPE, parent))), indexSearcher, child -> {
+            testCase(new TermInSetQuery(IdFieldMapper.NAME, Uid.encodeId(parent)), indexSearcher, child -> {
                 assertEquals((long) expectedParentChildRelations.get(parent).v1(), child.getDocCount());
                 assertEquals(expectedParentChildRelations.get(parent).v2(),
                         ((InternalMin) child.getAggregations().get("in_child")).getValue(), Double.MIN_VALUE);
@@ -139,7 +140,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
     private static List<Field> createParentDocument(String id) {
         return Arrays.asList(
-                new StringField(UidFieldMapper.NAME, Uid.createUid(PARENT_TYPE, id), Field.Store.NO),
+                new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO),
                 new StringField("join_field", PARENT_TYPE, Field.Store.NO),
                 createJoinField(PARENT_TYPE, id)
         );
@@ -147,7 +148,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
     private static List<Field> createChildDocument(String childId, String parentId, int value) {
         return Arrays.asList(
-                new StringField(UidFieldMapper.NAME, Uid.createUid(CHILD_TYPE, childId), Field.Store.NO),
+                new StringField(IdFieldMapper.NAME, Uid.encodeId(childId), Field.Store.NO),
                 new StringField("join_field", CHILD_TYPE, Field.Store.NO),
                 createJoinField(PARENT_TYPE, parentId),
                 new SortedNumericDocValuesField("number", value)

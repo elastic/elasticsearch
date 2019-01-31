@@ -1,0 +1,16 @@
+{
+    "properties" : {
+        "text" : {
+            "type" : "text",
+            "fields" : {
+                "raw" : {
+                    "type" : "keyword"
+                },
+                "english" : {
+                    "type" : "text",
+                    "analyzer" : "english"
+                }
+            }
+        }
+    }
+}

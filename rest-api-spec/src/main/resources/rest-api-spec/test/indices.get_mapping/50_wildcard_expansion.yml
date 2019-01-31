@@ -2,40 +2,52 @@
 setup:
   - do:
         indices.create:
+          include_type_name: false
           index: test-xxx
           body:
             settings:
               index:
                 number_of_replicas: 0
             mappings:
-              type_1: {}
+              properties:
+                foo:
+                  type: keyword
   - do:
         indices.create:
+          include_type_name: false
           index: test-xxy
           body:
             settings:
               index:
                 number_of_replicas: 0
             mappings:
-              type_2: {}
+              properties:
+                foo2:
+                  type: keyword
   - do:
         indices.create:
+          include_type_name: false
           index: test-xyy
           body:
             settings:
               index:
                 number_of_replicas: 0
             mappings:
-              type_3: {}
+              properties:
+                foo3:
+                  type: keyword
   - do:
         indices.create:
+          include_type_name: false
           index: test-yyy
           body:
             settings:
               index:
                 number_of_replicas: 0
             mappings:
-              type_4: {}
+              properties:
+                foo4:
+                  type: keyword
 
   - do:
         cluster.health:
@@ -54,64 +66,81 @@ setup:
 
  - do:
     indices.get_mapping:
+        include_type_name: false
         index: test-x*
 
- - is_true: test-xxx.mappings.type_1
- - is_true: test-xxy.mappings.type_2
+ - is_true: test-xxx.mappings
+ - is_true: test-xxy.mappings
 
 ---
 "Get test-* with wildcard_expansion=all":
 
  - do:
     indices.get_mapping:
+        include_type_name: false
         index: test-x*
         expand_wildcards: all
 
- - is_true: test-xxx.mappings.type_1
- - is_true: test-xxy.mappings.type_2
- - is_true: test-xyy.mappings.type_3
+ - is_true: test-xxx.mappings
+ - is_true: test-xxy.mappings
+ - is_true: test-xyy.mappings
 
 ---
 "Get test-* with wildcard_expansion=open":
 
  - do:
     indices.get_mapping:
+        include_type_name: false
         index: test-x*
         expand_wildcards: open
 
- - is_true: test-xxx.mappings.type_1
- - is_true: test-xxy.mappings.type_2
+ - is_true: test-xxx.mappings
+ - is_true: test-xxy.mappings
 
 ---
 "Get test-* with wildcard_expansion=closed":
 
  - do:
     indices.get_mapping:
+        include_type_name: false
         index: test-x*
         expand_wildcards: closed
 
- - is_true: test-xyy.mappings.type_3
+ - is_true: test-xyy.mappings
 
 ---
 "Get test-* with wildcard_expansion=none":
  - skip:
-    version: " - 5.99.99"
-    reason:  this was a breaking change in 6.0
-
+    version: " - 6.99.99"
+    reason: allow_no_indices (defaults to true) was ignored in previous versions
  - do:
-    catch: missing
     indices.get_mapping:
+        include_type_name: false
         index: test-x*
         expand_wildcards: none
 
+ - match: { '':  {} }
+---
+"Get test-* with wildcard_expansion=none allow_no_indices=false":
+ - skip:
+    version: " - 6.99.99"
+    reason: allow_no_indices was ignored in previous versions
+ - do:
+    catch: missing
+    indices.get_mapping:
+        include_type_name: false
+        index: test-x*
+        expand_wildcards: none
+        allow_no_indices: false
 ---
 "Get test-* with wildcard_expansion=open,closed":
 
  - do:
     indices.get_mapping:
+        include_type_name: false
         index: test-x*
         expand_wildcards: open,closed
 
- - is_true: test-xxx.mappings.type_1
- - is_true: test-xxy.mappings.type_2
- - is_true: test-xyy.mappings.type_3
+ - is_true: test-xxx.mappings
+ - is_true: test-xxy.mappings
+ - is_true: test-xyy.mappings

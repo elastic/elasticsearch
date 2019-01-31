@@ -1,0 +1,189 @@
+import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.plugin.PluginBuildPlugin
+import org.elasticsearch.gradle.test.NodeInfo
+
+import java.nio.charset.StandardCharsets
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+archivesBaseName = 'x-pack'
+
+dependencies {
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+subprojects {
+  afterEvaluate {
+    if (project.plugins.hasPlugin(PluginBuildPlugin)) {
+      // see the root Gradle file for additional logic regarding this configuration
+      project.configurations.create('featureAwarePlugin')
+      project.dependencies.add('featureAwarePlugin', project.configurations.compileClasspath)
+      project.dependencies.add(
+              'featureAwarePlugin',
+              "org.elasticsearch.xpack.test:feature-aware:${org.elasticsearch.gradle.VersionProperties.elasticsearch}")
+      project.dependencies.add('featureAwarePlugin', project.sourceSets.main.output.getClassesDirs())
+
+      final Task featureAwareTask = project.tasks.create("featureAwareCheck", LoggedExec) {
+        description = "Runs FeatureAwareCheck on main classes."
+        dependsOn project.configurations.featureAwarePlugin
+
+        final File successMarker = new File(project.buildDir, 'markers/featureAware')
+        outputs.file(successMarker)
+
+        executable = new File(project.runtimeJavaHome, 'bin/java')
+
+        // default to main class files if such a source set exists
+        final List files = []
+        if (project.sourceSets.findByName("main")) {
+          files.add(project.sourceSets.main.output.classesDirs)
+          dependsOn project.tasks.classes
+        }
+        // filter out non-existent classes directories from empty source sets
+        final FileCollection classDirectories = project.files(files).filter { it.exists() }
+
+        doFirst {
+          args('-cp', project.configurations.featureAwarePlugin.asPath, 'org.elasticsearch.xpack.test.feature_aware.FeatureAwareCheck')
+          classDirectories.each { args it.getAbsolutePath() }
+        }
+        doLast {
+          successMarker.parentFile.mkdirs()
+          successMarker.setText("", 'UTF-8')
+        }
+      }
+
+      project.precommit.dependsOn featureAwareTask
+    }
+  }
+}
+
+// https://github.com/elastic/x-plugins/issues/724
+configurations {
+  testArtifacts.extendsFrom testRuntime
+}
+
+task testJar(type: Jar) {
+  appendix 'test'
+  from sourceSets.test.output
+  /*
+   * Stick the license and notice file in the jar. This isn't strictly
+   * needed because we don't publish it but it makes our super-paranoid
+   * tests happy.
+   */
+  metaInf {
+    from(project.licenseFile.parent) {
+      include project.licenseFile.name
+      rename { 'LICENSE.txt' }
+    }
+    from(project.noticeFile.parent) {
+      include project.noticeFile.name
+    }
+  }
+}
+artifacts {
+  testArtifacts testJar
+}
+
+integTestRunner {
+  /*
+   * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+   * other if we allow them to set the number of available processors as it's set-once in Netty.
+   */
+  systemProperty 'es.set.netty.runtime.available.processors', 'false'
+
+
+  // TODO: fix this rest test to not depend on a hardcoded port!
+  def blacklist = ['getting_started/10_monitor_cluster_health/*']
+  boolean snapshot = "true".equals(System.getProperty("build.snapshot", "true"))
+  if (!snapshot) {
+    // these tests attempt to install basic/internal licenses signed against the dev/public.key
+    // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
+    // private key, these tests are whitelisted in non-snapshot test runs
+    blacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*'])
+  }
+  systemProperty 'tests.rest.blacklist', blacklist.join(',')
+}
+
+// location for keys and certificates
+File keystoreDir = new File(project.buildDir, 'keystore')
+File nodeKey = file("$keystoreDir/testnode.pem")
+File nodeCert = file("$keystoreDir/testnode.crt")
+
+// Add key and certs to test classpath: it expects them there
+// User cert and key PEM files instead of a JKS Keystore for the cluster's trust material so that
+// it can run in a FIPS 140 JVM
+// TODO: Remove all existing uses of cross project file references when the new approach for referencing static files is available
+// https://github.com/elastic/elasticsearch/pull/32201
+task copyKeyCerts(type: Copy) {
+  from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
+    include 'testnode.crt', 'testnode.pem'
+    }
+  into keystoreDir
+}
+// Add keystores to test classpath: it expects it there
+sourceSets.test.resources.srcDir(keystoreDir)
+processTestResources.dependsOn(copyKeyCerts)
+
+integTestCluster {
+  dependsOn copyKeyCerts
+  setting 'xpack.ml.enabled', 'true'
+  setting 'xpack.security.enabled', 'true'
+  setting 'logger.org.elasticsearch.xpack.ml.datafeed', 'TRACE'
+  // Integration tests are supposed to enable/disable exporters before/after each test
+  setting 'xpack.monitoring.exporters._local.type', 'local'
+  setting 'xpack.monitoring.exporters._local.enabled', 'false'
+  setting 'xpack.security.authc.token.enabled', 'true'
+  setting 'xpack.security.transport.ssl.enabled', 'true'
+  setting 'xpack.security.transport.ssl.key', nodeKey.name
+  setting 'xpack.security.transport.ssl.certificate', nodeCert.name
+  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
+  setting 'xpack.security.audit.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
+  keystoreSetting 'bootstrap.password', 'x-pack-test-password'
+  keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+  distribution = 'default' // this is important since we use the reindex module in ML
+
+  setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+
+  extraConfigFile nodeKey.name, nodeKey
+  extraConfigFile nodeCert.name, nodeCert
+
+  waitCondition = { NodeInfo node, AntBuilder ant ->
+      File tmpFile = new File(node.cwd, 'wait.success')
+
+      for (int i = 0; i < 10; i++) {
+        // we use custom wait logic here as the elastic user is not available immediately and ant.get will fail when a 401 is returned
+        HttpURLConnection httpURLConnection = null;
+        try {
+          httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}&wait_for_status=yellow").openConnection();
+          httpURLConnection.setRequestProperty("Authorization", "Basic " +
+                  Base64.getEncoder().encodeToString("x_pack_rest_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8)));
+          httpURLConnection.setRequestMethod("GET");
+          httpURLConnection.connect();
+          if (httpURLConnection.getResponseCode() == 200) {
+            tmpFile.withWriter StandardCharsets.UTF_8.name(), {
+              it.write(httpURLConnection.getInputStream().getText(StandardCharsets.UTF_8.name()))
+            }
+          }
+        } catch (Exception e) {
+          if (i == 9) {
+            logger.error("final attempt of calling cluster health failed", e)
+          } else {
+            logger.debug("failed to call cluster health", e)
+          }
+        } finally {
+          if (httpURLConnection != null) {
+            httpURLConnection.disconnect();
+          }
+        }
+
+        // did not start, so wait a bit before trying again
+        Thread.sleep(500L);
+      }
+      return tmpFile.exists()
+  }
+}
+if (integTestCluster.distribution.startsWith("oss-")) {
+  integTest.enabled = false
+}
+

@@ -1,0 +1,56 @@
+--
+:api: flush-job
+:request: FlushJobRequest
+:response: FlushJobResponse
+--
+[id="{upid}-{api}"]
+=== Flush Job API
+
+The Flush Job API provides the ability to flush a {ml} job's 
+datafeed in the cluster.
+It accepts a +{request}+ object and responds
+with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Flush Job Request
+
+A +{request}+ object gets created with an existing non-null `jobId`.
+All other fields are optional for the request.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request referencing an existing `jobId`
+
+==== Optional Arguments
+
+The following arguments are optional.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-options]
+--------------------------------------------------
+<1> Set request to calculate the interim results
+<2> Set the advanced time to flush to the particular time value
+<3> Set the start time for the range of buckets on which
+to calculate the interim results (requires `calc_interim` to be `true`)
+<4> Set the end time for the range of buckets on which
+to calculate interim results (requires `calc_interim` to be `true`)
+<5> Set the skip time to skip a particular time value
+
+[id="{upid}-{api}-response"]
+==== Flush Job Response
+
+A +{response}+ contains an acknowledgement and an optional end date for the
+last finalized bucket
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> `isFlushed()` indicates if the job was successfully flushed or not.
+<2> `getLastFinalizedBucketEnd()` provides the timestamp
+(in milliseconds-since-the-epoch) of the end of the last bucket that was processed.
+
+include::../execution.asciidoc[]

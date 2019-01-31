@@ -84,7 +84,7 @@ client.search index: 'my-index', body: { query: { match: { title: 'test' } } }
 The `elasticsearch` gem combines two separate Rubygems:
 
 * https://github.com/elastic/elasticsearch-ruby/tree/master/elasticsearch-transport[`elasticsearch-transport`]
-provides a HTTP Ruby client for connecting to the Elasticsearch cluster,
+provides an HTTP Ruby client for connecting to the Elasticsearch cluster,
 
 * https://github.com/elastic/elasticsearch-ruby/tree/master/elasticsearch-api[`elasticsearch-api`]
 provides a Ruby API for the Elasticsearch RESTful API.
@@ -94,14 +94,14 @@ Please see their respective documentation for configuration options and technica
 Notably, the documentation and comprehensive examples for all the API methods is contained in the source,
 and available online at http://rubydoc.info/gems/elasticsearch-api/Elasticsearch/API/Actions[Rubydoc].
 
-Keep in mind, that for optimal performance, you should use a HTTP library which supports
+Keep in mind, that for optimal performance, you should use an HTTP library which supports
 persistent ("keep-alive") HTTP connections.
 
 
 === Extensions
 
 The https://github.com/elastic/elasticsearch-ruby/tree/master/elasticsearch-extensions[`elasticsearch-extensions`]
-Rubygem provides a number of extensions to the core client, such as an API to programatically launch
+Rubygem provides a number of extensions to the core client, such as an API to programmatically launch
 Elasticsearch clusters (eg. for testing purposes), and more.
 
 Please see its

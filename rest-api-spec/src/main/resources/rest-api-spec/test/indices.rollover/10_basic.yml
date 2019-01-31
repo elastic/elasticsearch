@@ -1,5 +1,7 @@
 ---
 "Rollover index via API":
+
+
   # create index with alias
   - do:
       indices.create:
@@ -17,8 +19,9 @@
         type:  test
         id:    "1"
         body:  { "foo": "hello world" }
-        refresh: true # make this doc visible in index stats
-
+        # make this doc visible in index stats
+        refresh: true
+ 
   - do:
       get:
         index: logs_search
@@ -66,18 +69,14 @@
   # check alias points to the new index
   - do:
       search:
+        rest_total_hits_as_int: true
         index: logs_search
-        type:  test
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._index: "logs-000002"}
 
 ---
 "Rollover no condition matched":
-  - skip:
-        version: " - 5.0.0"
-        reason:  bug fixed in 5.0.1
-
   # create index with alias
   - do:
       indices.create:
@@ -105,10 +104,6 @@
 
 ---
 "Rollover with dry-run but target index exists":
-
-  - skip:
-        version: " - 5.0.0"
-        reason:  bug fixed in 5.0.1 - dry run was returning just fine even if the index exists
 
   # create index with alias
   - do:

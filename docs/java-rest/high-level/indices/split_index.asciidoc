@@ -1,0 +1,80 @@
+--
+:api: split-index
+:request: ResizeRequest
+:response: ResizeResponse
+--
+
+[id="{upid}-{api}"]
+=== Split Index API
+
+[id="{upid}-{api}-request"]
+==== Resize Request
+
+The Split API requires a +{request}+ instance.
+A +{request}+ requires two string arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The target index (first argument) to split the source index (second argument) into
+<2> The resize type needs to be set to `SPLIT`
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the all the nodes to acknowledge the index is opened
+as a `TimeValue`
+<2> Timeout to wait for the all the nodes to acknowledge the index is opened
+as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-waitForActiveShards]
+--------------------------------------------------
+<1> The number of active shard copies to wait for before the split index API
+returns a response, as an `int`
+<2> The number of active shard copies to wait for before the split index API
+returns a response, as an `ActiveShardCount`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-settings]
+--------------------------------------------------
+<1> The settings to apply to the target index, which include the number of
+shards to create for it
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-aliases]
+--------------------------------------------------
+<1> The aliases to associate the target index with
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Split Index Response
+
+The returned +{response}+ allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Indicates whether all of the nodes have acknowledged the request
+<2> Indicates whether the requisite number of shard copies were started for
+each shard in the index before timing out
+
+

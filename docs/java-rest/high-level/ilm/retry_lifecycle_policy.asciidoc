@@ -1,0 +1,36 @@
+--
+:api: ilm-retry-lifecycle-policy
+:request: RetryLifecyclePolicyRequest
+:response: AcknowledgedResponse
+--
+
+[id="{upid}-{api}"]
+=== Retry Lifecycle Policy API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Retry Lifecycle Policy API allows you to invoke execution of policies
+that encountered errors in certain indices.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Retries execution of `my_index`'s policy
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the retry lifecycle policy request was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether or not the lifecycle policy retry was acknowledged.
+
+include::../execution.asciidoc[]
+
+

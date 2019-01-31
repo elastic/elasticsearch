@@ -8,7 +8,7 @@ example:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/_search?q=user:kimchy
+GET twitter/_search?q=user:kimchy
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -27,12 +27,15 @@ And here is a sample response:
         "failed" : 0
     },
     "hits":{
-        "total" : 1,
+        "total" : {
+            "value": 1,
+            "relation": "eq"
+        },
         "max_score": 1.3862944,
         "hits" : [
             {
                 "_index" : "twitter",
-                "_type" : "tweet",
+                "_type" : "_doc",
                 "_id" : "0",
                 "_score": 1.3862944,
                 "_source" : {
@@ -83,7 +86,7 @@ providing text to a numeric field) to be ignored. Defaults to false.
 hits was computed.
 
 |`_source`|Set to `false` to disable retrieval of the `_source` field. You can also retrieve
-part of the document by using `_source_include` & `_source_exclude` (see the <<search-request-source-filtering, request body>>
+part of the document by using `_source_includes` & `_source_excludes` (see the <<search-request-source-filtering, request body>>
 documentation for more details)
 
 |`stored_fields` |The selective stored fields of the document to return for each hit,
@@ -98,10 +101,12 @@ is important).
 |`track_scores` |When sorting, set to `true` in order to still track
 scores and return them as part of each hit.
 
-|`track_total_hits` |Set to `false` in order to disable the tracking
+|`track_total_hits` |Defaults to `10,000`. Set to `false` in order to disable the tracking
 of the total number of hits that match the query.
-(see <<index-modules-index-sorting,_Index Sorting_>> for more details).
-Defaults to true.
+It also accepts an integer which in this case represents the number of
+hits to count accurately.
+(See the <<search-request-track-total-hits, request body>> documentation
+for more details).
 
 |`timeout` |A search timeout, bounding the search request to be executed
 within the specified time value and bail with the hits accumulated up to
@@ -122,4 +127,9 @@ Defaults to no terminate_after.
 Defaults to `query_then_fetch`. See
 <<search-request-search-type,_Search Type_>> for
 more details on the different types of search that can be performed.
+
+|`allow_partial_search_results` |Set to `false` to return an overall failure if the request would produce
+partial results. Defaults to true, which will allow partial results in the case of timeouts
+or partial failures. This default can be controlled using the cluster-level setting
+`search.default_allow_partial_results`.
 |=======================================================================

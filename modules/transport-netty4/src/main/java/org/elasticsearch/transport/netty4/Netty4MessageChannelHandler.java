@@ -20,13 +20,14 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.transport.TcpHeader;
+import io.netty.util.Attribute;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.transport.Transports;
 
-import java.net.InetSocketAddress;
 
 /**
  * A handler (must be the last one!) that does size based frame decoding and forwards the actual message
@@ -35,39 +36,36 @@ import java.net.InetSocketAddress;
 final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     private final Netty4Transport transport;
-    private final String profileName;
 
-    Netty4MessageChannelHandler(Netty4Transport transport, String profileName) {
+    Netty4MessageChannelHandler(Netty4Transport transport) {
         this.transport = transport;
-        this.profileName = profileName;
     }
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         Transports.assertTransportThread();
-        if (!(msg instanceof ByteBuf)) {
-            ctx.fireChannelRead(msg);
-            return;
-        }
+        assert msg instanceof ByteBuf : "Expected message type ByteBuf, found: " + msg.getClass();
+
         final ByteBuf buffer = (ByteBuf) msg;
-        final int remainingMessageSize = buffer.getInt(buffer.readerIndex() - TcpHeader.MESSAGE_LENGTH_SIZE);
-        final int expectedReaderIndex = buffer.readerIndex() + remainingMessageSize;
         try {
-            InetSocketAddress remoteAddress = (InetSocketAddress) ctx.channel().remoteAddress();
-            // netty always copies a buffer, either in NioWorker in its read handler, where it copies to a fresh
-            // buffer, or in the cumulative buffer, which is cleaned each time so it could be bigger than the actual size
-            BytesReference reference = Netty4Utils.toBytesReference(buffer, remainingMessageSize);
-            transport.messageReceived(reference, ctx.channel(), profileName, remoteAddress, remainingMessageSize);
+            Channel channel = ctx.channel();
+            Attribute<Netty4TcpChannel> channelAttribute = channel.attr(Netty4Transport.CHANNEL_KEY);
+            transport.inboundMessage(channelAttribute.get(), Netty4Utils.toBytesReference(buffer));
         } finally {
-            // Set the expected position of the buffer, no matter what happened
-            buffer.readerIndex(expectedReaderIndex);
+            buffer.release();
         }
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        Netty4Utils.maybeDie(cause);
-        transport.exceptionCaught(ctx, cause);
+        ExceptionsHelper.maybeDieOnAnotherThread(cause);
+        final Throwable unwrapped = ExceptionsHelper.unwrap(cause, ElasticsearchException.class);
+        final Throwable newCause = unwrapped != null ? unwrapped : cause;
+        Netty4TcpChannel tcpChannel = ctx.channel().attr(Netty4Transport.CHANNEL_KEY).get();
+        if (newCause instanceof Error) {
+            transport.onException(tcpChannel, new Exception(newCause));
+        } else {
+            transport.onException(tcpChannel, (Exception) newCause);
+        }
     }
-
 }

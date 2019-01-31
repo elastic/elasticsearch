@@ -25,61 +25,60 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
-import org.elasticsearch.transport.netty4.Netty4Utils;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.http.HttpPipelinedRequest;
 
 @ChannelHandler.Sharable
-class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
+class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest<FullHttpRequest>> {
 
     private final Netty4HttpServerTransport serverTransport;
-    private final boolean httpPipeliningEnabled;
-    private final boolean detailedErrorsEnabled;
-    private final ThreadContext threadContext;
 
-    Netty4HttpRequestHandler(Netty4HttpServerTransport serverTransport, boolean detailedErrorsEnabled, ThreadContext threadContext) {
+    Netty4HttpRequestHandler(Netty4HttpServerTransport serverTransport) {
         this.serverTransport = serverTransport;
-        this.httpPipeliningEnabled = serverTransport.pipelining;
-        this.detailedErrorsEnabled = detailedErrorsEnabled;
-        this.threadContext = threadContext;
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
-        final FullHttpRequest request;
-        final HttpPipelinedRequest pipelinedRequest;
-        if (this.httpPipeliningEnabled && msg instanceof HttpPipelinedRequest) {
-            pipelinedRequest = (HttpPipelinedRequest) msg;
-            request = (FullHttpRequest) pipelinedRequest.last();
-        } else {
-            pipelinedRequest = null;
-            request = (FullHttpRequest) msg;
-        }
+    protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest<FullHttpRequest> msg) throws Exception {
+        Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
+        FullHttpRequest request = msg.getRequest();
 
-        final FullHttpRequest copy =
+        try {
+            final FullHttpRequest copiedRequest =
                 new DefaultFullHttpRequest(
-                        request.protocolVersion(),
-                        request.method(),
-                        request.uri(),
-                        Unpooled.copiedBuffer(request.content()),
-                        request.headers(),
-                        request.trailingHeaders());
-        final Netty4HttpRequest httpRequest = new Netty4HttpRequest(serverTransport.xContentRegistry, copy, ctx.channel());
-        final Netty4HttpChannel channel =
-                new Netty4HttpChannel(serverTransport, httpRequest, pipelinedRequest, detailedErrorsEnabled, threadContext);
+                    request.protocolVersion(),
+                    request.method(),
+                    request.uri(),
+                    Unpooled.copiedBuffer(request.content()),
+                    request.headers(),
+                    request.trailingHeaders());
 
-        if (request.decoderResult().isSuccess()) {
-            serverTransport.dispatchRequest(httpRequest, channel);
-        } else {
-            assert request.decoderResult().isFailure();
-            serverTransport.dispatchBadRequest(httpRequest, channel, request.decoderResult().cause());
+            Netty4HttpRequest httpRequest = new Netty4HttpRequest(copiedRequest, msg.getSequence());
+
+            if (request.decoderResult().isFailure()) {
+                Throwable cause = request.decoderResult().cause();
+                if (cause instanceof Error) {
+                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
+                    serverTransport.incomingRequestError(httpRequest, channel, new Exception(cause));
+                } else {
+                    serverTransport.incomingRequestError(httpRequest, channel, (Exception) cause);
+                }
+            } else {
+                serverTransport.incomingRequest(httpRequest, channel);
+            }
+        } finally {
+            // As we have copied the buffer, we can release the request
+            request.release();
         }
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        Netty4Utils.maybeDie(cause);
-        serverTransport.exceptionCaught(ctx, cause);
+        ExceptionsHelper.maybeDieOnAnotherThread(cause);
+        Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
+        if (cause instanceof Error) {
+            serverTransport.onException(channel, new Exception(cause));
+        } else {
+            serverTransport.onException(channel, (Exception) cause);
+        }
     }
-
 }

@@ -1,0 +1,62 @@
+[role="xpack"]
+[[security-api-clear-cache]]
+=== Clear cache API
+++++
+<titleabbrev>Clear cache</titleabbrev>
+++++
+
+The clear cache API evicts users from the user cache. You can completely clear
+the cache or evict specific users.
+
+==== Request
+
+`POST /_security/realm/<realms>/_clear_cache` +
+
+`POST /_security/realm/<realms>/_clear_cache?usernames=<usernames>`
+
+
+==== Description
+
+User credentials are cached in memory on each node to avoid connecting to a
+remote authentication service or hitting the disk for every incoming request.
+There are realm settings that you can use to configure the user cache. For more
+information, see {xpack-ref}/controlling-user-cache.html[Controlling the User Cache].
+
+To evict roles from the role cache, see the 
+<<security-api-clear-role-cache,Clear Roles Cache API>>.
+
+==== Path Parameters
+
+`realms` (required)::
+  (list) A comma-separated list of the realms to clear.
+
+`usernames`::
+  (list) A comma-separated list of the users to clear from the cache. If you
+  do not specify this parameter, the API evicts all users from the user cache.
+
+==== Examples
+
+For example, to evict all users cached by the `file` realm:
+
+[source,js]
+--------------------------------------------------
+POST /_security/realm/default_file/_clear_cache
+--------------------------------------------------
+// CONSOLE
+
+To evict selected users, specify the `usernames` parameter:
+
+[source,js]
+--------------------------------------------------
+POST /_security/realm/default_file/_clear_cache?usernames=rdeniro,alpacino
+--------------------------------------------------
+// CONSOLE
+
+To clear the caches for multiple realms, specify the realms as a comma-delimited
+list:
+
+[source, js]
+------------------------------------------------------------
+POST /_security/realm/default_file,ldap1/_clear_cache
+------------------------------------------------------------
+// CONSOLE

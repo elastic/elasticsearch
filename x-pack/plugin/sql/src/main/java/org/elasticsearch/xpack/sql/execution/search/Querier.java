@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggPathInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.HitExtractorInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.ReferenceInput;
+import org.elasticsearch.xpack.sql.planner.PlanningException;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.querydsl.container.ComputedRef;
 import org.elasticsearch.xpack.sql.querydsl.container.GlobalCountRef;
@@ -141,8 +142,8 @@ public class Querier {
     /**
      * Listener used for local sorting (typically due to aggregations used inside `ORDER BY`).
      * 
-     * This listener consumes the whole result set, sorts it in memory then send the paginates
-     * the results back the user.
+     * This listener consumes the whole result set, sorts it in memory then sends the paginated
+     * results back to the client.
      */
     @SuppressWarnings("rawtypes")
     class LocalAggregationSorterListener implements ActionListener<SchemaRowSet> {
@@ -154,10 +155,25 @@ public class Querier {
         private final AtomicInteger counter = new AtomicInteger();
         private volatile Schema schema;
 
+        private static final int MAXIMUM_SIZE = 250;
+        private final boolean noLimit;
+
         LocalAggregationSorterListener(ActionListener<SchemaRowSet> listener, List<Tuple<Integer, Comparator>> sortingColumns, int limit) {
             this.listener = listener;
 
-            this.data = new PriorityQueue<Tuple<List<?>, Integer>>(Math.max(limit, 100)) {
+            int size = MAXIMUM_SIZE;
+            if (limit < 0) {
+                noLimit = true;
+            } else {
+                noLimit = false;
+                if (limit > MAXIMUM_SIZE) {
+                    throw new PlanningException("The maximum LIMIT for aggregate sorting is [{}], received [{}]", limit, MAXIMUM_SIZE);
+                } else {
+                    size = limit;
+                }
+            }
+
+            this.data = new PriorityQueue<Tuple<List<?>, Integer>>(size) {
 
                 // compare row based on the received attribute sort
                 // if a sort item is not in the list, it is assumed the sorting happened in ES
@@ -208,7 +224,9 @@ public class Querier {
 
         private void doResponse(RowSet rowSet) {
             // 1. consume all pages received
-            consumeRowSet(rowSet);
+            if (consumeRowSet(rowSet) == false) {
+                return;
+            }
             Cursor cursor = rowSet.nextPageCursor();
             // 1a. trigger a next call if there's still data
             if (cursor != Cursor.EMPTY) {
@@ -223,16 +241,22 @@ public class Querier {
             sendResponse();
         }
 
-        private void consumeRowSet(RowSet rowSet) {
+        private boolean consumeRowSet(RowSet rowSet) {
             // use a synchronized block for visibility purposes (there's no concurrency)
             ResultRowSet<?> rrs = (ResultRowSet<?>) rowSet;
             synchronized (data) {
-                rrs.forEachRow(r -> {
+                for (boolean hasRows = rrs.hasCurrentRow(); hasRows; hasRows = rrs.advanceRow()) {
                     List<Object> row = new ArrayList<>(rrs.columnCount());
                     rrs.forEachResultColumn(row::add);
-                    data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement()));
-                });
+                    // if the queue overflows and no limit was specified, bail out
+                    if (data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement())) != null && noLimit) {
+                        onFailure(new SqlIllegalArgumentException(
+                                "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT"));
+                        return false;
+                    }
+                }
             }
+            return true;
         }
 
         private void sendResponse() {

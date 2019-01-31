@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.sql.stats.FeatureMetric;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.util.Holder;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
@@ -312,29 +313,30 @@ public final class Verifier {
                 Map<Expression, Node<?>> missing = new LinkedHashMap<>();
 
                 // track aggs and non-aggs - to keep the final modifier, use an array
-                final Expression[] aggAndNonAgg = new Expression[2];
+                final Holder<Expression> aggExp = new Holder<>();
+                final Holder<Expression> nonAggExp = new Holder<>();
 
                 o.order().forEach(oe -> {
                     Expression e = oe.child();
 
                     if (Functions.isAggregate(e) || e instanceof AggregateFunctionAttribute) {
-                        if (aggAndNonAgg[0] != null) {
+                        if (nonAggExp.get() != null) {
                             return;
                         } else {
-                            aggAndNonAgg[0] = e;
-                            if (aggAndNonAgg[1] == null) {
+                            nonAggExp.set(e);
+                            if (nonAggExp.get() == null) {
                                 return;
                             }
                         }
                     } else {
-                        aggAndNonAgg[1] = e;
+                        nonAggExp.set(e);
                     }
 
-                    if (aggAndNonAgg[0] != null && aggAndNonAgg[1] != null) {
+                    if (nonAggExp.get() != null && aggExp.get() != null) {
                         localFailures.add(fail(oe,
                                 "Cannot order by aggregated [{}] and non-aggregated [{}] columns at the same time; "
                                         + "use either one or the other",
-                                Expressions.name(aggAndNonAgg[0]), Expressions.name(aggAndNonAgg[1])));
+                                Expressions.name(aggExp.get()), Expressions.name(nonAggExp.get())));
                         return;
                     }
 

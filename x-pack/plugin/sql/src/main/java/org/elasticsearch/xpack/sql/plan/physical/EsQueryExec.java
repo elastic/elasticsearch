@@ -55,18 +55,6 @@ public class EsQueryExec extends LeafExec {
     @Override
     public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
         Querier scroller = new Querier(session);
-        //        List<ExpressionId> ids = queryContainer.columns();
-        //
-        //        int[] extIds = new int[output.size()];
-        //
-        //        for (int i = 0; i < output.size(); i++) {
-        //            Attribute o = output.get(i);
-        //            int indexOf = ids.indexOf(o.id());
-        //            if (indexOf == -1) {
-        //                throw new SqlIllegalArgumentException("Cannot find extractor for column [{}]", o.name());
-        //            }
-        //            extIds[i] = indexOf;
-        //        }
 
         scroller.query(output, queryContainer, index, listener);
     }

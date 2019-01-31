@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
+import org.elasticsearch.xpack.sql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -85,7 +86,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toList;
@@ -790,22 +790,22 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(OrderBy ob) {
-            AtomicBoolean foundAggregate = new AtomicBoolean(false);
-            AtomicBoolean foundImplicitGroupBy = new AtomicBoolean(false);
+            Holder<Boolean> foundAggregate = new Holder<>(Boolean.FALSE);
+            Holder<Boolean> foundImplicitGroupBy = new Holder<>(Boolean.FALSE);
 
             // if the first found aggregate has no grouping, there's no need to do ordering
             ob.forEachDown(a -> {
                 // take into account
-                if (foundAggregate.get()) {
+                if (foundAggregate.get() == Boolean.TRUE) {
                     return;
                 }
-                foundAggregate.set(true);
+                foundAggregate.set(Boolean.TRUE);
                 if (a.groupings().isEmpty()) {
-                    foundImplicitGroupBy.set(true);
+                    foundImplicitGroupBy.set(Boolean.TRUE);
                 }
             }, Aggregate.class);
 
-            if (foundImplicitGroupBy.get()) {
+            if (foundImplicitGroupBy.get() == Boolean.TRUE) {
                 return ob.child();
             }
             return ob;
@@ -1056,12 +1056,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 return plan;
             }
 
-            AtomicBoolean stop = new AtomicBoolean(false);
+            Holder<Boolean> stop = new Holder<>(Boolean.FALSE);
 
             // propagate folding up to unary nodes
             // anything higher and the propagate stops
             plan = plan.transformUp(p -> {
-                if (stop.get() == false && canPropagateFoldable(p)) {
+                if (stop.get() == Boolean.FALSE && canPropagateFoldable(p)) {
                     return p.transformExpressionsDown(e -> {
                         if (e instanceof Attribute && attrs.contains(e)) {
                             Alias as = aliases.get(e);
@@ -1076,7 +1076,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
                 if (p.children().size() > 1) {
-                    stop.set(true);
+                    stop.set(Boolean.TRUE);
                 }
 
                 return p;

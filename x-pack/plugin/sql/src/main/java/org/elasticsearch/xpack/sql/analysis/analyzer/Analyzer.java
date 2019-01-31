@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.InvalidMappedField;
 import org.elasticsearch.xpack.sql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
+import org.elasticsearch.xpack.sql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -63,7 +64,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -1029,12 +1029,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             }
 
             // 2. find first Aggregate child and update it
-
-            final AtomicBoolean found = new AtomicBoolean(false);
+            final Holder<Boolean> found = new Holder<>(Boolean.FALSE);
 
             LogicalPlan plan = ob.transformDown(a -> {
-                if (found.get() == false) {
-                    found.set(true);
+                if (found.get() == Boolean.FALSE) {
+                    found.set(Boolean.TRUE);
 
                     List<NamedExpression> missing = new ArrayList<>();
 

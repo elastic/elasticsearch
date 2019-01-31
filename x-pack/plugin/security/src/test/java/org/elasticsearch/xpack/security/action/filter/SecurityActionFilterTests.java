@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.Before;
 
 import java.util.Collections;
-import java.util.HashSet;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -83,8 +82,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         when(state.nodes()).thenReturn(nodes);
 
         SecurityContext securityContext = new SecurityContext(settings, threadContext);
-        filter = new SecurityActionFilter(authcService, authzService,
-                        licenseState, new HashSet<>(), threadPool, securityContext, destructiveOperations);
+        filter = new SecurityActionFilter(authcService, authzService, licenseState, threadPool, securityContext, destructiveOperations);
     }
 
     public void testApply() throws Exception {

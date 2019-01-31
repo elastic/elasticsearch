@@ -139,6 +139,8 @@ public interface AuthorizationEngine {
     void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                Map<String, AliasOrIndex> aliasAndIndexLookup, ActionListener<List<String>> listener);
 
+    void validateIndexPermissionsAreSubset(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
+                                           Map<String, List<String>> indexNameToNewNames, ActionListener<AuthorizationResult> listener);
     /**
      * Interface for objects that contains the information needed to authorize a request
      */

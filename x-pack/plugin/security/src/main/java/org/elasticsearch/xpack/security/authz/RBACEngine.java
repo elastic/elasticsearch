@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
@@ -44,8 +46,10 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -284,6 +288,31 @@ public class RBACEngine implements AuthorizationEngine {
         }
     }
 
+    @Override
+    public void validateIndexPermissionsAreSubset(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
+                                                  Map<String, List<String>> indexNameToNewNames,
+                                                  ActionListener<AuthorizationResult> listener) {
+        if (authorizationInfo instanceof RBACAuthorizationInfo) {
+            final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
+            Map<String, Automaton> permissionMap = new HashMap<>();
+            for (Entry<String, List<String>> entry : indexNameToNewNames.entrySet()) {
+                Automaton existingPermissions = permissionMap.computeIfAbsent(entry.getKey(), role.indices()::allowedActionsMatcher);
+                for (String alias : entry.getValue()) {
+                    Automaton newNamePermissions = permissionMap.computeIfAbsent(alias, role.indices()::allowedActionsMatcher);
+                    if (Operations.subsetOf(newNamePermissions, existingPermissions) == false) {
+                        listener.onResponse(AuthorizationResult.deny());
+                        return;
+                    }
+                }
+            }
+            listener.onResponse(AuthorizationResult.granted());
+        } else {
+            listener.onFailure(
+                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
+        }
+
+    }
+
     static List<String> resolveAuthorizedIndicesFromRole(Role role, String action, Map<String, AliasOrIndex> aliasAndIndexLookup) {
         Predicate<String> predicate = role.indices().allowedIndicesMatcher(action);
 
@@ -330,8 +359,7 @@ public class RBACEngine implements AuthorizationEngine {
         return ReservedRealm.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType);
     }
 
-    // FIXME make this pkg private!
-    public static class RBACAuthorizationInfo implements AuthorizationInfo {
+    static class RBACAuthorizationInfo implements AuthorizationInfo {
 
         private final Role role;
         private final Map<String, Object> info;
@@ -344,8 +372,7 @@ public class RBACEngine implements AuthorizationEngine {
                 authenticatedUserRole == null ? this : new RBACAuthorizationInfo(authenticatedUserRole, null);
         }
 
-        // FIXME make this pkg private!
-        public Role getRole() {
+        Role getRole() {
             return role;
         }
 

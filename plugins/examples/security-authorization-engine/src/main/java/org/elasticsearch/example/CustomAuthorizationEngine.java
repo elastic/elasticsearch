@@ -104,6 +104,17 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
         }
     }
 
+    @Override
+    public void validateIndexPermissionsAreSubset(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
+                                                  Map<String, List<String>> indexNameToNewNames,
+                                                  ActionListener<AuthorizationResult> listener) {
+        if (isSuperuser(requestInfo.getAuthentication().getUser())) {
+            listener.onResponse(AuthorizationResult.granted());
+        } else {
+            listener.onResponse(AuthorizationResult.deny());
+        }
+    }
+
     public static class CustomAuthorizationInfo implements AuthorizationInfo {
 
         private final String[] roles;

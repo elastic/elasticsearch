@@ -164,6 +164,13 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                     wrappedListener.onFailure(new ElasticsearchTimeoutException("Unknown error occurred while updating cluster state"));
                     return;
                 }
+
+                // There are no tasks to worry about starting/stopping
+                if (tasksCustomMetaData == null || tasksCustomMetaData.tasks().isEmpty()) {
+                    wrappedListener.onResponse(new AcknowledgedResponse(true));
+                    return;
+                }
+
                 // Did we change from disabled -> enabled?
                 if (request.isEnabled()) {
                     isolateDatafeeds(tasksCustomMetaData, isolateDatafeedListener);

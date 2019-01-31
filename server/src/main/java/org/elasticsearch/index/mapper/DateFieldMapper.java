@@ -324,7 +324,7 @@ public class DateFieldMapper extends FieldMapper {
         }
 
         long parse(String value) {
-            return resolution.convert(DateFormatters.toZonedDateTime(dateTimeFormatter().parse(value)).toInstant());
+            return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value)).toInstant());
         }
 
         @Override

@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.sql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.io.IOException;
 import java.util.AbstractMap;
@@ -281,9 +280,8 @@ public class QueryContainer {
         List<FieldExtraction> nestedRefs = new ArrayList<>();
 
         String name = aliasName(attr);
-        String format = attr.field().getDataType() == DataType.DATETIME ? "epoch_millis" : null;
         Query q = rewriteToContainNestedField(query, attr.source(),
-                attr.nestedParent().name(), name, format, attr.field().isAggregatable());
+                attr.nestedParent().name(), name, attr.field().getDataType().format(), attr.field().isAggregatable());
 
         SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, attr.field().getDataType(),
                 attr.field().isAggregatable(), attr.parent().name());

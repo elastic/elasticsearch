@@ -123,7 +123,6 @@
  - do:
       index:
           index: test-1
-          type: my_type
           body: { bar: 42 }
 
  - do:

@@ -26,14 +26,19 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFuncti
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStatsEnclosed;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStatsEnclosed;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRank;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Stats;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
@@ -114,7 +119,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
         Batch operators = new Batch("Operator Optimization",
                 new PruneDuplicatesInGroupBy(),
-                //new ReplaceDuplicateAggsWithReferences(),
                 // combining
                 new CombineProjections(),
                 // folding
@@ -143,6 +147,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 );
 
         Batch aggregate = new Batch("Aggregation Rewrite",
+                //new ReplaceDuplicateAggsWithReferences(),
                 new ReplaceAggsWithMatrixStats(),
                 new ReplaceAggsWithExtendedStats(),
                 new ReplaceAggsWithStats(),
@@ -631,6 +636,41 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(LogicalPlan e) {
             return e;
+        }
+    }
+
+    static class ReplaceMinMaxWithTopHits extends OptimizerRule<LogicalPlan> {
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            Map<ExpressionId, TopHits> seen = new HashMap<>();
+            return plan.transformExpressionsDown(e -> {
+                if (e instanceof Min) {
+                    Min min = (Min) e;
+                    if (min.field().dataType().isString()) {
+                        TopHits topHits = seen.get(min.id());
+                        if (topHits != null) {
+                            return topHits;
+                        }
+                        topHits = new First(min.source(), min.field(), null);
+                        seen.put(min.id(), topHits);
+                        return topHits;
+                    }
+                }
+                if (e instanceof Max) {
+                    Max max = (Max) e;
+                    if (max.field().dataType().isString()) {
+                        TopHits topHits = seen.get(max.id());
+                        if (topHits != null) {
+                            return topHits;
+                        }
+                        topHits = new Last(max.source(), max.field(), null);
+                        seen.put(max.id(), topHits);
+                        return topHits;
+                    }
+                }
+                return e;
+            });
         }
     }
 

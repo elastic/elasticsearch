@@ -34,8 +34,8 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class DateIndexNameProcessorTests extends ESTestCase {
 
-    public void testJodaPattern() throws Exception {
-        Function<String, DateTime> function = DateFormat.Java.getFunction("yyyy-MM-dd'T'HH:mm:ss.SSSZ", DateTimeZone.UTC, Locale.ROOT);
+    public void testJavaPattern() throws Exception {
+        Function<String, DateTime> function = DateFormat.Java.getFunction("yyyy-MM-dd'T'HH:mm:ss.SSSXX", DateTimeZone.UTC, Locale.ROOT);
         DateIndexNameProcessor processor = createProcessor("_field", Collections.singletonList(function),
             DateTimeZone.UTC, "events-", "y", "yyyyMMdd");
         IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null,
@@ -82,7 +82,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
     public void testTemplatedFields() throws Exception {
         String indexNamePrefix = randomAlphaOfLength(10);
         String dateRounding = randomFrom("y", "M", "w", "d", "h", "m", "s");
-        String indexNameFormat = randomFrom("yyyy-MM-dd'T'HH:mm:ss.SSSZ", "yyyyMMdd", "MM/dd/yyyy");
+        String indexNameFormat = randomFrom("yyyy-MM-dd'T'HH:mm:ss.SSSZZ", "yyyyMMdd", "MM/dd/yyyy");
         String date = Integer.toString(randomInt());
         Function<String, DateTime> dateTimeFunction = DateFormat.Unix.getFunction(null, DateTimeZone.UTC, null);
 

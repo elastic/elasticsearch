@@ -111,7 +111,8 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
     private static ThreadWatchdog createGrokThreadWatchdog(Processor.Parameters parameters) {
         long intervalMillis = WATCHDOG_INTERVAL.get(parameters.env.settings()).getMillis();
         long maxExecutionTimeMillis = WATCHDOG_MAX_EXECUTION_TIME.get(parameters.env.settings()).getMillis();
-        return ThreadWatchdog.newInstance(intervalMillis, maxExecutionTimeMillis, parameters.relativeTimeSupplier, parameters.scheduler);
+        return ThreadWatchdog.newInstance(intervalMillis, maxExecutionTimeMillis,
+            parameters.relativeTimeSupplier, parameters.scheduler::apply);
     }
 
 }

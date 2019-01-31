@@ -333,12 +333,12 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // Force allocation of the primary on the master node by first only allocating on the master
         // and then allowing all nodes so that the replica gets allocated on the other node
-        assertAcked(prepareCreate("index").setSettings(Settings.builder()
+        prepareCreate("index").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put("index.routing.allocation.include._name", master)).get());
-        assertAcked(client().admin().indices().prepareUpdateSettings("index").setSettings(Settings.builder()
-                .put("index.routing.allocation.include._name", "")).get());
+                .put("index.routing.allocation.include._name", master)).get();
+        client().admin().indices().prepareUpdateSettings("index").setSettings(Settings.builder()
+                .put("index.routing.allocation.include._name", "")).get();
         ensureGreen();
 
         // Check routing tables

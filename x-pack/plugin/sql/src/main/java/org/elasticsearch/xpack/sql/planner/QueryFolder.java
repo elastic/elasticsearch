@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFuncti
 import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
@@ -58,6 +59,7 @@ import org.elasticsearch.xpack.sql.querydsl.container.ScoreSort;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptSort;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Missing;
+import org.elasticsearch.xpack.sql.querydsl.container.TopHitsAggRef;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
@@ -430,7 +432,11 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             }
             else {
                 LeafAgg leafAgg = toAgg(functionId, f);
-                aggInput = new AggPathInput(f, new MetricAggRef(leafAgg.id()));
+                if (f instanceof TopHits) {
+                    aggInput = new AggPathInput(f, new TopHitsAggRef(leafAgg.id(), f.dataType()));
+                } else {
+                    aggInput = new AggPathInput(f, new MetricAggRef(leafAgg.id()));
+                }
                 queryC = queryC.with(queryC.aggs().addAgg(leafAgg));
             }
 

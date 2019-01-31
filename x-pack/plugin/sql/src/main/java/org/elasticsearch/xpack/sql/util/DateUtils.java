@@ -27,6 +27,7 @@ public final class DateUtils {
     private static final DateTimeFormatter UTC_DATE_FORMATTER = ISODateTimeFormat.dateOptionalTimeParser().withZoneUTC();
 
     public static final ZoneId UTC = ZoneId.of("Z");
+    public static final String DATE_PARSE_FORMAT = "epoch_millis";
 
     private DateUtils() {}
 

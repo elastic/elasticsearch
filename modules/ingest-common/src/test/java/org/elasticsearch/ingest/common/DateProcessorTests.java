@@ -49,10 +49,11 @@ public class DateProcessorTests extends ESTestCase {
         String id = timezone.equals(ZoneOffset.UTC) ? "UTC" : timezone.getId();
         return new TestTemplateService.MockTemplateScript.Factory(id);
     }
-    public void testJodaPattern() {
+
+    public void testJavaPattern() {
         DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10),
             templatize(ZoneId.of("Europe/Amsterdam")), templatize(Locale.ENGLISH),
-                "date_as_string", Collections.singletonList("yyyy dd MM hh:mm:ss"), "date_as_date");
+                "date_as_string", Collections.singletonList("yyyy dd MM HH:mm:ss"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "2010 12 06 11:05:15");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
@@ -60,7 +61,7 @@ public class DateProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2010-06-12T11:05:15.000+02:00"));
     }
 
-    public void testJodaPatternMultipleFormats() {
+    public void testJavaPatternMultipleFormats() {
         List<String> matchFormats = new ArrayList<>();
         matchFormats.add("yyyy dd MM");
         matchFormats.add("dd/MM/yyyy");
@@ -98,7 +99,7 @@ public class DateProcessorTests extends ESTestCase {
         }
     }
 
-    public void testInvalidJodaPattern() {
+    public void testInvalidJavaPattern() {
         try {
             DateProcessor processor = new DateProcessor(randomAlphaOfLength(10),
                 templatize(ZoneOffset.UTC), templatize(randomLocale(random())),
@@ -109,16 +110,14 @@ public class DateProcessorTests extends ESTestCase {
             fail("date processor execution should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("unable to parse date [2010]"));
-            assertThat(e.getCause().getMessage(), equalTo("Invalid format: [invalid pattern]: Illegal pattern component: i"));
+            assertThat(e.getCause().getMessage(), equalTo("Invalid format: [invalid pattern]: Unknown pattern letter: i"));
         }
     }
 
-    public void testJodaPatternLocale() {
-        //TODO investigate if this is a bug in Joda
-        assumeFalse("Can't run in a FIPS JVM, Joda parse date error", inFipsJvm());
-            DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10),
+    public void testJavaPatternLocale() {
+        DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10),
             templatize(ZoneId.of("Europe/Amsterdam")), templatize(Locale.ITALIAN),
-                "date_as_string", Collections.singletonList("yyyy dd MMM"), "date_as_date");
+                "date_as_string", Collections.singletonList("yyyy dd MMMM"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "2010 12 giugno");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
@@ -126,7 +125,7 @@ public class DateProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2010-06-12T00:00:00.000+02:00"));
     }
 
-    public void testJodaPatternDefaultYear() {
+    public void testJavaPatternDefaultYear() {
         String format = randomFrom("dd/MM", "8dd/MM");
         DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10),
             templatize(ZoneId.of("Europe/Amsterdam")), templatize(Locale.ENGLISH),

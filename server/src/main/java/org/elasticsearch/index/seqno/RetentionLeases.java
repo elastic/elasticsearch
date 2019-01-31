@@ -62,7 +62,7 @@ public class RetentionLeases implements Writeable {
         return version;
     }
 
-    public boolean supercedes(final RetentionLeases that) {
+    public boolean supersedes(final RetentionLeases that) {
         return primaryTerm() > that.primaryTerm() || primaryTerm() <= that.primaryTerm() && version() > that.version();
     }
 

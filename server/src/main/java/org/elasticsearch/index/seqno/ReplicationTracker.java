@@ -40,8 +40,10 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalLong;
@@ -186,23 +188,18 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 // the primary calculates the non-expired retention leases and syncs them to replicas
                 final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
                 final long retentionLeaseMillis = indexSettings.getRetentionLeaseMillis();
-
                 final Map<String, RetentionLease> leases = RetentionLeases.toMap(retentionLeases);
-
-                final Collection<RetentionLease> expiredRetentionLeases = leases
+                final Map<Boolean, List<RetentionLease>> partition = leases
                         .values()
                         .stream()
-                        .filter(retentionLease -> currentTimeMillis - retentionLease.timestamp() > retentionLeaseMillis)
-                        .collect(Collectors.toList());
-                if (expiredRetentionLeases.isEmpty()) {
+                        .collect(Collectors.groupingBy(lease -> currentTimeMillis - lease.timestamp() > retentionLeaseMillis));
+                if (partition.get(true) == null) {
                     // early out as no retention leases have expired
                     return retentionLeases;
                 }
-                // clean up the expired retention leases
-                for (final RetentionLease expiredRetentionLease : expiredRetentionLeases) {
-                    leases.remove(expiredRetentionLease.id());
-                }
-                retentionLeases = new RetentionLeases(operationPrimaryTerm, retentionLeases.version() + 1, leases.values());
+                final Collection<RetentionLease> nonExpiredLeases =
+                        partition.get(false) != null ? partition.get(false) : Collections.emptyList();
+                retentionLeases = new RetentionLeases(operationPrimaryTerm, retentionLeases.version() + 1, nonExpiredLeases);
             }
             /*
              * At this point, we were either in primary mode and have updated the non-expired retention leases into the tracking map, or

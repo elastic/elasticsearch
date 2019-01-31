@@ -123,7 +123,8 @@ public class ActionStatus {
         private final State state;
 
         public AckStatus(ZonedDateTime timestamp, State state) {
-            this.timestamp = timestamp.withZoneSameInstant(ZoneOffset.UTC);
+            assert timestamp.getOffset() == ZoneOffset.UTC;
+            this.timestamp = timestamp;
             this.state = state;
         }
 

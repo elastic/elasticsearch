@@ -52,10 +52,6 @@ public abstract class NodeConfigurationSource {
 
     public abstract Path nodeConfigPath(int nodeOrdinal);
 
-    public List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
-        return allNodesSettings;
-    }
-
     /** Returns plugins that should be loaded on the node */
     public Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.emptyList();

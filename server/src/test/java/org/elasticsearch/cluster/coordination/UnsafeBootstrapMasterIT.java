@@ -130,7 +130,7 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
     }
 
     public void testNoManifestFile() throws IOException {
-        bootstrapMasterNodeId = 1;
+        internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNode();
         ensureStableCluster(1);
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
@@ -142,7 +142,7 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
     }
 
     public void testNoMetaData() throws IOException {
-        bootstrapMasterNodeId = 1;
+        internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNode();
         ensureStableCluster(1);
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
@@ -155,7 +155,7 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
     }
 
     public void testAbortedByUser() throws IOException {
-        bootstrapMasterNodeId = 1;
+        internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNode();
         ensureStableCluster(1);
         internalCluster().stopRandomDataNode();
@@ -165,7 +165,7 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
     }
 
     public void test3MasterNodes2Failed() throws Exception {
-        bootstrapMasterNodeId = 3;
+        internalCluster().setBootstrapMasterNodeIndex(2);
         List<String> masterNodes = internalCluster().startMasterOnlyNodes(3, Settings.EMPTY);
 
         String dataNode = internalCluster().startDataOnlyNode();

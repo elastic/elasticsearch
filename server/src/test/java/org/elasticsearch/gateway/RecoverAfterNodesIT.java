@@ -56,7 +56,7 @@ public class RecoverAfterNodesIT extends ESIntegTestCase {
     }
 
     public void testRecoverAfterNodes() throws Exception {
-        bootstrapMasterNodeId = 1;
+        internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start node (1)");
         Client clientNode1 = startNode(Settings.builder().put("gateway.recover_after_nodes", 3));
         assertThat(clientNode1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
@@ -82,7 +82,7 @@ public class RecoverAfterNodesIT extends ESIntegTestCase {
     }
 
     public void testRecoverAfterMasterNodes() throws Exception {
-        bootstrapMasterNodeId = 1;
+        internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start master_node (1)");
         Client master1 = startNode(Settings.builder()
             .put("gateway.recover_after_master_nodes", 2).put(Node.NODE_DATA_SETTING.getKey(), false)
@@ -128,7 +128,7 @@ public class RecoverAfterNodesIT extends ESIntegTestCase {
     }
 
     public void testRecoverAfterDataNodes() throws Exception {
-        bootstrapMasterNodeId = 1;
+        internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start master_node (1)");
         Client master1 = startNode(Settings.builder()
             .put("gateway.recover_after_data_nodes", 2)

@@ -72,7 +72,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
     }
 
     public void testTwoNodesNoMasterBlock() throws Exception {
-        bootstrapMasterNodeId = 2;
+        internalCluster().setBootstrapMasterNodeIndex(1);
 
         Settings settings = Settings.builder()
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
@@ -205,7 +205,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
     }
 
     public void testThreeNodesNoMasterBlock() throws Exception {
-        bootstrapMasterNodeId = 3;
+        internalCluster().setBootstrapMasterNodeIndex(2);
 
         Settings settings = Settings.builder()
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "1s")
@@ -280,7 +280,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
     }
 
     public void testCannotCommitStateThreeNodes() throws Exception {
-        bootstrapMasterNodeId = 3;
+        internalCluster().setBootstrapMasterNodeIndex(2);
 
         Settings settings = Settings.builder()
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")

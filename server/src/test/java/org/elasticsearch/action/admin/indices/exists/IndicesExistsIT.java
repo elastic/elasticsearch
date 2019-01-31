@@ -35,7 +35,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThro
 public class IndicesExistsIT extends ESIntegTestCase {
 
     public void testIndexExistsWithBlocksInPlace() throws IOException {
-        bootstrapMasterNodeId = 1;
+        internalCluster().setBootstrapMasterNodeIndex(0);
         Settings settings = Settings.builder()
             .put(GatewayService.RECOVER_AFTER_NODES_SETTING.getKey(), 99).build();
         String node = internalCluster().startNode(settings);

@@ -131,6 +131,7 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -2008,11 +2009,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
             return allNodesSettings;
         }
 
+        if (getAutoMinMasterNodes()) {
+            throw new AssertionError("bootstrapMasterNodeId should be -1 if autoMinMasterNodes = true");
+        }
+
         int currentNodeId = internalCluster().numMasterNodes();
         List<Settings> newSettings = new ArrayList<>();
 
         for (Settings settings : allNodesSettings) {
-            if (org.elasticsearch.node.Node.NODE_MASTER_SETTING.get(settings) == false) {
+            if (Node.NODE_MASTER_SETTING.get(settings) == false) {
                 newSettings.add(settings);
             } else {
                 currentNodeId++;
@@ -2022,20 +2027,22 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     List<String> nodeNames = new ArrayList<>();
 
                     for (Settings nodeSettings : internalCluster().getDataOrMasterNodeInstances(Settings.class)) {
-                        if (org.elasticsearch.node.Node.NODE_MASTER_SETTING.get(nodeSettings)) {
-                            nodeNames.add(org.elasticsearch.node.Node.NODE_NAME_SETTING.get(nodeSettings));
+                        if (Node.NODE_MASTER_SETTING.get(nodeSettings)) {
+                            nodeNames.add(Node.NODE_NAME_SETTING.get(nodeSettings));
                         }
                     }
 
                     for (Settings nodeSettings : allNodesSettings) {
-                        if (org.elasticsearch.node.Node.NODE_MASTER_SETTING.get(nodeSettings)) {
-                            nodeNames.add(org.elasticsearch.node.Node.NODE_NAME_SETTING.get(nodeSettings));
+                        if (Node.NODE_MASTER_SETTING.get(nodeSettings)) {
+                            nodeNames.add(Node.NODE_NAME_SETTING.get(nodeSettings));
                         }
                     }
 
                     newSettings.add(Settings.builder().put(settings)
                             .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), nodeNames)
                             .build());
+
+                    bootstrapMasterNodeId = -1;
                 }
             }
         }

@@ -10,12 +10,14 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.time.ZoneId;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 public class Histogram extends GroupingFunction {
@@ -24,8 +26,8 @@ public class Histogram extends GroupingFunction {
     private final ZoneId zoneId;
 
     public Histogram(Source source, Expression field, Expression interval, ZoneId zoneId) {
-        super(source, field);
-        this.interval = (Literal) interval;
+        super(source, field, Arrays.asList(interval));
+        this.interval = Literal.of(interval);
         this.zoneId = zoneId;
     }
 
@@ -51,10 +53,13 @@ public class Histogram extends GroupingFunction {
 
         return resolution;
     }
-
+    
     @Override
-    protected GroupingFunction replaceChild(Expression newChild) {
-        return new Histogram(source(), newChild, interval, zoneId);
+    public final GroupingFunction replaceChildren(List<Expression> newChildren) {
+        if (newChildren.size() != 2) {
+            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
+        }
+        return new Histogram(source(), newChildren.get(0), newChildren.get(1), zoneId);
     }
 
     @Override

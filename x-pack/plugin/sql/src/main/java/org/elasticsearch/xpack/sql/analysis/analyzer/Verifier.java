@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalFunction;
@@ -566,30 +567,17 @@ public final class Verifier {
         // check if the query has a grouping function (Histogram) but no GROUP BY
         if (p instanceof Project) {
             Project proj = (Project) p;
-            
-            proj.projections().forEach(e -> {
-                if (Functions.isGrouping(e) == false) {
-                    e.collectFirstChildren(c -> {
-                        if (Functions.isGrouping(c)) {
-                            localFailures.add(fail(c, "[%s] needs to be part of the grouping", Expressions.name(c)));
-                            return true;
-                        }
-                        return false;
-                    });
-                } else {
-                    localFailures.add(fail(e, "[%s] needs to be part of the grouping", Expressions.name(e)));
-                }
-            });
+            proj.projections().forEach(e -> e.forEachDown(f -> localFailures.add(fail(f, "[%s] needs to be part of the grouping",
+                    Expressions.name(f))), GroupingFunction.class));
         } else if (p instanceof Aggregate) {
             // if it does have a GROUP BY, check if the groupings contain the grouping functions (Histograms) 
             Aggregate a = (Aggregate) p;
-
-            a.aggregates().forEach(as -> {
-                Expression exp = as instanceof Alias ? ((Alias) as).child() : as;
-                if (Functions.isGrouping(exp) && false == Expressions.anyMatch(a.groupings(), g -> exp.semanticEquals(g))) {
-                    localFailures.add(fail(exp, "[%s] needs to be part of the grouping", Expressions.name(exp)));
+            a.aggregates().forEach(agg -> agg.forEachDown(e -> {
+                if (Expressions.anyMatch(a.groupings(), g -> {return g instanceof Function && e.functionEquals((Function) g);}) == false
+                        || a.groupings().size() == 0) {
+                    localFailures.add(fail(e, "[%s] needs to be part of the grouping", Expressions.name(e)));
                 }
-            });
+            }, GroupingFunction.class));
         }
     }
 

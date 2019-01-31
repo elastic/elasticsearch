@@ -26,22 +26,28 @@ import static java.util.Collections.singletonList;
 public abstract class GroupingFunction extends Function {
 
     private final Expression field;
+    private final List<Expression> extraChildren;
     private final List<Expression> parameters;
 
     private GroupingFunctionAttribute lazyAttribute;
 
-    protected GroupingFunction(Source source, Expression field) {
-        this(source, field, emptyList());
+    protected GroupingFunction(Source source, Expression field, List<Expression> extraChildren) {
+        this(source, field, extraChildren, emptyList());
     }
 
-    protected GroupingFunction(Source source, Expression field, List<Expression> parameters) {
-        super(source, CollectionUtils.combine(singletonList(field), parameters));
+    protected GroupingFunction(Source source, Expression field, List<Expression> extraChildren, List<Expression> parameters) {
+        super(source, CollectionUtils.combine(singletonList(field), extraChildren, parameters));
         this.field = field;
+        this.extraChildren = extraChildren == null ? emptyList() : extraChildren;
         this.parameters = parameters;
     }
 
     public Expression field() {
         return field;
+    }
+    
+    public List<Expression> extraChildren() {
+        return extraChildren;
     }
 
     public List<Expression> parameters() {
@@ -56,16 +62,6 @@ public abstract class GroupingFunction extends Function {
         }
         return lazyAttribute;
     }
-
-    @Override
-    public final GroupingFunction replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
-        return replaceChild(newChildren.get(0));
-    }
-
-    protected abstract GroupingFunction replaceChild(Expression newChild);
 
     @Override
     protected Pipe makePipe() {
@@ -85,11 +81,12 @@ public abstract class GroupingFunction extends Function {
         }
         GroupingFunction other = (GroupingFunction) obj;
         return Objects.equals(other.field(), field())
+            && Objects.equals(other.extraChildren(), extraChildren())
             && Objects.equals(other.parameters(), parameters());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), parameters());
+        return Objects.hash(field(), extraChildren(), parameters());
     }
 }

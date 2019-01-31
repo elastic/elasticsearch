@@ -82,15 +82,15 @@ public class GeoTileUtilsTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint("0/-1/1"));
         expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint("0/1/-1"));
         expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint("-1/0/0"));
-        expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint("" + (MAX_ZOOM + 1) + "/0/0"));
+        expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint((MAX_ZOOM + 1) + "/0/0"));
 
         for (int z = 0; z <= MAX_ZOOM; z++) {
             final int zoom = z;
-            expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint("" + zoom + "/0"));
-            expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint("" + zoom + "/0/0/0"));
+            expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint(zoom + "/0"));
+            expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint(zoom + "/0/0/0"));
             final int max_index = (int) Math.pow(2, zoom);
-            expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint("" + zoom + "/0/" + max_index));
-            expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint("" + zoom + "/" + max_index + "/0"));
+            expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint(zoom + "/0/" + max_index));
+            expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint(zoom + "/" + max_index + "/0"));
         }
     }
 
@@ -120,6 +120,18 @@ public class GeoTileUtilsTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> stringEncode(0x7800000000000000L)); // z=30
         expectThrows(IllegalArgumentException.class, () -> stringEncode(0x0000000000000001L)); // z=0,x=0,y=1
         expectThrows(IllegalArgumentException.class, () -> stringEncode(0x0000000020000000L)); // z=0,x=1,y=0
+
+        for (int zoom = 0; zoom < 5; zoom++) {
+            int maxTile = 1 << zoom;
+            for (int x = 0; x < maxTile; x++) {
+                for (int y = 0; y < maxTile; y++) {
+                    String expectedTileIndex = zoom + "/" + x + "/" + y;
+                    GeoPoint point = hashToGeoPoint(expectedTileIndex);
+                    String actualTileIndex = stringEncode(longEncode(point.lon(), point.lat(), zoom));
+                    assertEquals(expectedTileIndex, actualTileIndex);
+                }
+            }
+        }
     }
 
     /**

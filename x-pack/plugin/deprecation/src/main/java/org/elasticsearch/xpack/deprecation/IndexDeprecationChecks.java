@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.deprecation;
 
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -105,6 +104,15 @@ public class IndexDeprecationChecks {
         boolean hasDefaultMapping = indexMetaData.getMappings().containsKey(DEFAULT_MAPPING);
         int mappingCount = indexMetaData.getMappings().size();
         if (createdWith.before(Version.V_6_0_0)) {
+            if (".tasks".equals(indexMetaData.getIndex().getName())) {
+                return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                    ".tasks index must be re-created",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/removal-of-types.html" +
+                        "#_indices_created_before_7_0",
+                    "The .tasks index was created before version 6.0 and cannot be opened in 7.0. " +
+                        "You must delete this index and allow it to be re-created by Elasticsearch. If you wish to preserve task history, " +
+                        "reindex this index to a new index before deleting it.");
+            }
             if ((mappingCount == 2 && !hasDefaultMapping)
                 || mappingCount > 2) {
                 return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,

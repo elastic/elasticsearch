@@ -44,6 +44,25 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertEquals(singletonList(expected), issues);
     }
 
+    public void testOldTasksIndexCheck() {
+        Version createdWith = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+            VersionUtils.getPreviousVersion(Version.V_6_0_0));
+        IndexMetaData indexMetaData = IndexMetaData.builder(".tasks")
+            .settings(settings(createdWith))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            ".tasks index must be re-created",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/removal-of-types.html" +
+                "#_indices_created_before_7_0",
+            "The .tasks index was created before version 6.0 and cannot be opened in 7.0. " +
+                "You must delete this index and allow it to be re-created by Elasticsearch. If you wish to preserve task history, " +
+                "reindex this index to a new index before deleting it.");
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
+        assertEquals(singletonList(expected), issues);
+    }
+
     public void testMultipleTypesCheckWithDefaultMapping() throws IOException {
         String mappingName1 = randomAlphaOfLengthBetween(2, 5);
         String mappingJson1 = "{\n" +

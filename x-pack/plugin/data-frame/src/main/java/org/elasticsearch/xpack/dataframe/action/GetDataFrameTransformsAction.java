@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformConfig;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -39,7 +40,6 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
     public static final GetDataFrameTransformsAction INSTANCE = new GetDataFrameTransformsAction();
     public static final String NAME = "cluster:monitor/data_frame/get";
 
-    private static final ParseField INVALID_TRANSFORMS = new ParseField("invalid_transforms_count");
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
             LogManager.getLogger(GetDataFrameTransformsAction.class));
 
@@ -128,6 +128,9 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
+        public static final String INVALID_TRANSFORMS_DEPRECATION_WARNING = "Found [{}] invalid transforms";
+        private static final ParseField INVALID_TRANSFORMS = new ParseField("invalid_transforms");
+
         private List<DataFrameTransformConfig> transformConfigurations;
 
         public Response(List<DataFrameTransformConfig> transformConfigs) {
@@ -168,8 +171,7 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            int invalidTransforms = 0;
-
+            List<String> invalidTransforms = new ArrayList<>();
             builder.startObject();
             builder.field(DataFrameField.COUNT.getPreferredName(), transformConfigurations.size());
             // XContentBuilder does not support passing the params object for Iterables
@@ -178,13 +180,16 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
             for (DataFrameTransformConfig configResponse : transformConfigurations) {
                 configResponse.toXContent(builder, params);
                 if (configResponse.isValid() == false) {
-                    ++invalidTransforms;
+                    invalidTransforms.add(configResponse.getId());
                 }
             }
             builder.endArray();
-            if (invalidTransforms != 0) {
-                builder.field(INVALID_TRANSFORMS.getPreferredName(), invalidTransforms);
-                deprecationLogger.deprecated("Found [{}] invalid transforms", invalidTransforms);
+            if (invalidTransforms.isEmpty() == false) {
+                builder.startObject(INVALID_TRANSFORMS.getPreferredName());
+                builder.field(DataFrameField.COUNT.getPreferredName(), invalidTransforms.size());
+                builder.field(DataFrameField.TRANSFORMS.getPreferredName(), invalidTransforms);
+                builder.endObject();
+                deprecationLogger.deprecated(INVALID_TRANSFORMS_DEPRECATION_WARNING, invalidTransforms.size());
             }
 
             builder.endObject();

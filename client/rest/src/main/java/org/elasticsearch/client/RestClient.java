@@ -72,7 +72,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -103,7 +102,6 @@ public class RestClient implements Closeable {
     // We don't rely on default headers supported by HttpAsyncClient as those cannot be replaced.
     // These are package private for tests.
     final List<Header> defaultHeaders;
-    private final long maxRetryTimeoutMillis;
     private final String pathPrefix;
     private final AtomicInteger lastNodeIndex = new AtomicInteger(0);
     private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
@@ -112,10 +110,9 @@ public class RestClient implements Closeable {
     private volatile NodeTuple<List<Node>> nodeTuple;
     private final WarningsHandler warningsHandler;
 
-    RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders, List<Node> nodes, String pathPrefix,
+    RestClient(CloseableHttpAsyncClient client, Header[] defaultHeaders, List<Node> nodes, String pathPrefix,
             FailureListener failureListener, NodeSelector nodeSelector, boolean strictDeprecationMode) {
         this.client = client;
-        this.maxRetryTimeoutMillis = maxRetryTimeoutMillis;
         this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
         this.failureListener = failureListener;
         this.pathPrefix = pathPrefix;
@@ -213,7 +210,7 @@ public class RestClient implements Closeable {
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
      */
     public Response performRequest(Request request) throws IOException {
-        SyncResponseListener listener = new SyncResponseListener(maxRetryTimeoutMillis);
+        SyncResponseListener listener = new SyncResponseListener();
         performRequestAsyncNoCatch(request, listener);
         return listener.get();
     }
@@ -335,19 +332,10 @@ public class RestClient implements Closeable {
 
             private void retryIfPossible(Exception exception) {
                 if (nodeTuple.nodes.hasNext()) {
-                    //in case we are retrying, check whether maxRetryTimeout has been reached
-                    long timeElapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
-                    long timeout = maxRetryTimeoutMillis - timeElapsedMillis;
-                    if (timeout <= 0) {
-                        IOException retryTimeoutException = new IOException(
-                                "request retries exceeded max retry timeout [" + maxRetryTimeoutMillis + "]", exception);
-                        listener.onDefinitiveFailure(retryTimeoutException);
-                    } else {
-                        listener.trackFailure(exception);
-                        request.reset();
-                        performRequestAsync(startTime, nodeTuple, request, ignoreErrorCodes,
-                                thisWarningsHandler, httpAsyncResponseConsumerFactory, listener);
-                    }
+                    listener.trackFailure(exception);
+                    request.reset();
+                    performRequestAsync(startTime, nodeTuple, request, ignoreErrorCodes,
+                        thisWarningsHandler, httpAsyncResponseConsumerFactory, listener);
                 } else {
                     listener.onDefinitiveFailure(exception);
                 }
@@ -630,13 +618,6 @@ public class RestClient implements Closeable {
         private final AtomicReference<Response> response = new AtomicReference<>();
         private final AtomicReference<Exception> exception = new AtomicReference<>();
 
-        private final long timeout;
-
-        SyncResponseListener(long timeout) {
-            assert timeout > 0;
-            this.timeout = timeout;
-        }
-
         @Override
         public void onSuccess(Response response) {
             Objects.requireNonNull(response, "response must not be null");
@@ -663,15 +644,10 @@ public class RestClient implements Closeable {
          */
         Response get() throws IOException {
             try {
-                //providing timeout is just a safety measure to prevent everlasting waits
-                //the different client timeouts should already do their jobs
-                if (latch.await(timeout, TimeUnit.MILLISECONDS) == false) {
-                    throw new IOException("listener timeout after waiting for [" + timeout + "] ms");
-                }
+                latch.await();
             } catch (InterruptedException e) {
                 throw new RuntimeException("thread waiting for the response was interrupted", e);
             }
-
             Exception exception = this.exception.get();
             Response response = this.response.get();
             if (exception != null) {

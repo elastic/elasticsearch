@@ -84,14 +84,14 @@ public class DateFormattersTests extends ESTestCase {
     public void testEpochMilliParsersWithDifferentFormatters() {
         DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
         TemporalAccessor accessor = formatter.parse("123");
-        assertThat(DateFormatters.toZonedDateTime(accessor).toInstant().toEpochMilli(), is(123L));
+        assertThat(DateFormatters.from(accessor).toInstant().toEpochMilli(), is(123L));
         assertThat(formatter.pattern(), is("strict_date_optional_time||epoch_millis"));
     }
 
     public void testParsersWithMultipleInternalFormats() throws Exception {
-        ZonedDateTime first = DateFormatters.toZonedDateTime(
+        ZonedDateTime first = DateFormatters.from(
             DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T17:14:56+0100"));
-        ZonedDateTime second = DateFormatters.toZonedDateTime(
+        ZonedDateTime second = DateFormatters.from(
             DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T17:14:56+01:00"));
         assertThat(first, is(second));
     }
@@ -163,7 +163,7 @@ public class DateFormattersTests extends ESTestCase {
         assertRoundupFormatter("epoch_millis", "1234567890", 1234567890L);
         // also check nanos of the epoch_millis formatter if it is rounded up to the nano second
         DateTimeFormatter roundUpFormatter = ((JavaDateFormatter) DateFormatter.forPattern("8epoch_millis")).getRoundupParser();
-        Instant epochMilliInstant = DateFormatters.toZonedDateTime(roundUpFormatter.parse("1234567890")).toInstant();
+        Instant epochMilliInstant = DateFormatters.from(roundUpFormatter.parse("1234567890")).toInstant();
         assertThat(epochMilliInstant.getLong(ChronoField.NANO_OF_SECOND), is(890_999_999L));
 
         assertRoundupFormatter("strict_date_optional_time||epoch_millis", "2018-10-10T12:13:14.123Z", 1539173594123L);
@@ -175,7 +175,7 @@ public class DateFormattersTests extends ESTestCase {
         assertRoundupFormatter("epoch_second", "1234567890", 1234567890999L);
         // also check nanos of the epoch_millis formatter if it is rounded up to the nano second
         DateTimeFormatter epochSecondRoundupParser = ((JavaDateFormatter) DateFormatter.forPattern("8epoch_second")).getRoundupParser();
-        Instant epochSecondInstant = DateFormatters.toZonedDateTime(epochSecondRoundupParser.parse("1234567890")).toInstant();
+        Instant epochSecondInstant = DateFormatters.from(epochSecondRoundupParser.parse("1234567890")).toInstant();
         assertThat(epochSecondInstant.getLong(ChronoField.NANO_OF_SECOND), is(999_999_999L));
 
         assertRoundupFormatter("strict_date_optional_time||epoch_second", "2018-10-10T12:13:14.123Z", 1539173594123L);
@@ -189,7 +189,7 @@ public class DateFormattersTests extends ESTestCase {
         JavaDateFormatter dateFormatter = (JavaDateFormatter) DateFormatter.forPattern(format);
         dateFormatter.parse(input);
         DateTimeFormatter roundUpFormatter = dateFormatter.getRoundupParser();
-        long millis = DateFormatters.toZonedDateTime(roundUpFormatter.parse(input)).toInstant().toEpochMilli();
+        long millis = DateFormatters.from(roundUpFormatter.parse(input)).toInstant().toEpochMilli();
         assertThat(millis, is(expectedMilliSeconds));
     }
 

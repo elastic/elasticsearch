@@ -8,8 +8,12 @@ SHOW FUNCTIONS;
 
     name:s       |    type:s
 AVG              |AGGREGATE      
-COUNT            |AGGREGATE      
-MAX              |AGGREGATE      
+COUNT            |AGGREGATE
+FIRST            |AGGREGATE
+FIRST_VALUE      |AGGREGATE
+LAST             |AGGREGATE
+LAST_VALUE       |AGGREGATE
+MAX              |AGGREGATE
 MIN              |AGGREGATE      
 SUM              |AGGREGATE      
 KURTOSIS         |AGGREGATE      

@@ -28,23 +28,47 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.Defaults;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.PrefixFieldType;
+import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouTypeFieldType;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.ShingleFieldType;
+import org.junit.Before;
 
 import static java.util.Arrays.asList;
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ShingleFieldTypeTests extends FieldTypeTestCase {
+public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
 
     private static final String NAME = "a_field";
     private static final String PREFIX_NAME = NAME + "._index_prefix";
 
+    @Before
+    public void setupProperties() {
+        addModifier(new Modifier("max_shingle_size", false) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                SearchAsYouTypeFieldType fieldType = (SearchAsYouTypeFieldType) ft;
+                fieldType.setShingleFields(new ShingleFieldType[] {
+                    new ShingleFieldType(fieldType, 2),
+                    new ShingleFieldType(fieldType, 3)
+                });
+            }
+        });
+        addModifier(new Modifier("index_prefixes", false) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                SearchAsYouTypeFieldType fieldType = (SearchAsYouTypeFieldType) ft;
+                fieldType.setPrefixField(new PrefixFieldType(NAME, PREFIX_NAME, 1, 10));
+            }
+        });
+    }
+
     @Override
-    protected MappedFieldType createDefaultFieldType() {
-        final ShingleFieldType shingleFieldType = new ShingleFieldType(Defaults.FIELD_TYPE, 1);
-        shingleFieldType.setName(NAME);
-        shingleFieldType.setPrefixFieldType(new PrefixFieldType(NAME, PREFIX_NAME, Defaults.MIN_GRAM, Defaults.MAX_GRAM));
-        return shingleFieldType;
+    protected SearchAsYouTypeFieldType createDefaultFieldType() {
+        final SearchAsYouTypeFieldType fieldType = new SearchAsYouTypeFieldType();
+        fieldType.setName(NAME);
+        fieldType.setPrefixField(new PrefixFieldType(NAME, PREFIX_NAME, Defaults.MIN_GRAM, Defaults.MAX_GRAM));
+        fieldType.setShingleFields(new ShingleFieldType[] { new ShingleFieldType(fieldType, 2) });
+        return fieldType;
     }
 
     public void testTermQuery() {
@@ -72,7 +96,7 @@ public class ShingleFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testPrefixQuery() {
-        ShingleFieldType fieldType = (ShingleFieldType) createDefaultFieldType();
+        final SearchAsYouTypeFieldType fieldType = createDefaultFieldType();
 
         // this term should be a length that can be rewriteable to a term query on the prefix field
         final String withinBoundsTerm = "foo";

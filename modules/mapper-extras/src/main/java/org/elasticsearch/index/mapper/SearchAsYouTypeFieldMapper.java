@@ -219,10 +219,12 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         public void setPrefixField(PrefixFieldType prefixField) {
+            checkIfFrozen();
             this.prefixField = prefixField;
         }
 
         public void setShingleFields(ShingleFieldType[] shingleFields) {
+            checkIfFrozen();
             this.shingleFields = shingleFields;
         }
 
@@ -309,6 +311,21 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                     new SpanMultiTermQueryWrapper<>(new PrefixQuery(new Term(name(), indexedValueForSearch(value))));
                 spanMulti.setRewriteMethod(method);
                 return spanMulti;
+            }
+        }
+
+        @Override
+        public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
+            super.checkCompatibility(other, conflicts);
+            final SearchAsYouTypeFieldType otherFieldType = (SearchAsYouTypeFieldType) other;
+            if (this.shingleFields.length != otherFieldType.shingleFields.length) {
+                conflicts.add("mapper [" + name() + "] has a different [max_shingle_size]");
+            } else if (Arrays.equals(this.shingleFields, otherFieldType.shingleFields) == false) {
+                conflicts.add("mapper [" + name() + "] has shingle subfields that are configured differently");
+            }
+
+            if (Objects.equals(this.prefixField, otherFieldType.prefixField) == false) {
+                conflicts.add("mapper [" + name() + "] has different [index_prefixes] settings");
             }
         }
 

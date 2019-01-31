@@ -959,14 +959,6 @@ final class RequestConverters {
             return this;
         }
 
-        Params withIncludeTypeName(boolean includeTypeName) {
-            if (includeTypeName) {
-                return putParam(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER,
-                        Boolean.toString(BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY));
-            }
-            return this;
-        }
-
         Params withPreserveExisting(boolean preserveExisting) {
             if (preserveExisting) {
                 return putParam("preserve_existing", Boolean.TRUE.toString());

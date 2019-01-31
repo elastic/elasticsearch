@@ -1102,6 +1102,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         if (ESTestCase.randomBoolean()) {
             putTemplateRequest.mapping("{ \"properties\": { \"field-" + ESTestCase.randomInt() + 
                     "\" : { \"type\" : \"" + ESTestCase.randomFrom("text", "keyword") + "\" }}}", XContentType.JSON);
+            expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "false");
         }
         if (ESTestCase.randomBoolean()) {
             putTemplateRequest.alias(new Alias("alias-" + ESTestCase.randomInt()));

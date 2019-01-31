@@ -5306,7 +5306,7 @@ public class InternalEngineTests extends EngineTestCase {
                 final List<RetentionLease> leases = new ArrayList<>(length);
                 for (int i = 0; i < length; i++) {
                     final String id = randomAlphaOfLength(8);
-                    final long retainingSequenceNumber = randomLongBetween(0L, Math.max(0L, globalCheckpoint.get()));
+                    final long retainingSequenceNumber = randomLongBetween(0, Math.max(0, globalCheckpoint.get()));
                     final long timestamp = randomLongBetween(0L, Long.MAX_VALUE);
                     final String source = randomAlphaOfLength(8);
                     leases.add(new RetentionLease(id, retainingSequenceNumber, timestamp, source));

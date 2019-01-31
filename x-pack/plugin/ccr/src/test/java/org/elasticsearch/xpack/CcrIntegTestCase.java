@@ -63,6 +63,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
@@ -123,7 +124,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
         stopClusters();
         Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(ESIntegTestCase.TestSeedPlugin.class,
-            TestZenDiscovery.TestPlugin.class, getTestTransportPlugin());
+            TestZenDiscovery.TestPlugin.class, getTestTransportPlugin(), MockTransportService.TestPlugin.class);
 
         InternalTestCluster leaderCluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodesPerCluster(),
             numberOfNodesPerCluster(), UUIDs.randomBase64UUID(random()), createNodeConfigurationSource(null), 0, false, "leader",

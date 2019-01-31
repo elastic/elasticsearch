@@ -84,6 +84,7 @@ import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
+import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
@@ -1618,5 +1619,31 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertEquals(Collections.singletonList("UNIX_MS"), structure.getJodaTimestampFormats());
         assertEquals("timestamp", structure.getTimestampField());
         assertFalse(structure.needClientTimezone());
+    }
+
+    public void testEnableUpgradeMode() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        MlInfoResponse mlInfoResponse = machineLearningClient.getMlInfo(new MlInfoRequest(), RequestOptions.DEFAULT);
+        assertThat(mlInfoResponse.getInfo().get("upgrade_mode"), equalTo(false));
+
+        AcknowledgedResponse setUpgrademodeResponse = execute(new SetUpgradeModeRequest(true),
+            machineLearningClient::setUpgradeMode,
+            machineLearningClient::setUpgradeModeAsync);
+
+        assertThat(setUpgrademodeResponse.isAcknowledged(), is(true));
+
+
+        mlInfoResponse = machineLearningClient.getMlInfo(new MlInfoRequest(), RequestOptions.DEFAULT);
+        assertThat(mlInfoResponse.getInfo().get("upgrade_mode"), equalTo(true));
+
+        setUpgrademodeResponse = execute(new SetUpgradeModeRequest(false),
+            machineLearningClient::setUpgradeMode,
+            machineLearningClient::setUpgradeModeAsync);
+
+        assertThat(setUpgrademodeResponse.isAcknowledged(), is(true));
+
+        mlInfoResponse = machineLearningClient.getMlInfo(new MlInfoRequest(), RequestOptions.DEFAULT);
+        assertThat(mlInfoResponse.getInfo().get("upgrade_mode"), equalTo(false));
     }
 }

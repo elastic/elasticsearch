@@ -70,7 +70,6 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
 
     @Override
     protected NodesDeprecationCheckAction.NodeResponse nodeOperation(NodesDeprecationCheckAction.NodeRequest request) {
-        logger.error("I'm performing a deprecation check on node: {}", transportService.getLocalNode().getName());
         NodeInfo nodeInfo = new NodeInfo(Version.CURRENT, Build.CURRENT, transportService.getLocalNode(), settings,
             null, null, null, null, null, null,
             (pluginsService == null ? null : pluginsService.info()), null, null);

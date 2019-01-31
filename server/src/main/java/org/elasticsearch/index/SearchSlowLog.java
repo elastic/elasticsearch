@@ -187,7 +187,8 @@ public final class SearchSlowLog implements SearchOperationListener {
             sb.append("search_type[").append(context.searchType()).append("], total_shards[")
                 .append(context.numberOfShards()).append("], ");
             if (context.request().source() != null) {
-                sb.append("source[").append(context.request().source().toString(FORMAT_PARAMS)).append("], ");
+                String source = context.request().source().toString(FORMAT_PARAMS).trim();
+                sb.append("source[").append(source).append("], ");
             } else {
                 sb.append("source[], ");
             }

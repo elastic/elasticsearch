@@ -82,7 +82,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
     public void testTemplatedFields() throws Exception {
         String indexNamePrefix = randomAlphaOfLength(10);
         String dateRounding = randomFrom("y", "M", "w", "d", "h", "m", "s");
-        String indexNameFormat = randomFrom("yyyy-MM-dd'T'HH:mm:ss.SSSXX", "yyyyMMdd", "MM/dd/yyyy");
+        String indexNameFormat = randomFrom("yyyy-MM-dd'T'HH:mm:ss.SSSZZ", "yyyyMMdd", "MM/dd/yyyy");
         String date = Integer.toString(randomInt());
         Function<String, DateTime> dateTimeFunction = DateFormat.Unix.getFunction(null, DateTimeZone.UTC, null);
 

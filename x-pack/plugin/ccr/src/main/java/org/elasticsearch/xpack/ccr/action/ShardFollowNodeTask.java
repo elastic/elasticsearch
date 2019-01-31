@@ -133,21 +133,21 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
 
         // updates follower mapping, this gets us the leader mapping version and makes sure that leader and follower mapping are identical
-        updateMapping(0L, followerMappingVersion -> {
+        updateMapping(0L, leaderMappingVersion -> {
             synchronized (ShardFollowNodeTask.this) {
-                currentMappingVersion = followerMappingVersion;
+                currentMappingVersion = leaderMappingVersion;
             }
-            updateSettings(followerSettingsVersion -> {
+            updateSettings(leaderSettingsVersion -> {
                 synchronized (ShardFollowNodeTask.this) {
-                    currentSettingsVersion = followerSettingsVersion;
+                    currentSettingsVersion = leaderSettingsVersion;
                 }
                 LOGGER.info(
                         "{} following leader shard {}, follower global checkpoint=[{}], mapping version=[{}], settings version=[{}]",
                         params.getFollowShardId(),
                         params.getLeaderShardId(),
                         followerGlobalCheckpoint,
-                        followerMappingVersion,
-                        followerSettingsVersion);
+                        leaderMappingVersion,
+                        leaderSettingsVersion);
                 coordinateReads();
             });
         });

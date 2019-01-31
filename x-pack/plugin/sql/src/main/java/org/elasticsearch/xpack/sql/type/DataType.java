@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.type;
 
+import org.elasticsearch.xpack.sql.util.DateUtils;
+
 import java.sql.JDBCType;
 import java.sql.SQLType;
 import java.sql.Types;
@@ -72,7 +74,6 @@ public enum DataType {
     // @formatter:on
 
     private static final Map<String, DataType> odbcToEs;
-
     static {
         odbcToEs = new HashMap<>(36);
 
@@ -122,6 +123,7 @@ public enum DataType {
         odbcToEs.put("SQL_INTERVAL_DAY_TO_MINUTE", INTERVAL_DAY_TO_MINUTE);
         odbcToEs.put("SQL_INTERVAL_DAY_TO_SECOND", INTERVAL_DAY_TO_SECOND);
     }
+
 
     /**
      * Elasticsearch type name
@@ -239,5 +241,9 @@ public enum DataType {
         } catch (IllegalArgumentException ex) {
             return DataType.UNSUPPORTED;
         }
+    }
+
+    public String format() {
+        return isDateBased() ? DateUtils.DATE_PARSE_FORMAT : null;
     }
 }

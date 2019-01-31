@@ -26,7 +26,7 @@ import java.util.Objects;
  */
 public abstract class MonitoringDoc implements ToXContentObject {
 
-    private final static DateFormatter dateTimeFormatter = DateFormatter.forPattern("strict_date_time");
+    private static final DateFormatter dateTimeFormatter = DateFormatter.forPattern("strict_date_time");
     private final String cluster;
     private final long timestamp;
     private final long intervalMillis;

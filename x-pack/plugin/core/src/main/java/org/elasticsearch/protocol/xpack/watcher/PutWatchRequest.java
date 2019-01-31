@@ -207,7 +207,7 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
         } else {
             version = Versions.MATCH_ANY;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
             ifSeqNo = in.readZLong();
             ifPrimaryTerm = in.readVLong();
         } else {
@@ -228,7 +228,7 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeZLong(version);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
             out.writeZLong(ifSeqNo);
             out.writeVLong(ifPrimaryTerm);
         }

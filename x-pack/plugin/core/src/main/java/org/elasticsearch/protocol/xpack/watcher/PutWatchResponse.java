@@ -110,7 +110,7 @@ public class PutWatchResponse extends ActionResponse implements ToXContentObject
         super.writeTo(out);
         out.writeString(id);
         out.writeVLong(version);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
             out.writeZLong(seqNo);
             out.writeVLong(primaryTerm);
         }
@@ -122,7 +122,7 @@ public class PutWatchResponse extends ActionResponse implements ToXContentObject
         super.readFrom(in);
         id = in.readString();
         version = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
             seqNo = in.readZLong();
             primaryTerm = in.readVLong();
         } else {

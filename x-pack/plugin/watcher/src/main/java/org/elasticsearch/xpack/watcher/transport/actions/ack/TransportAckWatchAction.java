@@ -108,7 +108,7 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
 
                             UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId());
                             // this may reject this action, but prevents concurrent updates from a watch execution
-                            if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_0_0)) {
+                            if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0)) {
                                 updateRequest.setIfSeqNo(getResponse.getSeqNo());
                                 updateRequest.setIfPrimaryTerm(getResponse.getPrimaryTerm());
                             } else {

@@ -100,7 +100,7 @@ public class GetWatchResponse extends ActionResponse implements ToXContent {
             } else {
                 version = Versions.MATCH_ANY;
             }
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
                 seqNo = in.readZLong();
                 primaryTerm = in.readVLong();
             }
@@ -124,7 +124,7 @@ public class GetWatchResponse extends ActionResponse implements ToXContent {
             if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
                 out.writeZLong(version);
             }
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
                 out.writeZLong(seqNo);
                 out.writeVLong(primaryTerm);
             }

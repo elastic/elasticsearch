@@ -912,7 +912,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         docAsUpsert = in.readBoolean();
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
             ifSeqNo = in.readZLong();
             ifPrimaryTerm = in.readVLong();
         }
@@ -960,7 +960,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeBoolean(docAsUpsert);
         out.writeLong(version);
         out.writeByte(versionType.getValue());
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
             out.writeZLong(ifSeqNo);
             out.writeVLong(ifPrimaryTerm);
         }

@@ -522,7 +522,9 @@ final class IndicesRequestConverters {
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withMasterTimeout(putIndexTemplateRequest.masterNodeTimeout());
-        params.putParam(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, Boolean.FALSE.toString());
+        if (putIndexTemplateRequest.mappings() != null) {
+            params.putParam(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, Boolean.FALSE.toString());
+        }
         if (putIndexTemplateRequest.create()) {
             params.putParam("create", Boolean.TRUE.toString());
         }

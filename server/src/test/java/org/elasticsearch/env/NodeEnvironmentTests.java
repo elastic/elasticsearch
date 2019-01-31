@@ -524,7 +524,9 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
-    private static <T extends Throwable> T expectLoggingThrows(Class<T> expectedType, String noExceptionMessage, ThrowingRunnable runnable) {
+    private static <T extends Throwable> T expectLoggingThrows(Class<T> expectedType,
+                                                               String noExceptionMessage,
+                                                               ThrowingRunnable runnable) {
         try {
             runnable.run();
         } catch (Throwable e) {
@@ -534,7 +536,8 @@ public class NodeEnvironmentTests extends ESTestCase {
             if (expectedType.isInstance(e)) {
                 return expectedType.cast(e);
             }
-            AssertionFailedError assertion = new AssertionFailedError("Unexpected exception type, expected " + expectedType.getSimpleName() + " but got " + e);
+            AssertionFailedError assertion =
+                new AssertionFailedError("Unexpected exception type, expected " + expectedType.getSimpleName() + " but got " + e);
             assertion.initCause(e);
             throw assertion;
         }

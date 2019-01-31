@@ -655,6 +655,7 @@ public abstract class EngineTestCase extends ESTestCase {
                     shardId,
                     allocationId.getId(),
                     indexSettings,
+                    randomNonNegativeLong(),
                     SequenceNumbers.NO_OPS_PERFORMED,
                     update -> {},
                     () -> 0L,

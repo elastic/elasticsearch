@@ -35,7 +35,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -125,11 +124,6 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         ensureStableCluster(3);
 
-        logger.info("--> reducing min master nodes to 2");
-        assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2))
-                .get());
-
         String master = internalCluster().getMasterName();
         String nonMaster = null;
         for (String node : internalCluster().getNodeNames()) {
@@ -154,7 +148,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      */
     @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.test.disruption:TRACE")
     public void testStaleMasterNotHijackingMajority() throws Exception {
-        // 3 node cluster with unicast discovery and minimum_master_nodes set to the default of 2:
+        // 3 node cluster with unicast discovery:
         final List<String> nodes = startCluster(3);
 
         // Save the current master node as old master node, because that node will get frozen

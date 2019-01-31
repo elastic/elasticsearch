@@ -25,14 +25,13 @@ import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExc
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -76,7 +75,6 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         bootstrapMasterNodeId = 2;
 
         Settings settings = Settings.builder()
-                .put("discovery.zen.minimum_master_nodes", 2)
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
@@ -210,7 +208,6 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         bootstrapMasterNodeId = 3;
 
         Settings settings = Settings.builder()
-                .put("discovery.zen.minimum_master_nodes", 3)
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "1s")
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
@@ -288,10 +285,8 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         Settings settings = Settings.builder()
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
                 .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "100ms") // speed things up
                 .build();
-
 
         internalCluster().startNodes(3, settings);
         ensureGreen(); // ensure cluster state is recovered before we disrupt things

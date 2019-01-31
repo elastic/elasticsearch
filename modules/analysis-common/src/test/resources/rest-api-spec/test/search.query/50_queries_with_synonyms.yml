@@ -2,6 +2,7 @@
 "Test common terms query with stacked tokens":
   - do:
       indices.create:
+          include_type_name: false
           index: test
           body:
             settings:
@@ -15,19 +16,17 @@
                     tokenizer: standard
                     filter: [ "syns" ]
             mappings:
-              test:
-                properties:
-                  field1:
-                    type: text
-                    analyzer: syns
-                  field2:
-                    type: text
-                    analyzer: syns
+              properties:
+                field1:
+                  type: text
+                  analyzer: syns
+                field2:
+                  type: text
+                  analyzer: syns
 
   - do:
       index:
           index: test
-          type: test
           id: 3
           body:
             field1: quick lazy huge brown pidgin
@@ -36,7 +35,6 @@
   - do:
       index:
           index: test
-          type: test
           id: 1
           body:
             field1: the quick brown fox
@@ -44,7 +42,6 @@
   - do:
       index:
           index: test
-          type: test
           id: 2
           body:
             field1: the quick lazy huge brown fox jumps over the tree
@@ -223,6 +220,7 @@
 "Test match query with synonyms - see #3881 for extensive description of the issue":
   - do:
       indices.create:
+          include_type_name: false
           index: test
           body:
             settings:
@@ -242,17 +240,15 @@
                     tokenizer: standard
                     filter: [ lowercase, synonym ]
             mappings:
-              test:
-                properties:
-                  text:
-                    type: text
-                    analyzer: index
-                    search_analyzer: search
+              properties:
+                text:
+                  type: text
+                  analyzer: index
+                  search_analyzer: search
 
   - do:
       index:
           index: test
-          type: test
           id: 1
           body:
             text: quick brown fox
@@ -294,7 +290,6 @@
   - do:
       index:
           index: test
-          type: test
           id: 2
           body:
             text: fast brown fox
@@ -321,5 +316,3 @@
                 query: quick brown
                 operator: and
   - match: { hits.total: 2 }
-
-

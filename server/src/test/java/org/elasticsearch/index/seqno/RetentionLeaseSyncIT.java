@@ -37,8 +37,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -46,6 +44,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class RetentionLeaseSyncIT extends ESIntegTestCase  {
 
     public void testRetentionLeasesSyncedOnAdd() throws Exception {
@@ -77,7 +76,7 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
             // check retention leases have been committed on the primary
             final Collection<RetentionLease> primaryCommittedRetentionLeases = RetentionLease.decodeRetentionLeases(
                     primary.acquireLastIndexCommit(false).getIndexCommit().getUserData().get(Engine.RETENTION_LEASES));
-            assertThat(currentRetentionLeases, equalTo(toMap(primaryCommittedRetentionLeases)));
+            assertThat(currentRetentionLeases, equalTo(RetentionLease.toMap(primaryCommittedRetentionLeases)));
 
             // check current retention leases have been synced to all replicas
             for (final ShardRouting replicaShard : clusterService().state().routingTable().index("index").shard(0).replicaShards()) {
@@ -86,17 +85,18 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
                 final IndexShard replica = internalCluster()
                         .getInstance(IndicesService.class, replicaShardNodeName)
                         .getShardOrNull(new ShardId(resolveIndex("index"), 0));
-                final Map<String, RetentionLease> retentionLeasesOnReplica = toMap(replica.getRetentionLeases());
+                final Map<String, RetentionLease> retentionLeasesOnReplica = RetentionLease.toMap(replica.getRetentionLeases());
                 assertThat(retentionLeasesOnReplica, equalTo(currentRetentionLeases));
 
                 // check retention leases have been committed on the replica
                 final Collection<RetentionLease> replicaCommittedRetentionLeases = RetentionLease.decodeRetentionLeases(
                         replica.acquireLastIndexCommit(false).getIndexCommit().getUserData().get(Engine.RETENTION_LEASES));
-                assertThat(currentRetentionLeases, equalTo(toMap(replicaCommittedRetentionLeases)));
+                assertThat(currentRetentionLeases, equalTo(RetentionLease.toMap(replicaCommittedRetentionLeases)));
             }
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37963")
     public void testRetentionLeasesSyncOnExpiration() throws Exception {
         final int numberOfReplicas = 2 - scaledRandomIntBetween(0, 2);
         internalCluster().ensureAtLeastNumDataNodes(1 + numberOfReplicas);
@@ -162,10 +162,6 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
                 }
             });
         }
-    }
-
-    private static Map<String, RetentionLease> toMap(final Collection<RetentionLease> replicaCommittedRetentionLeases) {
-        return replicaCommittedRetentionLeases.stream().collect(Collectors.toMap(RetentionLease::id, Function.identity()));
     }
 
 }

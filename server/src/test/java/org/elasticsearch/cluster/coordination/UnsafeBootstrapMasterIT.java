@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetaData;
@@ -116,7 +115,6 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
     public void testNotBootstrappedCluster() throws Exception {
         internalCluster().startNode(
                 Settings.builder()
-                        .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
                         .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup
                         .build());
         assertBusy(() -> {
@@ -133,9 +131,7 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
 
     public void testNoManifestFile() throws IOException {
         bootstrapMasterNodeId = 1;
-        internalCluster().startNode(Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build());
+        internalCluster().startNode();
         ensureStableCluster(1);
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
         internalCluster().stopRandomDataNode();
@@ -147,9 +143,7 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
 
     public void testNoMetaData() throws IOException {
         bootstrapMasterNodeId = 1;
-        internalCluster().startNode(Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build());
+        internalCluster().startNode();
         ensureStableCluster(1);
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
         internalCluster().stopRandomDataNode();
@@ -162,9 +156,7 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
 
     public void testAbortedByUser() throws IOException {
         bootstrapMasterNodeId = 1;
-        internalCluster().startNode(Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build());
+        internalCluster().startNode();
         ensureStableCluster(1);
         internalCluster().stopRandomDataNode();
 
@@ -174,13 +166,9 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
 
     public void test3MasterNodes2Failed() throws Exception {
         bootstrapMasterNodeId = 3;
-        List<String> masterNodes = internalCluster().startMasterOnlyNodes(3, Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build());
+        List<String> masterNodes = internalCluster().startMasterOnlyNodes(3, Settings.EMPTY);
 
-        String dataNode = internalCluster().startDataOnlyNode(Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build());
+        String dataNode = internalCluster().startDataOnlyNode();
         createIndex("test");
 
         Client dataNodeClient = internalCluster().client(dataNode);
@@ -207,9 +195,7 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
                 String.format(Locale.ROOT, UnsafeBootstrapMasterCommand.CLUSTER_STATE_TERM_VERSION_MSG_FORMAT,
                         metaData.coordinationMetaData().term(), metaData.version())));
 
-        internalCluster().startMasterOnlyNode(Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build());
+        internalCluster().startMasterOnlyNode();
 
         assertBusy(() -> {
             ClusterState state = dataNodeClient.admin().cluster().prepareState().setLocal(true)

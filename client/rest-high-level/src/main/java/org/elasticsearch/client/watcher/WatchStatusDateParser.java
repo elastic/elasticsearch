@@ -55,6 +55,6 @@ public final class WatchStatusDateParser {
     }
 
     public static ZonedDateTime parseDate(String text) {
-        return DateFormatters.toZonedDateTime(FORMATTER.parse(text));
+        return DateFormatters.from(FORMATTER.parse(text));
     }
 }

@@ -178,8 +178,8 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         config.put("properties", Collections.singletonList("invalid"));
 
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, config));
-        assertThat(e.getMessage(), equalTo("[properties] illegal property value [invalid]. valid values are [NAME, MAJOR, MINOR, "
-                + "PATCH, OS, OS_NAME, OS_MAJOR, OS_MINOR, DEVICE, BUILD]"));
+        assertThat(e.getMessage(), equalTo("[properties] illegal property value [invalid]. valid values are [NAME, OS, DEVICE, " +
+            "ORIGINAL, VERSION]"));
     }
 
     public void testInvalidPropertiesType() throws Exception {

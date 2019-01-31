@@ -157,7 +157,7 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
             }
             List<String> dateFormatStrings = ConfigurationUtils.readOptionalList(TYPE, tag, config, "date_formats");
             if (dateFormatStrings == null) {
-                dateFormatStrings = Collections.singletonList("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+                dateFormatStrings = Collections.singletonList("yyyy-MM-dd'T'HH:mm:ss.SSSXX");
             }
             List<Function<String, DateTime>> dateFormats = new ArrayList<>(dateFormatStrings.size());
             for (String format : dateFormatStrings) {

@@ -42,6 +42,9 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
             LogManager.getLogger(RestPutIndexTemplateAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
+            " Specifying include_type_name in put index template requests is deprecated."+
+            " The parameter will be removed in the next major version.";
 
     public RestPutIndexTemplateAction(Settings settings, RestController controller) {
         super(settings);
@@ -57,6 +60,9 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
+        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+            deprecationLogger.deprecatedAndMaybeLog("put_index_template_with_types", TYPES_DEPRECATION_MESSAGE);
+        }
         if (request.hasParam("template")) {
             deprecationLogger.deprecated("Deprecated parameter[template] used, replaced by [index_patterns]");
             putRequest.patterns(Collections.singletonList(request.param("template")));

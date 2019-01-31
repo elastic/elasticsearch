@@ -1,24 +1,23 @@
 setup:
   - do:
       indices.create:
+          include_type_name: false
           index: test
           body:
             mappings:
-              unified:
-                "properties":
-                  "text":
-                     "type": "text"
-                     "fields":
-                        "fvh":
-                          "type": "text"
-                          "term_vector": "with_positions_offsets"
-                        "postings":
-                          "type": "text"
-                          "index_options": "offsets"
+              "properties":
+                "text":
+                   "type": "text"
+                   "fields":
+                      "fvh":
+                        "type": "text"
+                        "term_vector": "with_positions_offsets"
+                      "postings":
+                        "type": "text"
+                        "index_options": "offsets"
   - do:
       index:
         index: test
-        type:  unified
         id:    1
         body:
             "text" : "The quick brown fox is brown."

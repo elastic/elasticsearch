@@ -63,6 +63,11 @@ Example response:
       "expiry_date_in_millis" : 1542665112332
    },
    "features" : {
+      "ccr" : {
+        "description" : "Cross Cluster Replication",
+        "available" : true,
+        "enabled" : true
+      },
       "data_frame" : {
           "description" : "Data Frame for the Elastic Stack",
           "available" : true,

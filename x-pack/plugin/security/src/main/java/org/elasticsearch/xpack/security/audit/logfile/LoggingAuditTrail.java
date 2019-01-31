@@ -790,10 +790,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     private static Optional<String[]> indices(TransportMessage message) {
         if (message instanceof IndicesRequest) {
             final String[] indices = ((IndicesRequest) message).indices();
-            if (indices == null || indices.length == 0 || indices[0] == null) {
-                return Optional.empty();
-            } else {
-                return Optional.of(indices);
+            if (indices != null) {
+                return Optional.of(((IndicesRequest) message).indices());
             }
         }
         return Optional.empty();

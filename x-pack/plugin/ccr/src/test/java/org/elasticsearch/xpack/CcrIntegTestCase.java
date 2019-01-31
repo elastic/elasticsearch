@@ -551,27 +551,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         });
     }
 
-    protected void assertTotalNumberOfOptimizedIndexing(Index followerIndex, int numberOfShards, long expectedTotal) throws Exception {
-        assertBusy(() -> {
-            long[] numOfOptimizedOps = new long[numberOfShards];
-            for (int shardId = 0; shardId < numberOfShards; shardId++) {
-                for (String node : getFollowerCluster().nodesInclude(followerIndex.getName())) {
-                    IndicesService indicesService = getFollowerCluster().getInstance(IndicesService.class, node);
-                    IndexShard shard = indicesService.getShardOrNull(new ShardId(followerIndex, shardId));
-                    if (shard != null && shard.routingEntry().primary()) {
-                        try {
-                            FollowingEngine engine = ((FollowingEngine) IndexShardTestCase.getEngine(shard));
-                            numOfOptimizedOps[shardId] = engine.getNumberOfOptimizedIndexing();
-                        } catch (AlreadyClosedException e) {
-                            throw new AssertionError(e); // causes assertBusy to retry
-                        }
-                    }
-                }
-            }
-            assertThat(Arrays.stream(numOfOptimizedOps).sum(), equalTo(expectedTotal));
-        });
-    }
-
     static void removeCCRRelatedMetadataFromClusterState(ClusterService clusterService) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         clusterService.submitStateUpdateTask("remove-ccr-related-metadata", new ClusterStateUpdateTask() {

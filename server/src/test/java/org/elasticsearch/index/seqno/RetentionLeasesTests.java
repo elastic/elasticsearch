@@ -27,10 +27,28 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class RetentionLeasesTests extends ESTestCase {
+
+    public void testPrimaryTermOutOfRange() {
+        final long primaryTerm = randomLongBetween(Long.MIN_VALUE, 0);
+        final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new RetentionLeases(primaryTerm, randomNonNegativeLong(), Collections.emptyList()));
+        assertThat(e, hasToString(containsString("primary term must be positive but was [" + primaryTerm + "]")));
+    }
+
+    public void testVersionOutOfRange() {
+        final long version = randomLongBetween(Long.MIN_VALUE, -1);
+        final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new RetentionLeases(randomLongBetween(1, Long.MAX_VALUE), version, Collections.emptyList()));
+        assertThat(e, hasToString(containsString("version must be non-negative but was [" + version + "]")));
+    }
 
     public void testRetentionLeasesEncoding() {
         final long primaryTerm = randomNonNegativeLong();

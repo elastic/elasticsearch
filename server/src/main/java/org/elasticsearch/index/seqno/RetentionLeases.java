@@ -108,7 +108,7 @@ public class RetentionLeases implements Writeable {
      * Represents an empty an un-versioned retention lease collection. This is used when no retention lease collection is found in the
      * commit point
      */
-    public static RetentionLeases EMPTY = new RetentionLeases(0, 0, Collections.emptyList());
+    public static RetentionLeases EMPTY = new RetentionLeases(1, 0, Collections.emptyList());
 
     /**
      * Constructs a new retention lease collection with the specified version and underlying collection of retention leases.
@@ -118,8 +118,8 @@ public class RetentionLeases implements Writeable {
      * @param leases  the retention leases
      */
     public RetentionLeases(final long primaryTerm, final long version, final Collection<RetentionLease> leases) {
-        if (primaryTerm < 0) {
-            throw new IllegalArgumentException("primary term must be non-negative but was [" + primaryTerm + "]");
+        if (primaryTerm <= 0) {
+            throw new IllegalArgumentException("primary term must be positive but was [" + primaryTerm + "]");
         }
         if (version < 0) {
             throw new IllegalArgumentException("version must be non-negative but was [" + version + "]");

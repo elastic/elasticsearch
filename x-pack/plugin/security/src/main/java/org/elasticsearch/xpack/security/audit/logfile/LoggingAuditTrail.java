@@ -845,10 +845,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         EventFilterPolicy(String name, Predicate<String> ignorePrincipalsPredicate, Predicate<String> ignoreRealmsPredicate,
                 Predicate<String> ignoreRolesPredicate, Predicate<String> ignoreIndicesPredicate) {
             this.name = name;
-            this.ignorePrincipalsPredicate = ignorePrincipalsPredicate;
-            this.ignoreRealmsPredicate = ignoreRealmsPredicate;
-            this.ignoreRolesPredicate = ignoreRolesPredicate;
-            this.ignoreIndicesPredicate = ignoreIndicesPredicate;
+            // "null" values are "unexpected" and should not match any ignore policy
+            this.ignorePrincipalsPredicate = principal -> principal != null && ignorePrincipalsPredicate.test(principal);
+            this.ignoreRealmsPredicate = realm -> realm != null && ignoreRealmsPredicate.test(realm);
+            this.ignoreRolesPredicate = role -> role != null && ignoreRolesPredicate.test(role);
+            this.ignoreIndicesPredicate = index -> index != null && ignoreIndicesPredicate.test(index);
         }
 
         private EventFilterPolicy changePrincipalsFilter(List<String> filtersList) {

@@ -188,9 +188,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 // the primary calculates the non-expired retention leases and syncs them to replicas
                 final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
                 final long retentionLeaseMillis = indexSettings.getRetentionLeaseMillis();
-                final Map<String, RetentionLease> leases = RetentionLeases.toMap(retentionLeases);
-                final Map<Boolean, List<RetentionLease>> partition = leases
-                        .values()
+                final Map<Boolean, List<RetentionLease>> partition = retentionLeases
+                        .leases()
                         .stream()
                         .collect(Collectors.groupingBy(lease -> currentTimeMillis - lease.timestamp() > retentionLeaseMillis));
                 if (partition.get(true) == null) {

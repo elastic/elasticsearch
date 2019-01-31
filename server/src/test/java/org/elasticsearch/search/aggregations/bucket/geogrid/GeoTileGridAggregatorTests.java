@@ -35,4 +35,16 @@ public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<Intern
     protected GeoGridAggregationBuilder createBuilder(String name) {
         return new GeoTileGridAggregationBuilder(name);
     }
+
+    public void testPrecision() {
+        final GeoGridAggregationBuilder builder = createBuilder("_name");
+
+        expectThrows(IllegalArgumentException.class, () -> builder.precision(-1));
+        expectThrows(IllegalArgumentException.class, () -> builder.precision(30));
+
+        int precision = randomIntBetween(0, 29);
+        builder.precision(precision);
+        assertEquals(precision, builder.precision());
+    }
+
 }

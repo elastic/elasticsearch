@@ -375,8 +375,9 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         final String node1 = getLocalNodeId(server_1);
 
         assertAcked(client().execute(StopILMAction.INSTANCE, new StopILMRequest()).get());
-        GetStatusAction.Response statusResponse = client().execute(GetStatusAction.INSTANCE, new GetStatusAction.Request()).get();
-        assertThat(statusResponse.getMode(), equalTo(OperationMode.STOPPING));
+        assertBusy(() -> assertThat(
+            client().execute(GetStatusAction.INSTANCE, new GetStatusAction.Request()).get().getMode(),
+            equalTo(OperationMode.STOPPED)));
 
         logger.info("Creating lifecycle [test_lifecycle]");
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
@@ -396,7 +397,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         assertThat(actualModifiedDate,
             is(both(greaterThanOrEqualTo(lowerBoundModifiedDate)).and(lessThanOrEqualTo(upperBoundModifiedDate))));
         // assert ILM is still stopped
-        statusResponse = client().execute(GetStatusAction.INSTANCE, new GetStatusAction.Request()).get();
+        GetStatusAction.Response statusResponse = client().execute(GetStatusAction.INSTANCE, new GetStatusAction.Request()).get();
         assertThat(statusResponse.getMode(), equalTo(OperationMode.STOPPED));
     }
 

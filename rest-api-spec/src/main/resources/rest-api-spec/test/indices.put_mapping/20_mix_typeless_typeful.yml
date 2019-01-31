@@ -56,9 +56,12 @@
 ---
 "PUT mapping with _doc on an index that has types":
 
+ - skip:
+      version: " - 5.99.99"
+      reason: 5.x indices can have types that start with an `_`
+
  - do:
       indices.create:
-          include_type_name: true
           index: index
           body:
               mappings:
@@ -70,7 +73,6 @@
  - do:
       catch: /the final mapping would have more than 1 type/
       indices.put_mapping:
-          include_type_name: true
           index: index
           type: _doc
           body:

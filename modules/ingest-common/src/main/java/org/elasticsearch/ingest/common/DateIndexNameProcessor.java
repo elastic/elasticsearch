@@ -90,13 +90,15 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
         String indexNameFormat = ingestDocument.renderTemplate(indexNameFormatTemplate);
         String dateRounding = ingestDocument.renderTemplate(dateRoundingTemplate);
 
-        DateFormatter formatter = DateFormatter.forPattern(indexNameFormat);;
+        DateFormatter formatter = DateFormatter.forPattern(indexNameFormat);
+        // use UTC instead of Z is string representation of UTC, so behaviour is the same between 6.x and 7
+        String zone = timezone.equals(ZoneOffset.UTC) ? "UTC" : timezone.getId();
         StringBuilder builder = new StringBuilder()
                 .append('<')
                 .append(indexNamePrefix)
                     .append('{')
                         .append(formatter.format(dateTime)).append("||/").append(dateRounding)
-                            .append('{').append(indexNameFormat).append('|').append(timezone.getId()).append('}')
+                            .append('{').append(indexNameFormat).append('|').append(zone).append('}')
                     .append('}')
                 .append('>');
         String dynamicIndexName  = builder.toString();

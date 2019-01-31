@@ -42,7 +42,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null,
                 Collections.singletonMap("_field", "2016-04-25T12:24:20.101Z"));
         processor.execute(document);
-        assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{20160425||/y{yyyyMMdd|Z}}>"));
+        assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{20160425||/y{yyyyMMdd|UTC}}>"));
     }
 
     public void testTAI64N()throws Exception {
@@ -52,7 +52,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null,
                 Collections.singletonMap("_field", (randomBoolean() ? "@" : "") + "4000000050d506482dbdf024"));
         dateProcessor.execute(document);
-        assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{20121222||/m{yyyyMMdd|Z}}>"));
+        assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{20121222||/m{yyyyMMdd|UTC}}>"));
     }
 
     public void testUnixMs()throws Exception {
@@ -62,12 +62,12 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null,
                 Collections.singletonMap("_field", "1000500"));
         dateProcessor.execute(document);
-        assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|Z}}>"));
+        assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
 
         document = new IngestDocument("_index", "_type", "_id", null, null, null,
                 Collections.singletonMap("_field", 1000500L));
         dateProcessor.execute(document);
-        assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|Z}}>"));
+        assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
     }
 
     public void testUnix()throws Exception {
@@ -77,7 +77,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null,
                 Collections.singletonMap("_field", "1000.5"));
         dateProcessor.execute(document);
-        assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|Z}}>"));
+        assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
     }
 
     public void testTemplatedFields() throws Exception {
@@ -97,7 +97,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
 
         assertThat(document.getSourceAndMetadata().get("_index"),
             equalTo("<"+indexNamePrefix+"{" + DateFormatter.forPattern(indexNameFormat)
-                .format(dateTimeFunction.apply(date))+"||/"+dateRounding+"{"+indexNameFormat+"|Z}}>"));
+                .format(dateTimeFunction.apply(date))+"||/"+dateRounding+"{"+indexNameFormat+"|UTC}}>"));
     }
 
     private DateIndexNameProcessor createProcessor(String field, List<Function<String, ZonedDateTime>> dateFormats,

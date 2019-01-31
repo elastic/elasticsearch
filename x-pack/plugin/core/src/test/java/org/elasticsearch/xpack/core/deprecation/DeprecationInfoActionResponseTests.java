@@ -5,10 +5,7 @@
  */
 package org.elasticsearch.xpack.core.deprecation;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,7 +28,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -78,12 +74,6 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
         DiscoveryNode discoveryNode = DiscoveryNode.createLocal(Settings.EMPTY,
             new TransportAddress(TransportAddress.META_ADDRESS, 9300), "test");
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(metadata).build();
-        List<NodeInfo> nodeInfos = Collections.singletonList(new NodeInfo(Version.CURRENT, Build.CURRENT,
-            discoveryNode, null, null, null, null,
-            null, null, null, null, null, null));
-        List<NodeStats> nodeStats = Collections.singletonList(new NodeStats(discoveryNode, 0L, null,
-            null, null, null, null, null, null, null, null,
-            null, null, null, null));
         List<DatafeedConfig> datafeeds = Collections.singletonList(DatafeedConfigTests.createRandomizedDatafeedConfig("foo"));
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(Settings.EMPTY);
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false,
@@ -97,11 +87,6 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
             Collections.unmodifiableList(Arrays.asList(
                 (s) -> clusterIssueFound ? foundIssue : null
             ));
-        List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> nodeSettingsChecks =
-            Collections.unmodifiableList(Arrays.asList(
-                (ln, ls) -> nodeIssueFound ? foundIssue : null
-            ));
-
         List<Function<IndexMetaData, DeprecationIssue>> indexSettingsChecks =
             Collections.unmodifiableList(Arrays.asList(
                 (idx) -> indexIssueFound ? foundIssue : null
@@ -111,9 +96,17 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
                         (idx) -> mlIssueFound ? foundIssue : null
                 ));
 
-        DeprecationInfoAction.Response response = DeprecationInfoAction.Response.from(nodeInfos, nodeStats, state,
+        NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
+            new ClusterName(randomAlphaOfLength(5)),
+            nodeIssueFound
+                ? Collections.singletonList(
+                    new NodesDeprecationCheckAction.NodeResponse(discoveryNode, Collections.singletonList(foundIssue)))
+                : Collections.emptyList(),
+            Collections.emptyList());
+
+        DeprecationInfoAction.Response response = DeprecationInfoAction.Response.from(state,
             resolver, Strings.EMPTY_ARRAY, indicesOptions, datafeeds,
-            clusterSettingsChecks, nodeSettingsChecks, indexSettingsChecks, mlSettingsChecks);
+            nodeDeprecationIssues, indexSettingsChecks, clusterSettingsChecks, mlSettingsChecks);
 
         if (clusterIssueFound) {
             assertThat(response.getClusterSettingsIssues(), equalTo(Collections.singletonList(foundIssue)));

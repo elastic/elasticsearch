@@ -33,6 +33,7 @@ setup:
 
   - do:
         indices.create:
+          include_type_name: true
           index: single_doc_index
           body:
             settings:
@@ -55,6 +56,7 @@ setup:
 
   - do:
         indices.create:
+          include_type_name: true
           index: field_caps_index_1
           body:
               mappings:
@@ -79,6 +81,7 @@ setup:
                           doc_values: false
   - do:
         indices.create:
+          include_type_name: true
           index: field_caps_index_3
           body:
               mappings:

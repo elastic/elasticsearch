@@ -79,8 +79,7 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
                         ActionListener.<GetResponse>wrap(getResponse -> {
                             if (getResponse.isExists()) {
                                 Watch watch = parser.parseWithSecrets(request.getWatchId(), true, getResponse.getSourceAsBytesRef(), now,
-                                        XContentType.JSON);
-                                watch.version(getResponse.getVersion());
+                                        XContentType.JSON, getResponse.getSeqNo(), getResponse.getPrimaryTerm());
                                 watch.status().version(getResponse.getVersion());
                                 listener.onResponse(new ActivateWatchResponse(watch.status()));
                             } else {

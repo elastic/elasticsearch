@@ -2,17 +2,16 @@
 setup:
   - do:
       indices.create:
+        include_type_name: false
         index: test123
         body:
           mappings:
-            test:
-              properties:
-                age:
-                  type: long
+            properties:
+              age:
+                type: long
   - do:
       index:
         index:  test123
-        type:   test
         id:     1
         body:   { age: 23 }
 
@@ -33,4 +32,3 @@ setup:
                 source: 'doc["age"].value + 19'
 
   - match:  { hits.hits.0.fields.my_field.0: 42.0 }
-

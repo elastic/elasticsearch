@@ -106,6 +106,46 @@ public class ClientYamlTestExecutionContext {
             requestParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
         }
 
+        // When running tests against a mixed 7.x/6.x cluster we need to add the type to the document API
+        // requests if its not already included.
+        if ((apiName.equals("index") || apiName.equals("update") || apiName.equals("delete") || apiName.equals("get"))
+                && esVersion().before(Version.V_7_0_0) && requestParams.containsKey("type") == false) {
+            requestParams.put("type", "_doc");
+        }
+
+        // When running tests against a mixed 7.x/6.x cluster we need to add the type to the bulk API requests
+        // if its not already included. The type can either be on the request parameters or in the action metadata
+        // in the body of the request so we need to be sensitive to both scenarios
+        if (apiName.equals("bulk") && esVersion().before(Version.V_7_0_0) && requestParams.containsKey("type") == false) {
+            if (requestParams.containsKey("index")) {
+                requestParams.put("type", "_doc");
+            } else {
+                for (int i = 0; i < bodies.size(); i++) {
+                    Map<String, Object> body = bodies.get(i);
+                    Map<String, Object> actionMetadata;
+                    if (body.containsKey("index")) {
+                        actionMetadata = (Map<String, Object>) body.get("index");
+                        i++;
+                    } else if (body.containsKey("create")) {
+                        actionMetadata = (Map<String, Object>) body.get("create");
+                        i++;
+                    } else if (body.containsKey("update")) {
+                        actionMetadata = (Map<String, Object>) body.get("update");
+                        i++;
+                    } else if (body.containsKey("delete")) {
+                        actionMetadata = (Map<String, Object>) body.get("delete");
+                    } else {
+                        // action metadata is malformed so leave it malformed since
+                        // the test is probably testing for malformed action metadata
+                        continue;
+                    }
+                    if (actionMetadata.containsKey("_type") == false) {
+                        actionMetadata.put("_type", "_doc");
+                    }
+                }
+            }
+        }
+
         HttpEntity entity = createEntity(bodies, requestHeaders);
         try {
             response = callApiInternal(apiName, requestParams, entity, requestHeaders, nodeSelector);

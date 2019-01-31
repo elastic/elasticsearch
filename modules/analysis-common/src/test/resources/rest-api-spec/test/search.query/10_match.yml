@@ -5,6 +5,7 @@
   # versions in the same position.
   - do:
       indices.create:
+        include_type_name: false
         index: test
         body:
           settings:
@@ -24,17 +25,15 @@
                   type: unique
                   only_on_same_position: true
           mappings:
-            doc:
-              properties:
-                text:
-                  type: text
-                  analyzer: index
-                  search_analyzer: search
+            properties:
+              text:
+                type: text
+                analyzer: index
+                search_analyzer: search
 
   - do:
       index:
         index: test
-        type:  doc
         id:    1
         body:  { "text": "the fox runs across the street" }
         refresh: true
@@ -53,7 +52,6 @@
   - do:
       index:
         index: test
-        type:  doc
         id:    2
         body:  { "text": "run fox run" }
         refresh: true

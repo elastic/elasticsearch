@@ -52,7 +52,7 @@ dependencies {
   compile 'com.google.protobuf:protobuf-java:2.5.0'
   compile 'commons-logging:commons-logging:1.1.3'
   compile 'commons-cli:commons-cli:1.2'
-  compile 'commons-codec:commons-codec:1.10'
+  compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile 'commons-collections:commons-collections:3.2.2'
   compile 'commons-configuration:commons-configuration:1.6'
   compile 'commons-io:commons-io:2.4'

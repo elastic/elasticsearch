@@ -25,7 +25,7 @@
   - do:
       indices.get_mapping:
         index: test_index
-  
+
   - match: {test_index.mappings.properties.text1.type:     text}
   - match: {test_index.mappings.properties.text1.analyzer: whitespace}
   - match: {test_index.mappings.properties.text2.type:     text}
@@ -47,7 +47,7 @@
   - do:
       indices.get_mapping:
         index: test_index
-  
+
   - match: {test_index.mappings.properties.text1.type:     text}
   - match: {test_index.mappings.properties.subfield.properties.text3.type:     text}
   - match: {test_index.mappings.properties.text1.fields.text_raw.type: keyword}

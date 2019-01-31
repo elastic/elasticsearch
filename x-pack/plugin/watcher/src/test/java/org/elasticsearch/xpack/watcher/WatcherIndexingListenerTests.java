@@ -63,6 +63,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.Is.is;
 import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -134,13 +135,13 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         boolean watchActive = randomBoolean();
         boolean isNewWatch = randomBoolean();
         Watch watch = mockWatch("_id", watchActive, isNewWatch);
-        when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject())).thenReturn(watch);
+        when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject(), anyLong(), anyLong())).thenReturn(watch);
 
         Engine.Index returnedOperation = listener.preIndex(shardId, operation);
         assertThat(returnedOperation, is(operation));
 
         DateTime now = new DateTime(clock.millis(), UTC);
-        verify(parser).parseWithSecrets(eq(operation.id()), eq(true), eq(BytesArray.EMPTY), eq(now), anyObject());
+        verify(parser).parseWithSecrets(eq(operation.id()), eq(true), eq(BytesArray.EMPTY), eq(now), anyObject(), anyLong(), anyLong());
 
         if (isNewWatch) {
             if (watchActive) {
@@ -162,7 +163,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
         when(operation.type()).thenReturn(Watch.DOC_TYPE);
-        when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject())).thenReturn(watch);
+        when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject(), anyLong(), anyLong())).thenReturn(watch);
 
         for (int idx = 0; idx < totalShardCount; idx++) {
             final Map<ShardId, ShardAllocationConfiguration> localShards = new HashMap<>();
@@ -207,7 +208,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(operation.id()).thenReturn(id);
         when(operation.source()).thenReturn(BytesArray.EMPTY);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
-        when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject()))
+        when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject(), anyLong(), anyLong()))
                 .thenThrow(new IOException("self thrown"));
 
         ElasticsearchParseException exc = expectThrows(ElasticsearchParseException.class,

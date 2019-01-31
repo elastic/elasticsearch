@@ -30,9 +30,12 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizeLat;
 import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
 
 /**
- * Implements quad key hashing, same as used by map tiles.
+ * Implements geotile key hashing, same as used by many map tile implementations.
  * The string key is formatted as  "zoom/x/y"
- * The hash value (long) contains all three of those values.
+ * The hash value (long) contains all three of those values compacted into a single 64bit value:
+ *   bits 58..63 -- zoom (0..29)
+ *   bits 29..57 -- X tile index (0..2^zoom)
+ *   bits  0..28 -- Y tile index (0..2^zoom)
  */
 class GeoTileUtils {
 
@@ -40,19 +43,21 @@ class GeoTileUtils {
      * Largest number of tiles (precision) to use.
      * This value cannot be more than (64-5)/2 = 29, because 5 bits are used for zoom level itself (0-31)
      * If zoom is not stored inside hash, it would be possible to use up to 32.
+     * Note that changing this value will make serialization binary-incompatible between versions.
      * Another consideration is that index optimizes lat/lng storage, loosing some precision.
      * E.g. hash lng=140.74779717298918D lat=45.61884022447444D == "18/233561/93659", but shown as "18/233561/93658"
      */
     static final int MAX_ZOOM = 29;
 
     /**
-     * Bit position of the zoom value within hash.  Must be &gt;= 2*MAX_ZOOM
-     * Keeping it at a constant place allows MAX_ZOOM to be increased
-     * without breaking serialization binary compatibility
+     * Bit position of the zoom value within hash - zoom is stored in the most significant 6 bits of a long number.
      */
     private static final int ZOOM_SHIFT = MAX_ZOOM * 2;
 
-    private static final long VALUE_MASK = (1L << MAX_ZOOM) - 1;
+    /**
+     * Bit mask to extract just the lowest 29 bits of a long
+     */
+    private static final long X_Y_VALUE_MASK = (1L << MAX_ZOOM) - 1;
 
     /**
      * Parse an integer precision (zoom level). The {@link ValueType#INT} allows it to be a number or a string.
@@ -88,13 +93,14 @@ class GeoTileUtils {
     static long longEncode(double longitude, double latitude, int precision) {
         // Mathematics for this code was adapted from https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Java
 
-        // How many tiles in X and in Y
+        // Number of tiles for the current zoom level along the X and Y axis
         final int tiles = 1 << checkPrecisionRange(precision);
-        final double lon = normalizeLon(longitude);
-        final double lat_rad = Math.toRadians(normalizeLat(latitude));
 
-        int xTile = (int) Math.floor((lon + 180) / 360 * tiles);
-        int yTile = (int) Math.floor((1 - Math.log(Math.tan(lat_rad) + 1 / Math.cos(lat_rad)) / Math.PI) / 2 * tiles);
+        int xTile = (int) Math.floor((normalizeLon(longitude) + 180) / 360 * tiles);
+
+        double latSin = Math.sin(Math.toRadians(normalizeLat(latitude)));
+        int yTile = (int) Math.floor((0.5 - (Math.log((1 + latSin) / (1 - latSin)) / (4 * Math.PI))) * tiles);
+
         if (xTile < 0) {
             xTile = 0;
         }
@@ -119,8 +125,8 @@ class GeoTileUtils {
      */
     private static int[] parseHash(long hash) {
         final int zoom = (int) (hash >>> ZOOM_SHIFT);
-        int xTile = (int) ((hash >>> MAX_ZOOM) & VALUE_MASK);
-        int yTile = (int) (hash & VALUE_MASK);
+        int xTile = (int) ((hash >>> MAX_ZOOM) & X_Y_VALUE_MASK);
+        int yTile = (int) (hash & X_Y_VALUE_MASK);
         return new int[]{zoom, xTile, yTile};
     }
 
@@ -133,12 +139,18 @@ class GeoTileUtils {
         return "" + res[0] + "/" + res[1] + "/" + res[2];
     }
 
+    /**
+     * Decode long hash as a GeoPoint (center of the tile)
+     */
     static GeoPoint hashToGeoPoint(long hash) {
         int[] res = parseHash(hash);
         return zxyToGeoPoint(res[0], res[1], res[2]);
     }
 
-    static GeoPoint hashToGeoPoint(String hashAsString) {
+    /**
+     * Decode a string bucket key in "zoom/x/y" format to a GeoPoint (center of the tile)
+     */
+    static GeoPoint keyToGeoPoint(String hashAsString) {
         Throwable cause = null;
         try {
             final String[] parts = hashAsString.split("/", 4);
@@ -153,6 +165,9 @@ class GeoTileUtils {
             hashAsString + ". Must be three integers in a form \"zoom/x/y\".", cause);
     }
 
+    /**
+     * Validates Zoom, X, and Y values, and returns the total number of allowed tiles along the x/y axis.
+     */
     private static int validateZXY(int zoom, int xTile, int yTile) {
         final int tiles = 1 << checkPrecisionRange(zoom);
         if (xTile < 0 || yTile < 0 || xTile >= tiles || yTile >= tiles) {
@@ -161,6 +176,9 @@ class GeoTileUtils {
         return tiles;
     }
 
+    /**
+     * Converts zoom/x/y integers into a GeoPoint.
+     */
     private static GeoPoint zxyToGeoPoint(int zoom, int xTile, int yTile) {
         final int tiles = validateZXY(zoom, xTile, yTile);
         final double n = Math.PI - (2.0 * Math.PI * (yTile + 0.5)) / tiles;

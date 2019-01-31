@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.MAX_ZOOM;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.checkPrecisionRange;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.hashToGeoPoint;
+import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.keyToGeoPoint;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.stringEncode;
 import static org.hamcrest.Matchers.closeTo;
@@ -59,6 +60,11 @@ public class GeoTileUtilsTests extends ESTestCase {
         assertEquals(0x0C00000060000000L, longEncode(-20, 100, 3));
         assertEquals(0x71127D27C8ACA67AL, longEncode(13, -15, 28));
         assertEquals(0x4C0077776003A9ACL, longEncode(-12, 15, 19));
+        assertEquals(0x140000024000000EL, longEncode(-328.231870,16.064082, 5));
+        assertEquals(0x6436F96B60000000L, longEncode(-590.769588,89.549167, 25));
+        assertEquals(0x6411BD6BA0A98359L, longEncode(999.787079,51.830093, 25));
+        assertEquals(0x751BD6BBCA983596L, longEncode(999.787079,51.830093, 29));
+        assertEquals(0x77CF880A20000000L, longEncode(-557.039740,-632.103969, 29));
 
         expectThrows(IllegalArgumentException.class, () -> longEncode(0, 0, -1));
         expectThrows(IllegalArgumentException.class, () -> longEncode(-1, 0, MAX_ZOOM + 1));
@@ -70,27 +76,27 @@ public class GeoTileUtilsTests extends ESTestCase {
     }
 
     public void testHashToGeoPoint() {
-        assertGeoPointEquals(hashToGeoPoint("0/0/0"), 0.0, 0.0);
-        assertGeoPointEquals(hashToGeoPoint("1/0/0"), -90.0, 66.51326044311186);
-        assertGeoPointEquals(hashToGeoPoint("1/1/0"), 90.0, 66.51326044311186);
-        assertGeoPointEquals(hashToGeoPoint("1/0/1"), -90.0, -66.51326044311186);
-        assertGeoPointEquals(hashToGeoPoint("1/1/1"), 90.0, -66.51326044311186);
-        assertGeoPointEquals(hashToGeoPoint("29/536870000/10"), 179.99938879162073, 85.05112817241982);
-        assertGeoPointEquals(hashToGeoPoint("29/10/536870000"), -179.99999295920134, -85.0510760525731);
+        assertGeoPointEquals(keyToGeoPoint("0/0/0"), 0.0, 0.0);
+        assertGeoPointEquals(keyToGeoPoint("1/0/0"), -90.0, 66.51326044311186);
+        assertGeoPointEquals(keyToGeoPoint("1/1/0"), 90.0, 66.51326044311186);
+        assertGeoPointEquals(keyToGeoPoint("1/0/1"), -90.0, -66.51326044311186);
+        assertGeoPointEquals(keyToGeoPoint("1/1/1"), 90.0, -66.51326044311186);
+        assertGeoPointEquals(keyToGeoPoint("29/536870000/10"), 179.99938879162073, 85.05112817241982);
+        assertGeoPointEquals(keyToGeoPoint("29/10/536870000"), -179.99999295920134, -85.0510760525731);
 
-        expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint("0/-1/-1"));
-        expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint("0/-1/1"));
-        expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint("0/1/-1"));
-        expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint("-1/0/0"));
-        expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint((MAX_ZOOM + 1) + "/0/0"));
+        expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint("0/-1/-1"));
+        expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint("0/-1/1"));
+        expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint("0/1/-1"));
+        expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint("-1/0/0"));
+        expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint((MAX_ZOOM + 1) + "/0/0"));
 
         for (int z = 0; z <= MAX_ZOOM; z++) {
             final int zoom = z;
-            expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint(zoom + "/0"));
-            expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint(zoom + "/0/0/0"));
+            expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint(zoom + "/0"));
+            expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint(zoom + "/0/0/0"));
             final int max_index = (int) Math.pow(2, zoom);
-            expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint(zoom + "/0/" + max_index));
-            expectThrows(IllegalArgumentException.class, () -> hashToGeoPoint(zoom + "/" + max_index + "/0"));
+            expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint(zoom + "/0/" + max_index));
+            expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint(zoom + "/" + max_index + "/0"));
         }
     }
 
@@ -99,7 +105,7 @@ public class GeoTileUtilsTests extends ESTestCase {
      */
     private void assertStrCodec(long hash, String key, int zoom) {
         assertEquals(key, stringEncode(hash));
-        final GeoPoint gp = hashToGeoPoint(key);
+        final GeoPoint gp = keyToGeoPoint(key);
         assertEquals(hash, longEncode(gp.lon(), gp.lat(), zoom));
     }
 
@@ -126,7 +132,7 @@ public class GeoTileUtilsTests extends ESTestCase {
             for (int x = 0; x < maxTile; x++) {
                 for (int y = 0; y < maxTile; y++) {
                     String expectedTileIndex = zoom + "/" + x + "/" + y;
-                    GeoPoint point = hashToGeoPoint(expectedTileIndex);
+                    GeoPoint point = keyToGeoPoint(expectedTileIndex);
                     String actualTileIndex = stringEncode(longEncode(point.lon(), point.lat(), zoom));
                     assertEquals(expectedTileIndex, actualTileIndex);
                 }
@@ -153,7 +159,7 @@ public class GeoTileUtilsTests extends ESTestCase {
                     assertEquals(hash, hashAsLong2);
 
                     // Same point should be generated from the string key
-                    assertEquals(point, hashToGeoPoint(stringEncode(hash)));
+                    assertEquals(point, keyToGeoPoint(stringEncode(hash)));
                 }
             }
         }

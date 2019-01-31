@@ -28,7 +28,7 @@ public class ParsedGeoTileGridBucket extends ParsedGeoGridBucket {
 
     @Override
     public GeoPoint getKey() {
-        return GeoTileUtils.hashToGeoPoint(hashAsString);
+        return GeoTileUtils.keyToGeoPoint(hashAsString);
     }
 
     @Override

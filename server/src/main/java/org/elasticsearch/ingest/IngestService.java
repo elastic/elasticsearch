@@ -90,7 +90,7 @@ public class IngestService implements ClusterStateApplier {
             new Processor.Parameters(
                 env, scriptService, analysisRegistry,
                 threadPool.getThreadContext(), threadPool::relativeTimeInMillis,
-                (delay, command) -> threadPool.schedule(
+                (delay, command) -> threadPool.scheduleDeprecated(
                     TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC, command
                 ), this
             )

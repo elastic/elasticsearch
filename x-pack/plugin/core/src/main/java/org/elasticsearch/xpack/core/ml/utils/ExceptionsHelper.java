@@ -35,6 +35,14 @@ public class ExceptionsHelper {
         return new ResourceAlreadyExistsException(Messages.getMessage(Messages.DATAFEED_ID_ALREADY_TAKEN, datafeedId));
     }
 
+    public static ResourceNotFoundException missingDataFrameAnalytics(String id) {
+        return new ResourceNotFoundException("No known data frame analytics with id [{}]", id);
+    }
+
+    public static ResourceAlreadyExistsException dataFrameAnalyticsAlreadyExists(String id) {
+        return new ResourceAlreadyExistsException("A data frame analytics with id [{}] already exists", id);
+    }
+
     public static ElasticsearchException serverError(String msg) {
         return new ElasticsearchException(msg);
     }

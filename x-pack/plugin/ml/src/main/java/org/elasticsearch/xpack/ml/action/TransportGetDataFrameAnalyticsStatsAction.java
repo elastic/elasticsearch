@@ -74,7 +74,6 @@ public class TransportGetDataFrameAnalyticsStatsAction
         getRequest.setResourceId(request.getId());
         getRequest.setPageParams(request.getPageParams());
         executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsAction.INSTANCE, getRequest, getResponseListener);
-
     }
 
     private GetDataFrameAnalyticsStatsAction.Response.Stats buildStats(String concreteAnalyticsId, PersistentTasksCustomMetaData tasks,

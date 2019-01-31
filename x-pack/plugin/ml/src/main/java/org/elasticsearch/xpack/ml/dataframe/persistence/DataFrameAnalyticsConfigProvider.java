@@ -16,6 +16,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -57,7 +58,16 @@ public class DataFrameAnalyticsConfigProvider {
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .source(builder);
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, listener);
+            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
+                listener::onResponse,
+                e -> {
+                    if (e instanceof VersionConflictEngineException) {
+                        listener.onFailure(ExceptionsHelper.dataFrameAnalyticsAlreadyExists(config.getId()));
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }
+            ));
         } catch (IOException e) {
             listener.onFailure(new ElasticsearchParseException("Failed to serialise data frame analytics with id [" + config.getId()
                 + "]"));

@@ -49,6 +49,8 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
         Request extends AbstractGetResourcesRequest, Response extends AbstractGetResourcesResponse<Resource>>
             extends HandledTransportAction<Request, Response> {
 
+    private static final String ALL = "_all";
+
     private Client client;
 
     protected AbstractTransportGetResourcesAction(String actionName, TransportService transportService, ActionFilters actionFilters,
@@ -83,7 +85,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
                         }
                     }
 
-                    if (docs.isEmpty() && Regex.isSimpleMatchPattern(request.getResourceId()) == false) {
+                    if (docs.isEmpty() && isConcreteMatch(request.getResourceId())) {
                         listener.onFailure(notFoundException(request.getResourceId()));
                     } else {
                         listener.onResponse(new QueryPage<>(docs, docs.size(), getResultsField()));
@@ -101,7 +103,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
 
     private QueryBuilder buildQuery(AbstractGetResourcesRequest request) {
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
-        if (Strings.isNullOrEmpty(request.getResourceId()) == false) {
+        if (isMatchAll(request.getResourceId()) == false) {
             boolQuery.filter(QueryBuilders.wildcardQuery(request.getResourceIdField(), request.getResourceId()));
         }
         QueryBuilder additionalQuery = additionalQuery();
@@ -109,6 +111,14 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
             boolQuery.filter(additionalQuery);
         }
         return boolQuery.hasClauses() ? boolQuery : QueryBuilders.matchAllQuery();
+    }
+
+    private static boolean isMatchAll(String resourceId) {
+        return Strings.isNullOrEmpty(resourceId) || ALL.equals(resourceId) || Regex.isMatchAllPattern(resourceId);
+    }
+
+    private static boolean isConcreteMatch(String resourceId) {
+        return isMatchAll(resourceId) == false && Regex.isSimpleMatchPattern(resourceId) == false;
     }
 
     @Nullable

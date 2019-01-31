@@ -20,16 +20,16 @@ import java.util.Objects;
 public class DataFrameAnalysisConfig implements ToXContentObject, Writeable {
 
     public static ContextParser<Void, DataFrameAnalysisConfig> parser() {
-        return (p, c) -> new DataFrameAnalysisConfig(p.map());
+        return (p, c) -> new DataFrameAnalysisConfig(p.mapOrdered());
     }
 
     private final Map<String, Object> config;
 
     public DataFrameAnalysisConfig(Map<String, Object> config) {
+        this.config = Objects.requireNonNull(config);
         if (config.size() != 1) {
             throw ExceptionsHelper.badRequestException("A data frame analysis must specify exactly one analysis type");
         }
-        this.config = Objects.requireNonNull(config);
     }
 
     public DataFrameAnalysisConfig(StreamInput in) throws IOException {

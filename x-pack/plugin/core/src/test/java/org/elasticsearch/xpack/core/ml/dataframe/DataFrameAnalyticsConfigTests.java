@@ -23,16 +23,19 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
 
     @Override
     protected DataFrameAnalyticsConfig createTestInstance() {
-        String id = randomValidId();
-        String source = randomAlphaOfLength(10);
-        String dest = randomAlphaOfLength(10);
-        List<DataFrameAnalysisConfig> analyses = Collections.singletonList(DataFrameAnalysisConfigTests.randomConfig());
-        return new DataFrameAnalyticsConfig(id, source, dest, analyses);
+        return createRandom(randomValidId());
     }
 
     @Override
     protected Writeable.Reader<DataFrameAnalyticsConfig> instanceReader() {
         return DataFrameAnalyticsConfig::new;
+    }
+
+    public static DataFrameAnalyticsConfig createRandom(String id) {
+        String source = randomAlphaOfLength(10);
+        String dest = randomAlphaOfLength(10);
+        List<DataFrameAnalysisConfig> analyses = Collections.singletonList(DataFrameAnalysisConfigTests.randomConfig());
+        return new DataFrameAnalyticsConfig(id, source, dest, analyses);
     }
 
     public static String randomValidId() {

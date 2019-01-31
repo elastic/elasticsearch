@@ -55,7 +55,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         this.dest = ExceptionsHelper.requireNonNull(dest, DEST);
         this.analyses = ExceptionsHelper.requireNonNull(analyses, ANALYSES);
         if (analyses.isEmpty()) {
-            throw new ElasticsearchParseException("One or more analyses is required");
+            throw new ElasticsearchParseException("One or more analyses are required");
         }
         // TODO Add support for multiple analyses
         if (analyses.size() > 1) {

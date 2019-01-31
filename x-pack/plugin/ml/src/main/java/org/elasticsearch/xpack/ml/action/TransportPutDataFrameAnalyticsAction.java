@@ -49,7 +49,7 @@ public class TransportPutDataFrameAnalyticsAction
 
         validateConfig(request.getConfig());
         configProvider.put(request.getConfig(), ActionListener.wrap(
-            indexResponse -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(true)),
+            indexResponse -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(request.getConfig())),
             listener::onFailure
         ));
     }

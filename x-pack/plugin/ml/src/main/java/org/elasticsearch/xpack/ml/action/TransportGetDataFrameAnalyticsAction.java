@@ -20,6 +20,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 public class TransportGetDataFrameAnalyticsAction extends AbstractTransportGetResourcesAction<DataFrameAnalyticsConfig,
         GetDataFrameAnalyticsAction.Request, GetDataFrameAnalyticsAction.Response> {
@@ -46,7 +47,7 @@ public class TransportGetDataFrameAnalyticsAction extends AbstractTransportGetRe
 
     @Override
     protected ResourceNotFoundException notFoundException(String resourceId) {
-        return new ResourceNotFoundException("No known data frame analytics with id [{}]", resourceId);
+        return ExceptionsHelper.missingDataFrameAnalytics(resourceId);
     }
 
     @Override

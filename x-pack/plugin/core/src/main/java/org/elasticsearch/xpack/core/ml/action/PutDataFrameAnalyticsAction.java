@@ -7,11 +7,13 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -58,6 +60,18 @@ public class PutDataFrameAnalyticsAction extends Action<PutDataFrameAnalyticsAct
             this.config = config;
         }
 
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            config = new DataFrameAnalyticsConfig(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            config.writeTo(out);
+        }
+
         public DataFrameAnalyticsConfig getConfig() {
             return config;
         }
@@ -87,13 +101,45 @@ public class PutDataFrameAnalyticsAction extends Action<PutDataFrameAnalyticsAct
         }
     }
 
-    public static class Response extends AcknowledgedResponse {
-        public Response() {
-            super();
+    public static class Response extends ActionResponse implements ToXContentObject {
+
+        private DataFrameAnalyticsConfig config;
+
+        public Response(DataFrameAnalyticsConfig config) {
+            this.config = config;
         }
 
-        public Response(boolean acknowledged) {
-            super(acknowledged);
+        Response() {}
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            config = new DataFrameAnalyticsConfig(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            config.writeTo(out);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            config.toXContent(builder, params);
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return Objects.equals(config, response.config);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(config);
         }
     }
 

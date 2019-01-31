@@ -85,7 +85,7 @@ public class DataFrameDataExtractorFactory {
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
                 fieldCapabilitiesResponse -> {
                     listener.onResponse(new DataFrameDataExtractorFactory(client, analyticsId, index,
-                        detectExtractedFields(fieldCapabilitiesResponse)));
+                        detectExtractedFields(index, fieldCapabilitiesResponse)));
                 }, e -> {
                     if (e instanceof IndexNotFoundException) {
                         listener.onFailure(new ResourceNotFoundException("cannot retrieve data because index "
@@ -108,7 +108,7 @@ public class DataFrameDataExtractorFactory {
     }
 
     // Visible for testing
-    static ExtractedFields detectExtractedFields(FieldCapabilitiesResponse fieldCapabilitiesResponse) {
+    static ExtractedFields detectExtractedFields(String index, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         Set<String> fields = fieldCapabilitiesResponse.get().keySet();
         fields.removeAll(IGNORE_FIELDS);
         removeFieldsWithIncompatibleTypes(fields, fieldCapabilitiesResponse);
@@ -118,7 +118,7 @@ public class DataFrameDataExtractorFactory {
         ExtractedFields extractedFields = ExtractedFields.build(sortedFields, Collections.emptySet(), fieldCapabilitiesResponse)
                 .filterFields(ExtractedField.ExtractionMethod.DOC_VALUE);
         if (extractedFields.getAllFields().isEmpty()) {
-            throw ExceptionsHelper.badRequestException("No compatible fields could be detected");
+            throw ExceptionsHelper.badRequestException("No compatible fields could be detected in index [{}]", index);
         }
         return extractedFields;
     }

@@ -2,6 +2,7 @@
 "Non-existent type returns 404":
   - do:
         indices.create:
+          include_type_name: true
           index: test_index
           body:
               mappings:
@@ -100,4 +101,3 @@
       indices.get_mapping:
         include_type_name: true
         type: not_test_type
- 

@@ -111,7 +111,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         return internalResponse.aggregations();
     }
 
-
     public Suggest getSuggest() {
         return internalResponse.suggest();
     }
@@ -349,7 +348,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         SearchResponseSections searchResponseSections = new SearchResponseSections(hits, aggs, suggest, timedOut, terminatedEarly,
                 profile, numReducePhases);
         return new SearchResponse(searchResponseSections, scrollId, totalShards, successfulShards, skippedShards, tookInMillis,
-                failures.toArray(new ShardSearchFailure[failures.size()]), clusters);
+                failures.toArray(ShardSearchFailure.EMPTY_ARRAY), clusters);
     }
 
     @Override

@@ -426,14 +426,11 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertThat(e.toString(), containsString("unit [D] not supported for date math"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37814")
     // Issue #7880
     public void testDateRangeInQueryStringWithTimeZone_7880() {
         //the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
         //as with dynamic mappings some shards might be lacking behind and parse a different query
-        assertAcked(prepareCreate("test").addMapping(
-                "type", "past", "type=date"
-        ));
+        assertAcked(prepareCreate("test").addMapping("type", "past", "type=date"));
 
         ZoneId timeZone = randomZone();
         String now = DateFormatter.forPattern("strict_date_optional_time").format(Instant.now().atZone(timeZone));

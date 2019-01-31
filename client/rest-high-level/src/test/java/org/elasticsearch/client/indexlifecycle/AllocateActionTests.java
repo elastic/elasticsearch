@@ -24,6 +24,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Predicate;
 
 public class AllocateActionTests extends AbstractXContentTestCase<AllocateAction> {
 
@@ -65,7 +66,14 @@ public class AllocateActionTests extends AbstractXContentTestCase<AllocateAction
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // this whole structure expects to be maps of strings, so more complex objects would just mess that up.
+        // setting it this way allows for new fields at the root
+        return (field) -> field.isEmpty() == false;
     }
 
     public void testAllMapsNullOrEmpty() {

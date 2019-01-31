@@ -90,8 +90,6 @@ final class RemoteResponseParsers {
         ParseField routingField = new ParseField("_routing");
         ParseField ttlField = new ParseField("_ttl");
         ParseField parentField = new ParseField("_parent");
-        ParseField seqNoField = new ParseField("_seq_no");
-        ParseField primaryTermField = new ParseField("_primary_term");
         HIT_PARSER.declareString(BasicHit::setRouting, routingField);
         // Pre-2.0.0 routing come back in "fields"
         class Fields {

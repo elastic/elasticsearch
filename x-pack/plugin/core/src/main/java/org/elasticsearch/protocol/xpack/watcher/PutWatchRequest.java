@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.protocol.xpack.watcher;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
@@ -60,13 +59,8 @@ public final class PutWatchRequest extends ActionRequest {
         active = in.readBoolean();
         xContentType = in.readEnum(XContentType.class);
         version = in.readZLong();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            ifSeqNo = in.readZLong();
-            ifPrimaryTerm = in.readVLong();
-        } else {
-            ifSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
-        }
+        ifSeqNo = in.readZLong();
+        ifPrimaryTerm = in.readVLong();
     }
 
     @Override
@@ -77,10 +71,8 @@ public final class PutWatchRequest extends ActionRequest {
         out.writeBoolean(active);
         out.writeEnum(xContentType);
         out.writeZLong(version);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeZLong(ifSeqNo);
-            out.writeVLong(ifPrimaryTerm);
-        }
+        out.writeZLong(ifSeqNo);
+        out.writeVLong(ifPrimaryTerm);
     }
 
     /**
@@ -217,7 +209,7 @@ public final class PutWatchRequest extends ActionRequest {
 
         return validationException;
     }
-
+    
     public static boolean isValidId(String id) {
         return Strings.isEmpty(id) == false && NO_WS_PATTERN.matcher(id).matches();
     }

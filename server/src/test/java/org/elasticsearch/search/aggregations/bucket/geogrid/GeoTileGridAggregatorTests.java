@@ -19,20 +19,16 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import static org.elasticsearch.common.geo.GeoTileUtils.MAX_ZOOM;
-import static org.elasticsearch.common.geo.GeoTileUtils.longEncode;
-import static org.elasticsearch.common.geo.GeoTileUtils.stringEncode;
-
 public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<InternalGeoTileGridBucket> {
 
     @Override
     protected int randomPrecision() {
-        return randomIntBetween(0, MAX_ZOOM);
+        return randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
     }
 
     @Override
     protected String hashAsString(double lng, double lat, int precision) {
-        return stringEncode(longEncode(lng, lat, precision));
+        return GeoTileUtils.stringEncode(GeoTileUtils.longEncode(lng, lat, precision));
     }
 
     @Override

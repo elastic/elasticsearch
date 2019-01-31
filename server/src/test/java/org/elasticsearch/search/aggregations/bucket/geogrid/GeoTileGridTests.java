@@ -18,15 +18,12 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.GeoTileUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.common.geo.GeoTileUtils.MAX_ZOOM;
 
 public class GeoTileGridTests extends GeoGridTestCase<InternalGeoTileGridBucket, InternalGeoTileGrid> {
 
@@ -54,6 +51,6 @@ public class GeoTileGridTests extends GeoGridTestCase<InternalGeoTileGridBucket,
     @Override
     protected int randomPrecision() {
         // precision values below 8 can lead to parsing errors
-        return randomIntBetween(8, MAX_ZOOM);
+        return randomIntBetween(8, GeoTileUtils.MAX_ZOOM);
     }
 }

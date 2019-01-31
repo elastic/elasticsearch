@@ -13,8 +13,8 @@ settings summary>> for an example, and the
 <<modules-discovery-bootstrap-cluster,cluster bootstrapping reference
 documentation>> describes this setting in more detail.
 
-The `discovery.zen.minimum_master_nodes` setting is required during a rolling
-upgrade from 6.x, but can be removed in all other circumstances.
+The `discovery.zen.minimum_master_nodes` setting is permitted, but ignored, on
+7.x nodes.
 
 [float]
 ==== Removing master-eligible nodes sometimes requires voting exclusions

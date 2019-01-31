@@ -62,16 +62,24 @@ public class DetachClusterCommand extends ElasticsearchNodeCommand {
 
         confirm(terminal, CONFIRMATION_MSG);
 
+        writeNewMetaData(terminal, manifest, updateCurrentTerm(), metaData, updateMetaData(metaData), dataPaths);
+    }
+
+    // package-private for tests
+    static MetaData updateMetaData(MetaData oldMetaData) {
         final CoordinationMetaData coordinationMetaData = CoordinationMetaData.builder()
                 .lastAcceptedConfiguration(CoordinationMetaData.VotingConfiguration.MUST_JOIN_ELECTED_MASTER)
                 .lastCommittedConfiguration(CoordinationMetaData.VotingConfiguration.MUST_JOIN_ELECTED_MASTER)
                 .term(0)
                 .build();
-        final MetaData newMetaData = MetaData.builder(metaData)
+        return MetaData.builder(oldMetaData)
                 .coordinationMetaData(coordinationMetaData)
                 .clusterUUIDCommitted(false)
                 .build();
+    }
 
-        writeNewMetaData(terminal, manifest, 0, metaData, newMetaData, dataPaths);
+    //package-private for tests
+    static long updateCurrentTerm() {
+        return 0;
     }
 }

@@ -274,9 +274,6 @@ public class XPackLicenseState {
     public XPackLicenseState(Settings settings) {
         this.listeners = new CopyOnWriteArrayList<>();
         this.isSecurityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
-        // 6.0+ requires TLS for production licenses, so if TLS is enabled and security is enabled
-        // we can interpret this as an explicit enabling of security if the security enabled
-        // setting is not explicitly set
         this.isSecurityExplicitlyEnabled = isSecurityEnabled && settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey());
     }
 

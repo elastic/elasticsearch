@@ -79,6 +79,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38067")
     public void testTemplatedFields() throws Exception {
         String indexNamePrefix = randomAlphaOfLength(10);
         String dateRounding = randomFrom("y", "M", "w", "d", "h", "m", "s");

@@ -169,7 +169,6 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         assertNotEquals(leaderMetadata.getIndexUUID(), followerMetadata.getIndexUUID());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38100")
     public void testDocsAreRecovered() throws Exception {
         String leaderClusterRepoName = CcrRepository.NAME_PREFIX + "leader_cluster";
         String leaderIndex = "index1";
@@ -316,7 +315,6 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38027")
     public void testIndividualActionsTimeout() throws Exception {
         ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
         TimeValue timeValue = TimeValue.timeValueMillis(100);

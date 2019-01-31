@@ -1494,7 +1494,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync);
         assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
 
-        Map<String, Object> templates = getAsMap("/_template/my-template");
+        Map<String, Object> templates = getAsMap("/_template/my-template?include_type_name=false");
         assertThat(templates.keySet(), hasSize(1));
         assertThat(extractValue("my-template.order", templates), equalTo(10));
         assertThat(extractRawValues("my-template.index_patterns", templates), contains("pattern-1", "name-*"));

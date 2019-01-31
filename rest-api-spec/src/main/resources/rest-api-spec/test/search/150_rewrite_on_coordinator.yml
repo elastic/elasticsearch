@@ -1,33 +1,30 @@
 "Ensure that we fetch the document only once":
   - do:
       indices.create:
+          include_type_name: false
           index: search_index
           body:
             settings:
               number_of_shards: 5
             mappings:
-              doc:
-                properties:
-                  user:
-                     type: keyword
+              properties:
+                user:
+                   type: keyword
   - do:
       index:
         index: search_index
-        type: doc
         id: 1
         body: { "user": "1" }
 
   - do:
       index:
         index: search_index
-        type: doc
         id: 2
         body: { "user": "2" }
 
   - do:
       index:
         index: search_index
-        type: doc
         id: 3
         body: { "user": "3" }
 
@@ -76,6 +73,3 @@
       indices.stats: { index: 'lookup_index', "metric": "get"}
 
   - match: { indices.lookup_index.total.get.total: 1 }
-
-
-

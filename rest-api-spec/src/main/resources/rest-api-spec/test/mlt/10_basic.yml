@@ -2,23 +2,22 @@
 "Basic mlt":
   - do:
      indices.create:
+       include_type_name: false
        index:    test_1
        body:
          settings:
            index:
              number_of_replicas: 0
          mappings:
-           test:
-             properties:
-               foo:
-                 type : "text"
-               title:
-                 type : "text"
+           properties:
+             foo:
+               type : "text"
+             title:
+               type : "text"
 
   - do:
       index:
           index:  test_1
-          type:   test
           id:     1
           body:   { foo: bar, title: howdy }
 
@@ -42,4 +41,3 @@
                 fields: ["title"]
 
   - match: {hits.total: 0}
-

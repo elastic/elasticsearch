@@ -39,7 +39,7 @@ public final class TimeUtil {
         if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
             return new Date(parser.longValue());
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-            return new Date(DateFormatters.toZonedDateTime(DateTimeFormatter.ISO_INSTANT.parse(parser.text())).toInstant().toEpochMilli());
+            return new Date(DateFormatters.from(DateTimeFormatter.ISO_INSTANT.parse(parser.text())).toInstant().toEpochMilli());
         }
         throw new IllegalArgumentException(
             "unexpected token [" + parser.currentToken() + "] for [" + fieldName + "]");

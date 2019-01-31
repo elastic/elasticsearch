@@ -161,7 +161,7 @@ public class MovFnUnitTests extends AggregatorTestCase {
     }
 
     private static long asLong(String dateTime) {
-        return DateFormatters.toZonedDateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(dateTime)).toInstant().toEpochMilli();
+        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(dateTime)).toInstant().toEpochMilli();
     }
     
     /**

@@ -368,7 +368,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         });
     }
 
-    public void testCreatePolicyOnClose() throws Exception {
+    public void testCreatePolicyWhenStopped() throws Exception {
         // start master node
         logger.info("Starting server1");
         final String server_1 = internalCluster().startNode();

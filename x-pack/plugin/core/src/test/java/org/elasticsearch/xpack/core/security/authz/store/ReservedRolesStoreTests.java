@@ -847,6 +847,35 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(APMSystemRole, RestrictedIndicesNames.NAMES_SET);
     }
 
+    public void testAPMUserRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
+        final RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("apm_user");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role apmUserRole = Role.builder(roleDescriptor, null).build();
+
+        assertThat(apmUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
+
+        assertThat(apmUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test("foo"), is(false));
+        assertThat(apmUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(".reporting"), is(false));
+        assertThat(apmUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(".kibana"), is(false));
+        assertThat(apmUserRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
+            is(false));
+
+        final String index = "apm-" + randomIntBetween(0, 5);
+
+        assertThat(apmUserRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));
+        assertThat(apmUserRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
+        assertThat(apmUserRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(false));
+        assertThat(apmUserRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(false));
+        assertThat(apmUserRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
+        assertThat(apmUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
+        assertThat(apmUserRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
+        assertThat(apmUserRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
+    }
+
     public void testMachineLearningAdminRole() {
         final TransportRequest request = mock(TransportRequest.class);
 

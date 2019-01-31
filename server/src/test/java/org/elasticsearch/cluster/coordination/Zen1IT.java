@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -50,6 +51,7 @@ import static org.elasticsearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.elasticsearch.test.InternalTestCluster.REMOVED_MINIMUM_MASTER_NODES;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -194,7 +196,8 @@ public class Zen1IT extends ESIntegTestCase {
                 }
                 ClusterHealthResponse clusterHealthResponse = clusterHealthRequestBuilder.get();
                 assertFalse(nodeName, clusterHealthResponse.isTimedOut());
-                return Coordinator.addZen1Attribute(false, Settings.builder().put(ZEN2_SETTINGS)).build();
+                return Coordinator.addZen1Attribute(false, Settings.builder().put(ZEN2_SETTINGS)
+                    .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), REMOVED_MINIMUM_MASTER_NODES)).build();
             }
         });
 
@@ -289,6 +292,7 @@ public class Zen1IT extends ESIntegTestCase {
                 return Coordinator.addZen1Attribute(false, Settings.builder())
                     .put(ZEN2_SETTINGS)
                     .putList(INITIAL_MASTER_NODES_SETTING.getKey(), nodeNames)
+                    .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), REMOVED_MINIMUM_MASTER_NODES)
                     .build();
             }
         });

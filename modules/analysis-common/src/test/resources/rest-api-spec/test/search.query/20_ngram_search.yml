@@ -1,6 +1,7 @@
 "ngram search":
   - do:
       indices.create:
+        include_type_name: false
         index: test
         body:
           settings:
@@ -17,16 +18,14 @@
                   min: 2,
                   max: 2
           mappings:
-            doc:
-              properties:
-                text:
-                  type: text
-                  analyzer: my_analyzer
+            properties:
+              text:
+                type: text
+                analyzer: my_analyzer
 
   - do:
       index:
         index: test
-        type:  doc
         id:    1
         body:  { "text": "foo bar baz" }
         refresh: true
@@ -45,6 +44,7 @@
 "testNGramCopyField":
   - do:
       indices.create:
+        include_type_name: false
         index: test
         body:
           settings:
@@ -62,19 +62,17 @@
                   max: 10
                   token_chars: []
           mappings:
-            doc:
-              properties:
-                origin:
-                  type: text
-                  copy_to: meta
-                meta:
-                  type: text
-                  analyzer: my_ngram_analyzer
+            properties:
+              origin:
+                type: text
+                copy_to: meta
+              meta:
+                type: text
+                analyzer: my_ngram_analyzer
 
   - do:
       index:
         index: test
-        type:  doc
         id:    1
         body:  { "origin": "C.A1234.5678" }
         refresh: true

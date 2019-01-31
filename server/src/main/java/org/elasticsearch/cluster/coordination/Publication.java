@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 public abstract class Publication {
 
@@ -90,6 +91,13 @@ public abstract class Publication {
     public void onFaultyNode(DiscoveryNode faultyNode) {
         publicationTargets.forEach(t -> t.onFaultyNode(faultyNode));
         onPossibleCompletion();
+    }
+
+    public List<DiscoveryNode> completedNodes() {
+        return publicationTargets.stream()
+            .filter(PublicationTarget::isSuccessfullyCompleted)
+            .map(PublicationTarget::getDiscoveryNode)
+            .collect(Collectors.toList());
     }
 
     public boolean isCommitted() {
@@ -268,6 +276,10 @@ public abstract class Publication {
             }
         }
 
+        DiscoveryNode getDiscoveryNode() {
+            return discoveryNode;
+        }
+
         private void ackOnce(Exception e) {
             if (ackIsPending) {
                 ackIsPending = false;
@@ -278,6 +290,10 @@ public abstract class Publication {
         boolean isActive() {
             return state != PublicationTargetState.FAILED
                 && state != PublicationTargetState.APPLIED_COMMIT;
+        }
+
+        boolean isSuccessfullyCompleted() {
+            return state == PublicationTargetState.APPLIED_COMMIT;
         }
 
         boolean isWaitingForQuorum() {

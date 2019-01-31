@@ -5,25 +5,25 @@ setup:
 
   - do:
         indices.create:
+          include_type_name: false
           index:  test
           body:
             mappings:
-              test:
-                properties:
-                  text:
-                    type: text
-                    analyzer: standard
+              properties:
+                text:
+                  type: text
+                  analyzer: standard
   - do:
         bulk:
           refresh: true
           body:
-            - '{"index": {"_index": "test", "_type": "test", "_id": "1"}}'
+            - '{"index": {"_index": "test", "_id": "1"}}'
             - '{"text" : "Some like it hot, some like it cold"}'
-            - '{"index": {"_index": "test", "_type": "test", "_id": "2"}}'
+            - '{"index": {"_index": "test", "_id": "2"}}'
             - '{"text" : "Its cold outside, theres no kind of atmosphere"}'
-            - '{"index": {"_index": "test", "_type": "test", "_id": "3"}}'
+            - '{"index": {"_index": "test", "_id": "3"}}'
             - '{"text" : "Baby its cold there outside"}'
-            - '{"index": {"_index": "test", "_type": "test", "_id": "4"}}'
+            - '{"index": {"_index": "test", "_id": "4"}}'
             - '{"text" : "Outside it is cold and wet"}'
 
 ---
@@ -323,5 +323,3 @@ setup:
                               query: "there"
                         ordered: false
   - match: { hits.total.value: 1 }
-
-

@@ -104,6 +104,8 @@ final class GeoTileUtils {
         double latSin = Math.sin(Math.toRadians(normalizeLat(latitude)));
         int yTile = (int) Math.floor((0.5 - (Math.log((1 + latSin) / (1 - latSin)) / (4 * Math.PI))) * tiles);
 
+        // Edge values may generate invalid values, and need to be clipped.
+        // For example, polar regions (above/below lat 85.05112878) get normalized.
         if (xTile < 0) {
             xTile = 0;
         }

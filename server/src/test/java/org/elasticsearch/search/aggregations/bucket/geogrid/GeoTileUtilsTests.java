@@ -179,4 +179,23 @@ public class GeoTileUtilsTests extends ESTestCase {
             }
         }
     }
+
+    /**
+     * Make sure the polar regions are handled properly.
+     * Mercator projection does not show anything above 85 or below -85,
+     * so ensure they are clipped correctly.
+     */
+    public void testSingularityAtPoles() {
+        double minLat = -85.05112878;
+        double maxLat = 85.05112878;
+        double lon = randomIntBetween(-180, 180);
+        double lat = randomBoolean()
+            ? randomDoubleBetween(-90, minLat, true)
+            : randomDoubleBetween(maxLat, 90, true);
+        double clippedLat = Math.min(Math.max(lat, minLat), maxLat);
+        int zoom = randomIntBetween(0, MAX_ZOOM);
+        String tileIndex = stringEncode(longEncode(lon, lat, zoom));
+        String clippedTileIndex = stringEncode(longEncode(lon, clippedLat, zoom));
+        assertEquals(tileIndex, clippedTileIndex);
+    }
 }

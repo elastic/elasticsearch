@@ -17,8 +17,6 @@ setup:
                     type:     geo_point
                   date:
                     type:     date
-                  date_nanos:
-                    type:     date_nanos
                   object:
                     type: object
                     properties:
@@ -53,8 +51,6 @@ setup:
                     type:     double
                   date:
                     type:     date
-                  date_nanos:
-                    type:     date_nanos
                   geo:
                     type:     geo_point
                   object:
@@ -90,8 +86,6 @@ setup:
                     type:     long
                   date:
                     type:     date
-                  date_nanos:
-                    type:     date_nanos
                   geo:
                     type:     keyword
                   object:
@@ -119,7 +113,7 @@ setup:
   - do:
       field_caps:
         index: 'test1,test2,test3'
-        fields: [text, keyword, number, date, date_nanos, geo]
+        fields: [text, keyword, number, date, geo]
 
   - match: {fields.text.text.searchable:                true}
   - match: {fields.text.text.aggregatable:              false}
@@ -146,11 +140,6 @@ setup:
   - is_false: fields.date.date.indices
   - is_false: fields.date.date.non_searchable_indices
   - is_false: fields.date.date.non_aggregatable_indices
-  - match: {fields.date_nanos.date_nanos.searchable:                true}
-  - match: {fields.date_nanos.date_nanos.aggregatable:              true}
-  - is_false: fields.date_nanos.date_nanos.indices
-  - is_false: fields.date_nanos.date_nanos.non_searchable_indices
-  - is_false: fields.date_nanos.date_nanos.non_aggregatable_indices
   - match: {fields.geo.geo_point.searchable:            true}
   - match: {fields.geo.geo_point.aggregatable:          true}
   - match: {fields.geo.geo_point.indices:               ["test1", "test2"]}
@@ -161,6 +150,33 @@ setup:
   - match: {fields.geo.keyword.indices:                 ["test3"]}
   - is_false: fields.geo.keyword.non_searchable_indices
   - is_false: fields.geo.keyword.on_aggregatable_indices
+---
+"Get date_nanos field caps":
+  - skip:
+      version: " - 6.99.99"
+      reason: date_nanos field mapping type has been introcued in 7.0
+
+  - do:
+        indices.create:
+          include_type_name: false
+          index: test_nanos
+          body:
+              mappings:
+                properties:
+                  date_nanos:
+                    type:     date_nanos
+
+  - do:
+      field_caps:
+        index: 'test_nanos'
+        fields: [date_nanos]
+
+  - match: {fields.date_nanos.date_nanos.searchable:                true}
+  - match: {fields.date_nanos.date_nanos.aggregatable:              true}
+  - is_false: fields.date_nanos.date_nanos.indices
+  - is_false: fields.date_nanos.date_nanos.non_searchable_indices
+  - is_false: fields.date_nanos.date_nanos.non_aggregatable_indices
+
 ---
 "Get leaves field caps":
 

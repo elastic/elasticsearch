@@ -128,6 +128,11 @@ public class DateUtils {
      * @return                      the milliseconds since the epoch
      */
     public static long toMilliSeconds(long nanoSecondsSinceEpoch) {
+        if (nanoSecondsSinceEpoch < 0) {
+            throw new IllegalArgumentException("nanoseconds are [" + nanoSecondsSinceEpoch + "] are before the epoch in 1970 and will " +
+                "be converted to milliseconds");
+        }
+
         if (nanoSecondsSinceEpoch == 0) {
             return 0;
         }

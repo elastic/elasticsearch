@@ -31,6 +31,7 @@ import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
@@ -159,28 +160,24 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
 
         @Override
         public SortedNumericDocValues getLongValues() {
-            try {
-                final SortedNumericDocValues dv = DocValues.getSortedNumeric(reader, fieldName);
-                return new AbstractSortedNumericDocValues() {
+            final SortedNumericDocValues dv = getLongValuesAsNanos();
+            return new AbstractSortedNumericDocValues() {
 
-                    @Override
-                    public boolean advanceExact(int target) throws IOException {
-                        return dv.advanceExact(target);
-                    }
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    return dv.advanceExact(target);
+                }
 
-                    @Override
-                    public long nextValue() throws IOException {
-                        return dv.nextValue() / 1_000_000L;
-                    }
+                @Override
+                public long nextValue() throws IOException {
+                    return DateUtils.toMilliSeconds(dv.nextValue());
+                }
 
-                    @Override
-                    public int docValueCount() {
-                        return dv.docValueCount();
-                    }
-                };
-            } catch (IOException e) {
-                throw new IllegalStateException("Cannot load doc values", e);
-            }
+                @Override
+                public int docValueCount() {
+                    return dv.docValueCount();
+                }
+            };
         }
 
         public SortedNumericDocValues getLongValuesAsNanos() {
@@ -203,7 +200,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
      * {@link DocValues#unwrapSingleton(SortedNumericDocValues)} will return
      * the underlying single-valued NumericDocValues representation.
      */
-    final class SortedNumericLongFieldData extends AtomicLongFieldData {
+    static final class SortedNumericLongFieldData extends AtomicLongFieldData {
         final LeafReader reader;
         final String field;
 

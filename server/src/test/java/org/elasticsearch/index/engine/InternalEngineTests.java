@@ -5312,8 +5312,15 @@ public class InternalEngineTests extends EngineTestCase {
         Randomness.shuffle(operations);
         Set<Long> existingSeqNos = new HashSet<>();
         store = createStore();
-        engine = createEngine(
-                config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get, retentionLeasesHolder::get));
+        engine = createEngine(config(
+                indexSettings,
+                store,
+                createTempDir(),
+                newMergePolicy(),
+                null,
+                null,
+                globalCheckpoint::get,
+                retentionLeasesHolder::get));
         assertThat(engine.getMinRetainedSeqNo(), equalTo(0L));
         long lastMinRetainedSeqNo = engine.getMinRetainedSeqNo();
         for (Engine.Operation op : operations) {

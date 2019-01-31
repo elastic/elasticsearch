@@ -28,7 +28,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.IndexSettingsModule;
 
-import java.lang.annotation.Retention;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;

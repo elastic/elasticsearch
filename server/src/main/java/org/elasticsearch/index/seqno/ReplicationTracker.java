@@ -171,6 +171,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     volatile ReplicationGroup replicationGroup;
 
+    /**
+     * The current retention leases.
+     */
     private RetentionLeases retentionLeases = RetentionLeases.EMPTY;
 
     /**

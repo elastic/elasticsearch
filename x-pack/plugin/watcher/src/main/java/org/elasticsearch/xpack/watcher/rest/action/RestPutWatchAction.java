@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -57,15 +57,13 @@ public class RestPutWatchAction extends WatcherRestHandler implements RestReques
                 new PutWatchRequest(request.param("id"), request.content(), request.getXContentType());
         putWatchRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putWatchRequest.masterNodeTimeout()));
         putWatchRequest.setVersion(request.paramAsLong("version", Versions.MATCH_ANY));
+        putWatchRequest.setIfSeqNo(request.paramAsLong("if_seq_no", putWatchRequest.getIfSeqNo()));
+        putWatchRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", putWatchRequest.getIfPrimaryTerm()));
         putWatchRequest.setActive(request.paramAsBoolean("active", putWatchRequest.isActive()));
         return channel -> client.putWatch(putWatchRequest, new RestBuilderListener<PutWatchResponse>(channel) {
             @Override
             public RestResponse buildResponse(PutWatchResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject()
-                        .field("_id", response.getId())
-                        .field("_version", response.getVersion())
-                        .field("created", response.isCreated())
-                        .endObject();
+                response.toXContent(builder, request);
                 RestStatus status = response.isCreated() ? CREATED : OK;
                 return new BytesRestResponse(status, builder);
             }

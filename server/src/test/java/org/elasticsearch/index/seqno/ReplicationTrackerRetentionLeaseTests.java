@@ -28,6 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.IndexSettingsModule;
 
+import java.lang.annotation.Retention;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -303,7 +304,6 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         assertThat(replicationTracker.getRetentionLeases().version(), equalTo(version));
     }
 
-    // TODO: update this test
     public void testReplicaIgnoresOlderRetentionLeasesVersion() {
         final AllocationId allocationId = AllocationId.newInitializing();
         final ReplicationTracker replicationTracker = new ReplicationTracker(
@@ -322,6 +322,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 Collections.emptySet());
         final int length = randomIntBetween(0, 8);
         final List<RetentionLeases> retentionLeasesCollection = new ArrayList<>(length);
+        long primaryTerm = 1;
         long version = 0;
         for (int i = 0; i < length; i++) {
             final int innerLength = randomIntBetween(0, 8);
@@ -331,21 +332,28 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                         new RetentionLease(i + "-" + j, randomNonNegativeLong(), randomNonNegativeLong(), randomAlphaOfLength(8)));
                 version++;
             }
-            retentionLeasesCollection.add(new RetentionLeases(1, version, retentionLeases));
+            if (rarely()) {
+                primaryTerm++;
+            }
+            retentionLeasesCollection.add(new RetentionLeases(primaryTerm, version, retentionLeases));
         }
-
+        final Collection<RetentionLease> expectedLeases;
+        if (length == 0 || retentionLeasesCollection.get(length - 1).leases().isEmpty()) {
+            expectedLeases = Collections.emptyList();
+        } else {
+            expectedLeases = retentionLeasesCollection.get(length - 1).leases();
+        }
         Collections.shuffle(retentionLeasesCollection, random());
         for (final RetentionLeases retentionLeases : retentionLeasesCollection) {
             replicationTracker.updateRetentionLeasesOnReplica(retentionLeases);
         }
         assertThat(replicationTracker.getRetentionLeases().version(), equalTo(version));
-        if (length == 0) {
+        if (expectedLeases.isEmpty()) {
             assertThat(replicationTracker.getRetentionLeases().leases(), empty());
         } else {
-            final RetentionLeases expected = retentionLeasesCollection.get(length - 1);
             assertThat(
                     replicationTracker.getRetentionLeases().leases(),
-                    contains(expected.leases().toArray(new RetentionLease[0])));
+                    contains(expectedLeases.toArray(new RetentionLease[0])));
         }
     }
 

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.sql.execution.search.extractor.ConstantExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.MetricAggExtractor;
+import org.elasticsearch.xpack.sql.execution.search.extractor.TopHitsAggExtractor;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggExtractorInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggPathInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.HitExtractorInput;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
+import org.elasticsearch.xpack.sql.querydsl.container.TopHitsAggRef;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
@@ -111,8 +113,13 @@ public class Querier {
     }
 
     public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, String... indices) {
-        SearchRequest search = client.prepareSearch(indices).setSource(source).setTimeout(timeout).request();
-        search.allowPartialSearchResults(false);
+        SearchRequest search = client.prepareSearch(indices)
+            // always track total hits accurately
+            .setTrackTotalHits(true)
+            .setAllowPartialSearchResults(false)
+            .setSource(source)
+            .setTimeout(timeout)
+            .request();
         return search;
     }
 
@@ -269,6 +276,11 @@ public class Querier {
             if (ref instanceof MetricAggRef) {
                 MetricAggRef r = (MetricAggRef) ref;
                 return new MetricAggExtractor(r.name(), r.property(), r.innerKey());
+            }
+
+            if (ref instanceof TopHitsAggRef) {
+                TopHitsAggRef r = (TopHitsAggRef) ref;
+                return new TopHitsAggExtractor(r.name(), r.fieldDataType());
             }
 
             if (ref == GlobalCountRef.INSTANCE) {

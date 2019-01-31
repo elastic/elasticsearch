@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.RetentionLease;
@@ -106,7 +107,16 @@ final class SoftDeletesPolicy {
      * Operations whose seq# is least this value should exist in the Lucene index.
      */
     synchronized long getMinRetainedSeqNo() {
-        // Do not advance if the retention lock is held
+        return getRetentionPolicy().v1();
+    }
+
+    public synchronized Tuple<Long, Collection<RetentionLease>> getRetentionPolicy() {
+        /*
+         * When an engine is flushed, we need to provide it the latest collection of retention leases even when the soft deletes policy is
+         * locked for peer recovery.
+         */
+        final Collection<RetentionLease> retentionLeases = retentionLeasesSupplier.get();
+        // do not advance if the retention lock is held
         if (retentionLockCount == 0) {
             /*
              * This policy retains operations for two purposes: peer-recovery and querying changes history.
@@ -119,8 +129,7 @@ final class SoftDeletesPolicy {
              */
 
             // calculate the minimum sequence number to retain based on retention leases
-            final long minimumRetainingSequenceNumber = retentionLeasesSupplier
-                    .get()
+            final long minimumRetainingSequenceNumber = retentionLeases
                     .stream()
                     .mapToLong(RetentionLease::retainingSequenceNumber)
                     .min()
@@ -139,7 +148,7 @@ final class SoftDeletesPolicy {
              */
             minRetainedSeqNo = Math.max(minRetainedSeqNo, minSeqNoToRetain);
         }
-        return minRetainedSeqNo;
+        return Tuple.tuple(minRetainedSeqNo, retentionLeases);
     }
 
     /**

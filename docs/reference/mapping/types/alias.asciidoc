@@ -10,18 +10,16 @@ and selected other APIs like <<search-field-caps, field capabilities>>.
 PUT trips
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "distance": {
-          "type": "long"
-        },
-        "route_length_miles": {
-          "type": "alias",
-          "path": "distance" // <1>
-        },
-        "transit_mode": {
-          "type": "keyword"
-        }
+    "properties": {
+      "distance": {
+        "type": "long"
+      },
+      "route_length_miles": {
+        "type": "alias",
+        "path": "distance" // <1>
+      },
+      "transit_mode": {
+        "type": "keyword"
       }
     }
   }

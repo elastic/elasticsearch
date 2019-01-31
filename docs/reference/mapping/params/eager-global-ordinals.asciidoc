@@ -36,7 +36,7 @@ aggregations:
 
 [source,js]
 ------------
-PUT my_index/_mapping/_doc
+PUT my_index/_mapping
 {
   "properties": {
     "tags": {
@@ -59,7 +59,7 @@ time:
 
 [source,js]
 ------------
-PUT my_index/_mapping/_doc
+PUT my_index/_mapping
 {
   "properties": {
     "tags": {

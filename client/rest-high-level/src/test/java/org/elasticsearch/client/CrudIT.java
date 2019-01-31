@@ -68,9 +68,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestDeleteAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
+import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.rest.action.document.RestUpdateAction;
-import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -90,8 +90,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -255,9 +257,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 .put("number_of_shards", 1)
                 .put("number_of_replicas", 0)
                 .build();
-            String mapping = "\"_doc\": { \"_source\": {\n" +
-                    "        \"enabled\": false\n" +
-                    "      }  }";
+            String mapping = "\"_source\": {\"enabled\": false}";
             createIndex(noSourceIndex, settings, mapping);
             assertEquals(
                 RestStatus.OK,
@@ -608,22 +608,46 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             IndexResponse indexResponse = highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
             assertEquals(RestStatus.CREATED, indexResponse.status());
 
-            UpdateRequest updateRequest = new UpdateRequest("index", "id");
-            updateRequest.doc(singletonMap("field", "updated"), randomFrom(XContentType.values()));
 
-            UpdateResponse updateResponse = execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
-            assertEquals(RestStatus.OK, updateResponse.status());
-            assertEquals(indexResponse.getVersion() + 1, updateResponse.getVersion());
+            long lastUpdateSeqNo;
+            long lastUpdatePrimaryTerm;
+            {
+                UpdateRequest updateRequest = new UpdateRequest("index", "id");
+                updateRequest.doc(singletonMap("field", "updated"), randomFrom(XContentType.values()));
+                final UpdateResponse updateResponse = execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
+                assertEquals(RestStatus.OK, updateResponse.status());
+                assertEquals(indexResponse.getVersion() + 1, updateResponse.getVersion());
+                lastUpdateSeqNo = updateResponse.getSeqNo();
+                lastUpdatePrimaryTerm = updateResponse.getPrimaryTerm();
+                assertThat(lastUpdateSeqNo, greaterThanOrEqualTo(0L));
+                assertThat(lastUpdatePrimaryTerm, greaterThanOrEqualTo(1L));
+            }
 
-            UpdateRequest updateRequestConflict = new UpdateRequest("index", "id");
-            updateRequestConflict.doc(singletonMap("field", "with_version_conflict"), randomFrom(XContentType.values()));
-            updateRequestConflict.version(indexResponse.getVersion());
-
-            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () ->
-                    execute(updateRequestConflict, highLevelClient()::update, highLevelClient()::updateAsync));
-            assertEquals(RestStatus.CONFLICT, exception.status());
-            assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[_doc][id]: version conflict, " +
-                            "current version [2] is different than the one provided [1]]", exception.getMessage());
+            {
+                final UpdateRequest updateRequest = new UpdateRequest("index", "id");
+                updateRequest.doc(singletonMap("field", "with_seq_no_conflict"), randomFrom(XContentType.values()));
+                if (randomBoolean()) {
+                    updateRequest.setIfSeqNo(lastUpdateSeqNo + 1);
+                    updateRequest.setIfPrimaryTerm(lastUpdatePrimaryTerm);
+                } else {
+                    updateRequest.setIfSeqNo(lastUpdateSeqNo + (randomBoolean() ? 0 : 1));
+                    updateRequest.setIfPrimaryTerm(lastUpdatePrimaryTerm + 1);
+                }
+                ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () ->
+                    execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync));
+                assertEquals(exception.toString(),RestStatus.CONFLICT, exception.status());
+                assertThat(exception.getMessage(), containsString("Elasticsearch exception [type=version_conflict_engine_exception"));
+            }
+            {
+                final UpdateRequest updateRequest = new UpdateRequest("index", "id");
+                updateRequest.doc(singletonMap("field", "with_seq_no"), randomFrom(XContentType.values()));
+                updateRequest.setIfSeqNo(lastUpdateSeqNo);
+                updateRequest.setIfPrimaryTerm(lastUpdatePrimaryTerm);
+                final UpdateResponse updateResponse = execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
+                assertEquals(RestStatus.OK, updateResponse.status());
+                assertEquals(lastUpdateSeqNo + 1, updateResponse.getSeqNo());
+                assertEquals(lastUpdatePrimaryTerm, updateResponse.getPrimaryTerm());
+            }
         }
         {
             IndexRequest indexRequest = new IndexRequest("index").id("with_script");
@@ -1242,7 +1266,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 .put("number_of_shards", 1)
                 .put("number_of_replicas", 0)
                 .build();
-            String mappings = "\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\"}}}";
+            String mappings = "\"properties\":{\"field\":{\"type\":\"text\"}}";
             createIndex(sourceIndex, settings, mappings);
             assertEquals(
                 RestStatus.OK,
@@ -1318,7 +1342,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 .put("number_of_shards", 1)
                 .put("number_of_replicas", 0)
                 .build();
-            String mappings = "\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\"}}}";
+            String mappings = "\"properties\":{\"field\":{\"type\":\"text\"}}";
             createIndex(sourceIndex, settings, mappings);
             assertEquals(
                 RestStatus.OK,

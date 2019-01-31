@@ -3,7 +3,7 @@
 //
 
 singlePercentileWithoutComma
-SELECT gender, PERCENTILE(emp_no, 97) p1 FROM test_emp GROUP BY gender;
+SELECT gender, PERCENTILE(emp_no, 90 + 7) p1 FROM test_emp GROUP BY gender;
 
 gender:s             | p1:d
 null                 |10019.0           
@@ -48,7 +48,7 @@ M                    |10084.349             |10093.502
 ;
 
 percentileRank
-SELECT gender, PERCENTILE_RANK(emp_no, 10025) rank FROM test_emp GROUP BY gender;
+SELECT gender, PERCENTILE_RANK(emp_no, 10000 + 25) rank FROM test_emp GROUP BY gender;
 
 gender:s             | rank:d
 null                 |100.0             
@@ -94,6 +94,14 @@ aggregateWithUpCast
 SELECT CAST(SUM(salary) AS DOUBLE) FROM test_emp;
 
   CAST(SUM(salary) AS DOUBLE)
+-----------------------------
+4824855.0
+;
+
+aggregateWithUpCastAsFloat
+SELECT CAST(SUM(salary) AS FLOAT) FROM test_emp;
+
+  CAST(SUM(salary) AS FLOAT)
 -----------------------------
 4824855.0
 ;
@@ -169,7 +177,7 @@ FROM "test_emp" GROUP BY "TEMP" ORDER BY "TEMP" LIMIT 20;
 aggAndOrderByCastedValue
 SELECT CHAR_LENGTH(SPACE(CAST(languages AS SMALLINT))), COUNT(*) FROM test_emp GROUP BY 1 ORDER BY 1 DESC;
 
-CHAR_LENGTH(SPACE(CAST(languages AS SMALLINT))):i|   COUNT(1):l
+CHAR_LENGTH(SPACE(CAST(languages AS SMALLINT))):i|   COUNT(*):l
 -------------------------------------------------+---------------
 5                                                |21
 4                                                |18
@@ -180,9 +188,9 @@ null                                             |10
 ;
 
 aggAndOrderByCastedFunctionValue
-SELECT ROUND(SQRT(CAST(EXP(languages) AS SMALLINT)), 2), COUNT(*) FROM test_emp GROUP BY 1 ORDER BY 1 DESC;
+SELECT ROUND(SQRT(CAST(EXP(languages) AS SMALLINT)),2), COUNT(*) FROM test_emp GROUP BY 1 ORDER BY 1 DESC;
 
-ROUND(SQRT(CAST(EXP(languages) AS SMALLINT)),2):d|  COUNT(1):l
+ROUND(SQRT(CAST(EXP(languages) AS SMALLINT)),2):d|  COUNT(*):l
 -------------------------------------------------+---------------
 12.17                                            |21
 7.42                                             |18
@@ -215,7 +223,7 @@ SELECT HISTOGRAM(salary, 5000) AS h FROM test_emp GROUP BY h;
 70000  
 ;
 
-histogramDate
+histogramDateTime
 schema::h:ts|c:l
 SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) as c FROM test_emp GROUP BY h;
 
@@ -239,7 +247,7 @@ null                |10
          
 ;
 
-histogramDateWithCountAndOrder
+histogramDateTimeWithCountAndOrder
 schema::h:ts|c:l
 SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
 
@@ -262,7 +270,7 @@ SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) as c FROM test_emp 
 null                |10   
 ;
 
-histogramDateWithMonthOnTop
+histogramDateTimeWithMonthOnTop
 schema::h:i|c:l
 SELECT HISTOGRAM(MONTH(birth_date), 2) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
 
@@ -278,7 +286,7 @@ SELECT HISTOGRAM(MONTH(birth_date), 2) AS h, COUNT(*) as c FROM test_emp GROUP B
 null           |10    
 ;
 
-histogramDateWithYearOnTop
+histogramDateTimeWithYearOnTop
 schema::h:i|c:l
 SELECT HISTOGRAM(YEAR(birth_date), 2) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
        h       |       c       
@@ -364,4 +372,77 @@ SELECT COUNT(ALL last_name)=COUNT(ALL first_name) AS areEqual, COUNT(ALL first_n
    areEqual    |      afn      |      aln
 ---------------+---------------+---------------
 false          |90             |100
+;
+
+topHitsWithOneArgAndGroupBy
+schema::gender:s|first:s|last:s
+SELECT gender, FIRST(first_name) as first, LAST(first_name) as last FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+---------------
+null           |   Berni       |   Patricio
+F              |   Alejandro   |   Xinglin
+M              |   Amabile     |   Zvonko
+;
+
+topHitsWithTwoArgsAndGroupBy
+schema::gender:s|first:s|last:s
+SELECT gender, FIRST(first_name, birth_date) as first, LAST(first_name, birth_date) as last FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+---------------
+null           |   Lillian     |   Eberhardt
+F              |   Sumant      |   Valdiodio
+M              |   Remzi       |   Hilari
+;
+
+topHitsWithTwoArgsAndGroupByWithNullsOnTargetField
+schema::gender:s|first:s|last:s
+SELECT gender, FIRST(first_name, birth_date) AS first, LAST(first_name, birth_date) AS last FROM test_emp WHERE emp_no BETWEEN 10025 AND 10035 GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+---------------
+F              |   null        |   Divier
+M              |   null        |   Domenick
+;
+
+topHitsWithTwoArgsAndGroupByWithNullsOnSortingField
+schema::gender:s|first:s|last:s
+SELECT gender, FIRST(first_name, birth_date) AS first, LAST(first_name, birth_date) AS last FROM test_emp WHERE emp_no BETWEEN 10047 AND 10052 GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+---------------
+F              |   Basil       |   Basil
+M              |   Hidefumi    |   Heping
+;
+
+topHitsWithTwoArgsAndGroupByWithNullsOnTargetAndSortingField
+schema::gender:s|first:s|last:s
+SELECT gender, FIRST(first_name, birth_date) AS first, LAST(first_name, birth_date) AS last FROM test_emp WHERE emp_no BETWEEN 10037 AND 10052 GROUP BY gender ORDER BY gender;
+
+    gender     |   first     |  last
+---------------+-------------+-----------------
+F              |   Basil     |  Weiyi
+M              |   Hidefumi  |  null
+;
+
+topHitsWithTwoArgsAndGroupByWithAllNullsOnTargetField
+schema::gender:s|first:s|last:s
+SELECT gender, FIRST(first_name, birth_date) AS first, LAST(first_name, birth_date) AS last FROM test_emp WHERE emp_no BETWEEN 10030 AND 10037 GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+---------------
+F              |   null        |   null
+M              |   null        |   null
+;
+
+topHitsOnDatetime
+schema::gender:s|first:i|last:i
+SELECT gender, month(first(birth_date, languages)) first, month(last(birth_date, languages)) last FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+---------------
+null           |   1           |   10
+F              |   4           |   6
+M              |   1           |   4
 ;

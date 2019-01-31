@@ -23,14 +23,12 @@ Dimensions don't need to be in order.
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_vector": {
-          "type": "sparse_vector"
-        },
-        "my_text" : {
-          "type" : "keyword"
-        }
+    "properties": {
+      "my_vector": {
+        "type": "sparse_vector"
+      },
+      "my_text" : {
+        "type" : "keyword"
       }
     }
   }

@@ -27,14 +27,12 @@ which indexes the field values for fast completions.
 PUT music
 {
     "mappings": {
-        "_doc" : {
-            "properties" : {
-                "suggest" : {
-                    "type" : "completion"
-                },
-                "title" : {
-                    "type": "keyword"
-                }
+        "properties" : {
+            "suggest" : {
+                "type" : "completion"
+            },
+            "title" : {
+                "type": "keyword"
             }
         }
     }

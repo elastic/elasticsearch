@@ -24,11 +24,13 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapConfiguration;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -45,13 +47,14 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.CoordinatorTests;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.coordination.MockSinglePrioritizingExecutor;
+import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -68,6 +71,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
@@ -78,6 +82,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -114,7 +119,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -122,7 +126,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
@@ -197,6 +200,53 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertEquals(0, snapshotInfo.failedShards());
     }
 
+    public void testConcurrentSnapshotCreateAndDelete() {
+        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+
+        String repoName = "repo";
+        String snapshotName = "snapshot";
+        final String index = "test";
+
+        final int shards = randomIntBetween(1, 10);
+
+        TestClusterNode masterNode =
+            testClusterNodes.currentMaster(testClusterNodes.nodes.values().iterator().next().clusterService.state());
+        final AtomicBoolean createdSnapshot = new AtomicBoolean();
+        masterNode.client.admin().cluster().preparePutRepository(repoName)
+            .setType(FsRepository.TYPE).setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
+            .execute(
+                assertNoFailureListener(
+                    () -> masterNode.client.admin().indices().create(
+                        new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL).settings(
+                            Settings.builder()
+                                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
+                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)),
+                        assertNoFailureListener(
+                            () -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                                .execute(assertNoFailureListener(
+                                    () -> masterNode.client.admin().cluster().deleteSnapshot(
+                                        new DeleteSnapshotRequest(repoName, snapshotName),
+                                        assertNoFailureListener(() -> masterNode.client.admin().cluster()
+                                            .prepareCreateSnapshot(repoName, snapshotName).execute(
+                                                assertNoFailureListener(() -> createdSnapshot.set(true))
+                                            )))))))));
+
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        assertTrue(createdSnapshot.get());
+        SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
+        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
+        assertThat(snapshotIds, hasSize(1));
+
+        final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
+        assertEquals(shards, snapshotInfo.successfulShards());
+        assertEquals(0, snapshotInfo.failedShards());
+    }
+
     private void startCluster() {
         final ClusterState initialClusterState =
             new ClusterState.Builder(ClusterName.DEFAULT).nodes(testClusterNodes.randomDiscoveryNodes()).build();
@@ -205,14 +255,10 @@ public class SnapshotsServiceTests extends ESTestCase {
         deterministicTaskQueue.advanceTime();
         deterministicTaskQueue.runAllRunnableTasks();
 
-        final BootstrapConfiguration bootstrapConfiguration = new BootstrapConfiguration(
-            testClusterNodes.nodes.values().stream().filter(n -> n.node.isMasterNode())
-                .map(node -> new BootstrapConfiguration.NodeDescription(node.node))
-                .distinct()
-                .collect(Collectors.toList()));
+        final VotingConfiguration votingConfiguration = new VotingConfiguration(testClusterNodes.nodes.values().stream().map(n -> n.node)
+                .filter(DiscoveryNode::isMasterNode).map(DiscoveryNode::getId).collect(Collectors.toSet()));
         testClusterNodes.nodes.values().stream().filter(n -> n.node.isMasterNode()).forEach(
-            testClusterNode -> testClusterNode.coordinator.setInitialConfiguration(bootstrapConfiguration)
-        );
+            testClusterNode -> testClusterNode.coordinator.setInitialConfiguration(votingConfiguration));
 
         runUntil(
             () -> {
@@ -388,41 +434,26 @@ public class SnapshotsServiceTests extends ESTestCase {
                         return new MockSinglePrioritizingExecutor(node.getName(), deterministicTaskQueue);
                     }
                 });
-            mockTransport = new DisruptableMockTransport(logger) {
+            mockTransport = new DisruptableMockTransport(node, logger) {
                 @Override
-                protected DiscoveryNode getLocalNode() {
-                    return node;
-                }
-
-                @Override
-                protected ConnectionStatus getConnectionStatus(DiscoveryNode sender, DiscoveryNode destination) {
+                protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {
                     return ConnectionStatus.CONNECTED;
                 }
 
                 @Override
-                protected Optional<DisruptableMockTransport> getDisruptedCapturingTransport(DiscoveryNode node, String action) {
-                    final Predicate<TestClusterNode> matchesDestination;
-                    if (action.equals(HANDSHAKE_ACTION_NAME)) {
-                        matchesDestination = n -> n.transportService.getLocalNode().getAddress().equals(node.getAddress());
-                    } else {
-                        matchesDestination = n -> n.transportService.getLocalNode().equals(node);
-                    }
-                    return testClusterNodes.nodes.values().stream().filter(matchesDestination).findAny().map(cn -> cn.mockTransport);
+                protected Optional<DisruptableMockTransport> getDisruptableMockTransport(TransportAddress address) {
+                    return testClusterNodes.nodes.values().stream().map(cn -> cn.mockTransport)
+                        .filter(transport -> transport.getLocalNode().getAddress().equals(address))
+                        .findAny();
                 }
 
                 @Override
-                protected void handle(DiscoveryNode sender, DiscoveryNode destination, String action, Runnable doDelivery) {
-                    // handshake needs to run inline as the caller blockingly waits on the result
-                    final Runnable runnable = CoordinatorTests.onNode(destination, doDelivery);
-                    if (action.equals(HANDSHAKE_ACTION_NAME)) {
-                        runnable.run();
-                    } else {
-                        deterministicTaskQueue.scheduleNow(runnable);
-                    }
+                protected void execute(Runnable runnable) {
+                    deterministicTaskQueue.scheduleNow(CoordinatorTests.onNodeLog(getLocalNode(), runnable));
                 }
             };
             transportService = mockTransport.createTransportService(
-                settings, deterministicTaskQueue.getThreadPool(runnable -> CoordinatorTests.onNode(node, runnable)),
+                settings, deterministicTaskQueue.getThreadPool(runnable -> CoordinatorTests.onNodeLog(node, runnable)),
                 NOOP_TRANSPORT_INTERCEPTOR,
                 a -> node, null, emptySet()
             );
@@ -479,32 +510,52 @@ public class SnapshotsServiceTests extends ESTestCase {
                 transportService, indicesService, actionFilters, indexNameExpressionResolver);
             final ShardStateAction shardStateAction = new ShardStateAction(
                 clusterService, transportService, allocationService,
-                new RoutingService(settings, clusterService, allocationService),
+                new RoutingService(clusterService, allocationService),
                 deterministicTaskQueue.getThreadPool()
             );
             indicesClusterStateService = new IndicesClusterStateService(
-                settings, indicesService, clusterService, threadPool,
-                new PeerRecoveryTargetService(
-                    deterministicTaskQueue.getThreadPool(), transportService, recoverySettings,
-                    clusterService
-                ),
-                shardStateAction,
-                new NodeMappingRefreshAction(transportService, new MetaDataMappingService(clusterService, indicesService)),
-                repositoriesService,
-                mock(SearchService.class),
-                new SyncedFlushService(indicesService, clusterService, transportService, indexNameExpressionResolver),
-                new PeerRecoverySourceService(transportService, indicesService, recoverySettings),
-                snapshotShardsService,
-                new PrimaryReplicaSyncer(
-                    transportService,
-                    new TransportResyncReplicationAction(
-                        settings, transportService, clusterService, indicesService, threadPool,
-                        shardStateAction, actionFilters, indexNameExpressionResolver)
-                ),
-                new GlobalCheckpointSyncAction(
-                    settings, transportService, clusterService, indicesService, threadPool,
-                    shardStateAction, actionFilters, indexNameExpressionResolver)
-            );
+                    settings,
+                    indicesService,
+                    clusterService,
+                    threadPool,
+                    new PeerRecoveryTargetService(
+                            deterministicTaskQueue.getThreadPool(), transportService, recoverySettings, clusterService),
+                    shardStateAction,
+                    new NodeMappingRefreshAction(transportService, new MetaDataMappingService(clusterService, indicesService)),
+                    repositoriesService,
+                    mock(SearchService.class),
+                    new SyncedFlushService(indicesService, clusterService, transportService, indexNameExpressionResolver),
+                    new PeerRecoverySourceService(transportService, indicesService, recoverySettings),
+                    snapshotShardsService,
+                    new PrimaryReplicaSyncer(
+                            transportService,
+                            new TransportResyncReplicationAction(
+                                    settings,
+                                    transportService,
+                                    clusterService,
+                                    indicesService,
+                                    threadPool,
+                                    shardStateAction,
+                                    actionFilters,
+                                    indexNameExpressionResolver)),
+                    new GlobalCheckpointSyncAction(
+                            settings,
+                            transportService,
+                            clusterService,
+                            indicesService,
+                            threadPool,
+                            shardStateAction,
+                            actionFilters,
+                            indexNameExpressionResolver),
+                    new RetentionLeaseSyncAction(
+                            settings,
+                            transportService,
+                            clusterService,
+                            indicesService,
+                            threadPool,
+                            shardStateAction,
+                            actionFilters,
+                            indexNameExpressionResolver));
             Map<Action, TransportAction> actions = new HashMap<>();
             actions.put(CreateIndexAction.INSTANCE,
                 new TransportCreateIndexAction(
@@ -521,6 +572,11 @@ public class SnapshotsServiceTests extends ESTestCase {
                 ));
             actions.put(CreateSnapshotAction.INSTANCE,
                 new TransportCreateSnapshotAction(
+                    transportService, clusterService, threadPool,
+                    snapshotsService, actionFilters, indexNameExpressionResolver
+                ));
+            actions.put(DeleteSnapshotAction.INSTANCE,
+                new TransportDeleteSnapshotAction(
                     transportService, clusterService, threadPool,
                     snapshotsService, actionFilters, indexNameExpressionResolver
                 ));
@@ -544,7 +600,16 @@ public class SnapshotsServiceTests extends ESTestCase {
             coordinator.start();
             masterService.start();
             clusterService.getClusterApplierService().setNodeConnectionsService(
-                new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService));
+                new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService) {
+                    @Override
+                    public void connectToNodes(DiscoveryNodes discoveryNodes) {
+                        // override this method as it does blocking calls
+                        for (final DiscoveryNode node : discoveryNodes) {
+                            transportService.connectToNode(node);
+                        }
+                        super.connectToNodes(discoveryNodes);
+                    }
+                });
             clusterService.getClusterApplierService().start();
             indicesService.start();
             indicesClusterStateService.start();

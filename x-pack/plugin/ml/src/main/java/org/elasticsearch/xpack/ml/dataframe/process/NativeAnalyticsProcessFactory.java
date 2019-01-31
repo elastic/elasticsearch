@@ -52,7 +52,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory {
 
         NativeAnalyticsProcess analyticsProcess = new NativeAnalyticsProcess(jobId, processPipes.getLogStream().get(),
                 processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(), null, numberOfFields,
-                filesToDelete, () -> {});
+                filesToDelete, reason -> {});
 
 
         try {

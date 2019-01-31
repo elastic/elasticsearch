@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 
 public class NativeAutodetectProcessFactory implements AutodetectProcessFactory {
 
@@ -57,7 +58,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     public AutodetectProcess createAutodetectProcess(Job job,
                                                      AutodetectParams params,
                                                      ExecutorService executorService,
-                                                     Runnable onProcessCrash) {
+                                                     Consumer<String> onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, AutodetectBuilder.AUTODETECT, job.getId(),
                 true, false, true, true, params.modelSnapshot() != null,

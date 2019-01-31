@@ -12,21 +12,18 @@ setup:
   - do:
       index:
         index: source
-        type:  doc
         id:    "1"
         body:  { "foo": "hello world" }
 
   - do:
       index:
         index: source
-        type:  doc
         id:    "2"
         body:  { "foo": "hello world 2" }
 
   - do:
       index:
         index: source
-        type:  doc
         id:    "3"
         body:  { "foo": "hello world 3" }
 
@@ -69,11 +66,10 @@ setup:
   - do:
       get:
         index: target
-        type:  doc
         id:    "1"
 
   - match: { _index:   target }
-  - match: { _type:    doc   }
+  - match: { _type:    _doc   }
   - match: { _id:      "1"     }
   - match: { _source:  { foo: "hello world" } }
 
@@ -81,11 +77,10 @@ setup:
   - do:
       get:
         index: target
-        type:  doc
         id:    "2"
 
   - match: { _index:   target }
-  - match: { _type:    doc   }
+  - match: { _type:    _doc   }
   - match: { _id:      "2"     }
   - match: { _source:  { foo: "hello world 2" } }
 
@@ -93,11 +88,10 @@ setup:
   - do:
       get:
         index: target
-        type:  doc
         id:    "3"
 
   - match: { _index:   target }
-  - match: { _type:    doc   }
+  - match: { _type:    _doc   }
   - match: { _id:      "3"     }
   - match: { _source:  { foo: "hello world 3" } }
 
@@ -118,21 +112,18 @@ setup:
   - do:
       index:
         index: source_one_shard
-        type:  doc
         id:    "1"
         body:  { "foo": "hello world" }
 
   - do:
       index:
         index: source_one_shard
-        type:  doc
         id:    "2"
         body:  { "foo": "hello world 2" }
 
   - do:
       index:
         index: source_one_shard
-        type:  doc
         id:    "3"
         body:  { "foo": "hello world 3" }
 
@@ -168,11 +159,10 @@ setup:
   - do:
       get:
         index: target
-        type:  doc
         id:    "1"
 
   - match: { _index:   target }
-  - match: { _type:    doc   }
+  - match: { _type:    _doc   }
   - match: { _id:      "1"     }
   - match: { _source:  { foo: "hello world" } }
 
@@ -180,11 +170,10 @@ setup:
   - do:
       get:
         index: target
-        type:  doc
         id:    "2"
 
   - match: { _index:   target }
-  - match: { _type:    doc   }
+  - match: { _type:    _doc   }
   - match: { _id:      "2"     }
   - match: { _source:  { foo: "hello world 2" } }
 
@@ -192,11 +181,10 @@ setup:
   - do:
       get:
         index: target
-        type:  doc
         id:    "3"
 
   - match: { _index:   target }
-  - match: { _type:    doc   }
+  - match: { _type:    _doc   }
   - match: { _id:      "3"     }
   - match: { _source:  { foo: "hello world 3" } }
 

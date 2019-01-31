@@ -44,7 +44,7 @@ public class Phase implements ToXContentObject {
     static final ParseField ACTIONS_FIELD = new ParseField("actions");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Phase, String> PARSER = new ConstructingObjectParser<>("phase", false,
+    private static final ConstructingObjectParser<Phase, String> PARSER = new ConstructingObjectParser<>("phase", true,
         (a, name) -> new Phase(name, (TimeValue) a[0], ((List<LifecycleAction>) a[1]).stream()
             .collect(Collectors.toMap(LifecycleAction::getName, Function.identity()))));
     static {

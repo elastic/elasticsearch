@@ -40,17 +40,6 @@ public abstract class BinaryComparison extends BinaryOperator<Object, Object, Bo
         return new BinaryComparisonPipe(source(), this, Expressions.pipe(left()), Expressions.pipe(right()), function());
     }
 
-    @Override
-    public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(left());
-        sb.append(" ");
-        sb.append(symbol());
-        sb.append(" ");
-        sb.append(right());
-        return sb.toString();
-    }
-
     public static Integer compare(Object left, Object right) {
         return Comparisons.compare(left, right);
     }

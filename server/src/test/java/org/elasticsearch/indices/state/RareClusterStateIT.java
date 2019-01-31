@@ -21,6 +21,7 @@ package org.elasticsearch.indices.state;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -57,6 +58,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -136,7 +138,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 builder.nodes(DiscoveryNodes.builder(currentState.nodes()).remove("_non_existent"));
 
                 currentState = builder.build();
-                return allocationService.deassociateDeadNodes(currentState, true, "reroute");
+                return allocationService.disassociateDeadNodes(currentState, true, "reroute");
 
             }
 
@@ -331,12 +333,12 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // Force allocation of the primary on the master node by first only allocating on the master
         // and then allowing all nodes so that the replica gets allocated on the other node
-        assertAcked(prepareCreate("index").setSettings(Settings.builder()
+        prepareCreate("index").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put("index.routing.allocation.include._name", master)).get());
-        assertAcked(client().admin().indices().prepareUpdateSettings("index").setSettings(Settings.builder()
-                .put("index.routing.allocation.include._name", "")).get());
+                .put("index.routing.allocation.include._name", master)).get();
+        client().admin().indices().prepareUpdateSettings("index").setSettings(Settings.builder()
+                .put("index.routing.allocation.include._name", "")).get();
         ensureGreen();
 
         // Check routing tables
@@ -397,6 +399,24 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         assertBusy(() -> assertTrue(client().prepareGet("index", "type", "1").get().isExists()));
 
+        // index another document, this time using dynamic mappings.
+        // The ack timeout of 0 on dynamic mapping updates makes it possible for the document to be indexed on the primary, even
+        // if the dynamic mapping update is not applied on the replica yet.
+        ActionFuture<IndexResponse> dynamicMappingsFut = client().prepareIndex("index", "type", "2").setSource("field2", 42).execute();
+
+        // ...and wait for second mapping to be available on master
+        assertBusy(() -> {
+            final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, master);
+            final IndexService indexService = indicesService.indexServiceSafe(index);
+            assertNotNull(indexService);
+            final MapperService mapperService = indexService.mapperService();
+            DocumentMapper mapper = mapperService.documentMapper("type");
+            assertNotNull(mapper);
+            assertNotNull(mapper.mappers().getMapper("field2"));
+        });
+
+        assertBusy(() -> assertTrue(client().prepareGet("index", "type", "2").get().isExists()));
+
         // The mappings have not been propagated to the replica yet as a consequence the document count not be indexed
         // We wait on purpose to make sure that the document is not indexed because the shard operation is stalled
         // and not just because it takes time to replicate the indexing request to the replica
@@ -415,6 +435,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
             assertEquals(Arrays.toString(docResp.getShardInfo().getFailures()),
                     2, docResp.getShardInfo().getTotal()); // both shards should have succeeded
         });
+
+        assertThat(dynamicMappingsFut.get().getResult(), equalTo(CREATED));
     }
 
 }

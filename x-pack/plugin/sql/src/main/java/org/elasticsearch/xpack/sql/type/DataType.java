@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.type;
 
+import org.elasticsearch.xpack.sql.util.DateUtils;
+
 import java.sql.JDBCType;
 import java.sql.SQLType;
 import java.sql.Types;
@@ -41,10 +43,11 @@ public enum DataType {
     OBJECT(                JDBCType.STRUCT,    -1,                0,                 0,  false, false, false),
     NESTED(                JDBCType.STRUCT,    -1,                0,                 0,  false, false, false),
     BINARY(                JDBCType.VARBINARY, -1,                Integer.MAX_VALUE, 0,  false, false, false),
-    // since ODBC and JDBC interpret precision for Date as display size,
+    DATE(                  JDBCType.DATE,      Long.BYTES,        10,                10, false, false, true),
+    // since ODBC and JDBC interpret precision for Date as display size
     // the precision is 23 (number of chars in ISO8601 with millis) + Z (the UTC timezone)
     // see https://github.com/elastic/elasticsearch/issues/30386#issuecomment-386807288
-    DATE(                  JDBCType.TIMESTAMP, Long.BYTES,        24,                24, false, false, true),
+    DATETIME(              JDBCType.TIMESTAMP, Long.BYTES,        24,                24, false, false, true),
     //
     // specialized types
     //
@@ -71,7 +74,6 @@ public enum DataType {
     // @formatter:on
 
     private static final Map<String, DataType> odbcToEs;
-
     static {
         odbcToEs = new HashMap<>(36);
 
@@ -103,8 +105,8 @@ public enum DataType {
 
         // Date
         odbcToEs.put("SQL_DATE", DATE);
-        odbcToEs.put("SQL_TIME", DATE);
-        odbcToEs.put("SQL_TIMESTAMP", DATE);
+        odbcToEs.put("SQL_TIME", DATETIME);
+        odbcToEs.put("SQL_TIMESTAMP", DATETIME);
 
         // Intervals
         odbcToEs.put("SQL_INTERVAL_HOUR_TO_MINUTE", INTERVAL_HOUR_TO_MINUTE);
@@ -121,6 +123,7 @@ public enum DataType {
         odbcToEs.put("SQL_INTERVAL_DAY_TO_MINUTE", INTERVAL_DAY_TO_MINUTE);
         odbcToEs.put("SQL_INTERVAL_DAY_TO_SECOND", INTERVAL_DAY_TO_SECOND);
     }
+
 
     /**
      * Elasticsearch type name
@@ -214,6 +217,10 @@ public enum DataType {
     public boolean isPrimitive() {
         return this != OBJECT && this != NESTED;
     }
+
+    public boolean isDateBased() {
+        return this == DATE || this == DATETIME;
+    }
     
     public static DataType fromOdbcType(String odbcType) {
         return odbcToEs.get(odbcType);
@@ -225,10 +232,18 @@ public enum DataType {
      * For any dataType DataType.fromTypeName(dataType.esType) == dataType
      */
     public static DataType fromTypeName(String esType) {
+        String uppercase = esType.toUpperCase(Locale.ROOT);
+        if (uppercase.equals("DATE")) {
+            return DataType.DATETIME;
+        }
         try {
-            return DataType.valueOf(esType.toUpperCase(Locale.ROOT));
+            return DataType.valueOf(uppercase);
         } catch (IllegalArgumentException ex) {
             return DataType.UNSUPPORTED;
         }
+    }
+
+    public String format() {
+        return isDateBased() ? DateUtils.DATE_PARSE_FORMAT : null;
     }
 }

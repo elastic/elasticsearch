@@ -261,6 +261,14 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         } catch (Exception e) {
             // Swallow any exception, this test does not test actually cancelling.
         }
+        // stop job to prevent spamming exceptions on next start request
+        StopRollupJobRequest stopRequest = new StopRollupJobRequest(id);
+        stopRequest.waitForCompletion();
+        stopRequest.timeout(TimeValue.timeValueSeconds(10));
+
+        StopRollupJobResponse response = client.rollup().stopRollupJob(stopRequest, RequestOptions.DEFAULT);
+        assertTrue(response.isAcknowledged());
+
         // tag::rollup-start-job-execute-listener
         ActionListener<StartRollupJobResponse> listener = new ActionListener<StartRollupJobResponse>() {
             @Override
@@ -282,7 +290,8 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
 
         // stop job so it can correctly be deleted by the test teardown
-        rc.stopRollupJob(new StopRollupJobRequest(id), RequestOptions.DEFAULT);
+        response = rc.stopRollupJob(stopRequest, RequestOptions.DEFAULT);
+        assertTrue(response.isAcknowledged());
     }
 
     @SuppressWarnings("unused")

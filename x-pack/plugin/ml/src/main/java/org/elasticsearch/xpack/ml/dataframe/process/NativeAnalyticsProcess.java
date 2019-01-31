@@ -14,6 +14,7 @@ import java.io.OutputStream;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Consumer;
 
 public class NativeAnalyticsProcess extends AbstractNativeProcess implements AnalyticsProcess {
 
@@ -23,7 +24,7 @@ public class NativeAnalyticsProcess extends AbstractNativeProcess implements Ana
 
     protected NativeAnalyticsProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream,
                                      OutputStream processRestoreStream, int numberOfFields, List<Path> filesToDelete,
-                                     Runnable onProcessCrash) {
+                                     Consumer<String> onProcessCrash) {
         super(jobId, logStream, processInStream, processOutStream, processRestoreStream, numberOfFields, filesToDelete, onProcessCrash);
     }
 

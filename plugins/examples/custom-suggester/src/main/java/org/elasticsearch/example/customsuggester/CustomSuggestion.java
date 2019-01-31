@@ -78,11 +78,6 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
     }
 
     @Override
-    protected Entry newEntry() {
-        return new Entry();
-    }
-
-    @Override
     protected Entry newEntry(StreamInput in) throws IOException {
         return new Entry(in);
     }
@@ -121,11 +116,6 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(dummy);
-        }
-
-        @Override
-        protected Option newOption() {
-            return new Option();
         }
 
         @Override
@@ -177,8 +167,6 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
             }
 
             private String dummy;
-
-            public Option() {}
 
             public Option(Text text, float score, String dummy) {
                 super(text, score);

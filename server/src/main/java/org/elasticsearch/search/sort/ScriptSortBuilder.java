@@ -128,7 +128,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
         }
-        missing = in.readGenericValue();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            missing = in.readGenericValue();
+        }
     }
 
     @Override
@@ -142,7 +144,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeOptionalWriteable(nestedSort);
         }
-        out.writeGenericValue(missing);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeGenericValue(missing);
+        }
     }
 
     /**

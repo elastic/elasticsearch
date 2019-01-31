@@ -21,7 +21,7 @@ type.
 |=======================================================================
 |Option |Description| Default
 
-|`tree |deprecated[6.6, PrefixTrees no longer used] Name of the PrefixTree
+|`tree` |deprecated[6.6, PrefixTrees no longer used] Name of the PrefixTree
 implementation to be used: `geohash` for GeohashPrefixTree and `quadtree`
 for QuadPrefixTree. Note: This parameter is only relevant for `term` and
 `recursive` strategies.
@@ -126,6 +126,20 @@ this is the default indexing technique prefix trees can still be used by setting
 the `tree` or `strategy` parameters according to the appropriate
 <<geo-shape-mapping-options>>. Note that these parameters are now deprecated
 and will be removed in a future version.
+
+*IMPORTANT NOTES*
+
+The following features are not yet supported with the new indexing approach:
+
+* `geo_shape` query with `MultiPoint` geometry types - Elasticsearch currently prevents searching
+   geo_shape fields with a MultiPoint geometry type to avoid a brute force linear search
+   over each individual point. For now, if this is absolutely needed, this can be achieved
+   using a `Bool` query with each individual point.
+
+* `CONTAINS` relation query - when using the new default vector indexing strategy, `geo_shape`
+   queries with `relation` defined as `contains` are not yet supported. If this query relation
+   is an absolute necessity, it is recommended to set `strategy` to `quadtree` and use the
+   deprecated PrefixTree strategy indexing approach.
 
 [[prefix-trees]]
 [float]

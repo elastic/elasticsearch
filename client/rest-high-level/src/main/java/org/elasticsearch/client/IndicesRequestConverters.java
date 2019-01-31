@@ -389,7 +389,7 @@ final class IndicesRequestConverters {
         params.withHuman(getIndexRequest.humanReadable());
         params.withMasterTimeout(getIndexRequest.masterNodeTimeout());
         // Force "include_type_name" parameter since responses need to be compatible when coming from 7.0 nodes
-        params.withIncludeTypeName(true);
+        params.putParam(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, Boolean.TRUE.toString());
 
         return request;
     }
@@ -436,7 +436,7 @@ final class IndicesRequestConverters {
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withMasterTimeout(putIndexTemplateRequest.masterNodeTimeout());
-        params.withIncludeTypeName(true);
+        params.putParam(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, Boolean.TRUE.toString());
         if (putIndexTemplateRequest.create()) {
             params.putParam("create", Boolean.TRUE.toString());
         }
@@ -453,8 +453,6 @@ final class IndicesRequestConverters {
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withMasterTimeout(putIndexTemplateRequest.masterNodeTimeout());
-        // Caution: line below doesn't actually set the include_type_name=false parameter. 
-        // params.withIncludeTypeName(false);
         params.putParam(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, Boolean.FALSE.toString());
         if (putIndexTemplateRequest.create()) {
             params.putParam("create", Boolean.TRUE.toString());
@@ -509,7 +507,7 @@ final class IndicesRequestConverters {
         final RequestConverters.Params params = new RequestConverters.Params(request);
         params.withLocal(getIndexTemplatesRequest.isLocal());
         params.withMasterTimeout(getIndexTemplatesRequest.getMasterNodeTimeout());
-        params.withIncludeTypeName(includeTypeName);
+        params.putParam(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, Boolean.toString(includeTypeName));
         return request;
     }    
 

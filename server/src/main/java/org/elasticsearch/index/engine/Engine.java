@@ -627,7 +627,7 @@ public abstract class Engine implements Closeable {
                 get.getIfSeqNo() != docIdAndVersion.seqNo || get.getIfPrimaryTerm() != docIdAndVersion.primaryTerm
             )) {
                 Releasables.close(searcher);
-                throw new VersionConflictEngineException(shardId, get.type(), get.id(),
+                throw new VersionConflictEngineException(shardId, get.id(),
                     get.getIfSeqNo(), get.getIfPrimaryTerm(), docIdAndVersion.seqNo, docIdAndVersion.primaryTerm);
             }
         }

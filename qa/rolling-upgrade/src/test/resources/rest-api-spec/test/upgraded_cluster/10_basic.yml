@@ -134,6 +134,7 @@
 
   - do:
       indices.get_mapping:
+        include_type_name: false
         index: all-index
 
   - is_true: all-index.mappings._all

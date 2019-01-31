@@ -6,17 +6,26 @@
 
 package org.elasticsearch.xpack.dataframe.transforms.pivot;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Map;
 import java.util.Objects;
 
 /*
@@ -26,38 +35,60 @@ import java.util.Objects;
  *
  */
 public class AggregationConfig implements Writeable, ToXContentObject {
+    private static final Logger logger = LogManager.getLogger(AggregationConfig.class);
 
-    private final AggregatorFactories.Builder aggregatorFactoryBuilder;
+    // we store the query in 2 formats: the raw format and the parsed format
+    private final Map<String, Object> source;
+    private final AggregatorFactories.Builder aggregations;
 
-    public AggregationConfig(AggregatorFactories.Builder aggregatorFactoryBuilder) {
-        this.aggregatorFactoryBuilder = aggregatorFactoryBuilder;
+    public AggregationConfig(final Map<String, Object> source, AggregatorFactories.Builder aggregations) {
+        this.source = source;
+        this.aggregations = aggregations;
     }
 
     public AggregationConfig(final StreamInput in) throws IOException {
-        aggregatorFactoryBuilder = new AggregatorFactories.Builder(in);
+        source = in.readMap();
+        aggregations = in.readOptionalWriteable(AggregatorFactories.Builder::new);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return aggregatorFactoryBuilder.toXContent(builder, params);
+        return builder.map(source);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        aggregatorFactoryBuilder.writeTo(out);
+        out.writeMap(source);
+        out.writeOptionalWriteable(aggregations);
     }
 
     public Collection<AggregationBuilder> getAggregatorFactories() {
-        return aggregatorFactoryBuilder.getAggregatorFactories();
+        return aggregations.getAggregatorFactories();
     }
 
-    public static AggregationConfig fromXContent(final XContentParser parser) throws IOException {
-        return new AggregationConfig(AggregatorFactories.parseAggregators(parser));
+    public static AggregationConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {
+        NamedXContentRegistry registry = parser.getXContentRegistry();
+        Map<String, Object> source =  parser.mapOrdered();
+        AggregatorFactories.Builder aggregations = null;
+        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
+                XContentParser sourceParser = XContentType.JSON.xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE,
+                        BytesReference.bytes(xContentBuilder).streamInput())) {
+            sourceParser.nextToken();
+            aggregations = AggregatorFactories.parseAggregators(sourceParser);
+        } catch (Exception e) {
+            if (lenient) {
+                logger.warn(DataFrameMessages.LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_AGGREGATION, e);
+            } else {
+                throw e;
+            }
+        }
+
+        return new AggregationConfig(source, aggregations);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(aggregatorFactoryBuilder);
+        return Objects.hash(source, aggregations);
     }
 
     @Override
@@ -72,6 +103,10 @@ public class AggregationConfig implements Writeable, ToXContentObject {
 
         final AggregationConfig that = (AggregationConfig) other;
 
-        return Objects.equals(this.aggregatorFactoryBuilder, that.aggregatorFactoryBuilder);
+        return Objects.equals(this.source, that.source) && Objects.equals(this.aggregations, that.aggregations);
+    }
+
+    public boolean isValid() {
+        return this.aggregations != null;
     }
 }

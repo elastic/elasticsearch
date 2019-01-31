@@ -186,7 +186,7 @@ public class PivotTests extends ESTestCase {
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
         // parseAggregators expects to be already inside the xcontent object
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-        return AggregationConfig.fromXContent(parser);
+        return AggregationConfig.fromXContent(parser, false);
     }
 
     private static void assertValidTransform(Client client, Pivot pivot) throws Exception {

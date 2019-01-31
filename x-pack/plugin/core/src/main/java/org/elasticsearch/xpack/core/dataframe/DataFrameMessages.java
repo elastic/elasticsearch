@@ -40,6 +40,8 @@ public class DataFrameMessages {
 
     public static final String LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_QUERY =
             "Failed to parse query for data frame transform";
+    public static final String LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_AGGREGATION =
+            "Failed to parse aggregation for data frame pivot transform";
 
     private DataFrameMessages() {
     }

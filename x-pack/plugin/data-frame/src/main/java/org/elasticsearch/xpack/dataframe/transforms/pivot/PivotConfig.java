@@ -32,11 +32,11 @@ public class PivotConfig implements Writeable, ToXContentObject {
     private final List<GroupConfig> groups;
     private final AggregationConfig aggregationConfig;
 
-    private static final ConstructingObjectParser<PivotConfig, Void> PARSER = createParser(false);
+    private static final ConstructingObjectParser<PivotConfig, Void> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<PivotConfig, Void> LENIENT_PARSER = createParser(true);
 
-    private static ConstructingObjectParser<PivotConfig, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<PivotConfig, Void> parser = new ConstructingObjectParser<>(NAME, ignoreUnknownFields,
+    private static ConstructingObjectParser<PivotConfig, Void> createParser(boolean lenient) {
+        ConstructingObjectParser<PivotConfig, Void> parser = new ConstructingObjectParser<>(NAME, lenient,
                 args -> {
                     @SuppressWarnings("unchecked")
                     List<GroupConfig> groups = (List<GroupConfig>) args[0];
@@ -45,9 +45,9 @@ public class PivotConfig implements Writeable, ToXContentObject {
                 });
 
         parser.declareObjectArray(constructorArg(),
-                (p, c) -> (GroupConfig.fromXContent(p, ignoreUnknownFields)), GROUP_BY);
+                (p, c) -> (GroupConfig.fromXContent(p, lenient)), GROUP_BY);
 
-        parser.declareObject(constructorArg(), (p, c) -> AggregationConfig.fromXContent(p), AGGREGATIONS);
+        parser.declareObject(constructorArg(), (p, c) -> AggregationConfig.fromXContent(p, lenient), AGGREGATIONS);
 
         return parser;
     }
@@ -116,7 +116,11 @@ public class PivotConfig implements Writeable, ToXContentObject {
         return Objects.hash(groups, aggregationConfig);
     }
 
-    public static PivotConfig fromXContent(final XContentParser parser, boolean ignoreUnknownFields) throws IOException {
-        return ignoreUnknownFields ? LENIENT_PARSER.apply(parser, null) : PARSER.apply(parser, null);
+    public boolean isValid() {
+        return aggregationConfig.isValid();
+    }
+
+    public static PivotConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {
+        return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
     }
 }

@@ -129,6 +129,11 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         if (queryConfig != null && queryConfig.isValid() == false) {
             return false;
         }
+
+        if (pivotConfig != null && pivotConfig.isValid() == false) {
+            return false;
+        }
+
         return true;
     }
 
@@ -187,8 +192,8 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
     }
 
     public static DataFrameTransformConfig fromXContent(final XContentParser parser, @Nullable final String optionalTransformId,
-            boolean ignoreUnknownFields) throws IOException {
+            boolean lenient) throws IOException {
 
-        return ignoreUnknownFields ? LENIENT_PARSER.apply(parser, optionalTransformId) : STRICT_PARSER.apply(parser, optionalTransformId);
+        return lenient ? LENIENT_PARSER.apply(parser, optionalTransformId) : STRICT_PARSER.apply(parser, optionalTransformId);
     }
 }

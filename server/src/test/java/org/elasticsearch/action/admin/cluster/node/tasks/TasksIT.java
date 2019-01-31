@@ -291,7 +291,6 @@ public class TasksIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37893")
     public void testTransportBulkTasks() {
         registerTaskManageListeners(BulkAction.NAME);  // main task
         registerTaskManageListeners(BulkAction.NAME + "[s]");  // shard task
@@ -299,6 +298,8 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManageListeners(BulkAction.NAME + "[s][r]");  // shard task on replica
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
+        // ensures the mapping is available on all nodes so we won't retry the request (in case replicas don't have the right mapping).
+        client().admin().indices().preparePutMapping("test").setType("doc").setSource("foo", "type=keyword").get();
         client().prepareBulk().add(client().prepareIndex("test", "doc", "test_id")
             .setSource("{\"foo\": \"bar\"}", XContentType.JSON)).get();
 

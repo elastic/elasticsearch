@@ -102,13 +102,16 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                 }
             }
         }
+        if (randomBoolean()) {
+            builder.setNumericType(randomFrom(random(), "long", "double"));
+        }
         return builder;
     }
 
     @Override
     protected FieldSortBuilder mutate(FieldSortBuilder original) throws IOException {
         FieldSortBuilder mutated = new FieldSortBuilder(original);
-        int parameter = randomIntBetween(0, 4);
+        int parameter = randomIntBetween(0, 5);
         switch (parameter) {
         case 0:
             if (original.getNestedPath() == null && original.getNestedFilter() == null) {
@@ -135,6 +138,9 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             break;
         case 4:
             mutated.order(randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
+            break;
+        case 5:
+            mutated.setNumericType(randomValueOtherThan(original.getNumericType(), () -> randomFrom("long", "double")));
             break;
         default:
             throw new IllegalStateException("Unsupported mutation.");

@@ -31,6 +31,7 @@ import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.inject.name.Named;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -46,6 +47,9 @@ import org.elasticsearch.search.MultiValueMode;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * FieldData backed by {@link LeafReader#getSortedNumericDocValues(String)}
@@ -62,10 +66,15 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         this.numericType = numericType;
     }
 
-    @Override
-    public SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
+    /**
+     * Returns the {@link SortField} to used for sorting.
+     * Values are casted to the provided <code>targetNumericType</code> type if it doesn't
+     * match the field's <code>numericType</code>.
+     */
+    public SortField sortField(NumericType targetNumericType, Object missingValue, MultiValueMode sortMode, Nested nested,
+                               boolean reverse) {
         final XFieldComparatorSource source;
-        switch (numericType) {
+        switch (targetNumericType) {
             case HALF_FLOAT:
             case FLOAT:
                 source = new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
@@ -76,7 +85,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
                 break;
 
             default:
-                assert !numericType.isFloatingPoint();
+                assert !targetNumericType.isFloatingPoint();
                 source = new LongValuesComparatorSource(this, missingValue, sortMode, nested);
                 break;
         }
@@ -86,8 +95,9 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
          * returns a custom sort field otherwise.
          */
         if (nested != null
-                || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
-                || numericType == NumericType.HALF_FLOAT) {
+            || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
+            || numericType == NumericType.HALF_FLOAT
+            || targetNumericType != numericType) {
             return new SortField(fieldName, source, reverse);
         }
 
@@ -110,6 +120,11 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         }
         sortField.setMissingValue(source.missingObject(missingValue, reverse));
         return sortField;
+    }
+
+    @Override
+    public SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
+        return sortField(numericType, missingValue, sortMode, nested, reverse);
     }
 
     @Override

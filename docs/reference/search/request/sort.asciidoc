@@ -108,6 +108,73 @@ POST /_search
 --------------------------------------------------
 // CONSOLE
 
+==== Sorting numeric fields
+
+For numeric fields it is also possible to cast the values from one type
+to another using the `numeric_type` option.
+This option accepts the following values: [`"double", "long"`] and can be useful
+for cross-index search if the sort field is mapped differently on some
+indices.
+
+Consider for instance these two indices:
+
+[source,js]
+--------------------------------------------------
+PUT /index_double
+{
+    "mappings": {
+        "properties": {
+            "field": { "type": "double" }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+[source,js]
+--------------------------------------------------
+PUT /index_long
+{
+    "mappings": {
+        "properties": {
+            "field": { "type": "long" }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Since `field` is mapped as a `double` in the first index and as a `long`
+in the second index, it is not possible to use this field to sort requests
+that query both indices bu default. However you can force the type to one
+or the other with the `numeric_type` option in order to force a specific
+type for all indices:
+
+[source,js]
+--------------------------------------------------
+POST /index_long,index_double/_search
+{
+   "sort" : [
+      {
+        "field" : {
+            "numeric_type" : "double"
+        }
+      }
+   ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+In the example above, values for the `index_long` index are casted to
+a double in order to be compatible with the values produced by the
+`index_double` index.
+It is also possible to transform a floating point field into a `long`
+but note that in this case floating points are replaced by the largest
+value that is less than or equal to the argument and is equal to a mathematical
+integer.
+
 [[nested-sorting]]
 ==== Sorting within nested objects.
 

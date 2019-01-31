@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -124,7 +125,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         logger.info("--> isolating [{}]", isolatedNode);
 
         final NetworkDisruption networkDisruption = new NetworkDisruption(new NetworkDisruption.TwoPartitions(
-            singleton(isolatedNode), Stream.of(master, otherNode).collect(Collectors.toSet())), new NetworkUnresponsive());
+            singleton(isolatedNode), Sets.newHashSet(master, otherNode)), new NetworkUnresponsive());
         setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 

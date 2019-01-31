@@ -55,7 +55,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -336,27 +335,27 @@ public class ThreadPool implements Scheduler, Closeable {
      * context of the calling thread you may call <code>threadPool.getThreadContext().preserveContext</code> on the runnable before passing
      * it to this method.
      *
+     * @param command the command to run
      * @param delay delay before the task executes
      * @param executor the name of the thread pool on which to execute this task. SAME means "execute on the scheduler thread" which changes
      *        the meaning of the ScheduledFuture returned by this method. In that case the ScheduledFuture will complete only when the
      *        command completes.
-     * @param command the command to run
      * @return a ScheduledFuture who's get will return when the task is has been added to its target thread pool and throw an exception if
      *         the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
      *         the ScheduledFuture will cannot interact with it.
      * @throws org.elasticsearch.common.util.concurrent.EsRejectedExecutionException if the task cannot be scheduled for execution
      */
     @Override
-    public ScheduledFuture<?> schedule(TimeValue delay, String executor, Runnable command) {
+    public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
         if (!Names.SAME.equals(executor)) {
             command = new ThreadedRunnable(command, executor(executor));
         }
-        return scheduler.schedule(new ThreadPool.LoggingRunnable(command), delay.millis(), TimeUnit.MILLISECONDS);
+        return new ScheduledCancellableAdapter(scheduler.schedule(command, delay.millis(), TimeUnit.MILLISECONDS));
     }
 
     public void scheduleUnlessShuttingDown(TimeValue delay, String executor, Runnable command) {
         try {
-            schedule(delay, executor, command);
+            schedule(command, delay, executor);
         } catch (EsRejectedExecutionException e) {
             if (e.isExecutorShutdown()) {
                 logger.debug(new ParameterizedMessage("could not schedule execution of [{}] after [{}] on [{}] as executor is shut down",

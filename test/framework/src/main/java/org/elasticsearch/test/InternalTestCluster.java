@@ -33,8 +33,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
-import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -157,11 +157,15 @@ import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
 import static org.elasticsearch.test.ESTestCase.getTestTransportType;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.discovery.TestZenDiscovery.USE_ZEN2;
+import static org.elasticsearch.test.discovery.TestZenDiscovery.usingZen1;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -615,19 +619,28 @@ public final class InternalTestCluster extends TestCluster {
                 .put("node.name", name)
                 .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), seed);
 
-        final boolean usingSingleNodeDiscovery = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(updatedSettings.build()).equals("single-node");
-        if (!usingSingleNodeDiscovery && autoManageMinMasterNodes) {
-            assert updatedSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) == null :
-                    "min master nodes may not be set when auto managed";
-            assert updatedSettings.get(INITIAL_STATE_TIMEOUT_SETTING.getKey()) == null :
-                    "automatically managing min master nodes require nodes to complete a join cycle" +
-                            " when starting";
-            updatedSettings
-                    // don't wait too long not to slow down tests
-                    .put(ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING.getKey(), "5s")
-                    .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), defaultMinMasterNodes);
-        } else if (!usingSingleNodeDiscovery && updatedSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) == null) {
-            throw new IllegalArgumentException(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + " must be configured");
+        final String discoveryType = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(updatedSettings.build());
+        final boolean usingSingleNodeDiscovery = discoveryType.equals("single-node");
+        final boolean usingZen1 = TestZenDiscovery.usingZen1(updatedSettings.build());
+        if (usingSingleNodeDiscovery == false) {
+            if (autoManageMinMasterNodes) {
+                assertThat("min master nodes may not be set when auto managed",
+                    updatedSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()), nullValue());
+                assertThat("automatically managing min master nodes require nodes to complete a join cycle when starting",
+                    updatedSettings.get(INITIAL_STATE_TIMEOUT_SETTING.getKey()), nullValue());
+
+                if (usingZen1) {
+                    updatedSettings
+                        // don't wait too long not to slow down tests
+                        .put(ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING.getKey(), "5s")
+                        .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), defaultMinMasterNodes);
+                }
+            } else {
+                if (usingZen1) {
+                    assertThat(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + " must be configured",
+                        updatedSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()), not(nullValue()));
+                }
+            }
         }
 
         return updatedSettings.build();
@@ -822,6 +835,8 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    public static final int REMOVED_MINIMUM_MASTER_NODES = Integer.MAX_VALUE;
+
     private final class NodeAndClient implements Closeable {
         private MockNode node;
         private final Settings originalNodeSettings;
@@ -933,8 +948,10 @@ public final class InternalTestCluster extends TestCluster {
             Settings.Builder newSettings = Settings.builder();
             newSettings.put(callbackSettings);
             if (minMasterNodes >= 0) {
-                assert DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(newSettings.build()) == false : "min master nodes is auto managed";
-                newSettings.put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes);
+                if (usingZen1(newSettings.build())) {
+                    assertFalse("min master nodes is auto managed", DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(newSettings.build()));
+                    newSettings.put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes);
+                }
                 if (INITIAL_MASTER_NODES_SETTING.exists(callbackSettings) == false) {
                     newSettings.putList(INITIAL_MASTER_NODES_SETTING.getKey());
                 }
@@ -966,10 +983,23 @@ public final class InternalTestCluster extends TestCluster {
                     .put(newSettings)
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed)
                     .build();
-            final boolean usingSingleNodeDiscovery = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(finalSettings).equals("single-node");
-            if (usingSingleNodeDiscovery == false && DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(finalSettings) == false) {
-                throw new IllegalStateException(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() +
-                    " is not configured after restart of [" + name + "]");
+            if (usingZen1(finalSettings)) {
+                if (DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(finalSettings) == false) {
+                    throw new IllegalStateException(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() +
+                        " is not configured after restart of [" + name + "]");
+                }
+            } else {
+                if (DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(finalSettings)) {
+                    // simulating an upgrade from Zen1 to Zen2, but there's no way to remove a setting when restarting a node, so
+                    // you have to set it to REMOVED_MINIMUM_MASTER_NODES (== Integer.MAX_VALUE) to indicate its removal:
+                    assertTrue(USE_ZEN2.exists(finalSettings));
+                    assertTrue(USE_ZEN2.get(finalSettings));
+                    assertThat(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(finalSettings), equalTo(REMOVED_MINIMUM_MASTER_NODES));
+
+                    final Builder builder = Settings.builder().put(finalSettings);
+                    builder.remove(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey());
+                    finalSettings = builder.build();
+                }
             }
             Collection<Class<? extends Plugin>> plugins = node.getClasspathPlugins();
             node = new MockNode(finalSettings, plugins);

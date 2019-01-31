@@ -49,9 +49,13 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private LogicalPlan accept(String sql) {
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
-        EsIndex test = new EsIndex("test", mapping);
+        EsIndex test = getTestEsIndex();
         return accept(IndexResolution.valid(test), sql);
+    }
+
+    private EsIndex getTestEsIndex() {
+        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
+        return new EsIndex("test", mapping);
     }
 
     private LogicalPlan accept(IndexResolution resolution, String sql) {
@@ -382,11 +386,6 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT AVG(date) FROM test"));
     }
 
-    public void testNotSupportedAggregateOnString() {
-        assertEquals("1:8: [MAX(keyword)] argument must be [date, datetime or numeric], found value [keyword] type [keyword]",
-            error("SELECT MAX(keyword) FROM test"));
-    }
-
     public void testInvalidTypeForStringFunction_WithOneArg() {
         assertEquals("1:8: [LENGTH] argument must be [string], found value [1] type [integer]",
             error("SELECT LENGTH(1)"));
@@ -580,6 +579,41 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testErrorMessageForPercentileRankWithSecondArgBasedOnAField() {
         assertEquals("1:8: Second argument of PERCENTILE_RANK must be a constant, received [ABS(int)]",
             error("SELECT PERCENTILE_RANK(int, ABS(int)) FROM test"));
+    }
+
+    public void testTopHitsFirstArgConstant() {
+        assertEquals("1:8: First argument of [FIRST] must be a table column, found constant ['foo']",
+            error("SELECT FIRST('foo', int) FROM test"));
+    }
+
+    public void testTopHitsSecondArgConstant() {
+        assertEquals("1:8: Second argument of [LAST] must be a table column, found constant [10]",
+            error("SELECT LAST(int, 10) FROM test"));
+    }
+
+    public void testTopHitsFirstArgTextWithNoKeyword() {
+        assertEquals("1:8: [FIRST] cannot operate on first argument field of data type [text]",
+            error("SELECT FIRST(text) FROM test"));
+    }
+
+    public void testTopHitsSecondArgTextWithNoKeyword() {
+        assertEquals("1:8: [LAST] cannot operate on second argument field of data type [text]",
+            error("SELECT LAST(keyword, text) FROM test"));
+    }
+
+    public void testTopHitsGroupByHavingUnsupported() {
+        assertEquals("1:50: HAVING filter is unsupported for function [FIRST(int)]",
+            error("SELECT FIRST(int) FROM test GROUP BY text HAVING FIRST(int) > 10"));
+    }
+
+    public void testMinOnKeywordGroupByHavingUnsupported() {
+        assertEquals("1:52: HAVING filter is unsupported for function [MIN(keyword)]",
+            error("SELECT MIN(keyword) FROM test GROUP BY text HAVING MIN(keyword) > 10"));
+    }
+
+    public void testMaxOnKeywordGroupByHavingUnsupported() {
+        assertEquals("1:52: HAVING filter is unsupported for function [MAX(keyword)]",
+            error("SELECT MAX(keyword) FROM test GROUP BY text HAVING MAX(keyword) > 10"));
     }
 }
 

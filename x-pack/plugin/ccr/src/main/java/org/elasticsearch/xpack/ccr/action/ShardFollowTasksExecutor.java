@@ -300,7 +300,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             if (ShardFollowNodeTask.shouldRetry(params.getRemoteCluster(), e)) {
                 logger.debug(new ParameterizedMessage("failed to fetch follow shard global {} checkpoint and max sequence number",
                     shardFollowNodeTask), e);
-                threadPool.schedule(params.getMaxRetryDelay(), Ccr.CCR_THREAD_POOL_NAME, () -> nodeOperation(task, params, state));
+                threadPool.schedule(() -> nodeOperation(task, params, state), params.getMaxRetryDelay(), Ccr.CCR_THREAD_POOL_NAME);
             } else {
                 shardFollowNodeTask.markAsFailed(e);
             }

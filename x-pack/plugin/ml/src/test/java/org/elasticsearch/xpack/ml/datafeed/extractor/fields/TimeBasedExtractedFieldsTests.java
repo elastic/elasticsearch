@@ -9,7 +9,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -134,7 +133,7 @@ public class TimeBasedExtractedFieldsTests extends ESTestCase {
         assertThat(extractedFields.getDocValueFields().get(0).getName(), equalTo("time"));
         assertThat(extractedFields.getDocValueFields().get(0).getDocValueFormat(), equalTo("epoch_millis"));
         assertThat(extractedFields.getDocValueFields().get(1).getName(), equalTo("value"));
-        assertThat(extractedFields.getDocValueFields().get(1).getDocValueFormat(), equalTo(DocValueFieldsContext.USE_DEFAULT_FORMAT));
+        assertThat(extractedFields.getDocValueFields().get(1).getDocValueFormat(), equalTo(null));
         assertThat(extractedFields.getSourceFields().length, equalTo(1));
         assertThat(extractedFields.getSourceFields()[0], equalTo("airline"));
         assertThat(extractedFields.getAllFields().size(), equalTo(4));

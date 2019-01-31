@@ -396,3 +396,76 @@ SELECT COUNT(ALL last_name)=COUNT(ALL first_name) AS areEqual, COUNT(ALL first_n
 ---------------+---------------+---------------
 false          |90             |100
 ;
+
+topHitsWithOneArgAndGroupBy
+schema::gender:s|first:s|last:s
+SELECT gender, FIRST(first_name) as first, LAST(first_name) as last FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+---------------
+null           |   Berni       |   Patricio
+F              |   Alejandro   |   Xinglin
+M              |   Amabile     |   Zvonko
+;
+
+topHitsWithTwoArgsAndGroupBy
+schema::gender:s|first:s|last:s
+SELECT gender, FIRST(first_name, birth_date) as first, LAST(first_name, birth_date) as last FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+---------------
+null           |   Lillian     |   Eberhardt
+F              |   Sumant      |   Valdiodio
+M              |   Remzi       |   Hilari
+;
+
+topHitsWithTwoArgsAndGroupByWithNullsOnTargetField
+schema::gender:s|first:s|last:s
+SELECT gender, FIRST(first_name, birth_date) AS first, LAST(first_name, birth_date) AS last FROM test_emp WHERE emp_no BETWEEN 10025 AND 10035 GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+---------------
+F              |   null        |   Divier
+M              |   null        |   Domenick
+;
+
+topHitsWithTwoArgsAndGroupByWithNullsOnSortingField
+schema::gender:s|first:s|last:s
+SELECT gender, FIRST(first_name, birth_date) AS first, LAST(first_name, birth_date) AS last FROM test_emp WHERE emp_no BETWEEN 10047 AND 10052 GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+---------------
+F              |   Basil       |   Basil
+M              |   Hidefumi    |   Heping
+;
+
+topHitsWithTwoArgsAndGroupByWithNullsOnTargetAndSortingField
+schema::gender:s|first:s|last:s
+SELECT gender, FIRST(first_name, birth_date) AS first, LAST(first_name, birth_date) AS last FROM test_emp WHERE emp_no BETWEEN 10037 AND 10052 GROUP BY gender ORDER BY gender;
+
+    gender     |   first     |  last
+---------------+-------------+-----------------
+F              |   Basil     |  Weiyi
+M              |   Hidefumi  |  null
+;
+
+topHitsWithTwoArgsAndGroupByWithAllNullsOnTargetField
+schema::gender:s|first:s|last:s
+SELECT gender, FIRST(first_name, birth_date) AS first, LAST(first_name, birth_date) AS last FROM test_emp WHERE emp_no BETWEEN 10030 AND 10037 GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+---------------
+F              |   null        |   null
+M              |   null        |   null
+;
+
+topHitsOnDatetime
+schema::gender:s|first:i|last:i
+SELECT gender, month(first(birth_date, languages)) first, month(last(birth_date, languages)) last FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+---------------
+null           |   1           |   10
+F              |   4           |   6
+M              |   1           |   4
+;

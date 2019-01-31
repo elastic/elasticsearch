@@ -185,7 +185,11 @@ SHOW FUNCTIONS;
       name       |     type      
 -----------------+---------------
 AVG              |AGGREGATE      
-COUNT            |AGGREGATE      
+COUNT            |AGGREGATE
+FIRST            |AGGREGATE
+FIRST_VALUE      |AGGREGATE
+LAST             |AGGREGATE
+LAST_VALUE       |AGGREGATE
 MAX              |AGGREGATE      
 MIN              |AGGREGATE      
 SUM              |AGGREGATE      
@@ -699,6 +703,8 @@ SELECT MIN(salary) AS min, MAX(salary) AS max FROM emp HAVING min > 25000;
 // end::groupByHavingImplicitNoMatch
 //;
 
+
+
 ///////////////////////////////
 //
 // Grouping
@@ -997,6 +1003,141 @@ SELECT COUNT(DISTINCT hire_date) unique_hires, COUNT(hire_date) AS hires FROM em
 99              |100
 // end::aggCountDistinct
 ;
+
+firstWithOneArg
+schema::FIRST(first_name):s
+// tag::firstWithOneArg
+SELECT FIRST(first_name) FROM emp;
+
+   FIRST(first_name)
+--------------------
+Alejandro
+
+// end::firstWithOneArg
+;
+
+firstWithOneArgAndGroupBy
+schema::gender:s|FIRST(first_name):s
+// tag::firstWithOneArgAndGroupBy
+SELECT gender, FIRST(first_name) FROM emp GROUP BY gender ORDER BY gender;
+
+   gender   |   FIRST(first_name)
+------------+--------------------
+null        |   Berni
+F           |   Alejandro
+M           |   Amabile
+
+// end::firstWithOneArgAndGroupBy
+;
+
+firstWithTwoArgs
+schema::FIRST(first_name, birth_date):s
+// tag::firstWithTwoArgs
+SELECT FIRST(first_name, birth_date) FROM emp;
+
+   FIRST(first_name, birth_date)
+--------------------------------
+Remzi
+
+// end::firstWithTwoArgs
+;
+
+firstWithTwoArgsAndGroupBy
+schema::gender:s|FIRST(first_name, birth_date):s
+// tag::firstWithTwoArgsAndGroupBy
+SELECT gender, FIRST(first_name, birth_date) FROM emp GROUP BY gender ORDER BY gender;
+
+    gender    |   FIRST(first_name, birth_date)
+--------------+--------------------------------
+null          |   Lillian
+F             |   Sumant
+M             |   Remzi
+
+// end::firstWithTwoArgsAndGroupBy
+;
+
+firstValueWithTwoArgsAndGroupBy
+schema::gender:s|FIRST_VALUE(first_name, birth_date):s
+// tag::firstValueWithTwoArgsAndGroupBy
+SELECT gender, FIRST_VALUE(first_name, birth_date) FROM emp GROUP BY gender ORDER BY gender;
+
+    gender    |   FIRST_VALUE(first_name, birth_date)
+--------------+--------------------------------------
+null          |   Lillian
+F             |   Sumant
+M             |   Remzi
+
+// end::firstValueWithTwoArgsAndGroupBy
+;
+
+lastWithOneArg
+schema::LAST(first_name):s
+// tag::lastWithOneArg
+SELECT LAST(first_name) FROM emp;
+
+   LAST(first_name)
+-------------------
+Zvonko
+
+// end::lastWithOneArg
+;
+
+
+lastWithOneArgAndGroupBy
+schema::gender:s|LAST(first_name):s
+// tag::lastWithOneArgAndGroupBy
+SELECT gender, LAST(first_name) FROM emp GROUP BY gender ORDER BY gender;
+
+   gender   |   LAST(first_name)
+------------+-------------------
+null        |   Patricio
+F           |   Xinglin
+M           |   Zvonko
+
+// end::lastWithOneArgAndGroupBy
+;
+
+
+lastWithTwoArgs
+schema::LAST(first_name, birth_date):s
+// tag::lastWithTwoArgs
+SELECT LAST(first_name, birth_date) FROM emp;
+
+   LAST(first_name, birth_date)
+-------------------------------
+Hilari
+
+// end::lastWithTwoArgs
+;
+
+lastWithTwoArgsAndGroupBy
+schema::gender:s|LAST(first_name, birth_date):s
+// tag::lastWithTwoArgsAndGroupBy
+SELECT gender, LAST(first_name, birth_date) FROM emp GROUP BY gender ORDER BY gender;
+
+   gender  |   LAST(first_name, birth_date)
+-----------+-------------------------------
+null       |   Eberhardt
+F          |   Valdiodio
+M          |   Hilari
+
+// end::lastWithTwoArgsAndGroupBy
+;
+
+lastValueWithTwoArgsAndGroupBy
+schema::gender:s|LAST_VALUE(first_name, birth_date):s
+// tag::lastValueWithTwoArgsAndGroupBy
+SELECT gender, LAST_VALUE(first_name, birth_date) FROM emp GROUP BY gender ORDER BY gender;
+
+   gender  |   LAST_VALUE(first_name, birth_date)
+-----------+-------------------------------------
+null       |   Eberhardt
+F          |   Valdiodio
+M          |   Hilari
+
+// end::lastValueWithTwoArgsAndGroupBy
+;
+
 
 aggMax
 // tag::aggMax

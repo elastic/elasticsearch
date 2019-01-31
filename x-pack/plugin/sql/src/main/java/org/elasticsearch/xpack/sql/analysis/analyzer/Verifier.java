@@ -18,7 +18,11 @@ import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.Score;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
@@ -67,7 +71,7 @@ import static org.elasticsearch.xpack.sql.stats.FeatureMetric.WHERE;
  */
 public final class Verifier {
     private final Metrics metrics;
-    
+
     public Verifier(Metrics metrics) {
         this.metrics = metrics;
     }
@@ -368,16 +372,26 @@ public final class Verifier {
             if (f.child() instanceof Aggregate) {
                 Aggregate a = (Aggregate) f.child();
 
-                Map<Expression, Node<?>> missing = new LinkedHashMap<>();
+                Set<Expression> missing = new LinkedHashSet<>();
+                Set<Expression> unsupported = new LinkedHashSet<>();
                 Expression condition = f.condition();
                 // variation of checkGroupMatch customized for HAVING, which requires just aggregations
-                condition.collectFirstChildren(c -> checkGroupByHavingHasOnlyAggs(c, condition, missing, functions));
+                condition.collectFirstChildren(c -> checkGroupByHavingHasOnlyAggs(c, missing, unsupported, functions));
 
                 if (!missing.isEmpty()) {
                     String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
                     localFailures.add(
                             fail(condition, "Cannot use HAVING filter on non-aggregate" + plural + " %s; use WHERE instead",
-                            Expressions.names(missing.keySet())));
+                            Expressions.names(missing)));
+                    groupingFailures.add(a);
+                    return false;
+                }
+
+                if (!unsupported.isEmpty()) {
+                    String plural = unsupported.size() > 1 ? "s" : StringUtils.EMPTY;
+                    localFailures.add(
+                        fail(condition, "HAVING filter is unsupported for function" + plural + " %s",
+                            Expressions.names(unsupported)));
                     groupingFailures.add(a);
                     return false;
                 }
@@ -387,8 +401,8 @@ public final class Verifier {
     }
 
 
-    private static boolean checkGroupByHavingHasOnlyAggs(Expression e, Node<?> source,
-            Map<Expression, Node<?>> missing, Map<String, Function> functions) {
+    private static boolean checkGroupByHavingHasOnlyAggs(Expression e, Set<Expression> missing,
+                                                         Set<Expression> unsupported, Map<String, Function> functions) {
 
         // resolve FunctionAttribute to backing functions
         if (e instanceof FunctionAttribute) {
@@ -409,14 +423,24 @@ public final class Verifier {
 
             // unwrap function to find the base
             for (Expression arg : sf.arguments()) {
-                arg.collectFirstChildren(c -> checkGroupByHavingHasOnlyAggs(c, source, missing, functions));
+                arg.collectFirstChildren(c -> checkGroupByHavingHasOnlyAggs(c, missing, unsupported, functions));
             }
             return true;
 
         } else if (e instanceof Score) {
-            // Score can't be used for having
-            missing.put(e, source);
+            // Score can't be used in having
+            unsupported.add(e);
             return true;
+        } else if (e instanceof TopHits) {
+            // First and Last cannot be used in having
+            unsupported.add(e);
+            return true;
+        } else if (e instanceof Min || e instanceof Max) {
+            if (((AggregateFunction) e).field().dataType().isString()) {
+                // Min & Max on a Keyword field will be translated to First & Last respectively
+                unsupported.add(e);
+                return true;
+            }
         }
 
         // skip literals / foldable
@@ -430,7 +454,7 @@ public final class Verifier {
 
         // left without leaves which have to match; that's a failure since everything should be based on an agg
         if (e instanceof Attribute) {
-            missing.put(e, source);
+            missing.add(e);
             return true;
         }
 

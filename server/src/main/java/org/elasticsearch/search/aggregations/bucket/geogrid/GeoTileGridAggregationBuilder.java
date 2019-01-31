@@ -35,8 +35,8 @@ import java.util.Map;
 
 public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
     public static final String NAME = "geotile_grid";
-    public static final int DEFAULT_PRECISION = 7;
-    public static final int DEFAULT_MAX_NUM_CELLS = 10000;
+    private static final int DEFAULT_PRECISION = 7;
+    private static final int DEFAULT_MAX_NUM_CELLS = 10000;
 
     private static final ObjectParser<GeoGridAggregationBuilder, Void> PARSER = createParser(NAME, GeoTileUtils::parsePrecision);
 

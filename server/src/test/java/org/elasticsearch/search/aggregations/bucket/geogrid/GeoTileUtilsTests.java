@@ -90,16 +90,24 @@ public class GeoTileUtilsTests extends ESTestCase {
         assertGeoPointEquals(keyToGeoPoint("29/536870000/10"), 179.99938879162073, 85.05112817241982);
         assertGeoPointEquals(keyToGeoPoint("29/10/536870000"), -179.99999295920134, -85.0510760525731);
 
+        //noinspection ConstantConditions
+        expectThrows(NullPointerException.class, () -> keyToGeoPoint(null));
+        expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint(""));
+        expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint("a"));
+        expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint("0"));
+        expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint("0/0"));
+        expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint("0/0/0/0"));
         expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint("0/-1/-1"));
-        expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint("0/-1/1"));
-        expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint("0/1/-1"));
+        expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint("0/-1/0"));
+        expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint("0/0/-1"));
+        expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint("a/0/0"));
+        expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint("0/a/0"));
+        expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint("0/0/a"));
         expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint("-1/0/0"));
         expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint((MAX_ZOOM + 1) + "/0/0"));
 
         for (int z = 0; z <= MAX_ZOOM; z++) {
             final int zoom = z;
-            expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint(zoom + "/0"));
-            expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint(zoom + "/0/0/0"));
             final int max_index = (int) Math.pow(2, zoom);
             expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint(zoom + "/0/" + max_index));
             expectThrows(IllegalArgumentException.class, () -> keyToGeoPoint(zoom + "/" + max_index + "/0"));

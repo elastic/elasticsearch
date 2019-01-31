@@ -37,6 +37,6 @@ public class ParsedGeoTileGridBucket extends ParsedGeoGridBucket {
     }
 
     static ParsedGeoTileGridBucket fromXContent(XContentParser parser) throws IOException {
-        return parseXContent(parser, false, ParsedGeoTileGridBucket::new, (p, bucket) -> bucket.hashAsString = p.textOrNull());
+        return parseXContent(parser, false, ParsedGeoTileGridBucket::new, (p, bucket) -> bucket.hashAsString = p.text());
     }
 }

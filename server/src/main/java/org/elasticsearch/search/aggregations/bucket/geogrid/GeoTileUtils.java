@@ -97,12 +97,12 @@ final class GeoTileUtils {
         // Mathematics for this code was adapted from https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Java
 
         // Number of tiles for the current zoom level along the X and Y axis
-        final int tiles = 1 << checkPrecisionRange(precision);
+        final long tiles = 1 << checkPrecisionRange(precision);
 
-        int xTile = (int) Math.floor((normalizeLon(longitude) + 180) / 360 * tiles);
+        long xTile = (long) Math.floor((normalizeLon(longitude) + 180) / 360 * tiles);
 
         double latSin = Math.sin(Math.toRadians(normalizeLat(latitude)));
-        int yTile = (int) Math.floor((0.5 - (Math.log((1 + latSin) / (1 - latSin)) / (4 * Math.PI))) * tiles);
+        long yTile = (long) Math.floor((0.5 - (Math.log((1 + latSin) / (1 - latSin)) / (4 * Math.PI))) * tiles);
 
         // Edge values may generate invalid values, and need to be clipped.
         // For example, polar regions (above/below lat 85.05112878) get normalized.
@@ -122,7 +122,7 @@ final class GeoTileUtils {
         // Zoom value is placed in front of all the bits used for the geotile
         // e.g. when max zoom is 29, the largest index would use 58 bits (57th..0th),
         // leaving 5 bits unused for zoom. See MAX_ZOOM comment above.
-        return ((long) precision << ZOOM_SHIFT) | ((long) xTile << MAX_ZOOM) | ((long) yTile);
+        return ((long) precision << ZOOM_SHIFT) | (xTile << MAX_ZOOM) | yTile;
     }
 
     /**
@@ -130,8 +130,8 @@ final class GeoTileUtils {
      */
     private static int[] parseHash(long hash) {
         final int zoom = (int) (hash >>> ZOOM_SHIFT);
-        int xTile = (int) ((hash >>> MAX_ZOOM) & X_Y_VALUE_MASK);
-        int yTile = (int) (hash & X_Y_VALUE_MASK);
+        final int xTile = (int) ((hash >>> MAX_ZOOM) & X_Y_VALUE_MASK);
+        final int yTile = (int) (hash & X_Y_VALUE_MASK);
         return new int[]{zoom, xTile, yTile};
     }
 
@@ -156,18 +156,18 @@ final class GeoTileUtils {
      * Decode a string bucket key in "zoom/x/y" format to a GeoPoint (center of the tile)
      */
     static GeoPoint keyToGeoPoint(String hashAsString) {
-        Throwable cause = null;
-        try {
-            final String[] parts = hashAsString.split("/", 4);
-            if (parts.length == 3) {
-                return zxyToGeoPoint(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
-            }
-        } catch (IllegalArgumentException e) {
-            // This will also handle NumberFormatException
-            cause = e;
+        final String[] parts = hashAsString.split("/", 4);
+        if (parts.length != 3) {
+            throw new IllegalArgumentException("Invalid geotile_grid hash string of " +
+                hashAsString + ". Must be three integers in a form \"zoom/x/y\".");
         }
-        throw new IllegalArgumentException("Invalid geotile_grid hash string of " +
-            hashAsString + ". Must be three integers in a form \"zoom/x/y\".", cause);
+
+        try {
+            return zxyToGeoPoint(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid geotile_grid hash string of " +
+                hashAsString + ". Must be three integers in a form \"zoom/x/y\".", e);
+        }
     }
 
     /**

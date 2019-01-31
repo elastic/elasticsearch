@@ -55,7 +55,9 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.snapshots.RestoreService.restoreInProgress;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 // TODO: Fold this integration test into a more expansive integration test as more bootstrap from remote work
 // TODO: is completed.
@@ -367,8 +369,9 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         // be marked as failed. Either one is a success for the purpose of this test.
         try {
             RestoreInfo restoreInfo = future.actionGet();
-            assertEquals(0, restoreInfo.successfulShards());
-            assertEquals(numberOfPrimaryShards, restoreInfo.failedShards());
+            assertThat(restoreInfo.failedShards(), greaterThan(0));
+            assertThat(restoreInfo.successfulShards(), lessThan(restoreInfo.totalShards()));
+            assertEquals(numberOfPrimaryShards, restoreInfo.totalShards());
         } catch (Exception e) {
             assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(ElasticsearchTimeoutException.class));
         }

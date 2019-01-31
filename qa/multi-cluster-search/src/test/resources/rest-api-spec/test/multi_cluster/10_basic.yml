@@ -36,6 +36,10 @@
               terms:
                 field: f1.keyword
 
+  - match: {_clusters.total: 2}
+  - match: {_clusters.successful: 2}
+  - match: {_clusters.skipped: 0}
+  - match: {num}
   - match: { _shards.total: 5 }
   - match: { hits.total: 11 }
   - gte: { hits.hits.0._seq_no: 0 }
@@ -59,6 +63,9 @@
               terms:
                 field: f1.keyword
 
+  - match: {_clusters.total: 2}
+  - match: {_clusters.successful: 2}
+  - match: {_clusters.skipped: 0}
   - match: { _shards.total: 5 }
   - match: { hits.total: 6}
   - match: { hits.hits.0._index: "my_remote_cluster:test_index"}
@@ -76,6 +83,9 @@
               terms:
                 field: f1.keyword
 
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
   - match: { _shards.total: 3 }
   - match: { hits.total: 6}
   - match: { hits.hits.0._index: "my_remote_cluster:test_index"}
@@ -93,6 +103,7 @@
               terms:
                 field: f1.keyword
 
+  - is_false: _clusters
   - match: { _shards.total: 2 }
   - match: { hits.total: 5}
   - match: { hits.hits.0._index: "test_index"}
@@ -122,6 +133,9 @@
         rest_total_hits_as_int: true
         index: test_remote_cluster:test_index
 
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
   - match: { _shards.total: 3 }
   - match: { hits.total: 6 }
   - match: { hits.hits.0._index: "test_remote_cluster:test_index" }
@@ -148,6 +162,9 @@
         rest_total_hits_as_int: true
         index: "*:test_index"
 
+  - match: {_clusters.total: 2}
+  - match: {_clusters.successful: 2}
+  - match: {_clusters.skipped: 0}
   - match: { _shards.total: 6 }
   - match: { hits.total: 12 }
 
@@ -159,6 +176,9 @@
         rest_total_hits_as_int: true
         index: my_remote_cluster:aliased_test_index
 
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
   - match: { _shards.total: 3 }
   - match: { hits.total: 2 }
   - match: { hits.hits.0._source.filter_field: 1 }
@@ -172,6 +192,9 @@
         rest_total_hits_as_int: true
         index: my_remote_cluster:aliased_test_index,my_remote_cluster:field_caps_index_1
 
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
   - match: { _shards.total: 4 }
   - match: { hits.total: 2 }
   - match: { hits.hits.0._source.filter_field: 1 }
@@ -185,6 +208,9 @@
         rest_total_hits_as_int: true
         index: "my_remote_cluster:single_doc_index"
 
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
   - match: { _shards.total: 1 }
   - match: { hits.total: 1 }
   - match: { hits.hits.0._index: "my_remote_cluster:single_doc_index"}

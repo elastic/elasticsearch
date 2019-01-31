@@ -134,11 +134,13 @@ public class UserAgentProcessor extends AbstractProcessor {
                     }
                     break;
                 case DEVICE:
+                    Map<String, String> deviceDetails = new HashMap<>(1);
                     if (uaClient.device != null && uaClient.device.name != null) {
-                        uaDetails.put("device", uaClient.device.name);
+                        deviceDetails.put("name", uaClient.device.name);
                     } else {
-                        uaDetails.put("device", "Other");
+                        deviceDetails.put("name", "Other");
                     }
+                    uaDetails.put("device", deviceDetails);
                     break;
             }
         }
